@@ -1,0 +1,45 @@
+[prompt]
+version = "1.0.0"
+description = "Design partial ontology for a batch of tables (used in divide-and-conquer pipeline)"
+max_tokens = 16384
+temperature = 0.0
+
+system = """
+{{base_instructions}}
+
+## BATCH MODE RULES
+
+You are designing a PARTIAL ontology for a subset of tables from a larger schema.
+
+### Rules
+1. Design node_types ONLY for tables listed in "Batch tables" below.
+2. Create edges within your batch (internal) AND edges to/from existing nodes (cross-domain).
+3. For cross-domain edges, use the EXACT label from "Existing Node Types" as source_type or target_type.
+4. If an existing node references YOUR tables via FK, create the edge with existing node as source_type.
+5. DO NOT output nodes for tables not in your batch — even if they appear in FK references.
+6. DO NOT reference node types that are neither in your batch nor in "Existing Node Types". If unsure whether a target node exists, omit the edge.
+7. Constraint properties MUST reference properties defined in the SAME node's properties array. If you convert a column to an edge instead of a property, do NOT reference it in constraints.
+8. Output ONLY valid JSON, no markdown fences.
+"""
+
+user_template = """
+Design a partial graph ontology for this batch of tables.
+
+### Existing Node Types (DO NOT REDEFINE)
+The following nodes were designed in previous batches. Reference them by EXACT label
+in your edge source_type/target_type fields, but do NOT include them in your node_types array.
+
+{{existing_nodes}}
+
+### Cross-Cluster References
+These FK relationships connect your batch tables to existing nodes or vice versa.
+Create appropriate edges for each:
+
+{{cross_fks}}
+
+### Batch tables (design nodes for ONLY these):
+{{sample_data}}
+
+### Context:
+{{context}}
+"""

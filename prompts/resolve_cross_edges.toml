@@ -1,0 +1,43 @@
+[prompt]
+version = "1.0.0"
+description = "Resolve missing cross-domain edges between independently designed node clusters"
+max_tokens = 4096
+temperature = 0.0
+
+system = """
+You are reviewing a graph ontology that was designed in batches. Some cross-domain edges
+may be missing. Your job is to generate ONLY the missing edge definitions.
+
+Output a JSON array of edge objects:
+[
+  {
+    "label": "EDGE_LABEL",
+    "description": "Semantic description with traversal hints",
+    "source_type": "SourceNodeLabel",
+    "target_type": "TargetNodeLabel",
+    "cardinality": "many_to_one",
+    "properties": []
+  }
+]
+
+Rules:
+- ONLY output edges that are NOT already present.
+- Use EXACT node labels from the provided list.
+- Use UPPER_SNAKE_CASE for edge labels.
+- Include traversal hints in descriptions when the edge connects distant domains.
+- Return empty array [] if no edges are missing.
+- Output ONLY valid JSON, no markdown fences.
+"""
+
+user_template = """
+## All Node Labels
+{{node_labels}}
+
+## Existing Edges
+{{existing_edges}}
+
+## Uncovered FK Relationships (need edges)
+{{uncovered_fks}}
+
+Generate missing edges as a JSON array.
+"""
