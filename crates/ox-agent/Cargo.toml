@@ -1,0 +1,34 @@
+[package]
+name = "ox-agent"
+description = "Ontosyx agent layer — branchforge-powered autonomous analysis agent"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+ox-core = { workspace = true }
+ox-compiler = { workspace = true }
+ox-runtime = { workspace = true }
+ox-brain = { workspace = true }
+ox-store = { workspace = true }
+ox-memory = { workspace = true }
+
+# Agent runtime
+branchforge = { path = "../../../branchforge", default-features = false, features = ["aws"] }
+
+# Async
+tokio = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+schemars = { workspace = true }
+
+# Utilities
+tracing = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+tempfile = { workspace = true }
+sha2 = "0.10.9"
