@@ -1,0 +1,161 @@
+@import "tailwindcss";
+
+/* Streamdown — AI-optimized streaming markdown renderer */
+@source "../node_modules/streamdown/dist/*.js";
+@source "../node_modules/@streamdown/code/dist/*.js";
+
+/* Mobile minimum font size — prevents 10-11px text on small screens */
+@media (max-width: 768px) {
+  .text-\[10px\], .text-\[11px\] {
+    font-size: 0.75rem; /* 12px minimum on mobile */
+  }
+}
+
+:root {
+  --background: #fafafa;
+  --foreground: #171717;
+  --card: #ffffff;
+  --card-foreground: #171717;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --border: #e4e4e7;
+  --radius: 0.5rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #09090b;
+    --foreground: #ededed;
+    --card: #18181b;
+    --card-foreground: #ededed;
+    --muted: #27272a;
+    --muted-foreground: #a1a1aa;
+    --border: #3f3f46;
+  }
+}
+
+html {
+  overflow: hidden;
+}
+
+body {
+  overflow: hidden;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* Prose message — minimal overrides for streamdown.
+   Streamdown handles ALL element rendering via components prop
+   (table, code, blockquote, links, inline code).
+   Only layout/spacing rules remain here. */
+.prose-message {
+  line-height: 1.6;
+}
+.prose-message h1, .prose-message h2, .prose-message h3 {
+  font-weight: 600;
+  margin-top: 0.75em;
+  margin-bottom: 0.25em;
+}
+.prose-message h1 { font-size: 1.1em; }
+.prose-message h2 { font-size: 1.05em; }
+.prose-message h3 { font-size: 1em; }
+.prose-message h1:first-child,
+.prose-message h2:first-child,
+.prose-message h3:first-child { margin-top: 0; }
+.prose-message p { margin: 0.4em 0; }
+.prose-message p:first-child { margin-top: 0; }
+.prose-message p:last-child { margin-bottom: 0; }
+.prose-message strong { font-weight: 600; }
+.prose-message ul, .prose-message ol {
+  margin: 0.4em 0;
+  padding-left: 1.5em;
+}
+.prose-message ul { list-style-type: disc; }
+.prose-message ol { list-style-type: decimal; }
+.prose-message li { margin: 0.15em 0; }
+.prose-message hr {
+  margin: 0.75em 0;
+  border: none;
+  border-top: 1px solid rgba(0,0,0,0.1);
+}
+@media (prefers-color-scheme: dark) {
+  .prose-message hr { border-top-color: rgba(255,255,255,0.1); }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .animate-blink,
+  .animate-bounce { animation: none !important; }
+}
+
+/* Streaming cursor blink animation */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.animate-blink {
+  animation: blink 1s step-end infinite;
+}
+
+/* React Grid Layout overrides — clean up default placeholder/resize styles */
+.react-grid-item.react-grid-placeholder {
+  background: rgba(16, 185, 129, 0.08) !important;
+  border: 1px dashed rgba(16, 185, 129, 0.3) !important;
+  border-radius: 8px !important;
+}
+
+.react-grid-item > .react-resizable-handle {
+  background: none !important;
+}
+
+.react-grid-item > .react-resizable-handle::after {
+  border-color: rgba(161, 161, 170, 0.3) !important;
+}
+
+/* Smooth scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+@media (prefers-color-scheme: dark) {
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Query syntax highlighting (Cypher, Gremlin, GQL, SPARQL)
+ * CSS classes instead of inline styles — themeable via CSS custom properties.
+ * Used by dangerouslySetInnerHTML in QueryBlock components.
+ * --------------------------------------------------------------------------- */
+
+.ql-keyword { color: var(--ql-keyword, #60a5fa); font-weight: 600; }
+.ql-label   { color: var(--ql-label, #4ade80); }
+.ql-string  { color: var(--ql-string, #fbbf24); }
+.ql-number  { color: var(--ql-number, #fdba74); }
+.ql-comment { color: var(--ql-comment, #71717a); font-style: italic; }
