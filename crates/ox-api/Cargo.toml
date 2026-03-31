@@ -1,0 +1,57 @@
+[package]
+name = "ox-api"
+description = "Ontosyx HTTP/WebSocket API server"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "ontosyx"
+path = "src/main.rs"
+
+[dependencies]
+ox-core = { workspace = true }
+ox-compiler = { workspace = true }
+ox-runtime = { workspace = true }
+ox-brain = { workspace = true }
+ox-agent = { workspace = true }
+ox-store = { workspace = true }
+ox-source = { workspace = true }
+ox-memory = { workspace = true, features = ["onnx"] }
+branchforge = { path = "../../../branchforge", default-features = false, features = ["aws"] }
+async-trait = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+opentelemetry = { workspace = true }
+opentelemetry_sdk = { workspace = true }
+opentelemetry-otlp = { workspace = true }
+tracing-opentelemetry = { workspace = true }
+anyhow = { workspace = true }
+config = { workspace = true }
+subtle = { workspace = true }
+jsonwebtoken = { workspace = true }
+dashmap = { workspace = true }
+utoipa = { workspace = true }
+utoipa-swagger-ui = { workspace = true }
+rmcp = { workspace = true }
+schemars = { workspace = true }
+cron = { workspace = true }
+metrics = { workspace = true }
+metrics-exporter-prometheus = { workspace = true }
+futures = "0.3"
+futures-core = "0.3"
+tokio-stream = "0.1"
+async-stream = "0.3.6"
+url = "2.5.8"
+sha2 = "0.10.9"
+reqwest = { workspace = true }
+
