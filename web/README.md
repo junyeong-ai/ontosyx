@@ -1,24 +1,39 @@
 # Ontosyx Web
 
-Next.js frontend for the Ontosyx API.
+Next.js 16 frontend for the Ontosyx knowledge graph platform.
+
+## Tech Stack
+
+- Next.js 16.1, React 19, TypeScript 5
+- Tailwind CSS 4, Zustand 5
+- streamdown 2.5 (AI-optimized streaming markdown) + @streamdown/code (Shiki)
+- Motion 12 (animations), Recharts 3 (charts), xyflow 12 (ontology canvas)
 
 ## Run
 
 ```bash
 pnpm install
-pnpm dev
+pnpm dev          # http://localhost:3100
 ```
 
-Optional environment variable:
+Or use the project-level dev manager:
 
 ```bash
-NEXT_PUBLIC_API_URL=http://localhost:3001/api
+../scripts/dev.sh fe start    # Start frontend
+../scripts/dev.sh fe log      # Tail logs
+../scripts/dev.sh fe restart  # Restart
 ```
 
-## Principal Scoping
+## Authentication
 
-The frontend generates a stable `X-Principal-Id` value in browser storage and attaches it to all user-scoped API requests automatically.
+- **JWT mode**: OIDC login (Google, Microsoft, etc.) via server-side proxy
+- **API key mode**: Server injects `OX_API_KEY` env var via BFF proxy
+- Workspace isolation: all API calls scoped by workspace context
 
-- This is a minimal isolation mechanism before full authentication is introduced.
-- Clearing browser storage creates a new principal id and therefore a new user scope.
+## Environment
 
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ONTOSYX_API_URL` | `http://localhost:3001/api` | Backend API URL |
+| `OX_API_KEY` | — | API key for dev mode (injected by proxy) |
+| `PORT` | `3100` | Dev server port |

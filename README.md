@@ -1,40 +1,38 @@
 # Ontosyx
 
-**Semantic Orchestrator** — Knowledge Graph Lifecycle Platform
-
-Ontosyx analyzes source data, asks for user review where semantics are ambiguous, designs an ontology, and translates natural language into graph queries through an IR-based pipeline.
+Knowledge Graph Lifecycle Platform — design ontologies from source data, translate natural language into graph queries, and analyze knowledge graphs through an AI agent.
 
 ## Architecture
 
 ```
-[Source DB / CSV / JSON]
-  → source analysis
-  → user review for ambiguity / PII
-  → ox-brain (LLM ontology design)
-  → [OntologyIR]
+Source DB / CSV / Code Repo
+  → ox-source (schema introspection)
+  → ox-brain (LLM ontology design via branchforge)
+  → OntologyIR
   → ox-brain (LLM query translation)
-  → [QueryIR]
-  → ox-compiler
-  → [Cypher]
-  → ox-runtime
-  → [Neo4j]
+  → QueryIR
+  → ox-compiler (IR → Cypher)
+  → ox-runtime (Neo4j execution)
+  → Results + Visualization
 ```
 
 ### Crates
 
 | Crate | Description |
 |-------|-------------|
-| `ox-core` | Shared IR types (OntologyIR, QueryIR, LoadPlan, WidgetSpec, SourceSchema) |
-| `ox-brain` | LLM orchestration (Anthropic, OpenAI, Ollama, Bedrock) |
-| `ox-compiler` | IR → target query compilation (Cypher) |
-| `ox-runtime` | Graph database drivers (Neo4j) |
-| `ox-store` | Persistence layer (PostgreSQL) |
-| `ox-source` | Data source introspection (PostgreSQL, CSV, JSON, Text) |
-| `ox-api` | HTTP API server (Axum) |
+| `ox-core` | Domain types — OntologyIR, QueryIR, LoadPlan, SourceSchema, OntologyCommand |
+| `ox-brain` | LLM orchestration via branchforge — ClientPool, ModelResolver, prompt caching |
+| `ox-compiler` | IR → Cypher compiler, export (Python, TypeScript, GraphQL, OWL, SHACL, Mermaid) |
+| `ox-runtime` | Neo4j driver with retry, sandbox isolation, workspace-scoped queries |
+| `ox-store` | PostgreSQL persistence — 25 store traits, RLS, 14 migrations |
+| `ox-source` | Data source introspection — PostgreSQL, MySQL, MongoDB, CSV |
+| `ox-memory` | Semantic memory — ONNX embedding (jina-v5) + pgvector search |
+| `ox-agent` | AI agent with 10 domain tools built on branchforge |
+| `ox-api` | Axum HTTP server — 60+ endpoints, SSE streaming, OIDC auth |
 
 ### Frontend
 
-Next.js 16 with React 19, Tailwind CSS 4, Zustand.
+Next.js 16, React 19, Tailwind CSS 4, Zustand 5, streamdown (AI-optimized streaming markdown).
 
 ## Quick Start
 
@@ -42,109 +40,103 @@ Next.js 16 with React 19, Tailwind CSS 4, Zustand.
 
 - Rust 1.94+
 - Node.js 22+ / pnpm 10+
-- Docker (for Neo4j, PostgreSQL)
+- Docker (Neo4j + PostgreSQL with pgvector)
 
 ### Setup
 
 ```bash
-# Start infrastructure
-docker compose up -d
+# Start everything (Docker + backend + frontend)
+./scripts/dev.sh start
 
-# Backend
-cp .env.example .env
-# Edit .env / OX_* env vars with your LLM credentials
-cargo run
-
-# Frontend
-cd web
-pnpm install
-pnpm dev
+# Or individually:
+./scripts/dev.sh docker up     # Infrastructure only
+./scripts/dev.sh be start      # Backend on :3001
+./scripts/dev.sh fe start      # Frontend on :3100
 ```
 
-### API Endpoints
+### Service Management
 
-#### Chat (single-turn NL query)
+```bash
+./scripts/dev.sh              # Status dashboard + health check
+./scripts/dev.sh status       # Service status
+./scripts/dev.sh health       # API health + component checks
+./scripts/dev.sh restart      # Restart BE + FE
+./scripts/dev.sh be log       # Tail backend logs
+./scripts/dev.sh fe log       # Tail frontend logs
+./scripts/dev.sh stop         # Stop BE + FE
+./scripts/dev.sh clean        # Full reset (volumes + rebuild)
+```
+
+### URLs
+
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost:3100 |
+| Backend API | http://localhost:3001/api/health |
+| Swagger UI | http://localhost:3001/swagger-ui/ |
+| Neo4j Browser | http://localhost:7474 |
+
+## API Endpoints
+
+### Chat (SSE Agent Streaming)
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/chat` | NL → graph query pipeline (JSON response) |
-| POST | `/api/chat/stream` | SSE streaming chat |
+| POST | `/api/chat/stream` | Agent chat with SSE streaming, tool calls, model override |
 
-#### Query
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/query/history` | List query executions (cursor-paginated) |
-| GET | `/api/query/history/{id}` | Get a single query execution |
-| POST | `/api/query/raw` | Direct Cypher query execution (write-protected) |
-
-#### Pinboard
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/pins` | Create a pin from a query execution |
-| GET | `/api/pins` | List pins (cursor-paginated) |
-| DELETE | `/api/pins/{id}` | Delete a pin |
-
-#### Design Projects (ontology lifecycle)
+### Design Projects
 
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/api/projects` | Create project + analyze source |
-| GET | `/api/projects` | List projects (cursor-paginated) |
-| GET | `/api/projects/{id}` | Get project details |
-| DELETE | `/api/projects/{id}` | Delete project |
-| PATCH | `/api/projects/{id}/decisions` | Update design options (revision CAS) |
 | POST | `/api/projects/{id}/design` | Generate ontology via LLM |
-| POST | `/api/projects/{id}/reanalyze` | Re-analyze source data |
-| POST | `/api/projects/{id}/refine` | Refine ontology with graph profile |
-| POST | `/api/projects/{id}/complete` | Promote to saved ontology (quality gate) |
+| POST | `/api/projects/{id}/refine` | Refine with graph profile |
+| POST | `/api/projects/{id}/edit` | Surgical ontology edits |
+| POST | `/api/projects/{id}/complete` | Promote to saved ontology |
+| POST | `/api/projects/{id}/deploy-schema` | Deploy schema to Neo4j |
 
-#### Data Loading
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/load` | Generate load plan |
-| POST | `/api/load/execute` | Execute load plan |
-| GET | `/api/prompts` | List prompt templates |
-
-#### System
+### Model Management
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/health` | Health check |
+| GET/POST | `/api/models/configs` | List / create model configs |
+| PATCH/DELETE | `/api/models/configs/{id}` | Update / delete model config |
+| GET/POST | `/api/models/routing-rules` | List / create routing rules |
+| PATCH/DELETE | `/api/models/routing-rules/{id}` | Update / delete routing rule |
+| POST | `/api/models/test` | Test model connectivity |
 
-## User Scoping
+### Query
 
-All user-scoped endpoints require an `X-Principal-Id` header.
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/query/history` | List query executions |
+| POST | `/api/query/raw` | Direct Cypher execution |
+| POST | `/api/query/from-ir` | Execute from QueryIR JSON |
+| PATCH | `/api/query/history/{id}/feedback` | Submit accuracy feedback (toggleable) |
 
-- This is a minimal isolation layer, not a full authentication system.
-- Query executions and pins are scoped so only the same principal id can read them.
-- The bundled web app generates and persists a stable principal id in browser storage automatically.
+### Additional Endpoints
 
-## Runtime Requirements
+Workspaces, ontology export/import, dashboards, recipes, reports, sessions,
+ACL policies, audit log, usage metering, data lineage, quality rules,
+approval workflows, admin prompt management. See Swagger UI for full list.
 
-The API server can start without Neo4j for design-only work, but query endpoints require a connected graph runtime.
+## Authentication
 
-- `/api/chat`
-- `/api/chat/stream`
-- `/api/query/raw`
+Three auth methods (configurable in `ontosyx.toml`):
 
-## Design Project Workflow
-
-1. Create a project with `POST /api/projects` (includes source analysis).
-2. Review the analysis report and update design options with `PATCH /api/projects/{id}/decisions`.
-3. Generate an ontology with `POST /api/projects/{id}/design`.
-4. Optionally refine with `POST /api/projects/{id}/refine`.
-5. Complete and promote with `POST /api/projects/{id}/complete`.
-
-For PostgreSQL sources, ontology design is blocked when unresolved PII decisions or ambiguous columns remain.
+- **JWT** — OIDC providers (Google, Microsoft, Okta, Auth0, Keycloak)
+- **API Key** — for programmatic/CI access (`X-API-Key` header)
+- **Workspace isolation** — Row-Level Security scopes all data per workspace
 
 ## Configuration
 
-Config is loaded in layers: defaults → `ontosyx.toml` → `OX_*` env vars.
+Layered precedence: defaults → `ontosyx.toml` → `OX_*` env vars.
 
-See `ontosyx.toml` for all options and `.env.example` for sensitive values.
+Key sections: `[server]`, `[graph]`, `[postgres]`, `[llm]`, `[fast_llm]`,
+`[embedding]`, `[auth]`, `[timeouts]`, `[retention]`, `[mcp]`.
+
+Model configuration is DB-backed (runtime-changeable via `/api/models/configs`).
+TOML values seed the DB on first boot.
 
 ## License
 
