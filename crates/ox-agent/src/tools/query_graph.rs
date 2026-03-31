@@ -53,8 +53,7 @@ pub struct QueryGraphTool {
 impl SchemaTool for QueryGraphTool {
     type Input = QueryGraphInput;
     const NAME: &'static str = super::QUERY_GRAPH;
-    const DESCRIPTION: &'static str =
-        "Execute a natural language query against the knowledge graph database. \
+    const DESCRIPTION: &'static str = "Execute a natural language query against the knowledge graph database. \
          Translates the question to a graph query, runs it, and returns structured results \
          with columns and rows. Use this for any data retrieval, aggregation, or exploration.";
 
@@ -159,7 +158,7 @@ impl SchemaTool for QueryGraphTool {
                 .unwrap_or_default();
             match self.brain.select_widget(&query_ir, &sample).await {
                 Ok(hint) => {
-                    let wt = serde_json::to_value(&hint.widget_type)
+                    let wt = serde_json::to_value(hint.widget_type)
                         .ok()
                         .and_then(|v| v.as_str().map(String::from))
                         .unwrap_or_else(|| "table".to_string());

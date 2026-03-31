@@ -1,6 +1,6 @@
+use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
-use axum::Json;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -263,11 +263,9 @@ pub(crate) async fn test_model_connection(
             use branchforge::client::CreateMessageRequest;
             use branchforge::types::Message;
 
-            let request = CreateMessageRequest::new(
-                &provider_config.model,
-                vec![Message::user("Say OK")],
-            )
-            .max_tokens(16_u32);
+            let request =
+                CreateMessageRequest::new(&provider_config.model, vec![Message::user("Say OK")])
+                    .max_tokens(16_u32);
 
             match client.send(request).await {
                 Ok(_) => Ok(Json(TestModelResponse {

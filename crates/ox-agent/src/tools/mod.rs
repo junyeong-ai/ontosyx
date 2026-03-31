@@ -17,7 +17,7 @@ mod visualize;
 
 pub use apply_ontology::ApplyOntologyTool;
 pub use edit_ontology::EditOntologyTool;
-pub use execute_analysis::{ExecuteAnalysisTool, run_analysis_sandbox, SandboxResult};
+pub use execute_analysis::{ExecuteAnalysisTool, SandboxResult, run_analysis_sandbox};
 pub use explain::ExplainOntologyTool;
 pub use introspect_source::IntrospectSourceTool;
 pub use query_graph::QueryGraphTool;

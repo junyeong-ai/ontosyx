@@ -92,9 +92,7 @@ pub fn apply_acl_policies(result: &mut QueryResult, policies: &[AclPolicy]) {
 // ---------------------------------------------------------------------------
 
 /// Build deny/mask sets from ACL policies. Returns (deny_set, mask_map).
-fn build_property_rules(
-    policies: &[AclPolicy],
-) -> (HashSet<String>, HashMap<String, String>) {
+fn build_property_rules(policies: &[AclPolicy]) -> (HashSet<String>, HashMap<String, String>) {
     let mut deny: HashSet<String> = HashSet::new();
     let mut mask: HashMap<String, String> = HashMap::new();
 
@@ -146,10 +144,7 @@ fn enforce_on_props(
 }
 
 /// Apply ACL policies to search result nodes by masking or removing restricted properties.
-pub fn apply_acl_to_search_results(
-    results: &mut [SearchResultNode],
-    policies: &[AclPolicy],
-) {
+pub fn apply_acl_to_search_results(results: &mut [SearchResultNode], policies: &[AclPolicy]) {
     if policies.is_empty() {
         return;
     }
@@ -165,10 +160,7 @@ pub fn apply_acl_to_search_results(
 }
 
 /// Apply ACL policies to a node expansion by masking or removing restricted properties.
-pub fn apply_acl_to_node_expansion(
-    expansion: &mut NodeExpansion,
-    policies: &[AclPolicy],
-) {
+pub fn apply_acl_to_node_expansion(expansion: &mut NodeExpansion, policies: &[AclPolicy]) {
     if policies.is_empty() {
         return;
     }

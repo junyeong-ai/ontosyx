@@ -94,10 +94,7 @@ pub(crate) async fn get_session_messages(
 // Event → ChatMessage conversion
 // ---------------------------------------------------------------------------
 
-fn events_to_messages(
-    session: &AgentSession,
-    events: &[AgentEvent],
-) -> Vec<serde_json::Value> {
+fn events_to_messages(session: &AgentSession, events: &[AgentEvent]) -> Vec<serde_json::Value> {
     let mut messages: Vec<serde_json::Value> = Vec::new();
 
     // First message: the user's original message
@@ -138,10 +135,22 @@ fn events_to_messages(
             }
             "tool_complete" => {
                 let tool_id = event.payload.get("id");
-                if let Some(tc) = tool_calls.iter_mut().rev().find(|tc| tc.get("id") == tool_id) {
+                if let Some(tc) = tool_calls
+                    .iter_mut()
+                    .rev()
+                    .find(|tc| tc.get("id") == tool_id)
+                {
                     tc["output"] = event.payload.get("output").cloned().unwrap_or(json!(null));
-                    tc["is_error"] = event.payload.get("is_error").cloned().unwrap_or(json!(false));
-                    tc["duration_ms"] = event.payload.get("duration_ms").cloned().unwrap_or(json!(null));
+                    tc["is_error"] = event
+                        .payload
+                        .get("is_error")
+                        .cloned()
+                        .unwrap_or(json!(false));
+                    tc["duration_ms"] = event
+                        .payload
+                        .get("duration_ms")
+                        .cloned()
+                        .unwrap_or(json!(null));
                     tc["status"] = json!("complete");
                 }
             }
@@ -173,10 +182,10 @@ fn events_to_messages(
                 // The complete event's text is the final accumulated text;
                 // we already built content from text deltas, so we use that.
                 // If content is empty but complete has text, use it as fallback.
-                if content.is_empty() {
-                    if let Some(text) = event.payload.get("text").and_then(|v| v.as_str()) {
-                        content.push_str(text);
-                    }
+                if content.is_empty()
+                    && let Some(text) = event.payload.get("text").and_then(|v| v.as_str())
+                {
+                    content.push_str(text);
                 }
             }
             _ => {}

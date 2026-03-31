@@ -212,7 +212,9 @@ pub(super) fn compile_op(
                 GraphAlgorithm::PageRank => "nodeId, score",
                 GraphAlgorithm::CommunityDetection => "nodeId, communityId",
                 GraphAlgorithm::BetweennessCentrality => "nodeId, score",
-                GraphAlgorithm::ShortestPath => "index, sourceNode, targetNode, totalCost, nodeIds, costs, path",
+                GraphAlgorithm::ShortestPath => {
+                    "index, sourceNode, targetNode, totalCost, nodeIds, costs, path"
+                }
                 GraphAlgorithm::NodeSimilarity => "node1, node2, similarity",
             };
 

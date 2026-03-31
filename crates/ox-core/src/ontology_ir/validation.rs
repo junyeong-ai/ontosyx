@@ -1,7 +1,7 @@
 use crate::types::is_valid_graph_identifier;
 
 use super::{
-    IndexDef, NodeConstraint, NodeTypeId, NodeTypeDef, OntologyIR, PropertyDef, PropertyId,
+    IndexDef, NodeConstraint, NodeTypeDef, NodeTypeId, OntologyIR, PropertyDef, PropertyId,
 };
 
 // ---------------------------------------------------------------------------

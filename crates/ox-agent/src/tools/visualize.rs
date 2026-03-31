@@ -39,8 +39,7 @@ pub struct VisualizeTool;
 impl SchemaTool for VisualizeTool {
     type Input = VisualizeInput;
     const NAME: &'static str = super::VISUALIZE;
-    const DESCRIPTION: &'static str =
-        "Generate a chart or visualization specification from data. \
+    const DESCRIPTION: &'static str = "Generate a chart or visualization specification from data. \
          Choose the chart_type that best represents the data: \
          bar_chart (categorical comparisons), line_chart (time series/trends), \
          pie_chart (proportions, ≤8 segments), combo_chart (multiple metrics on same axis), \

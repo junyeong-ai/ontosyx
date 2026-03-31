@@ -15,7 +15,10 @@ use ox_core::source_schema::{
     TableProfile,
 };
 
-use crate::{AnalysisResult, DataSourceIntrospector, DEFAULT_INTROSPECTION_CONCURRENCY, introspect_tables_concurrent};
+use crate::{
+    AnalysisResult, DEFAULT_INTROSPECTION_CONCURRENCY, DataSourceIntrospector,
+    introspect_tables_concurrent,
+};
 
 type ProfileResult = (
     usize,
@@ -89,9 +92,7 @@ impl MysqlIntrospector {
             |table_name| {
                 let pool = pool.clone();
                 let schema_name = schema_name.clone();
-                async move {
-                    introspect_table_mysql(&pool, &schema_name, &table_name).await
-                }
+                async move { introspect_table_mysql(&pool, &schema_name, &table_name).await }
             },
         )
         .await;

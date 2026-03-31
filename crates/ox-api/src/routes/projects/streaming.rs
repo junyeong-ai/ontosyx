@@ -29,7 +29,9 @@ use super::helpers::{
     get_design_options, load_mutable_project, load_project_in_status, maybe_require_review,
     merge_input_irs, reload_project,
 };
-use super::types::{ProjectDesignRequest, ProjectDesignResponse, ProjectRefineRequest, ProjectRefineResponse};
+use super::types::{
+    ProjectDesignRequest, ProjectDesignResponse, ProjectRefineRequest, ProjectRefineResponse,
+};
 
 // ---------------------------------------------------------------------------
 // SSE event helpers

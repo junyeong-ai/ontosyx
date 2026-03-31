@@ -2,7 +2,7 @@ use super::*;
 use crate::ontology_ir::{Cardinality, EdgeTypeDef, NodeTypeDef, OntologyIR, PropertyDef};
 use crate::source_mapping::SourceMapping;
 use crate::source_schema::{
-    SourceColumnDef, ForeignKeyDef, SourceProfile, SourceSchema, SourceTableDef, TableProfile,
+    ForeignKeyDef, SourceColumnDef, SourceProfile, SourceSchema, SourceTableDef, TableProfile,
 };
 use crate::types::PropertyType;
 
@@ -275,9 +275,21 @@ fn column_clarifications_suppress_data_observation_gaps() {
         tables: vec![SourceTableDef {
             name: "stores".to_string(),
             columns: vec![
-                SourceColumnDef { name: "id".to_string(), data_type: "int".to_string(), nullable: false },
-                SourceColumnDef { name: "type_code".to_string(), data_type: "int".to_string(), nullable: false },
-                SourceColumnDef { name: "status".to_string(), data_type: "varchar".to_string(), nullable: true },
+                SourceColumnDef {
+                    name: "id".to_string(),
+                    data_type: "int".to_string(),
+                    nullable: false,
+                },
+                SourceColumnDef {
+                    name: "type_code".to_string(),
+                    data_type: "int".to_string(),
+                    nullable: false,
+                },
+                SourceColumnDef {
+                    name: "status".to_string(),
+                    data_type: "varchar".to_string(),
+                    nullable: true,
+                },
             ],
             primary_key: vec!["id".to_string()],
         }],
@@ -309,9 +321,20 @@ fn column_clarifications_suppress_data_observation_gaps() {
     };
 
     // Without clarifications: should have NumericEnumCode + SingleValueBias gaps
-    let report_no_clarify = assess_quality(&ontology, Some(&schema), Some(&profile), &mapping, &[], &[]);
-    assert!(report_no_clarify.gaps.iter().any(|g| matches!(g.category, QualityGapCategory::NumericEnumCode)));
-    assert!(report_no_clarify.gaps.iter().any(|g| matches!(g.category, QualityGapCategory::SingleValueBias)));
+    let report_no_clarify =
+        assess_quality(&ontology, Some(&schema), Some(&profile), &mapping, &[], &[]);
+    assert!(
+        report_no_clarify
+            .gaps
+            .iter()
+            .any(|g| matches!(g.category, QualityGapCategory::NumericEnumCode))
+    );
+    assert!(
+        report_no_clarify
+            .gaps
+            .iter()
+            .any(|g| matches!(g.category, QualityGapCategory::SingleValueBias))
+    );
 
     // With clarifications: those gaps should be suppressed
     let clarifications = vec![
@@ -326,9 +349,26 @@ fn column_clarifications_suppress_data_observation_gaps() {
             hint: "active is the only status for now".to_string(),
         },
     ];
-    let report_clarified = assess_quality(&ontology, Some(&schema), Some(&profile), &mapping, &[], &clarifications);
-    assert!(!report_clarified.gaps.iter().any(|g| matches!(g.category, QualityGapCategory::NumericEnumCode)));
-    assert!(!report_clarified.gaps.iter().any(|g| matches!(g.category, QualityGapCategory::SingleValueBias)));
+    let report_clarified = assess_quality(
+        &ontology,
+        Some(&schema),
+        Some(&profile),
+        &mapping,
+        &[],
+        &clarifications,
+    );
+    assert!(
+        !report_clarified
+            .gaps
+            .iter()
+            .any(|g| matches!(g.category, QualityGapCategory::NumericEnumCode))
+    );
+    assert!(
+        !report_clarified
+            .gaps
+            .iter()
+            .any(|g| matches!(g.category, QualityGapCategory::SingleValueBias))
+    );
 }
 
 #[test]
@@ -375,20 +415,40 @@ fn junction_table_not_flagged_as_unmapped() {
         tables: vec![
             SourceTableDef {
                 name: "orders".to_string(),
-                columns: vec![SourceColumnDef { name: "id".to_string(), data_type: "int".to_string(), nullable: false }],
+                columns: vec![SourceColumnDef {
+                    name: "id".to_string(),
+                    data_type: "int".to_string(),
+                    nullable: false,
+                }],
                 primary_key: vec!["id".to_string()],
             },
             SourceTableDef {
                 name: "products".to_string(),
-                columns: vec![SourceColumnDef { name: "id".to_string(), data_type: "int".to_string(), nullable: false }],
+                columns: vec![SourceColumnDef {
+                    name: "id".to_string(),
+                    data_type: "int".to_string(),
+                    nullable: false,
+                }],
                 primary_key: vec!["id".to_string()],
             },
             SourceTableDef {
                 name: "order_items".to_string(),
                 columns: vec![
-                    SourceColumnDef { name: "id".to_string(), data_type: "int".to_string(), nullable: false },
-                    SourceColumnDef { name: "order_id".to_string(), data_type: "int".to_string(), nullable: false },
-                    SourceColumnDef { name: "product_id".to_string(), data_type: "int".to_string(), nullable: false },
+                    SourceColumnDef {
+                        name: "id".to_string(),
+                        data_type: "int".to_string(),
+                        nullable: false,
+                    },
+                    SourceColumnDef {
+                        name: "order_id".to_string(),
+                        data_type: "int".to_string(),
+                        nullable: false,
+                    },
+                    SourceColumnDef {
+                        name: "product_id".to_string(),
+                        data_type: "int".to_string(),
+                        nullable: false,
+                    },
                 ],
                 primary_key: vec!["id".to_string()],
             },
@@ -410,7 +470,9 @@ fn junction_table_not_flagged_as_unmapped() {
             },
         ],
     };
-    let profile = SourceProfile { table_profiles: vec![] };
+    let profile = SourceProfile {
+        table_profiles: vec![],
+    };
 
     let report = assess_quality(&ontology, Some(&schema), Some(&profile), &mapping, &[], &[]);
 
@@ -521,7 +583,10 @@ fn no_orphan_when_all_nodes_connected() {
 
     let report = assess_ontology_only(&ontology);
     assert!(
-        !report.gaps.iter().any(|g| matches!(g.category, QualityGapCategory::OrphanNode)),
+        !report
+            .gaps
+            .iter()
+            .any(|g| matches!(g.category, QualityGapCategory::OrphanNode)),
         "No orphan nodes expected"
     );
 }
@@ -547,7 +612,10 @@ fn no_orphan_when_single_node() {
 
     let report = assess_ontology_only(&ontology);
     assert!(
-        !report.gaps.iter().any(|g| matches!(g.category, QualityGapCategory::OrphanNode)),
+        !report
+            .gaps
+            .iter()
+            .any(|g| matches!(g.category, QualityGapCategory::OrphanNode)),
         "Single-node ontology should not flag orphan"
     );
 }
@@ -601,7 +669,10 @@ fn flags_property_type_inconsistency() {
 
     let report = assess_ontology_only(&ontology);
     assert!(
-        report.gaps.iter().any(|g| matches!(g.category, QualityGapCategory::PropertyTypeInconsistency)),
+        report
+            .gaps
+            .iter()
+            .any(|g| matches!(g.category, QualityGapCategory::PropertyTypeInconsistency)),
         "Should flag email with different types"
     );
 }
@@ -651,7 +722,10 @@ fn no_property_type_inconsistency_when_same_type() {
 
     let report = assess_ontology_only(&ontology);
     assert!(
-        !report.gaps.iter().any(|g| matches!(g.category, QualityGapCategory::PropertyTypeInconsistency)),
+        !report
+            .gaps
+            .iter()
+            .any(|g| matches!(g.category, QualityGapCategory::PropertyTypeInconsistency)),
         "Same property types should not be flagged"
     );
 }
@@ -753,7 +827,10 @@ fn no_hub_node_under_threshold() {
 
     let report = assess_ontology_only(&ontology);
     assert!(
-        !report.gaps.iter().any(|g| matches!(g.category, QualityGapCategory::HubNode)),
+        !report
+            .gaps
+            .iter()
+            .any(|g| matches!(g.category, QualityGapCategory::HubNode)),
         "2-node graph should not flag hub"
     );
 }
@@ -801,7 +878,10 @@ fn flags_overloaded_property_on_many_nodes() {
 
     let report = assess_ontology_only(&ontology);
     assert!(
-        report.gaps.iter().any(|g| matches!(g.category, QualityGapCategory::OverloadedProperty)),
+        report
+            .gaps
+            .iter()
+            .any(|g| matches!(g.category, QualityGapCategory::OverloadedProperty)),
         "status on 4 nodes should be flagged as overloaded"
     );
 }
@@ -844,7 +924,10 @@ fn no_overloaded_property_under_threshold() {
 
     let report = assess_ontology_only(&ontology);
     assert!(
-        !report.gaps.iter().any(|g| matches!(g.category, QualityGapCategory::OverloadedProperty)),
+        !report
+            .gaps
+            .iter()
+            .any(|g| matches!(g.category, QualityGapCategory::OverloadedProperty)),
         "3 nodes at threshold should not flag"
     );
 }
@@ -929,7 +1012,10 @@ fn no_self_referential_for_normal_edges() {
 
     let report = assess_ontology_only(&ontology);
     assert!(
-        !report.gaps.iter().any(|g| matches!(g.category, QualityGapCategory::SelfReferentialEdge)),
+        !report
+            .gaps
+            .iter()
+            .any(|g| matches!(g.category, QualityGapCategory::SelfReferentialEdge)),
         "Normal edges should not be flagged as self-referential"
     );
 }
@@ -951,11 +1037,7 @@ fn well_designed_ontology_has_no_structural_gaps() {
                 label: "Customer".to_string(),
                 description: Some("A customer who places orders".to_string()),
                 source_table: None,
-                properties: vec![
-                    property("id"),
-                    property("name"),
-                    property("email"),
-                ],
+                properties: vec![property("id"), property("name"), property("email")],
                 constraints: vec![],
             },
             NodeTypeDef {
@@ -999,9 +1081,7 @@ fn well_designed_ontology_has_no_structural_gaps() {
                 description: Some("Order contains a product".to_string()),
                 source_node_id: "node-order".into(),
                 target_node_id: "node-product".into(),
-                properties: vec![
-                    property_typed("quantity", PropertyType::Int),
-                ],
+                properties: vec![property_typed("quantity", PropertyType::Int)],
                 cardinality: Cardinality::ManyToMany,
             },
         ],
@@ -1011,20 +1091,27 @@ fn well_designed_ontology_has_no_structural_gaps() {
     let report = assess_ontology_only(&ontology);
 
     // A well-designed ontology should have no structural gaps
-    let structural_gaps: Vec<_> = report.gaps.iter().filter(|g| {
-        matches!(
-            g.category,
-            QualityGapCategory::OrphanNode
-                | QualityGapCategory::PropertyTypeInconsistency
-                | QualityGapCategory::HubNode
-                | QualityGapCategory::OverloadedProperty
-                | QualityGapCategory::SelfReferentialEdge
-        )
-    }).collect();
+    let structural_gaps: Vec<_> = report
+        .gaps
+        .iter()
+        .filter(|g| {
+            matches!(
+                g.category,
+                QualityGapCategory::OrphanNode
+                    | QualityGapCategory::PropertyTypeInconsistency
+                    | QualityGapCategory::HubNode
+                    | QualityGapCategory::OverloadedProperty
+                    | QualityGapCategory::SelfReferentialEdge
+            )
+        })
+        .collect();
 
     assert!(
         structural_gaps.is_empty(),
         "Well-designed ontology should produce no structural gaps, got: {:?}",
-        structural_gaps.iter().map(|g| format!("{:?}: {}", g.category, g.issue)).collect::<Vec<_>>()
+        structural_gaps
+            .iter()
+            .map(|g| format!("{:?}: {}", g.category, g.issue))
+            .collect::<Vec<_>>()
     );
 }

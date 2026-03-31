@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use axum::{
     extract::{
-        ws::{Message, WebSocket},
         State, WebSocketUpgrade,
+        ws::{Message, WebSocket},
     },
     response::Response,
 };
@@ -12,16 +12,19 @@ use tokio::sync::Mutex;
 
 use crate::collaboration::CollabMessage;
 use crate::error::AppError;
-use crate::middleware::{validate_jwt, AuthClaims};
+use crate::middleware::{AuthClaims, validate_jwt};
 use crate::state::AppState;
 
 /// WebSocket collaboration endpoint.
 ///
 /// Authentication: JWT via query parameter `?token=...`.
+///
 /// NOTE: In production, prefer first-message authentication pattern:
+///
 ///   1. Accept WebSocket without auth
 ///   2. Require first message to be `{ type: "auth", token: "..." }`
 ///   3. Close connection if first message is not auth within 5 seconds
+///
 /// This avoids JWT exposure in server access logs and proxy caches.
 pub(crate) async fn collab_ws(
     State(state): State<AppState>,
@@ -30,10 +33,7 @@ pub(crate) async fn collab_ws(
 ) -> Result<Response, AppError> {
     let claims = validate_ws_token(&state, &params.token)?;
     let user_id = claims.sub.clone();
-    let user_name = claims
-        .name
-        .clone()
-        .unwrap_or_else(|| claims.email.clone());
+    let user_name = claims.name.clone().unwrap_or_else(|| claims.email.clone());
 
     Ok(ws.on_upgrade(move |socket| handle_ws(socket, state, user_id, user_name)))
 }

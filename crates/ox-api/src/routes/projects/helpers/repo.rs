@@ -2,9 +2,7 @@ use tracing::{info, warn};
 
 use ox_core::design_project::{SourceConfig, SourceTypeKind};
 use ox_core::repo_insights::{RepoSource, ValidatedRepoSource};
-use ox_core::source_analysis::{
-    RepoAnalysisStatus, RepoAnalysisSummary, SourceAnalysisReport,
-};
+use ox_core::source_analysis::{RepoAnalysisStatus, RepoAnalysisSummary, SourceAnalysisReport};
 use ox_core::source_schema::{SourceProfile, SourceSchema};
 use ox_source::analyzer::{build_analysis_report, enrich_with_repo};
 use ox_source::repo::{RepoIntrospector, clone_repo, repo_insights_to_schema};
@@ -65,7 +63,8 @@ pub(crate) async fn run_repo_enrichment(
         }
     };
 
-    let timeout = std::time::Duration::from_secs(state.system_config.read().await.design_timeout_secs());
+    let timeout =
+        std::time::Duration::from_secs(state.system_config.read().await.design_timeout_secs());
 
     // Navigate repo (LLM selects files)
     let selected_files =
@@ -232,7 +231,15 @@ fn failed_repo_summary(reason: String, tree_truncated: bool) -> RepoAnalysisSumm
 pub(crate) async fn analyze_code_repository(
     state: &AppState,
     url: &str,
-) -> Result<(SourceConfig, SourceSchema, SourceProfile, SourceAnalysisReport), AppError> {
+) -> Result<
+    (
+        SourceConfig,
+        SourceSchema,
+        SourceProfile,
+        SourceAnalysisReport,
+    ),
+    AppError,
+> {
     // Validate as a git URL using the existing validation infrastructure
     let repo_source = RepoSource::GitUrl {
         url: url.to_string(),
@@ -273,19 +280,19 @@ pub(crate) async fn analyze_code_repository(
         .generate_tree()
         .map_err(|e| AppError::bad_request(format!("Cannot generate file tree: {e}")))?;
 
-    let timeout = std::time::Duration::from_secs(state.system_config.read().await.design_timeout_secs());
+    let timeout =
+        std::time::Duration::from_secs(state.system_config.read().await.design_timeout_secs());
 
     // Navigate repo (LLM selects files)
-    let selected_files =
-        tokio::time::timeout(timeout, state.brain.navigate_repo(&file_tree))
-            .await
-            .map_err(|_| {
-                AppError::timeout(format!(
-                    "Repo navigation timed out after {}s",
-                    timeout.as_secs()
-                ))
-            })?
-            .map_err(|e| AppError::internal(format!("Repo navigation failed: {e}")))?;
+    let selected_files = tokio::time::timeout(timeout, state.brain.navigate_repo(&file_tree))
+        .await
+        .map_err(|_| {
+            AppError::timeout(format!(
+                "Repo navigation timed out after {}s",
+                timeout.as_secs()
+            ))
+        })?
+        .map_err(|e| AppError::internal(format!("Repo navigation failed: {e}")))?;
 
     if selected_files.is_empty() {
         return Err(AppError::bad_request(
@@ -305,16 +312,15 @@ pub(crate) async fn analyze_code_repository(
     }
 
     // Analyze files (LLM extracts enums/relationships)
-    let insights =
-        tokio::time::timeout(timeout, state.brain.analyze_repo_files(&file_contents))
-            .await
-            .map_err(|_| {
-                AppError::timeout(format!(
-                    "Repo analysis timed out after {}s",
-                    timeout.as_secs()
-                ))
-            })?
-            .map_err(|e| AppError::internal(format!("Repo analysis failed: {e}")))?;
+    let insights = tokio::time::timeout(timeout, state.brain.analyze_repo_files(&file_contents))
+        .await
+        .map_err(|_| {
+            AppError::timeout(format!(
+                "Repo analysis timed out after {}s",
+                timeout.as_secs()
+            ))
+        })?
+        .map_err(|e| AppError::internal(format!("Repo analysis failed: {e}")))?;
 
     info!(
         enums = insights.enum_definitions.len(),

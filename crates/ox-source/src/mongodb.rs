@@ -54,9 +54,11 @@ impl MongoIntrospector {
         database: &str,
         sample_size: u64,
     ) -> OxResult<Self> {
-        let mut options = ClientOptions::parse(uri).await.map_err(|e| OxError::Runtime {
-            message: format!("Failed to parse MongoDB connection string: {e}"),
-        })?;
+        let mut options = ClientOptions::parse(uri)
+            .await
+            .map_err(|e| OxError::Runtime {
+                message: format!("Failed to parse MongoDB connection string: {e}"),
+            })?;
 
         options.connect_timeout = Some(Duration::from_secs(CONNECT_TIMEOUT_SECS));
         options.server_selection_timeout = Some(Duration::from_secs(SERVER_SELECTION_TIMEOUT_SECS));
@@ -114,10 +116,7 @@ impl MongoIntrospector {
 
         if collection_names.is_empty() {
             return Err(OxError::Runtime {
-                message: format!(
-                    "No collections found in database '{}'",
-                    self.database
-                ),
+                message: format!("No collections found in database '{}'", self.database),
             });
         }
 
@@ -147,7 +146,11 @@ impl MongoIntrospector {
             });
         }
 
-        type CollectionResult = (usize, String, Result<(Vec<SourceTableDef>, Vec<ForeignKeyDef>), OxError>);
+        type CollectionResult = (
+            usize,
+            String,
+            Result<(Vec<SourceTableDef>, Vec<ForeignKeyDef>), OxError>,
+        );
         let mut indexed_results: Vec<CollectionResult> = Vec::with_capacity(collection_names.len());
         while let Some(item) = futures.next().await {
             indexed_results.push(item);
@@ -186,8 +189,7 @@ impl MongoIntrospector {
         }
 
         // 3. Infer cross-collection ObjectId references
-        let collection_set: HashSet<&str> =
-            tables.iter().map(|t| t.name.as_str()).collect();
+        let collection_set: HashSet<&str> = tables.iter().map(|t| t.name.as_str()).collect();
         let objectid_fks = self.infer_objectid_references(&tables, &collection_set);
         foreign_keys.extend(objectid_fks);
 
@@ -247,12 +249,7 @@ impl MongoIntrospector {
         let mut tables = Vec::new();
         let mut foreign_keys = Vec::new();
 
-        self.extract_collection_tables(
-            collection_name,
-            &documents,
-            &mut tables,
-            &mut foreign_keys,
-        );
+        self.extract_collection_tables(collection_name, &documents, &mut tables, &mut foreign_keys);
 
         Ok((tables, foreign_keys))
     }
@@ -405,14 +402,12 @@ impl MongoIntrospector {
                 if let Some(base) = base_name {
                     let candidates = [
                         base.clone(),
-                        format!("{base}s"),   // singular -> plural
+                        format!("{base}s"), // singular -> plural
                         base.trim_end_matches('s').to_string(), // plural -> singular
                     ];
 
                     for candidate in &candidates {
-                        if collection_set.contains(candidate.as_str())
-                            && candidate != &table.name
-                        {
+                        if collection_set.contains(candidate.as_str()) && candidate != &table.name {
                             fks.push(ForeignKeyDef {
                                 from_table: table.name.clone(),
                                 from_column: col.name.clone(),
@@ -530,7 +525,9 @@ impl MongoIntrospector {
 
         let mut documents = Vec::new();
         while let Some(result) = cursor.next().await {
-            if let Ok(doc) = result { documents.push(doc) }
+            if let Ok(doc) = result {
+                documents.push(doc)
+            }
         }
 
         let mut column_stats = Vec::new();
@@ -772,7 +769,8 @@ fn bson_to_string(value: &Bson) -> String {
         Bson::ObjectId(oid) => oid.to_hex(),
         Bson::DateTime(dt) => {
             // Try human-readable format, fall back to millis
-            dt.try_to_rfc3339_string().unwrap_or_else(|_| dt.timestamp_millis().to_string())
+            dt.try_to_rfc3339_string()
+                .unwrap_or_else(|_| dt.timestamp_millis().to_string())
         }
         Bson::Null => "null".to_string(),
         Bson::Decimal128(d) => d.to_string(),
@@ -792,9 +790,10 @@ fn bson_to_string(value: &Bson) -> String {
 fn extract_reference_name(field_name: &str) -> Option<String> {
     // Pattern: xxx_id
     if let Some(base) = field_name.strip_suffix("_id")
-        && !base.is_empty() {
-            return Some(base.to_lowercase());
-        }
+        && !base.is_empty()
+    {
+        return Some(base.to_lowercase());
+    }
 
     // Pattern: xxxId (camelCase)
     if field_name.ends_with("Id") && field_name.len() > 2 {

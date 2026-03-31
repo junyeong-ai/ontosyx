@@ -11,8 +11,12 @@
 
 use std::time::Instant;
 
-use axum::{extract::{Request, State}, middleware::Next, response::Response};
 use axum::http::Method;
+use axum::{
+    extract::{Request, State},
+    middleware::Next,
+    response::Response,
+};
 use serde_json::json;
 use uuid::Uuid;
 
@@ -23,11 +27,7 @@ use crate::state::AppState;
 ///
 /// Runs after require_auth + workspace_context, before the handler response
 /// is sent to the client. Only records 2xx/3xx mutations; skips reads and errors.
-pub async fn audit_log(
-    State(state): State<AppState>,
-    req: Request,
-    next: Next,
-) -> Response {
+pub async fn audit_log(State(state): State<AppState>, req: Request, next: Next) -> Response {
     let method = req.method().clone();
 
     // Skip GET/HEAD/OPTIONS — read operations don't need audit
@@ -99,12 +99,15 @@ fn extract_resource_type(path: &str) -> String {
 
 /// Naive English singularization for resource path segments.
 fn singularize(word: &str) -> String {
-    if word.ends_with("ies") {
+    if let Some(stem) = word.strip_suffix("ies") {
         // policies → policy, entries → entry
-        format!("{}y", &word[..word.len() - 3])
-    } else if word.ends_with("ses") || word.ends_with("xes") {
-        // addresses → address, indexes → index
-        word[..word.len() - 2].to_string()
+        format!("{stem}y")
+    } else if let Some(stem) = word.strip_suffix("ses") {
+        // addresses → address
+        stem.to_string()
+    } else if let Some(stem) = word.strip_suffix("xes") {
+        // indexes → index
+        stem.to_string()
     } else if word.ends_with('s')
         && !word.ends_with("ss")
         && !word.ends_with("us")

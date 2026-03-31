@@ -66,9 +66,8 @@ pub(crate) async fn extend_project(
     // Existing ontology is required
     let existing_ontology: OntologyIR = match project.ontology.as_ref() {
         None => return Err(AppError::no_ontology()),
-        Some(v) => serde_json::from_value(v.clone()).map_err(|e| {
-            AppError::internal(format!("Corrupt ontology in project: {e}"))
-        })?,
+        Some(v) => serde_json::from_value(v.clone())
+            .map_err(|e| AppError::internal(format!("Corrupt ontology in project: {e}")))?,
     };
 
     // 1. Introspect the new source (including Code Repository)
@@ -79,8 +78,7 @@ pub(crate) async fn extend_project(
     };
     let (new_source_config, new_source_data, new_source_schema, new_source_profile, new_report) =
         if let Some(url) = &source_url {
-            let (config, schema, profile, report) =
-                analyze_code_repository(&state, url).await?;
+            let (config, schema, profile, report) = analyze_code_repository(&state, url).await?;
             (config, None, Some(schema), Some(profile), Some(report))
         } else {
             analyze_source(req.source, &state.introspector_registry).await?
@@ -96,10 +94,7 @@ pub(crate) async fn extend_project(
         .as_ref()
         .map(AppError::to_json)
         .transpose()?;
-    let new_report_json = new_report
-        .as_ref()
-        .map(AppError::to_json)
-        .transpose()?;
+    let new_report_json = new_report.as_ref().map(AppError::to_json).transpose()?;
 
     let sample_data = {
         let ctx = LlmInputContext {
@@ -147,7 +142,8 @@ pub(crate) async fn extend_project(
     // 4. Call design_ontology with the new source data + existing ontology as context
     info!(project_id = %id, "Extending ontology with new source");
 
-    let timeout = std::time::Duration::from_secs(state.system_config.read().await.design_timeout_secs());
+    let timeout =
+        std::time::Duration::from_secs(state.system_config.read().await.design_timeout_secs());
     let design_started = Instant::now();
     let (new_ontology, new_source_mapping) = tokio::time::timeout(
         timeout,
@@ -179,8 +175,7 @@ pub(crate) async fn extend_project(
     );
 
     // 5. Reconcile: merge new ontology with existing (preserves existing IDs)
-    let reconciled =
-        ox_core::ontology_command::reconcile_refined(&existing_ontology, new_ontology);
+    let reconciled = ox_core::ontology_command::reconcile_refined(&existing_ontology, new_ontology);
 
     let merged = reconciled.ontology;
 
@@ -241,7 +236,11 @@ pub(crate) async fn extend_project(
         });
     if let Some(new_profile) = &new_source_profile {
         for stat in &new_profile.table_profiles {
-            if !merged_profile.table_profiles.iter().any(|s| s.table_name == stat.table_name) {
+            if !merged_profile
+                .table_profiles
+                .iter()
+                .any(|s| s.table_name == stat.table_name)
+            {
                 merged_profile.table_profiles.push(stat.clone());
             }
         }

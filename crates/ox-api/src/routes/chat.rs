@@ -304,8 +304,8 @@ pub async fn chat_stream(
 
                             // HITL: when a tool review event is emitted, register a
                             // oneshot channel and wait for the user's approval.
-                            if let AgentEvent::ToolReview { ref id, .. } = agent_event {
-                                if let Some(ref channels) = state.tool_review_channels {
+                            if let AgentEvent::ToolReview { ref id, .. } = agent_event
+                                && let Some(ref channels) = state.tool_review_channels {
                                     let key = format!("{audit_session_id}:{id}");
 
                                     // Race condition recovery: check if approval arrived
@@ -355,12 +355,11 @@ pub async fn chat_stream(
                                         channels.remove(&key);
                                     }
                                 }
-                            }
 
                             // On completion: embed session summary + complete audit session
                             if let AgentEvent::Complete(ref result) = agent_event {
-                                if let Some(ref memory) = memory_for_stream {
-                                    if !result.text.is_empty() {
+                                if let Some(ref memory) = memory_for_stream
+                                    && !result.text.is_empty() {
                                         ox_agent::hooks::EmbeddingHook::embed_async(
                                             memory,
                                             result.text.clone(),
@@ -371,7 +370,6 @@ pub async fn chat_stream(
                                             Some(ws_scope_for_stream.clone()),
                                         );
                                     }
-                                }
 
                                 // Complete audit session
                                 let store = Arc::clone(&store_for_events);
@@ -431,7 +429,11 @@ fn compute_tool_schema_hash(agent: &branchforge::Agent) -> String {
         .into_iter()
         .map(|d| serde_json::json!({"name": d.name, "description": d.description, "schema": d.input_schema}))
         .collect();
-    sha256_hex(serde_json::to_string(&definitions).unwrap_or_default().as_bytes())
+    sha256_hex(
+        serde_json::to_string(&definitions)
+            .unwrap_or_default()
+            .as_bytes(),
+    )
 }
 
 /// Convert branchforge AgentEvent to Axum SSE Event.
@@ -442,9 +444,7 @@ fn compute_tool_schema_hash(agent: &branchforge::Agent) -> String {
 fn agent_event_to_sse(event: &AgentEvent) -> Option<Event> {
     let (event_name, data) = match event {
         AgentEvent::Text { delta } => ("text", serde_json::json!({ "delta": delta })),
-        AgentEvent::Thinking { content } => {
-            ("thinking", serde_json::json!({ "content": content }))
-        }
+        AgentEvent::Thinking { content } => ("thinking", serde_json::json!({ "content": content })),
         AgentEvent::ToolStart { id, name, input } => (
             "tool_start",
             serde_json::json!({ "id": id, "name": name, "input": input }),

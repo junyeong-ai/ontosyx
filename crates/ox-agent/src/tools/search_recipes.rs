@@ -46,8 +46,7 @@ pub struct SearchRecipesTool {
 impl SchemaTool for SearchRecipesTool {
     type Input = SearchRecipesInput;
     const NAME: &'static str = super::SEARCH_RECIPES;
-    const DESCRIPTION: &'static str =
-        "Search for reusable analysis recipes (algorithms) before writing custom code. \
+    const DESCRIPTION: &'static str = "Search for reusable analysis recipes (algorithms) before writing custom code. \
          Recipes include pre-built templates for time series, segmentation, classification, \
          regression, anomaly detection, and statistical analysis. \
          Returns recipe details including required input columns and parameters.";
@@ -69,8 +68,7 @@ impl SchemaTool for SearchRecipesTool {
                     .filter(|r| {
                         let name_match = r.name.to_lowercase().contains(&query_lower)
                             || r.description.to_lowercase().contains(&query_lower);
-                        let type_match =
-                            type_filter.is_empty() || r.algorithm_type == type_filter;
+                        let type_match = type_filter.is_empty() || r.algorithm_type == type_filter;
                         name_match && type_match
                     })
                     .map(|r| RecipeEntry {
@@ -90,9 +88,7 @@ impl SchemaTool for SearchRecipesTool {
                     recipes: matched,
                 };
 
-                ToolResult::success(
-                    serde_json::to_string_pretty(&output).unwrap_or_default(),
-                )
+                ToolResult::success(serde_json::to_string_pretty(&output).unwrap_or_default())
             }
             Err(e) => ToolResult::error(format!("Recipe search failed: {e}")),
         }

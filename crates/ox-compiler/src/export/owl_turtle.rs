@@ -66,12 +66,8 @@ pub fn generate_owl_turtle(ontology: &OntologyIR) -> String {
     }
     for edge in &ontology.edge_types {
         let prop_id = local_name(&edge.label);
-        let src_label = ontology
-            .node_label(&edge.source_node_id)
-            .unwrap_or("Thing");
-        let tgt_label = ontology
-            .node_label(&edge.target_node_id)
-            .unwrap_or("Thing");
+        let src_label = ontology.node_label(&edge.source_node_id).unwrap_or("Thing");
+        let tgt_label = ontology.node_label(&edge.target_node_id).unwrap_or("Thing");
         let src_class = local_name(src_label);
         let tgt_class = local_name(tgt_label);
 
@@ -103,10 +99,7 @@ pub fn generate_owl_turtle(ontology: &OntologyIR) -> String {
             ));
             out.push_str(&format!(
                 "    rdfs:comment {} ;\n",
-                turtle_literal(&format!(
-                    "Property on relationship {}",
-                    edge.label
-                )),
+                turtle_literal(&format!("Property on relationship {}", edge.label)),
             ));
             out.push_str(&format!("    rdfs:domain :{src_class} ;\n"));
             out.push_str(&format!(
@@ -117,21 +110,14 @@ pub fn generate_owl_turtle(ontology: &OntologyIR) -> String {
                 let len = out.len();
                 out.truncate(len - 3);
                 out.push_str(" ;\n");
-                out.push_str(&format!(
-                    "    rdfs:comment {} .\n",
-                    turtle_literal(desc),
-                ));
+                out.push_str(&format!("    rdfs:comment {} .\n", turtle_literal(desc),));
             }
             out.push('\n');
         }
     }
 
     // --- Datatype Properties (from PropertyDef on nodes) ---
-    if ontology
-        .node_types
-        .iter()
-        .any(|n| !n.properties.is_empty())
-    {
+    if ontology.node_types.iter().any(|n| !n.properties.is_empty()) {
         out.push_str("# ----------------------------------------------------------------\n");
         out.push_str("# Datatype Properties\n");
         out.push_str("# ----------------------------------------------------------------\n\n");
@@ -185,7 +171,12 @@ pub fn generate_owl_turtle(ontology: &OntologyIR) -> String {
 }
 
 /// Emit OWL cardinality restrictions for edges.
-fn emit_cardinality_restriction(out: &mut String, card: &Cardinality, class_id: &str, prop_id: &str) {
+fn emit_cardinality_restriction(
+    out: &mut String,
+    card: &Cardinality,
+    class_id: &str,
+    prop_id: &str,
+) {
     // source-side cardinality (how many targets a source can have)
     match card {
         Cardinality::OneToOne | Cardinality::ManyToOne => {
@@ -234,7 +225,13 @@ fn turtle_literal(s: &str) -> String {
 fn local_name(label: &str) -> String {
     let mut name: String = label
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     // NCName cannot start with a digit
     if name.starts_with(|c: char| c.is_ascii_digit()) {

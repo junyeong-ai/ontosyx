@@ -116,7 +116,6 @@ impl JsonSchema for OntologyCommand {
     }
 
     fn json_schema(_generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
-
         let value = serde_json::json!({
             "type": "object",
             "description": "An atomic ontology operation. The 'op' field selects the operation type. Only the fields relevant to the chosen op should be provided; all others are optional.",
@@ -270,16 +269,21 @@ impl OntologyCommand {
     /// Return element IDs affected by this command (for verification invalidation).
     pub fn affected_element_ids(&self) -> Vec<String> {
         match self {
-            Self::AddNode { id, .. } | Self::DeleteNode { node_id: id, .. }
-            | Self::RenameNode { node_id: id, .. } | Self::UpdateNodeDescription { node_id: id, .. } => {
+            Self::AddNode { id, .. }
+            | Self::DeleteNode { node_id: id, .. }
+            | Self::RenameNode { node_id: id, .. }
+            | Self::UpdateNodeDescription { node_id: id, .. } => {
                 vec![id.0.clone()]
             }
-            Self::AddEdge { id, .. } | Self::DeleteEdge { edge_id: id, .. }
-            | Self::RenameEdge { edge_id: id, .. } | Self::UpdateEdgeCardinality { edge_id: id, .. }
+            Self::AddEdge { id, .. }
+            | Self::DeleteEdge { edge_id: id, .. }
+            | Self::RenameEdge { edge_id: id, .. }
+            | Self::UpdateEdgeCardinality { edge_id: id, .. }
             | Self::UpdateEdgeDescription { edge_id: id, .. } => {
                 vec![id.0.clone()]
             }
-            Self::AddProperty { owner_id, .. } | Self::DeleteProperty { owner_id, .. }
+            Self::AddProperty { owner_id, .. }
+            | Self::DeleteProperty { owner_id, .. }
             | Self::UpdateProperty { owner_id, .. } => {
                 vec![owner_id.clone()]
             }
@@ -287,9 +291,10 @@ impl OntologyCommand {
                 vec![node_id.0.clone()]
             }
             Self::AddIndex { .. } | Self::RemoveIndex { .. } => vec![],
-            Self::Batch { commands, .. } => {
-                commands.iter().flat_map(|c| c.affected_element_ids()).collect()
-            }
+            Self::Batch { commands, .. } => commands
+                .iter()
+                .flat_map(|c| c.affected_element_ids())
+                .collect(),
         }
     }
 

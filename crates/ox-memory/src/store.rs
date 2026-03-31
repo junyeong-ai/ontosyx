@@ -57,21 +57,11 @@ pub struct MemoryHit {
 pub mod instructions {
     pub fn storage(source: &super::MemorySource) -> &'static str {
         match source {
-            super::MemorySource::Query => {
-                "Represent the data query and its results for retrieval"
-            }
-            super::MemorySource::Analysis => {
-                "Represent the data analysis methodology and findings"
-            }
-            super::MemorySource::Edit => {
-                "Represent the ontology modification and its rationale"
-            }
-            super::MemorySource::Session => {
-                "Represent the agent session summary for retrieval"
-            }
-            super::MemorySource::Recipe => {
-                "Represent the data analysis algorithm for reuse"
-            }
+            super::MemorySource::Query => "Represent the data query and its results for retrieval",
+            super::MemorySource::Analysis => "Represent the data analysis methodology and findings",
+            super::MemorySource::Edit => "Represent the ontology modification and its rationale",
+            super::MemorySource::Session => "Represent the agent session summary for retrieval",
+            super::MemorySource::Recipe => "Represent the data analysis algorithm for reuse",
             super::MemorySource::Schema => {
                 "Represent the ontology schema node with its properties, relationships, and domain semantics"
             }
@@ -83,9 +73,7 @@ pub mod instructions {
             Some(super::MemorySource::Query) => "Find past queries similar to this question",
             Some(super::MemorySource::Analysis) => "Find relevant past analyses",
             Some(super::MemorySource::Edit) => "Find related ontology changes",
-            Some(super::MemorySource::Recipe) => {
-                "Find a reusable analysis recipe for this task"
-            }
+            Some(super::MemorySource::Recipe) => "Find a reusable analysis recipe for this task",
             Some(super::MemorySource::Schema) => {
                 "Find ontology schema nodes relevant to this data question"
             }
@@ -112,10 +100,7 @@ pub struct MemoryStore {
 }
 
 impl MemoryStore {
-    pub fn new(
-        embedder: Arc<dyn EmbeddingProvider>,
-        vectors: Arc<dyn VectorStore>,
-    ) -> Self {
+    pub fn new(embedder: Arc<dyn EmbeddingProvider>, vectors: Arc<dyn VectorStore>) -> Self {
         Self { embedder, vectors }
     }
 
@@ -158,13 +143,15 @@ impl MemoryStore {
             .await?;
 
         let filter = ontology_id.map(|id| serde_json::json!({"ontology_id": id}));
-        let hits = self.vectors.search(&embedding, top_k, filter.as_ref()).await?;
+        let hits = self
+            .vectors
+            .search(&embedding, top_k, filter.as_ref())
+            .await?;
 
         let results = hits
             .into_iter()
             .filter_map(|hit| {
-                let metadata: MemoryMetadata =
-                    serde_json::from_value(hit.metadata).ok()?;
+                let metadata: MemoryMetadata = serde_json::from_value(hit.metadata).ok()?;
                 Some(MemoryHit {
                     id: hit.id,
                     content: hit.content,
@@ -194,13 +181,15 @@ impl MemoryStore {
             .embed(query, instruction, EmbeddingRole::Query)
             .await?;
 
-        let hits = self.vectors.search_filtered(&embedding, top_k, filter).await?;
+        let hits = self
+            .vectors
+            .search_filtered(&embedding, top_k, filter)
+            .await?;
 
         let results = hits
             .into_iter()
             .filter_map(|hit| {
-                let metadata: MemoryMetadata =
-                    serde_json::from_value(hit.metadata).ok()?;
+                let metadata: MemoryMetadata = serde_json::from_value(hit.metadata).ok()?;
                 Some(MemoryHit {
                     id: hit.id,
                     content: hit.content,
@@ -221,8 +210,7 @@ impl MemoryStore {
         let results = hits
             .into_iter()
             .filter_map(|hit| {
-                let metadata: MemoryMetadata =
-                    serde_json::from_value(hit.metadata).ok()?;
+                let metadata: MemoryMetadata = serde_json::from_value(hit.metadata).ok()?;
                 Some(MemoryHit {
                     id: hit.id,
                     content: hit.content,

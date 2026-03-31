@@ -36,15 +36,12 @@ pub async fn get_config(
 
     let mut grouped: BTreeMap<String, Vec<ConfigEntry>> = BTreeMap::new();
     for row in rows {
-        grouped
-            .entry(row.category)
-            .or_default()
-            .push(ConfigEntry {
-                key: row.key,
-                value: row.value,
-                data_type: row.data_type,
-                description: row.description,
-            });
+        grouped.entry(row.category).or_default().push(ConfigEntry {
+            key: row.key,
+            value: row.value,
+            data_type: row.data_type,
+            description: row.description,
+        });
     }
 
     Ok(Json(grouped))
@@ -71,9 +68,7 @@ pub struct UiConfig {
     ),
     tag = "Config",
 )]
-pub async fn get_ui_config(
-    State(state): State<AppState>,
-) -> Result<Json<UiConfig>, AppError> {
+pub async fn get_ui_config(State(state): State<AppState>) -> Result<Json<UiConfig>, AppError> {
     let config = state.system_config.read().await;
     Ok(Json(UiConfig {
         elk_direction: config.elk_direction(),
@@ -133,8 +128,7 @@ pub async fn update_config(
         .map_err(AppError::from)?;
 
     // Refresh in-memory cache immediately after updates
-    let new_config =
-        crate::system_config::load_system_config(state.store.as_ref()).await;
+    let new_config = crate::system_config::load_system_config(state.store.as_ref()).await;
     *state.system_config.write().await = new_config;
 
     Ok(Json(serde_json::json!({ "updated": req.updates.len() })))

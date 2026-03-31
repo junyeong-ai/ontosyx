@@ -53,7 +53,11 @@ impl PostgresStore {
         Self::connect_with_min(url, max_connections, 0).await
     }
 
-    pub async fn connect_with_min(url: &str, max_connections: u32, min_connections: u32) -> OxResult<Self> {
+    pub async fn connect_with_min(
+        url: &str,
+        max_connections: u32,
+        min_connections: u32,
+    ) -> OxResult<Self> {
         let pool = PgPoolOptions::new()
             .max_connections(max_connections)
             .min_connections(min_connections)
@@ -72,10 +76,10 @@ impl PostgresStore {
                             .await?;
                         sqlx::query(
                             "SELECT set_config('app.workspace_id', id::text, false) \
-                             FROM workspaces WHERE slug = 'default' LIMIT 1"
+                             FROM workspaces WHERE slug = 'default' LIMIT 1",
                         )
-                            .execute(&mut *conn)
-                            .await?;
+                        .execute(&mut *conn)
+                        .await?;
                     } else if let Ok(ws_id) = WORKSPACE_ID.try_with(|id| *id) {
                         // Normal request: scope to workspace via RLS
                         sqlx::query("SELECT set_config('app.workspace_id', $1, false)")
@@ -91,10 +95,7 @@ impl PostgresStore {
             // RLS: clear workspace context when connection returns to pool
             .after_release(|conn, _meta| {
                 Box::pin(async move {
-                    sqlx::query("RESET ALL")
-                        .execute(&mut *conn)
-                        .await
-                        .ok();
+                    sqlx::query("RESET ALL").execute(&mut *conn).await.ok();
                     Ok(true)
                 })
             })
@@ -104,7 +105,11 @@ impl PostgresStore {
                 message: format!("PostgreSQL connection failed: {e}"),
             })?;
 
-        info!(max = max_connections, min = min_connections, "Connected to PostgreSQL");
+        info!(
+            max = max_connections,
+            min = min_connections,
+            "Connected to PostgreSQL"
+        );
         Ok(Self { pool })
     }
 
@@ -293,15 +298,14 @@ impl QueryStore for PostgresStore {
         id: Uuid,
         feedback: Option<&str>,
     ) -> OxResult<bool> {
-        let result = sqlx::query(
-            "UPDATE query_executions SET feedback = $1 WHERE id = $2 AND user_id = $3",
-        )
-        .bind(feedback)
-        .bind(id)
-        .bind(user_id)
-        .execute(&self.pool)
-        .await
-        .map_err(to_ox_error)?;
+        let result =
+            sqlx::query("UPDATE query_executions SET feedback = $1 WHERE id = $2 AND user_id = $3")
+                .bind(feedback)
+                .bind(id)
+                .bind(user_id)
+                .execute(&self.pool)
+                .await
+                .map_err(to_ox_error)?;
         Ok(result.rows_affected() > 0)
     }
 }
@@ -313,13 +317,11 @@ impl QueryStore for PostgresStore {
 #[async_trait]
 impl OntologyStore for PostgresStore {
     async fn get_saved_ontology(&self, id: Uuid) -> OxResult<Option<SavedOntology>> {
-        sqlx::query_as::<_, SavedOntology>(
-            "SELECT * FROM saved_ontologies WHERE id = $1",
-        )
-        .bind(id)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(to_ox_error)
+        sqlx::query_as::<_, SavedOntology>("SELECT * FROM saved_ontologies WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(to_ox_error)
     }
 
     async fn list_saved_ontologies(
@@ -782,15 +784,15 @@ impl ProjectStore for PostgresStore {
 
         Ok(rows
             .into_iter()
-            .map(|(id, revision, created_at, node_count, edge_count)| {
-                OntologySnapshotSummary {
+            .map(
+                |(id, revision, created_at, node_count, edge_count)| OntologySnapshotSummary {
                     id,
                     revision,
                     created_at,
                     node_count: node_count.unwrap_or(0),
                     edge_count: edge_count.unwrap_or(0),
-                }
-            })
+                },
+            )
             .collect())
     }
 
@@ -994,13 +996,11 @@ impl ConfigStore for PostgresStore {
     }
 
     async fn get_config(&self, key: &str) -> OxResult<Option<String>> {
-        let row = sqlx::query_scalar::<_, String>(
-            "SELECT value FROM system_config WHERE key = $1",
-        )
-        .bind(key)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(to_ox_error)?;
+        let row = sqlx::query_scalar::<_, String>("SELECT value FROM system_config WHERE key = $1")
+            .bind(key)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(to_ox_error)?;
         Ok(row)
     }
 
@@ -1024,10 +1024,7 @@ impl ConfigStore for PostgresStore {
         Ok(())
     }
 
-    async fn update_config_batch(
-        &self,
-        updates: &[(String, String, String)],
-    ) -> OxResult<()> {
+    async fn update_config_batch(&self, updates: &[(String, String, String)]) -> OxResult<()> {
         let mut tx = self.pool.begin().await.map_err(to_ox_error)?;
 
         for (category, key, value) in updates {
@@ -1099,14 +1096,12 @@ impl UserStore for PostgresStore {
         provider: &str,
         provider_sub: &str,
     ) -> OxResult<Option<User>> {
-        sqlx::query_as::<_, User>(
-            "SELECT * FROM users WHERE provider = $1 AND provider_sub = $2",
-        )
-        .bind(provider)
-        .bind(provider_sub)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(to_ox_error)
+        sqlx::query_as::<_, User>("SELECT * FROM users WHERE provider = $1 AND provider_sub = $2")
+            .bind(provider)
+            .bind(provider_sub)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(to_ox_error)
     }
 
     async fn list_users(&self, pagination: &CursorParams) -> OxResult<CursorPage<User>> {
@@ -1114,45 +1109,39 @@ impl UserStore for PostgresStore {
         let fetch_limit = limit + 1;
 
         let rows = match pagination.cursor_parts() {
-            Some((cursor_ts, cursor_id)) => {
-                sqlx::query_as::<_, User>(
-                    "SELECT * FROM users
+            Some((cursor_ts, cursor_id)) => sqlx::query_as::<_, User>(
+                "SELECT * FROM users
                      WHERE (created_at, id) < ($1, $2)
                      ORDER BY created_at DESC, id DESC
                      LIMIT $3",
-                )
-                .bind(cursor_ts)
-                .bind(cursor_id)
-                .bind(fetch_limit)
-                .fetch_all(&self.pool)
-                .await
-                .map_err(to_ox_error)?
-            }
-            None => {
-                sqlx::query_as::<_, User>(
-                    "SELECT * FROM users
+            )
+            .bind(cursor_ts)
+            .bind(cursor_id)
+            .bind(fetch_limit)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(to_ox_error)?,
+            None => sqlx::query_as::<_, User>(
+                "SELECT * FROM users
                      ORDER BY created_at DESC, id DESC
                      LIMIT $1",
-                )
-                .bind(fetch_limit)
-                .fetch_all(&self.pool)
-                .await
-                .map_err(to_ox_error)?
-            }
+            )
+            .bind(fetch_limit)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(to_ox_error)?,
         };
 
         Ok(build_cursor_page(rows, limit, |u| (u.created_at, u.id)))
     }
 
     async fn update_user_role(&self, id: Uuid, role: &str) -> OxResult<()> {
-        let result = sqlx::query(
-            "UPDATE users SET role = $1 WHERE id = $2",
-        )
-        .bind(role)
-        .bind(id)
-        .execute(&self.pool)
-        .await
-        .map_err(to_ox_error)?;
+        let result = sqlx::query("UPDATE users SET role = $1 WHERE id = $2")
+            .bind(role)
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .map_err(to_ox_error)?;
 
         if result.rows_affected() == 0 {
             return Err(OxError::NotFound {
@@ -1230,31 +1219,27 @@ impl RecipeStore for PostgresStore {
         let fetch_limit = limit + 1;
 
         let rows = match pagination.cursor_parts() {
-            Some((cursor_ts, cursor_id)) => {
-                sqlx::query_as::<_, AnalysisRecipe>(
-                    "SELECT * FROM analysis_recipes
+            Some((cursor_ts, cursor_id)) => sqlx::query_as::<_, AnalysisRecipe>(
+                "SELECT * FROM analysis_recipes
                      WHERE (created_at, id) < ($1, $2)
                      ORDER BY created_at DESC, id DESC
                      LIMIT $3",
-                )
-                .bind(cursor_ts)
-                .bind(cursor_id)
-                .bind(fetch_limit)
-                .fetch_all(&self.pool)
-                .await
-                .map_err(to_ox_error)?
-            }
-            None => {
-                sqlx::query_as::<_, AnalysisRecipe>(
-                    "SELECT * FROM analysis_recipes
+            )
+            .bind(cursor_ts)
+            .bind(cursor_id)
+            .bind(fetch_limit)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(to_ox_error)?,
+            None => sqlx::query_as::<_, AnalysisRecipe>(
+                "SELECT * FROM analysis_recipes
                      ORDER BY created_at DESC, id DESC
                      LIMIT $1",
-                )
-                .bind(fetch_limit)
-                .fetch_all(&self.pool)
-                .await
-                .map_err(to_ox_error)?
-            }
+            )
+            .bind(fetch_limit)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(to_ox_error)?,
         };
 
         Ok(build_cursor_page(rows, limit, |r| (r.created_at, r.id)))
@@ -1385,63 +1370,55 @@ impl DashboardStore for PostgresStore {
         let rows = if is_admin {
             // Admin sees all dashboards
             match pagination.cursor_parts() {
-                Some((cursor_ts, cursor_id)) => {
-                    sqlx::query_as::<_, Dashboard>(
-                        "SELECT * FROM dashboards
+                Some((cursor_ts, cursor_id)) => sqlx::query_as::<_, Dashboard>(
+                    "SELECT * FROM dashboards
                          WHERE (updated_at, id) < ($1, $2)
                          ORDER BY updated_at DESC, id DESC
                          LIMIT $3",
-                    )
-                    .bind(cursor_ts)
-                    .bind(cursor_id)
-                    .bind(fetch_limit)
-                    .fetch_all(&self.pool)
-                    .await
-                    .map_err(to_ox_error)?
-                }
-                None => {
-                    sqlx::query_as::<_, Dashboard>(
-                        "SELECT * FROM dashboards
+                )
+                .bind(cursor_ts)
+                .bind(cursor_id)
+                .bind(fetch_limit)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(to_ox_error)?,
+                None => sqlx::query_as::<_, Dashboard>(
+                    "SELECT * FROM dashboards
                          ORDER BY updated_at DESC, id DESC
                          LIMIT $1",
-                    )
-                    .bind(fetch_limit)
-                    .fetch_all(&self.pool)
-                    .await
-                    .map_err(to_ox_error)?
-                }
+                )
+                .bind(fetch_limit)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(to_ox_error)?,
             }
         } else {
             // Non-admin: own dashboards + public dashboards
             match pagination.cursor_parts() {
-                Some((cursor_ts, cursor_id)) => {
-                    sqlx::query_as::<_, Dashboard>(
-                        "SELECT * FROM dashboards
+                Some((cursor_ts, cursor_id)) => sqlx::query_as::<_, Dashboard>(
+                    "SELECT * FROM dashboards
                          WHERE (user_id = $1 OR is_public = true) AND (updated_at, id) < ($2, $3)
                          ORDER BY updated_at DESC, id DESC
                          LIMIT $4",
-                    )
-                    .bind(user_id)
-                    .bind(cursor_ts)
-                    .bind(cursor_id)
-                    .bind(fetch_limit)
-                    .fetch_all(&self.pool)
-                    .await
-                    .map_err(to_ox_error)?
-                }
-                None => {
-                    sqlx::query_as::<_, Dashboard>(
-                        "SELECT * FROM dashboards
+                )
+                .bind(user_id)
+                .bind(cursor_ts)
+                .bind(cursor_id)
+                .bind(fetch_limit)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(to_ox_error)?,
+                None => sqlx::query_as::<_, Dashboard>(
+                    "SELECT * FROM dashboards
                          WHERE user_id = $1 OR is_public = true
                          ORDER BY updated_at DESC, id DESC
                          LIMIT $2",
-                    )
-                    .bind(user_id)
-                    .bind(fetch_limit)
-                    .fetch_all(&self.pool)
-                    .await
-                    .map_err(to_ox_error)?
-                }
+                )
+                .bind(user_id)
+                .bind(fetch_limit)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(to_ox_error)?,
             }
         };
 
@@ -1540,11 +1517,7 @@ impl DashboardStore for PostgresStore {
         Ok(())
     }
 
-    async fn update_widget_result(
-        &self,
-        id: Uuid,
-        result: &serde_json::Value,
-    ) -> OxResult<()> {
+    async fn update_widget_result(&self, id: Uuid, result: &serde_json::Value) -> OxResult<()> {
         sqlx::query(
             "UPDATE dashboard_widgets SET last_result = $1, last_refreshed = NOW() WHERE id = $2",
         )
@@ -1644,39 +1617,35 @@ impl ReportStore for PostgresStore {
         let fetch_limit = limit + 1;
 
         let rows = match pagination.cursor_parts() {
-            Some((cursor_ts, cursor_id)) => {
-                sqlx::query_as::<_, SavedReport>(
-                    "SELECT * FROM saved_reports
+            Some((cursor_ts, cursor_id)) => sqlx::query_as::<_, SavedReport>(
+                "SELECT * FROM saved_reports
                      WHERE (user_id = $1 OR is_public = true)
                        AND ontology_id = $2
                        AND (updated_at, id) < ($3, $4)
                      ORDER BY updated_at DESC, id DESC
                      LIMIT $5",
-                )
-                .bind(user_id)
-                .bind(ontology_id)
-                .bind(cursor_ts)
-                .bind(cursor_id)
-                .bind(fetch_limit)
-                .fetch_all(&self.pool)
-                .await
-                .map_err(to_ox_error)?
-            }
-            None => {
-                sqlx::query_as::<_, SavedReport>(
-                    "SELECT * FROM saved_reports
+            )
+            .bind(user_id)
+            .bind(ontology_id)
+            .bind(cursor_ts)
+            .bind(cursor_id)
+            .bind(fetch_limit)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(to_ox_error)?,
+            None => sqlx::query_as::<_, SavedReport>(
+                "SELECT * FROM saved_reports
                      WHERE (user_id = $1 OR is_public = true)
                        AND ontology_id = $2
                      ORDER BY updated_at DESC, id DESC
                      LIMIT $3",
-                )
-                .bind(user_id)
-                .bind(ontology_id)
-                .bind(fetch_limit)
-                .fetch_all(&self.pool)
-                .await
-                .map_err(to_ox_error)?
-            }
+            )
+            .bind(user_id)
+            .bind(ontology_id)
+            .bind(fetch_limit)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(to_ox_error)?,
         };
 
         Ok(build_cursor_page(rows, limit, |r| (r.updated_at, r.id)))
@@ -1846,23 +1815,19 @@ impl ScheduledTaskStore for PostgresStore {
 
     async fn list_scheduled_tasks(&self, recipe_id: Option<Uuid>) -> OxResult<Vec<ScheduledTask>> {
         match recipe_id {
-            Some(rid) => {
-                sqlx::query_as::<_, ScheduledTask>(
-                    "SELECT * FROM scheduled_tasks WHERE recipe_id = $1 ORDER BY created_at DESC",
-                )
-                .bind(rid)
-                .fetch_all(&self.pool)
-                .await
-                .map_err(to_ox_error)
-            }
-            None => {
-                sqlx::query_as::<_, ScheduledTask>(
-                    "SELECT * FROM scheduled_tasks ORDER BY created_at DESC",
-                )
-                .fetch_all(&self.pool)
-                .await
-                .map_err(to_ox_error)
-            }
+            Some(rid) => sqlx::query_as::<_, ScheduledTask>(
+                "SELECT * FROM scheduled_tasks WHERE recipe_id = $1 ORDER BY created_at DESC",
+            )
+            .bind(rid)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(to_ox_error),
+            None => sqlx::query_as::<_, ScheduledTask>(
+                "SELECT * FROM scheduled_tasks ORDER BY created_at DESC",
+            )
+            .fetch_all(&self.pool)
+            .await
+            .map_err(to_ox_error),
         }
     }
 
@@ -1994,15 +1959,13 @@ impl AgentSessionStore for PostgresStore {
         .bind(s.created_at)
         .execute(&self.pool)
         .await
-        .map_err(|e| OxError::Runtime { message: format!("Database error: {e}") })?;
+        .map_err(|e| OxError::Runtime {
+            message: format!("Database error: {e}"),
+        })?;
         Ok(())
     }
 
-    async fn complete_agent_session(
-        &self,
-        id: Uuid,
-        final_text: Option<&str>,
-    ) -> OxResult<()> {
+    async fn complete_agent_session(&self, id: Uuid, final_text: Option<&str>) -> OxResult<()> {
         sqlx::query(
             "UPDATE agent_sessions SET final_text = $2, completed_at = NOW() WHERE id = $1",
         )
@@ -2010,7 +1973,9 @@ impl AgentSessionStore for PostgresStore {
         .bind(final_text)
         .execute(&self.pool)
         .await
-        .map_err(|e| OxError::Runtime { message: format!("Database error: {e}") })?;
+        .map_err(|e| OxError::Runtime {
+            message: format!("Database error: {e}"),
+        })?;
         Ok(())
     }
 
@@ -2024,7 +1989,9 @@ impl AgentSessionStore for PostgresStore {
         .bind(id)
         .fetch_optional(&self.pool)
         .await
-        .map_err(|e| OxError::Runtime { message: format!("Database error: {e}") })
+        .map_err(|e| OxError::Runtime {
+            message: format!("Database error: {e}"),
+        })
     }
 
     async fn list_agent_sessions(
@@ -2033,14 +2000,15 @@ impl AgentSessionStore for PostgresStore {
         pagination: &CursorParams,
     ) -> OxResult<CursorPage<AgentSession>> {
         let limit = pagination.effective_limit();
-        let fetch_limit = (limit + 1) as i64;
+        let fetch_limit = limit + 1;
 
         let items: Vec<AgentSession> = match &pagination.cursor {
             Some(cursor) => {
-                let cursor_time: DateTime<Utc> = cursor.parse().map_err(|_| OxError::Validation {
-                    field: "cursor".into(),
-                    message: "Invalid cursor".into(),
-                })?;
+                let cursor_time: DateTime<Utc> =
+                    cursor.parse().map_err(|_| OxError::Validation {
+                        field: "cursor".into(),
+                        message: "Invalid cursor".into(),
+                    })?;
                 sqlx::query_as(
                     "SELECT id, user_id, ontology_id, prompt_hash, tool_schema_hash,
                             model_id, model_config, user_message, final_text,
@@ -2053,25 +2021,27 @@ impl AgentSessionStore for PostgresStore {
                 .bind(fetch_limit)
                 .fetch_all(&self.pool)
                 .await
-                .map_err(|e| OxError::Runtime { message: format!("Database error: {e}") })?
+                .map_err(|e| OxError::Runtime {
+                    message: format!("Database error: {e}"),
+                })?
             }
-            None => {
-                sqlx::query_as(
-                    "SELECT id, user_id, ontology_id, prompt_hash, tool_schema_hash,
+            None => sqlx::query_as(
+                "SELECT id, user_id, ontology_id, prompt_hash, tool_schema_hash,
                             model_id, model_config, user_message, final_text,
                             created_at, completed_at
                      FROM agent_sessions WHERE user_id = $1
                      ORDER BY created_at DESC LIMIT $2",
-                )
-                .bind(user_id)
-                .bind(fetch_limit)
-                .fetch_all(&self.pool)
-                .await
-                .map_err(|e| OxError::Runtime { message: format!("Database error: {e}") })?
-            }
+            )
+            .bind(user_id)
+            .bind(fetch_limit)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| OxError::Runtime {
+                message: format!("Database error: {e}"),
+            })?,
         };
 
-        Ok(build_cursor_page(items, limit as i64, |s| (s.created_at, s.id)))
+        Ok(build_cursor_page(items, limit, |s| (s.created_at, s.id)))
     }
 
     async fn create_agent_event(&self, e: &AgentEvent) -> OxResult<()> {
@@ -2087,18 +2057,20 @@ impl AgentSessionStore for PostgresStore {
         .bind(e.created_at)
         .execute(&self.pool)
         .await
-        .map_err(|e| OxError::Runtime { message: format!("Database error: {e}") })?;
+        .map_err(|e| OxError::Runtime {
+            message: format!("Database error: {e}"),
+        })?;
         Ok(())
     }
 
     async fn list_agent_events(&self, session_id: Uuid) -> OxResult<Vec<AgentEvent>> {
-        sqlx::query_as(
-            "SELECT * FROM agent_events WHERE session_id = $1 ORDER BY sequence",
-        )
-        .bind(session_id)
-        .fetch_all(&self.pool)
-        .await
-        .map_err(|e| OxError::Runtime { message: format!("Database error: {e}") })
+        sqlx::query_as("SELECT * FROM agent_events WHERE session_id = $1 ORDER BY sequence")
+            .bind(session_id)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| OxError::Runtime {
+                message: format!("Database error: {e}"),
+            })
     }
 
     async fn cleanup_old_sessions(&self, retention_days: i64) -> OxResult<u64> {
@@ -2140,16 +2112,14 @@ impl EmbeddingRetryStore for PostgresStore {
         content: &str,
         metadata: &serde_json::Value,
     ) -> OxResult<()> {
-        sqlx::query(
-            "INSERT INTO pending_embeddings (content, metadata) VALUES ($1, $2)",
-        )
-        .bind(content)
-        .bind(metadata)
-        .execute(&self.pool)
-        .await
-        .map_err(|e| OxError::Runtime {
-            message: format!("Database error: {e}"),
-        })?;
+        sqlx::query("INSERT INTO pending_embeddings (content, metadata) VALUES ($1, $2)")
+            .bind(content)
+            .bind(metadata)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| OxError::Runtime {
+                message: format!("Database error: {e}"),
+            })?;
         Ok(())
     }
 
@@ -2404,14 +2374,12 @@ impl ToolApprovalStore for PostgresStore {
         session_id: Uuid,
         tool_call_id: &str,
     ) -> OxResult<Option<ToolApproval>> {
-        sqlx::query_as(
-            "SELECT * FROM tool_approvals WHERE session_id = $1 AND tool_call_id = $2",
-        )
-        .bind(session_id)
-        .bind(tool_call_id)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(to_ox_error)
+        sqlx::query_as("SELECT * FROM tool_approvals WHERE session_id = $1 AND tool_call_id = $2")
+            .bind(session_id)
+            .bind(tool_call_id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(to_ox_error)
     }
 }
 
@@ -2476,15 +2444,13 @@ impl WorkspaceStore for PostgresStore {
         name: &str,
         settings: &serde_json::Value,
     ) -> OxResult<()> {
-        let result = sqlx::query(
-            "UPDATE workspaces SET name = $2, settings = $3 WHERE id = $1",
-        )
-        .bind(id)
-        .bind(name)
-        .bind(settings)
-        .execute(&self.pool)
-        .await
-        .map_err(to_ox_error)?;
+        let result = sqlx::query("UPDATE workspaces SET name = $2, settings = $3 WHERE id = $1")
+            .bind(id)
+            .bind(name)
+            .bind(settings)
+            .execute(&self.pool)
+            .await
+            .map_err(to_ox_error)?;
 
         if result.rows_affected() == 0 {
             return Err(OxError::NotFound {
@@ -2523,19 +2489,14 @@ impl WorkspaceStore for PostgresStore {
         Ok(())
     }
 
-    async fn remove_workspace_member(
-        &self,
-        workspace_id: Uuid,
-        user_id: Uuid,
-    ) -> OxResult<bool> {
-        let result = sqlx::query(
-            "DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2",
-        )
-        .bind(workspace_id)
-        .bind(user_id)
-        .execute(&self.pool)
-        .await
-        .map_err(to_ox_error)?;
+    async fn remove_workspace_member(&self, workspace_id: Uuid, user_id: Uuid) -> OxResult<bool> {
+        let result =
+            sqlx::query("DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2")
+                .bind(workspace_id)
+                .bind(user_id)
+                .execute(&self.pool)
+                .await
+                .map_err(to_ox_error)?;
         Ok(result.rows_affected() > 0)
     }
 
@@ -2563,11 +2524,7 @@ impl WorkspaceStore for PostgresStore {
         Ok(())
     }
 
-    async fn get_member_role(
-        &self,
-        workspace_id: Uuid,
-        user_id: Uuid,
-    ) -> OxResult<Option<String>> {
+    async fn get_member_role(&self, workspace_id: Uuid, user_id: Uuid) -> OxResult<Option<String>> {
         let row: Option<(String,)> = sqlx::query_as(
             "SELECT role FROM workspace_members WHERE workspace_id = $1 AND user_id = $2",
         )
@@ -2579,10 +2536,7 @@ impl WorkspaceStore for PostgresStore {
         Ok(row.map(|r| r.0))
     }
 
-    async fn list_workspace_members(
-        &self,
-        workspace_id: Uuid,
-    ) -> OxResult<Vec<WorkspaceMember>> {
+    async fn list_workspace_members(&self, workspace_id: Uuid) -> OxResult<Vec<WorkspaceMember>> {
         sqlx::query_as(
             "SELECT workspace_id, user_id, role, joined_at
              FROM workspace_members WHERE workspace_id = $1 ORDER BY joined_at",
@@ -2638,10 +2592,7 @@ impl AuditStore for PostgresStore {
         Ok(())
     }
 
-    async fn list_audit_events(
-        &self,
-        params: CursorParams,
-    ) -> OxResult<CursorPage<AuditEntry>> {
+    async fn list_audit_events(&self, params: CursorParams) -> OxResult<CursorPage<AuditEntry>> {
         let limit = params.effective_limit();
 
         let rows: Vec<AuditEntry> = if let Some((cursor_ts, cursor_id)) = params.cursor_parts() {
@@ -2799,23 +2750,19 @@ impl LineageStore for PostgresStore {
     }
 
     async fn get_lineage_for_label(&self, graph_label: &str) -> OxResult<Vec<LineageEntry>> {
-        sqlx::query_as(
-            "SELECT * FROM data_lineage WHERE graph_label = $1 ORDER BY started_at DESC",
-        )
-        .bind(graph_label)
-        .fetch_all(&self.pool)
-        .await
-        .map_err(to_ox_error)
+        sqlx::query_as("SELECT * FROM data_lineage WHERE graph_label = $1 ORDER BY started_at DESC")
+            .bind(graph_label)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(to_ox_error)
     }
 
     async fn get_lineage_for_project(&self, project_id: Uuid) -> OxResult<Vec<LineageEntry>> {
-        sqlx::query_as(
-            "SELECT * FROM data_lineage WHERE project_id = $1 ORDER BY started_at DESC",
-        )
-        .bind(project_id)
-        .fetch_all(&self.pool)
-        .await
-        .map_err(to_ox_error)
+        sqlx::query_as("SELECT * FROM data_lineage WHERE project_id = $1 ORDER BY started_at DESC")
+            .bind(project_id)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(to_ox_error)
     }
 
     async fn lineage_summary(&self) -> OxResult<Vec<LineageSummary>> {
@@ -2989,7 +2936,13 @@ impl QualityStore for PostgresStore {
         }
     }
 
-    async fn update_quality_rule(&self, id: Uuid, name: &str, threshold: f64, is_active: bool) -> OxResult<()> {
+    async fn update_quality_rule(
+        &self,
+        id: Uuid,
+        name: &str,
+        threshold: f64,
+        is_active: bool,
+    ) -> OxResult<()> {
         let result = sqlx::query(
             "UPDATE quality_rules
              SET name = $1, threshold = $2, is_active = $3, updated_at = NOW()
@@ -3124,50 +3077,42 @@ impl AclStore for PostgresStore {
     ) -> OxResult<Vec<AclPolicy>> {
         // Build dynamic query based on optional filters
         match (subject_type, resource_value) {
-            (Some(st), Some(rv)) => {
-                sqlx::query_as(
-                    "SELECT * FROM acl_policies
+            (Some(st), Some(rv)) => sqlx::query_as(
+                "SELECT * FROM acl_policies
                      WHERE is_active = true AND subject_type = $1 AND resource_value = $2
                      ORDER BY priority DESC, name",
-                )
-                .bind(st)
-                .bind(rv)
-                .fetch_all(&self.pool)
-                .await
-                .map_err(to_ox_error)
-            }
-            (Some(st), None) => {
-                sqlx::query_as(
-                    "SELECT * FROM acl_policies
+            )
+            .bind(st)
+            .bind(rv)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(to_ox_error),
+            (Some(st), None) => sqlx::query_as(
+                "SELECT * FROM acl_policies
                      WHERE is_active = true AND subject_type = $1
                      ORDER BY priority DESC, name",
-                )
-                .bind(st)
-                .fetch_all(&self.pool)
-                .await
-                .map_err(to_ox_error)
-            }
-            (None, Some(rv)) => {
-                sqlx::query_as(
-                    "SELECT * FROM acl_policies
+            )
+            .bind(st)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(to_ox_error),
+            (None, Some(rv)) => sqlx::query_as(
+                "SELECT * FROM acl_policies
                      WHERE is_active = true AND resource_value = $1
                      ORDER BY priority DESC, name",
-                )
-                .bind(rv)
-                .fetch_all(&self.pool)
-                .await
-                .map_err(to_ox_error)
-            }
-            (None, None) => {
-                sqlx::query_as(
-                    "SELECT * FROM acl_policies
+            )
+            .bind(rv)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(to_ox_error),
+            (None, None) => sqlx::query_as(
+                "SELECT * FROM acl_policies
                      WHERE is_active = true
                      ORDER BY priority DESC, name",
-                )
-                .fetch_all(&self.pool)
-                .await
-                .map_err(to_ox_error)
-            }
+            )
+            .fetch_all(&self.pool)
+            .await
+            .map_err(to_ox_error),
         }
     }
 
@@ -3278,13 +3223,11 @@ impl crate::store::ModelConfigStore for PostgresStore {
     }
 
     async fn get_model_config(&self, id: Uuid) -> OxResult<Option<crate::ModelConfig>> {
-        sqlx::query_as::<_, crate::ModelConfig>(
-            "SELECT * FROM model_configs WHERE id = $1",
-        )
-        .bind(id)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(to_ox_error)
+        sqlx::query_as::<_, crate::ModelConfig>("SELECT * FROM model_configs WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(to_ox_error)
     }
 
     async fn create_model_config(

@@ -68,7 +68,13 @@ fn mermaid_type(pt: &PropertyType) -> &'static str {
 fn mermaid_id(label: &str) -> String {
     label
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 

@@ -50,8 +50,16 @@ pub struct GraphAuditReport {
 /// Compare an ontology against actual graph data to detect label mismatches.
 pub fn audit_graph(ontology: &OntologyIR, overview: &GraphSchemaOverview) -> GraphAuditReport {
     // Collect ontology labels
-    let ont_nodes: BTreeSet<&str> = ontology.node_types.iter().map(|n| n.label.as_str()).collect();
-    let ont_edges: BTreeSet<&str> = ontology.edge_types.iter().map(|e| e.label.as_str()).collect();
+    let ont_nodes: BTreeSet<&str> = ontology
+        .node_types
+        .iter()
+        .map(|n| n.label.as_str())
+        .collect();
+    let ont_edges: BTreeSet<&str> = ontology
+        .edge_types
+        .iter()
+        .map(|e| e.label.as_str())
+        .collect();
 
     // Collect graph labels
     let graph_nodes: BTreeSet<&str> = overview.labels.iter().map(|l| l.label.as_str()).collect();
@@ -62,13 +70,31 @@ pub fn audit_graph(ontology: &OntologyIR, overview: &GraphSchemaOverview) -> Gra
         .collect();
 
     // Set operations
-    let matched_nodes: Vec<String> = ont_nodes.intersection(&graph_nodes).map(|s| s.to_string()).collect();
-    let orphan_graph_nodes: Vec<String> = graph_nodes.difference(&ont_nodes).map(|s| s.to_string()).collect();
-    let missing_graph_nodes: Vec<String> = ont_nodes.difference(&graph_nodes).map(|s| s.to_string()).collect();
+    let matched_nodes: Vec<String> = ont_nodes
+        .intersection(&graph_nodes)
+        .map(|s| s.to_string())
+        .collect();
+    let orphan_graph_nodes: Vec<String> = graph_nodes
+        .difference(&ont_nodes)
+        .map(|s| s.to_string())
+        .collect();
+    let missing_graph_nodes: Vec<String> = ont_nodes
+        .difference(&graph_nodes)
+        .map(|s| s.to_string())
+        .collect();
 
-    let matched_edges: Vec<String> = ont_edges.intersection(&graph_edges).map(|s| s.to_string()).collect();
-    let orphan_graph_edges: Vec<String> = graph_edges.difference(&ont_edges).map(|s| s.to_string()).collect();
-    let missing_graph_edges: Vec<String> = ont_edges.difference(&graph_edges).map(|s| s.to_string()).collect();
+    let matched_edges: Vec<String> = ont_edges
+        .intersection(&graph_edges)
+        .map(|s| s.to_string())
+        .collect();
+    let orphan_graph_edges: Vec<String> = graph_edges
+        .difference(&ont_edges)
+        .map(|s| s.to_string())
+        .collect();
+    let missing_graph_edges: Vec<String> = ont_edges
+        .difference(&graph_edges)
+        .map(|s| s.to_string())
+        .collect();
 
     // Calculate sync percentage
     let total_ontology = ont_nodes.len() + ont_edges.len();
@@ -115,7 +141,9 @@ fn map_neo4j_type(neo4j_type: &str) -> crate::types::PropertyType {
         "FLOAT" | "DOUBLE" => PropertyType::Float,
         "BOOLEAN" => PropertyType::Bool,
         "DATE" => PropertyType::Date,
-        "LOCAL_DATE_TIME" | "ZONED_DATE_TIME" | "DATE_TIME" | "LOCALDATETIME" | "ZONEDDATETIME" => PropertyType::DateTime,
+        "LOCAL_DATE_TIME" | "ZONED_DATE_TIME" | "DATE_TIME" | "LOCALDATETIME" | "ZONEDDATETIME" => {
+            PropertyType::DateTime
+        }
         "DURATION" => PropertyType::Duration,
         "BYTE_ARRAY" => PropertyType::Bytes,
         _ => PropertyType::String,
@@ -125,28 +153,30 @@ fn map_neo4j_type(neo4j_type: &str) -> crate::types::PropertyType {
 /// Creates node types from graph labels and edge types from relationship patterns.
 /// Includes property information from graph schema introspection.
 /// The resulting ontology matches the actual graph labels, enabling correct AI queries.
-pub fn ontology_from_graph(
-    overview: &GraphSchemaOverview,
-    name: &str,
-) -> OntologyIR {
-    use crate::ontology_ir::{NodeTypeDef, EdgeTypeDef, PropertyDef, Cardinality};
+pub fn ontology_from_graph(overview: &GraphSchemaOverview, name: &str) -> OntologyIR {
+    use crate::ontology_ir::{Cardinality, EdgeTypeDef, NodeTypeDef, PropertyDef};
 
     // Build property lookup: entity_type → Vec<PropertyDef>
-    let build_props = |schemas: &[crate::graph_exploration::PropertySchema], label: &str| -> Vec<PropertyDef> {
-        schemas
-            .iter()
-            .filter(|p| p.entity_type == label)
-            .enumerate()
-            .map(|(_idx, p)| PropertyDef {
-                id: format!("p_{label}_{}", p.property_name).into(),
-                name: p.property_name.clone(),
-                property_type: map_neo4j_type(p.property_types.first().map(|s| s.as_str()).unwrap_or("STRING")),
-                nullable: !p.mandatory,
-                default_value: None,
-                description: None,
-            })
-            .collect()
-    };
+    let build_props =
+        |schemas: &[crate::graph_exploration::PropertySchema], label: &str| -> Vec<PropertyDef> {
+            schemas
+                .iter()
+                .filter(|p| p.entity_type == label)
+                .map(|p| PropertyDef {
+                    id: format!("p_{label}_{}", p.property_name).into(),
+                    name: p.property_name.clone(),
+                    property_type: map_neo4j_type(
+                        p.property_types
+                            .first()
+                            .map(|s| s.as_str())
+                            .unwrap_or("STRING"),
+                    ),
+                    nullable: !p.mandatory,
+                    default_value: None,
+                    description: None,
+                })
+                .collect()
+        };
 
     // Create node types from labels with properties
     let node_types: Vec<NodeTypeDef> = overview
@@ -198,7 +228,10 @@ pub fn ontology_from_graph(
     OntologyIR::new(
         uuid::Uuid::new_v4().to_string(),
         name.to_string(),
-        Some(format!("Auto-generated from graph with {} nodes and {} relationships", overview.total_nodes, overview.total_relationships)),
+        Some(format!(
+            "Auto-generated from graph with {} nodes and {} relationships",
+            overview.total_nodes, overview.total_relationships
+        )),
         1,
         node_types,
         edge_types,
@@ -211,7 +244,7 @@ mod tests {
     use super::*;
     use crate::graph_exploration::{GraphSchemaOverview, LabelStat, RelationshipPattern};
     use crate::ontology_ir::OntologyIR;
-    use crate::ontology_ir::{NodeTypeDef, EdgeTypeDef, Cardinality};
+    use crate::ontology_ir::{Cardinality, EdgeTypeDef, NodeTypeDef};
 
     fn make_ontology(nodes: &[&str], edges: &[(&str, &str, &str)]) -> OntologyIR {
         let node_types: Vec<NodeTypeDef> = nodes
@@ -233,21 +266,43 @@ mod tests {
                 id: format!("e{i}").into(),
                 label: label.to_string(),
                 description: None,
-                source_node_id: format!("n{}", nodes.iter().position(|n| n == src).unwrap_or(0)).into(),
-                target_node_id: format!("n{}", nodes.iter().position(|n| n == tgt).unwrap_or(0)).into(),
+                source_node_id: format!("n{}", nodes.iter().position(|n| n == src).unwrap_or(0))
+                    .into(),
+                target_node_id: format!("n{}", nodes.iter().position(|n| n == tgt).unwrap_or(0))
+                    .into(),
                 properties: vec![],
                 cardinality: Cardinality::ManyToMany,
             })
             .collect();
-        OntologyIR::new("test".into(), "Test".into(), None, 1, node_types, edge_types, vec![])
+        OntologyIR::new(
+            "test".into(),
+            "Test".into(),
+            None,
+            1,
+            node_types,
+            edge_types,
+            vec![],
+        )
     }
 
     fn make_overview(labels: &[&str], rels: &[&str]) -> GraphSchemaOverview {
         GraphSchemaOverview {
-            labels: labels.iter().map(|l| LabelStat { label: l.to_string(), count: 10 }).collect(),
-            relationships: rels.iter().map(|r| RelationshipPattern {
-                from_label: "A".into(), rel_type: r.to_string(), to_label: "B".into(), count: 5,
-            }).collect(),
+            labels: labels
+                .iter()
+                .map(|l| LabelStat {
+                    label: l.to_string(),
+                    count: 10,
+                })
+                .collect(),
+            relationships: rels
+                .iter()
+                .map(|r| RelationshipPattern {
+                    from_label: "A".into(),
+                    rel_type: r.to_string(),
+                    to_label: "B".into(),
+                    count: 5,
+                })
+                .collect(),
             total_nodes: labels.len() as i64 * 10,
             total_relationships: rels.len() as i64 * 5,
             node_properties: vec![],
@@ -268,7 +323,10 @@ mod tests {
     fn test_partial_sync() {
         let ont = make_ontology(
             &["Product", "Brand"],
-            &[("Product", "MADE_BY", "Brand"), ("Product", "TREATS_CONCERN", "Brand")],
+            &[
+                ("Product", "MADE_BY", "Brand"),
+                ("Product", "TREATS_CONCERN", "Brand"),
+            ],
         );
         let overview = make_overview(&["Product", "Brand"], &["MADE_BY", "TREATS"]);
         let report = audit_graph(&ont, &overview);

@@ -182,7 +182,10 @@ pub(super) fn compile_order_by(clauses: &[OrderClause], pc: &mut ParamCollector)
                 Projection::Variable { alias: Some(a), .. } => a.clone(),
                 // Bare variable names from LLM may reference RETURN aliases;
                 // use escape_identifier to ensure they're valid Cypher identifiers.
-                Projection::Variable { variable, alias: None } => escape_identifier(variable),
+                Projection::Variable {
+                    variable,
+                    alias: None,
+                } => escape_identifier(variable),
                 other => compile_projection(other, pc),
             };
             match c.direction {

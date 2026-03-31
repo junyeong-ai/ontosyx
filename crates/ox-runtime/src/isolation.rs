@@ -96,53 +96,56 @@ fn scope_cypher(query: &str) -> String {
     let mut result = query.to_string();
 
     // Phase 1: Inject WHERE filters for MATCH patterns (read isolation)
-    if !has_workspace_filter(&result) {
-        if let Some(node_var) = extract_first_node_var(&result) {
-            let ws_condition =
-                format!("{node_var}.{} = ${}", PropertyStrategy::PROPERTY, PropertyStrategy::PARAM_NAME);
-            let upper = result.to_uppercase();
+    if !has_workspace_filter(&result)
+        && let Some(node_var) = extract_first_node_var(&result)
+    {
+        let ws_condition = format!(
+            "{node_var}.{} = ${}",
+            PropertyStrategy::PROPERTY,
+            PropertyStrategy::PARAM_NAME
+        );
+        let upper = result.to_uppercase();
 
-            if let Some(where_pos) = find_where_after_match(&upper) {
-                let insert_pos = where_pos + 6; // "WHERE " is 6 chars
-                result = format!(
-                    "{}{ws_condition} AND {}",
-                    &result[..insert_pos],
-                    &result[insert_pos..]
-                );
-            } else if let Some(match_end) = find_match_pattern_end(&result) {
-                result = format!(
-                    "{} WHERE {ws_condition} {}",
-                    &result[..match_end],
-                    &result[match_end..]
-                );
-            }
+        if let Some(where_pos) = find_where_after_match(&upper) {
+            let insert_pos = where_pos + 6; // "WHERE " is 6 chars
+            result = format!(
+                "{}{ws_condition} AND {}",
+                &result[..insert_pos],
+                &result[insert_pos..]
+            );
+        } else if let Some(match_end) = find_match_pattern_end(&result) {
+            result = format!(
+                "{} WHERE {ws_condition} {}",
+                &result[..match_end],
+                &result[match_end..]
+            );
         }
     }
 
     // Phase 2: Inject SET clause for CREATE/MERGE patterns (write ownership)
-    if !has_workspace_set(&result) {
-        if let Some(node_var) = extract_first_create_var(&result) {
-            let set_fragment = format!(
-                "{node_var}.{} = ${}",
-                PropertyStrategy::PROPERTY,
-                PropertyStrategy::PARAM_NAME
-            );
-            let upper = result.to_uppercase();
+    if !has_workspace_set(&result)
+        && let Some(node_var) = extract_first_create_var(&result)
+    {
+        let set_fragment = format!(
+            "{node_var}.{} = ${}",
+            PropertyStrategy::PROPERTY,
+            PropertyStrategy::PARAM_NAME
+        );
+        let upper = result.to_uppercase();
 
-            if let Some(set_pos) = upper.find("SET ") {
-                let insert_pos = set_pos + 4;
-                result = format!(
-                    "{}{set_fragment}, {}",
-                    &result[..insert_pos],
-                    &result[insert_pos..]
-                );
-            } else if let Some(create_end) = find_create_pattern_end(&result) {
-                result = format!(
-                    "{} SET {set_fragment}{}",
-                    &result[..create_end],
-                    &result[create_end..]
-                );
-            }
+        if let Some(set_pos) = upper.find("SET ") {
+            let insert_pos = set_pos + 4;
+            result = format!(
+                "{}{set_fragment}, {}",
+                &result[..insert_pos],
+                &result[insert_pos..]
+            );
+        } else if let Some(create_end) = find_create_pattern_end(&result) {
+            result = format!(
+                "{} SET {set_fragment}{}",
+                &result[..create_end],
+                &result[create_end..]
+            );
         }
     }
 
@@ -202,10 +205,12 @@ fn extract_first_node_var(query: &str) -> Option<String> {
 /// Extract the first node variable from a CREATE/MERGE pattern.
 fn extract_first_create_var(query: &str) -> Option<String> {
     let upper = query.to_uppercase();
-    let pos = upper
-        .find("CREATE")
-        .or_else(|| upper.find("MERGE"))?;
-    let keyword_len = if upper[pos..].starts_with("CREATE") { 6 } else { 5 };
+    let pos = upper.find("CREATE").or_else(|| upper.find("MERGE"))?;
+    let keyword_len = if upper[pos..].starts_with("CREATE") {
+        6
+    } else {
+        5
+    };
     let after = &query[pos + keyword_len..];
     let paren_pos = after.find('(')?;
     let after_paren = &after[paren_pos + 1..];
@@ -257,9 +262,19 @@ fn find_match_pattern_end(query: &str) -> Option<usize> {
     // Must check word boundary to avoid matching inside labels (e.g., "Order" vs "ORDER BY").
     let upper_after = after_match.to_uppercase();
     let boundary_keywords = [
-        " WHERE ", " RETURN ", " WITH ", " CREATE ", " MERGE ",
-        " SET ", " DELETE ", " ORDER ", " UNION ", " CALL ",
-        "\nWHERE ", "\nRETURN ", "\nWITH ",
+        " WHERE ",
+        " RETURN ",
+        " WITH ",
+        " CREATE ",
+        " MERGE ",
+        " SET ",
+        " DELETE ",
+        " ORDER ",
+        " UNION ",
+        " CALL ",
+        "\nWHERE ",
+        "\nRETURN ",
+        "\nWITH ",
     ];
     let pattern_end = boundary_keywords
         .iter()
@@ -276,9 +291,7 @@ fn find_match_pattern_end(query: &str) -> Option<usize> {
 /// Find the end position of the first CREATE/MERGE pattern (outermost closing paren).
 fn find_create_pattern_end(query: &str) -> Option<usize> {
     let upper = query.to_uppercase();
-    let pos = upper
-        .find("CREATE")
-        .or_else(|| upper.find("MERGE"))?;
+    let pos = upper.find("CREATE").or_else(|| upper.find("MERGE"))?;
     let after = &query[pos..];
 
     let mut depth = 0;
@@ -320,7 +333,11 @@ mod tests {
     fn scope_read_with_existing_where() {
         let strategy = PropertyStrategy;
         let result = strategy.scope("MATCH (n:Person) WHERE n.age > 21 RETURN n", "ws-123");
-        assert!(result.query.contains("n._workspace_id = $_ws_id AND n.age > 21"));
+        assert!(
+            result
+                .query
+                .contains("n._workspace_id = $_ws_id AND n.age > 21")
+        );
     }
 
     #[test]
@@ -346,10 +363,7 @@ mod tests {
     #[test]
     fn scope_create_with_existing_set() {
         let strategy = PropertyStrategy;
-        let result = strategy.scope(
-            "CREATE (n:Person {name: 'Alice'}) SET n.age = 30",
-            "ws-123",
-        );
+        let result = strategy.scope("CREATE (n:Person {name: 'Alice'}) SET n.age = 30", "ws-123");
         assert!(result.query.contains("n._workspace_id = $_ws_id"));
         assert!(result.query.contains("n.age = 30"));
     }
@@ -409,7 +423,9 @@ mod tests {
         );
         // WHERE must be AFTER the entire pattern, not in the middle
         assert!(
-            result.query.contains("(b:Brand) WHERE p._workspace_id = $_ws_id"),
+            result
+                .query
+                .contains("(b:Brand) WHERE p._workspace_id = $_ws_id"),
             "WHERE should be after the full pattern: {}",
             result.query,
         );
@@ -428,7 +444,9 @@ mod tests {
             "ws-123",
         );
         assert!(
-            result.query.contains("c._workspace_id = $_ws_id AND o.status"),
+            result
+                .query
+                .contains("c._workspace_id = $_ws_id AND o.status"),
             "Should prepend to existing WHERE: {}",
             result.query,
         );
@@ -462,9 +480,18 @@ mod tests {
 
     #[test]
     fn extract_node_var_standard() {
-        assert_eq!(extract_first_node_var("MATCH (n:Person)"), Some("n".to_string()));
-        assert_eq!(extract_first_node_var("MATCH (node)"), Some("node".to_string()));
-        assert_eq!(extract_first_node_var("MATCH (my_var:Label)"), Some("my_var".to_string()));
+        assert_eq!(
+            extract_first_node_var("MATCH (n:Person)"),
+            Some("n".to_string())
+        );
+        assert_eq!(
+            extract_first_node_var("MATCH (node)"),
+            Some("node".to_string())
+        );
+        assert_eq!(
+            extract_first_node_var("MATCH (my_var:Label)"),
+            Some("my_var".to_string())
+        );
     }
 
     #[test]
@@ -475,8 +502,14 @@ mod tests {
 
     #[test]
     fn extract_create_var_standard() {
-        assert_eq!(extract_first_create_var("CREATE (n:Person)"), Some("n".to_string()));
-        assert_eq!(extract_first_create_var("MERGE (m:Company)"), Some("m".to_string()));
+        assert_eq!(
+            extract_first_create_var("CREATE (n:Person)"),
+            Some("n".to_string())
+        );
+        assert_eq!(
+            extract_first_create_var("MERGE (m:Company)"),
+            Some("m".to_string())
+        );
     }
 
     #[test]

@@ -198,7 +198,11 @@ struct AutoIndexCandidate {
 ///
 /// Returns the index statements (truncated to `max_auto_indices`) and stats.
 pub(super) fn compile_auto_indices(ontology: &OntologyIR) -> (Vec<String>, IndexStats) {
-    compile_auto_indices_with(ontology, DEFAULT_MAX_AUTO_INDICES, DEFAULT_HIGH_PRIORITY_NAMES)
+    compile_auto_indices_with(
+        ontology,
+        DEFAULT_MAX_AUTO_INDICES,
+        DEFAULT_HIGH_PRIORITY_NAMES,
+    )
 }
 
 /// Configurable version: allows runtime override of max indices and priority names.

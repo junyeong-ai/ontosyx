@@ -75,11 +75,7 @@ pub trait VectorStore: Send + Sync {
 
     /// Pattern-based text search (ILIKE / trigram).
     /// Complements semantic search for exact keyword/pattern matching.
-    async fn pattern_search(
-        &self,
-        pattern: &str,
-        top_k: usize,
-    ) -> OxResult<Vec<VectorHit>>;
+    async fn pattern_search(&self, pattern: &str, top_k: usize) -> OxResult<Vec<VectorHit>>;
 
     /// Delete a vector entry by ID.
     async fn delete(&self, id: &str) -> OxResult<()>;

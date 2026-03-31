@@ -55,3 +55,6 @@ url = "2.5.8"
 sha2 = "0.10.9"
 reqwest = { workspace = true }
 
+
+[lints]
+workspace = true

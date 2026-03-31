@@ -70,11 +70,17 @@ pub struct AuthConfig {
 impl fmt::Debug for AuthConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("AuthConfig")
-            .field("jwt_secret", &self.jwt_secret.as_ref().map(|_| "[REDACTED]"))
+            .field(
+                "jwt_secret",
+                &self.jwt_secret.as_ref().map(|_| "[REDACTED]"),
+            )
             .field("session_hours", &self.session_hours)
             .field("api_key", &self.api_key.as_ref().map(|_| "[REDACTED]"))
             .field("first_admin_email", &self.first_admin_email)
-            .field("providers", &self.providers.iter().map(|p| &p.name).collect::<Vec<_>>())
+            .field(
+                "providers",
+                &self.providers.iter().map(|p| &p.name).collect::<Vec<_>>(),
+            )
             .finish()
     }
 }
@@ -127,11 +133,21 @@ pub struct RetentionConfig {
     pub wip_delete_days: i64,
 }
 
-fn default_memory_days() -> i64 { 180 }
-fn default_session_days() -> i64 { 90 }
-fn default_retry_interval_secs() -> u64 { 300 }
-fn default_wip_archive_days() -> i64 { 30 }
-fn default_wip_delete_days() -> i64 { 90 }
+fn default_memory_days() -> i64 {
+    180
+}
+fn default_session_days() -> i64 {
+    90
+}
+fn default_retry_interval_secs() -> u64 {
+    300
+}
+fn default_wip_archive_days() -> i64 {
+    30
+}
+fn default_wip_delete_days() -> i64 {
+    90
+}
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct RateLimitConfig {

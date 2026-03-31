@@ -18,7 +18,11 @@ pub(crate) async fn list_prompt_templates(
     principal: Principal,
 ) -> Result<Json<Vec<PromptTemplateRow>>, AppError> {
     principal.require_admin()?;
-    let rows = state.store.list_prompt_templates(false).await.map_err(AppError::from)?;
+    let rows = state
+        .store
+        .list_prompt_templates(false)
+        .await
+        .map_err(AppError::from)?;
     Ok(Json(rows))
 }
 

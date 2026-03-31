@@ -240,7 +240,6 @@ pub fn ecommerce_eval_cases() -> Vec<EvalCase> {
             expected_edge_labels: vec![],
             description: "Simple listing of Category nodes".into(),
         },
-
         // --- RelationshipTraversal ---
         EvalCase {
             id: "RT-01".into(),
@@ -282,7 +281,6 @@ pub fn ecommerce_eval_cases() -> Vec<EvalCase> {
             expected_edge_labels: vec!["PLACED".into(), "CONTAINS".into()],
             description: "Two-hop traversal: Customer -PLACED-> Order -CONTAINS-> Product".into(),
         },
-
         // --- Aggregation ---
         EvalCase {
             id: "AG-01".into(),
@@ -324,7 +322,6 @@ pub fn ecommerce_eval_cases() -> Vec<EvalCase> {
             expected_edge_labels: vec!["CONTAINS".into(), "BELONGS_TO".into()],
             description: "Sum aggregation across multi-hop traversal".into(),
         },
-
         // --- TopN ---
         EvalCase {
             id: "TN-01".into(),
@@ -346,7 +343,6 @@ pub fn ecommerce_eval_cases() -> Vec<EvalCase> {
             expected_edge_labels: vec![],
             description: "Top-N ordering by date DESC with limit 10".into(),
         },
-
         // --- MultiFilter ---
         EvalCase {
             id: "MF-01".into(),
@@ -368,7 +364,6 @@ pub fn ecommerce_eval_cases() -> Vec<EvalCase> {
             expected_edge_labels: vec![],
             description: "Multiple filters on same node: status = delivered AND total > 500".into(),
         },
-
         // --- PathFinding ---
         EvalCase {
             id: "PF-01".into(),
@@ -380,7 +375,6 @@ pub fn ecommerce_eval_cases() -> Vec<EvalCase> {
             expected_edge_labels: vec![],
             description: "Shortest path between Customer and Product".into(),
         },
-
         // --- MultiStep ---
         EvalCase {
             id: "MS-01".into(),
@@ -388,7 +382,12 @@ pub fn ecommerce_eval_cases() -> Vec<EvalCase> {
             question: "Customers who ordered products in the Electronics category".into(),
             ontology: ontology.clone(),
             expected_op: ExpectedOp::Match,
-            expected_node_labels: vec!["Customer".into(), "Order".into(), "Product".into(), "Category".into()],
+            expected_node_labels: vec![
+                "Customer".into(),
+                "Order".into(),
+                "Product".into(),
+                "Category".into(),
+            ],
             expected_edge_labels: vec!["PLACED".into(), "CONTAINS".into(), "BELONGS_TO".into()],
             description: "Multi-hop traversal through Order and Product to Category".into(),
         },
@@ -402,7 +401,6 @@ pub fn ecommerce_eval_cases() -> Vec<EvalCase> {
             expected_edge_labels: vec!["PLACED".into(), "CONTAINS".into()],
             description: "Count DISTINCT aggregation over multi-hop pattern".into(),
         },
-
         // --- EdgeCase ---
         EvalCase {
             id: "EC-01".into(),

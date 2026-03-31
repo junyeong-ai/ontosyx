@@ -23,10 +23,10 @@ pub mod embedding;
 pub mod store;
 pub mod vector;
 
-pub use embedding::{EmbeddingProvider, EmbeddingRole};
 pub use embedding::noop::NoopEmbeddingProvider;
 #[cfg(feature = "onnx")]
 pub use embedding::onnx::OnnxEmbeddingProvider;
+pub use embedding::{EmbeddingProvider, EmbeddingRole};
 pub use store::{MemoryEntry, MemoryHit, MemoryMetadata, MemorySource, MemoryStore};
-pub use vector::{MemoryFilter, VectorStore};
 pub use vector::pgvector::PgVectorStore;
+pub use vector::{MemoryFilter, VectorStore};

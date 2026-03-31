@@ -4,8 +4,8 @@ use chrono::Utc;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use ox_store::store::CursorParams;
 use ox_store::Dashboard;
+use ox_store::store::CursorParams;
 
 use crate::error::AppError;
 use crate::principal::Principal;

@@ -25,9 +25,7 @@ pub enum WorkspaceContextScope {
     /// System-level access (API key users, scheduled tasks)
     SystemBypass,
     /// Scoped to a specific workspace (normal JWT users)
-    Workspace {
-        workspace_id: Uuid,
-    },
+    Workspace { workspace_id: Uuid },
 }
 
 impl ContextScope for WorkspaceContextScope {
@@ -36,21 +34,16 @@ impl ContextScope for WorkspaceContextScope {
         fut: Pin<Box<dyn Future<Output = ToolResult> + Send + 'a>>,
     ) -> Pin<Box<dyn Future<Output = ToolResult> + Send + 'a>> {
         match self {
-            WorkspaceContextScope::SystemBypass => {
-                Box::pin(async move {
-                    ox_store::SYSTEM_BYPASS
-                        .scope(true, ox_runtime::GRAPH_SYSTEM_BYPASS.scope(true, fut))
-                        .await
-                })
-            }
+            WorkspaceContextScope::SystemBypass => Box::pin(async move {
+                ox_store::SYSTEM_BYPASS
+                    .scope(true, ox_runtime::GRAPH_SYSTEM_BYPASS.scope(true, fut))
+                    .await
+            }),
             WorkspaceContextScope::Workspace { workspace_id } => {
                 let ws_id = *workspace_id;
                 Box::pin(async move {
                     ox_store::WORKSPACE_ID
-                        .scope(
-                            ws_id,
-                            ox_runtime::GRAPH_WORKSPACE_ID.scope(ws_id, fut),
-                        )
+                        .scope(ws_id, ox_runtime::GRAPH_WORKSPACE_ID.scope(ws_id, fut))
                         .await
                 })
             }

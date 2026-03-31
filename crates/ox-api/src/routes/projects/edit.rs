@@ -12,7 +12,9 @@ use crate::error::AppError;
 use crate::principal::Principal;
 use crate::state::AppState;
 
-use super::helpers::{assess_quality_from_project, get_design_options, load_mutable_project, reload_project};
+use super::helpers::{
+    assess_quality_from_project, get_design_options, load_mutable_project, reload_project,
+};
 use super::types::{ProjectEditRequest, ProjectEditResponse};
 
 // ---------------------------------------------------------------------------
@@ -51,13 +53,13 @@ pub(crate) async fn edit_project(
     // Project must have an ontology (status "designed", or "analyzed" with ontology)
     let ontology: OntologyIR = match project.ontology.as_ref() {
         None => return Err(AppError::no_ontology()),
-        Some(v) => serde_json::from_value(v.clone()).map_err(|e| {
-            AppError::internal(format!("Corrupt ontology in project: {e}"))
-        })?,
+        Some(v) => serde_json::from_value(v.clone())
+            .map_err(|e| AppError::internal(format!("Corrupt ontology in project: {e}")))?,
     };
 
     // Generate edit commands via Brain
-    let timeout = std::time::Duration::from_secs(state.system_config.read().await.design_timeout_secs());
+    let timeout =
+        std::time::Duration::from_secs(state.system_config.read().await.design_timeout_secs());
     let edit_started = Instant::now();
     info!(project_id = %id, "Generating edit commands");
 
@@ -95,18 +97,20 @@ pub(crate) async fn edit_project(
         let meter_store = Arc::clone(&state.store);
         let meter_user = principal.user_uuid().ok();
         crate::spawn_scoped::spawn_scoped(async move {
-            let _ = meter_store.record_usage(
-                meter_user,
-                "llm",
-                Some("anthropic"),
-                None,
-                Some("edit"),
-                0,
-                0,
-                edit_duration_ms,
-                0.0,
-                serde_json::json!({}),
-            ).await;
+            let _ = meter_store
+                .record_usage(
+                    meter_user,
+                    "llm",
+                    Some("anthropic"),
+                    None,
+                    Some("edit"),
+                    0,
+                    0,
+                    edit_duration_ms,
+                    0.0,
+                    serde_json::json!({}),
+                )
+                .await;
         });
     }
 

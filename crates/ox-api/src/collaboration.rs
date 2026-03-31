@@ -19,7 +19,7 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{RwLock, broadcast};
 
 // ---------------------------------------------------------------------------
 // Protocol messages (client ↔ server)
@@ -29,13 +29,9 @@ use tokio::sync::{broadcast, RwLock};
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum CollabMessage {
     /// Client → Server: Join a project room
-    Join {
-        project_id: String,
-    },
+    Join { project_id: String },
     /// Client → Server: Leave a project room
-    Leave {
-        project_id: String,
-    },
+    Leave { project_id: String },
     /// Client → Server: Update cursor position on canvas
     CursorMove {
         project_id: String,
@@ -55,7 +51,6 @@ pub enum CollabMessage {
     },
 
     // --- Server → Client messages ---
-
     /// Server → Client: Current room presence
     Presence {
         project_id: String,
@@ -92,14 +87,9 @@ pub enum CollabMessage {
         user: PresenceInfo,
     },
     /// Server → Client: User left the room
-    UserLeft {
-        project_id: String,
-        user_id: String,
-    },
+    UserLeft { project_id: String, user_id: String },
     /// Server → Client: Error message
-    Error {
-        message: String,
-    },
+    Error { message: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -137,8 +127,8 @@ struct EntityLock {
 
 #[allow(dead_code)] // Fields used by CollaborationHub methods; awaiting WebSocket route integration
 struct Room {
-    members: HashMap<String, RoomMember>,  // user_id → member
-    locks: HashMap<String, EntityLock>,     // entity_id → lock
+    members: HashMap<String, RoomMember>, // user_id → member
+    locks: HashMap<String, EntityLock>,   // entity_id → lock
     broadcast: broadcast::Sender<CollabMessage>,
 }
 
@@ -172,7 +162,7 @@ impl Room {
 
 pub struct CollaborationHub {
     #[allow(dead_code)] // Used by all Hub methods; awaiting WebSocket route integration
-    rooms: RwLock<HashMap<String, Room>>,  // project_id → room
+    rooms: RwLock<HashMap<String, Room>>, // project_id → room
 }
 
 #[allow(dead_code)] // All methods awaiting WebSocket route integration
@@ -276,14 +266,14 @@ impl CollaborationHub {
         // Update stored cursor position
         drop(rooms);
         let mut rooms = self.rooms.write().await;
-        if let Some(room) = rooms.get_mut(project_id) {
-            if let Some(member) = room.members.get_mut(user_id) {
-                member.cursor = Some(CursorPosition {
-                    x,
-                    y,
-                    selected_element: None,
-                });
-            }
+        if let Some(room) = rooms.get_mut(project_id)
+            && let Some(member) = room.members.get_mut(user_id)
+        {
+            member.cursor = Some(CursorPosition {
+                x,
+                y,
+                selected_element: None,
+            });
         }
     }
 
@@ -336,10 +326,10 @@ impl CollaborationHub {
         let mut rooms = self.rooms.write().await;
         let room = rooms.get_mut(project_id).ok_or("Room not found")?;
 
-        if let Some(lock) = room.locks.get(entity_id) {
-            if lock.held_by != user_id {
-                return Err("Lock held by another user".to_string());
-            }
+        if let Some(lock) = room.locks.get(entity_id)
+            && lock.held_by != user_id
+        {
+            return Err("Lock held by another user".to_string());
         }
 
         room.locks.remove(entity_id);

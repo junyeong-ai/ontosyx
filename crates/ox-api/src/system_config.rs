@@ -53,9 +53,7 @@ impl SystemConfig {
     }
 
     fn get_string(&self, category: &str, key: &str, default: &str) -> String {
-        self.get(category, key)
-            .unwrap_or(default)
-            .to_string()
+        self.get(category, key).unwrap_or(default).to_string()
     }
 
     // -- Schema complexity (structured output thresholds) --------------------

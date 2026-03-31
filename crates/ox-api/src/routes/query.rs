@@ -68,16 +68,16 @@ pub async fn search_graph(
     let timeout = state.timeouts.raw_query;
     let labels = req.labels.as_deref();
 
-    let mut results = tokio::time::timeout(
-        timeout,
-        runtime.search_nodes(&search_term, limit, labels),
-    )
-    .await
-    .map_err(|_| AppError::timeout(format!("Search timed out after {}s", timeout.as_secs())))?
-    .map_err(|e| {
-        error!("Graph search failed: {e}");
-        AppError::unprocessable(format!("Search execution failed: {e}"))
-    })?;
+    let mut results =
+        tokio::time::timeout(timeout, runtime.search_nodes(&search_term, limit, labels))
+            .await
+            .map_err(|_| {
+                AppError::timeout(format!("Search timed out after {}s", timeout.as_secs()))
+            })?
+            .map_err(|e| {
+                error!("Graph search failed: {e}");
+                AppError::unprocessable(format!("Search execution failed: {e}"))
+            })?;
 
     // Apply ACL enforcement
     if let Ok(policies) = state
@@ -148,10 +148,7 @@ pub async fn raw_query(
     let target = state.compiler.target_name().to_string();
     info!(user_id = %principal.id, target = %target, "Raw query submitted");
 
-    let runtime = state
-        .runtime
-        .as_ref()
-        .ok_or_else(AppError::no_runtime)?;
+    let runtime = state.runtime.as_ref().ok_or_else(AppError::no_runtime)?;
 
     let timeout = state.timeouts.raw_query;
     let empty_params: HashMap<String, PropertyValue> = HashMap::new();
@@ -193,18 +190,20 @@ pub async fn raw_query(
         let meter_store = Arc::clone(&state.store);
         let meter_user = principal.user_uuid().ok();
         crate::spawn_scoped::spawn_scoped(async move {
-            let _ = meter_store.record_usage(
-                meter_user,
-                "query",
-                None,
-                None,
-                Some("raw_query"),
-                0,
-                0,
-                execution_time_ms,
-                0.0,
-                serde_json::json!({"rows": row_count}),
-            ).await;
+            let _ = meter_store
+                .record_usage(
+                    meter_user,
+                    "query",
+                    None,
+                    None,
+                    Some("raw_query"),
+                    0,
+                    0,
+                    execution_time_ms,
+                    0.0,
+                    serde_json::json!({"rows": row_count}),
+                )
+                .await;
         });
     }
 
@@ -303,12 +302,12 @@ pub async fn set_feedback(
     Path(id): Path<Uuid>,
     Json(req): Json<QueryFeedbackRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    if let Some(ref fb) = req.feedback {
-        if !VALID_FEEDBACK.contains(&fb.as_str()) {
-            return Err(AppError::bad_request(format!(
-                "Invalid feedback '{fb}'. Valid values: positive, negative, or null to clear"
-            )));
-        }
+    if let Some(ref fb) = req.feedback
+        && !VALID_FEEDBACK.contains(&fb.as_str())
+    {
+        return Err(AppError::bad_request(format!(
+            "Invalid feedback '{fb}'. Valid values: positive, negative, or null to clear"
+        )));
     }
 
     let updated = state
@@ -386,10 +385,7 @@ pub async fn execute_from_ir(
     })?;
 
     // Step 2: Execute the compiled query
-    let runtime = state
-        .runtime
-        .as_ref()
-        .ok_or_else(AppError::no_runtime)?;
+    let runtime = state.runtime.as_ref().ok_or_else(AppError::no_runtime)?;
 
     let timeout = state.timeouts.raw_query;
     let start = std::time::Instant::now();
@@ -448,18 +444,20 @@ pub async fn execute_from_ir(
         let meter_store = Arc::clone(&state.store);
         let meter_user = principal.user_uuid().ok();
         crate::spawn_scoped::spawn_scoped(async move {
-            let _ = meter_store.record_usage(
-                meter_user,
-                "query",
-                None,
-                None,
-                Some("from_ir"),
-                0,
-                0,
-                execution_time_ms,
-                0.0,
-                serde_json::json!({"rows": row_count}),
-            ).await;
+            let _ = meter_store
+                .record_usage(
+                    meter_user,
+                    "query",
+                    None,
+                    None,
+                    Some("from_ir"),
+                    0,
+                    0,
+                    execution_time_ms,
+                    0.0,
+                    serde_json::json!({"rows": row_count}),
+                )
+                .await;
         });
     }
 
@@ -554,16 +552,13 @@ pub async fn expand_node(
     let runtime = state.runtime.as_ref().ok_or_else(AppError::no_runtime)?;
     let timeout = state.timeouts.raw_query;
 
-    let mut expansion = tokio::time::timeout(
-        timeout,
-        runtime.expand_node(&req.element_id, limit),
-    )
-    .await
-    .map_err(|_| AppError::timeout("Expand timed out".to_string()))?
-    .map_err(|e| {
-        error!("Expand failed: {e}");
-        AppError::unprocessable(format!("Expand failed: {e}"))
-    })?;
+    let mut expansion = tokio::time::timeout(timeout, runtime.expand_node(&req.element_id, limit))
+        .await
+        .map_err(|_| AppError::timeout("Expand timed out".to_string()))?
+        .map_err(|e| {
+            error!("Expand failed: {e}");
+            AppError::unprocessable(format!("Expand failed: {e}"))
+        })?;
 
     // Apply ACL enforcement
     if let Ok(policies) = state

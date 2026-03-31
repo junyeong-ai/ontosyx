@@ -22,7 +22,8 @@ use super::helpers::{
     load_mutable_project, load_project_in_status, maybe_require_review, reload_project,
 };
 use super::types::{
-    ProjectReconcileRequest, ProjectDesignRequest, ProjectDesignResponse, ProjectRefineRequest, ProjectRefineResponse,
+    ProjectDesignRequest, ProjectDesignResponse, ProjectReconcileRequest, ProjectRefineRequest,
+    ProjectRefineResponse,
 };
 
 // ---------------------------------------------------------------------------
@@ -108,7 +109,8 @@ pub(crate) async fn design_project(
 
     info!(project_id = %id, "Designing ontology from stored snapshot");
 
-    let timeout = std::time::Duration::from_secs(state.system_config.read().await.design_timeout_secs());
+    let timeout =
+        std::time::Duration::from_secs(state.system_config.read().await.design_timeout_secs());
     let design_started = Instant::now();
     let (ontology, source_mapping) = tokio::time::timeout(
         timeout,
@@ -143,18 +145,20 @@ pub(crate) async fn design_project(
         let meter_store = Arc::clone(&state.store);
         let meter_user = principal.user_uuid().ok();
         crate::spawn_scoped::spawn_scoped(async move {
-            let _ = meter_store.record_usage(
-                meter_user,
-                "llm",
-                Some("anthropic"),
-                None,
-                Some("design"),
-                0,
-                0,
-                design_duration_ms,
-                0.0,
-                serde_json::json!({}),
-            ).await;
+            let _ = meter_store
+                .record_usage(
+                    meter_user,
+                    "llm",
+                    Some("anthropic"),
+                    None,
+                    Some("design"),
+                    0,
+                    0,
+                    design_duration_ms,
+                    0.0,
+                    serde_json::json!({}),
+                )
+                .await;
         });
     }
 
@@ -301,7 +305,9 @@ pub(crate) async fn refine_project(
             match serde_json::from_value::<ox_core::source_schema::SourceSchema>(schema_val.clone())
             {
                 Ok(schema) => {
-                    info!("No graph runtime or additional context — using source schema for refinement");
+                    info!(
+                        "No graph runtime or additional context — using source schema for refinement"
+                    );
                     let summary = build_source_schema_summary(&schema);
                     Some(summary)
                 }
@@ -365,18 +371,20 @@ pub(crate) async fn refine_project(
         let meter_store = Arc::clone(&state.store);
         let meter_user = principal.user_uuid().ok();
         crate::spawn_scoped::spawn_scoped(async move {
-            let _ = meter_store.record_usage(
-                meter_user,
-                "llm",
-                Some("anthropic"),
-                None,
-                Some("refine"),
-                0,
-                0,
-                refine_duration_ms,
-                0.0,
-                serde_json::json!({}),
-            ).await;
+            let _ = meter_store
+                .record_usage(
+                    meter_user,
+                    "llm",
+                    Some("anthropic"),
+                    None,
+                    Some("refine"),
+                    0,
+                    0,
+                    refine_duration_ms,
+                    0.0,
+                    serde_json::json!({}),
+                )
+                .await;
         });
     }
 
@@ -409,9 +417,7 @@ pub(crate) async fn refine_project(
             format!("Profiled {n} node types, {e} edge types; applied additional context")
         }
         (Some((_, n, e)), false, _) => format!("Profiled {n} node types, {e} edge types"),
-        (None, _, Some(_)) => {
-            "Refined from source schema (no graph runtime)".to_string()
-        }
+        (None, _, Some(_)) => "Refined from source schema (no graph runtime)".to_string(),
         (None, _, None) => "Refined from additional context (no graph data)".to_string(),
     };
 
@@ -548,4 +554,3 @@ pub(crate) async fn apply_reconcile(
         },
     }))
 }
-

@@ -13,17 +13,17 @@ pub mod tools;
 use std::sync::Arc;
 
 use branchforge::{Agent, Auth, CacheConfig, ExecutionMode, ToolSurface};
+use hooks::EmbeddingHook;
 use ox_compiler::GraphCompiler;
 use ox_core::error::OxResult;
 use ox_core::ontology_ir::OntologyIR;
 use ox_memory::MemoryStore;
 use ox_runtime::GraphRuntime;
 use ox_store::Store;
-use hooks::EmbeddingHook;
 use tools::{
     ApplyOntologyTool, EditOntologyTool, ExecuteAnalysisTool, ExplainOntologyTool,
-    IntrospectSourceTool, QueryGraphTool, RecallMemoryTool, SchemaEvolutionTool,
-    SearchRecipesTool, VisualizeTool,
+    IntrospectSourceTool, QueryGraphTool, RecallMemoryTool, SchemaEvolutionTool, SearchRecipesTool,
+    VisualizeTool,
 };
 
 // Agent system prompt is loaded from DB (prompt_templates, name="agent_system").
@@ -124,7 +124,8 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
             });
         }
 
-        builder = builder.tool(ExecuteAnalysisTool {
+        builder = builder
+            .tool(ExecuteAnalysisTool {
                 store: Arc::clone(&domain.store) as Arc<dyn ox_store::AnalysisResultStore>,
             })
             .tool(ExplainOntologyTool {

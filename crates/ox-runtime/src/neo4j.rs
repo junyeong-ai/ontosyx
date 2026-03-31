@@ -12,7 +12,10 @@ use ox_core::query_ir::{QueryMetadata, QueryResult};
 use ox_core::types::PropertyValue;
 
 use crate::isolation::GraphIsolationStrategy;
-use crate::{GRAPH_SYSTEM_BYPASS, GRAPH_WORKSPACE_ID, GraphRuntime, LoadBatch, LoadResult, SandboxHandle, TransienceDetector};
+use crate::{
+    GRAPH_SYSTEM_BYPASS, GRAPH_WORKSPACE_ID, GraphRuntime, LoadBatch, LoadResult, SandboxHandle,
+    TransienceDetector,
+};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -213,7 +216,10 @@ impl Neo4jRuntime {
     /// When set, all queries are automatically scoped to the current workspace
     /// via the GRAPH_WORKSPACE_ID task-local.
     pub fn with_isolation(mut self, strategy: Box<dyn GraphIsolationStrategy>) -> Self {
-        info!(strategy = strategy.name(), "Graph workspace isolation enabled");
+        info!(
+            strategy = strategy.name(),
+            "Graph workspace isolation enabled"
+        );
         self.isolation = Some(strategy);
         self
     }
@@ -353,11 +359,7 @@ impl GraphRuntime for Neo4jRuntime {
         })
     }
 
-    async fn execute_load(
-        &self,
-        cypher: &str,
-        batch: LoadBatch,
-    ) -> OxResult<LoadResult> {
+    async fn execute_load(&self, cypher: &str, batch: LoadBatch) -> OxResult<LoadResult> {
         use futures::stream::{FuturesUnordered, StreamExt};
 
         // Scope the load query for workspace isolation (writes)
@@ -392,7 +394,11 @@ impl GraphRuntime for Neo4jRuntime {
         let isolation_params: Vec<(String, String)> = _scoped_params
             .iter()
             .filter_map(|(k, v)| {
-                if let PropertyValue::String(s) = v { Some((k.clone(), s.clone())) } else { None }
+                if let PropertyValue::String(s) = v {
+                    Some((k.clone(), s.clone()))
+                } else {
+                    None
+                }
             })
             .collect();
 
@@ -405,8 +411,7 @@ impl GraphRuntime for Neo4jRuntime {
                            iso_params: Vec<(String, String)>| {
             // Bind fields as individual $row_<field> params.
             // The compiler generates `$row_<source_column>` placeholders (no UNWIND).
-            let field_pairs: Vec<(String, serde_json::Value)> =
-                record.into_iter().collect();
+            let field_pairs: Vec<(String, serde_json::Value)> = record.into_iter().collect();
 
             futures.push(Box::pin(async move {
                 let retry = RetryConfig {
@@ -568,7 +573,10 @@ impl GraphRuntime for Neo4jRuntime {
 
         let mut params = HashMap::new();
         if search_query != "*" {
-            params.insert("search".to_string(), PropertyValue::String(search_query.to_string()));
+            params.insert(
+                "search".to_string(),
+                PropertyValue::String(search_query.to_string()),
+            );
         }
         params.insert("limit".to_string(), PropertyValue::Int(limit as i64));
 
@@ -576,35 +584,47 @@ impl GraphRuntime for Neo4jRuntime {
 
         // Parse QueryResult rows into SearchResultNode
         let col_idx: HashMap<&str, usize> = result
-            .columns.iter().enumerate().map(|(i, c)| (c.as_str(), i)).collect();
+            .columns
+            .iter()
+            .enumerate()
+            .map(|(i, c)| (c.as_str(), i))
+            .collect();
 
-        let nodes = result.rows.into_iter().filter_map(|row| {
-            let get = |name: &str| col_idx.get(name).and_then(|&i| row.get(i));
+        let nodes = result
+            .rows
+            .into_iter()
+            .filter_map(|row| {
+                let get = |name: &str| col_idx.get(name).and_then(|&i| row.get(i));
 
-            let element_id = match get("element_id")? {
-                PropertyValue::String(s) => s.clone(),
-                other => other.to_string(),
-            };
-            let labels = match get("labels") {
-                Some(PropertyValue::List(arr)) => arr
-                    .iter()
-                    .filter_map(|v| match v {
-                        PropertyValue::String(s) => Some(s.clone()),
-                        _ => None,
-                    })
-                    .collect(),
-                _ => vec![],
-            };
-            let props: HashMap<String, serde_json::Value> = match get("props") {
-                Some(PropertyValue::Map(m)) => m
-                    .iter()
-                    .map(|(k, v)| (k.clone(), serde_json::to_value(v).unwrap_or_default()))
-                    .collect(),
-                _ => HashMap::new(),
-            };
+                let element_id = match get("element_id")? {
+                    PropertyValue::String(s) => s.clone(),
+                    other => other.to_string(),
+                };
+                let labels = match get("labels") {
+                    Some(PropertyValue::List(arr)) => arr
+                        .iter()
+                        .filter_map(|v| match v {
+                            PropertyValue::String(s) => Some(s.clone()),
+                            _ => None,
+                        })
+                        .collect(),
+                    _ => vec![],
+                };
+                let props: HashMap<String, serde_json::Value> = match get("props") {
+                    Some(PropertyValue::Map(m)) => m
+                        .iter()
+                        .map(|(k, v)| (k.clone(), serde_json::to_value(v).unwrap_or_default()))
+                        .collect(),
+                    _ => HashMap::new(),
+                };
 
-            Some(SearchResultNode { element_id, labels, props })
-        }).collect();
+                Some(SearchResultNode {
+                    element_id,
+                    labels,
+                    props,
+                })
+            })
+            .collect();
 
         Ok(nodes)
     }
@@ -626,55 +646,77 @@ impl GraphRuntime for Neo4jRuntime {
             LIMIT $limit";
 
         let mut params = HashMap::new();
-        params.insert("id".to_string(), PropertyValue::String(element_id.to_string()));
+        params.insert(
+            "id".to_string(),
+            PropertyValue::String(element_id.to_string()),
+        );
         params.insert("limit".to_string(), PropertyValue::Int(limit as i64));
 
         let result = self.execute_query(cypher, &params).await?;
 
         let col_idx: HashMap<&str, usize> = result
-            .columns.iter().enumerate().map(|(i, c)| (c.as_str(), i)).collect();
+            .columns
+            .iter()
+            .enumerate()
+            .map(|(i, c)| (c.as_str(), i))
+            .collect();
 
-        let neighbors = result.rows.into_iter().filter_map(|row| {
-            let get = |name: &str| col_idx.get(name).and_then(|&i| row.get(i));
+        let neighbors = result
+            .rows
+            .into_iter()
+            .filter_map(|row| {
+                let get = |name: &str| col_idx.get(name).and_then(|&i| row.get(i));
 
-            let eid = match get("element_id")? {
-                PropertyValue::String(s) => s.clone(),
-                other => other.to_string(),
-            };
-            let labels = match get("labels") {
-                Some(PropertyValue::List(arr)) => arr
-                    .iter()
-                    .filter_map(|v| match v {
-                        PropertyValue::String(s) => Some(s.clone()),
-                        _ => None,
-                    })
-                    .collect(),
-                _ => vec![],
-            };
-            let props: HashMap<String, serde_json::Value> = match get("props") {
-                Some(PropertyValue::Map(m)) => m
-                    .iter()
-                    .map(|(k, v)| (k.clone(), serde_json::to_value(v).unwrap_or_default()))
-                    .collect(),
-                _ => HashMap::new(),
-            };
-            let relationship_type = match get("rel_type")? {
-                PropertyValue::String(s) => s.clone(),
-                other => other.to_string(),
-            };
-            let direction = match get("direction") {
-                Some(PropertyValue::String(s)) => s.clone(),
-                _ => "outgoing".to_string(),
-            };
+                let eid = match get("element_id")? {
+                    PropertyValue::String(s) => s.clone(),
+                    other => other.to_string(),
+                };
+                let labels = match get("labels") {
+                    Some(PropertyValue::List(arr)) => arr
+                        .iter()
+                        .filter_map(|v| match v {
+                            PropertyValue::String(s) => Some(s.clone()),
+                            _ => None,
+                        })
+                        .collect(),
+                    _ => vec![],
+                };
+                let props: HashMap<String, serde_json::Value> = match get("props") {
+                    Some(PropertyValue::Map(m)) => m
+                        .iter()
+                        .map(|(k, v)| (k.clone(), serde_json::to_value(v).unwrap_or_default()))
+                        .collect(),
+                    _ => HashMap::new(),
+                };
+                let relationship_type = match get("rel_type")? {
+                    PropertyValue::String(s) => s.clone(),
+                    other => other.to_string(),
+                };
+                let direction = match get("direction") {
+                    Some(PropertyValue::String(s)) => s.clone(),
+                    _ => "outgoing".to_string(),
+                };
 
-            Some(ExpandNeighbor { element_id: eid, labels, props, relationship_type, direction })
-        }).collect();
+                Some(ExpandNeighbor {
+                    element_id: eid,
+                    labels,
+                    props,
+                    relationship_type,
+                    direction,
+                })
+            })
+            .collect();
 
-        Ok(NodeExpansion { source_id: element_id.to_string(), neighbors })
+        Ok(NodeExpansion {
+            source_id: element_id.to_string(),
+            neighbors,
+        })
     }
 
     async fn graph_overview(&self) -> OxResult<ox_core::graph_exploration::GraphSchemaOverview> {
-        use ox_core::graph_exploration::{GraphSchemaOverview, LabelStat, RelationshipPattern, PropertySchema};
+        use ox_core::graph_exploration::{
+            GraphSchemaOverview, LabelStat, PropertySchema, RelationshipPattern,
+        };
 
         let empty_params = HashMap::new();
 
@@ -686,7 +728,11 @@ impl GraphRuntime for Neo4jRuntime {
 
         let label_result = self.execute_query(label_cypher, &empty_params).await?;
         let label_col_idx: HashMap<&str, usize> = label_result
-            .columns.iter().enumerate().map(|(i, c)| (c.as_str(), i)).collect();
+            .columns
+            .iter()
+            .enumerate()
+            .map(|(i, c)| (c.as_str(), i))
+            .collect();
 
         let mut labels = Vec::new();
         let mut total_nodes: i64 = 0;
@@ -713,7 +759,11 @@ impl GraphRuntime for Neo4jRuntime {
 
         let rel_result = self.execute_query(rel_cypher, &empty_params).await?;
         let rel_col_idx: HashMap<&str, usize> = rel_result
-            .columns.iter().enumerate().map(|(i, c)| (c.as_str(), i)).collect();
+            .columns
+            .iter()
+            .enumerate()
+            .map(|(i, c)| (c.as_str(), i))
+            .collect();
 
         let mut relationships = Vec::new();
         let mut total_relationships: i64 = 0;
@@ -736,7 +786,12 @@ impl GraphRuntime for Neo4jRuntime {
                 _ => 0,
             };
             total_relationships += count;
-            relationships.push(RelationshipPattern { from_label, rel_type, to_label, count });
+            relationships.push(RelationshipPattern {
+                from_label,
+                rel_type,
+                to_label,
+                count,
+            });
         }
 
         // --- Property introspection ---
@@ -759,11 +814,18 @@ impl GraphRuntime for Neo4jRuntime {
         };
         match node_prop_result {
             Ok(prop_result) => {
-                let col_idx: std::collections::HashMap<&str, usize> = prop_result.columns.iter().enumerate().map(|(i, c)| (c.as_str(), i)).collect();
+                let col_idx: std::collections::HashMap<&str, usize> = prop_result
+                    .columns
+                    .iter()
+                    .enumerate()
+                    .map(|(i, c)| (c.as_str(), i))
+                    .collect();
                 for row in &prop_result.rows {
                     let get = |name: &str| col_idx.get(name).and_then(|&i| row.get(i));
                     let entity_type = match get("nodeType") {
-                        Some(PropertyValue::String(s)) => s.trim_start_matches(':').trim_matches('`').to_string(),
+                        Some(PropertyValue::String(s)) => {
+                            s.trim_start_matches(':').trim_matches('`').to_string()
+                        }
                         _ => continue,
                     };
                     let property_name = match get("propertyName") {
@@ -771,13 +833,25 @@ impl GraphRuntime for Neo4jRuntime {
                         _ => continue,
                     };
                     let property_types = match get("propertyTypes") {
-                        Some(PropertyValue::List(list)) => list.iter().filter_map(|v| {
-                            if let PropertyValue::String(s) = v { Some(s.clone()) } else { None }
-                        }).collect(),
+                        Some(PropertyValue::List(list)) => list
+                            .iter()
+                            .filter_map(|v| {
+                                if let PropertyValue::String(s) = v {
+                                    Some(s.clone())
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect(),
                         _ => vec!["STRING".to_string()],
                     };
                     let mandatory = matches!(get("mandatory"), Some(PropertyValue::Bool(true)));
-                    node_properties.push(PropertySchema { entity_type, property_name, property_types, mandatory });
+                    node_properties.push(PropertySchema {
+                        entity_type,
+                        property_name,
+                        property_types,
+                        mandatory,
+                    });
                 }
             }
             Err(e) => {
@@ -799,11 +873,18 @@ impl GraphRuntime for Neo4jRuntime {
         };
         match rel_prop_result {
             Ok(prop_result) => {
-                let col_idx: std::collections::HashMap<&str, usize> = prop_result.columns.iter().enumerate().map(|(i, c)| (c.as_str(), i)).collect();
+                let col_idx: std::collections::HashMap<&str, usize> = prop_result
+                    .columns
+                    .iter()
+                    .enumerate()
+                    .map(|(i, c)| (c.as_str(), i))
+                    .collect();
                 for row in &prop_result.rows {
                     let get = |name: &str| col_idx.get(name).and_then(|&i| row.get(i));
                     let entity_type = match get("relType") {
-                        Some(PropertyValue::String(s)) => s.trim_start_matches(':').trim_matches('`').to_string(),
+                        Some(PropertyValue::String(s)) => {
+                            s.trim_start_matches(':').trim_matches('`').to_string()
+                        }
                         _ => continue,
                     };
                     let property_name = match get("propertyName") {
@@ -811,13 +892,25 @@ impl GraphRuntime for Neo4jRuntime {
                         _ => continue,
                     };
                     let property_types = match get("propertyTypes") {
-                        Some(PropertyValue::List(list)) => list.iter().filter_map(|v| {
-                            if let PropertyValue::String(s) = v { Some(s.clone()) } else { None }
-                        }).collect(),
+                        Some(PropertyValue::List(list)) => list
+                            .iter()
+                            .filter_map(|v| {
+                                if let PropertyValue::String(s) = v {
+                                    Some(s.clone())
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect(),
                         _ => vec!["STRING".to_string()],
                     };
                     let mandatory = matches!(get("mandatory"), Some(PropertyValue::Bool(true)));
-                    rel_properties.push(PropertySchema { entity_type, property_name, property_types, mandatory });
+                    rel_properties.push(PropertySchema {
+                        entity_type,
+                        property_name,
+                        property_types,
+                        mandatory,
+                    });
                 }
             }
             Err(e) => {
@@ -825,7 +918,14 @@ impl GraphRuntime for Neo4jRuntime {
             }
         }
 
-        Ok(GraphSchemaOverview { labels, relationships, total_nodes, total_relationships, node_properties, rel_properties })
+        Ok(GraphSchemaOverview {
+            labels,
+            relationships,
+            total_nodes,
+            total_relationships,
+            node_properties,
+            rel_properties,
+        })
     }
 }
 
@@ -874,7 +974,10 @@ mod tests {
     #[test]
     fn test_bind_params_string() {
         let mut params = HashMap::new();
-        params.insert("name".to_string(), PropertyValue::String("Alice".to_string()));
+        params.insert(
+            "name".to_string(),
+            PropertyValue::String("Alice".to_string()),
+        );
         params.insert("age".to_string(), PropertyValue::Int(30));
         params.insert("score".to_string(), PropertyValue::Float(9.5));
         params.insert("active".to_string(), PropertyValue::Bool(true));
@@ -929,8 +1032,8 @@ mod tests {
 
         // Float
         assert_eq!(
-            json_to_property_value(Some(&json!(3.14))),
-            PropertyValue::Float(3.14)
+            json_to_property_value(Some(&json!(3.25))),
+            PropertyValue::Float(3.25)
         );
 
         // Boolean
@@ -1105,7 +1208,10 @@ mod tests {
         match err {
             OxError::Validation { field, message } => {
                 assert_eq!(field, "batch[0]");
-                assert!(message.contains("array"), "message should mention 'array': {message}");
+                assert!(
+                    message.contains("array"),
+                    "message should mention 'array': {message}"
+                );
             }
             other => panic!("Expected Validation error, got {other:?}"),
         }
@@ -1116,7 +1222,10 @@ mod tests {
         match err {
             OxError::Validation { field, message } => {
                 assert_eq!(field, "batch[0]");
-                assert!(message.contains("string"), "message should mention 'string': {message}");
+                assert!(
+                    message.contains("string"),
+                    "message should mention 'string': {message}"
+                );
             }
             other => panic!("Expected Validation error, got {other:?}"),
         }
@@ -1127,7 +1236,10 @@ mod tests {
         match err {
             OxError::Validation { field, message } => {
                 assert_eq!(field, "batch[0]");
-                assert!(message.contains("null"), "message should mention 'null': {message}");
+                assert!(
+                    message.contains("null"),
+                    "message should mention 'null': {message}"
+                );
             }
             other => panic!("Expected Validation error, got {other:?}"),
         }
@@ -1138,7 +1250,10 @@ mod tests {
         match err {
             OxError::Validation { field, message } => {
                 assert_eq!(field, "batch[0]");
-                assert!(message.contains("number"), "message should mention 'number': {message}");
+                assert!(
+                    message.contains("number"),
+                    "message should mention 'number': {message}"
+                );
             }
             other => panic!("Expected Validation error, got {other:?}"),
         }
@@ -1149,7 +1264,10 @@ mod tests {
         match err {
             OxError::Validation { field, message } => {
                 assert_eq!(field, "batch[0]");
-                assert!(message.contains("boolean"), "message should mention 'boolean': {message}");
+                assert!(
+                    message.contains("boolean"),
+                    "message should mention 'boolean': {message}"
+                );
             }
             other => panic!("Expected Validation error, got {other:?}"),
         }
@@ -1159,7 +1277,10 @@ mod tests {
         let err = LoadBatch::from_values(values).unwrap_err();
         match err {
             OxError::Validation { field, .. } => {
-                assert_eq!(field, "batch[1]", "should report index of the failing element");
+                assert_eq!(
+                    field, "batch[1]",
+                    "should report index of the failing element"
+                );
             }
             other => panic!("Expected Validation error, got {other:?}"),
         }

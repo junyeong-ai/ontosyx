@@ -83,12 +83,13 @@ impl DataSourceFetcher for PostgresFetcher {
             "SELECT {col_clause} FROM {qualified} ORDER BY ctid OFFSET {offset} LIMIT {limit}"
         );
 
-        let rows: Vec<PgRow> = sqlx::query(&sql)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| OxError::Runtime {
-                message: format!("Failed to fetch from {table}: {e}"),
-            })?;
+        let rows: Vec<PgRow> =
+            sqlx::query(&sql)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| OxError::Runtime {
+                    message: format!("Failed to fetch from {table}: {e}"),
+                })?;
 
         // Convert each row to a JSON map
         let mut result = Vec::with_capacity(rows.len());
@@ -144,7 +145,7 @@ fn pg_row_to_json_map(row: &PgRow) -> OxResult<SourceRow> {
                 .try_get::<Option<f64>, _>(col.ordinal())
                 .ok()
                 .flatten()
-                .and_then(|v| serde_json::Number::from_f64(v))
+                .and_then(serde_json::Number::from_f64)
                 .map(serde_json::Value::Number)
                 .unwrap_or(serde_json::Value::Null),
             "BOOL" => row

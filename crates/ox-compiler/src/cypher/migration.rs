@@ -39,11 +39,7 @@ pub struct MigrationPlan {
 ///
 /// Uses the existing `compile_node_constraints` for constraint generation
 /// and produces DROP/CREATE statements for schema evolution.
-pub fn compile_migration(
-    diff: &OntologyDiff,
-    old: &OntologyIR,
-    new: &OntologyIR,
-) -> MigrationPlan {
+pub fn compile_migration(diff: &OntologyDiff, old: &OntologyIR, new: &OntologyIR) -> MigrationPlan {
     let mut up = Vec::new();
     let mut down = Vec::new();
     let mut warnings = Vec::new();
@@ -100,7 +96,10 @@ pub fn compile_migration(
 
         for change in &node_diff.changes {
             match change {
-                NodeChange::LabelChanged { old: old_label, new: new_label } => {
+                NodeChange::LabelChanged {
+                    old: old_label,
+                    new: new_label,
+                } => {
                     warnings.push(format!(
                         "Node label rename '{}' → '{}' — requires data migration (MATCH (n:{}) SET n:{} REMOVE n:{})",
                         old_label, new_label,
@@ -145,7 +144,10 @@ pub fn compile_migration(
                         property.name, node_diff.label
                     ));
                 }
-                NodeChange::PropertyModified { property_name, changes } => {
+                NodeChange::PropertyModified {
+                    property_name,
+                    changes,
+                } => {
                     for pc in changes {
                         if let PropertyChange::TypeChanged { old, new } = pc {
                             breaking_changes.push(format!(
@@ -188,12 +190,8 @@ pub fn compile_migration(
 
     // --- Added edges ---
     for edge in &diff.added_edges {
-        let src_label = new
-            .node_label(&edge.source_node_id)
-            .unwrap_or("UNKNOWN");
-        let tgt_label = new
-            .node_label(&edge.target_node_id)
-            .unwrap_or("UNKNOWN");
+        let src_label = new.node_label(&edge.source_node_id).unwrap_or("UNKNOWN");
+        let tgt_label = new.node_label(&edge.target_node_id).unwrap_or("UNKNOWN");
         warnings.push(format!(
             "New edge type '{}' ({}→{}) — no schema DDL needed for edges in Neo4j, but ensure endpoints exist",
             edge.label, src_label, tgt_label
@@ -202,12 +200,8 @@ pub fn compile_migration(
 
     // --- Removed edges ---
     for edge in &diff.removed_edges {
-        let src_label = old
-            .node_label(&edge.source_node_id)
-            .unwrap_or("UNKNOWN");
-        let tgt_label = old
-            .node_label(&edge.target_node_id)
-            .unwrap_or("UNKNOWN");
+        let src_label = old.node_label(&edge.source_node_id).unwrap_or("UNKNOWN");
+        let tgt_label = old.node_label(&edge.target_node_id).unwrap_or("UNKNOWN");
         breaking_changes.push(format!(
             "Edge type '{}' ({}→{}) removed — existing relationships should be deleted",
             edge.label, src_label, tgt_label
@@ -258,11 +252,12 @@ pub fn compile_data_migration(diff: &OntologyDiff) -> Vec<DataMigrationStep> {
                     });
                 }
                 NodeChange::PropertyAdded { property } => {
-                    if !property.nullable {
-                        if let Some(ref default) = property.default_value {
-                            let label = escape_identifier(&node_diff.label);
-                            let prop_name = escape_identifier(&property.name);
-                            steps.push(DataMigrationStep {
+                    if !property.nullable
+                        && let Some(ref default) = property.default_value
+                    {
+                        let label = escape_identifier(&node_diff.label);
+                        let prop_name = escape_identifier(&property.name);
+                        steps.push(DataMigrationStep {
                                 description: format!(
                                     "Backfill required property '{}' on '{}' with default value {}",
                                     property.name, node_diff.label, default
@@ -272,7 +267,6 @@ pub fn compile_data_migration(diff: &OntologyDiff) -> Vec<DataMigrationStep> {
                                 ),
                                 is_destructive: false,
                             });
-                        }
                     }
                 }
                 NodeChange::PropertyRemoved { property } => {
@@ -287,7 +281,10 @@ pub fn compile_data_migration(diff: &OntologyDiff) -> Vec<DataMigrationStep> {
                         is_destructive: true,
                     });
                 }
-                NodeChange::PropertyModified { property_name, changes } => {
+                NodeChange::PropertyModified {
+                    property_name,
+                    changes,
+                } => {
                     for pc in changes {
                         if let PropertyChange::TypeChanged { old, new } = pc {
                             let label = escape_identifier(&node_diff.label);
@@ -386,18 +383,17 @@ pub fn compile_data_migration(diff: &OntologyDiff) -> Vec<DataMigrationStep> {
                             "Remove property '{}' from all [{}] relationships",
                             property.name, edge_diff.label
                         ),
-                        cypher: format!(
-                            "MATCH ()-[r:{edge_label}]->() REMOVE r.{prop_name}"
-                        ),
+                        cypher: format!("MATCH ()-[r:{edge_label}]->() REMOVE r.{prop_name}"),
                         is_destructive: true,
                     });
                 }
                 EdgeChange::PropertyAdded { property } => {
-                    if !property.nullable {
-                        if let Some(ref default) = property.default_value {
-                            let edge_label = escape_identifier(&edge_diff.label);
-                            let prop_name = escape_identifier(&property.name);
-                            steps.push(DataMigrationStep {
+                    if !property.nullable
+                        && let Some(ref default) = property.default_value
+                    {
+                        let edge_label = escape_identifier(&edge_diff.label);
+                        let prop_name = escape_identifier(&property.name);
+                        steps.push(DataMigrationStep {
                                 description: format!(
                                     "Backfill required property '{}' on [{}] relationships with default value {}",
                                     property.name, edge_diff.label, default
@@ -407,10 +403,12 @@ pub fn compile_data_migration(diff: &OntologyDiff) -> Vec<DataMigrationStep> {
                                 ),
                                 is_destructive: false,
                             });
-                        }
                     }
                 }
-                EdgeChange::PropertyModified { property_name, changes } => {
+                EdgeChange::PropertyModified {
+                    property_name,
+                    changes,
+                } => {
                     for pc in changes {
                         if let PropertyChange::TypeChanged { old, new } = pc {
                             let edge_label = escape_identifier(&edge_diff.label);
@@ -484,8 +482,7 @@ mod tests {
     use super::*;
     use ox_core::ontology_diff::compute_diff;
     use ox_core::ontology_ir::{
-        Cardinality, ConstraintDef, EdgeTypeDef, IndexDef, NodeConstraint, NodeTypeDef,
-        PropertyDef,
+        Cardinality, ConstraintDef, EdgeTypeDef, IndexDef, NodeConstraint, NodeTypeDef, PropertyDef,
     };
     use ox_core::types::PropertyType;
 
@@ -604,9 +601,7 @@ mod tests {
         let plan = compile_migration(&diff, &old, &new);
 
         assert!(
-            plan.breaking_changes
-                .iter()
-                .any(|s| s.contains("Company")),
+            plan.breaking_changes.iter().any(|s| s.contains("Company")),
             "removing Company should be breaking"
         );
     }
@@ -652,9 +647,7 @@ mod tests {
         let plan = compile_migration(&diff, &old, &new);
 
         assert!(
-            plan.breaking_changes
-                .iter()
-                .any(|s| s.contains("email")),
+            plan.breaking_changes.iter().any(|s| s.contains("email")),
             "adding required property should be breaking"
         );
         // Should create index for non-nullable property
@@ -733,9 +726,7 @@ mod tests {
         let plan = compile_migration(&diff, &old, &new);
 
         assert!(
-            plan.breaking_changes
-                .iter()
-                .any(|s| s.contains("WORKS_AT")),
+            plan.breaking_changes.iter().any(|s| s.contains("WORKS_AT")),
             "removing edge should be breaking"
         );
     }
@@ -779,8 +770,16 @@ mod tests {
         let plan = compile_migration(&diff, &old, &new);
 
         // Forward creates indexes, rollback drops them
-        let create_count = plan.up.iter().filter(|s| s.contains("CREATE INDEX")).count();
-        let drop_count = plan.down.iter().filter(|s| s.contains("DROP INDEX")).count();
+        let create_count = plan
+            .up
+            .iter()
+            .filter(|s| s.contains("CREATE INDEX"))
+            .count();
+        let drop_count = plan
+            .down
+            .iter()
+            .filter(|s| s.contains("DROP INDEX"))
+            .count();
         assert!(
             create_count > 0 && drop_count > 0,
             "rollback should have DROP INDEX for each CREATE INDEX"
@@ -818,7 +817,11 @@ mod tests {
         sorted.sort();
         let before_dedup = sorted.len();
         sorted.dedup();
-        assert_eq!(sorted.len(), before_dedup, "should have no duplicate statements");
+        assert_eq!(
+            sorted.len(),
+            before_dedup,
+            "should have no duplicate statements"
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -908,7 +911,10 @@ mod tests {
         let steps = compile_data_migration(&diff);
 
         // Nullable property with no default: no data migration needed
-        assert!(steps.is_empty(), "nullable property should not generate data migration");
+        assert!(
+            steps.is_empty(),
+            "nullable property should not generate data migration"
+        );
     }
 
     #[test]
@@ -929,7 +935,10 @@ mod tests {
         let steps = compile_data_migration(&diff);
 
         // Required but no default: DDL-level breaking change, no data migration generated
-        assert!(steps.is_empty(), "required property without default should not generate data migration");
+        assert!(
+            steps.is_empty(),
+            "required property without default should not generate data migration"
+        );
     }
 
     #[test]
@@ -1102,7 +1111,9 @@ mod tests {
             "MigrationPlan should include data_migrations"
         );
         assert!(
-            plan.data_migrations.iter().any(|s| s.cypher.contains("REMOVE n.`age`")),
+            plan.data_migrations
+                .iter()
+                .any(|s| s.cypher.contains("REMOVE n.`age`")),
             "data_migrations should contain the property removal"
         );
     }

@@ -108,7 +108,9 @@ impl EmbeddingHook {
                     Err(e) => {
                         warn!(id = %entry_id, error = %e, "Memory embedding failed");
                         if let Some(store) = retry_store {
-                            let _ = store.enqueue_pending_embedding(&content_clone, &metadata_json).await;
+                            let _ = store
+                                .enqueue_pending_embedding(&content_clone, &metadata_json)
+                                .await;
                         }
                     }
                 }
@@ -116,10 +118,12 @@ impl EmbeddingHook {
 
             // Wrap with context scope if available (propagates workspace task-locals)
             if let Some(scope) = context_scope {
-                let _ = scope.wrap_tool_future(Box::pin(async move {
-                    embed_fut.await;
-                    branchforge::ToolResult::success("")
-                })).await;
+                let _ = scope
+                    .wrap_tool_future(Box::pin(async move {
+                        embed_fut.await;
+                        branchforge::ToolResult::success("")
+                    }))
+                    .await;
             } else {
                 embed_fut.await;
             }

@@ -1,11 +1,11 @@
 mod expr;
 mod load;
+pub mod migration;
 mod mutate;
 mod params;
 mod pattern;
 mod query;
 mod schema;
-pub mod migration;
 pub use migration::DataMigrationStep;
 #[cfg(test)]
 mod tests;

@@ -112,8 +112,8 @@ impl GraphBackendRegistry {
         let mut registry = Self::new();
 
         registry.register("neo4j", |config| async move {
-            let compiler =
-                Arc::new(ox_compiler::cypher::CypherCompiler) as Arc<dyn ox_compiler::GraphCompiler>;
+            let compiler = Arc::new(ox_compiler::cypher::CypherCompiler)
+                as Arc<dyn ox_compiler::GraphCompiler>;
 
             let isolation_strategy = config.isolation_strategy.clone();
             let runtime = match crate::neo4j::Neo4jRuntime::connect(
@@ -132,14 +132,16 @@ impl GraphBackendRegistry {
                 Ok(rt) => {
                     // Apply workspace isolation strategy
                     let rt = match isolation_strategy.as_str() {
-                        "property" => rt.with_isolation(
-                            Box::new(crate::isolation::PropertyStrategy),
-                        ),
-                        "database" => rt.with_isolation(
-                            Box::new(crate::isolation::DatabaseStrategy),
-                        ),
+                        "property" => {
+                            rt.with_isolation(Box::new(crate::isolation::PropertyStrategy))
+                        }
+                        "database" => {
+                            rt.with_isolation(Box::new(crate::isolation::DatabaseStrategy))
+                        }
                         "none" => {
-                            tracing::warn!("Graph isolation DISABLED — all workspaces share graph data");
+                            tracing::warn!(
+                                "Graph isolation DISABLED — all workspaces share graph data"
+                            );
                             rt
                         }
                         other => {
@@ -147,9 +149,7 @@ impl GraphBackendRegistry {
                                 strategy = other,
                                 "Unknown graph isolation strategy, defaulting to 'property'"
                             );
-                            rt.with_isolation(
-                                Box::new(crate::isolation::PropertyStrategy),
-                            )
+                            rt.with_isolation(Box::new(crate::isolation::PropertyStrategy))
                         }
                     };
                     let rt = Arc::new(rt) as Arc<dyn GraphRuntime>;

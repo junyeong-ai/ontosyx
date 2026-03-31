@@ -20,3 +20,6 @@ tempfile = { workspace = true }
 futures = { workspace = true }
 chrono = { workspace = true }
 uuid = { workspace = true }
+
+[lints]
+workspace = true

@@ -99,9 +99,7 @@ impl Principal {
         if self.role.is_admin() {
             Ok(())
         } else {
-            Err(AppError::forbidden(
-                "This action requires admin privileges",
-            ))
+            Err(AppError::forbidden("This action requires admin privileges"))
         }
     }
 
@@ -125,13 +123,15 @@ impl Principal {
         if self.role.can_design() && self.id == project_user_id {
             return Ok(());
         }
-        Err(AppError::forbidden(
-            "You can only delete your own projects",
-        ))
+        Err(AppError::forbidden("You can only delete your own projects"))
     }
 
     /// Verify the current principal owns a resource, or is admin.
-    pub fn require_owner(&self, resource_owner_id: &str, resource_name: &str) -> Result<(), AppError> {
+    pub fn require_owner(
+        &self,
+        resource_owner_id: &str,
+        resource_name: &str,
+    ) -> Result<(), AppError> {
         if self.role.is_admin() || self.id == resource_owner_id {
             Ok(())
         } else {
@@ -156,9 +156,7 @@ where
 
         async move {
             let claims = claims.ok_or_else(|| {
-                AppError::unauthorized(
-                    "Authentication required. Provide a valid JWT or API key.",
-                )
+                AppError::unauthorized("Authentication required. Provide a valid JWT or API key.")
             })?;
 
             Ok(Self::from_claims(&claims))

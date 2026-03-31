@@ -217,7 +217,7 @@ function AnalyzeSelector() {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   if (loading) {
     return (
@@ -276,7 +276,7 @@ function ExploreSelector() {
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   if (loading) {
     return (

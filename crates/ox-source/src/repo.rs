@@ -329,12 +329,8 @@ pub fn repo_insights_to_schema(insights: &RepoInsights) -> (SourceSchema, Source
     // Collect tables from ORM relationships
     for rel in &insights.orm_relationships {
         // Ensure both tables exist
-        table_map
-            .entry(rel.from_table.clone())
-            .or_default();
-        table_map
-            .entry(rel.to_table.clone())
-            .or_default();
+        table_map.entry(rel.from_table.clone()).or_default();
+        table_map.entry(rel.to_table.clone()).or_default();
     }
 
     // Collect hints about fields

@@ -37,7 +37,10 @@ impl LlmProviderConfig {
                 Ok(branchforge::Auth::api_key(key))
             }
             "bedrock" => Ok(branchforge::Auth::Bedrock {
-                region: self.region.clone().unwrap_or_else(|| "us-east-1".to_string()),
+                region: self
+                    .region
+                    .clone()
+                    .unwrap_or_else(|| "us-east-1".to_string()),
             }),
             "claude-code" => Ok(branchforge::Auth::ClaudeCli),
             other => {

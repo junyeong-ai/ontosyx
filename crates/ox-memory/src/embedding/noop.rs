@@ -20,7 +20,12 @@ impl NoopEmbeddingProvider {
 
 #[async_trait]
 impl EmbeddingProvider for NoopEmbeddingProvider {
-    async fn embed(&self, _text: &str, _instruction: &str, _role: EmbeddingRole) -> OxResult<Vec<f32>> {
+    async fn embed(
+        &self,
+        _text: &str,
+        _instruction: &str,
+        _role: EmbeddingRole,
+    ) -> OxResult<Vec<f32>> {
         Ok(vec![0.0; self.dimensions])
     }
 

@@ -144,7 +144,9 @@ impl VectorStore for PgVectorStore {
             let ids: Vec<String> = rows.iter().map(|(id, _, _, _)| id.clone()).collect();
             let pool = self.pool.clone();
             tokio::spawn(async move {
-                let Ok(_permit) = bg_semaphore().acquire().await else { return };
+                let Ok(_permit) = bg_semaphore().acquire().await else {
+                    return;
+                };
                 let _ = sqlx::query(
                     "UPDATE memory_entries SET last_accessed_at = NOW() WHERE id = ANY($1)",
                 )
@@ -221,9 +223,12 @@ impl VectorStore for PgVectorStore {
         }
 
         let rows: Vec<(String, String, f64, Value)> =
-            query.fetch_all(&self.pool).await.map_err(|e| OxError::Runtime {
-                message: format!("Vector search_filtered failed: {e}"),
-            })?;
+            query
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| OxError::Runtime {
+                    message: format!("Vector search_filtered failed: {e}"),
+                })?;
 
         // Fire-and-forget: update last_accessed_at
         if !rows.is_empty() {
@@ -255,13 +260,12 @@ impl VectorStore for PgVectorStore {
         Ok(hits)
     }
 
-    async fn pattern_search(
-        &self,
-        pattern: &str,
-        top_k: usize,
-    ) -> OxResult<Vec<VectorHit>> {
+    async fn pattern_search(&self, pattern: &str, top_k: usize) -> OxResult<Vec<VectorHit>> {
         // Escape SQL ILIKE special characters before wrapping with %.
-        let escaped = pattern.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+        let escaped = pattern
+            .replace('\\', "\\\\")
+            .replace('%', "\\%")
+            .replace('_', "\\_");
         let like_pattern = format!("%{escaped}%");
 
         let rows: Vec<(String, String, Value)> = sqlx::query_as(
@@ -355,9 +359,12 @@ impl VectorStore for PgVectorStore {
             query = query.bind(sid);
         }
 
-        let result = query.execute(&self.pool).await.map_err(|e| OxError::Runtime {
-            message: format!("Memory cleanup_by_filter failed: {e}"),
-        })?;
+        let result = query
+            .execute(&self.pool)
+            .await
+            .map_err(|e| OxError::Runtime {
+                message: format!("Memory cleanup_by_filter failed: {e}"),
+            })?;
 
         Ok(result.rows_affected())
     }

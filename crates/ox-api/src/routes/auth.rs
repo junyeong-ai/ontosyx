@@ -56,28 +56,23 @@ pub async fn create_token(
         .auth_config
         .jwt_secret
         .as_ref()
-        .ok_or_else(|| {
-            AppError::service_unavailable("JWT authentication not configured")
-        })?;
+        .ok_or_else(|| AppError::service_unavailable("JWT authentication not configured"))?;
 
     // Look up the OIDC provider
-    let provider = state
-        .oidc_providers
-        .get(&req.provider)
-        .ok_or_else(|| {
-            let available = state.oidc_providers.provider_names();
-            AppError::bad_request(format!(
-                "Unknown provider '{}'. Available: {:?}",
-                req.provider, available
-            ))
-        })?;
+    let provider = state.oidc_providers.get(&req.provider).ok_or_else(|| {
+        let available = state.oidc_providers.provider_names();
+        AppError::bad_request(format!(
+            "Unknown provider '{}'. Available: {:?}",
+            req.provider, available
+        ))
+    })?;
 
     // Verify the ID token via generic OIDC (RS256 + JWKS + claims validation)
     let oidc_user = provider.verify_token(&req.id_token).await?;
 
-    let email = oidc_user.email.ok_or_else(|| {
-        AppError::unauthorized("Token missing email")
-    })?;
+    let email = oidc_user
+        .email
+        .ok_or_else(|| AppError::unauthorized("Token missing email"))?;
     let now = Utc::now();
 
     // Upsert user in DB
@@ -93,7 +88,11 @@ pub async fn create_token(
         last_login_at: Some(now),
     };
 
-    let mut user = state.store.upsert_user(&user).await.map_err(AppError::from)?;
+    let mut user = state
+        .store
+        .upsert_user(&user)
+        .await
+        .map_err(AppError::from)?;
 
     // Auto-promote first user to admin
     let user_count = state.store.get_user_count().await.map_err(AppError::from)?;
@@ -103,24 +102,33 @@ pub async fn create_token(
             None => true,
         };
         if should_promote {
-            state.store.update_user_role(user.id, "admin").await.map_err(AppError::from)?;
+            state
+                .store
+                .update_user_role(user.id, "admin")
+                .await
+                .map_err(AppError::from)?;
             user.role = "admin".to_string();
             tracing::info!(user_id = %user.id, "First user auto-promoted to admin");
         }
     }
 
     // Auto-join default workspace for new users
-    if user.created_at == now {
-        if let Ok(Some(ws)) = state.store.get_workspace_by_slug(crate::workspace::DEFAULT_WORKSPACE_SLUG).await {
-            if let Err(e) = state.store.add_workspace_member(ws.id, user.id, "member").await {
-                tracing::error!(
-                    user_id = %user.id,
-                    workspace_id = %ws.id,
-                    error = ?e,
-                    "Failed to auto-join default workspace"
-                );
-            }
-        }
+    if user.created_at == now
+        && let Ok(Some(ws)) = state
+            .store
+            .get_workspace_by_slug(crate::workspace::DEFAULT_WORKSPACE_SLUG)
+            .await
+        && let Err(e) = state
+            .store
+            .add_workspace_member(ws.id, user.id, "member")
+            .await
+    {
+        tracing::error!(
+            user_id = %user.id,
+            workspace_id = %ws.id,
+            error = ?e,
+            "Failed to auto-join default workspace"
+        );
     }
 
     // Create platform JWT
@@ -195,8 +203,8 @@ pub async fn me(
         }));
     }
 
-    let user_id = Uuid::parse_str(&principal.id)
-        .map_err(|_| AppError::unauthorized("Invalid user ID"))?;
+    let user_id =
+        Uuid::parse_str(&principal.id).map_err(|_| AppError::unauthorized("Invalid user ID"))?;
 
     let user = state
         .store

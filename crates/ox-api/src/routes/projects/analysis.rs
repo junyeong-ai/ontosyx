@@ -14,7 +14,7 @@ use super::helpers::{
     analyze_code_repository, analyze_source, get_design_options, load_mutable_project,
     prune_decisions, reload_project, run_repo_enrichment, skipped_repo_summary,
 };
-use super::types::{ProjectSource, ProjectReanalyzeRequest, ProjectReanalyzeResponse};
+use super::types::{ProjectReanalyzeRequest, ProjectReanalyzeResponse, ProjectSource};
 
 // ---------------------------------------------------------------------------
 // POST /api/projects/:id/reanalyze
@@ -66,8 +66,7 @@ pub(crate) async fn reanalyze_project(
     // Re-analyze (CodeRepository has a separate path requiring LLM calls)
     let (source_config, source_data, source_schema, source_profile, report) =
         if let ProjectSource::CodeRepository { url } = req.source {
-            let (config, schema, profile, report) =
-                analyze_code_repository(&state, &url).await?;
+            let (config, schema, profile, report) = analyze_code_repository(&state, &url).await?;
             (config, None, Some(schema), Some(profile), Some(report))
         } else {
             let (config, data, schema, profile, report) =

@@ -32,6 +32,12 @@ struct PoolEntry {
     provider: String,
 }
 
+impl Default for ClientPool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ClientPool {
     pub fn new() -> Self {
         Self {
@@ -70,9 +76,8 @@ impl ClientPool {
                 message: format!("Client auth failed: {e}"),
             })?;
 
-        builder = builder.models(
-            branchforge::client::ModelConfig::default().primary(&config.model),
-        );
+        builder =
+            builder.models(branchforge::client::ModelConfig::default().primary(&config.model));
 
         let client = builder.build().await.map_err(|e| OxError::Runtime {
             message: format!("Client build failed: {e}"),
@@ -85,10 +90,13 @@ impl ClientPool {
         );
 
         let arc = Arc::new(client);
-        self.clients.insert(key, PoolEntry {
-            client: Arc::clone(&arc),
-            provider: config.provider.clone(),
-        });
+        self.clients.insert(
+            key,
+            PoolEntry {
+                client: Arc::clone(&arc),
+                provider: config.provider.clone(),
+            },
+        );
         Ok(arc)
     }
 
@@ -107,10 +115,7 @@ impl ClientPool {
     }
 
     /// Return a pre-resolved `Auth::Resolved` for zero-cost agent auth.
-    pub async fn resolved_auth(
-        &self,
-        config: &LlmProviderConfig,
-    ) -> OxResult<branchforge::Auth> {
+    pub async fn resolved_auth(&self, config: &LlmProviderConfig) -> OxResult<branchforge::Auth> {
         let key = provider_identity_hash(config);
 
         if let Some(cred) = self.credentials.get(&key) {

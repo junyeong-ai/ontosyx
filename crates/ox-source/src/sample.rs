@@ -2,7 +2,8 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use ox_core::error::{OxError, OxResult};
 use ox_core::source_schema::{
-    SourceColumnDef, ColumnStats, ForeignKeyDef, SourceProfile, SourceSchema, SourceTableDef, TableProfile,
+    ColumnStats, ForeignKeyDef, SourceColumnDef, SourceProfile, SourceSchema, SourceTableDef,
+    TableProfile,
 };
 use serde_json::Value;
 

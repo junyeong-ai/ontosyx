@@ -70,10 +70,22 @@ pub enum NodeChange {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum PropertyChange {
-    TypeChanged { old: String, new: String },
-    NullabilityChanged { old: bool, new: bool },
-    DescriptionChanged { old: Option<String>, new: Option<String> },
-    DefaultValueChanged { old: Option<String>, new: Option<String> },
+    TypeChanged {
+        old: String,
+        new: String,
+    },
+    NullabilityChanged {
+        old: bool,
+        new: bool,
+    },
+    DescriptionChanged {
+        old: Option<String>,
+        new: Option<String>,
+    },
+    DefaultValueChanged {
+        old: Option<String>,
+        new: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -216,8 +228,7 @@ pub fn compute_diff(old: &OntologyIR, new: &OntologyIR) -> OntologyDiff {
     // Modified edges (present in both)
     for new_edge in &new.edge_types {
         if let Some(old_edge) = old_edge_map.get(&*new_edge.id) {
-            let (changes, props_added, props_removed) =
-                diff_edge(old_edge, new_edge, old, new);
+            let (changes, props_added, props_removed) = diff_edge(old_edge, new_edge, old, new);
             total_properties_added += props_added;
             total_properties_removed += props_removed;
             if !changes.is_empty() {
@@ -508,13 +519,27 @@ fn format_property_type(pt: &PropertyType) -> String {
 fn format_constraint(c: &ConstraintDef) -> String {
     match &c.constraint {
         NodeConstraint::Unique { property_ids } => {
-            format!("UNIQUE({})", property_ids.iter().map(|p| &**p).collect::<Vec<_>>().join(", "))
+            format!(
+                "UNIQUE({})",
+                property_ids
+                    .iter()
+                    .map(|p| &**p)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
         }
         NodeConstraint::Exists { property_id } => {
             format!("EXISTS({})", property_id)
         }
         NodeConstraint::NodeKey { property_ids } => {
-            format!("NODE_KEY({})", property_ids.iter().map(|p| &**p).collect::<Vec<_>>().join(", "))
+            format!(
+                "NODE_KEY({})",
+                property_ids
+                    .iter()
+                    .map(|p| &**p)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
         }
     }
 }
@@ -793,10 +818,7 @@ mod tests {
             label: "Product".to_string(),
             description: None,
             source_table: None,
-            properties: vec![
-                property("p10", "product_name"),
-                property("p11", "price"),
-            ],
+            properties: vec![property("p10", "product_name"), property("p11", "price")],
             constraints: vec![],
         });
         // Remove age property from Person

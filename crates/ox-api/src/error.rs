@@ -128,9 +128,7 @@ impl AppError {
         Self {
             status: StatusCode::TOO_MANY_REQUESTS,
             error_type: "rate_limited",
-            message: format!(
-                "Rate limit exceeded. Retry after {retry_after_secs} seconds."
-            ),
+            message: format!("Rate limit exceeded. Retry after {retry_after_secs} seconds."),
             details: None,
             headers: Some(Box::new(headers)),
         }

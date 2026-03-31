@@ -189,10 +189,12 @@ pub async fn diff_revisions(
         .map_err(AppError::from)?
         .ok_or_else(AppError::revision_not_found)?;
 
-    let old: OntologyIR = serde_json::from_value(snap1.ontology)
-        .map_err(|e| AppError::internal(format!("Failed to parse revision {rev1} ontology: {e}")))?;
-    let new: OntologyIR = serde_json::from_value(snap2.ontology)
-        .map_err(|e| AppError::internal(format!("Failed to parse revision {rev2} ontology: {e}")))?;
+    let old: OntologyIR = serde_json::from_value(snap1.ontology).map_err(|e| {
+        AppError::internal(format!("Failed to parse revision {rev1} ontology: {e}"))
+    })?;
+    let new: OntologyIR = serde_json::from_value(snap2.ontology).map_err(|e| {
+        AppError::internal(format!("Failed to parse revision {rev2} ontology: {e}"))
+    })?;
 
     Ok(Json(compute_diff(&old, &new)))
 }

@@ -64,10 +64,7 @@ pub(crate) async fn load_project_in_status(
 }
 
 /// Reload a project from the store (typically after a mutation).
-pub(crate) async fn reload_project(
-    state: &AppState,
-    id: Uuid,
-) -> Result<DesignProject, AppError> {
+pub(crate) async fn reload_project(state: &AppState, id: Uuid) -> Result<DesignProject, AppError> {
     state
         .store
         .get_design_project(id)

@@ -186,13 +186,10 @@ async fn load_ontology(store: &dyn Store, name: &str) -> Result<OntologyIR, McpE
         .get_latest_ontology(name)
         .await
         .map_err(|e| McpError::internal_error(format!("Store error: {e}"), None))?
-        .ok_or_else(|| {
-            McpError::invalid_params(format!("Ontology '{name}' not found"), None)
-        })?;
+        .ok_or_else(|| McpError::invalid_params(format!("Ontology '{name}' not found"), None))?;
 
-    serde_json::from_value::<OntologyIR>(saved.ontology_ir).map_err(|e| {
-        McpError::internal_error(format!("Failed to deserialize ontology: {e}"), None)
-    })
+    serde_json::from_value::<OntologyIR>(saved.ontology_ir)
+        .map_err(|e| McpError::internal_error(format!("Failed to deserialize ontology: {e}"), None))
 }
 
 /// Serialize a response struct to pretty JSON text, mapping errors to McpError.
@@ -247,9 +244,7 @@ impl OntosyxMcpServer {
         let results = runtime
             .execute_query(&compiled.statement, &compiled.params)
             .await
-            .map_err(|e| {
-                McpError::internal_error(format!("Query execution failed: {e}"), None)
-            })?;
+            .map_err(|e| McpError::internal_error(format!("Query execution failed: {e}"), None))?;
 
         // Generate explanation
         let row_count = results.metadata.rows_returned;
@@ -297,9 +292,9 @@ impl OntosyxMcpServer {
             row_count,
         };
 
-        Ok(CallToolResult::success(vec![Content::text(
-            to_json_text(&response)?,
-        )]))
+        Ok(CallToolResult::success(vec![Content::text(to_json_text(
+            &response,
+        )?)]))
     }
 
     #[tool(
@@ -356,12 +351,15 @@ impl OntosyxMcpServer {
             })
             .collect();
 
-        info!(count = ontologies.len(), "MCP: ontosyx_list_ontologies completed");
+        info!(
+            count = ontologies.len(),
+            "MCP: ontosyx_list_ontologies completed"
+        );
 
         let response = ListOntologiesResponse { ontologies };
-        Ok(CallToolResult::success(vec![Content::text(
-            to_json_text(&response)?,
-        )]))
+        Ok(CallToolResult::success(vec![Content::text(to_json_text(
+            &response,
+        )?)]))
     }
 
     #[tool(
@@ -447,9 +445,9 @@ impl OntosyxMcpServer {
             edges,
         };
 
-        Ok(CallToolResult::success(vec![Content::text(
-            to_json_text(&response)?,
-        )]))
+        Ok(CallToolResult::success(vec![Content::text(to_json_text(
+            &response,
+        )?)]))
     }
 
     #[tool(
@@ -494,9 +492,9 @@ impl OntosyxMcpServer {
             content,
         };
 
-        Ok(CallToolResult::success(vec![Content::text(
-            to_json_text(&response)?,
-        )]))
+        Ok(CallToolResult::success(vec![Content::text(to_json_text(
+            &response,
+        )?)]))
     }
 
     #[tool(
@@ -527,9 +525,7 @@ impl OntosyxMcpServer {
         let results = runtime
             .execute_query(&params.query, &empty_params)
             .await
-            .map_err(|e| {
-                McpError::internal_error(format!("Query execution failed: {e}"), None)
-            })?;
+            .map_err(|e| McpError::internal_error(format!("Query execution failed: {e}"), None))?;
 
         let row_count = results.metadata.rows_returned;
         let execution_time_ms = results.metadata.execution_time_ms;
@@ -537,8 +533,7 @@ impl OntosyxMcpServer {
 
         info!(
             row_count,
-            execution_time_ms,
-            "MCP: ontosyx_execute_cypher completed"
+            execution_time_ms, "MCP: ontosyx_execute_cypher completed"
         );
 
         let response = ExecuteCypherResponse {
@@ -548,9 +543,9 @@ impl OntosyxMcpServer {
             execution_time_ms,
         };
 
-        Ok(CallToolResult::success(vec![Content::text(
-            to_json_text(&response)?,
-        )]))
+        Ok(CallToolResult::success(vec![Content::text(to_json_text(
+            &response,
+        )?)]))
     }
 }
 
@@ -561,26 +556,22 @@ impl OntosyxMcpServer {
 #[tool_handler]
 impl ServerHandler for OntosyxMcpServer {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(
-            ServerCapabilities::builder()
-                .enable_tools()
-                .build(),
-        )
-        .with_server_info({
-            let mut info = Implementation::from_build_env();
-            info.name = "ontosyx".to_string();
-            info.version = env!("CARGO_PKG_VERSION").to_string();
-            info.title = Some("Ontosyx - The Semantic Orchestrator".to_string());
-            info
-        })
-        .with_instructions(
-            "Ontosyx is a Knowledge Graph Lifecycle Platform. \
+        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+            .with_server_info({
+                let mut info = Implementation::from_build_env();
+                info.name = "ontosyx".to_string();
+                info.version = env!("CARGO_PKG_VERSION").to_string();
+                info.title = Some("Ontosyx - The Semantic Orchestrator".to_string());
+                info
+            })
+            .with_instructions(
+                "Ontosyx is a Knowledge Graph Lifecycle Platform. \
              Use ontosyx_list_ontologies to discover available ontologies, \
              ontosyx_describe_ontology to understand graph schemas, \
              ontosyx_query to ask natural language questions over knowledge graphs, \
              ontosyx_export to get ontology definitions in various formats, \
              and ontosyx_execute_cypher for direct Cypher queries."
-                .to_string(),
-        )
+                    .to_string(),
+            )
     }
 }

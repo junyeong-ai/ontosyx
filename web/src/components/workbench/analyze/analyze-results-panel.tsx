@@ -471,7 +471,7 @@ const CYPHER_NUMBERS = /\b(\d+\.?\d*)\b/g;
 
 function highlightCypher(query: string): string {
   // Uses .ql-* CSS classes from globals.css (themeable via CSS custom properties)
-  let html = query
+  const html = query
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(CYPHER_STRINGS, '<span class="ql-string">$1</span>')
     .replace(CYPHER_KEYWORDS, '<span class="ql-keyword">$1</span>')

@@ -31,7 +31,10 @@ pub fn generate_typescript(ontology: &OntologyIR) -> String {
                 .map(|d| format!("  // {d}"))
                 .unwrap_or_default();
             let full_comment = if !comment.is_empty() && !desc_comment.is_empty() {
-                format!("  // {comment} \u{2014} {}", desc_comment.trim_start_matches("  // "))
+                format!(
+                    "  // {comment} \u{2014} {}",
+                    desc_comment.trim_start_matches("  // ")
+                )
             } else if !comment.is_empty() {
                 format!("  // {comment}")
             } else {
@@ -39,9 +42,19 @@ pub fn generate_typescript(ontology: &OntologyIR) -> String {
             };
 
             if prop.nullable {
-                lines.push(format!("  {}?: {};{}", ts_field_name(&prop.name), ts_type, full_comment));
+                lines.push(format!(
+                    "  {}?: {};{}",
+                    ts_field_name(&prop.name),
+                    ts_type,
+                    full_comment
+                ));
             } else {
-                lines.push(format!("  {}: {};{}", ts_field_name(&prop.name), ts_type, full_comment));
+                lines.push(format!(
+                    "  {}: {};{}",
+                    ts_field_name(&prop.name),
+                    ts_type,
+                    full_comment
+                ));
             }
         }
 
@@ -78,7 +91,10 @@ pub fn generate_typescript(ontology: &OntologyIR) -> String {
                 .map(|d| format!("  // {d}"))
                 .unwrap_or_default();
             let full_comment = if !comment.is_empty() && !desc_comment.is_empty() {
-                format!("  // {comment} \u{2014} {}", desc_comment.trim_start_matches("  // "))
+                format!(
+                    "  // {comment} \u{2014} {}",
+                    desc_comment.trim_start_matches("  // ")
+                )
             } else if !comment.is_empty() {
                 format!("  // {comment}")
             } else {
@@ -86,9 +102,19 @@ pub fn generate_typescript(ontology: &OntologyIR) -> String {
             };
 
             if prop.nullable {
-                lines.push(format!("  {}?: {};{}", ts_field_name(&prop.name), ts_type, full_comment));
+                lines.push(format!(
+                    "  {}?: {};{}",
+                    ts_field_name(&prop.name),
+                    ts_type,
+                    full_comment
+                ));
             } else {
-                lines.push(format!("  {}: {};{}", ts_field_name(&prop.name), ts_type, full_comment));
+                lines.push(format!(
+                    "  {}: {};{}",
+                    ts_field_name(&prop.name),
+                    ts_type,
+                    full_comment
+                ));
             }
         }
 
@@ -103,9 +129,10 @@ fn ts_type(pt: &PropertyType) -> String {
     match pt {
         PropertyType::Bool => "boolean".to_string(),
         PropertyType::Int | PropertyType::Float => "number".to_string(),
-        PropertyType::String | PropertyType::Date | PropertyType::DateTime | PropertyType::Duration => {
-            "string".to_string()
-        }
+        PropertyType::String
+        | PropertyType::Date
+        | PropertyType::DateTime
+        | PropertyType::Duration => "string".to_string(),
         PropertyType::Bytes => "Uint8Array".to_string(),
         PropertyType::List { element } => format!("{}[]", ts_type(element)),
         PropertyType::Map => "Record<string, unknown>".to_string(),
@@ -126,7 +153,7 @@ fn ts_safe_name(name: &str) -> String {
     // Convert to PascalCase: split on _ / space / -, capitalize first letter of each segment
     // Also handles SCREAMING_SNAKE_CASE by lowercasing segments first
     let mut result = String::new();
-    for segment in name.split(|c: char| c == '_' || c == ' ' || c == '-') {
+    for segment in name.split(['_', ' ', '-']) {
         if segment.is_empty() {
             continue;
         }
@@ -135,7 +162,10 @@ fn ts_safe_name(name: &str) -> String {
             result.push(first.to_ascii_uppercase());
             // If entire segment is uppercase (like "PURCHASED"), lowercase the rest
             let rest: String = chars.collect();
-            if rest.chars().all(|c| c.is_ascii_uppercase() || !c.is_alphabetic()) {
+            if rest
+                .chars()
+                .all(|c| c.is_ascii_uppercase() || !c.is_alphabetic())
+            {
                 result.push_str(&rest.to_ascii_lowercase());
             } else {
                 result.push_str(&rest);
@@ -152,7 +182,13 @@ fn ts_safe_name(name: &str) -> String {
 fn ts_field_name(name: &str) -> String {
     let sanitized: String = name
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     // If the name contains characters that need quoting, we'd quote it,
     // but snake_case names are already valid JS identifiers.

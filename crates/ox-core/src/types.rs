@@ -248,9 +248,7 @@ fn deserialize_property_value_from_json(
             // Object without "type" key — generic map
             let map_result: Result<HashMap<String, PropertyValue>, _> = map
                 .into_iter()
-                .map(|(k, v)| {
-                    deserialize_property_value_from_json(v).map(|pv| (k, pv))
-                })
+                .map(|(k, v)| deserialize_property_value_from_json(v).map(|pv| (k, pv)))
                 .collect();
             Ok(PropertyValue::Map(map_result?))
         }
@@ -383,6 +381,47 @@ pub fn is_valid_graph_identifier(name: &str) -> bool {
 // Shared serde helpers
 // ---------------------------------------------------------------------------
 
+/// Deserialize `Option<PropertyValue>` that maps null-like values to `None`.
+///
+/// - absent field → `None`
+/// - `null` → `None`
+/// - `PropertyValue::Null` (e.g. `{}`) → `None`
+/// - any other value → `Some(value)`
+pub fn deserialize_optional_property_value<'de, D>(
+    deserializer: D,
+) -> Result<Option<PropertyValue>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let pv: Option<PropertyValue> = Option::deserialize(deserializer)?;
+    match pv {
+        Some(PropertyValue::Null) => Ok(None),
+        other => Ok(other),
+    }
+}
+
+/// Deserialize `Option<Option<PropertyValue>>` for patch-style fields.
+///
+/// Used by `PropertyPatch.default_value`:
+/// - field absent / `null` / `{}` → `None` (no change)
+/// - any other value → `Some(Some(value))`
+///
+/// Note: JSON cannot distinguish "absent" from "null" in `Option<Option<T>>`.
+/// Both are treated as "no change". To explicitly clear a default value,
+/// the caller should use a separate mechanism (e.g., a dedicated "clear" flag).
+pub fn deserialize_patch_property_value<'de, D>(
+    deserializer: D,
+) -> Result<Option<Option<PropertyValue>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let pv: Option<PropertyValue> = Option::deserialize(deserializer)?;
+    match pv {
+        None | Some(PropertyValue::Null) => Ok(None),
+        Some(v) => Ok(Some(Some(v))),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Tests — PropertyValue deserialization robustness
 // ---------------------------------------------------------------------------
@@ -415,8 +454,8 @@ mod tests {
         let pv: PropertyValue = serde_json::from_str("42").unwrap();
         assert_eq!(pv, PropertyValue::Int(42));
 
-        let pv: PropertyValue = serde_json::from_str("3.14").unwrap();
-        assert_eq!(pv, PropertyValue::Float(3.14));
+        let pv: PropertyValue = serde_json::from_str("3.25").unwrap();
+        assert_eq!(pv, PropertyValue::Float(3.25));
 
         let pv: PropertyValue = serde_json::from_str("true").unwrap();
         assert_eq!(pv, PropertyValue::Bool(true));
@@ -502,49 +541,7 @@ mod tests {
         assert_eq!(w.val, Some(Some(PropertyValue::Int(42))));
 
         // tagged → Some(Some(value))
-        let w: Wrapper =
-            serde_json::from_str(r#"{"val": {"type":"string","value":"x"}}"#).unwrap();
+        let w: Wrapper = serde_json::from_str(r#"{"val": {"type":"string","value":"x"}}"#).unwrap();
         assert_eq!(w.val, Some(Some(PropertyValue::String("x".into()))));
-    }
-}
-
-/// Deserialize `Option<PropertyValue>` that maps null-like values to `None`.
-///
-/// - absent field → `None`
-/// - `null` → `None`
-/// - `PropertyValue::Null` (e.g. `{}`) → `None`
-/// - any other value → `Some(value)`
-pub fn deserialize_optional_property_value<'de, D>(
-    deserializer: D,
-) -> Result<Option<PropertyValue>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let pv: Option<PropertyValue> = Option::deserialize(deserializer)?;
-    match pv {
-        Some(PropertyValue::Null) => Ok(None),
-        other => Ok(other),
-    }
-}
-
-/// Deserialize `Option<Option<PropertyValue>>` for patch-style fields.
-///
-/// Used by `PropertyPatch.default_value`:
-/// - field absent / `null` / `{}` → `None` (no change)
-/// - any other value → `Some(Some(value))`
-///
-/// Note: JSON cannot distinguish "absent" from "null" in `Option<Option<T>>`.
-/// Both are treated as "no change". To explicitly clear a default value,
-/// the caller should use a separate mechanism (e.g., a dedicated "clear" flag).
-pub fn deserialize_patch_property_value<'de, D>(
-    deserializer: D,
-) -> Result<Option<Option<PropertyValue>>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let pv: Option<PropertyValue> = Option::deserialize(deserializer)?;
-    match pv {
-        None | Some(PropertyValue::Null) => Ok(None),
-        Some(v) => Ok(Some(Some(v))),
     }
 }

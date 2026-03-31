@@ -23,9 +23,7 @@ tokio::task_local! {
     /// When true, graph queries bypass workspace isolation (system tasks).
     pub static GRAPH_SYSTEM_BYPASS: bool;
 }
-use ox_core::graph_exploration::{
-    GraphSchemaOverview, NodeExpansion, SearchResultNode,
-};
+use ox_core::graph_exploration::{GraphSchemaOverview, NodeExpansion, SearchResultNode};
 use ox_core::query_ir::QueryResult;
 use ox_core::types::PropertyValue;
 
@@ -64,11 +62,7 @@ pub trait GraphRuntime: Send + Sync {
     ) -> OxResult<QueryResult>;
 
     /// Execute a batch load with validated records
-    async fn execute_load(
-        &self,
-        query: &str,
-        batch: LoadBatch,
-    ) -> OxResult<LoadResult>;
+    async fn execute_load(&self, query: &str, batch: LoadBatch) -> OxResult<LoadResult>;
 
     /// Create an isolated sandbox namespace for test data
     async fn create_sandbox(&self, name: &str) -> OxResult<SandboxHandle>;
@@ -99,11 +93,7 @@ pub trait GraphRuntime: Send + Sync {
     }
 
     /// Expand a node's 1-hop neighborhood.
-    async fn expand_node(
-        &self,
-        _element_id: &str,
-        _limit: usize,
-    ) -> OxResult<NodeExpansion> {
+    async fn expand_node(&self, _element_id: &str, _limit: usize) -> OxResult<NodeExpansion> {
         Err(OxError::UnsupportedOperation {
             target: self.runtime_name().to_string(),
             operation: "expand_node".to_string(),
@@ -141,11 +131,8 @@ impl LoadBatch {
                 other => {
                     return Err(OxError::Validation {
                         field: format!("batch[{i}]"),
-                        message: format!(
-                            "Expected JSON object, got {}",
-                            value_type_name(&other)
-                        ),
-                    })
+                        message: format!("Expected JSON object, got {}", value_type_name(&other)),
+                    });
                 }
             }
         }

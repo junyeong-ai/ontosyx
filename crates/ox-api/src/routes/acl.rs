@@ -1,6 +1,6 @@
+use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
-use axum::Json;
 use chrono::Utc;
 use serde::Deserialize;
 use uuid::Uuid;
@@ -163,7 +163,15 @@ pub(crate) async fn update_policy(
 
     state
         .store
-        .update_acl_policy(id, &name, &action, properties, mask_pattern, priority, is_active)
+        .update_acl_policy(
+            id,
+            &name,
+            &action,
+            properties,
+            mask_pattern,
+            priority,
+            is_active,
+        )
         .await
         .map_err(AppError::from)?;
 
@@ -215,11 +223,7 @@ pub(crate) async fn effective_policies(
 
     let policies = state
         .store
-        .get_effective_policies(
-            principal.role.as_str(),
-            ws.workspace_role.as_str(),
-            user_id,
-        )
+        .get_effective_policies(principal.role.as_str(), ws.workspace_role.as_str(), user_id)
         .await
         .map_err(AppError::from)?;
 

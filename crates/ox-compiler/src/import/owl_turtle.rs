@@ -33,10 +33,8 @@ const OWL_RESTRICTION: &str = "http://www.w3.org/2002/07/owl#Restriction";
 const OWL_ON_PROPERTY: &str = "http://www.w3.org/2002/07/owl#onProperty";
 const OWL_MAX_CARDINALITY: &str = "http://www.w3.org/2002/07/owl#maxCardinality";
 const OWL_MIN_CARDINALITY: &str = "http://www.w3.org/2002/07/owl#minCardinality";
-const OWL_MAX_QUALIFIED_CARDINALITY: &str =
-    "http://www.w3.org/2002/07/owl#maxQualifiedCardinality";
-const OWL_MIN_QUALIFIED_CARDINALITY: &str =
-    "http://www.w3.org/2002/07/owl#minQualifiedCardinality";
+const OWL_MAX_QUALIFIED_CARDINALITY: &str = "http://www.w3.org/2002/07/owl#maxQualifiedCardinality";
+const OWL_MIN_QUALIFIED_CARDINALITY: &str = "http://www.w3.org/2002/07/owl#minQualifiedCardinality";
 
 const XSD_STRING: &str = "http://www.w3.org/2001/XMLSchema#string";
 const XSD_INTEGER: &str = "http://www.w3.org/2001/XMLSchema#integer";
@@ -44,8 +42,7 @@ const XSD_INT: &str = "http://www.w3.org/2001/XMLSchema#int";
 const XSD_LONG: &str = "http://www.w3.org/2001/XMLSchema#long";
 const XSD_SHORT: &str = "http://www.w3.org/2001/XMLSchema#short";
 const XSD_BYTE: &str = "http://www.w3.org/2001/XMLSchema#byte";
-const XSD_NON_NEGATIVE_INTEGER: &str =
-    "http://www.w3.org/2001/XMLSchema#nonNegativeInteger";
+const XSD_NON_NEGATIVE_INTEGER: &str = "http://www.w3.org/2001/XMLSchema#nonNegativeInteger";
 const XSD_POSITIVE_INTEGER: &str = "http://www.w3.org/2001/XMLSchema#positiveInteger";
 const XSD_UNSIGNED_INT: &str = "http://www.w3.org/2001/XMLSchema#unsignedInt";
 const XSD_UNSIGNED_LONG: &str = "http://www.w3.org/2001/XMLSchema#unsignedLong";
@@ -337,9 +334,10 @@ fn extract_ontology_input(triples: &[OwnedTriple]) -> OxResult<OntologyInputIR> 
                             let val = s.object.as_literal_value().map(|v| v.to_string());
                             // Filter out "Property on relationship X" export annotations
                             if let Some(ref v) = val
-                                && !v.starts_with("Property on relationship ") {
-                                    info.description = Some(v.clone());
-                                }
+                                && !v.starts_with("Property on relationship ")
+                            {
+                                info.description = Some(v.clone());
+                            }
                         }
                     }
                     RDFS_DOMAIN => info.domain = s.object.as_iri().map(|v| v.to_string()),
@@ -388,9 +386,10 @@ fn extract_ontology_input(triples: &[OwnedTriple]) -> OxResult<OntologyInputIR> 
                         rinfo.on_property = s.object.as_iri().map(|v| v.to_string());
                         // Also handle blank node references to properties
                         if rinfo.on_property.is_none()
-                            && let OwnedTerm::Blank(ref b) = s.object {
-                                rinfo.on_property = Some(b.clone());
-                            }
+                            && let OwnedTerm::Blank(ref b) = s.object
+                        {
+                            rinfo.on_property = Some(b.clone());
+                        }
                     }
                     OWL_MAX_CARDINALITY | OWL_MAX_QUALIFIED_CARDINALITY => {
                         rinfo.max_cardinality =
@@ -480,29 +479,29 @@ fn extract_ontology_input(triples: &[OwnedTriple]) -> OxResult<OntologyInputIR> 
             for s in siblings {
                 if s.predicate == RDFS_COMMENT
                     && let Some(comment) = s.object.as_literal_value()
-                        && let Some(edge_label) = comment.strip_prefix("Property on relationship ")
-                        {
-                            let prop = InputPropertyDef {
-                                id: None,
-                                name: dp
-                                    .label
-                                    .clone()
-                                    .unwrap_or_else(|| local_name_from_iri(&dp.iri)),
-                                property_type: dp
-                                    .range
-                                    .as_deref()
-                                    .map(xsd_to_property_type)
-                                    .unwrap_or(PropertyType::String),
-                                nullable: true,
-                                default_value: None,
-                                description: dp.description.clone(),
-                                source_column: None,
-                            };
-                            edge_property_map
-                                .entry(edge_label.to_string())
-                                .or_default()
-                                .push(prop);
-                        }
+                    && let Some(edge_label) = comment.strip_prefix("Property on relationship ")
+                {
+                    let prop = InputPropertyDef {
+                        id: None,
+                        name: dp
+                            .label
+                            .clone()
+                            .unwrap_or_else(|| local_name_from_iri(&dp.iri)),
+                        property_type: dp
+                            .range
+                            .as_deref()
+                            .map(xsd_to_property_type)
+                            .unwrap_or(PropertyType::String),
+                        nullable: true,
+                        default_value: None,
+                        description: dp.description.clone(),
+                        source_column: None,
+                    };
+                    edge_property_map
+                        .entry(edge_label.to_string())
+                        .or_default()
+                        .push(prop);
+                }
             }
         }
     }
@@ -518,20 +517,17 @@ fn extract_ontology_input(triples: &[OwnedTriple]) -> OxResult<OntologyInputIR> 
 
         if let Some(domain) = &dp.domain {
             if class_iri_set.contains(domain.as_str()) {
-                class_properties
-                    .entry(domain.clone())
-                    .or_default()
-                    .push((
-                        DatatypePropInfo {
-                            iri: dp.iri.clone(),
-                            label: dp.label.clone(),
-                            description: dp.description.clone(),
-                            domain: dp.domain.clone(),
-                            range: dp.range.clone(),
-                            is_functional: dp.is_functional,
-                        },
-                        dp.is_functional,
-                    ));
+                class_properties.entry(domain.clone()).or_default().push((
+                    DatatypePropInfo {
+                        iri: dp.iri.clone(),
+                        label: dp.label.clone(),
+                        description: dp.description.clone(),
+                        domain: dp.domain.clone(),
+                        range: dp.range.clone(),
+                        is_functional: dp.is_functional,
+                    },
+                    dp.is_functional,
+                ));
             } else {
                 warn!(
                     property = %dp.iri,
@@ -706,8 +702,15 @@ fn local_name_from_iri(iri: &str) -> String {
 fn xsd_to_property_type(xsd_iri: &str) -> PropertyType {
     match xsd_iri {
         XSD_STRING => PropertyType::String,
-        XSD_INTEGER | XSD_INT | XSD_LONG | XSD_SHORT | XSD_BYTE | XSD_NON_NEGATIVE_INTEGER
-        | XSD_POSITIVE_INTEGER | XSD_UNSIGNED_INT | XSD_UNSIGNED_LONG => PropertyType::Int,
+        XSD_INTEGER
+        | XSD_INT
+        | XSD_LONG
+        | XSD_SHORT
+        | XSD_BYTE
+        | XSD_NON_NEGATIVE_INTEGER
+        | XSD_POSITIVE_INTEGER
+        | XSD_UNSIGNED_INT
+        | XSD_UNSIGNED_LONG => PropertyType::Int,
         XSD_DOUBLE | XSD_FLOAT | XSD_DECIMAL => PropertyType::Float,
         XSD_BOOLEAN => PropertyType::Bool,
         XSD_DATE => PropertyType::Date,
@@ -890,7 +893,10 @@ mod tests {
 
         let edge = &result.edge_types[0];
         assert_eq!(edge.label, "WORKS_FOR");
-        assert_eq!(edge.description, Some("Employment relationship".to_string()));
+        assert_eq!(
+            edge.description,
+            Some("Employment relationship".to_string())
+        );
 
         // Source should be Person, target should be Company
         let source = result.node_label(&edge.source_node_id).unwrap();
@@ -931,7 +937,11 @@ mod tests {
             NodeConstraint::Unique { property_ids } => {
                 assert_eq!(property_ids.len(), 1);
                 // The property_id should reference the email property
-                let email_prop = person.properties.iter().find(|p| p.name == "email").unwrap();
+                let email_prop = person
+                    .properties
+                    .iter()
+                    .find(|p| p.name == "email")
+                    .unwrap();
                 assert_eq!(property_ids[0], email_prop.id);
             }
             _ => panic!("expected Unique constraint"),
@@ -1021,14 +1031,36 @@ mod tests {
         assert_eq!(result.edge_types.len(), 2);
 
         // Verify each class has its property
-        let customer = result.node_types.iter().find(|n| n.label == "Customer").unwrap();
+        let customer = result
+            .node_types
+            .iter()
+            .find(|n| n.label == "Customer")
+            .unwrap();
         assert!(customer.properties.iter().any(|p| p.name == "email"));
 
-        let product = result.node_types.iter().find(|n| n.label == "Product").unwrap();
-        assert!(product.properties.iter().any(|p| p.name == "price" && p.property_type == PropertyType::Float));
+        let product = result
+            .node_types
+            .iter()
+            .find(|n| n.label == "Product")
+            .unwrap();
+        assert!(
+            product
+                .properties
+                .iter()
+                .any(|p| p.name == "price" && p.property_type == PropertyType::Float)
+        );
 
-        let order = result.node_types.iter().find(|n| n.label == "Order").unwrap();
-        assert!(order.properties.iter().any(|p| p.name == "date" && p.property_type == PropertyType::DateTime));
+        let order = result
+            .node_types
+            .iter()
+            .find(|n| n.label == "Order")
+            .unwrap();
+        assert!(
+            order
+                .properties
+                .iter()
+                .any(|p| p.name == "date" && p.property_type == PropertyType::DateTime)
+        );
     }
 
     #[test]
@@ -1274,7 +1306,11 @@ mod tests {
         let imported = roundtrip(&ontology);
 
         // Edge properties should survive roundtrip
-        let edge = imported.edge_types.iter().find(|e| e.label == "WORKS_AT").unwrap();
+        let edge = imported
+            .edge_types
+            .iter()
+            .find(|e| e.label == "WORKS_AT")
+            .unwrap();
         assert_eq!(edge.properties.len(), 1);
         assert_eq!(edge.properties[0].name, "since");
         assert_eq!(edge.properties[0].property_type, PropertyType::Date);

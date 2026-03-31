@@ -119,10 +119,18 @@ pub(super) fn mysql_fingerprint(connection_string: &str, database: &str) -> Stri
                 let db = url.path().trim_start_matches('/').to_string();
                 (h, p, db)
             }
-            Err(_) => ("localhost".to_string(), "3306".to_string(), database.to_string()),
+            Err(_) => (
+                "localhost".to_string(),
+                "3306".to_string(),
+                database.to_string(),
+            ),
         }
     } else {
-        ("localhost".to_string(), "3306".to_string(), database.to_string())
+        (
+            "localhost".to_string(),
+            "3306".to_string(),
+            database.to_string(),
+        )
     };
 
     let identity = format!("{host}:{port}/{dbname}/{database}");
@@ -136,19 +144,18 @@ pub(super) fn mysql_fingerprint(connection_string: &str, database: &str) -> Stri
 pub(super) fn mongodb_fingerprint(connection_string: &str, database: &str) -> String {
     let cs = connection_string.trim();
 
-    let (host, port) =
-        if cs.starts_with("mongodb://") || cs.starts_with("mongodb+srv://") {
-            match url::Url::parse(cs) {
-                Ok(url) => {
-                    let h = url.host_str().unwrap_or("localhost").to_string();
-                    let p = url.port().unwrap_or(27017).to_string();
-                    (h, p)
-                }
-                Err(_) => ("localhost".to_string(), "27017".to_string()),
+    let (host, port) = if cs.starts_with("mongodb://") || cs.starts_with("mongodb+srv://") {
+        match url::Url::parse(cs) {
+            Ok(url) => {
+                let h = url.host_str().unwrap_or("localhost").to_string();
+                let p = url.port().unwrap_or(27017).to_string();
+                (h, p)
             }
-        } else {
-            ("localhost".to_string(), "27017".to_string())
-        };
+            Err(_) => ("localhost".to_string(), "27017".to_string()),
+        }
+    } else {
+        ("localhost".to_string(), "27017".to_string())
+    };
 
     let identity = format!("{host}:{port}/{database}");
     format!("{:016x}", fnv1a(identity.as_bytes()))

@@ -66,8 +66,7 @@ pub struct ExecuteAnalysisTool {
 impl SchemaTool for ExecuteAnalysisTool {
     type Input = ExecuteAnalysisInput;
     const NAME: &'static str = super::EXECUTE_ANALYSIS;
-    const DESCRIPTION: &'static str =
-        "Execute Python data analysis code in a sandboxed environment. \
+    const DESCRIPTION: &'static str = "Execute Python data analysis code in a sandboxed environment. \
          Available libraries: pandas, numpy, scikit-learn, statsmodels, matplotlib. \
          Input data is available at /sandbox/input.json. Print results to stdout as JSON. \
          Timeout: 120 seconds.";
@@ -101,10 +100,13 @@ impl SchemaTool for ExecuteAnalysisTool {
 
         let start = std::time::Instant::now();
 
-        let result = match run_analysis_sandbox(&input.code, input.data.as_ref(), Duration::from_secs(120)).await {
-            Ok(r) => r,
-            Err(e) => return ToolResult::error(e),
-        };
+        let result =
+            match run_analysis_sandbox(&input.code, input.data.as_ref(), Duration::from_secs(120))
+                .await
+            {
+                Ok(r) => r,
+                Err(e) => return ToolResult::error(e),
+            };
 
         let duration_ms = start.elapsed().as_millis() as u64;
 
@@ -178,7 +180,10 @@ pub async fn run_analysis_sandbox(
     input_data: Option<&serde_json::Value>,
     timeout: Duration,
 ) -> Result<SandboxResult, String> {
-    let permit = SANDBOX_SEMAPHORE.acquire().await.map_err(|e| format!("Semaphore closed: {e}"))?;
+    let permit = SANDBOX_SEMAPHORE
+        .acquire()
+        .await
+        .map_err(|e| format!("Semaphore closed: {e}"))?;
 
     let data_json = input_data
         .map(|d| serde_json::to_string(d).unwrap_or_default())
@@ -192,7 +197,10 @@ pub async fn run_analysis_sandbox(
         }
         Err(_) => {
             drop(permit);
-            return Err(format!("Analysis timed out after {} seconds", timeout.as_secs()));
+            return Err(format!(
+                "Analysis timed out after {} seconds",
+                timeout.as_secs()
+            ));
         }
     };
 

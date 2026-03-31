@@ -1,5 +1,5 @@
-use axum::extract::{Path, State};
 use axum::Json;
+use axum::extract::{Path, State};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -9,7 +9,7 @@ use crate::error::AppError;
 use crate::principal::Principal;
 use crate::state::AppState;
 use crate::workspace::{
-    WorkspaceContext, WorkspaceRole, DEFAULT_WORKSPACE_SLUG, ASSIGNABLE_WORKSPACE_ROLES,
+    ASSIGNABLE_WORKSPACE_ROLES, DEFAULT_WORKSPACE_SLUG, WorkspaceContext, WorkspaceRole,
 };
 
 // ---------------------------------------------------------------------------
@@ -146,7 +146,11 @@ pub async fn create_workspace(
     if req.slug.is_empty() || req.slug.len() > 100 {
         return Err(AppError::bad_request("Slug must be 1-100 characters"));
     }
-    if !req.slug.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+    if !req
+        .slug
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
         return Err(AppError::bad_request(
             "Slug may only contain alphanumeric characters, hyphens, and underscores",
         ));
@@ -161,7 +165,11 @@ pub async fn create_workspace(
         created_at: chrono::Utc::now(),
     };
 
-    state.store.create_workspace(&workspace).await.map_err(AppError::from)?;
+    state
+        .store
+        .create_workspace(&workspace)
+        .await
+        .map_err(AppError::from)?;
 
     // Auto-add creator as owner
     state
@@ -249,7 +257,9 @@ pub async fn delete_workspace(
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     if ws_ctx.workspace_role != WorkspaceRole::Owner {
-        return Err(AppError::forbidden("Only the workspace owner can delete it"));
+        return Err(AppError::forbidden(
+            "Only the workspace owner can delete it",
+        ));
     }
 
     // Prevent deleting the "default" workspace
@@ -264,7 +274,11 @@ pub async fn delete_workspace(
         return Err(AppError::bad_request("Cannot delete the default workspace"));
     }
 
-    state.store.delete_workspace(id).await.map_err(AppError::from)?;
+    state
+        .store
+        .delete_workspace(id)
+        .await
+        .map_err(AppError::from)?;
 
     tracing::info!(workspace_id = %id, "Workspace deleted");
     Ok(Json(serde_json::json!({"deleted": true})))
@@ -312,8 +326,8 @@ pub async fn remove_member(
     Path((id, uid)): Path<(Uuid, Uuid)>,
     principal: Principal,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let caller_id = Uuid::parse_str(&principal.id)
-        .map_err(|_| AppError::unauthorized("Invalid user ID"))?;
+    let caller_id =
+        Uuid::parse_str(&principal.id).map_err(|_| AppError::unauthorized("Invalid user ID"))?;
 
     // Allow self-removal, or require admin
     if uid != caller_id {
@@ -384,7 +398,11 @@ pub async fn update_member_role(
         .map_err(AppError::from)?;
 
     // Fetch updated member info
-    let members = state.store.list_workspace_members(id).await.map_err(AppError::from)?;
+    let members = state
+        .store
+        .list_workspace_members(id)
+        .await
+        .map_err(AppError::from)?;
     let member = members
         .into_iter()
         .find(|m| m.user_id == uid)

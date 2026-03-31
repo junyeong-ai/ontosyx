@@ -295,10 +295,7 @@ pub trait ConfigStore: Send + Sync {
 
     /// Batch update config values in a single transaction.
     /// All updates succeed or none are applied.
-    async fn update_config_batch(
-        &self,
-        updates: &[(String, String, String)],
-    ) -> OxResult<()>;
+    async fn update_config_batch(&self, updates: &[(String, String, String)]) -> OxResult<()>;
 }
 
 #[async_trait]
@@ -326,7 +323,8 @@ pub trait UserStore: Send + Sync {
 pub trait RecipeStore: Send + Sync {
     async fn upsert_recipe(&self, recipe: &AnalysisRecipe) -> OxResult<()>;
     async fn get_recipe(&self, id: Uuid) -> OxResult<Option<AnalysisRecipe>>;
-    async fn list_recipes(&self, pagination: &CursorParams) -> OxResult<CursorPage<AnalysisRecipe>>;
+    async fn list_recipes(&self, pagination: &CursorParams)
+    -> OxResult<CursorPage<AnalysisRecipe>>;
     async fn delete_recipe(&self, id: Uuid) -> OxResult<bool>;
     async fn update_recipe_status(&self, id: Uuid, status: &str) -> OxResult<()>;
     async fn create_recipe_version(&self, recipe: &AnalysisRecipe) -> OxResult<()>;
@@ -345,7 +343,13 @@ pub trait DashboardStore: Send + Sync {
         is_admin: bool,
         pagination: &CursorParams,
     ) -> OxResult<CursorPage<Dashboard>>;
-    async fn update_dashboard(&self, id: Uuid, name: &str, layout: &serde_json::Value, is_public: bool) -> OxResult<()>;
+    async fn update_dashboard(
+        &self,
+        id: Uuid,
+        name: &str,
+        layout: &serde_json::Value,
+        is_public: bool,
+    ) -> OxResult<()>;
     async fn delete_dashboard(&self, id: Uuid) -> OxResult<bool>;
 
     async fn create_widget(&self, widget: &DashboardWidget) -> OxResult<()>;
@@ -359,11 +363,7 @@ pub trait DashboardStore: Send + Sync {
         refresh_interval_secs: Option<i32>,
         thresholds: Option<&serde_json::Value>,
     ) -> OxResult<()>;
-    async fn update_widget_result(
-        &self,
-        id: Uuid,
-        result: &serde_json::Value,
-    ) -> OxResult<()>;
+    async fn update_widget_result(&self, id: Uuid, result: &serde_json::Value) -> OxResult<()>;
     async fn delete_widget(&self, id: Uuid) -> OxResult<bool>;
     /// Batch create multiple widgets in a single transaction.
     async fn create_widgets_batch(&self, widgets: &[DashboardWidget]) -> OxResult<()>;
@@ -376,7 +376,12 @@ pub trait ScheduledTaskStore: Send + Sync {
     async fn get_scheduled_task(&self, id: Uuid) -> OxResult<Option<ScheduledTask>>;
     async fn list_scheduled_tasks(&self, recipe_id: Option<Uuid>) -> OxResult<Vec<ScheduledTask>>;
     async fn list_due_tasks(&self) -> OxResult<Vec<ScheduledTask>>;
-    async fn update_task_after_run(&self, id: Uuid, next_run_at: DateTime<Utc>, status: &str) -> OxResult<()>;
+    async fn update_task_after_run(
+        &self,
+        id: Uuid,
+        next_run_at: DateTime<Utc>,
+        status: &str,
+    ) -> OxResult<()>;
     async fn update_scheduled_task_enabled(&self, id: Uuid, enabled: bool) -> OxResult<()>;
     async fn delete_scheduled_task(&self, id: Uuid) -> OxResult<bool>;
 }
@@ -385,8 +390,16 @@ pub trait ScheduledTaskStore: Send + Sync {
 #[async_trait]
 pub trait AnalysisResultStore: Send + Sync {
     async fn create_analysis_result(&self, result: &AnalysisResult) -> OxResult<()>;
-    async fn get_cached_result(&self, input_hash: &str, recipe_id: Option<Uuid>) -> OxResult<Option<AnalysisResult>>;
-    async fn list_analysis_results(&self, recipe_id: Uuid, limit: i64) -> OxResult<Vec<AnalysisResult>>;
+    async fn get_cached_result(
+        &self,
+        input_hash: &str,
+        recipe_id: Option<Uuid>,
+    ) -> OxResult<Option<AnalysisResult>>;
+    async fn list_analysis_results(
+        &self,
+        recipe_id: Uuid,
+        limit: i64,
+    ) -> OxResult<Vec<AnalysisResult>>;
     /// Delete analysis results older than `max_age_days`. Returns count deleted.
     async fn cleanup_old_results(&self, max_age_days: i64) -> OxResult<u64>;
 }
@@ -422,11 +435,7 @@ pub trait PromptTemplateStore: Send + Sync {
 #[async_trait]
 pub trait AgentSessionStore: Send + Sync {
     async fn create_agent_session(&self, session: &AgentSession) -> OxResult<()>;
-    async fn complete_agent_session(
-        &self,
-        id: Uuid,
-        final_text: Option<&str>,
-    ) -> OxResult<()>;
+    async fn complete_agent_session(&self, id: Uuid, final_text: Option<&str>) -> OxResult<()>;
     async fn get_agent_session(&self, id: Uuid) -> OxResult<Option<AgentSession>>;
     async fn list_agent_sessions(
         &self,
@@ -529,13 +538,28 @@ pub trait WorkspaceStore: Send + Sync {
     async fn get_workspace(&self, id: Uuid) -> OxResult<Option<Workspace>>;
     async fn get_workspace_by_slug(&self, slug: &str) -> OxResult<Option<Workspace>>;
     async fn list_user_workspaces(&self, user_id: Uuid) -> OxResult<Vec<WorkspaceSummary>>;
-    async fn update_workspace(&self, id: Uuid, name: &str, settings: &serde_json::Value) -> OxResult<()>;
+    async fn update_workspace(
+        &self,
+        id: Uuid,
+        name: &str,
+        settings: &serde_json::Value,
+    ) -> OxResult<()>;
     async fn delete_workspace(&self, id: Uuid) -> OxResult<bool>;
 
     // Membership
-    async fn add_workspace_member(&self, workspace_id: Uuid, user_id: Uuid, role: &str) -> OxResult<()>;
+    async fn add_workspace_member(
+        &self,
+        workspace_id: Uuid,
+        user_id: Uuid,
+        role: &str,
+    ) -> OxResult<()>;
     async fn remove_workspace_member(&self, workspace_id: Uuid, user_id: Uuid) -> OxResult<bool>;
-    async fn update_member_role(&self, workspace_id: Uuid, user_id: Uuid, role: &str) -> OxResult<()>;
+    async fn update_member_role(
+        &self,
+        workspace_id: Uuid,
+        user_id: Uuid,
+        role: &str,
+    ) -> OxResult<()>;
     async fn get_member_role(&self, workspace_id: Uuid, user_id: Uuid) -> OxResult<Option<String>>;
     async fn list_workspace_members(&self, workspace_id: Uuid) -> OxResult<Vec<WorkspaceMember>>;
 
@@ -560,10 +584,7 @@ pub trait AuditStore: Send + Sync {
     ) -> OxResult<()>;
 
     /// List audit events with cursor pagination.
-    async fn list_audit_events(
-        &self,
-        params: CursorParams,
-    ) -> OxResult<CursorPage<AuditEntry>>;
+    async fn list_audit_events(&self, params: CursorParams) -> OxResult<CursorPage<AuditEntry>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -667,7 +688,13 @@ pub trait QualityStore: Send + Sync {
     async fn create_quality_rule(&self, rule: &QualityRule) -> OxResult<()>;
     async fn get_quality_rule(&self, id: Uuid) -> OxResult<Option<QualityRule>>;
     async fn list_quality_rules(&self, target_label: Option<&str>) -> OxResult<Vec<QualityRule>>;
-    async fn update_quality_rule(&self, id: Uuid, name: &str, threshold: f64, is_active: bool) -> OxResult<()>;
+    async fn update_quality_rule(
+        &self,
+        id: Uuid,
+        name: &str,
+        threshold: f64,
+        is_active: bool,
+    ) -> OxResult<()>;
     async fn delete_quality_rule(&self, id: Uuid) -> OxResult<bool>;
     async fn record_quality_result(&self, result: &QualityResult) -> OxResult<()>;
     async fn get_latest_results(&self, rule_id: Uuid, limit: i64) -> OxResult<Vec<QualityResult>>;

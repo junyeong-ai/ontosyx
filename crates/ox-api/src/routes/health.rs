@@ -27,19 +27,17 @@ pub async fn health_check(State(state): State<AppState>) -> Json<Value> {
     };
 
     let neo4j_ok = match &state.runtime {
-        Some(runtime) => {
-            match tokio::time::timeout(health_timeout, runtime.health_check()).await {
-                Ok(true) => true,
-                Ok(false) => {
-                    tracing::warn!("Neo4j health check returned unhealthy");
-                    false
-                }
-                Err(_) => {
-                    tracing::warn!("Neo4j health check timed out");
-                    false
-                }
+        Some(runtime) => match tokio::time::timeout(health_timeout, runtime.health_check()).await {
+            Ok(true) => true,
+            Ok(false) => {
+                tracing::warn!("Neo4j health check returned unhealthy");
+                false
             }
-        }
+            Err(_) => {
+                tracing::warn!("Neo4j health check timed out");
+                false
+            }
+        },
         None => false,
     };
 

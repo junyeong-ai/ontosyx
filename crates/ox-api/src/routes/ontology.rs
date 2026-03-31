@@ -69,8 +69,7 @@ pub async fn list_ontologies(
 pub async fn normalize_ontology(
     Json(input): Json<OntologyInputIR>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let result =
-        normalize(input).map_err(|errors| AppError::bad_request(errors.join("; ")))?;
+    let result = normalize(input).map_err(|errors| AppError::bad_request(errors.join("; ")))?;
     Ok(Json(serde_json::json!({
         "ontology": result.ontology,
         "warnings": result.warnings,
@@ -429,7 +428,9 @@ pub(crate) async fn verify_element(
     Json(req): Json<VerifyElementRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     if !matches!(req.element_kind.as_str(), "node" | "edge" | "property") {
-        return Err(AppError::bad_request("element_kind must be 'node', 'edge', or 'property'"));
+        return Err(AppError::bad_request(
+            "element_kind must be 'node', 'edge', or 'property'",
+        ));
     }
 
     let user = state
@@ -582,13 +583,11 @@ pub async fn audit_graph(
         .as_ref()
         .ok_or_else(|| AppError::service_unavailable("Graph database not connected"))?;
 
-    let overview = tokio::time::timeout(
-        std::time::Duration::from_secs(10),
-        runtime.graph_overview(),
-    )
-    .await
-    .map_err(|_| AppError::internal("Graph overview timed out"))?
-    .map_err(AppError::from)?;
+    let overview =
+        tokio::time::timeout(std::time::Duration::from_secs(10), runtime.graph_overview())
+            .await
+            .map_err(|_| AppError::internal("Graph overview timed out"))?
+            .map_err(AppError::from)?;
 
     let report = ox_core::graph_audit::audit_graph(&ontology, &overview);
     Ok(Json(report))
@@ -619,15 +618,15 @@ pub async fn adopt_graph(
         .as_ref()
         .ok_or_else(|| AppError::service_unavailable("Graph database not connected"))?;
 
-    let overview = tokio::time::timeout(
-        std::time::Duration::from_secs(10),
-        runtime.graph_overview(),
-    )
-    .await
-    .map_err(|_| AppError::internal("Graph overview timed out"))?
-    .map_err(AppError::from)?;
+    let overview =
+        tokio::time::timeout(std::time::Duration::from_secs(10), runtime.graph_overview())
+            .await
+            .map_err(|_| AppError::internal("Graph overview timed out"))?
+            .map_err(AppError::from)?;
 
-    let name = req.name.unwrap_or_else(|| "Adopted Graph Ontology".to_string());
+    let name = req
+        .name
+        .unwrap_or_else(|| "Adopted Graph Ontology".to_string());
     let ontology = ox_core::graph_audit::ontology_from_graph(&overview, &name);
 
     // Save to database if requested (makes it usable in Analyze mode)
@@ -646,7 +645,8 @@ pub async fn adopt_graph(
             let memory = std::sync::Arc::clone(memory);
             let ont = ontology.clone();
             tokio::spawn(async move {
-                ox_brain::schema_rag::index_ontology_schema(&memory, &ont, &saved_id.to_string()).await;
+                ox_brain::schema_rag::index_ontology_schema(&memory, &ont, &saved_id.to_string())
+                    .await;
             });
         }
 

@@ -173,10 +173,10 @@ impl PromptRegistry {
         toml_seed_dir: Option<&Path>,
     ) -> OxResult<Self> {
         // Seed any missing prompts from TOML (idempotent per-file)
-        if let Some(dir) = toml_seed_dir {
-            if dir.exists() {
-                Self::seed_from_toml(store, dir).await?;
-            }
+        if let Some(dir) = toml_seed_dir
+            && dir.exists()
+        {
+            Self::seed_from_toml(store, dir).await?;
         }
 
         let db_prompts = store.list_prompt_templates(true).await?;
@@ -319,12 +319,12 @@ impl PromptRegistry {
 
 /// Parse DB content format: "[system]\n...\n\n[user_template]\n..."
 fn parse_db_content(content: &str) -> (String, String) {
-    if let Some(rest) = content.strip_prefix("[system]\n") {
-        if let Some(split_pos) = rest.find("\n\n[user_template]\n") {
-            let system = &rest[..split_pos];
-            let user_template = &rest[split_pos + "\n\n[user_template]\n".len()..];
-            return (system.to_string(), user_template.to_string());
-        }
+    if let Some(rest) = content.strip_prefix("[system]\n")
+        && let Some(split_pos) = rest.find("\n\n[user_template]\n")
+    {
+        let system = &rest[..split_pos];
+        let user_template = &rest[split_pos + "\n\n[user_template]\n".len()..];
+        return (system.to_string(), user_template.to_string());
     }
     // Content without sections (e.g., agent_system) → treat as system prompt
     (content.to_string(), String::new())

@@ -145,10 +145,7 @@ pub async fn execute_load(
     principal.require_designer()?;
     validate_ontology_input(&req.ontology)?;
 
-    let runtime = state
-        .runtime
-        .as_ref()
-        .ok_or_else(AppError::no_runtime)?;
+    let runtime = state.runtime.as_ref().ok_or_else(AppError::no_runtime)?;
 
     if req.data.is_empty() {
         return Err(AppError::bad_request("data must not be empty"));
@@ -212,16 +209,15 @@ pub async fn execute_load(
     };
 
     for statement in &compiled_statements {
-        let result =
-            tokio::time::timeout(timeout, runtime.execute_load(statement, batch.clone()))
-                .await
-                .map_err(|_| {
-                    AppError::timeout(format!(
-                        "Load execution timed out after {}s",
-                        timeout.as_secs()
-                    ))
-                })?
-                .map_err(AppError::from)?;
+        let result = tokio::time::timeout(timeout, runtime.execute_load(statement, batch.clone()))
+            .await
+            .map_err(|_| {
+                AppError::timeout(format!(
+                    "Load execution timed out after {}s",
+                    timeout.as_secs()
+                ))
+            })?
+            .map_err(AppError::from)?;
 
         // Accumulate results
         combined_result.nodes_created += result.nodes_created;

@@ -131,10 +131,7 @@ impl std::fmt::Display for EvalSummary {
 
 /// Type alias for the translate function.
 pub type TranslateFn = Box<
-    dyn Fn(
-            String,
-            OntologyIR,
-        ) -> Pin<Box<dyn Future<Output = OxResult<QueryIR>> + Send>>
+    dyn Fn(String, OntologyIR) -> Pin<Box<dyn Future<Output = OxResult<QueryIR>> + Send>>
         + Send
         + Sync,
 >;
@@ -225,7 +222,8 @@ impl EvalRunner {
         // Step 5: Try to compile
         let compilation_success = (self.compile)(&query_ir).is_ok();
 
-        let passed = operation_match && node_labels_match && edge_labels_match && compilation_success;
+        let passed =
+            operation_match && node_labels_match && edge_labels_match && compilation_success;
 
         EvalResult {
             case_id: case.id.clone(),
@@ -377,17 +375,15 @@ fn extract_node_labels_from_op(op: &QueryOp, labels: &mut Vec<String>) {
         QueryOp::CallSubquery { inner, .. } => {
             extract_node_labels_from_op(&inner.operation, labels);
         }
-        QueryOp::Analytics { source, .. } => {
-            match source {
-                crate::query_ir::AnalyticsSource::Labels { labels: src_labels } => {
-                    labels.extend(src_labels.iter().cloned());
-                }
-                crate::query_ir::AnalyticsSource::Subgraph { filter } => {
-                    extract_node_labels_from_op(filter, labels);
-                }
-                crate::query_ir::AnalyticsSource::WholeGraph => {}
+        QueryOp::Analytics { source, .. } => match source {
+            crate::query_ir::AnalyticsSource::Labels { labels: src_labels } => {
+                labels.extend(src_labels.iter().cloned());
             }
-        }
+            crate::query_ir::AnalyticsSource::Subgraph { filter } => {
+                extract_node_labels_from_op(filter, labels);
+            }
+            crate::query_ir::AnalyticsSource::WholeGraph => {}
+        },
     }
 }
 
@@ -405,9 +401,10 @@ fn extract_node_labels_from_pattern(pattern: &GraphPattern, labels: &mut Vec<Str
         GraphPattern::Path { elements } => {
             for elem in elements {
                 if let PathElement::Node { label, .. } = elem
-                    && let Some(l) = label {
-                        labels.push(l.clone());
-                    }
+                    && let Some(l) = label
+                {
+                    labels.push(l.clone());
+                }
             }
         }
     }
@@ -484,9 +481,10 @@ fn extract_edge_labels_from_pattern(pattern: &GraphPattern, labels: &mut Vec<Str
         GraphPattern::Path { elements } => {
             for elem in elements {
                 if let PathElement::Edge { label, .. } = elem
-                    && let Some(l) = label {
-                        labels.push(l.clone());
-                    }
+                    && let Some(l) = label
+                {
+                    labels.push(l.clone());
+                }
             }
         }
         GraphPattern::Node { .. } => {}

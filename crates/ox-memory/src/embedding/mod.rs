@@ -47,7 +47,8 @@ pub trait EmbeddingProvider: Send + Sync {
     /// - `instruction`: semantic guidance for instruction-aware models
     ///   (e.g., "Represent the data analysis for retrieval").
     /// - `role`: whether this is a document or query embedding.
-    async fn embed(&self, text: &str, instruction: &str, role: EmbeddingRole) -> OxResult<Vec<f32>>;
+    async fn embed(&self, text: &str, instruction: &str, role: EmbeddingRole)
+    -> OxResult<Vec<f32>>;
 
     /// Embed multiple texts with paired instructions.
     /// Default implementation calls `embed()` sequentially.

@@ -80,10 +80,7 @@ pub fn generate_shacl(ontology: &OntologyIR) -> String {
             let is_node_key = node_key_prop_ids.contains(prop.id.as_ref());
 
             out.push_str("    sh:property [\n");
-            out.push_str(&format!(
-                "        sh:path :{} ;\n",
-                local_name(&prop.name),
-            ));
+            out.push_str(&format!("        sh:path :{} ;\n", local_name(&prop.name),));
             out.push_str(&format!(
                 "        sh:datatype {} ;\n",
                 xsd_type(&prop.property_type),
@@ -117,18 +114,13 @@ pub fn generate_shacl(ontology: &OntologyIR) -> String {
 
         // --- Property shapes for outgoing edges ---
         for (i, edge) in edges_for_node.iter().enumerate() {
-            let tgt_label = ontology
-                .node_label(&edge.target_node_id)
-                .unwrap_or("Thing");
+            let tgt_label = ontology.node_label(&edge.target_node_id).unwrap_or("Thing");
             let tgt_class = local_name(tgt_label);
             let is_last = i == edges_for_node.len() - 1;
             let terminator = if is_last { " ." } else { " ;" };
 
             out.push_str("    sh:property [\n");
-            out.push_str(&format!(
-                "        sh:path :{} ;\n",
-                local_name(&edge.label),
-            ));
+            out.push_str(&format!("        sh:path :{} ;\n", local_name(&edge.label),));
             out.push_str(&format!("        sh:class :{tgt_class} ;\n"));
             out.push_str(&format!(
                 "        sh:name {} ;\n",
@@ -220,7 +212,13 @@ fn turtle_literal(s: &str) -> String {
 fn local_name(label: &str) -> String {
     let mut name: String = label
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     // NCName cannot start with a digit
     if name.starts_with(|c: char| c.is_ascii_digit()) {

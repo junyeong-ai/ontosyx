@@ -290,11 +290,7 @@ pub fn reconcile_refined(original: &OntologyIR, mut refined: OntologyIR) -> Reco
         .iter()
         .map(|e| {
             (
-                (
-                    e.label.as_str(),
-                    &*e.source_node_id,
-                    &*e.target_node_id,
-                ),
+                (e.label.as_str(), &*e.source_node_id, &*e.target_node_id),
                 e,
             )
         })
@@ -666,8 +662,10 @@ fn diff_constraints(
         .iter()
         .map(|c| (&*c.id as &str, c))
         .collect();
-    let ref_map: HashMap<&str, &ConstraintDef> =
-        ref_constraints.iter().map(|c| (&*c.id as &str, c)).collect();
+    let ref_map: HashMap<&str, &ConstraintDef> = ref_constraints
+        .iter()
+        .map(|c| (&*c.id as &str, c))
+        .collect();
 
     // Removed constraints
     for orig in orig_constraints {

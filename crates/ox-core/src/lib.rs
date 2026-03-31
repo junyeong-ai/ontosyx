@@ -30,13 +30,13 @@ pub use ontology_command::{
     CommandResult, EntityKind, MatchDecision, OntologyCommand, PropertyPatch, ReconcileConfidence,
     ReconcileReport, ReconcileResult, UncertainMatch,
 };
-pub use ontology_input::{
-    InputEdgeTypeDef, InputIndexDef, InputNodeConstraint, InputNodeTypeDef, InputPropertyDef,
-    NormalizeResult, NormalizeWarning, OntologyInputIR, normalize, to_exchange_format,
-};
 pub use ontology_diff::{
     DiffSummary, EdgeChange, EdgeDiff, NodeChange, NodeDiff, OntologyDiff, PropertyChange,
     compute_diff,
+};
+pub use ontology_input::{
+    InputEdgeTypeDef, InputIndexDef, InputNodeConstraint, InputNodeTypeDef, InputPropertyDef,
+    NormalizeResult, NormalizeWarning, OntologyInputIR, normalize, to_exchange_format,
 };
 pub use ontology_ir::OntologyIR;
 pub use quality::{

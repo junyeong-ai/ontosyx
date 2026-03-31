@@ -60,10 +60,10 @@ impl ModelResolver for DbModelRouter {
         // Check cache
         {
             let cache = self.cache.read().await;
-            if let Some((model, inserted)) = cache.entries.get(&cache_key) {
-                if inserted.elapsed() < self.ttl {
-                    return Ok(model.clone());
-                }
+            if let Some((model, inserted)) = cache.entries.get(&cache_key)
+                && inserted.elapsed() < self.ttl
+            {
+                return Ok(model.clone());
             }
         }
 

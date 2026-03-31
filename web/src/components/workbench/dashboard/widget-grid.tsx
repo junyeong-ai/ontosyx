@@ -50,7 +50,7 @@ export function WidgetGrid({
 
   return (
     <div ref={containerRef}>
-      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+      { }
       <ReactGridLayout
         {...({
           className: "layout",

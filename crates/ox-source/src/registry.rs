@@ -131,8 +131,7 @@ impl IntrospectorRegistry {
                     message: "MongoDB source requires a database name".to_string(),
                 }
             })?;
-            let introspector =
-                crate::mongodb::MongoIntrospector::connect(conn, database).await?;
+            let introspector = crate::mongodb::MongoIntrospector::connect(conn, database).await?;
             Ok(Box::new(introspector) as Box<dyn DataSourceIntrospector>)
         });
 

@@ -33,15 +33,15 @@ const VECTOR_TOP_K: usize = 8;
 /// Each node becomes a natural language embedding with its properties and connections.
 ///
 /// Idempotent: existing entries for the same ontology_id are replaced via upsert.
-pub async fn index_ontology_schema(
-    memory: &MemoryStore,
-    ontology: &OntologyIR,
-    ontology_id: &str,
-) {
+pub async fn index_ontology_schema(memory: &MemoryStore, ontology: &OntologyIR, ontology_id: &str) {
     // Use ontology.id (internal IR ID) for consistency with discover_schema lookups.
     // The caller may pass saved_ontology_id, but discovery falls back to ontology.id
     // when Brain.ontology_id is None (the common case in Analyze mode).
-    let effective_id = if ontology.id.is_empty() { ontology_id } else { &ontology.id };
+    let effective_id = if ontology.id.is_empty() {
+        ontology_id
+    } else {
+        &ontology.id
+    };
     let entries = ontology.to_schema_entries();
     let total = entries.len();
     let mut indexed = 0;
@@ -65,7 +65,10 @@ pub async fn index_ontology_schema(
         indexed += 1;
     }
 
-    info!(ontology_id = effective_id, total, indexed, "Schema indexing complete");
+    info!(
+        ontology_id = effective_id,
+        total, indexed, "Schema indexing complete"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -170,24 +173,33 @@ pub async fn discover_schema(
 /// - Remaining nodes get label-only summary with edge connectivity
 fn fallback_compact_schema(ontology: &OntologyIR) -> String {
     if ontology.node_types.len() <= MAX_SCHEMA_NODES {
-        let all_labels: Vec<&str> = ontology.node_types.iter().map(|n| n.label.as_str()).collect();
+        let all_labels: Vec<&str> = ontology
+            .node_types
+            .iter()
+            .map(|n| n.label.as_str())
+            .collect();
         let compact = ontology.compact_schema(&all_labels);
         serde_json::to_string_pretty(&compact).unwrap_or_default()
     } else {
         // Tiered compression for large ontologies:
         // Tier 1: First 20 nodes with full properties (most connected or alphabetical)
         // Tier 2: Remaining nodes as label-only entries
-        let mut summary = String::from("Schema (tiered — detailed nodes first, then labels-only):\n\n");
+        let mut summary =
+            String::from("Schema (tiered — detailed nodes first, then labels-only):\n\n");
         summary.push_str("## Detailed Nodes\n");
         for node in ontology.node_types.iter().take(MAX_SCHEMA_NODES) {
-            let props: Vec<String> = node.properties.iter().map(|p| {
-                let ty = serde_json::to_value(&p.property_type)
-                    .ok()
-                    .and_then(|v| v.get("type").and_then(|t| t.as_str().map(String::from)))
-                    .unwrap_or_else(|| "string".to_string());
-                let req = if p.nullable { "" } else { "*" };
-                format!("{}{}: {}", p.name, req, ty)
-            }).collect();
+            let props: Vec<String> = node
+                .properties
+                .iter()
+                .map(|p| {
+                    let ty = serde_json::to_value(&p.property_type)
+                        .ok()
+                        .and_then(|v| v.get("type").and_then(|t| t.as_str().map(String::from)))
+                        .unwrap_or_else(|| "string".to_string());
+                    let req = if p.nullable { "" } else { "*" };
+                    format!("{}{}: {}", p.name, req, ty)
+                })
+                .collect();
             summary.push_str(&format!("- {} [{}]\n", node.label, props.join(", ")));
         }
 
@@ -197,14 +209,22 @@ fn fallback_compact_schema(ontology: &OntologyIR) -> String {
                 ontology.node_types.len() - MAX_SCHEMA_NODES
             ));
             for node in ontology.node_types.iter().skip(MAX_SCHEMA_NODES) {
-                summary.push_str(&format!("- {} ({} props)\n", node.label, node.properties.len()));
+                summary.push_str(&format!(
+                    "- {} ({} props)\n",
+                    node.label,
+                    node.properties.len()
+                ));
             }
         }
 
         summary.push_str("\n## Edges\n");
         for edge in &ontology.edge_types {
-            let src = ontology.node_label(edge.source_node_id.as_ref()).unwrap_or("?");
-            let tgt = ontology.node_label(edge.target_node_id.as_ref()).unwrap_or("?");
+            let src = ontology
+                .node_label(edge.source_node_id.as_ref())
+                .unwrap_or("?");
+            let tgt = ontology
+                .node_label(edge.target_node_id.as_ref())
+                .unwrap_or("?");
             summary.push_str(&format!("- ({src})-[:{}]->({tgt})\n", edge.label));
         }
         summary

@@ -9,8 +9,8 @@ use uuid::Uuid;
 
 use ox_core::query_ir::QueryResult;
 use ox_core::types::PropertyValue;
-use ox_store::store::CursorParams;
 use ox_store::SavedReport;
+use ox_store::store::CursorParams;
 
 use crate::error::AppError;
 use crate::principal::Principal;
@@ -253,10 +253,7 @@ pub(crate) async fn execute_report(
         "Executing saved report"
     );
 
-    let runtime = state
-        .runtime
-        .as_ref()
-        .ok_or_else(AppError::no_runtime)?;
+    let runtime = state.runtime.as_ref().ok_or_else(AppError::no_runtime)?;
 
     let timeout = state.timeouts.raw_query;
     let empty_params: HashMap<String, PropertyValue> = HashMap::new();

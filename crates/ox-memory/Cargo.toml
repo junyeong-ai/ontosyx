@@ -34,3 +34,6 @@ urlencoding = "2.1.3"
 [features]
 default = []
 onnx = ["ort", "ndarray", "tokenizers"]
+
+[lints]
+workspace = true

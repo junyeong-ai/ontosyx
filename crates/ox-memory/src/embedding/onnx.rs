@@ -115,7 +115,10 @@ impl OnnxEmbeddingProvider {
         let mut session = Session::builder()
             .and_then(|mut b| b.commit_from_file(&model_path))
             .map_err(|e| OxError::Runtime {
-                message: format!("Failed to load ONNX model from {}: {e}", model_path.display()),
+                message: format!(
+                    "Failed to load ONNX model from {}: {e}",
+                    model_path.display()
+                ),
             })?;
 
         let tokenizer_path = model_dir.join("tokenizer.json");
@@ -256,10 +259,10 @@ fn load_pooling_mode(model_dir: &Path) -> PoolingMode {
 /// Read `config_sentence_transformers.json` for prompt templates.
 fn load_prompt_templates(model_dir: &Path) -> HashMap<String, String> {
     let path = model_dir.join("config_sentence_transformers.json");
-    if let Ok(contents) = std::fs::read_to_string(&path) {
-        if let Ok(cfg) = serde_json::from_str::<SentenceTransformersFileConfig>(&contents) {
-            return cfg.prompts;
-        }
+    if let Ok(contents) = std::fs::read_to_string(&path)
+        && let Ok(cfg) = serde_json::from_str::<SentenceTransformersFileConfig>(&contents)
+    {
+        return cfg.prompts;
     }
     HashMap::new()
 }
@@ -286,10 +289,7 @@ fn apply_pooling(
         }
         PoolingMode::LastToken => {
             // Last non-padding token position.
-            let last_idx = attention
-                .iter()
-                .rposition(|&v| v != 0)
-                .unwrap_or(0);
+            let last_idx = attention.iter().rposition(|&v| v != 0).unwrap_or(0);
             Ok(seq_output.index_axis(Axis(0), last_idx).to_owned())
         }
         PoolingMode::Mean => {
@@ -413,13 +413,11 @@ fn run_inference_inner(
     })?;
 
     let outputs = if config.has_position_ids {
-        let position_ids = Tensor::<i64>::from_array((
-            [1, seq_len],
-            (0..seq_len as i64).collect::<Vec<_>>(),
-        ))
-        .map_err(|e| OxError::Runtime {
-            message: format!("Failed to create position_ids tensor: {e}"),
-        })?;
+        let position_ids =
+            Tensor::<i64>::from_array(([1, seq_len], (0..seq_len as i64).collect::<Vec<_>>()))
+                .map_err(|e| OxError::Runtime {
+                    message: format!("Failed to create position_ids tensor: {e}"),
+                })?;
         session
             .run(ort::inputs![input_ids, attention_mask, position_ids])
             .map_err(|e| OxError::Runtime {
@@ -447,11 +445,12 @@ fn run_inference_inner(
     } else if output.ndim() == 3 {
         // Shape: [batch=1, seq_len, hidden_dim] — needs pooling
         let batch0 = output.index_axis(Axis(0), 0); // [seq_len, hidden_dim]
-        let seq_output = batch0
-            .into_dimensionality::<ndarray::Ix2>()
-            .map_err(|e| OxError::Runtime {
-                message: format!("Failed to reshape output to 2D: {e}"),
-            })?;
+        let seq_output =
+            batch0
+                .into_dimensionality::<ndarray::Ix2>()
+                .map_err(|e| OxError::Runtime {
+                    message: format!("Failed to reshape output to 2D: {e}"),
+                })?;
         let pooled = apply_pooling(seq_output.view(), attention, &config.pooling)?;
         pooled.to_vec()
     } else {
@@ -484,7 +483,12 @@ fn run_inference(
 
 #[async_trait]
 impl EmbeddingProvider for OnnxEmbeddingProvider {
-    async fn embed(&self, text: &str, instruction: &str, role: EmbeddingRole) -> OxResult<Vec<f32>> {
+    async fn embed(
+        &self,
+        text: &str,
+        instruction: &str,
+        role: EmbeddingRole,
+    ) -> OxResult<Vec<f32>> {
         let input = self.format_input(text, instruction, role);
         let session = Arc::clone(&self.session);
         let tokenizer = Arc::clone(&self.tokenizer);

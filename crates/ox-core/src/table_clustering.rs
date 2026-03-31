@@ -116,17 +116,14 @@ pub fn cluster_tables(
             for fk in &schema.foreign_keys {
                 let from_idx = name_to_idx.get(fk.from_table.as_str());
                 let to_idx = name_to_idx.get(fk.to_table.as_str());
-                match (from_idx, to_idx) {
-                    (Some(&fi), Some(&ti)) => {
-                        let from_in = part_set.contains(&fi);
-                        let to_in = part_set.contains(&ti);
-                        if from_in && to_in {
-                            internal_fks.push(fk.clone());
-                        } else if from_in || to_in {
-                            cross_fks.push(fk.clone());
-                        }
+                if let (Some(&fi), Some(&ti)) = (from_idx, to_idx) {
+                    let from_in = part_set.contains(&fi);
+                    let to_in = part_set.contains(&ti);
+                    if from_in && to_in {
+                        internal_fks.push(fk.clone());
+                    } else if from_in || to_in {
+                        cross_fks.push(fk.clone());
                     }
-                    _ => {}
                 }
             }
             // Classify confirmed implied rels the same way as declared FKs
@@ -203,10 +200,10 @@ pub fn cluster_tables(
 // ---------------------------------------------------------------------------
 
 /// Collect all FK edges as (from_idx, to_idx) pairs from declared FKs and confirmed implied rels.
-fn collect_all_fks<'a>(
+fn collect_all_fks(
     foreign_keys: &[ForeignKeyDef],
     implied_rels: &[ImpliedRelationship],
-    name_to_idx: &HashMap<&'a str, usize>,
+    name_to_idx: &HashMap<&str, usize>,
 ) -> Vec<(usize, usize)> {
     let mut edges = Vec::new();
     let mut seen: HashSet<(usize, usize)> = HashSet::new();
@@ -215,10 +212,10 @@ fn collect_all_fks<'a>(
         if let (Some(&fi), Some(&ti)) = (
             name_to_idx.get(fk.from_table.as_str()),
             name_to_idx.get(fk.to_table.as_str()),
-        ) {
-            if fi != ti && seen.insert((fi, ti)) {
-                edges.push((fi, ti));
-            }
+        ) && fi != ti
+            && seen.insert((fi, ti))
+        {
+            edges.push((fi, ti));
         }
     }
 
@@ -229,10 +226,10 @@ fn collect_all_fks<'a>(
         if let (Some(&fi), Some(&ti)) = (
             name_to_idx.get(rel.from_table.as_str()),
             name_to_idx.get(rel.to_table.as_str()),
-        ) {
-            if fi != ti && seen.insert((fi, ti)) {
-                edges.push((fi, ti));
-            }
+        ) && fi != ti
+            && seen.insert((fi, ti))
+        {
+            edges.push((fi, ti));
         }
     }
 
@@ -240,11 +237,7 @@ fn collect_all_fks<'a>(
 }
 
 /// BFS-based balanced splitting of a large component.
-fn bfs_split(
-    group: &[usize],
-    adj: &[BTreeSet<usize>],
-    max_size: usize,
-) -> Vec<Vec<usize>> {
+fn bfs_split(group: &[usize], adj: &[BTreeSet<usize>], max_size: usize) -> Vec<Vec<usize>> {
     let group_set: HashSet<usize> = group.iter().copied().collect();
     let mut assigned: HashSet<usize> = HashSet::new();
     let mut partitions: Vec<Vec<usize>> = Vec::new();
@@ -259,9 +252,7 @@ fn bfs_split(
         .collect();
 
     let mut by_degree: Vec<usize> = group.to_vec();
-    by_degree.sort_by(|&a, &b| {
-        degrees[&b].cmp(&degrees[&a]).then_with(|| a.cmp(&b))
-    });
+    by_degree.sort_by(|&a, &b| degrees[&b].cmp(&degrees[&a]).then_with(|| a.cmp(&b)));
 
     for &start in &by_degree {
         if assigned.contains(&start) {
@@ -318,13 +309,13 @@ fn compute_parallel_levels(
                 .get(fk.to_table.as_str())
                 .map(|&i| table_partition[i]);
 
-            if let (Some(fp), Some(tp)) = (from_part, to_part) {
-                if fp != tp {
-                    if dag[tp].insert(fp) {
-                        in_degree[fp] += 1;
-                    }
-                    inbound_cross_count[tp] += 1;
+            if let (Some(fp), Some(tp)) = (from_part, to_part)
+                && fp != tp
+            {
+                if dag[tp].insert(fp) {
+                    in_degree[fp] += 1;
                 }
+                inbound_cross_count[tp] += 1;
             }
         }
     }
@@ -335,9 +326,7 @@ fn compute_parallel_levels(
     let mut processed = 0;
 
     loop {
-        let mut level: Vec<usize> = (0..cluster_count)
-            .filter(|&i| in_degree[i] == 0)
-            .collect();
+        let mut level: Vec<usize> = (0..cluster_count).filter(|&i| in_degree[i] == 0).collect();
 
         if level.is_empty() {
             break;
@@ -458,7 +447,7 @@ mod tests {
     #[test]
     fn single_component_fits_in_one_cluster() {
         let schema = make_schema(&["a", "b", "c"], vec![fk("b", "a"), fk("c", "a")]);
-        let plan = cluster_tables(&schema, &[],10);
+        let plan = cluster_tables(&schema, &[], 10);
         assert_eq!(plan.clusters.len(), 1);
         assert_eq!(plan.clusters[0].tables.len(), 3);
         assert!(plan.clusters[0].cross_fks.is_empty());
@@ -466,11 +455,8 @@ mod tests {
 
     #[test]
     fn disconnected_components_become_separate_clusters() {
-        let schema = make_schema(
-            &["a", "b", "c", "d"],
-            vec![fk("b", "a"), fk("d", "c")],
-        );
-        let plan = cluster_tables(&schema, &[],10);
+        let schema = make_schema(&["a", "b", "c", "d"], vec![fk("b", "a"), fk("d", "c")]);
+        let plan = cluster_tables(&schema, &[], 10);
         assert_eq!(plan.clusters.len(), 2);
     }
 
@@ -481,10 +467,11 @@ mod tests {
             &["a", "b", "c", "d", "e"],
             vec![fk("b", "a"), fk("c", "b"), fk("d", "c"), fk("e", "d")],
         );
-        let plan = cluster_tables(&schema, &[],3);
+        let plan = cluster_tables(&schema, &[], 3);
         assert!(plan.clusters.len() >= 2);
         // All tables accounted for
-        let all: HashSet<String> = plan.clusters
+        let all: HashSet<String> = plan
+            .clusters
             .iter()
             .flat_map(|c| c.tables.iter().cloned())
             .collect();
@@ -498,7 +485,7 @@ mod tests {
     #[test]
     fn isolated_tables_grouped() {
         let schema = make_schema(&["a", "b", "c", "d", "e"], vec![]);
-        let plan = cluster_tables(&schema, &[],3);
+        let plan = cluster_tables(&schema, &[], 3);
         let total: usize = plan.clusters.iter().map(|c| c.tables.len()).sum();
         assert_eq!(total, 5);
         for c in &plan.clusters {
@@ -511,7 +498,7 @@ mod tests {
         // b→a, c→b → expected order: a first (most referenced)
         let schema = make_schema(&["c", "b", "a"], vec![fk("b", "a"), fk("c", "b")]);
         // max_size=1 → each table is its own cluster
-        let plan = cluster_tables(&schema, &[],1);
+        let plan = cluster_tables(&schema, &[], 1);
         assert_eq!(plan.clusters.len(), 3);
         // a should be in the first cluster (most referenced)
         assert!(plan.clusters[0].tables.contains(&"a".to_string()));
@@ -521,7 +508,7 @@ mod tests {
     fn cross_fks_populated() {
         // Split a→b into separate clusters (max_size=1)
         let schema = make_schema(&["a", "b"], vec![fk("b", "a")]);
-        let plan = cluster_tables(&schema, &[],1);
+        let plan = cluster_tables(&schema, &[], 1);
         assert_eq!(plan.clusters.len(), 2);
         let total_cross: usize = plan.clusters.iter().map(|c| c.cross_fks.len()).sum();
         assert!(total_cross > 0);
@@ -530,7 +517,7 @@ mod tests {
     #[test]
     fn empty_schema() {
         let schema = make_schema(&[], vec![]);
-        let plan = cluster_tables(&schema, &[],10);
+        let plan = cluster_tables(&schema, &[], 10);
         assert!(plan.clusters.is_empty());
     }
 
@@ -553,9 +540,10 @@ mod tests {
 
         let table_strs: Vec<&str> = tables.iter().map(|s| s.as_str()).collect();
         let schema = make_schema(&table_strs, fks);
-        let plan = cluster_tables(&schema, &[],5);
+        let plan = cluster_tables(&schema, &[], 5);
 
-        let all: HashSet<String> = plan.clusters
+        let all: HashSet<String> = plan
+            .clusters
             .iter()
             .flat_map(|c| c.tables.iter().cloned())
             .collect();

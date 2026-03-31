@@ -104,7 +104,16 @@ impl<'de> Deserialize<'de> for SourceTypeKind {
             "ontology" => Ok(Self::Ontology),
             _ => Err(serde::de::Error::unknown_variant(
                 &s,
-                &["text", "csv", "json", "postgresql", "mysql", "mongodb", "code_repository", "ontology"],
+                &[
+                    "text",
+                    "csv",
+                    "json",
+                    "postgresql",
+                    "mysql",
+                    "mongodb",
+                    "code_repository",
+                    "ontology",
+                ],
             )),
         }
     }

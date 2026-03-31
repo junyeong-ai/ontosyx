@@ -47,7 +47,8 @@ pub struct AppState {
     /// Generic OIDC provider registry (Google, Microsoft, Okta, etc.)
     pub oidc_providers: Arc<OidcProviderRegistry>,
     /// HITL: maps "session_id:tool_call_id" → oneshot sender for tool approval
-    pub tool_review_channels: Option<Arc<DashMap<String, tokio::sync::oneshot::Sender<ToolApproval>>>>,
+    pub tool_review_channels:
+        Option<Arc<DashMap<String, tokio::sync::oneshot::Sender<ToolApproval>>>>,
     /// Real-time collaboration hub (presence, cursors, locks)
     #[allow(dead_code)] // Awaiting WebSocket route integration
     pub collaboration: Arc<CollaborationHub>,

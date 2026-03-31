@@ -254,9 +254,7 @@ pub(crate) fn prune_decisions(
 /// Build a concise source schema summary for refinement when no graph runtime
 /// is available. Provides table names, column listings, and FK relationships
 /// so the LLM can refine property descriptions and suggest new relationships.
-pub(crate) fn build_source_schema_summary(
-    schema: &ox_core::source_schema::SourceSchema,
-) -> String {
+pub(crate) fn build_source_schema_summary(schema: &ox_core::source_schema::SourceSchema) -> String {
     use std::fmt::Write;
     let mut out = String::new();
     writeln!(

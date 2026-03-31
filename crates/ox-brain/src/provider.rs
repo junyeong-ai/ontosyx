@@ -65,7 +65,9 @@ pub async fn structured_completion<T: serde::de::DeserializeOwned + schemars::Js
     .await
 }
 
-pub async fn structured_completion_with_thresholds<T: serde::de::DeserializeOwned + schemars::JsonSchema>(
+pub async fn structured_completion_with_thresholds<
+    T: serde::de::DeserializeOwned + schemars::JsonSchema,
+>(
     client: &branchforge::Client,
     model: &str,
     system: &str,
@@ -104,16 +106,14 @@ pub async fn structured_completion_with_thresholds<T: serde::de::DeserializeOwne
     // Prompt caching: system prompt cached with 1-hour TTL.
     // Repeated calls with the same system prompt hit Anthropic's prompt cache,
     // reducing input token costs significantly.
-    let cached_system = SystemPrompt::Blocks(vec![
-        SystemBlock::cached_with_ttl(system, CacheTtl::OneHour),
-    ]);
+    let cached_system = SystemPrompt::Blocks(vec![SystemBlock::cached_with_ttl(
+        system,
+        CacheTtl::OneHour,
+    )]);
 
-    let mut request = CreateMessageRequest::new(
-        model,
-        vec![Message::user(user_prompt)],
-    )
-    .max_tokens(max_tokens)
-    .system(cached_system);
+    let mut request = CreateMessageRequest::new(model, vec![Message::user(user_prompt)])
+        .max_tokens(max_tokens)
+        .system(cached_system);
 
     if let Some(temp) = temperature {
         request = request.temperature(temp);
@@ -124,7 +124,8 @@ pub async fn structured_completion_with_thresholds<T: serde::de::DeserializeOwne
         tracing::debug!(schema_name = %type_name, "Using structured output with JSON Schema");
     } else {
         tracing::info!(
-            optional_count, total_props,
+            optional_count,
+            total_props,
             "Schema too complex for structured output, using JSON mode"
         );
     }
@@ -134,12 +135,16 @@ pub async fn structured_completion_with_thresholds<T: serde::de::DeserializeOwne
         Ok(resp) => resp,
         // Content filter with schema → mode switch (not a retry, different request)
         Err(e) if use_schema && is_content_filtered(&e) => {
-            tracing::warn!("Content filtering blocked structured output, falling back to JSON mode");
+            tracing::warn!(
+                "Content filtering blocked structured output, falling back to JSON mode"
+            );
             let mut fallback = request;
             fallback.output_format = None;
-            send_with_retry(client, fallback).await.map_err(|e| OxError::Runtime {
-                message: format!("LLM request failed (JSON fallback): {e}"),
-            })?
+            send_with_retry(client, fallback)
+                .await
+                .map_err(|e| OxError::Runtime {
+                    message: format!("LLM request failed (JSON fallback): {e}"),
+                })?
         }
         Err(e) => {
             return Err(OxError::Runtime {
@@ -230,7 +235,13 @@ fn is_retryable(err: &branchforge::Error) -> bool {
         branchforge::Error::RateLimit { .. }
             | branchforge::Error::ModelOverloaded { .. }
             | branchforge::Error::CircuitOpen
-    ) || matches!(err, branchforge::Error::Api { status: Some(500..=599), .. })
+    ) || matches!(
+        err,
+        branchforge::Error::Api {
+            status: Some(500..=599),
+            ..
+        }
+    )
 }
 
 fn is_content_filtered(err: &branchforge::Error) -> bool {

@@ -12,10 +12,14 @@ use ox_core::source_analysis::{
     LARGE_SCHEMA_GATE_THRESHOLD, WarningLevel,
 };
 use ox_core::source_schema::{
-    SourceColumnDef, ColumnStats, ForeignKeyDef, SourceProfile, SourceSchema, SourceTableDef, TableProfile,
+    ColumnStats, ForeignKeyDef, SourceColumnDef, SourceProfile, SourceSchema, SourceTableDef,
+    TableProfile,
 };
 
-use crate::{AnalysisResult, DataSourceIntrospector, DEFAULT_INTROSPECTION_CONCURRENCY, introspect_tables_concurrent};
+use crate::{
+    AnalysisResult, DEFAULT_INTROSPECTION_CONCURRENCY, DataSourceIntrospector,
+    introspect_tables_concurrent,
+};
 
 /// Returns true for PostgreSQL types that typically contain large structured/binary data.
 /// These columns produce meaningless multi-KB sample values that waste LLM tokens.
@@ -98,9 +102,7 @@ impl PostgresIntrospector {
             |table_name| {
                 let pool = pool.clone();
                 let schema_name = schema_name.clone();
-                async move {
-                    introspect_table_pg(&pool, &schema_name, &table_name).await
-                }
+                async move { introspect_table_pg(&pool, &schema_name, &table_name).await }
             },
         )
         .await;
@@ -389,7 +391,10 @@ impl PostgresIntrospector {
         let mut column_stats = Vec::new();
         let mut warnings = Vec::new();
         for col in columns {
-            match self.profile_column(table_name, &col.name, &col.data_type).await {
+            match self
+                .profile_column(table_name, &col.name, &col.data_type)
+                .await
+            {
                 Ok((stats, sample_warning)) => {
                     column_stats.push(stats);
                     if let Some(sample_warning) = sample_warning {
@@ -473,15 +478,14 @@ impl PostgresIntrospector {
 
         let (null_count, distinct_count, min_value, max_value) = if is_blob {
             // For blob types: only count nulls (cheap), skip distinct/min/max
-            let q = format!(
-                "SELECT count(*) FILTER (WHERE {qc} IS NULL) AS null_count FROM {qt}"
-            );
-            let null_count: (i64,) = sqlx::query_as(&q)
-                .fetch_one(&self.pool)
-                .await
-                .map_err(|e| OxError::Runtime {
-                    message: format!("Failed to profile {table_name}.{column_name}: {e}"),
-                })?;
+            let q = format!("SELECT count(*) FILTER (WHERE {qc} IS NULL) AS null_count FROM {qt}");
+            let null_count: (i64,) =
+                sqlx::query_as(&q)
+                    .fetch_one(&self.pool)
+                    .await
+                    .map_err(|e| OxError::Runtime {
+                        message: format!("Failed to profile {table_name}.{column_name}: {e}"),
+                    })?;
             (null_count.0, 0i64, None, None)
         } else {
             let stats_query = format!(
@@ -533,45 +537,44 @@ impl PostgresIntrospector {
             0 // High cardinality → free-text
         };
 
-        let (sample_values, sample_warning) =
-            if sample_limit <= 0 {
-                (Vec::new(), None)
-            } else {
-                let sample_query = format!(
-                    "SELECT DISTINCT left({qc}::text, 200) AS val \
+        let (sample_values, sample_warning) = if sample_limit <= 0 {
+            (Vec::new(), None)
+        } else {
+            let sample_query = format!(
+                "SELECT DISTINCT left({qc}::text, 200) AS val \
                  FROM {qt} \
                  WHERE {qc} IS NOT NULL \
                  ORDER BY val \
                  LIMIT {sample_limit}",
-                );
-                match sqlx::query_scalar::<_, String>(&sample_query)
-                    .fetch_all(&self.pool)
-                    .await
-                {
-                    Ok(values) => (values, None),
-                    Err(err) => {
-                        let message = format!(
-                            "Failed to collect sample values for {table_name}.{column_name}: {err}"
-                        );
-                        warn!(
-                            table = %table_name,
-                            column = %column_name,
-                            error = %err,
-                            "Omitting sample values for profiled column"
-                        );
-                        (
-                            Vec::new(),
-                            Some(AnalysisWarning {
-                                level: WarningLevel::Info,
-                                phase: AnalysisPhase::DataProfiling,
-                                kind: AnalysisWarningKind::SampleValuesOmitted,
-                                location: format!("{table_name}.{column_name}"),
-                                message,
-                            }),
-                        )
-                    }
+            );
+            match sqlx::query_scalar::<_, String>(&sample_query)
+                .fetch_all(&self.pool)
+                .await
+            {
+                Ok(values) => (values, None),
+                Err(err) => {
+                    let message = format!(
+                        "Failed to collect sample values for {table_name}.{column_name}: {err}"
+                    );
+                    warn!(
+                        table = %table_name,
+                        column = %column_name,
+                        error = %err,
+                        "Omitting sample values for profiled column"
+                    );
+                    (
+                        Vec::new(),
+                        Some(AnalysisWarning {
+                            level: WarningLevel::Info,
+                            phase: AnalysisPhase::DataProfiling,
+                            kind: AnalysisWarningKind::SampleValuesOmitted,
+                            location: format!("{table_name}.{column_name}"),
+                            message,
+                        }),
+                    )
                 }
-            };
+            }
+        };
 
         Ok((
             ColumnStats {

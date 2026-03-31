@@ -246,14 +246,15 @@ impl OntologyIR {
 
         for node in &self.node_types {
             // Collect connected edges
-            let outgoing: Vec<&str> = self.edge_types.iter()
+            let outgoing: Vec<&str> = self
+                .edge_types
+                .iter()
                 .filter(|e| e.source_node_id == node.id)
-                .map(|e| {
-                    self.node_label(e.target_node_id.as_ref())
-                        .unwrap_or("?")
-                })
+                .map(|e| self.node_label(e.target_node_id.as_ref()).unwrap_or("?"))
                 .collect();
-            let incoming: Vec<(&str, &str)> = self.edge_types.iter()
+            let incoming: Vec<(&str, &str)> = self
+                .edge_types
+                .iter()
                 .filter(|e| e.target_node_id == node.id)
                 .map(|e| {
                     let src = self.node_label(e.source_node_id.as_ref()).unwrap_or("?");
@@ -261,21 +262,17 @@ impl OntologyIR {
                 })
                 .collect();
 
-            let props: Vec<&str> = node.properties.iter()
-                .map(|p| p.name.as_str())
-                .collect();
+            let props: Vec<&str> = node.properties.iter().map(|p| p.name.as_str()).collect();
 
             let desc = node.description.as_deref().unwrap_or("");
-            let mut text = format!(
-                "{}: {} Properties: {}.",
-                node.label, desc, props.join(", ")
-            );
+            let mut text = format!("{}: {} Properties: {}.", node.label, desc, props.join(", "));
 
             if !outgoing.is_empty() {
                 text.push_str(&format!(" Connected to: {}.", outgoing.join(", ")));
             }
             if !incoming.is_empty() {
-                let rels: Vec<String> = incoming.iter()
+                let rels: Vec<String> = incoming
+                    .iter()
                     .map(|(src, edge)| format!("{src} via {edge}"))
                     .collect();
                 text.push_str(&format!(" Referenced by: {}.", rels.join(", ")));
@@ -307,7 +304,11 @@ impl OntologyIR {
                 let nullable = if p.nullable { ", nullable" } else { "" };
                 props.insert(
                     p.name.clone(),
-                    serde_json::Value::String(format!("{}{} {}", p.property_type, nullable, desc).trim().to_string()),
+                    serde_json::Value::String(
+                        format!("{}{} {}", p.property_type, nullable, desc)
+                            .trim()
+                            .to_string(),
+                    ),
                 );
             }
             let mut node_obj = serde_json::Map::new();
@@ -324,16 +325,24 @@ impl OntologyIR {
             let tgt_label = self.node_label(edge.target_node_id.as_ref()).unwrap_or("?");
             if selected.contains(src_label) || selected.contains(tgt_label) {
                 let mut edge_obj = serde_json::Map::new();
-                edge_obj.insert("source".into(), serde_json::Value::String(src_label.to_string()));
-                edge_obj.insert("target".into(), serde_json::Value::String(tgt_label.to_string()));
-                edge_obj.insert("cardinality".into(), serde_json::Value::String(format!("{:?}", edge.cardinality)));
+                edge_obj.insert(
+                    "source".into(),
+                    serde_json::Value::String(src_label.to_string()),
+                );
+                edge_obj.insert(
+                    "target".into(),
+                    serde_json::Value::String(tgt_label.to_string()),
+                );
+                edge_obj.insert(
+                    "cardinality".into(),
+                    serde_json::Value::String(format!("{:?}", edge.cardinality)),
+                );
                 if let Some(d) = &edge.description {
                     edge_obj.insert("description".into(), serde_json::Value::String(d.clone()));
                 }
                 if !edge.properties.is_empty() {
-                    let props: Vec<String> = edge.properties.iter()
-                        .map(|p| p.name.clone())
-                        .collect();
+                    let props: Vec<String> =
+                        edge.properties.iter().map(|p| p.name.clone()).collect();
                     edge_obj.insert("properties".into(), serde_json::json!(props));
                 }
                 edges.insert(edge.label.clone(), serde_json::Value::Object(edge_obj));
@@ -354,15 +363,15 @@ impl OntologyIR {
         };
         let mut neighbors = Vec::new();
         for edge in &self.edge_types {
-            if edge.source_node_id == node.id {
-                if let Some(tgt) = self.node_label(edge.target_node_id.as_ref()) {
-                    neighbors.push(tgt);
-                }
+            if edge.source_node_id == node.id
+                && let Some(tgt) = self.node_label(edge.target_node_id.as_ref())
+            {
+                neighbors.push(tgt);
             }
-            if edge.target_node_id == node.id {
-                if let Some(src) = self.node_label(edge.source_node_id.as_ref()) {
-                    neighbors.push(src);
-                }
+            if edge.target_node_id == node.id
+                && let Some(src) = self.node_label(edge.source_node_id.as_ref())
+            {
+                neighbors.push(src);
             }
         }
         neighbors.sort_unstable();

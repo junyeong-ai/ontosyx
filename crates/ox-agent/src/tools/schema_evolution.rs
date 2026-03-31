@@ -74,8 +74,7 @@ pub struct SchemaEvolutionTool {
 impl SchemaTool for SchemaEvolutionTool {
     type Input = SchemaEvolutionInput;
     const NAME: &'static str = super::SCHEMA_EVOLUTION;
-    const DESCRIPTION: &'static str =
-        "Detect schema drift between source database and current ontology. \
+    const DESCRIPTION: &'static str = "Detect schema drift between source database and current ontology. \
          Use 'detect_drift' to compare source tables/columns against ontology nodes/properties. \
          Use 'suggest_updates' to get recommended ontology changes based on detected drift. \
          Call this when the user mentions schema changes, new tables, or data model evolution.";
@@ -86,7 +85,7 @@ impl SchemaTool for SchemaEvolutionTool {
             None => {
                 return ToolResult::error(
                     "No source schema available. Load a project with a data source first.",
-                )
+                );
             }
         };
         let ontology = match &self.domain.ontology {
@@ -155,16 +154,10 @@ impl SchemaTool for SchemaEvolutionTool {
     }
 }
 
-fn detect_drift(
-    schema: &SourceSchema,
-    ontology: &ox_core::ontology_ir::OntologyIR,
-) -> DriftReport {
+fn detect_drift(schema: &SourceSchema, ontology: &ox_core::ontology_ir::OntologyIR) -> DriftReport {
     // Extract source table names
-    let source_tables: std::collections::HashSet<String> = schema
-        .tables
-        .iter()
-        .map(|t| t.name.clone())
-        .collect();
+    let source_tables: std::collections::HashSet<String> =
+        schema.tables.iter().map(|t| t.name.clone()).collect();
 
     // Extract ontology node labels and their source_table mappings
     let ontology_nodes: std::collections::HashMap<String, Option<String>> = ontology
@@ -178,10 +171,7 @@ fn detect_drift(
         .values()
         .filter_map(|st| st.clone())
         .collect();
-    let unmapped_tables: Vec<String> = source_tables
-        .difference(&mapped_tables)
-        .cloned()
-        .collect();
+    let unmapped_tables: Vec<String> = source_tables.difference(&mapped_tables).cloned().collect();
 
     // Find orphaned nodes (in ontology but source table doesn't exist)
     let orphaned_nodes: Vec<String> = ontology_nodes
@@ -210,11 +200,8 @@ fn detect_drift(
             let node_prop_names: std::collections::HashSet<&str> =
                 node.properties.iter().map(|p| p.name.as_str()).collect();
 
-            let source_col_names: std::collections::HashSet<&str> = table
-                .columns
-                .iter()
-                .map(|c| c.name.as_str())
-                .collect();
+            let source_col_names: std::collections::HashSet<&str> =
+                table.columns.iter().map(|c| c.name.as_str()).collect();
 
             // Unmapped columns
             for col in &table.columns {

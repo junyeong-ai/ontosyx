@@ -111,7 +111,7 @@ pub fn generate_python(ontology: &OntologyIR) -> String {
     }
 
     // Remove trailing empty lines
-    while lines.last().map_or(false, |l| l.is_empty()) {
+    while lines.last().is_some_and(|l| l.is_empty()) {
         lines.pop();
     }
     lines.push(String::new()); // single trailing newline
@@ -164,7 +164,7 @@ fn check_type_imports(
     pt: &PropertyType,
     needs_datetime: &mut bool,
     needs_date: &mut bool,
-    needs_optional: &mut bool,
+    _needs_optional: &mut bool,
     needs_any: &mut bool,
 ) {
     match pt {
@@ -172,7 +172,13 @@ fn check_type_imports(
         PropertyType::Date => *needs_date = true,
         PropertyType::Map => *needs_any = true,
         PropertyType::List { element } => {
-            check_type_imports(element, needs_datetime, needs_date, needs_optional, needs_any);
+            check_type_imports(
+                element,
+                needs_datetime,
+                needs_date,
+                _needs_optional,
+                needs_any,
+            );
         }
         _ => {}
     }
@@ -196,7 +202,7 @@ fn py_class_name(name: &str) -> String {
     // Convert to PascalCase: split on _ / space / -, capitalize first letter of each segment
     // Also handles SCREAMING_SNAKE_CASE by lowercasing segments first
     let mut result = String::new();
-    for segment in name.split(|c: char| c == '_' || c == ' ' || c == '-') {
+    for segment in name.split(['_', ' ', '-']) {
         if segment.is_empty() {
             continue;
         }
@@ -204,7 +210,10 @@ fn py_class_name(name: &str) -> String {
         if let Some(first) = chars.next() {
             result.push(first.to_ascii_uppercase());
             let rest: String = chars.collect();
-            if rest.chars().all(|c| c.is_ascii_uppercase() || !c.is_alphabetic()) {
+            if rest
+                .chars()
+                .all(|c| c.is_ascii_uppercase() || !c.is_alphabetic())
+            {
                 result.push_str(&rest.to_ascii_lowercase());
             } else {
                 result.push_str(&rest);
@@ -219,7 +228,13 @@ fn py_class_name(name: &str) -> String {
 
 fn py_field_name(name: &str) -> String {
     name.chars()
-        .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 

@@ -70,8 +70,7 @@ pub struct RecallMemoryTool {
 impl SchemaTool for RecallMemoryTool {
     type Input = RecallMemoryInput;
     const NAME: &'static str = super::RECALL_MEMORY;
-    const DESCRIPTION: &'static str =
-        "Search long-term memory for relevant past queries, analyses, edits, and sessions. \
+    const DESCRIPTION: &'static str = "Search long-term memory for relevant past queries, analyses, edits, and sessions. \
          Use 'semantic' mode for meaning-based search, or 'pattern' mode for exact keyword matching. \
          Call this when the user references past work or when context from previous sessions would help.";
 
@@ -82,10 +81,8 @@ impl SchemaTool for RecallMemoryTool {
         let hits = match input.mode {
             SearchMode::Semantic => {
                 // Merge tool-level ontology scope with any per-request overrides.
-                let effective_ontology_id = input
-                    .ontology_id
-                    .as_deref()
-                    .or(self.ontology_id.as_deref());
+                let effective_ontology_id =
+                    input.ontology_id.as_deref().or(self.ontology_id.as_deref());
 
                 let filter = MemoryFilter {
                     ontology_id: effective_ontology_id.map(String::from),
@@ -94,12 +91,7 @@ impl SchemaTool for RecallMemoryTool {
                 };
 
                 self.memory
-                    .search_filtered(
-                        &input.query,
-                        source_hint.as_ref(),
-                        top_k,
-                        &filter,
-                    )
+                    .search_filtered(&input.query, source_hint.as_ref(), top_k, &filter)
                     .await
             }
             SearchMode::Pattern => self.memory.pattern_search(&input.query, top_k).await,
@@ -122,9 +114,7 @@ impl SchemaTool for RecallMemoryTool {
                     hits: entries,
                 };
 
-                ToolResult::success(
-                    serde_json::to_string_pretty(&output).unwrap_or_default(),
-                )
+                ToolResult::success(serde_json::to_string_pretty(&output).unwrap_or_default())
             }
             Err(e) => ToolResult::error(format!("Memory search failed: {e}")),
         }

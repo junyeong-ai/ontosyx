@@ -7,7 +7,7 @@ use axum::{
     response::Response,
 };
 use dashmap::DashMap;
-use jsonwebtoken::{DecodingKey, Validation, Algorithm};
+use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use subtle::ConstantTimeEq;
 use uuid::Uuid;
@@ -42,8 +42,7 @@ impl AuthClaims {
     /// Parse the `sub` field as a UUID.
     #[allow(dead_code)]
     pub fn user_id(&self) -> Result<Uuid, AppError> {
-        Uuid::parse_str(&self.sub)
-            .map_err(|_| AppError::unauthorized("Invalid user ID in token"))
+        Uuid::parse_str(&self.sub).map_err(|_| AppError::unauthorized("Invalid user ID in token"))
     }
 }
 
@@ -54,8 +53,7 @@ impl AuthClaims {
 /// Try API key authentication from `X-API-Key` header.
 /// Returns `Ok(())` if valid, `Err` otherwise.
 fn try_api_key_auth(headers: &HeaderMap, expected_key: Option<&str>) -> Result<(), AppError> {
-    let expected = expected_key
-        .ok_or_else(|| AppError::unauthorized("API key not configured"))?;
+    let expected = expected_key.ok_or_else(|| AppError::unauthorized("API key not configured"))?;
 
     let provided = headers
         .get("x-api-key")
@@ -110,11 +108,10 @@ pub(crate) fn validate_jwt(token: &str, secret: &str) -> Result<AuthClaims, AppE
         .map(|s| s.to_string())
         .collect();
 
-    let token_data = jsonwebtoken::decode::<AuthClaims>(token, &key, &validation)
-        .map_err(|e| {
-            tracing::debug!(error = %e, "JWT validation failed");
-            AppError::unauthorized("Invalid or expired token")
-        })?;
+    let token_data = jsonwebtoken::decode::<AuthClaims>(token, &key, &validation).map_err(|e| {
+        tracing::debug!(error = %e, "JWT validation failed");
+        AppError::unauthorized("Invalid or expired token")
+    })?;
 
     Ok(token_data.claims)
 }
@@ -268,12 +265,13 @@ impl RateLimiter {
     fn check(&self, user: &str) -> Result<u32, u64> {
         let now = Instant::now();
 
-        let mut entry = self.counters.entry(user.to_owned()).or_insert_with(|| {
-            WindowEntry {
+        let mut entry = self
+            .counters
+            .entry(user.to_owned())
+            .or_insert_with(|| WindowEntry {
                 window_start: now,
                 count: 0,
-            }
-        });
+            });
 
         let elapsed = now.duration_since(entry.window_start);
 
@@ -296,9 +294,8 @@ impl RateLimiter {
     /// Remove entries whose window has expired. Called periodically from a background task.
     fn cleanup(&self) {
         let now = Instant::now();
-        self.counters.retain(|_, entry| {
-            now.duration_since(entry.window_start) < self.window
-        });
+        self.counters
+            .retain(|_, entry| now.duration_since(entry.window_start) < self.window);
     }
 
     /// Spawn a background task that periodically cleans up expired entries.
@@ -354,14 +351,10 @@ pub async fn rate_limit(
             let mut response = next.run(request).await;
             // Inform clients of their remaining budget
             if let Ok(v) = HeaderValue::from_str(&remaining.to_string()) {
-                response
-                    .headers_mut()
-                    .insert("x-ratelimit-remaining", v);
+                response.headers_mut().insert("x-ratelimit-remaining", v);
             }
             if let Ok(v) = HeaderValue::from_str(&limiter.max_requests.to_string()) {
-                response
-                    .headers_mut()
-                    .insert("x-ratelimit-limit", v);
+                response.headers_mut().insert("x-ratelimit-limit", v);
             }
             Ok(response)
         }
@@ -394,9 +387,9 @@ pub async fn workspace_context(
     mut req: Request,
     next: Next,
 ) -> Result<Response, AppError> {
-    use ox_store::WORKSPACE_ID;
-    use ox_runtime::{GRAPH_WORKSPACE_ID, GRAPH_SYSTEM_BYPASS};
     use crate::workspace::{WorkspaceContext, WorkspaceRole};
+    use ox_runtime::{GRAPH_SYSTEM_BYPASS, GRAPH_WORKSPACE_ID};
+    use ox_store::WORKSPACE_ID;
 
     // Requires auth claims (must run after require_auth)
     let claims = req
@@ -408,7 +401,9 @@ pub async fn workspace_context(
     // API key users: if X-Workspace-Id is provided, scope to that workspace
     // (same as JWT users). Otherwise, use SYSTEM_BYPASS for cross-workspace access.
     if claims.sub.starts_with("system:") {
-        let explicit_workspace = req.headers().get("x-workspace-id")
+        let explicit_workspace = req
+            .headers()
+            .get("x-workspace-id")
             .and_then(|v| v.to_str().ok())
             .and_then(|s| Uuid::parse_str(s).ok());
 
@@ -420,8 +415,9 @@ pub async fn workspace_context(
             };
             req.extensions_mut().insert(ws_ctx);
             let response = WORKSPACE_ID
-                .scope(workspace_id,
-                    GRAPH_WORKSPACE_ID.scope(workspace_id, next.run(req))
+                .scope(
+                    workspace_id,
+                    GRAPH_WORKSPACE_ID.scope(workspace_id, next.run(req)),
                 )
                 .await;
             return Ok(response);
@@ -432,9 +428,9 @@ pub async fn workspace_context(
                 workspace_role: WorkspaceRole::Owner,
             };
             req.extensions_mut().insert(ws_ctx);
-            let response = ox_store::SYSTEM_BYPASS.scope(true,
-                GRAPH_SYSTEM_BYPASS.scope(true, next.run(req))
-            ).await;
+            let response = ox_store::SYSTEM_BYPASS
+                .scope(true, GRAPH_SYSTEM_BYPASS.scope(true, next.run(req)))
+                .await;
             return Ok(response);
         }
     }
@@ -443,12 +439,11 @@ pub async fn workspace_context(
 
     // Resolve workspace ID
     let workspace_id = if let Some(header) = req.headers().get("x-workspace-id") {
-        let id_str = header.to_str().map_err(|_| {
-            AppError::bad_request("Invalid X-Workspace-Id header")
-        })?;
-        Uuid::parse_str(id_str).map_err(|_| {
-            AppError::bad_request("X-Workspace-Id must be a valid UUID")
-        })?
+        let id_str = header
+            .to_str()
+            .map_err(|_| AppError::bad_request("Invalid X-Workspace-Id header"))?;
+        Uuid::parse_str(id_str)
+            .map_err(|_| AppError::bad_request("X-Workspace-Id must be a valid UUID"))?
     } else {
         // Fall back to default workspace
         let ws = state
@@ -507,8 +502,9 @@ pub async fn workspace_context(
     // Sets both PG RLS (WORKSPACE_ID) and graph isolation (GRAPH_WORKSPACE_ID)
     // so all queries — relational and graph — are automatically workspace-scoped.
     let response = WORKSPACE_ID
-        .scope(workspace_id,
-            GRAPH_WORKSPACE_ID.scope(workspace_id, next.run(req))
+        .scope(
+            workspace_id,
+            GRAPH_WORKSPACE_ID.scope(workspace_id, next.run(req)),
         )
         .await;
 

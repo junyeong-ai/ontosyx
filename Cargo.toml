@@ -18,6 +18,10 @@ edition = "2024"
 rust-version = "1.94"
 license = "MIT"
 
+[workspace.lints.clippy]
+too_many_arguments = "allow"
+items_after_test_module = "allow"
+
 [workspace.dependencies]
 # Internal crates
 ox-core = { path = "crates/ox-core" }

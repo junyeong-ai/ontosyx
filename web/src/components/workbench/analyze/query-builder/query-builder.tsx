@@ -113,7 +113,7 @@ export function QueryBuilder() {
         return nt?.id === et.target_node_id && n !== srcNode;
       });
 
-      let newNodes = [...nodes];
+      const newNodes = [...nodes];
       let nc = nodeCounter;
 
       if (!srcNode) {
@@ -176,7 +176,7 @@ export function QueryBuilder() {
 
       // Check if target node already exists in pattern
       let existingTarget = nodes.find((n) => n.label === targetNode.label);
-      let newNodes = [...nodes];
+      const newNodes = [...nodes];
       let nc = nodeCounter;
 
       if (!existingTarget) {

@@ -235,23 +235,13 @@ pub trait LlmMetadata: Send + Sync {
 /// Use specific sub-traits (`OntologyDesigner`, `QueryTranslator`, etc.) when
 /// a component only needs a subset of capabilities.
 pub trait Brain:
-    OntologyDesigner
-    + OntologyEditor
-    + QueryTranslator
-    + Explainer
-    + RepoAnalyzer
-    + LlmMetadata
+    OntologyDesigner + OntologyEditor + QueryTranslator + Explainer + RepoAnalyzer + LlmMetadata
 {
 }
 
 /// Blanket impl: anything implementing all sub-traits is automatically a Brain.
 impl<T> Brain for T where
-    T: OntologyDesigner
-        + OntologyEditor
-        + QueryTranslator
-        + Explainer
-        + RepoAnalyzer
-        + LlmMetadata
+    T: OntologyDesigner + OntologyEditor + QueryTranslator + Explainer + RepoAnalyzer + LlmMetadata
 {
 }
 
@@ -295,7 +285,11 @@ impl DefaultBrain {
     }
 
     /// Set memory store for schema RAG in query translation.
-    pub fn with_memory(mut self, memory: Arc<ox_memory::MemoryStore>, ontology_id: Option<String>) -> Self {
+    pub fn with_memory(
+        mut self,
+        memory: Arc<ox_memory::MemoryStore>,
+        ontology_id: Option<String>,
+    ) -> Self {
         self.memory = Some(memory);
         self.ontology_id = ontology_id;
         self
@@ -569,7 +563,11 @@ impl QueryTranslator for DefaultBrain {
             schema_rag::discover_schema(memory, ontology, question, oid).await
         } else if ontology.node_types.len() <= 20 {
             // Small ontology: use compact schema of all nodes
-            let all_labels: Vec<&str> = ontology.node_types.iter().map(|n| n.label.as_str()).collect();
+            let all_labels: Vec<&str> = ontology
+                .node_types
+                .iter()
+                .map(|n| n.label.as_str())
+                .collect();
             serde_json::to_string_pretty(&ontology.compact_schema(&all_labels)).unwrap_or_default()
         } else {
             // Large ontology without memory: full serialize (legacy fallback)
@@ -654,14 +652,8 @@ impl QueryTranslator for DefaultBrain {
         vars.insert("source_description", source_description);
         vars.insert("ontology", ontology_json.as_str());
 
-        self.call_structured(
-            "plan_load",
-            None,
-            "plan_load",
-            &vars,
-            "Planning data load",
-        )
-        .await
+        self.call_structured("plan_load", None, "plan_load", &vars, "Planning data load")
+            .await
     }
 
     async fn generate_load_plan(
@@ -673,9 +665,8 @@ impl QueryTranslator for DefaultBrain {
         let ontology_json = serialize_pretty(ontology, "ontology")?;
         let mapping_json = serialize_pretty(source_mapping, "source_mapping")?;
         let schema_json = serialize_pretty(source_schema, "source_schema")?;
-        let source_description = format!(
-            "Source Mapping:\n{mapping_json}\n\nSource Schema:\n{schema_json}"
-        );
+        let source_description =
+            format!("Source Mapping:\n{mapping_json}\n\nSource Schema:\n{schema_json}");
 
         let mut vars = HashMap::new();
         vars.insert("source_description", source_description.as_str());
@@ -746,8 +737,8 @@ impl Explainer for DefaultBrain {
             content: resp.text(),
             model: resolved.model_id,
             usage: Some(TokenUsage {
-                input_tokens: resp.usage.input_tokens as u32,
-                output_tokens: resp.usage.output_tokens as u32,
+                input_tokens: resp.usage.input_tokens,
+                output_tokens: resp.usage.output_tokens,
             }),
         })
     }
@@ -1003,4 +994,3 @@ fn validate_query_labels(query: &QueryIR, ontology: &OntologyIR) -> Vec<String> 
 
     warnings
 }
-

@@ -38,9 +38,9 @@ pub fn assess_quality(
         .collect::<Vec<_>>();
 
     let has_clarification = |table: &str, column: &str| -> bool {
-        column_clarifications.iter().any(|c| {
-            c.table.eq_ignore_ascii_case(table) && c.column.eq_ignore_ascii_case(column)
-        })
+        column_clarifications
+            .iter()
+            .any(|c| c.table.eq_ignore_ascii_case(table) && c.column.eq_ignore_ascii_case(column))
     };
 
     let empty_profiles = Vec::new();
@@ -207,14 +207,17 @@ pub fn assess_quality(
             // For each pair of FK targets, check if there's an edge connecting those nodes
             for i in 0..table_fks.len() {
                 for j in (i + 1)..table_fks.len() {
-                    let to_node_a = table_to_node_idx.get(&table_fks[i].to_table.to_ascii_lowercase());
-                    let to_node_b = table_to_node_idx.get(&table_fks[j].to_table.to_ascii_lowercase());
+                    let to_node_a =
+                        table_to_node_idx.get(&table_fks[i].to_table.to_ascii_lowercase());
+                    let to_node_b =
+                        table_to_node_idx.get(&table_fks[j].to_table.to_ascii_lowercase());
                     if let (Some(&idx_a), Some(&idx_b)) = (to_node_a, to_node_b) {
                         let node_a_id = &ontology.node_types[idx_a].id;
                         let node_b_id = &ontology.node_types[idx_b].id;
                         let has_edge = ontology.edge_types.iter().any(|e| {
                             (e.source_node_id == *node_a_id && e.target_node_id == *node_b_id)
-                                || (e.source_node_id == *node_b_id && e.target_node_id == *node_a_id)
+                                || (e.source_node_id == *node_b_id
+                                    && e.target_node_id == *node_a_id)
                         });
                         if has_edge {
                             return true;
@@ -291,7 +294,8 @@ pub fn assess_quality(
                     .iter()
                     .filter(|edge| {
                         (edge.source_node_id == *from_node_id && edge.target_node_id == *to_node_id)
-                            || (edge.source_node_id == *to_node_id && edge.target_node_id == *from_node_id)
+                            || (edge.source_node_id == *to_node_id
+                                && edge.target_node_id == *from_node_id)
                     })
                     .count();
 
@@ -409,7 +413,10 @@ pub fn assess_quality(
             std::collections::HashMap::new();
         for edge in &ontology.edge_types {
             // Normalize pair: canonical order for undirected comparison
-            let (a, b) = (edge.source_node_id.to_string(), edge.target_node_id.to_string());
+            let (a, b) = (
+                edge.source_node_id.to_string(),
+                edge.target_node_id.to_string(),
+            );
             let pair = if a <= b { (a, b) } else { (b, a) };
             edge_pairs.entry(pair).or_default().push(&edge.label);
         }
@@ -419,8 +426,16 @@ pub fn assess_quality(
                 // If all labels share a common verb root, they're likely duplicates
                 // Simple heuristic: flag when there are 3+ edges, or when there are 2 edges
                 // with neither being a clear antonym pair
-                let label_a = ontology.node_types.iter().find(|n| *node_a == n.id.as_ref()).map(|n| &n.label);
-                let label_b = ontology.node_types.iter().find(|n| *node_b == n.id.as_ref()).map(|n| &n.label);
+                let label_a = ontology
+                    .node_types
+                    .iter()
+                    .find(|n| *node_a == n.id.as_ref())
+                    .map(|n| &n.label);
+                let label_b = ontology
+                    .node_types
+                    .iter()
+                    .find(|n| *node_b == n.id.as_ref())
+                    .map(|n| &n.label);
                 let a_label = label_a.map(|l| l.as_str()).unwrap_or("?");
                 let b_label = label_b.map(|l| l.as_str()).unwrap_or("?");
 
@@ -608,9 +623,10 @@ fn detect_orphan_nodes(ontology: &OntologyIR, gaps: &mut Vec<QualityGap>) {
     }
 
     for node in &ontology.node_types {
-        let has_edge = ontology.edge_types.iter().any(|e| {
-            e.source_node_id == node.id || e.target_node_id == node.id
-        });
+        let has_edge = ontology
+            .edge_types
+            .iter()
+            .any(|e| e.source_node_id == node.id || e.target_node_id == node.id);
 
         if !has_edge {
             gaps.push(QualityGap {
@@ -657,10 +673,7 @@ fn detect_property_type_inconsistency(ontology: &OntologyIR, gaps: &mut Vec<Qual
 
         // Check if all usages have the same type
         let first_type = &usages[0].1;
-        let inconsistent: Vec<_> = usages
-            .iter()
-            .filter(|(_, t)| t != first_type)
-            .collect();
+        let inconsistent: Vec<_> = usages.iter().filter(|(_, t)| t != first_type).collect();
 
         if !inconsistent.is_empty() {
             let all_usages: Vec<String> = usages
@@ -771,9 +784,7 @@ fn detect_overloaded_properties(ontology: &OntologyIR, gaps: &mut Vec<QualityGap
 fn detect_self_referential_edges(ontology: &OntologyIR, gaps: &mut Vec<QualityGap>) {
     for edge in &ontology.edge_types {
         if edge.source_node_id == edge.target_node_id {
-            let node_label = ontology
-                .node_label(&edge.source_node_id)
-                .unwrap_or("?");
+            let node_label = ontology.node_label(&edge.source_node_id).unwrap_or("?");
 
             gaps.push(QualityGap {
                 severity: QualityGapSeverity::Low,

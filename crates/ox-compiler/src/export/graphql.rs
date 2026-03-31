@@ -66,24 +66,22 @@ fn graphql_type(pt: &PropertyType, nullable: bool) -> String {
         }
         PropertyType::Map => "JSON".to_string(),
     };
-    if nullable {
-        base
-    } else {
-        format!("{base}!")
-    }
+    if nullable { base } else { format!("{base}!") }
 }
 
 fn graphql_safe_name(name: &str) -> String {
     let sanitized: String = name
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     // GraphQL names must start with a letter or underscore
-    if sanitized
-        .chars()
-        .next()
-        .is_some_and(|c| c.is_ascii_digit())
-    {
+    if sanitized.chars().next().is_some_and(|c| c.is_ascii_digit()) {
         format!("_{sanitized}")
     } else {
         sanitized

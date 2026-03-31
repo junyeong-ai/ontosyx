@@ -37,8 +37,7 @@ pub struct EditOntologyTool {
 impl SchemaTool for EditOntologyTool {
     type Input = EditOntologyInput;
     const NAME: &'static str = super::EDIT_ONTOLOGY;
-    const DESCRIPTION: &'static str =
-        "Generate atomic edit commands to modify the ontology structure. \
+    const DESCRIPTION: &'static str = "Generate atomic edit commands to modify the ontology structure. \
          Supports adding/removing/renaming nodes, edges, properties, constraints, and indexes. \
          Returns a preview of commands — the user must approve before applying.";
 
@@ -48,7 +47,11 @@ impl SchemaTool for EditOntologyTool {
             None => return ToolResult::error("No ontology loaded"),
         };
 
-        let output = match self.brain.generate_edit_commands(ontology, &input.request).await {
+        let output = match self
+            .brain
+            .generate_edit_commands(ontology, &input.request)
+            .await
+        {
             Ok(o) => o,
             Err(e) => return ToolResult::error(format!("Edit generation failed: {e}")),
         };

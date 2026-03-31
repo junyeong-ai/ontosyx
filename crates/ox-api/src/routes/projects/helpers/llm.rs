@@ -160,10 +160,12 @@ fn reduce_schema_for_llm(
     // Phase 1: remove user-excluded tables
     if !excluded_tables.is_empty() {
         let excluded: HashSet<&str> = excluded_tables.iter().map(|s| s.as_str()).collect();
-        schema.tables.retain(|t| !excluded.contains(t.name.as_str()));
         schema
-            .foreign_keys
-            .retain(|fk| !excluded.contains(fk.from_table.as_str()) && !excluded.contains(fk.to_table.as_str()));
+            .tables
+            .retain(|t| !excluded.contains(t.name.as_str()));
+        schema.foreign_keys.retain(|fk| {
+            !excluded.contains(fk.from_table.as_str()) && !excluded.contains(fk.to_table.as_str())
+        });
         profile
             .table_profiles
             .retain(|tp| !excluded.contains(tp.table_name.as_str()));
@@ -441,15 +443,9 @@ fn format_source_for_llm(
     };
 
     let schema_label = match schema.source_type.as_str() {
-        "postgresql" | "mysql" => {
-            "Source database schema (tables, columns, foreign keys)"
-        }
-        "mongodb" => {
-            "Source database schema (collections, fields, inferred relationships)"
-        }
-        _ => {
-            "Source structure (extracted tables, columns, inferred relationships)"
-        }
+        "postgresql" | "mysql" => "Source database schema (tables, columns, foreign keys)",
+        "mongodb" => "Source database schema (collections, fields, inferred relationships)",
+        _ => "Source structure (extracted tables, columns, inferred relationships)",
     };
 
     Ok(format!(
@@ -749,7 +745,9 @@ pub(crate) fn format_uncovered_fks(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ox_core::source_schema::{ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef, TableProfile};
+    use ox_core::source_schema::{
+        ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef, TableProfile,
+    };
 
     fn make_table(name: &str, id_cols: &[&str]) -> SourceTableDef {
         let mut columns = vec![SourceColumnDef {
@@ -824,10 +822,7 @@ mod tests {
                 make_table("orders", &["user_id"]),
                 make_table("audit_log", &["user_id"]),
             ],
-            foreign_keys: vec![
-                make_fk("orders", "users"),
-                make_fk("audit_log", "users"),
-            ],
+            foreign_keys: vec![make_fk("orders", "users"), make_fk("audit_log", "users")],
         };
         let profile = SourceProfile {
             table_profiles: vec![
@@ -943,17 +938,10 @@ mod tests {
                 make_table("b", &["a_id"]),
                 make_table("c", &[]),
             ],
-            foreign_keys: vec![
-                make_fk("b", "a"),
-                make_fk("b", "c"),
-            ],
+            foreign_keys: vec![make_fk("b", "a"), make_fk("b", "c")],
         };
         let profile = SourceProfile {
-            table_profiles: vec![
-                make_profile("a"),
-                make_profile("b"),
-                make_profile("c"),
-            ],
+            table_profiles: vec![make_profile("a"), make_profile("b"), make_profile("c")],
         };
 
         // Cap at 2: b has highest score (2 FK refs + 1 _id col = 3), a has 1 FK ref, c has 1 FK ref
@@ -979,10 +967,7 @@ mod tests {
                 make_table("detail", &["hub_id", "category_id"]),
                 make_table("category", &[]),
             ],
-            foreign_keys: vec![
-                make_fk("detail", "hub"),
-                make_fk("detail", "category"),
-            ],
+            foreign_keys: vec![make_fk("detail", "hub"), make_fk("detail", "category")],
         };
         let profile = SourceProfile {
             table_profiles: vec![
@@ -1007,8 +992,12 @@ mod tests {
 
     // -- Batch merge tests ---------------------------------------------------
 
-    fn make_input_ir(name: &str, nodes: Vec<(&str, Option<&str>)>, edges: Vec<(&str, &str, &str)>) -> OntologyInputIR {
-        use ox_core::ontology_input::{InputNodeTypeDef, InputEdgeTypeDef, InputPropertyDef};
+    fn make_input_ir(
+        name: &str,
+        nodes: Vec<(&str, Option<&str>)>,
+        edges: Vec<(&str, &str, &str)>,
+    ) -> OntologyInputIR {
+        use ox_core::ontology_input::{InputEdgeTypeDef, InputNodeTypeDef, InputPropertyDef};
         use ox_core::ontology_ir::Cardinality;
 
         OntologyInputIR {
@@ -1017,43 +1006,54 @@ mod tests {
             name: name.to_string(),
             description: None,
             version: 1,
-            node_types: nodes.iter().map(|(label, source)| InputNodeTypeDef {
-                id: None,
-                label: label.to_string(),
-                description: None,
-                source_table: source.map(|s| s.to_string()),
-                properties: vec![InputPropertyDef {
+            node_types: nodes
+                .iter()
+                .map(|(label, source)| InputNodeTypeDef {
                     id: None,
-                    name: "id".to_string(),
-                    property_type: ox_core::types::PropertyType::String,
-                    nullable: false,
-                    default_value: None,
+                    label: label.to_string(),
                     description: None,
-                    source_column: None,
-                }],
-                constraints: vec![],
-            }).collect(),
-            edge_types: edges.iter().map(|(label, src, tgt)| InputEdgeTypeDef {
-                id: None,
-                label: label.to_string(),
-                description: None,
-                source_type: src.to_string(),
-                target_type: tgt.to_string(),
-                properties: vec![],
-                cardinality: Cardinality::ManyToOne,
-            }).collect(),
+                    source_table: source.map(|s| s.to_string()),
+                    properties: vec![InputPropertyDef {
+                        id: None,
+                        name: "id".to_string(),
+                        property_type: ox_core::types::PropertyType::String,
+                        nullable: false,
+                        default_value: None,
+                        description: None,
+                        source_column: None,
+                    }],
+                    constraints: vec![],
+                })
+                .collect(),
+            edge_types: edges
+                .iter()
+                .map(|(label, src, tgt)| InputEdgeTypeDef {
+                    id: None,
+                    label: label.to_string(),
+                    description: None,
+                    source_type: src.to_string(),
+                    target_type: tgt.to_string(),
+                    properties: vec![],
+                    cardinality: Cardinality::ManyToOne,
+                })
+                .collect(),
             indexes: vec![],
         }
     }
 
     #[test]
     fn merge_input_irs_deduplicates_nodes() {
-        let batch1 = make_input_ir("b1",
+        let batch1 = make_input_ir(
+            "b1",
             vec![("Customer", Some("customers")), ("Order", Some("orders"))],
             vec![("PLACED", "Customer", "Order")],
         );
-        let batch2 = make_input_ir("b2",
-            vec![("Product", Some("products")), ("Customer", Some("customers"))], // duplicate Customer
+        let batch2 = make_input_ir(
+            "b2",
+            vec![
+                ("Product", Some("products")),
+                ("Customer", Some("customers")),
+            ], // duplicate Customer
             vec![("CONTAINS", "Order", "Product")],
         );
 
@@ -1068,11 +1068,9 @@ mod tests {
 
     #[test]
     fn merge_input_irs_deduplicates_edges() {
-        let batch1 = make_input_ir("b1",
-            vec![("A", Some("a"))],
-            vec![("REL", "A", "B")],
-        );
-        let batch2 = make_input_ir("b2",
+        let batch1 = make_input_ir("b1", vec![("A", Some("a"))], vec![("REL", "A", "B")]);
+        let batch2 = make_input_ir(
+            "b2",
             vec![("B", Some("b"))],
             vec![("REL", "A", "B")], // duplicate edge
         );
@@ -1092,14 +1090,19 @@ mod tests {
 
     #[test]
     fn find_uncovered_cross_fks_detects_missing_edges() {
-        let merged = make_input_ir("test",
-            vec![("Customer", Some("customers")), ("Order", Some("orders")), ("Product", Some("products"))],
+        let merged = make_input_ir(
+            "test",
+            vec![
+                ("Customer", Some("customers")),
+                ("Order", Some("orders")),
+                ("Product", Some("products")),
+            ],
             vec![("PLACED", "Customer", "Order")], // Order→Product edge missing
         );
 
         let cross_fks = vec![
-            make_fk("orders", "customers"),  // covered by PLACED
-            make_fk("orders", "products"),   // NOT covered
+            make_fk("orders", "customers"), // covered by PLACED
+            make_fk("orders", "products"),  // NOT covered
         ];
 
         let uncovered = find_uncovered_cross_fks(&merged, &cross_fks);
@@ -1110,7 +1113,8 @@ mod tests {
 
     #[test]
     fn find_uncovered_cross_fks_empty_when_all_covered() {
-        let merged = make_input_ir("test",
+        let merged = make_input_ir(
+            "test",
             vec![("Customer", Some("customers")), ("Order", Some("orders"))],
             vec![("PLACED", "Customer", "Order")],
         );

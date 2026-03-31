@@ -27,7 +27,7 @@ use super::helpers::{
     analyze_code_repository, analyze_source, load_project_in_status, reload_project,
     run_repo_enrichment, skipped_repo_summary,
 };
-use super::types::{ProjectCompleteRequest, CreateProjectRequest, ProjectOrigin, ProjectSource};
+use super::types::{CreateProjectRequest, ProjectCompleteRequest, ProjectOrigin, ProjectSource};
 
 // ---------------------------------------------------------------------------
 // POST /api/projects — create + analyze (or from existing ontology)
@@ -158,13 +158,15 @@ pub(crate) async fn create_project(
                     let audit_store = Arc::clone(&state.store);
                     let audit_project_id = project.id.to_string();
                     crate::spawn_scoped::spawn_scoped(async move {
-                        let _ = audit_store.record_audit(
-                            audit_user_id,
-                            "project.create",
-                            "project",
-                            Some(&audit_project_id),
-                            serde_json::json!({"source_type": "code_repository"}),
-                        ).await;
+                        let _ = audit_store
+                            .record_audit(
+                                audit_user_id,
+                                "project.create",
+                                "project",
+                                Some(&audit_project_id),
+                                serde_json::json!({"source_type": "code_repository"}),
+                            )
+                            .await;
                     });
                 }
 
@@ -251,13 +253,15 @@ pub(crate) async fn create_project(
         let audit_project_id = project.id.to_string();
         let audit_source_type = source_type.clone();
         crate::spawn_scoped::spawn_scoped(async move {
-            let _ = audit_store.record_audit(
-                audit_user_id,
-                "project.create",
-                "project",
-                Some(&audit_project_id),
-                serde_json::json!({"source_type": audit_source_type}),
-            ).await;
+            let _ = audit_store
+                .record_audit(
+                    audit_user_id,
+                    "project.create",
+                    "project",
+                    Some(&audit_project_id),
+                    serde_json::json!({"source_type": audit_source_type}),
+                )
+                .await;
         });
     }
 
@@ -360,31 +364,33 @@ pub(crate) async fn delete_project(
             let audit_user_id = principal.user_uuid().ok();
             let audit_project_id = id.to_string();
             crate::spawn_scoped::spawn_scoped(async move {
-                let _ = audit_store.record_audit(
-                    audit_user_id,
-                    "project.delete",
-                    "project",
-                    Some(&audit_project_id),
-                    serde_json::json!({}),
-                ).await;
+                let _ = audit_store
+                    .record_audit(
+                        audit_user_id,
+                        "project.delete",
+                        "project",
+                        Some(&audit_project_id),
+                        serde_json::json!({}),
+                    )
+                    .await;
             });
         }
 
         // Fire-and-forget: clean up orphaned memory entries for the deleted project's ontology.
-        if let Some(ref memory) = state.memory {
-            if let Some(ontology_id) = project.saved_ontology_id {
-                let mem = Arc::clone(memory);
-                let oid = ontology_id.to_string();
-                crate::spawn_scoped::spawn_scoped(async move {
-                    match mem.cleanup_by_ontology(&oid).await {
-                        Ok(n) if n > 0 => {
-                            info!(count = n, ontology_id = %oid, "Cleaned orphaned memory entries")
-                        }
-                        Err(e) => warn!(error = %e, "Memory cleanup failed"),
-                        _ => {}
+        if let Some(ref memory) = state.memory
+            && let Some(ontology_id) = project.saved_ontology_id
+        {
+            let mem = Arc::clone(memory);
+            let oid = ontology_id.to_string();
+            crate::spawn_scoped::spawn_scoped(async move {
+                match mem.cleanup_by_ontology(&oid).await {
+                    Ok(n) if n > 0 => {
+                        info!(count = n, ontology_id = %oid, "Cleaned orphaned memory entries")
                     }
-                });
-            }
+                    Err(e) => warn!(error = %e, "Memory cleanup failed"),
+                    _ => {}
+                }
+            });
         }
         Ok(StatusCode::NO_CONTENT)
     } else {
@@ -478,7 +484,15 @@ pub(crate) async fn complete_project(
         let ontology: ox_core::OntologyIR = serde_json::from_value(saved.ontology_ir.clone())
             .unwrap_or_else(|e| {
                 tracing::warn!(error = %e, "Failed to deserialize ontology for schema indexing");
-                ox_core::OntologyIR::new(String::new(), String::new(), None, 0, vec![], vec![], vec![])
+                ox_core::OntologyIR::new(
+                    String::new(),
+                    String::new(),
+                    None,
+                    0,
+                    vec![],
+                    vec![],
+                    vec![],
+                )
             });
         crate::spawn_scoped::spawn_scoped(async move {
             ox_brain::schema_rag::index_ontology_schema(&memory, &ontology, &ontology_id).await;
@@ -592,13 +606,15 @@ pub(crate) async fn deploy_schema(
         let audit_project_id = id.to_string();
         let stmt_count = statements.len();
         crate::spawn_scoped::spawn_scoped(async move {
-            let _ = audit_store.record_audit(
-                audit_user_id,
-                "schema.deploy",
-                "project",
-                Some(&audit_project_id),
-                serde_json::json!({"statements_count": stmt_count}),
-            ).await;
+            let _ = audit_store
+                .record_audit(
+                    audit_user_id,
+                    "schema.deploy",
+                    "project",
+                    Some(&audit_project_id),
+                    serde_json::json!({"statements_count": stmt_count}),
+                )
+                .await;
         });
     }
 
@@ -645,7 +661,10 @@ pub(crate) async fn generate_load_plan(
         .map_err(AppError::from)?
         .ok_or_else(AppError::project_not_found)?;
 
-    let ontology_json = project.ontology.as_ref().ok_or_else(AppError::no_ontology)?;
+    let ontology_json = project
+        .ontology
+        .as_ref()
+        .ok_or_else(AppError::no_ontology)?;
     let ontology: ox_core::ontology_ir::OntologyIR = serde_json::from_value(ontology_json.clone())
         .map_err(|e| AppError::internal(format!("Failed to parse ontology: {e}")))?;
 
@@ -656,9 +675,10 @@ pub(crate) async fn generate_load_plan(
         serde_json::from_value(source_mapping_json.clone())
             .map_err(|e| AppError::internal(format!("Failed to parse source mapping: {e}")))?;
 
-    let source_schema_json = project.source_schema.as_ref().ok_or_else(|| {
-        AppError::bad_request("Project has no source schema")
-    })?;
+    let source_schema_json = project
+        .source_schema
+        .as_ref()
+        .ok_or_else(|| AppError::bad_request("Project has no source schema"))?;
     let source_schema: ox_core::SourceSchema =
         serde_json::from_value(source_schema_json.clone())
             .map_err(|e| AppError::internal(format!("Failed to parse source schema: {e}")))?;
@@ -799,10 +819,7 @@ pub(crate) async fn execute_load_from_source(
 ) -> Result<Json<ProjectLoadExecuteResponse>, AppError> {
     principal.require_designer()?;
 
-    let runtime = state
-        .runtime
-        .as_ref()
-        .ok_or_else(AppError::no_runtime)?;
+    let runtime = state.runtime.as_ref().ok_or_else(AppError::no_runtime)?;
 
     let project = state
         .store
@@ -885,7 +902,10 @@ pub(crate) async fn execute_load_from_source(
         let source_table = match source_table {
             Some(t) => t,
             None => {
-                warn!(step = step_idx, "Could not resolve source table for step — skipping");
+                warn!(
+                    step = step_idx,
+                    "Could not resolve source table for step — skipping"
+                );
                 continue;
             }
         };
@@ -922,10 +942,8 @@ pub(crate) async fn execute_load_from_source(
             total_rows_fetched += batch_len as u64;
 
             // Convert to LoadBatch
-            let values: Vec<serde_json::Value> = rows
-                .into_iter()
-                .map(serde_json::Value::Object)
-                .collect();
+            let values: Vec<serde_json::Value> =
+                rows.into_iter().map(serde_json::Value::Object).collect();
             let batch = ox_runtime::LoadBatch::from_values(values).map_err(AppError::from)?;
 
             // Execute against graph
@@ -947,18 +965,33 @@ pub(crate) async fn execute_load_from_source(
     }
 
     // Complete lineage entry after load
-    let lineage_status = if combined_result.batches_failed > 0 { "partial" } else { "completed" };
+    let lineage_status = if combined_result.batches_failed > 0 {
+        "partial"
+    } else {
+        "completed"
+    };
     let lineage_error = if combined_result.errors.is_empty() {
         None
     } else {
-        Some(combined_result.errors.iter().take(3).map(|e| e.message.as_str()).collect::<Vec<_>>().join("; "))
+        Some(
+            combined_result
+                .errors
+                .iter()
+                .take(3)
+                .map(|e| e.message.as_str())
+                .collect::<Vec<_>>()
+                .join("; "),
+        )
     };
-    let _ = state.store.complete_lineage_entry(
-        lineage_id,
-        total_rows_fetched as i64,
-        lineage_status,
-        lineage_error.as_deref(),
-    ).await;
+    let _ = state
+        .store
+        .complete_lineage_entry(
+            lineage_id,
+            total_rows_fetched as i64,
+            lineage_status,
+            lineage_error.as_deref(),
+        )
+        .await;
 
     info!(
         project_id = %id,
@@ -977,23 +1010,25 @@ pub(crate) async fn execute_load_from_source(
         let edges = combined_result.edges_created;
         let rows = total_rows_fetched;
         crate::spawn_scoped::spawn_scoped(async move {
-            let _ = meter_store.record_usage(
-                meter_user,
-                "data_load",
-                None,
-                None,
-                Some("load_from_source"),
-                0,
-                0,
-                0,  // duration not tracked for load
-                0.0,
-                serde_json::json!({
-                    "rows_fetched": rows,
-                    "nodes_created": nodes,
-                    "edges_created": edges,
-                    "steps": steps,
-                }),
-            ).await;
+            let _ = meter_store
+                .record_usage(
+                    meter_user,
+                    "data_load",
+                    None,
+                    None,
+                    Some("load_from_source"),
+                    0,
+                    0,
+                    0, // duration not tracked for load
+                    0.0,
+                    serde_json::json!({
+                        "rows_fetched": rows,
+                        "nodes_created": nodes,
+                        "edges_created": edges,
+                        "steps": steps,
+                    }),
+                )
+                .await;
         });
     }
 
@@ -1027,15 +1062,14 @@ fn resolve_source_table(
                         .values()
                         .find(|t| {
                             let tl = t.to_lowercase();
-                            tl == lower || tl == format!("{lower}s") || tl.ends_with(&format!("_{lower}"))
+                            tl == lower
+                                || tl == format!("{lower}s")
+                                || tl.ends_with(&format!("_{lower}"))
                         })
                         .cloned()
                 })
         }
-        LoadOp::UpsertEdge {
-            source_match,
-            ..
-        } => {
+        LoadOp::UpsertEdge { source_match, .. } => {
             // Edges typically come from one of the node tables or a junction table.
             // Match on the source node's label to find the originating table.
             source_mapping

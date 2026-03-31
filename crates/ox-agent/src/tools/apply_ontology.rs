@@ -30,8 +30,7 @@ pub struct ApplyOntologyTool {
 impl SchemaTool for ApplyOntologyTool {
     type Input = ApplyOntologyInput;
     const NAME: &'static str = super::APPLY_ONTOLOGY;
-    const DESCRIPTION: &'static str =
-        "Apply ontology edits directly to the current project. \
+    const DESCRIPTION: &'static str = "Apply ontology edits directly to the current project. \
          Generates edit commands from the request, validates them, and saves the updated ontology. \
          Use this when the user wants to actually modify the ontology (not just preview changes). \
          Requires 'designer' role. Changes are saved to the project with a new revision.";
@@ -46,7 +45,7 @@ impl SchemaTool for ApplyOntologyTool {
             None => {
                 return ToolResult::error(
                     "No project context — save the ontology to a project first",
-                )
+                );
             }
         };
         let revision = match self.domain.project_revision {
@@ -137,9 +136,7 @@ impl SchemaTool for ApplyOntologyTool {
                     "new_node_count": updated.node_types.len(),
                     "new_edge_count": updated.edge_types.len(),
                 });
-                ToolResult::success(
-                    serde_json::to_string_pretty(&output).unwrap_or_default(),
-                )
+                ToolResult::success(serde_json::to_string_pretty(&output).unwrap_or_default())
             }
             Err(e) => ToolResult::error(format!("Failed to save ontology: {e}")),
         }

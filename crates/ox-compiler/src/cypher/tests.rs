@@ -931,10 +931,7 @@ fn test_subquery_expr_count() {
         stmt.contains("COUNT {"),
         "should use COUNT subquery: {stmt}"
     );
-    assert!(
-        stmt.contains("WITH n"),
-        "should import variables: {stmt}"
-    );
+    assert!(stmt.contains("WITH n"), "should import variables: {stmt}");
     assert!(
         stmt.contains("AS friend_count"),
         "should alias result: {stmt}"

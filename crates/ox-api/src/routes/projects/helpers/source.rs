@@ -9,7 +9,9 @@ use ox_source::registry::{IntrospectorRegistry, SourceInput};
 use crate::error::AppError;
 
 use super::super::types::ProjectSource;
-use super::fingerprint::{mongodb_fingerprint, mysql_fingerprint, pg_fingerprint, schema_fingerprint};
+use super::fingerprint::{
+    mongodb_fingerprint, mysql_fingerprint, pg_fingerprint, schema_fingerprint,
+};
 
 /// Analyze a source and return (config, raw_data, schema, profile, report).
 ///

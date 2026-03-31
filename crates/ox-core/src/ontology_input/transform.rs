@@ -35,11 +35,11 @@ fn levenshtein(a: &str, b: &str) -> usize {
     let a = a.as_bytes();
     let b = b.as_bytes();
     let mut dp = vec![vec![0usize; b.len() + 1]; a.len() + 1];
-    for i in 0..=a.len() {
-        dp[i][0] = i;
+    for (i, row) in dp.iter_mut().enumerate() {
+        row[0] = i;
     }
-    for j in 0..=b.len() {
-        dp[0][j] = j;
+    for (j, cell) in dp[0].iter_mut().enumerate() {
+        *cell = j;
     }
     for i in 1..=a.len() {
         for j in 1..=b.len() {
@@ -70,7 +70,10 @@ pub fn normalize(input: OntologyInputIR) -> Result<NormalizeResult, Vec<String>>
     macro_rules! norm_warn {
         ($kind:expr, $msg:expr) => {{
             warn!("{}", $msg);
-            warnings.borrow_mut().push(NormalizeWarning { kind: $kind.to_string(), message: $msg.to_string() });
+            warnings.borrow_mut().push(NormalizeWarning {
+                kind: $kind.to_string(),
+                message: $msg.to_string(),
+            });
         }};
     }
 
@@ -138,28 +141,27 @@ pub fn normalize(input: OntologyInputIR) -> Result<NormalizeResult, Vec<String>>
             None
         };
 
-        let fuzzy_resolve_prop =
-            |name_or_id: &str| -> Option<(String, PropertyId)> {
-                // Don't fuzzy-match short names — "id" matching "ip" is dangerous
-                if name_or_id.len() < 4 {
-                    return None;
-                }
-                let lower = name_or_id.to_lowercase();
-                let candidates: Vec<_> = prop_name_to_id
-                    .iter()
-                    .filter(|(n, _)| {
-                        let dist = levenshtein(&lower, &n.to_lowercase());
-                        dist > 0 && dist <= 2
-                    })
-                    .collect();
-                // Only auto-correct when exactly ONE unambiguous match exists
-                if candidates.len() == 1 {
-                    let (matched, id) = candidates[0];
-                    Some((matched.clone(), id.clone()))
-                } else {
-                    None // Ambiguous or no match — don't guess
-                }
-            };
+        let fuzzy_resolve_prop = |name_or_id: &str| -> Option<(String, PropertyId)> {
+            // Don't fuzzy-match short names — "id" matching "ip" is dangerous
+            if name_or_id.len() < 4 {
+                return None;
+            }
+            let lower = name_or_id.to_lowercase();
+            let candidates: Vec<_> = prop_name_to_id
+                .iter()
+                .filter(|(n, _)| {
+                    let dist = levenshtein(&lower, &n.to_lowercase());
+                    dist > 0 && dist <= 2
+                })
+                .collect();
+            // Only auto-correct when exactly ONE unambiguous match exists
+            if candidates.len() == 1 {
+                let (matched, id) = candidates[0];
+                Some((matched.clone(), id.clone()))
+            } else {
+                None // Ambiguous or no match — don't guess
+            }
+        };
 
         let constraints: Vec<ConstraintDef> = input_node
             .constraints
@@ -260,27 +262,36 @@ pub fn normalize(input: OntologyInputIR) -> Result<NormalizeResult, Vec<String>>
         .into_iter()
         .filter_map(|e| {
             let resolve_node = |label_or_id: &str| -> Option<NodeTypeId> {
-                label_to_node_id
-                    .get(label_or_id)
-                    .cloned()
-                    .or_else(|| {
-                        label_to_node_id
-                            .values()
-                            .find(|id| id.as_ref() == label_or_id)
-                            .cloned()
-                    })
+                label_to_node_id.get(label_or_id).cloned().or_else(|| {
+                    label_to_node_id
+                        .values()
+                        .find(|id| id.as_ref() == label_or_id)
+                        .cloned()
+                })
             };
             let source_node_id = match resolve_node(&e.source_type) {
                 Some(id) => id,
                 None => {
-                    norm_warn!("dropped_edge", format!("Edge '{}': dropping — unknown source node type '{}'", e.label, e.source_type));
+                    norm_warn!(
+                        "dropped_edge",
+                        format!(
+                            "Edge '{}': dropping — unknown source node type '{}'",
+                            e.label, e.source_type
+                        )
+                    );
                     return None;
                 }
             };
             let target_node_id = match resolve_node(&e.target_type) {
                 Some(id) => id,
                 None => {
-                    norm_warn!("dropped_edge", format!("Edge '{}': dropping — unknown target node type '{}'", e.label, e.target_type));
+                    norm_warn!(
+                        "dropped_edge",
+                        format!(
+                            "Edge '{}': dropping — unknown target node type '{}'",
+                            e.label, e.target_type
+                        )
+                    );
                     return None;
                 }
             };
@@ -319,7 +330,13 @@ pub fn normalize(input: OntologyInputIR) -> Result<NormalizeResult, Vec<String>>
         let node_id = match label_to_node_id.get(label) {
             Some(id) => id.clone(),
             None => {
-                norm_warn!("dropped_index", format!("Index '{}': dropping — unknown node type '{}'", index_desc, label));
+                norm_warn!(
+                    "dropped_index",
+                    format!(
+                        "Index '{}': dropping — unknown node type '{}'",
+                        index_desc, label
+                    )
+                );
                 return None;
             }
         };
@@ -330,14 +347,26 @@ pub fn normalize(input: OntologyInputIR) -> Result<NormalizeResult, Vec<String>>
                 match props.iter().find(|(n, _)| n == pn) {
                     Some((_, pid)) => prop_ids.push(pid.clone()),
                     None => {
-                        norm_warn!("dropped_index_property", format!("Index '{}': dropping property reference '{}.{}'", index_desc, label, pn));
+                        norm_warn!(
+                            "dropped_index_property",
+                            format!(
+                                "Index '{}': dropping property reference '{}.{}'",
+                                index_desc, label, pn
+                            )
+                        );
                     }
                 }
             }
         }
 
         if prop_ids.is_empty() {
-            norm_warn!("dropped_index", format!("Index '{}': dropping — no resolvable properties", index_desc));
+            norm_warn!(
+                "dropped_index",
+                format!(
+                    "Index '{}': dropping — no resolvable properties",
+                    index_desc
+                )
+            );
             return None;
         }
 
@@ -370,11 +399,8 @@ pub fn normalize(input: OntologyInputIR) -> Result<NormalizeResult, Vec<String>>
                 properties,
             } => {
                 let prop_refs: Vec<&str> = properties.iter().map(|s| s.as_str()).collect();
-                let (node_id, property_ids) = resolve_index(
-                    &label,
-                    &prop_refs,
-                    &format!("composite on {}", label),
-                )?;
+                let (node_id, property_ids) =
+                    resolve_index(&label, &prop_refs, &format!("composite on {}", label))?;
                 Some(IndexDef::Composite {
                     id: ensure_id(id),
                     node_id,
@@ -388,11 +414,8 @@ pub fn normalize(input: OntologyInputIR) -> Result<NormalizeResult, Vec<String>>
                 properties,
             } => {
                 let prop_refs: Vec<&str> = properties.iter().map(|s| s.as_str()).collect();
-                let (node_id, property_ids) = resolve_index(
-                    &label,
-                    &prop_refs,
-                    &format!("fulltext '{}'", name),
-                )?;
+                let (node_id, property_ids) =
+                    resolve_index(&label, &prop_refs, &format!("fulltext '{}'", name))?;
                 Some(IndexDef::FullText {
                     id: ensure_id(id),
                     name,
@@ -586,7 +609,10 @@ mod tests {
         }
 
         // source_table extracted into mapping
-        assert_eq!(nr.source_mapping.table_for_node(&user_node.id), Some("users"));
+        assert_eq!(
+            nr.source_mapping.table_for_node(&user_node.id),
+            Some("users")
+        );
     }
 
     // -- normalize with pre-existing ids -------------------------------------
@@ -612,7 +638,10 @@ mod tests {
         assert_eq!(nr.ontology.id, "my-ontology-id");
         assert_eq!(nr.ontology.node_types[0].id, "my-node-id");
         assert_eq!(nr.ontology.node_types[0].properties[0].id, "my-prop-id");
-        assert_eq!(nr.ontology.node_types[0].constraints[0].id, "my-constraint-id");
+        assert_eq!(
+            nr.ontology.node_types[0].constraints[0].id,
+            "my-constraint-id"
+        );
         match &nr.ontology.indexes[0] {
             IndexDef::Single { id, .. } => assert_eq!(id, "my-index-id"),
             _ => panic!("expected Single index"),
@@ -627,7 +656,10 @@ mod tests {
         input.edge_types[0].source_type = "NonExistent".to_string();
 
         let nr = normalize(input).expect("should succeed, dropping dangling edge");
-        assert!(nr.ontology.edge_types.is_empty(), "dangling edge should be dropped");
+        assert!(
+            nr.ontology.edge_types.is_empty(),
+            "dangling edge should be dropped"
+        );
     }
 
     #[test]
@@ -636,7 +668,10 @@ mod tests {
         input.edge_types[0].target_type = "Ghost".to_string();
 
         let nr = normalize(input).expect("should succeed, dropping dangling edge");
-        assert!(nr.ontology.edge_types.is_empty(), "dangling edge should be dropped");
+        assert!(
+            nr.ontology.edge_types.is_empty(),
+            "dangling edge should be dropped"
+        );
     }
 
     #[test]
@@ -727,7 +762,11 @@ mod tests {
 
         let nr = normalize(input).expect("should succeed, dropping invalid index");
         // base_input has 1 valid index; the Ghost index should be dropped
-        assert_eq!(nr.ontology.indexes.len(), 1, "only valid index should remain");
+        assert_eq!(
+            nr.ontology.indexes.len(),
+            1,
+            "only valid index should remain"
+        );
     }
 
     #[test]
@@ -741,7 +780,11 @@ mod tests {
 
         let nr = normalize(input).expect("should succeed, dropping invalid index");
         // base_input has 1 valid index; the nonexistent property index should be dropped
-        assert_eq!(nr.ontology.indexes.len(), 1, "only valid index should remain");
+        assert_eq!(
+            nr.ontology.indexes.len(),
+            1,
+            "only valid index should remain"
+        );
     }
 
     // -- to_exchange_format round-trip ---------------------------------------
@@ -782,7 +825,9 @@ mod tests {
         assert_eq!(nr.ontology.indexes.len(), nr2.ontology.indexes.len());
 
         // Node IDs preserved through round-trip
-        for (a, b) in nr.ontology.node_types
+        for (a, b) in nr
+            .ontology
+            .node_types
             .iter()
             .zip(nr2.ontology.node_types.iter())
         {
@@ -800,7 +845,9 @@ mod tests {
         }
 
         // Edge IDs and resolved node references preserved
-        for (a, b) in nr.ontology.edge_types
+        for (a, b) in nr
+            .ontology
+            .edge_types
             .iter()
             .zip(nr2.ontology.edge_types.iter())
         {

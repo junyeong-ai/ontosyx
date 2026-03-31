@@ -26,13 +26,13 @@ pub(crate) mod openapi;
 mod principal;
 mod routes;
 pub(crate) mod schedule;
+pub(crate) mod spawn_scoped;
+pub(crate) mod sso;
 mod state;
 pub(crate) mod system_config;
-pub(crate) mod sso;
-pub(crate) mod spawn_scoped;
 mod validation;
-pub(crate) mod workspace_scope;
 pub(crate) mod workspace;
+pub(crate) mod workspace_scope;
 
 use config::OxConfig;
 use middleware::RateLimiter;
@@ -132,12 +132,11 @@ async fn main() -> anyhow::Result<()> {
             "Fast LLM client pre-warmed in pool"
         );
     }
-    let model_resolver: Arc<dyn ox_brain::model_resolver::ModelResolver> = Arc::new(
-        ox_brain::model_resolver::StaticModelResolver::from_configs(
+    let model_resolver: Arc<dyn ox_brain::model_resolver::ModelResolver> =
+        Arc::new(ox_brain::model_resolver::StaticModelResolver::from_configs(
             &config.llm,
             config.fast_llm.as_ref(),
-        ),
-    );
+        ));
 
     // Create graph compiler + runtime via backend registry
     let graph_registry = GraphBackendRegistry::with_defaults();
@@ -162,13 +161,12 @@ async fn main() -> anyhow::Result<()> {
     let runtime = graph_backend.runtime;
 
     // Connect to PostgreSQL (required — fail if unavailable)
-    let pg_store =
-        ox_store::PostgresStore::connect_with_min(
-            &config.postgres.url,
-            config.postgres.max_connections,
-            config.postgres.min_connections,
-        )
-        .await?;
+    let pg_store = ox_store::PostgresStore::connect_with_min(
+        &config.postgres.url,
+        config.postgres.max_connections,
+        config.postgres.min_connections,
+    )
+    .await?;
     pg_store.migrate().await?;
     // Grab the pool reference before wrapping in Arc<dyn Store> for vector store sharing
     let shared_pg_pool = pg_store.pool().clone();
@@ -178,10 +176,7 @@ async fn main() -> anyhow::Result<()> {
     // Uses SYSTEM_BYPASS to skip RLS during startup seeding.
     let toml_seed_dir = std::path::Path::new(&config.prompts.dir);
     let prompts = ox_store::PostgresStore::with_system_bypass(|| {
-        PromptRegistry::load_from_db(
-            store.as_ref(),
-            Some(toml_seed_dir),
-        )
+        PromptRegistry::load_from_db(store.as_ref(), Some(toml_seed_dir))
     })
     .await?;
 
@@ -298,8 +293,7 @@ async fn main() -> anyhow::Result<()> {
         // Use provider-detected dimensions (ONNX auto-detects from model)
         let dims = embedder.dimensions();
         // Share the main PostgreSQL pool instead of creating a separate one
-        let vector_store =
-            ox_memory::PgVectorStore::new(shared_pg_pool.clone(), dims);
+        let vector_store = ox_memory::PgVectorStore::new(shared_pg_pool.clone(), dims);
         let vectors: Arc<dyn ox_memory::VectorStore> = Arc::new(vector_store);
         tracing::info!(
             provider = embedder.provider_name(),
@@ -400,8 +394,7 @@ async fn main() -> anyhow::Result<()> {
     // MCP (Model Context Protocol) server for AI agent tool access
     let mcp_router = if config.mcp.enabled {
         use rmcp::transport::streamable_http_server::{
-            StreamableHttpService,
-            session::local::LocalSessionManager,
+            StreamableHttpService, session::local::LocalSessionManager,
         };
 
         let mcp_brain = Arc::clone(&state.brain);
@@ -439,15 +432,15 @@ async fn main() -> anyhow::Result<()> {
     let swagger_ui = {
         use utoipa::OpenApi;
         use utoipa_swagger_ui::SwaggerUi;
-        SwaggerUi::new("/api/docs")
-            .url("/api/openapi.json", openapi::ApiDoc::openapi())
+        SwaggerUi::new("/api/docs").url("/api/openapi.json", openapi::ApiDoc::openapi())
     };
 
     let mut app = Router::new()
         .nest("/api", routes::router(state.clone()))
-        .route("/metrics", axum::routing::get(move || async move {
-            prometheus_handle.render()
-        }))
+        .route(
+            "/metrics",
+            axum::routing::get(move || async move { prometheus_handle.render() }),
+        )
         .merge(swagger_ui);
 
     if let Some(mcp_router) = mcp_router {
@@ -470,8 +463,7 @@ async fn main() -> anyhow::Result<()> {
         let wip_delete_days = config.retention.wip_delete_days;
         let token = cancel_token.clone();
         tokio::spawn(async move {
-            let mut interval =
-                tokio::time::interval(std::time::Duration::from_secs(3600));
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(3600));
             loop {
                 tokio::select! {
                     _ = token.cancelled() => {
@@ -611,8 +603,7 @@ async fn main() -> anyhow::Result<()> {
         let analysis_timeout = state.timeouts.analysis;
         let token = cancel_token.clone();
         tokio::spawn(async move {
-            let mut interval =
-                tokio::time::interval(std::time::Duration::from_secs(60));
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
             loop {
                 tokio::select! {
                     _ = token.cancelled() => {
@@ -821,10 +812,10 @@ async fn shutdown_signal(cancel_token: tokio_util::sync::CancellationToken) {
 
 /// Expand `~/...` to the user's home directory.
 fn expand_tilde(path: &str) -> PathBuf {
-    if let Some(rest) = path.strip_prefix("~/") {
-        if let Some(home) = std::env::var_os("HOME") {
-            return PathBuf::from(home).join(rest);
-        }
+    if let Some(rest) = path.strip_prefix("~/")
+        && let Some(home) = std::env::var_os("HOME")
+    {
+        return PathBuf::from(home).join(rest);
     }
     PathBuf::from(path)
 }
@@ -897,10 +888,10 @@ async fn evaluate_completeness(
         .await
     {
         Ok(result) => {
-            if let Some(row) = result.rows.first() {
-                if let Some(ox_core::types::PropertyValue::Float(pct)) = row.first() {
-                    return (*pct >= rule.threshold, Some(*pct));
-                }
+            if let Some(row) = result.rows.first()
+                && let Some(ox_core::types::PropertyValue::Float(pct)) = row.first()
+            {
+                return (*pct >= rule.threshold, Some(*pct));
             }
             (true, None)
         }
@@ -930,10 +921,10 @@ async fn evaluate_uniqueness(
         .await
     {
         Ok(result) => {
-            if let Some(row) = result.rows.first() {
-                if let Some(ox_core::types::PropertyValue::Float(pct)) = row.first() {
-                    return (*pct >= rule.threshold, Some(*pct));
-                }
+            if let Some(row) = result.rows.first()
+                && let Some(ox_core::types::PropertyValue::Float(pct)) = row.first()
+            {
+                return (*pct >= rule.threshold, Some(*pct));
             }
             (true, None)
         }

@@ -65,8 +65,8 @@ pub struct OidcUserInfo {
 struct OidcDiscovery {
     issuer: String,
     jwks_uri: String,
-authorization_endpoint: Option<String>,
-token_endpoint: Option<String>,
+    authorization_endpoint: Option<String>,
+    token_endpoint: Option<String>,
 }
 
 /// JWKS response from the provider.
@@ -79,7 +79,7 @@ struct JwksResponse {
 struct JwkKey {
     kid: String,
     kty: String,
-alg: Option<String>,
+    alg: Option<String>,
     // RSA components
     n: Option<String>,
     e: Option<String>,
@@ -112,10 +112,7 @@ impl OidcProvider {
         let discovery: OidcDiscovery = reqwest::get(&discovery_url)
             .await
             .map_err(|e| {
-                AppError::internal(format!(
-                    "OIDC discovery failed for '{}': {e}",
-                    config.name
-                ))
+                AppError::internal(format!("OIDC discovery failed for '{}': {e}", config.name))
             })?
             .json()
             .await
@@ -182,16 +179,15 @@ impl OidcProvider {
         validation.set_issuer(&[&self.issuer]);
         validation.set_audience(&[&self.config.client_id]);
 
-        let token_data =
-            jsonwebtoken::decode::<OidcClaims>(id_token, decoding_key, &validation)
-                .map_err(|e| {
-                    tracing::debug!(
-                        provider = %self.config.name,
-                        error = %e,
-                        "ID token validation failed"
-                    );
-                    AppError::unauthorized("Invalid or expired ID token")
-                })?;
+        let token_data = jsonwebtoken::decode::<OidcClaims>(id_token, decoding_key, &validation)
+            .map_err(|e| {
+                tracing::debug!(
+                    provider = %self.config.name,
+                    error = %e,
+                    "ID token validation failed"
+                );
+                AppError::unauthorized("Invalid or expired ID token")
+            })?;
 
         let claims = token_data.claims;
 
@@ -213,7 +209,7 @@ impl OidcProvider {
     }
 
     /// Provider name for matching.
-pub fn name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.config.name
     }
 
@@ -223,19 +219,19 @@ pub fn name(&self) -> &str {
         // Fast path: cached
         {
             let guard = self.cache.read().await;
-            if let Some(ref cached) = *guard {
-                if cached.fetched_at.elapsed() < JWKS_CACHE_TTL {
-                    return Ok(cached.keys.clone());
-                }
+            if let Some(ref cached) = *guard
+                && cached.fetched_at.elapsed() < JWKS_CACHE_TTL
+            {
+                return Ok(cached.keys.clone());
             }
         }
 
         // Slow path: fetch under write lock
         let mut guard = self.cache.write().await;
-        if let Some(ref cached) = *guard {
-            if cached.fetched_at.elapsed() < JWKS_CACHE_TTL {
-                return Ok(cached.keys.clone());
-            }
+        if let Some(ref cached) = *guard
+            && cached.fetched_at.elapsed() < JWKS_CACHE_TTL
+        {
+            return Ok(cached.keys.clone());
         }
 
         let keys = self.fetch_jwks().await?;
@@ -365,7 +361,7 @@ impl OidcProviderRegistry {
     }
 
     /// Check if any providers are configured.
-pub fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.providers.is_empty()
     }
 }

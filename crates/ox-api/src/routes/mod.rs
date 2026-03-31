@@ -16,12 +16,12 @@ pub mod dashboards;
 pub mod health;
 pub mod lineage;
 pub mod load;
+pub mod models;
 pub mod ontology;
 pub mod perspectives;
 pub mod pins;
 pub mod projects;
 pub mod prompts_admin;
-pub mod models;
 pub mod quality;
 pub mod query;
 pub mod recipes;
@@ -82,10 +82,7 @@ pub fn router(state: AppState) -> Router {
             "/projects/{id}/load-plan",
             post(projects::generate_load_plan),
         )
-        .route(
-            "/projects/{id}/load/compile",
-            post(projects::compile_load),
-        )
+        .route("/projects/{id}/load/compile", post(projects::compile_load))
         .route(
             "/projects/{id}/load/execute",
             post(projects::execute_load_from_source),
@@ -95,10 +92,7 @@ pub fn router(state: AppState) -> Router {
             patch(ontology::apply_ontology_commands),
         )
         // Ontology revision history
-        .route(
-            "/projects/{id}/revisions",
-            get(projects::list_revisions),
-        )
+        .route("/projects/{id}/revisions", get(projects::list_revisions))
         .route(
             "/projects/{id}/revisions/{rev}",
             get(projects::get_revision),
@@ -112,10 +106,7 @@ pub fn router(state: AppState) -> Router {
             "/projects/{id}/revisions/{rev1}/diff/{rev2}",
             get(projects::diff_revisions),
         )
-        .route(
-            "/projects/{id}/diff/current",
-            get(projects::diff_current),
-        )
+        .route("/projects/{id}/diff/current", get(projects::diff_current))
         .route(
             "/projects/{id}/revisions/{rev}/migrate",
             post(projects::migrate_schema),
@@ -125,44 +116,20 @@ pub fn router(state: AppState) -> Router {
         // Ontology import/export (stateless transforms)
         .route("/ontology/normalize", post(ontology::normalize_ontology))
         .route("/ontology/export", post(ontology::export_ontology))
-        .route(
-            "/ontology/export/cypher",
-            post(ontology::export_cypher),
-        )
-        .route(
-            "/ontology/export/mermaid",
-            post(ontology::export_mermaid),
-        )
-        .route(
-            "/ontology/export/graphql",
-            post(ontology::export_graphql),
-        )
-        .route(
-            "/ontology/export/owl",
-            post(ontology::export_owl),
-        )
-        .route(
-            "/ontology/export/shacl",
-            post(ontology::export_shacl),
-        )
+        .route("/ontology/export/cypher", post(ontology::export_cypher))
+        .route("/ontology/export/mermaid", post(ontology::export_mermaid))
+        .route("/ontology/export/graphql", post(ontology::export_graphql))
+        .route("/ontology/export/owl", post(ontology::export_owl))
+        .route("/ontology/export/shacl", post(ontology::export_shacl))
         .route(
             "/ontology/export/typescript",
             post(ontology::export_typescript),
         )
-        .route(
-            "/ontology/export/python",
-            post(ontology::export_python),
-        )
+        .route("/ontology/export/python", post(ontology::export_python))
         // Ontology import
-        .route(
-            "/ontology/import/owl",
-            post(ontology::import_owl),
-        )
+        .route("/ontology/import/owl", post(ontology::import_owl))
         // Ontology insight suggestions
-        .route(
-            "/ontology/suggestions",
-            post(ontology::suggest_insights),
-        )
+        .route("/ontology/suggestions", post(ontology::suggest_insights))
         // Data loading
         .route("/load", post(load::plan_load))
         .route("/load/execute", post(load::execute_load))
@@ -176,10 +143,7 @@ pub fn router(state: AppState) -> Router {
         // Query execution history
         .route("/query/history", get(query::list_executions))
         .route("/query/history/{id}", get(query::get_execution))
-        .route(
-            "/query/history/{id}/feedback",
-            patch(query::set_feedback),
-        )
+        .route("/query/history/{id}/feedback", patch(query::set_feedback))
         // Raw query
         .route("/query/raw", post(query::raw_query))
         // QueryIR-based query (visual query builder)
@@ -197,35 +161,17 @@ pub fn router(state: AppState) -> Router {
         .route("/recipes", get(recipes::list_recipes))
         .route("/recipes/{id}", get(recipes::get_recipe))
         .route("/recipes/{id}", delete(recipes::delete_recipe))
-        .route(
-            "/recipes/{id}/status",
-            patch(recipes::update_recipe_status),
-        )
+        .route("/recipes/{id}/status", patch(recipes::update_recipe_status))
         .route(
             "/recipes/{id}/versions",
             post(recipes::create_recipe_version),
         )
-        .route(
-            "/recipes/{id}/versions",
-            get(recipes::list_recipe_versions),
-        )
-        .route(
-            "/recipes/{id}/results",
-            get(recipes::list_recipe_results),
-        )
-        .route(
-            "/recipes/{id}/schedule",
-            post(schedules::create_schedule),
-        )
+        .route("/recipes/{id}/versions", get(recipes::list_recipe_versions))
+        .route("/recipes/{id}/results", get(recipes::list_recipe_results))
+        .route("/recipes/{id}/schedule", post(schedules::create_schedule))
         // Scheduled tasks
-        .route(
-            "/scheduled-tasks",
-            get(schedules::list_schedules),
-        )
-        .route(
-            "/scheduled-tasks/{id}",
-            get(schedules::get_schedule),
-        )
+        .route("/scheduled-tasks", get(schedules::list_schedules))
+        .route("/scheduled-tasks/{id}", get(schedules::get_schedule))
         .route(
             "/scheduled-tasks/{id}",
             patch(schedules::update_schedule).delete(schedules::delete_schedule),
@@ -236,14 +182,8 @@ pub fn router(state: AppState) -> Router {
         .route("/dashboards/{id}", get(dashboards::get_dashboard))
         .route("/dashboards/{id}", patch(dashboards::update_dashboard))
         .route("/dashboards/{id}", delete(dashboards::delete_dashboard))
-        .route(
-            "/dashboards/{id}/widgets",
-            post(dashboards::add_widget),
-        )
-        .route(
-            "/dashboards/{id}/widgets",
-            get(dashboards::list_widgets),
-        )
+        .route("/dashboards/{id}/widgets", post(dashboards::add_widget))
+        .route("/dashboards/{id}/widgets", get(dashboards::list_widgets))
         .route(
             "/dashboards/{id}/widgets/{widget_id}",
             patch(dashboards::update_widget).delete(dashboards::delete_widget),
@@ -254,10 +194,7 @@ pub fn router(state: AppState) -> Router {
         .route("/reports/{id}", get(reports::get_report))
         .route("/reports/{id}", patch(reports::update_report))
         .route("/reports/{id}", delete(reports::delete_report))
-        .route(
-            "/reports/{id}/execute",
-            post(reports::execute_report),
-        )
+        .route("/reports/{id}/execute", post(reports::execute_report))
         // Pinboard
         .route("/pins", post(pins::create_pin))
         .route("/pins", get(pins::list_pins))
@@ -282,7 +219,10 @@ pub fn router(state: AppState) -> Router {
         )
         // Admin: prompt template management
         .route("/admin/prompts", get(prompts_admin::list_prompt_templates))
-        .route("/admin/prompts", post(prompts_admin::create_prompt_template))
+        .route(
+            "/admin/prompts",
+            post(prompts_admin::create_prompt_template),
+        )
         .route(
             "/admin/prompts/{id}",
             get(prompts_admin::get_prompt_template),
@@ -301,25 +241,13 @@ pub fn router(state: AppState) -> Router {
             delete(ontology::delete_verification),
         )
         // Ontology schema re-indexing + audit
-        .route(
-            "/ontology/{id}/reindex",
-            post(ontology::reindex_schema),
-        )
-        .route(
-            "/ontology/{id}/audit",
-            post(ontology::audit_graph),
-        )
-        .route(
-            "/ontology/adopt-graph",
-            post(ontology::adopt_graph),
-        )
+        .route("/ontology/{id}/reindex", post(ontology::reindex_schema))
+        .route("/ontology/{id}/audit", post(ontology::audit_graph))
+        .route("/ontology/adopt-graph", post(ontology::adopt_graph))
         // Agent sessions (audit)
         .route("/sessions", get(sessions::list_sessions))
         .route("/sessions/{id}", get(sessions::get_session))
-        .route(
-            "/sessions/{id}/events",
-            get(sessions::list_session_events),
-        )
+        .route("/sessions/{id}/events", get(sessions::list_session_events))
         .route(
             "/sessions/{id}/messages",
             get(sessions::get_session_messages),
@@ -332,10 +260,7 @@ pub fn router(state: AppState) -> Router {
         // Approval workflows
         .route("/approvals", get(approvals::list_approvals))
         .route("/approvals/{id}", get(approvals::get_approval))
-        .route(
-            "/approvals/{id}/review",
-            post(approvals::review_approval),
-        )
+        .route("/approvals/{id}/review", post(approvals::review_approval))
         // Audit trail
         .route("/audit", get(audit::list_audit_events))
         // Usage metering
@@ -357,10 +282,7 @@ pub fn router(state: AppState) -> Router {
         .route("/quality/rules/{id}", patch(quality::update_rule))
         .route("/quality/rules/{id}", delete(quality::delete_rule))
         .route("/quality/dashboard", get(quality::quality_dashboard))
-        .route(
-            "/quality/rules/{id}/results",
-            get(quality::rule_results),
-        )
+        .route("/quality/rules/{id}/results", get(quality::rule_results))
         // Model configs
         .route("/models/configs", get(models::list_model_configs))
         .route("/models/configs", post(models::create_model_config))
@@ -370,10 +292,7 @@ pub fn router(state: AppState) -> Router {
         )
         // Model routing rules
         .route("/models/routing-rules", get(models::list_routing_rules))
-        .route(
-            "/models/routing-rules",
-            post(models::create_routing_rule),
-        )
+        .route("/models/routing-rules", post(models::create_routing_rule))
         .route(
             "/models/routing-rules/{id}",
             patch(models::update_routing_rule).delete(models::delete_routing_rule),
@@ -403,16 +322,18 @@ pub fn router(state: AppState) -> Router {
         )
         // Middleware order (outer → inner): require_auth → workspace_context → audit_log
         // route_layer applies bottom-up, so audit_log (innermost) is first
-        .route_layer(middleware::from_fn_with_state(state.clone(), crate::audit_middleware::audit_log))
-        .route_layer(middleware::from_fn_with_state(state.clone(), workspace_context))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            crate::audit_middleware::audit_log,
+        ))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            workspace_context,
+        ))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
 
     // WebSocket routes (auth via query param, not middleware)
-    let ws_routes = Router::new()
-        .route("/ws/collab", get(ws::collab_ws));
+    let ws_routes = Router::new().route("/ws/collab", get(ws::collab_ws));
 
-    public
-        .merge(protected)
-        .merge(ws_routes)
-        .with_state(state)
+    public.merge(protected).merge(ws_routes).with_state(state)
 }
