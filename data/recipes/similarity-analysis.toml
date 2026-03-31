@@ -1,0 +1,55 @@
+[recipe]
+name = "Node Similarity Analysis"
+description = "Calculate Jaccard or cosine similarity between nodes based on shared neighbors or properties."
+algorithm_type = "statistical_analysis"
+status = "approved"
+
+[recipe.parameters]
+method = { type = "string", default = "jaccard", description = "Similarity method: jaccard or cosine" }
+top_k = { type = "int", default = 20, description = "Return top K similar pairs" }
+min_similarity = { type = "float", default = 0.1, description = "Minimum similarity threshold" }
+
+[recipe.output]
+description = "Top K most similar node pairs with similarity scores"
+
+[recipe.code]
+template = """
+import json, sys
+from collections import defaultdict
+import math
+
+edges = [json.loads(line) for line in sys.stdin]
+
+# Build neighbor sets
+neighbors = defaultdict(set)
+for e in edges:
+    neighbors[e['source']].add(e['target'])
+    neighbors[e['target']].add(e['source'])
+
+nodes = list(neighbors.keys())
+pairs = []
+
+for i in range(len(nodes)):
+    for j in range(i + 1, len(nodes)):
+        a, b = nodes[i], nodes[j]
+        na, nb = neighbors[a], neighbors[b]
+
+        if '$method' == 'jaccard':
+            intersection = len(na & nb)
+            union = len(na | nb)
+            sim = intersection / union if union > 0 else 0
+        else:  # cosine
+            all_nodes = na | nb
+            va = [1 if n in na else 0 for n in all_nodes]
+            vb = [1 if n in nb else 0 for n in all_nodes]
+            dot = sum(x * y for x, y in zip(va, vb))
+            ma = math.sqrt(sum(x**2 for x in va))
+            mb = math.sqrt(sum(x**2 for x in vb))
+            sim = dot / (ma * mb) if ma > 0 and mb > 0 else 0
+
+        if sim >= $min_similarity:
+            pairs.append({'node_a': a, 'node_b': b, 'similarity': round(sim, 4), 'shared_neighbors': len(na & nb)})
+
+pairs.sort(key=lambda x: -x['similarity'])
+print(json.dumps(pairs[:$top_k], indent=2))
+"""

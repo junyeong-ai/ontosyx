@@ -1,0 +1,31 @@
+# Ontosyx Configuration — Bedrock
+# Usage: OX_CONFIG_FILE=ontosyx.bedrock.toml cargo run -p ox-api
+# Prerequisites: source scripts/bedrock-sso.sh <profile>
+
+[server]
+host = "0.0.0.0"
+port = 3001
+
+[graph]
+backend = "neo4j"
+uri = "bolt://localhost:7687"
+username = "neo4j"
+password = "ontosyx-dev"
+database = "neo4j"
+max_connections = 16
+
+[postgres]
+url = "postgres://ontosyx:ontosyx-dev@localhost:5433/ontosyx"
+max_connections = 10
+
+[llm]
+provider = "bedrock"
+model = "global.anthropic.claude-sonnet-4-5-20250929-v1:0"
+region = "us-east-1"
+
+[prompts]
+dir = "prompts"
+
+[logging]
+level = "debug"
+format = "pretty"

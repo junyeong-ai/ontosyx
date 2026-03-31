@@ -1,0 +1,83 @@
+services:
+  neo4j:
+    image: neo4j:2026-community
+    ports:
+      - "7474:7474"   # HTTP (Browser)
+      - "7687:7687"   # Bolt
+    environment:
+      NEO4J_AUTH: neo4j/ontosyx-dev
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: pgvector/pgvector:pg17
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: ontosyx
+      POSTGRES_USER: ontosyx
+      POSTGRES_PASSWORD: ontosyx-dev
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./docker/init-app-user.sql:/docker-entrypoint-initdb.d/99-app-user.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ontosyx"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  analysis-sandbox:
+    build:
+      context: .
+      dockerfile: Dockerfile.analysis-sandbox
+    image: ontosyx-analysis-sandbox
+    profiles: ["build"]
+
+  # Source database for ontology design-from-source testing
+  postgres-source:
+    image: postgres:17
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_DB: olive_young
+      POSTGRES_USER: source
+      POSTGRES_PASSWORD: source-dev
+    volumes:
+      - pg_source_data:/var/lib/postgresql/data
+      - ./data/olive-young/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./data/olive-young/seed-data.sql:/docker-entrypoint-initdb.d/02-seed-data.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U source"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # E-commerce sample database for universal platform verification
+  postgres-ecommerce:
+    image: postgres:17
+    ports:
+      - "5435:5432"
+    environment:
+      POSTGRES_DB: ecommerce
+      POSTGRES_USER: source
+      POSTGRES_PASSWORD: source-dev
+    volumes:
+      - pg_ecommerce_data:/var/lib/postgresql/data
+      - ./data/ecommerce/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./data/ecommerce/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U source"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  neo4j_data:
+  pg_data:
+  pg_source_data:
+  pg_ecommerce_data:

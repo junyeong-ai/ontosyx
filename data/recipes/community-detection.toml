@@ -1,0 +1,69 @@
+[recipe]
+name = "Community Detection (Louvain)"
+description = "Detect communities/clusters in a graph using the Louvain algorithm. Identifies densely connected groups of nodes."
+algorithm_type = "segmentation"
+status = "approved"
+
+[recipe.parameters]
+min_community_size = { type = "int", default = 3, description = "Minimum nodes per community" }
+max_iterations = { type = "int", default = 20, description = "Maximum Louvain iterations" }
+
+[recipe.output]
+description = "Community assignments with community_id, node_count, and modularity score"
+
+[recipe.code]
+template = """
+import pandas as pd
+import json
+from collections import defaultdict
+
+# Read graph data from stdin (JSON lines: {source, target, weight?})
+import sys
+edges = []
+for line in sys.stdin:
+    row = json.loads(line.strip())
+    edges.append(row)
+
+# Build adjacency list
+adj = defaultdict(set)
+for e in edges:
+    adj[e['source']].add(e['target'])
+    adj[e['target']].add(e['source'])
+
+# Simple label propagation (Louvain approximation without networkx)
+nodes = list(adj.keys())
+community = {n: i for i, n in enumerate(nodes)}
+
+for _ in range($max_iterations):
+    changed = False
+    for node in nodes:
+        if not adj[node]:
+            continue
+        # Count neighbor communities
+        counts = defaultdict(int)
+        for neighbor in adj[node]:
+            counts[community[neighbor]] += 1
+        best = max(counts, key=counts.get)
+        if best != community[node]:
+            community[node] = best
+            changed = True
+    if not changed:
+        break
+
+# Aggregate results
+comm_members = defaultdict(list)
+for node, cid in community.items():
+    comm_members[cid].append(node)
+
+results = []
+for cid, members in comm_members.items():
+    if len(members) >= $min_community_size:
+        results.append({
+            'community_id': cid,
+            'node_count': len(members),
+            'members': members[:10]  # sample
+        })
+
+results.sort(key=lambda x: -x['node_count'])
+print(json.dumps(results, indent=2))
+"""

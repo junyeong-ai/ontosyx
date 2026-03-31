@@ -1,0 +1,74 @@
+[recipe]
+name = "Shortest Path & Reachability"
+description = "Find shortest paths between nodes and analyze reachability within a hop limit. Useful for supply chain, social networks, and dependency analysis."
+algorithm_type = "statistical_analysis"
+status = "approved"
+
+[recipe.parameters]
+source_node = { type = "string", default = "", description = "Source node ID" }
+target_node = { type = "string", default = "", description = "Target node ID (empty = all reachable)" }
+max_hops = { type = "int", default = 6, description = "Maximum path length" }
+
+[recipe.output]
+description = "Shortest path(s) with hop count, intermediary nodes, and reachability statistics"
+
+[recipe.code]
+template = """
+import json, sys
+from collections import defaultdict, deque
+
+edges = [json.loads(line) for line in sys.stdin]
+
+adj = defaultdict(set)
+for e in edges:
+    adj[e['source']].add(e['target'])
+    adj[e['target']].add(e['source'])
+
+source = '$source_node'
+target = '$target_node'
+max_hops = $max_hops
+
+if not source or source not in adj:
+    print(json.dumps({'error': f'Source node not found: {source}'}))
+    sys.exit(0)
+
+# BFS
+visited = {source: None}
+queue = deque([(source, 0)])
+reachable_at_depth = defaultdict(int)
+
+while queue:
+    node, depth = queue.popleft()
+    reachable_at_depth[depth] += 1
+    if depth >= max_hops:
+        continue
+    for neighbor in adj[node]:
+        if neighbor not in visited:
+            visited[neighbor] = node
+            queue.append((neighbor, depth + 1))
+
+# Reconstruct path to target
+path = []
+if target and target in visited:
+    current = target
+    while current is not None:
+        path.append(current)
+        current = visited[current]
+    path.reverse()
+
+result = {
+    'source': source,
+    'total_reachable': len(visited),
+    'total_nodes': len(adj),
+    'reachability_pct': round(len(visited) / max(len(adj), 1) * 100, 1),
+    'depth_distribution': dict(sorted(reachable_at_depth.items())),
+}
+
+if target:
+    result['target'] = target
+    result['path_found'] = target in visited
+    result['path'] = path
+    result['path_length'] = len(path) - 1 if path else -1
+
+print(json.dumps(result, indent=2))
+"""

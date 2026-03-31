@@ -1,0 +1,14 @@
+FROM python:3.12-slim
+
+RUN pip install --no-cache-dir \
+    pandas==2.2.* \
+    numpy==2.1.* \
+    scikit-learn==1.6.* \
+    statsmodels==0.14.* \
+    matplotlib==3.10.* \
+    scipy==1.15.*
+
+# Non-root user for security
+RUN useradd -m -s /bin/bash analyst
+USER analyst
+WORKDIR /sandbox

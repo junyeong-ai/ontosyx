@@ -1,0 +1,101 @@
+[workspace]
+members = [
+    "crates/ox-core",
+    "crates/ox-compiler",
+    "crates/ox-runtime",
+    "crates/ox-brain",
+    "crates/ox-agent",
+    "crates/ox-memory",
+    "crates/ox-api",
+    "crates/ox-store",
+    "crates/ox-source",
+]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+license = "MIT"
+
+[workspace.dependencies]
+# Internal crates
+ox-core = { path = "crates/ox-core" }
+ox-compiler = { path = "crates/ox-compiler" }
+ox-runtime = { path = "crates/ox-runtime" }
+ox-brain = { path = "crates/ox-brain" }
+ox-store = { path = "crates/ox-store" }
+ox-source = { path = "crates/ox-source" }
+ox-agent = { path = "crates/ox-agent" }
+ox-memory = { path = "crates/ox-memory" }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+schemars = { version = "1.2", features = ["chrono04", "uuid1"] }
+csv = "1"
+
+# Async
+tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
+futures = "0.3"
+
+# Web framework
+axum = { version = "0.8", features = ["ws", "macros"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+
+# OpenAPI
+utoipa = { version = "5", features = ["axum_extras", "uuid", "chrono"] }
+utoipa-swagger-ui = { version = "9", features = ["axum"] }
+
+# Database drivers
+neo4rs = "0.8"
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "mysql", "chrono", "uuid"] }
+mongodb = "3"
+
+# LLM
+reqwest = { version = "0.13", features = ["json", "stream"] }
+
+# AWS
+aws-config = { version = "1", features = ["behavior-version-latest"] }
+aws-sdk-bedrockruntime = "1"
+
+# Configuration
+config = { version = "0.15", features = ["toml"] }
+
+# File system / gitignore-aware walking (same as ripgrep)
+ignore = "0.4"
+tempfile = "3"
+
+# Crypto
+subtle = "2"
+jsonwebtoken = "9"
+
+# MCP (Model Context Protocol)
+rmcp = { version = "1.2", features = ["server", "macros", "transport-streamable-http-server"] }
+
+# RDF / OWL
+rio_api = "0.8"
+rio_turtle = "0.8"
+
+# Scheduling
+cron = "0.15"
+
+# Metrics
+metrics = "0.24"
+metrics-exporter-prometheus = "0.18"
+
+# Utilities
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+dashmap = "6"
+thiserror = "2"
+anyhow = "1"
+tracing = "0.1"
+tokio-util = { version = "0.7", features = ["rt"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+opentelemetry = { version = "0.31", features = ["trace"] }
+opentelemetry_sdk = { version = "0.31", features = ["rt-tokio", "trace"] }
+opentelemetry-otlp = { version = "0.31", features = ["grpc-tonic", "trace"] }
+tracing-opentelemetry = "0.32"

@@ -1,0 +1,271 @@
+{
+  "id": "olive-young-v1",
+  "name": "Olive Young Knowledge Graph",
+  "description": "올리브영 뷰티 리테일 지식 그래프 — 제품, 성분, 효능, 규제, 매장, 고객, 거래, 리뷰, 추천 네트워크",
+  "version": 1,
+  "node_types": [
+    {
+      "label": "Product",
+      "description": "뷰티 제품",
+      "properties": [
+        { "name": "id", "property_type": "string", "nullable": false },
+        { "name": "name", "property_type": "string", "nullable": false },
+        { "name": "price", "property_type": "int", "nullable": false },
+        { "name": "size", "property_type": "string", "nullable": true },
+        { "name": "launch_date", "property_type": "date", "nullable": true }
+      ]
+    },
+    {
+      "label": "Brand",
+      "description": "제품 브랜드",
+      "properties": [
+        { "name": "id", "property_type": "string", "nullable": false },
+        { "name": "name", "property_type": "string", "nullable": false },
+        { "name": "country", "property_type": "string", "nullable": true },
+        { "name": "founded_year", "property_type": "int", "nullable": true }
+      ]
+    },
+    {
+      "label": "Category",
+      "description": "제품 카테고리 (2계층 구조)",
+      "properties": [
+        { "name": "id", "property_type": "string", "nullable": false },
+        { "name": "name", "property_type": "string", "nullable": false, "description": "카테고리명: 스킨케어, 토너/스킨, 세럼/에센스, 크림/로션, 선케어, 마스크/팩, 클렌저, 메이크업, 립, 파운데이션/베이스, 아이, 헤어케어, 샴푸/트리트먼트, 바디케어, 바디워시/로션, 남성" },
+        { "name": "parent", "property_type": "string", "nullable": true, "description": "상위 카테고리 id (최상위는 빈 문자열). 예: cat-toner의 parent = cat-skincare" }
+      ]
+    },
+    {
+      "label": "Ingredient",
+      "description": "화장품 성분 (INCI 기반). 성분 간 시너지/충돌 관계, 효능/부작용 관계를 통해 제품 추천·안전성 분석의 핵심 노드",
+      "properties": [
+        { "name": "id", "property_type": "string", "nullable": false },
+        { "name": "name", "property_type": "string", "nullable": false, "description": "한글 성분명" },
+        { "name": "name_inci", "property_type": "string", "nullable": true, "description": "INCI 국제 표준명 (영문)" },
+        { "name": "ingredient_type", "property_type": "string", "nullable": false, "description": "성분 유형: active, moisturizer, antioxidant, exfoliant, sunscreen_filter, preservative, surfactant, emollient" },
+        { "name": "ewg_grade", "property_type": "int", "nullable": true, "description": "EWG 안전 등급 1-10 (1=가장 안전, 10=가장 위험)" }
+      ]
+    },
+    {
+      "label": "SkinConcern",
+      "description": "피부 고민/효능 카테고리. 성분의 TREATS/AGGRAVATES 관계를 통해 제품의 효능·부작용 추적",
+      "properties": [
+        { "name": "id", "property_type": "string", "nullable": false },
+        { "name": "name", "property_type": "string", "nullable": false, "description": "피부 고민: 건조, 여드름, 노화, 미백, 민감, 모공, 색소침착, 탄력저하" }
+      ]
+    },
+    {
+      "label": "Regulation",
+      "description": "화장품 성분 규제. 규제 변경 시 영향받는 성분→제품→브랜드→매출 연쇄 분석의 시작점",
+      "properties": [
+        { "name": "id", "property_type": "string", "nullable": false },
+        { "name": "name", "property_type": "string", "nullable": false, "description": "규제명" },
+        { "name": "authority", "property_type": "string", "nullable": false, "description": "규제 기관: EU_SCCS, MFDS, FDA" },
+        { "name": "status", "property_type": "string", "nullable": false, "description": "규제 상태: allowed, restricted, banned" },
+        { "name": "effective_date", "property_type": "date", "nullable": true }
+      ]
+    },
+    {
+      "label": "Store",
+      "description": "올리브영 매장",
+      "properties": [
+        { "name": "id", "property_type": "string", "nullable": false },
+        { "name": "name", "property_type": "string", "nullable": false },
+        { "name": "address", "property_type": "string", "nullable": true },
+        { "name": "store_type", "property_type": "string", "nullable": true, "description": "매장유형: Regular, Town, N" },
+        { "name": "open_date", "property_type": "date", "nullable": true }
+      ]
+    },
+    {
+      "label": "Region",
+      "description": "지역 (시/도)",
+      "properties": [
+        { "name": "id", "property_type": "string", "nullable": false },
+        { "name": "name", "property_type": "string", "nullable": false },
+        { "name": "type", "property_type": "string", "nullable": true }
+      ]
+    },
+    {
+      "label": "Customer",
+      "description": "올리브영 회원 고객. 추천(REFERRED) 관계를 통해 영향력 네트워크 분석 가능",
+      "properties": [
+        { "name": "id", "property_type": "string", "nullable": false },
+        { "name": "name", "property_type": "string", "nullable": false },
+        { "name": "age", "property_type": "int", "nullable": true },
+        { "name": "gender", "property_type": "string", "nullable": true, "description": "성별: M, F" },
+        { "name": "membership_tier", "property_type": "string", "nullable": true, "description": "멤버십 등급: Gold, Green, Pink" },
+        { "name": "join_date", "property_type": "date", "nullable": true }
+      ]
+    },
+    {
+      "label": "Transaction",
+      "description": "구매 거래",
+      "properties": [
+        { "name": "id", "property_type": "string", "nullable": false },
+        { "name": "total_amount", "property_type": "int", "nullable": false },
+        { "name": "payment_method", "property_type": "string", "nullable": true, "description": "결제수단: card, kakao_pay, naver_pay, cash" },
+        { "name": "purchased_at", "property_type": "datetime", "nullable": true }
+      ]
+    },
+    {
+      "label": "Review",
+      "description": "제품 리뷰",
+      "properties": [
+        { "name": "id", "property_type": "string", "nullable": false },
+        { "name": "rating", "property_type": "int", "nullable": false, "description": "평점 1-5 (정수)" },
+        { "name": "text", "property_type": "string", "nullable": true },
+        { "name": "created_at", "property_type": "datetime", "nullable": true }
+      ]
+    },
+    {
+      "label": "Promotion",
+      "description": "프로모션/할인 이벤트",
+      "properties": [
+        { "name": "id", "property_type": "string", "nullable": false },
+        { "name": "name", "property_type": "string", "nullable": false },
+        { "name": "discount_pct", "property_type": "int", "nullable": true, "description": "할인율 %, 범위: 10-30" },
+        { "name": "start_date", "property_type": "date", "nullable": true },
+        { "name": "end_date", "property_type": "date", "nullable": true }
+      ]
+    }
+  ],
+  "edge_types": [
+    {
+      "label": "MADE_BY",
+      "source_type": "Product",
+      "target_type": "Brand",
+      "properties": []
+    },
+    {
+      "label": "IN_CATEGORY",
+      "source_type": "Product",
+      "target_type": "Category",
+      "properties": []
+    },
+    {
+      "label": "HAS_INGREDIENT",
+      "description": "제품에 포함된 성분. 성분 기반 제품 유사도·안전성 분석의 핵심 관계. 경로: (Product)-[:HAS_INGREDIENT]->(Ingredient)-[:TREATS]->(SkinConcern)",
+      "source_type": "Product",
+      "target_type": "Ingredient",
+      "properties": [
+        { "name": "concentration_pct", "property_type": "float", "nullable": true, "description": "성분 함량 비율 %, 범위: 0.01-100" },
+        { "name": "is_key_ingredient", "property_type": "bool", "nullable": true, "description": "핵심(주요) 성분 여부" }
+      ]
+    },
+    {
+      "label": "TREATS",
+      "description": "성분이 개선하는 피부 고민. 경로: (Product)-[:HAS_INGREDIENT]->(Ingredient)-[:TREATS]->(SkinConcern)",
+      "source_type": "Ingredient",
+      "target_type": "SkinConcern",
+      "properties": [
+        { "name": "efficacy_level", "property_type": "string", "nullable": true, "description": "효능 수준: high, medium, low" }
+      ]
+    },
+    {
+      "label": "AGGRAVATES",
+      "description": "성분이 악화시킬 수 있는 피부 고민. 충돌 회피 추천에 활용",
+      "source_type": "Ingredient",
+      "target_type": "SkinConcern",
+      "properties": [
+        { "name": "severity", "property_type": "string", "nullable": true, "description": "심각도: high, medium, low" }
+      ]
+    },
+    {
+      "label": "SYNERGIZES_WITH",
+      "description": "함께 사용하면 효과가 증폭되는 성분 쌍. 양방향이나 단방향 엣지로 모델링 (A→B 생성 시 B→A는 불필요)",
+      "source_type": "Ingredient",
+      "target_type": "Ingredient",
+      "properties": [
+        { "name": "boost_pct", "property_type": "int", "nullable": true, "description": "효과 증폭률 %, 범위: 10-400" },
+        { "name": "mechanism", "property_type": "string", "nullable": true, "description": "시너지 메커니즘 설명" }
+      ]
+    },
+    {
+      "label": "CONFLICTS_WITH",
+      "description": "함께 사용하면 자극·비활성화 위험이 있는 성분 쌍. 고객 안전성 경고 시스템에 활용",
+      "source_type": "Ingredient",
+      "target_type": "Ingredient",
+      "properties": [
+        { "name": "risk_level", "property_type": "string", "nullable": true, "description": "위험 수준: high, medium, low" },
+        { "name": "reason", "property_type": "string", "nullable": true, "description": "충돌 사유" }
+      ]
+    },
+    {
+      "label": "REGULATED_BY",
+      "description": "성분에 적용되는 규제. 규제 변경 영향 분석: (Regulation)<-[:REGULATED_BY]-(Ingredient)<-[:HAS_INGREDIENT]-(Product)-[:MADE_BY]->(Brand)",
+      "source_type": "Ingredient",
+      "target_type": "Regulation",
+      "properties": [
+        { "name": "max_concentration_pct", "property_type": "float", "nullable": true, "description": "최대 허용 농도 %" }
+      ]
+    },
+    {
+      "label": "REFERRED",
+      "description": "고객 추천 관계 (친구 추천 프로그램). 가변 길이 경로 탐색으로 인플루언서 영향력 분석: (Customer)-[:REFERRED*1..N]->(Customer)-[:PURCHASED]->(Transaction)",
+      "source_type": "Customer",
+      "target_type": "Customer",
+      "properties": [
+        { "name": "referred_at", "property_type": "date", "nullable": true }
+      ]
+    },
+    {
+      "label": "LOCATED_IN",
+      "source_type": "Store",
+      "target_type": "Region",
+      "properties": []
+    },
+    {
+      "label": "PURCHASED",
+      "description": "고객의 구매 거래. 고객→제품 경로: (Customer)-[:PURCHASED]->(Transaction)-[:CONTAINS]->(Product)",
+      "source_type": "Customer",
+      "target_type": "Transaction",
+      "properties": []
+    },
+    {
+      "label": "AT_STORE",
+      "source_type": "Transaction",
+      "target_type": "Store",
+      "properties": []
+    },
+    {
+      "label": "CONTAINS",
+      "source_type": "Transaction",
+      "target_type": "Product",
+      "properties": [
+        { "name": "quantity", "property_type": "int", "nullable": true },
+        { "name": "unit_price", "property_type": "int", "nullable": true }
+      ]
+    },
+    {
+      "label": "WROTE",
+      "source_type": "Customer",
+      "target_type": "Review",
+      "properties": []
+    },
+    {
+      "label": "ABOUT",
+      "source_type": "Review",
+      "target_type": "Product",
+      "properties": []
+    },
+    {
+      "label": "SUPPLIES_TO",
+      "source_type": "Brand",
+      "target_type": "Store",
+      "properties": []
+    },
+    {
+      "label": "APPLIES_TO",
+      "description": "프로모션이 적용되는 제품. 프로모션-거래 분석은 Product를 통해 연결: (Promotion)-[:APPLIES_TO]->(Product)<-[:CONTAINS]-(Transaction)",
+      "source_type": "Promotion",
+      "target_type": "Product",
+      "properties": []
+    },
+    {
+      "label": "MEMBER_OF",
+      "source_type": "Customer",
+      "target_type": "Region",
+      "properties": []
+    }
+  ],
+  "indexes": []
+}

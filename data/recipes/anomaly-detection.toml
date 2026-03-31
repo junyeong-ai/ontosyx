@@ -1,0 +1,64 @@
+[recipe]
+name = "Statistical Anomaly Detection"
+description = "Detect outliers using Z-score and IQR methods. Flags data points that deviate significantly from the norm."
+algorithm_type = "anomaly_detection"
+status = "approved"
+
+[recipe.parameters]
+value_column = { type = "string", default = "value", description = "Column to analyze" }
+z_threshold = { type = "float", default = 2.5, description = "Z-score threshold for anomaly" }
+method = { type = "string", default = "both", description = "Detection method: zscore, iqr, or both" }
+
+[recipe.output]
+description = "Flagged anomalies with original value, z-score, and anomaly type (high/low)"
+
+[recipe.code]
+template = """
+import json, sys
+import numpy as np
+
+data = [json.loads(line) for line in sys.stdin]
+if not data:
+    print(json.dumps({'anomalies': [], 'stats': {}}))
+    sys.exit(0)
+
+values = [float(row['$value_column']) for row in data if '$value_column' in row]
+arr = np.array(values)
+mean, std = np.mean(arr), np.std(arr)
+q1, q3 = np.percentile(arr, 25), np.percentile(arr, 75)
+iqr = q3 - q1
+
+anomalies = []
+for i, row in enumerate(data):
+    if '$value_column' not in row:
+        continue
+    v = float(row['$value_column'])
+    z = (v - mean) / std if std > 0 else 0
+    is_zscore = abs(z) > $z_threshold
+    is_iqr = v < (q1 - 1.5 * iqr) or v > (q3 + 1.5 * iqr)
+
+    flagged = False
+    if '$method' == 'zscore':
+        flagged = is_zscore
+    elif '$method' == 'iqr':
+        flagged = is_iqr
+    else:
+        flagged = is_zscore or is_iqr
+
+    if flagged:
+        anomalies.append({
+            'index': i,
+            'value': v,
+            'z_score': round(z, 3),
+            'type': 'high' if v > mean else 'low',
+            'context': {k: row[k] for k in list(row.keys())[:5]}
+        })
+
+print(json.dumps({
+    'stats': {'mean': round(mean, 2), 'std': round(std, 2), 'q1': round(q1, 2), 'q3': round(q3, 2)},
+    'anomaly_count': len(anomalies),
+    'total_records': len(values),
+    'anomaly_rate': round(len(anomalies) / max(len(values), 1) * 100, 2),
+    'anomalies': anomalies[:50]
+}, indent=2))
+"""

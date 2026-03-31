@@ -1,0 +1,34 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# Node.js (web/)
+web/node_modules/
+web/.next/
+web/out/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Docker volumes
+neo4j_data/
+pg_data/
+
+# Build artifacts (root-level, from turbopack)
+/.next/
+
+# Local data
+.symora/
+
+# Claude memory/plans (local-only)
+.claude/
+config

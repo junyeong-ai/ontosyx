@@ -1,0 +1,29 @@
+target/
+.git/
+.github/
+
+# Frontend
+web/node_modules/
+web/.next/
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Documentation
+*.md
+
+# Data / scripts (not needed in image)
+data/
+scripts/
+screenshot.png
+
+# Symora
+.symora/

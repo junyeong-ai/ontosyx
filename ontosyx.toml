@@ -1,0 +1,69 @@
+# Ontosyx Configuration
+# Environment variables override these values with OX_ prefix.
+# Nesting uses double underscore: OX_SERVER__PORT=8080
+
+[server]
+host = "0.0.0.0"
+port = 3001
+cors_origins = ["http://localhost:3000", "http://localhost:3100"]
+
+[graph]
+backend = "neo4j"
+uri = "bolt://localhost:7687"
+username = "neo4j"
+password = "ontosyx-dev"
+database = "neo4j"
+max_connections = 16
+isolation_strategy = "property"   # property | database | none
+
+[postgres]
+# IMPORTANT: Use ontosyx_app (non-superuser) so PostgreSQL RLS is enforced.
+# The superuser 'ontosyx' bypasses RLS even with FORCE ROW LEVEL SECURITY.
+url = "postgres://ontosyx_app:ontosyx-dev@localhost:5433/ontosyx"
+max_connections = 32
+min_connections = 5
+
+[llm]
+provider = "claude-code"       # anthropic | bedrock | claude-code
+model = "claude-sonnet-4-6"
+# api_key = ""                # prefer OX_LLM__API_KEY env var
+# base_url = ""               # override for compatible endpoints
+# region = "ap-northeast-2"   # AWS region (bedrock only)
+# Bedrock cross-region: global.anthropic.claude-sonnet-4-5-20250929-v1:0, us.anthropic.claude-sonnet-4-6
+
+[fast_llm]
+provider = "claude-code"
+model = "claude-haiku-4-5"
+
+[embedding]
+provider = "onnx"                               # noop | onnx
+model = "~/.cache/ontosyx/models/jina-embeddings-v5-text-small-retrieval"
+dimensions = 1024                               # auto-detected from model, used as fallback for noop
+
+[auth]
+jwt_secret = "6V0qPK4eNUqKmOOYITF/pgtf0eAr2wLGjAM9NMmB+bY="
+api_key = "dev-api-key-ontosyx"
+session_hours = 168              # 7 days (matches frontend JWT expiry)
+
+[[auth.providers]]
+name = "google"
+issuer_url = "https://accounts.google.com"
+client_id = "774214023919-urtp3eu4gg1cn4e5cjonscvp0u9pgh5e.apps.googleusercontent.com"
+
+[prompts]
+dir = "prompts"                # TOML seed directory (DB is the runtime source)
+
+[timeouts]
+design_operation_secs = 300   # Ontology design / load plan (LLM-intensive)
+raw_query_secs = 30           # Direct graph DB query execution
+
+[retention]
+memory_days = 180             # Delete memory entries not accessed within this period
+session_days = 90             # Delete agent sessions older than this
+retry_interval_secs = 300     # Embedding retry loop interval (5 minutes)
+wip_archive_days = 30         # Archive WIP projects not updated within this period
+wip_delete_days = 90          # Permanently delete archived projects after this period
+
+[logging]
+level = "info"                # trace | debug | info | warn | error
+format = "pretty"             # pretty | json

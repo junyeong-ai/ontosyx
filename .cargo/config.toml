@@ -1,0 +1,18 @@
+# Ontosyx Cargo build configuration
+#
+# ONNX Runtime linking:
+# ort-sys requires these env vars to link against the system ONNX Runtime.
+# On macOS: `brew install onnxruntime`
+# On Linux: install from https://github.com/microsoft/onnxruntime/releases
+#
+# ORT_LIB_LOCATION = directory containing lib/libonnxruntime.dylib
+# ORT_PREFER_DYNAMIC_LINK = use .dylib instead of .a (homebrew only provides .dylib)
+# LIBRARY_PATH = linker search path for the dynamic library
+
+[env]
+ORT_LIB_LOCATION = "/opt/homebrew/Cellar/onnxruntime/1.24.4_1"
+ORT_PREFER_DYNAMIC_LINK = "1"
+
+# macOS: add homebrew lib to linker search path
+[target.aarch64-apple-darwin]
+rustflags = ["-L", "/opt/homebrew/lib"]

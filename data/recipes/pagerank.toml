@@ -1,0 +1,50 @@
+[recipe]
+name = "PageRank Centrality"
+description = "Calculate PageRank scores to identify the most influential/central nodes in a graph."
+algorithm_type = "statistical_analysis"
+status = "approved"
+
+[recipe.parameters]
+damping = { type = "float", default = 0.85, description = "Damping factor (0-1)" }
+iterations = { type = "int", default = 30, description = "Number of iterations" }
+top_k = { type = "int", default = 20, description = "Return top K nodes" }
+
+[recipe.output]
+description = "Top K nodes ranked by PageRank score with node_id, label, and score"
+
+[recipe.code]
+template = """
+import json, sys
+from collections import defaultdict
+
+edges = [json.loads(line) for line in sys.stdin]
+
+# Build graph
+outgoing = defaultdict(set)
+incoming = defaultdict(set)
+nodes = set()
+for e in edges:
+    s, t = e['source'], e['target']
+    outgoing[s].add(t)
+    incoming[t].add(s)
+    nodes.add(s)
+    nodes.add(t)
+
+n = len(nodes)
+if n == 0:
+    print("[]")
+    sys.exit(0)
+
+rank = {node: 1.0 / n for node in nodes}
+d = $damping
+
+for _ in range($iterations):
+    new_rank = {}
+    for node in nodes:
+        incoming_sum = sum(rank[src] / max(len(outgoing[src]), 1) for src in incoming[node])
+        new_rank[node] = (1 - d) / n + d * incoming_sum
+    rank = new_rank
+
+results = sorted(rank.items(), key=lambda x: -x[1])[:$top_k]
+print(json.dumps([{'node_id': nid, 'score': round(s, 6)} for nid, s in results], indent=2))
+"""

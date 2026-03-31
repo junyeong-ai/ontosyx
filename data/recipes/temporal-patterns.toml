@@ -1,0 +1,59 @@
+[recipe]
+name = "Temporal Pattern Analysis"
+description = "Analyze time-series data for trends, seasonality, and anomalous periods. Works with any timestamped data."
+algorithm_type = "time_series"
+status = "approved"
+
+[recipe.parameters]
+date_column = { type = "string", default = "date", description = "Name of the timestamp column" }
+value_column = { type = "string", default = "value", description = "Name of the metric column" }
+window_size = { type = "int", default = 7, description = "Moving average window size" }
+
+[recipe.output]
+description = "Time series with trend line, moving average, and period-over-period change rates"
+
+[recipe.code]
+template = """
+import json, sys
+import pandas as pd
+from datetime import datetime
+
+data = [json.loads(line) for line in sys.stdin]
+if not data:
+    print("[]")
+    sys.exit(0)
+
+df = pd.DataFrame(data)
+df['$date_column'] = pd.to_datetime(df['$date_column'])
+df = df.sort_values('$date_column')
+df['moving_avg'] = df['$value_column'].rolling(window=$window_size, min_periods=1).mean()
+df['pct_change'] = df['$value_column'].pct_change() * 100
+
+# Trend detection (linear regression slope)
+x = range(len(df))
+y = df['$value_column'].values
+if len(y) > 1:
+    slope = (sum(xi * yi for xi, yi in zip(x, y)) - len(y) * (sum(x)/len(x)) * (sum(y)/len(y))) / \
+            (sum(xi**2 for xi in x) - len(y) * (sum(x)/len(x))**2)
+    trend = 'increasing' if slope > 0 else 'decreasing' if slope < 0 else 'flat'
+else:
+    slope, trend = 0, 'insufficient_data'
+
+result = {
+    'summary': {
+        'trend': trend,
+        'slope': round(slope, 4),
+        'total_periods': len(df),
+        'min': round(float(df['$value_column'].min()), 2),
+        'max': round(float(df['$value_column'].max()), 2),
+        'mean': round(float(df['$value_column'].mean()), 2),
+    },
+    'series': df[['$date_column', '$value_column', 'moving_avg', 'pct_change']].fillna(0).to_dict('records')
+}
+
+# Convert timestamps to strings for JSON
+for row in result['series']:
+    row['$date_column'] = str(row['$date_column'])
+
+print(json.dumps(result, indent=2))
+"""
