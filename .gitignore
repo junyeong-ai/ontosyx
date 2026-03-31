@@ -32,3 +32,4 @@ pg_data/
 # Claude memory/plans (local-only)
 .claude/
 config
+package-lock.json
