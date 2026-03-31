@@ -1,0 +1,22 @@
+[package]
+name = "ox-source"
+description = "Ontosyx data source introspection (schema discovery + profiling)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+ox-core = { workspace = true }
+sqlx = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+csv = { workspace = true }
+mongodb = { workspace = true }
+tracing = { workspace = true }
+ignore = { workspace = true }
+tempfile = { workspace = true }
+futures = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }

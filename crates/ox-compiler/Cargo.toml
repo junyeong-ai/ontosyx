@@ -1,0 +1,18 @@
+[package]
+name = "ox-compiler"
+description = "Ontosyx IR → target query language compilers"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+ox-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+rio_api = { workspace = true }
+rio_turtle = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+chrono = { workspace = true }

@@ -1,0 +1,36 @@
+[package]
+name = "ox-memory"
+description = "Ontosyx semantic memory — embedding + vector search for long-term agent memory"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+ox-core = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+async-trait = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Database (pgvector)
+sqlx = { workspace = true }
+
+# Utilities
+tracing = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+
+# ONNX runtime (optional — enable with `onnx` feature)
+ort = { version = "2.0.0-rc.10", default-features = false, features = ["std", "ndarray"], optional = true }
+ndarray = { version = "0.17", optional = true }
+tokenizers = { version = "0.22", default-features = false, features = ["onig"], optional = true }
+reqwest = { workspace = true, features = ["json"] }
+urlencoding = "2.1.3"
+
+[features]
+default = []
+onnx = ["ort", "ndarray", "tokenizers"]

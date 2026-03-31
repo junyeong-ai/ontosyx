@@ -1,0 +1,19 @@
+[package]
+name = "ox-runtime"
+description = "Ontosyx graph DB runtime drivers and sample data loader"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+ox-core = { workspace = true }
+ox-compiler = { workspace = true }
+neo4rs = { workspace = true }
+tokio = { workspace = true }
+uuid = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
