@@ -14,7 +14,7 @@ ox-store = { workspace = true }
 ox-memory = { workspace = true }
 
 # Agent runtime
-branchforge = { path = "../../../branchforge", default-features = false, features = ["aws"] }
+branchforge = { workspace = true, features = ["aws"] }
 
 # Async
 tokio = { workspace = true }

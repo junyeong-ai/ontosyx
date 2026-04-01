@@ -9,7 +9,7 @@ rust-version.workspace = true
 ox-core = { workspace = true }
 ox-memory = { path = "../ox-memory" }
 ox-store = { path = "../ox-store" }
-branchforge = { path = "../../../branchforge", default-features = false, features = ["aws", "cli-auth"] }
+branchforge = { workspace = true, features = ["aws", "cli-auth"] }
 dashmap = "6"
 serde = { workspace = true }
 serde_json = { workspace = true }

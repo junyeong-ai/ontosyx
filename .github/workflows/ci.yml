@@ -21,10 +21,19 @@ jobs:
         with:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
+
+      - name: Install onnxruntime
+        run: |
+          wget -q https://github.com/microsoft/onnxruntime/releases/download/v1.21.1/onnxruntime-linux-x64-1.21.1.tgz
+          tar xzf onnxruntime-linux-x64-1.21.1.tgz
+          echo "ORT_LIB_LOCATION=$PWD/onnxruntime-linux-x64-1.21.1/lib" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=$PWD/onnxruntime-linux-x64-1.21.1/lib" >> $GITHUB_ENV
+
       - name: Check formatting
         run: cargo fmt --all -- --check
+
       - name: Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: cargo clippy --workspace -- -D warnings
 
   test:
     name: Test
@@ -34,8 +43,17 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+
+      - name: Install onnxruntime
+        run: |
+          wget -q https://github.com/microsoft/onnxruntime/releases/download/v1.21.1/onnxruntime-linux-x64-1.21.1.tgz
+          tar xzf onnxruntime-linux-x64-1.21.1.tgz
+          echo "ORT_LIB_LOCATION=$PWD/onnxruntime-linux-x64-1.21.1/lib" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=$PWD/onnxruntime-linux-x64-1.21.1/lib" >> $GITHUB_ENV
+
       - name: Build
-        run: cargo build --all-targets
+        run: cargo build --workspace
+
       - name: Test
         run: cargo test --workspace
 

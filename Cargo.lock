@@ -658,7 +658,9 @@ dependencies = [
 
 [[package]]
 name = "branchforge"
-version = "0.2.25"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e7b2607e94fed789a5da73d2c98c9ce50ad898e527bbc727d4c42499eee8a2df"
 dependencies = [
  "ahash 0.8.12",
  "async-trait",
