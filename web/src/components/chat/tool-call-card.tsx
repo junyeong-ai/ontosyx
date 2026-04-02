@@ -364,7 +364,7 @@ function tryParseToolResult(toolName: string, output: string): ParsedToolResult 
     // Not JSON — return simple summary
   }
 
-  return { summary: output.length > 100 ? `${output.length} chars` : "" };
+  return { summary: output.length > 100 ? `${output.length.toLocaleString()} chars` : "" };
 }
 
 // ---------------------------------------------------------------------------
