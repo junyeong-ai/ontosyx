@@ -170,19 +170,25 @@ pub async fn structured_completion_with_thresholds<
     })
 }
 
-/// Extract JSON from a response that might be wrapped in ```json ... ```
+/// Extract JSON from a response that might contain reasoning text before the JSON.
+///
+/// Handles three common LLM output patterns:
+/// 1. ```json ... ``` (code fence wrapped)
+/// 2. "Some reasoning text...\n{...}" (reasoning prefix)
+/// 3. Plain JSON
 fn extract_json(text: &str) -> &str {
     let trimmed = text.trim();
-    // Try ```json ... ``` (with closing fence)
+
+    // Pattern 1: ```json ... ``` (with closing fence)
     if let Some(start) = trimmed.find("```json") {
         let json_start = start + 7;
         if let Some(end) = trimmed[json_start..].find("```") {
             return trimmed[json_start..json_start + end].trim();
         }
-        // No closing fence (truncated output) — strip opening fence only
         return trimmed[json_start..].trim();
     }
-    // Try ``` ... ``` (generic code fence)
+
+    // Pattern 1b: ``` ... ``` (generic code fence)
     if let Some(start) = trimmed.find("```") {
         let json_start = start + 3;
         let json_start = trimmed[json_start..]
@@ -192,9 +198,29 @@ fn extract_json(text: &str) -> &str {
         if let Some(end) = trimmed[json_start..].find("```") {
             return trimmed[json_start..json_start + end].trim();
         }
-        // No closing fence — strip opening fence only
         return trimmed[json_start..].trim();
     }
+
+    // Pattern 2: Reasoning text followed by JSON object
+    // LLM outputs "Looking at the ontology...\n\n{"operation": ...}"
+    // Find a '{' that starts a line (after newline or start) — avoids
+    // false matches on inline braces like "{Product}" in prose.
+    if !trimmed.starts_with('{') && !trimmed.starts_with('[') {
+        if let Some(last_brace) = trimmed.rfind('}') {
+            // Scan for a '{' that is either at line start or preceded by whitespace/newline
+            let bytes = trimmed.as_bytes();
+            for (i, &b) in bytes.iter().enumerate() {
+                if b == b'{' && i < last_brace {
+                    let at_line_start = i == 0 || bytes[i - 1] == b'\n' || bytes[i - 1] == b'\r';
+                    if at_line_start {
+                        return &trimmed[i..=last_brace];
+                    }
+                }
+            }
+        }
+    }
+
+    // Pattern 3: Plain JSON (already valid)
     trimmed
 }
 

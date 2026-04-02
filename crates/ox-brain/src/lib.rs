@@ -579,7 +579,8 @@ impl QueryTranslator for DefaultBrain {
             let oid = self.ontology_id.as_deref().unwrap_or(&ontology.id);
             schema_rag::discover_schema(memory, ontology, question, oid).await
         } else if ontology.node_types.len() <= 20 {
-            let node_labels: Vec<&str> = ontology
+            // Small ontology: use all labels as both seed and expanded
+            let all_node_labels: Vec<&str> = ontology
                 .node_types
                 .iter()
                 .map(|n| n.label.as_str())
@@ -587,10 +588,11 @@ impl QueryTranslator for DefaultBrain {
             let all_label_strings: Vec<String> = ontology.node_types.iter().map(|n| n.label.clone())
                 .chain(ontology.edge_types.iter().map(|e| e.label.clone()))
                 .collect();
-            (
-                serde_json::to_string_pretty(&ontology.compact_schema(&node_labels)).unwrap_or_default(),
-                all_label_strings,
-            )
+            // Use progressive schema even for small ontologies (consistent format)
+            let schema = schema_rag::build_progressive_schema(
+                ontology, &all_node_labels, &all_node_labels,
+            );
+            (schema, all_label_strings)
         } else {
             let all_labels: Vec<String> = ontology.node_types.iter().map(|n| n.label.clone())
                 .chain(ontology.edge_types.iter().map(|e| e.label.clone()))
