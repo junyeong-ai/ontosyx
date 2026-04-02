@@ -3,8 +3,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/cn";
 import type { QueryResult, WidgetSpec } from "@/types/api";
-import { WidgetRenderer } from "./widget-renderer";
-import { CATEGORY_THRESHOLD } from "./chart-utils";
+import { WidgetRenderer, viableTypes } from "./widget-renderer";
 import { Tooltip } from "@/components/ui/tooltip";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import {
@@ -23,10 +22,6 @@ interface WidgetWithToolbarProps {
   data: QueryResult;
 }
 
-/** Column names indicating graph-like edge data (mirrored from widget-renderer) */
-const GRAPH_SOURCE_COLS = new Set(["source", "source_id", "from"]);
-const GRAPH_TARGET_COLS = new Set(["target", "target_id", "to"]);
-
 const WIDGET_OPTIONS: readonly { type: string; icon: IconSvgElement; label: string }[] = [
   { type: "table", icon: Table01Icon, label: "Table" },
   { type: "graph", icon: Share01Icon, label: "Graph" },
@@ -44,31 +39,12 @@ export function WidgetWithToolbar({ spec, data }: WidgetWithToolbarProps) {
   // Don't show toolbar for trivial data
   if (!data.rows.length || !data.columns.length) return null;
 
-  const numCols = data.columns.length;
-  const numRows = data.rows.length;
-  const numericColCount = data.columns.filter(
-    (col) => typeof data.rows[0][col] === "number",
-  ).length;
+  // Use shared viableTypes logic for consistent filtering
+  const viable = viableTypes(data);
 
-  // Detect graph-compatible data
-  const lowerCols = data.columns.map((c) => c.toLowerCase());
-  const hasGraphCols =
-    lowerCols.some((c) => GRAPH_SOURCE_COLS.has(c)) &&
-    lowerCols.some((c) => GRAPH_TARGET_COLS.has(c));
+  const available = WIDGET_OPTIONS.filter(({ type }) => viable.has(type));
 
-  const available = WIDGET_OPTIONS.filter(({ type }) => {
-    if (type === "table") return true;
-    if (type === "graph") return hasGraphCols || numRows >= 2;
-    if (type === "stat_card") return numRows <= 3 && numCols <= 3;
-    if (type === "combo_chart")
-      return numCols >= 3 && numRows >= 2 && numericColCount >= 2;
-    if (type === "pie_chart")
-      return numCols >= 2 && numRows >= 2 && numRows <= CATEGORY_THRESHOLD;
-    // bar_chart, line_chart
-    return numCols >= 2 && numRows >= 2;
-  });
-
-  const currentSpec: WidgetSpec = { ...spec, widget: activeType };
+  const currentSpec: WidgetSpec = { ...spec, widget_type: activeType };
 
   return (
     <div className="space-y-1.5">

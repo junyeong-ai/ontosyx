@@ -209,9 +209,12 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
                 <summary className="cursor-pointer text-[10px] text-zinc-400 hover:text-zinc-600">
                   Technical details
                 </summary>
-                <pre className="mt-1 max-h-32 overflow-auto rounded bg-zinc-100 p-2 text-[10px] text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
-                  {truncateOutput(technicalDetail)}
-                </pre>
+                <div className="relative mt-1">
+                  <CopyButton text={technicalDetail} />
+                  <pre className="max-h-32 overflow-auto rounded bg-zinc-100 p-2 pr-8 text-[10px] text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400 select-text">
+                    {truncateOutput(technicalDetail)}
+                  </pre>
+                </div>
               </details>
             )}
           </div>

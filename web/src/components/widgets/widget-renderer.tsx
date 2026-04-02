@@ -125,6 +125,7 @@ function autoDetectWidgetType(data: QueryResult, _spec: WidgetSpec): string {
 /** Chart types available for user switching. */
 const SWITCHABLE_TYPES = [
   { value: "table", label: "Table", icon: "≡" },
+  { value: "graph", label: "Graph", icon: "◉" },
   { value: "bar_chart", label: "Bar", icon: "▐" },
   { value: "pie_chart", label: "Pie", icon: "◕" },
   { value: "line_chart", label: "Line", icon: "⌇" },
@@ -138,7 +139,7 @@ const SWITCHABLE_TYPES = [
 ] as const;
 
 /** Determine which chart types are viable for given data shape. */
-function viableTypes(data: QueryResult): Set<string> {
+export function viableTypes(data: QueryResult): Set<string> {
   const viable = new Set<string>(["table"]); // table always works
   const { columns, rows } = data;
   if (!columns.length || !rows.length) return viable;
