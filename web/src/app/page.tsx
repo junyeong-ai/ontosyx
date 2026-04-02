@@ -8,12 +8,20 @@ import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 import { PromptProvider } from "@/components/ui/prompt-dialog";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useHydrated } from "@/lib/store/use-hydrated";
+import { useAppStore } from "@/lib/store";
+import { useEffect } from "react";
 
 export default function Home() {
-  // Wait for Zustand persist hydration before rendering mode-dependent UI.
-  // Without this, the initial render uses default state (workspaceMode: "design")
-  // which causes a visible flash before hydrating to the actual persisted mode.
   const hydrated = useHydrated();
+  const workspaceReady = useAppStore((s) => s.workspaceReady);
+  const initWorkspace = useAppStore((s) => s.initWorkspace);
+
+  // Initialize workspace after Zustand hydration
+  useEffect(() => {
+    if (hydrated && !workspaceReady) {
+      initWorkspace();
+    }
+  }, [hydrated, workspaceReady, initWorkspace]);
 
   if (!hydrated) {
     // Minimal skeleton — matches the layout structure to prevent layout shift

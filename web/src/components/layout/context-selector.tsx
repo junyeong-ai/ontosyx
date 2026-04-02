@@ -192,11 +192,13 @@ function DesignSelector() {
 
 function AnalyzeSelector() {
   const ontology = useAppStore((s) => s.ontology);
+  const workspaceReady = useAppStore((s) => s.workspaceReady);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
 
-  // Auto-load latest saved ontology when entering Analyze mode
+  // Auto-load latest saved ontology when entering Analyze mode (after workspace init)
   useEffect(() => {
+    if (!workspaceReady) return;
     let cancelled = false;
     setLoading(true);
     setError(false);
@@ -217,7 +219,7 @@ function AnalyzeSelector() {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, []);  
+  }, [workspaceReady]);  
 
   if (loading) {
     return (
@@ -253,11 +255,13 @@ function AnalyzeSelector() {
 
 function ExploreSelector() {
   const ontology = useAppStore((s) => s.ontology);
+  const workspaceReady = useAppStore((s) => s.workspaceReady);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
 
-  // Auto-load latest saved ontology when entering Explore mode
+  // Auto-load latest saved ontology when entering Explore mode (after workspace init)
   useEffect(() => {
+    if (!workspaceReady) return;
     let cancelled = false;
     setLoading(true);
     setError(false);
@@ -276,7 +280,7 @@ function ExploreSelector() {
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, []);  
+  }, [workspaceReady]);  
 
   if (loading) {
     return (

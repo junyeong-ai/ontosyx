@@ -15,7 +15,6 @@ import { toast } from "sonner";
 import { listWorkspaces } from "@/lib/api/workspaces";
 import {
   getWorkspaceId,
-  setWorkspaceId,
   getWorkspaceName,
   setWorkspaceName,
   setWorkspaceRole,
@@ -51,14 +50,12 @@ export function WorkspaceSwitcher() {
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-  // Client-only state to avoid SSR hydration mismatch
-  const [currentId, setCurrentId] = useState<string | undefined>(undefined);
-  const [cachedName, setCachedName] = useState<string | undefined>(undefined);
-
-  useEffect(() => {
-    setCurrentId(getWorkspaceId());
-    setCachedName(getWorkspaceName());
-  }, []);
+  // Read workspace from Zustand store (synced with localStorage by initWorkspace)
+  const storeWorkspaceId = useAppStore((s) => s.workspaceId);
+  const storeWorkspaceName = useAppStore((s) => s.workspaceName);
+  // Fallback to localStorage for SSR hydration edge case
+  const currentId = storeWorkspaceId ?? getWorkspaceId();
+  const cachedName = storeWorkspaceName ?? getWorkspaceName();
 
   useEffect(() => {
     if (!open) return;
@@ -79,17 +76,11 @@ export function WorkspaceSwitcher() {
       .finally(() => setLoading(false));
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const setActiveWorkspace = useAppStore((s) => s.setActiveWorkspace);
+
   const handleSwitch = (ws: WorkspaceSummary) => {
     setOpen(false);
-    // Set new workspace context FIRST (before any state changes)
-    setWorkspaceId(ws.id);
-    setWorkspaceName(ws.name);
-    setWorkspaceRole(ws.role);
-    // Reload the page. Zustand persist keeps workspaceMode (UI preference) intact.
-    // Workspace-scoped data (projects, ontologies, dashboards) will be refetched
-    // from the new workspace via X-Workspace-Id header on the reloaded page.
-    // savedOntologyId may reference an ID from the old workspace — the Analyze/Explore
-    // selectors will overwrite it on mount with the new workspace's latest ontology.
+    setActiveWorkspace(ws.id, ws.name, ws.role);
     window.location.reload();
   };
 

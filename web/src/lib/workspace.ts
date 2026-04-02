@@ -3,64 +3,76 @@
 /**
  * Client-side workspace ID management.
  *
- * When the user selects a workspace (multi-tenant mode), the ID is stored
- * in sessionStorage and sent as X-Workspace-Id on every API request.
- *
- * When no workspace is selected, the header is omitted and the backend
- * falls back to the user's default workspace.
+ * Workspace preference persists in localStorage (survives tabs/sessions).
+ * Sent as X-Workspace-Id on every API request via the API client.
  */
 
 const STORAGE_KEY = "ontosyx.workspace_id";
 const NAME_KEY = "ontosyx.workspace_name";
 const ROLE_KEY = "ontosyx.workspace_role";
 
-/** Get the active workspace ID, or undefined to use the default. */
-export function getWorkspaceId(): string | undefined {
-  if (typeof window === "undefined") return undefined;
-  return window.sessionStorage.getItem(STORAGE_KEY) ?? undefined;
+// One-time migration from sessionStorage → localStorage
+function migrateFromSessionStorage(): void {
+  if (typeof window === "undefined") return;
+  const sessionId = window.sessionStorage.getItem(STORAGE_KEY);
+  if (sessionId && !window.localStorage.getItem(STORAGE_KEY)) {
+    window.localStorage.setItem(STORAGE_KEY, sessionId);
+    const name = window.sessionStorage.getItem(NAME_KEY);
+    if (name) window.localStorage.setItem(NAME_KEY, name);
+    const role = window.sessionStorage.getItem(ROLE_KEY);
+    if (role) window.localStorage.setItem(ROLE_KEY, role);
+  }
+  // Clean up sessionStorage regardless
+  window.sessionStorage.removeItem(STORAGE_KEY);
+  window.sessionStorage.removeItem(NAME_KEY);
+  window.sessionStorage.removeItem(ROLE_KEY);
 }
 
-/** Set the active workspace ID. Pass undefined to clear (use default). */
+// Run migration on module load
+if (typeof window !== "undefined") {
+  migrateFromSessionStorage();
+}
+
+/** Get the active workspace ID, or undefined if not set. */
+export function getWorkspaceId(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  return window.localStorage.getItem(STORAGE_KEY) ?? undefined;
+}
+
+/** Set the active workspace ID. Pass undefined to clear. */
 export function setWorkspaceId(id: string | undefined): void {
   if (typeof window === "undefined") return;
   if (id) {
-    window.sessionStorage.setItem(STORAGE_KEY, id);
+    window.localStorage.setItem(STORAGE_KEY, id);
   } else {
-    window.sessionStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(NAME_KEY);
+    window.localStorage.removeItem(ROLE_KEY);
   }
-  // Clear cached name/role when workspace changes
-  window.sessionStorage.removeItem(NAME_KEY);
-  window.sessionStorage.removeItem(ROLE_KEY);
 }
 
 /** Get the cached workspace name. */
 export function getWorkspaceName(): string | undefined {
   if (typeof window === "undefined") return undefined;
-  return window.sessionStorage.getItem(NAME_KEY) ?? undefined;
+  return window.localStorage.getItem(NAME_KEY) ?? undefined;
 }
 
-/** Cache the workspace name in sessionStorage. */
+/** Cache the workspace name. */
 export function setWorkspaceName(name: string | undefined): void {
   if (typeof window === "undefined") return;
-  if (name) {
-    window.sessionStorage.setItem(NAME_KEY, name);
-  } else {
-    window.sessionStorage.removeItem(NAME_KEY);
-  }
+  if (name) window.localStorage.setItem(NAME_KEY, name);
+  else window.localStorage.removeItem(NAME_KEY);
 }
 
 /** Get the cached workspace role. */
 export function getWorkspaceRole(): string | undefined {
   if (typeof window === "undefined") return undefined;
-  return window.sessionStorage.getItem(ROLE_KEY) ?? undefined;
+  return window.localStorage.getItem(ROLE_KEY) ?? undefined;
 }
 
-/** Cache the workspace role in sessionStorage. */
+/** Cache the workspace role. */
 export function setWorkspaceRole(role: string | undefined): void {
   if (typeof window === "undefined") return;
-  if (role) {
-    window.sessionStorage.setItem(ROLE_KEY, role);
-  } else {
-    window.sessionStorage.removeItem(ROLE_KEY);
-  }
+  if (role) window.localStorage.setItem(ROLE_KEY, role);
+  else window.localStorage.removeItem(ROLE_KEY);
 }
