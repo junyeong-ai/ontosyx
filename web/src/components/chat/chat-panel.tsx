@@ -234,6 +234,12 @@ export function ChatPanel() {
                     : tc,
                 ),
               });
+              // Auto-switch to Results tab when query_graph completes with data
+              if (event.name === "query_graph" && !event.is_error) {
+                const store = useAppStore.getState();
+                store.setAnalyzeRightTab("results");
+                store.setFocusResultId(event.id);
+              }
             },
             onToolReview(event) {
               updateMessage(assistantId, {
