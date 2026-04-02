@@ -103,11 +103,23 @@ pub async fn structured_completion_with_thresholds<
 
     let use_schema = optional_count <= max_optional && total_props <= max_total;
 
+    // When falling back to JSON-only mode (no schema enforcement), append
+    // an explicit JSON-only instruction to prevent the LLM from outputting
+    // reasoning text before the JSON object.
+    let effective_system = if use_schema {
+        system.to_string()
+    } else {
+        format!(
+            "{system}\n\n\
+             CRITICAL: You MUST output ONLY a valid JSON object. \
+             Do NOT include any explanation, reasoning, or text before or after the JSON. \
+             Start your response with {{ and end with }}."
+        )
+    };
+
     // Prompt caching: system prompt cached with 1-hour TTL.
-    // Repeated calls with the same system prompt hit Anthropic's prompt cache,
-    // reducing input token costs significantly.
     let cached_system = SystemPrompt::Blocks(vec![SystemBlock::cached_with_ttl(
-        system,
+        &effective_system,
         CacheTtl::OneHour,
     )]);
 

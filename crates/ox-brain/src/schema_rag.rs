@@ -190,7 +190,8 @@ pub(crate) fn build_progressive_schema(
     let mut output = String::with_capacity(2048);
 
     // Tier 1: Graph topology — edges between relevant nodes
-    output.push_str("Graph edges:\n");
+    // Explicit labels help the LLM use EXACT edge names (critical in JSON mode)
+    output.push_str("Graph edges (use EXACTLY these edge labels):\n");
     for edge in &ontology.edge_types {
         let src = ontology.node_label(edge.source_node_id.as_ref()).unwrap_or("?");
         let tgt = ontology.node_label(edge.target_node_id.as_ref()).unwrap_or("?");
