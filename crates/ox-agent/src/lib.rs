@@ -13,7 +13,7 @@ pub mod tools;
 use std::sync::Arc;
 
 use branchforge::{Agent, Auth, CacheConfig, ExecutionMode, ToolSurface};
-use hooks::EmbeddingHook;
+use hooks::{EmbeddingHook, RecoveryDetectionHook};
 use ox_compiler::GraphCompiler;
 use ox_core::error::OxResult;
 use ox_core::ontology_ir::OntologyIR;
@@ -21,9 +21,9 @@ use ox_memory::MemoryStore;
 use ox_runtime::GraphRuntime;
 use ox_store::Store;
 use tools::{
-    ApplyOntologyTool, EditOntologyTool, ExecuteAnalysisTool, ExplainOntologyTool,
-    IntrospectSourceTool, QueryGraphTool, RecallMemoryTool, SchemaEvolutionTool, SearchRecipesTool,
-    VisualizeTool,
+    ApplyOntologyTool, ConsultKnowledgeTool, EditOntologyTool, ExecuteAnalysisTool,
+    ExplainOntologyTool, IntrospectSourceTool, QueryGraphTool, RecallMemoryTool,
+    SchemaEvolutionTool, SearchRecipesTool, VisualizeTool,
 };
 
 // Agent system prompt is loaded from DB (prompt_templates, name="agent_system").
@@ -49,6 +49,8 @@ pub struct DomainContext {
     pub source_profile: Option<ox_core::source_schema::SourceProfile>,
     /// Repo analysis summary (framework, domain notes, field hints) from project creation.
     pub repo_insights: Option<ox_core::repo_insights::RepoInsights>,
+    /// Knowledge store for failure-driven learning corrections.
+    pub knowledge_store: Option<Arc<dyn ox_store::KnowledgeStore>>,
 }
 
 // ---------------------------------------------------------------------------
@@ -162,6 +164,15 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
             });
         }
 
+        // Knowledge base tool (requires knowledge store + ontology context)
+        if let Some(kb) = &domain.knowledge_store {
+            builder = builder.tool(ConsultKnowledgeTool {
+                knowledge_store: Arc::clone(kb),
+                ontology_name: domain.ontology.as_ref().map(|o| o.name.clone()),
+                ontology_version: domain.ontology.as_ref().map(|o| o.version as i32),
+            });
+        }
+
         // Embedding hook for long-term memory
         if let Some(mem) = memory {
             let ontology_id = domain.saved_ontology_id.map(|id| id.to_string());
@@ -171,6 +182,18 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
                 Arc::clone(mem),
                 ontology_id,
                 retry_store,
+            ));
+        }
+
+        // Recovery detection hook: auto-creates knowledge when query_graph
+        // fails then succeeds in the same session.
+        if let Some(kb) = &domain.knowledge_store
+            && let Some(ontology) = &domain.ontology
+        {
+            builder = builder.hook(RecoveryDetectionHook::new(
+                Arc::clone(kb),
+                ontology.name.clone(),
+                ontology.version as i32,
             ));
         }
 
@@ -309,6 +332,27 @@ async fn build_system_prompt(domain: &DomainContext, user_role: &str) -> String 
         }
     }
 
+    // Knowledge base: learned corrections and admin hints
+    if let (Some(kb), Some(ontology)) = (&domain.knowledge_store, &domain.ontology) {
+        match kb
+            .list_active_knowledge(
+                &ontology.name,
+                ontology.version as i32,
+                &["correction", "hint"],
+                10,
+            )
+            .await
+        {
+            Ok(entries) if !entries.is_empty() => {
+                prompt.push_str("\n\n--- Learned Knowledge ---\n");
+                for e in &entries {
+                    prompt.push_str(&format!("- [{}] {}\n", e.kind, e.content));
+                }
+            }
+            _ => {}
+        }
+    }
+
     prompt
 }
 
@@ -325,6 +369,7 @@ fn tool_surface_for_role(role: &str) -> ToolSurface {
             tools::RECALL_MEMORY,
             tools::SEARCH_RECIPES,
             tools::INTROSPECT_SOURCE,
+            tools::CONSULT_KNOWLEDGE,
         ]),
         _ => ToolSurface::only([
             tools::QUERY_GRAPH,
@@ -337,6 +382,7 @@ fn tool_surface_for_role(role: &str) -> ToolSurface {
             tools::SEARCH_RECIPES,
             tools::INTROSPECT_SOURCE,
             tools::SCHEMA_EVOLUTION,
+            tools::CONSULT_KNOWLEDGE,
         ]),
     }
 }

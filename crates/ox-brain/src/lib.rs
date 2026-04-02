@@ -4,6 +4,8 @@ pub mod model_resolver;
 pub mod prompts;
 pub mod provider;
 pub mod schema;
+pub mod knowledge_rag;
+pub mod knowledge_util;
 pub mod schema_rag;
 
 use async_trait::async_trait;
@@ -265,6 +267,9 @@ pub struct DefaultBrain {
     memory: Option<Arc<ox_memory::MemoryStore>>,
     /// Ontology ID for scoping schema RAG searches.
     ontology_id: Option<String>,
+    /// Optional knowledge store for failure-driven learning.
+    /// When available, `translate_query` injects learned corrections.
+    knowledge_store: Option<Arc<dyn ox_store::KnowledgeStore>>,
 }
 
 impl DefaultBrain {
@@ -281,6 +286,7 @@ impl DefaultBrain {
             default_model,
             memory: None,
             ontology_id: None,
+            knowledge_store: None,
         }
     }
 
@@ -293,6 +299,17 @@ impl DefaultBrain {
         self.memory = Some(memory);
         self.ontology_id = ontology_id;
         self
+    }
+
+    /// Set knowledge store for failure-driven learning in query translation.
+    pub fn with_knowledge(mut self, store: Arc<dyn ox_store::KnowledgeStore>) -> Self {
+        self.knowledge_store = Some(store);
+        self
+    }
+
+    /// Access the knowledge store (for extraction triggers in ox-agent).
+    pub fn knowledge_store(&self) -> Option<&Arc<dyn ox_store::KnowledgeStore>> {
+        self.knowledge_store.as_ref()
     }
 
     /// Resolve model and client for a given operation.
@@ -557,26 +574,49 @@ impl OntologyEditor for DefaultBrain {
 #[async_trait]
 impl QueryTranslator for DefaultBrain {
     async fn translate_query(&self, question: &str, ontology: &OntologyIR) -> OxResult<QueryIR> {
-        // Schema RAG: discover relevant sub-schema instead of injecting full ontology
-        let ontology_json = if let Some(memory) = &self.memory {
+        // Schema RAG: discover relevant sub-schema and which labels are relevant
+        let (ontology_json, discovered_labels) = if let Some(memory) = &self.memory {
             let oid = self.ontology_id.as_deref().unwrap_or(&ontology.id);
             schema_rag::discover_schema(memory, ontology, question, oid).await
         } else if ontology.node_types.len() <= 20 {
-            // Small ontology: use compact schema of all nodes
-            let all_labels: Vec<&str> = ontology
+            let node_labels: Vec<&str> = ontology
                 .node_types
                 .iter()
                 .map(|n| n.label.as_str())
                 .collect();
-            serde_json::to_string_pretty(&ontology.compact_schema(&all_labels)).unwrap_or_default()
+            let all_label_strings: Vec<String> = ontology.node_types.iter().map(|n| n.label.clone())
+                .chain(ontology.edge_types.iter().map(|e| e.label.clone()))
+                .collect();
+            (
+                serde_json::to_string_pretty(&ontology.compact_schema(&node_labels)).unwrap_or_default(),
+                all_label_strings,
+            )
         } else {
-            // Large ontology without memory: full serialize (legacy fallback)
-            serialize_pretty(ontology, "ontology")?
+            let all_labels: Vec<String> = ontology.node_types.iter().map(|n| n.label.clone())
+                .chain(ontology.edge_types.iter().map(|e| e.label.clone()))
+                .collect();
+            (serialize_pretty(ontology, "ontology")?, all_labels)
+        };
+
+        // Knowledge RAG: label-based lookup using question-relevant labels only
+        let label_refs: Vec<&str> = discovered_labels.iter().map(|s| s.as_str()).collect();
+        let knowledge_context = if let Some(kb) = &self.knowledge_store {
+            knowledge_rag::discover_knowledge(
+                kb.as_ref(),
+                &label_refs,
+                self.ontology_id.as_deref().unwrap_or(&ontology.name),
+                ontology.version as i32,
+                8,
+            )
+            .await
+        } else {
+            String::new()
         };
 
         let mut vars = HashMap::new();
         vars.insert("question", question);
         vars.insert("ontology", ontology_json.as_str());
+        vars.insert("knowledge", knowledge_context.as_str());
 
         // Attempt 1: standard structured completion
         let result: OxResult<QueryIR> = self
@@ -597,39 +637,34 @@ impl QueryTranslator for DefaultBrain {
                     error = %first_err,
                     "Query translation failed, retrying once"
                 );
-                self.call_structured::<QueryIR>(
+                let retry_result = self.call_structured::<QueryIR>(
                     "translate_query",
                     Some("2.0.0"),
                     "translate_query",
                     &vars,
                     "Retrying query translation",
                 )
-                .await
-                .map_err(|retry_err| {
-                    // Return the original error — it's more informative
-                    info!(
-                        retry_error = %retry_err,
-                        "Query translation retry also failed"
-                    );
+                .await;
+
+                retry_result.map_err(|retry_err| {
+                    info!(retry_error = %retry_err, "Query translation retry also failed");
                     first_err
                 })?
             }
         };
 
         // Post-translation validation: reject queries with non-existent labels.
-        // Without this check, invalid labels pass through to Neo4j and cause
-        // SyntaxError — a confusing error for both the agent and the user.
         let warnings = validate_query_labels(&query_ir, ontology);
         if !warnings.is_empty() {
+            let available: Vec<String> = ontology
+                .node_types
+                .iter()
+                .map(|n| n.label.clone())
+                .collect();
             let msg = format!(
                 "Query references unknown labels: {}. Available node types: {}",
                 warnings.join("; "),
-                ontology
-                    .node_types
-                    .iter()
-                    .map(|n| n.label.as_str())
-                    .collect::<Vec<_>>()
-                    .join(", "),
+                available.join(", "),
             );
             warn!(%msg, "Rejecting query with invalid labels");
             return Err(OxError::Validation {

@@ -170,3 +170,60 @@ export interface ScheduleCreateRequest {
 export interface ScheduleUpdateRequest {
   enabled: boolean;
 }
+
+// --- Knowledge Base ---
+
+export type KnowledgeKind = "correction" | "hint";
+export type KnowledgeStatus = "draft" | "approved" | "stale" | "deprecated";
+
+export interface KnowledgeEntry {
+  id: string;
+  workspace_id: string;
+  ontology_name: string;
+  ontology_version_min: number;
+  ontology_version_max: number | null;
+  kind: KnowledgeKind;
+  status: KnowledgeStatus;
+  confidence: number;
+  title: string;
+  content: string;
+  structured_data: Record<string, unknown>;
+  version_checked: number;
+  content_hash: string;
+  source_execution_ids: string[];
+  source_session_id: string | null;
+  affected_labels: string[];
+  affected_properties: string[];
+  use_count: number;
+  last_used_at: string | null;
+  created_by: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface KnowledgeCreateRequest {
+  ontology_name: string;
+  kind: KnowledgeKind;
+  title: string;
+  content: string;
+  structured_data?: Record<string, unknown>;
+  affected_labels?: string[];
+  ontology_version_min?: number;
+}
+
+export interface KnowledgeUpdateRequest {
+  title: string;
+  content: string;
+  structured_data?: Record<string, unknown>;
+  affected_labels?: string[];
+  affected_properties?: string[];
+}
+
+export interface KnowledgeStats {
+  total: number;
+  by_status: Record<string, number>;
+  by_kind: Record<string, number>;
+}

@@ -69,7 +69,7 @@ export type DesignBottomTab = "chat" | "workflow" | "quality";
 // Analyze mode right panel tabs
 // ---------------------------------------------------------------------------
 
-export type AnalyzeRightTab = "results" | "query" | "history" | "insights";
+export type AnalyzeRightTab = "results" | "query" | "history" | "insights" | "knowledge";
 
 // ---------------------------------------------------------------------------
 // Unified selection model
@@ -149,6 +149,13 @@ export interface ProjectSlice {
 }
 
 export interface ChromeSlice {
+  // Active workspace
+  workspaceId: string | null;
+  workspaceName: string | null;
+  workspaceReady: boolean;
+  initWorkspace: () => Promise<void>;
+  setActiveWorkspace: (id: string, name: string, role: string) => void;
+
   workspaceMode: WorkspaceMode;
   setWorkspaceMode: (mode: WorkspaceMode) => void;
 

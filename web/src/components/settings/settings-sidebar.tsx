@@ -8,9 +8,7 @@ import { useAuth } from "@/lib/use-auth";
 interface NavItem {
   label: string;
   href: string;
-  /** Only show when auth is enabled */
   authOnly?: boolean;
-  /** Only show for admin users */
   adminOnly?: boolean;
 }
 
@@ -23,6 +21,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Prompts", href: "/settings/prompts", adminOnly: true },
   { label: "Sessions", href: "/settings/sessions" },
   { label: "Recipes", href: "/settings/recipes" },
+  { label: "Knowledge", href: "/settings/knowledge", adminOnly: true },
   { label: "Schedules", href: "/settings/schedules", adminOnly: true },
   { label: "Reports", href: "/settings/reports" },
   { label: "Quality Rules", href: "/settings/quality", adminOnly: true },
@@ -76,7 +75,7 @@ export function SettingsSidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex flex-col gap-0.5 px-2">
+      <nav className="flex flex-col gap-0.5 overflow-y-auto px-2">
         {visibleItems.map((item) => {
           const isActive = pathname === item.href;
           return (

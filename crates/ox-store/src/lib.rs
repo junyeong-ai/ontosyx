@@ -8,8 +8,8 @@ pub use postgres::{SYSTEM_BYPASS, WORKSPACE_ID};
 pub use store::{
     AclStore, AgentSessionStore, AnalysisResultStore, AnalysisSnapshot, ApprovalStore, AuditStore,
     ConfigStore, CursorPage, CursorParams, DashboardStore, EmbeddingRetryStore, ExtendResult,
-    HealthStore, LineageStore, MeteringStore, ModelConfigStore, OntologyStore, PerspectiveStore,
-    PinStore, ProjectStore, PromptTemplateStore, QualityStore, QueryStore, RecipeStore,
-    ReportStore, ScheduledTaskStore, Store, ToolApprovalStore, UserStore, VerificationStore,
-    WorkspaceStore,
+    HealthStore, KnowledgeStore, LineageStore, MeteringStore, ModelConfigStore, OntologyStore,
+    PerspectiveStore, PinStore, ProjectStore, PromptTemplateStore, QualityStore, QueryStore,
+    RecipeStore, ReportStore, ScheduledTaskStore, Store, ToolApprovalStore, UserStore,
+    VerificationStore, WorkspaceStore,
 };

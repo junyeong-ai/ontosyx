@@ -79,12 +79,14 @@ pub async fn index_ontology_schema(memory: &MemoryStore, ontology: &OntologyIR, 
 ///
 /// Returns compact schema JSON string optimized for LLM query translation.
 /// Falls back to full ontology serialization if memory store unavailable.
+/// Discover relevant sub-schema for a question via vector search + graph expansion.
+/// Returns (compact_schema_json, discovered_labels).
 pub async fn discover_schema(
     memory: &MemoryStore,
     ontology: &OntologyIR,
     question: &str,
     ontology_id: &str,
-) -> String {
+) -> (String, Vec<String>) {
     // Step 1: Vector search for semantically related schema nodes
     let filter = MemoryFilter {
         ontology_id: Some(ontology_id.to_string()),
@@ -99,7 +101,7 @@ pub async fn discover_schema(
         Ok(hits) => hits,
         Err(e) => {
             warn!(error = %e, "Schema RAG search failed — falling back");
-            return fallback_compact_schema(ontology);
+            return (fallback_compact_schema(ontology), all_labels(ontology));
         }
     };
 
@@ -119,7 +121,7 @@ pub async fn discover_schema(
             min_threshold = MIN_SCHEMA_SCORE,
             "No schema matches above threshold — falling back to compact summary"
         );
-        return fallback_compact_schema(ontology);
+        return (fallback_compact_schema(ontology), all_labels(ontology));
     }
 
     // Step 2: Map IDs to node labels
@@ -164,7 +166,16 @@ pub async fn discover_schema(
 
     // Step 4: Build compact schema JSON
     let compact = ontology.compact_schema(&final_labels);
-    serde_json::to_string_pretty(&compact).unwrap_or_else(|_| fallback_compact_schema(ontology))
+    let labels_out: Vec<String> = final_labels.iter().map(|s| s.to_string()).collect();
+    let json = serde_json::to_string_pretty(&compact)
+        .unwrap_or_else(|_| fallback_compact_schema(ontology));
+    (json, labels_out)
+}
+
+fn all_labels(ontology: &OntologyIR) -> Vec<String> {
+    ontology.node_types.iter().map(|n| n.label.clone())
+        .chain(ontology.edge_types.iter().map(|e| e.label.clone()))
+        .collect()
 }
 
 /// Compact fallback: all nodes as label+properties summary (no full JSON).

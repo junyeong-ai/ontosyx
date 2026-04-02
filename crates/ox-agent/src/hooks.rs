@@ -3,11 +3,14 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use branchforge::hooks::{Hook, HookContext, HookEvent, HookEventData, HookInput, HookOutput};
 use chrono::Utc;
+use dashmap::DashMap;
 use sha2::{Digest, Sha256};
 use tokio::sync::Semaphore;
 use tracing::{info, warn};
+use uuid::Uuid;
 
 use ox_memory::{MemoryEntry, MemoryMetadata, MemorySource, MemoryStore};
+use ox_store::{KnowledgeEntry, KnowledgeStore};
 
 /// Maximum concurrent background embedding tasks.
 const MAX_CONCURRENT_EMBEDDINGS: usize = 8;
@@ -246,4 +249,231 @@ impl Hook for EmbeddingHook {
 
         Ok(HookOutput::allow())
     }
+}
+
+// ---------------------------------------------------------------------------
+// RecoveryDetectionHook — detect failure→success patterns for knowledge
+// ---------------------------------------------------------------------------
+
+/// Tracks query_graph tool calls per session. When a success follows a failure
+/// in the same session, creates a verified `correction` knowledge entry.
+///
+/// - Non-blocking (fail-open): extraction failures never delay agent execution.
+/// - In-memory tracking per session (DashMap, cleaned up after 10 minutes).
+/// - Zero LLM cost: corrections are extracted mechanically from tool outputs.
+pub struct RecoveryDetectionHook {
+    knowledge_store: Arc<dyn KnowledgeStore>,
+    ontology_name: String,
+    ontology_version: i32,
+    /// Per-session tool outcome tracking: session_id → list of outcomes.
+    session_outcomes: DashMap<String, Vec<ToolOutcome>>,
+}
+
+struct ToolOutcome {
+    is_error: bool,
+    text: String,
+    timestamp: chrono::DateTime<Utc>,
+}
+
+impl RecoveryDetectionHook {
+    pub fn new(
+        knowledge_store: Arc<dyn KnowledgeStore>,
+        ontology_name: String,
+        ontology_version: i32,
+    ) -> Self {
+        Self {
+            knowledge_store,
+            ontology_name,
+            ontology_version,
+            session_outcomes: DashMap::new(),
+        }
+    }
+
+    /// Periodic cleanup: remove entries older than 10 minutes.
+    fn cleanup_stale_sessions(&self) {
+        let cutoff = Utc::now() - chrono::Duration::minutes(10);
+        self.session_outcomes.retain(|_, outcomes| {
+            outcomes.last().is_some_and(|o| o.timestamp > cutoff)
+        });
+    }
+}
+
+#[async_trait]
+impl Hook for RecoveryDetectionHook {
+    fn name(&self) -> &str {
+        "ontosyx_recovery_detection"
+    }
+
+    fn events(&self) -> &[HookEvent] {
+        &[HookEvent::PostToolUse]
+    }
+
+    async fn execute(
+        &self,
+        input: HookInput,
+        ctx: &HookContext,
+    ) -> Result<HookOutput, branchforge::Error> {
+        if let HookEventData::PostToolUse {
+            tool_name,
+            tool_result,
+        } = &input.data
+        {
+            // Only track query_graph calls
+            if tool_name != "query_graph" {
+                return Ok(HookOutput::allow());
+            }
+
+            let session_id = &ctx.session_id;
+            let is_error = tool_result.is_error();
+            let text = tool_result.text();
+
+            // Record this outcome
+            let outcome = ToolOutcome {
+                is_error,
+                text: text.clone(),
+                timestamp: Utc::now(),
+            };
+            self.session_outcomes
+                .entry(session_id.clone())
+                .or_default()
+                .push(outcome);
+
+            // Check for recovery pattern: prior error + current success
+            if !is_error {
+                let has_prior_error = self
+                    .session_outcomes
+                    .get(session_id)
+                    .map(|outcomes| outcomes.iter().any(|o| o.is_error))
+                    .unwrap_or(false);
+
+                if has_prior_error {
+                    // Recovery detected! Extract the correction.
+                    let error_text = self
+                        .session_outcomes
+                        .get(session_id)
+                        .and_then(|outcomes| {
+                            outcomes.iter().rev().find(|o| o.is_error).map(|o| o.text.clone())
+                        })
+                        .unwrap_or_default();
+
+                    // Extract labels and query from success output
+                    let (compiled_query, labels, execution_id) = parse_success_output(&text);
+
+                    let title = format!(
+                        "Recovery: query_graph failed then succeeded in session {}",
+                        &session_id[..8.min(session_id.len())]
+                    );
+                    let error_excerpt = if error_text.len() > 200 {
+                        &error_text[..error_text.floor_char_boundary(200)]
+                    } else {
+                        &error_text
+                    };
+                    let content = format!(
+                        "Failed: {}\nCorrection: {}",
+                        error_excerpt,
+                        compiled_query.as_deref().unwrap_or("(successful query)")
+                    );
+
+                    let hash = ox_brain::knowledge_util::content_hash(&self.ontology_name, &content);
+
+                    let entry = KnowledgeEntry {
+                        id: Uuid::new_v4(),
+                        workspace_id: Uuid::nil(), // RLS default
+                        ontology_name: self.ontology_name.clone(),
+                        ontology_version_min: self.ontology_version,
+                        ontology_version_max: None,
+                        kind: "correction".to_string(),
+                        status: "approved".to_string(),
+                        confidence: 0.8,
+                        title,
+                        content,
+                        structured_data: serde_json::json!({
+                            "extraction_method": "recovery_detection",
+                            "failed_error": error_excerpt,
+                            "success_query": compiled_query,
+                            "success_execution_id": execution_id,
+                        }),
+                        embedding: None,
+                        version_checked: self.ontology_version,
+                        content_hash: hash,
+                        source_execution_ids: execution_id
+                            .and_then(|id| Uuid::parse_str(&id).ok())
+                            .into_iter()
+                            .collect(),
+                        source_session_id: Uuid::parse_str(session_id).ok(),
+                        affected_labels: labels,
+                        affected_properties: vec![],
+                        created_by: "system:recovery".to_string(),
+                        reviewed_by: None,
+                        reviewed_at: None,
+                        review_notes: None,
+                        use_count: 0,
+                        last_used_at: None,
+                        created_at: Utc::now(),
+                        updated_at: Utc::now(),
+                    };
+
+                    // Non-blocking: best-effort persistence
+                    let store = Arc::clone(&self.knowledge_store);
+                    // Persist with workspace context (required for RLS).
+                    // Without context_scope, the INSERT would fail because
+                    // app.workspace_id session var is not set on the connection.
+                    if let Some(scope) = ctx.context_scope.clone() {
+                        tokio::spawn(async move {
+                            let _ = scope
+                                .wrap_tool_future(Box::pin(async move {
+                                    match store.create_knowledge_entry(&entry).await {
+                                        Ok(()) => info!(
+                                            ontology = %entry.ontology_name,
+                                            "Knowledge correction from recovery detection"
+                                        ),
+                                        Err(e) => warn!(error = %e, "Failed to save recovery correction"),
+                                    }
+                                    branchforge::ToolResult::success("")
+                                }))
+                                .await;
+                        });
+                    } else {
+                        warn!("Cannot persist recovery correction: no workspace context scope");
+                    }
+
+                    // Clear session outcomes after extraction
+                    self.session_outcomes.remove(session_id);
+                }
+            }
+
+            // Periodic cleanup of stale sessions
+            if self.session_outcomes.len() > 100 {
+                self.cleanup_stale_sessions();
+            }
+        }
+
+        Ok(HookOutput::allow())
+    }
+}
+
+/// Parse successful query_graph output to extract compiled query, labels, and execution ID.
+fn parse_success_output(output: &str) -> (Option<String>, Vec<String>, Option<String>) {
+    let parsed: serde_json::Value = match serde_json::from_str(output) {
+        Ok(v) => v,
+        Err(_) => return (None, vec![], None),
+    };
+
+    let compiled_query = parsed.get("compiled_query").and_then(|v| v.as_str()).map(String::from);
+    let execution_id = parsed.get("execution_id").and_then(|v| v.as_str()).map(String::from);
+
+    // Extract labels from columns (heuristic: column names often contain label references)
+    let labels: Vec<String> = parsed
+        .get("columns")
+        .and_then(|c| c.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str())
+                .filter(|s| s.chars().next().is_some_and(|c| c.is_uppercase()))
+                .map(String::from)
+                .collect()
+        })
+        .unwrap_or_default();
+
+    (compiled_query, labels, execution_id)
 }

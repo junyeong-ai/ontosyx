@@ -144,6 +144,72 @@ pub struct DiffSummary {
 }
 
 // ---------------------------------------------------------------------------
+// Knowledge lifecycle — label impact classification
+// ---------------------------------------------------------------------------
+
+/// Extract labels affected by breaking changes (Cypher will definitely fail).
+///
+/// Breaking: removed nodes/edges, label renames, edge source/target changes.
+/// These invalidate any knowledge referencing the old labels.
+pub fn breaking_labels(diff: &OntologyDiff) -> Vec<String> {
+    let mut labels = Vec::new();
+    for n in &diff.removed_nodes {
+        labels.push(n.label.clone());
+    }
+    for e in &diff.removed_edges {
+        labels.push(e.label.clone());
+    }
+    for nd in &diff.modified_nodes {
+        for c in &nd.changes {
+            if let NodeChange::LabelChanged { old, .. } = c {
+                labels.push(old.clone());
+            }
+        }
+    }
+    for ed in &diff.modified_edges {
+        for c in &ed.changes {
+            match c {
+                EdgeChange::LabelChanged { old, .. } => labels.push(old.clone()),
+                EdgeChange::SourceChanged { .. } | EdgeChange::TargetChanged { .. } => {
+                    labels.push(ed.label.clone());
+                }
+                _ => {}
+            }
+        }
+    }
+    labels
+}
+
+/// Extract labels affected by structural changes (queries may break).
+///
+/// Structural: property removed, property type changed, cardinality changed.
+/// Knowledge referencing these labels gets a version warning in RAG results.
+pub fn structural_labels(diff: &OntologyDiff) -> Vec<String> {
+    let mut labels = Vec::new();
+    for nd in &diff.modified_nodes {
+        let has_structural = nd.changes.iter().any(|c| match c {
+            NodeChange::PropertyRemoved { .. } => true,
+            NodeChange::PropertyModified { changes, .. } => {
+                changes.iter().any(|pc| matches!(pc, PropertyChange::TypeChanged { .. }))
+            }
+            _ => false,
+        });
+        if has_structural {
+            labels.push(nd.label.clone());
+        }
+    }
+    for ed in &diff.modified_edges {
+        let has_structural = ed.changes.iter().any(|c| {
+            matches!(c, EdgeChange::CardinalityChanged { .. } | EdgeChange::PropertyRemoved { .. })
+        });
+        if has_structural {
+            labels.push(ed.label.clone());
+        }
+    }
+    labels
+}
+
+// ---------------------------------------------------------------------------
 // compute_diff — the main entry point
 // ---------------------------------------------------------------------------
 

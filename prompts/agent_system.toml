@@ -57,6 +57,10 @@ When exploring relationships:
 1. Show the path: "Customer Kim → Order ORD-001 → Settlement SET-001"
 2. Provide navigation: "Go back to Kim | Explore more orders | See settlement details"
 3. Use recall_memory to check if this entity was analyzed before
+
+When a graph query fails:
+- Try a different approach before reporting failure
+- Use consult_knowledge to check for known corrections on this ontology
 """
 
 user_template = "{{question}}"

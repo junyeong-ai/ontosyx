@@ -14,11 +14,13 @@ import {
   Clock01Icon,
   CommandLineIcon,
   Analytics01Icon,
+  BookOpen01Icon,
 } from "@hugeicons/core-free-icons";
 import { SessionBar } from "@/components/workbench/analyze/session-bar";
 import { AnalyzeResultsPanel } from "@/components/workbench/analyze/analyze-results-panel";
 import { QueryBuilder } from "@/components/workbench/analyze/query-builder/query-builder";
 import { InsightsPanel } from "@/components/recipes/insights-panel";
+import { KnowledgePanel } from "@/components/workbench/analyze/knowledge-panel";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 // ---------------------------------------------------------------------------
@@ -32,6 +34,7 @@ const ANALYZE_TABS: Array<{ id: AnalyzeRightTab; label: string; icon: import("@h
   { id: "query", label: "Query", icon: CommandLineIcon },
   { id: "history", label: "History", icon: Clock01Icon },
   { id: "insights", label: "Insights", icon: Analytics01Icon },
+  { id: "knowledge", label: "Knowledge", icon: BookOpen01Icon },
 ];
 
 export function AnalyzeLayout() {
@@ -102,6 +105,7 @@ export function AnalyzeLayout() {
                     {rightTab === "query" && <QueryPanel />}
                     {rightTab === "history" && <HistoryPanel />}
                     {rightTab === "insights" && <InsightsPanel />}
+                    {rightTab === "knowledge" && <KnowledgePanel />}
                   </div>
                 </div>
               </Panel>

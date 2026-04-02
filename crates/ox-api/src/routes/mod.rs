@@ -14,6 +14,7 @@ pub mod chat;
 pub mod config;
 pub mod dashboards;
 pub mod health;
+pub mod knowledge;
 pub mod lineage;
 pub mod load;
 pub mod models;
@@ -169,6 +170,22 @@ pub fn router(state: AppState) -> Router {
         .route("/recipes/{id}/versions", get(recipes::list_recipe_versions))
         .route("/recipes/{id}/results", get(recipes::list_recipe_results))
         .route("/recipes/{id}/schedule", post(schedules::create_schedule))
+        // Knowledge base
+        .route("/knowledge", post(knowledge::create_knowledge))
+        .route("/knowledge", get(knowledge::list_knowledge))
+        .route("/knowledge/stale", get(knowledge::list_stale))
+        .route("/knowledge/stats", get(knowledge::knowledge_stats))
+        .route(
+            "/knowledge/bulk-review",
+            post(knowledge::bulk_review),
+        )
+        .route("/knowledge/{id}", get(knowledge::get_knowledge))
+        .route("/knowledge/{id}", patch(knowledge::update_knowledge))
+        .route("/knowledge/{id}", delete(knowledge::delete_knowledge))
+        .route(
+            "/knowledge/{id}/status",
+            patch(knowledge::update_status),
+        )
         // Scheduled tasks
         .route("/scheduled-tasks", get(schedules::list_schedules))
         .route("/scheduled-tasks/{id}", get(schedules::get_schedule))

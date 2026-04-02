@@ -5,6 +5,7 @@
 //! based on user intent.
 
 mod apply_ontology;
+mod consult_knowledge;
 mod edit_ontology;
 mod execute_analysis;
 mod explain;
@@ -16,6 +17,7 @@ mod search_recipes;
 mod visualize;
 
 pub use apply_ontology::ApplyOntologyTool;
+pub use consult_knowledge::ConsultKnowledgeTool;
 pub use edit_ontology::EditOntologyTool;
 pub use execute_analysis::{ExecuteAnalysisTool, SandboxResult, run_analysis_sandbox};
 pub use explain::ExplainOntologyTool;
@@ -37,3 +39,4 @@ pub const RECALL_MEMORY: &str = "recall_memory";
 pub const SEARCH_RECIPES: &str = "search_recipes";
 pub const INTROSPECT_SOURCE: &str = "introspect_source";
 pub const SCHEMA_EVOLUTION: &str = "schema_evolution";
+pub const CONSULT_KNOWLEDGE: &str = "consult_knowledge";

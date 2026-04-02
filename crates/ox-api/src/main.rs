@@ -304,11 +304,12 @@ async fn main() -> anyhow::Result<()> {
         Some(Arc::new(ox_memory::MemoryStore::new(embedder, vectors)))
     };
 
-    // Attach memory store to brain for schema RAG in query translation
+    // Attach memory store (schema RAG) and knowledge store (failure-driven corrections) to brain
+    let kb_store = Arc::clone(&store) as Arc<dyn ox_store::KnowledgeStore>;
     let brain: Arc<dyn ox_brain::Brain> = if let Some(ref mem) = memory {
-        Arc::new(brain_base.with_memory(Arc::clone(mem), None))
+        Arc::new(brain_base.with_memory(Arc::clone(mem), None).with_knowledge(kb_store))
     } else {
-        Arc::new(brain_base)
+        Arc::new(brain_base.with_knowledge(kb_store))
     };
 
     // Initialize OIDC providers (auto-discovers from issuer URLs)

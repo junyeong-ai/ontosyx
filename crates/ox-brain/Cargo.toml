@@ -23,6 +23,7 @@ toml = "0.9"
 schemars = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
+sha2 = "0.10.9"
 
 [lints]
 workspace = true

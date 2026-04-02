@@ -454,7 +454,7 @@ pub(crate) async fn complete_project(
         .get_latest_ontology(&req.name)
         .await
         .map_err(AppError::from)?;
-    let next_version = latest.map_or(1, |o| o.version + 1);
+    let next_version = latest.as_ref().map_or(1, |o| o.version + 1);
 
     let saved = SavedOntology {
         id: Uuid::new_v4(),
@@ -496,6 +496,41 @@ pub(crate) async fn complete_project(
             });
         crate::spawn_scoped::spawn_scoped(async move {
             ox_brain::schema_rag::index_ontology_schema(&memory, &ontology, &ontology_id).await;
+        });
+    }
+
+    // Knowledge lifecycle: mark stale entries when breaking schema changes detected.
+    // Non-blocking — lifecycle failure doesn't affect project completion.
+    if next_version > 1 && let Some(prev) = &latest {
+        let store = Arc::clone(&state.store);
+        let ontology_name = saved.name.clone();
+        let prev_ir = prev.ontology_ir.clone();
+        let new_ir = saved.ontology_ir.clone();
+        crate::spawn_scoped::spawn_scoped(async move {
+            if let (Ok(old_ont), Ok(new_ont)) = (
+                serde_json::from_value::<ox_core::OntologyIR>(prev_ir),
+                serde_json::from_value::<ox_core::OntologyIR>(new_ir),
+            ) {
+                let diff = ox_core::compute_diff(&old_ont, &new_ont);
+                if !diff.is_empty() {
+                    let breaking = ox_core::breaking_labels(&diff);
+                    if !breaking.is_empty() {
+                        match store.mark_stale_by_labels(&ontology_name, &breaking).await {
+                            Ok(count) if count > 0 => {
+                                tracing::info!(
+                                    ontology = %ontology_name,
+                                    stale_count = count,
+                                    "Marked knowledge entries as stale due to breaking schema changes"
+                                );
+                            }
+                            Err(e) => {
+                                tracing::warn!(error = %e, "Knowledge lifecycle failed");
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
         });
     }
 

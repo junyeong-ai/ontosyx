@@ -385,4 +385,5 @@ Question: {{question}}
 
 Ontology:
 {{ontology}}
+{{knowledge}}
 """

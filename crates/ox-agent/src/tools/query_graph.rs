@@ -97,7 +97,6 @@ impl SchemaTool for QueryGraphTool {
         {
             Ok(Ok(r)) => r,
             Ok(Err(e)) => {
-                // Include the compiled query in the error so the agent can diagnose
                 return ToolResult::error(format!(
                     "Query execution failed: {e}\nCompiled query: {}",
                     truncate(&compiled.statement, 500),

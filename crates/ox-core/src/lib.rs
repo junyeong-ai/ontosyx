@@ -32,7 +32,7 @@ pub use ontology_command::{
 };
 pub use ontology_diff::{
     DiffSummary, EdgeChange, EdgeDiff, NodeChange, NodeDiff, OntologyDiff, PropertyChange,
-    compute_diff,
+    breaking_labels, compute_diff, structural_labels,
 };
 pub use ontology_input::{
     InputEdgeTypeDef, InputIndexDef, InputNodeConstraint, InputNodeTypeDef, InputPropertyDef,

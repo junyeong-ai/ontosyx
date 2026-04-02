@@ -727,3 +727,45 @@ pub struct RoutingRuleUpdate {
     pub priority: Option<i32>,
     pub enabled: Option<bool>,
 }
+
+// ---------------------------------------------------------------------------
+// Knowledge Base — failure-driven learning entries
+// ---------------------------------------------------------------------------
+
+/// A knowledge entry: correction from query failure or admin-created hint.
+///
+/// Knowledge is workspace-scoped and ontology-version-aware:
+/// - `ontology_name` spans versions (UNIQUE(name,version) in saved_ontologies)
+/// - `affected_labels` enables label-based GIN lookup and staleness detection
+/// - `version_checked` tracks the last ontology version where validity was confirmed
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct KnowledgeEntry {
+    pub id: Uuid,
+    pub workspace_id: Uuid,
+    pub ontology_name: String,
+    pub ontology_version_min: i32,
+    pub ontology_version_max: Option<i32>,
+    pub kind: String,
+    pub status: String,
+    pub confidence: f64,
+    pub title: String,
+    pub content: String,
+    pub structured_data: serde_json::Value,
+    #[sqlx(skip)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedding: Option<Vec<f32>>,
+    pub version_checked: i32,
+    pub content_hash: String,
+    pub source_execution_ids: Vec<Uuid>,
+    pub source_session_id: Option<Uuid>,
+    pub affected_labels: Vec<String>,
+    pub affected_properties: Vec<String>,
+    pub created_by: String,
+    pub reviewed_by: Option<Uuid>,
+    pub reviewed_at: Option<DateTime<Utc>>,
+    pub review_notes: Option<String>,
+    pub use_count: i64,
+    pub last_used_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
