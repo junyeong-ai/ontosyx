@@ -1036,6 +1036,31 @@ pub(crate) async fn execute_load_from_source(
         "Load execution completed"
     );
 
+    // Auto-enrich ontology descriptions with sample values from loaded data.
+    // Fire-and-forget: enrichment failure doesn't affect load success.
+    if let (Some(runtime), Some(ont_id)) = (&state.runtime, project.saved_ontology_id) {
+        let runtime = Arc::clone(runtime);
+        let store = Arc::clone(&state.store);
+        let ontology_json = project.ontology.clone();
+        crate::spawn_scoped::spawn_scoped(async move {
+            let Some(ont_json) = ontology_json else { return };
+            let Ok(ontology) = serde_json::from_value::<ox_core::OntologyIR>(ont_json) else { return };
+            let config = ox_runtime::profiler::ProfileConfig::for_ontology_size(ontology.node_types.len());
+            let Ok(profile) = ox_runtime::profiler::profile_graph(runtime.as_ref(), &ontology, &config).await else { return };
+            let result = ox_runtime::enrichment::enrich_descriptions(&ontology, &profile);
+            if !result.changes.is_empty() {
+                if let Ok(ir_json) = serde_json::to_value(&result.ontology) {
+                    let _ = store.update_ontology_ir(ont_id, &ir_json).await;
+                    tracing::info!(
+                        ontology_id = %ont_id,
+                        changes = result.changes.len(),
+                        "Auto-enriched ontology after data load"
+                    );
+                }
+            }
+        });
+    }
+
     // Record metering (fire-and-forget)
     {
         let meter_store = Arc::clone(&state.store);

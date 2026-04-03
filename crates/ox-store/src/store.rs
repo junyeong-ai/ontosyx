@@ -139,6 +139,14 @@ pub trait OntologyStore: Send + Sync {
         name: &str,
         ontology_ir: &serde_json::Value,
     ) -> OxResult<Uuid>;
+
+    /// Update ontology IR in place (e.g., after enrichment with sample values).
+    /// Does not change version or metadata — only the ontology_ir JSON content.
+    async fn update_ontology_ir(
+        &self,
+        id: Uuid,
+        ontology_ir: &serde_json::Value,
+    ) -> OxResult<()>;
 }
 
 #[async_trait]

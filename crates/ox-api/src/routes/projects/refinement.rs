@@ -410,7 +410,35 @@ pub(crate) async fn refine_project(
         ));
     }
 
-    let refined = reconciled.ontology;
+    // Enrich descriptions with sample values from profiler data.
+    // LLM refinement may not include sample values — enrichment ensures they're always present.
+    let refined = if let Some((_, _, _)) = &graph_profile {
+        if let Some(runtime) = &state.runtime {
+            let config =
+                ox_runtime::profiler::ProfileConfig::for_ontology_size(reconciled.ontology.node_types.len());
+            match ox_runtime::profiler::profile_graph(runtime.as_ref(), &reconciled.ontology, &config).await {
+                Ok(profile) => {
+                    let enriched = ox_runtime::enrichment::enrich_descriptions(&reconciled.ontology, &profile);
+                    if !enriched.changes.is_empty() {
+                        info!(
+                            project_id = %id,
+                            enriched_properties = enriched.changes.len(),
+                            "Post-refinement enrichment applied"
+                        );
+                    }
+                    enriched.ontology
+                }
+                Err(e) => {
+                    warn!("Post-refinement enrichment failed: {e} — using LLM output as-is");
+                    reconciled.ontology
+                }
+            }
+        } else {
+            reconciled.ontology
+        }
+    } else {
+        reconciled.ontology
+    };
 
     let profile_summary = match (&graph_profile, has_additional_context, &schema_fallback) {
         (Some((_, n, e)), true, _) => {

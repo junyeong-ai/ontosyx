@@ -1,3 +1,4 @@
+pub mod enrichment;
 pub mod isolation;
 pub mod neo4j;
 pub mod profiler;

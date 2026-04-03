@@ -367,7 +367,7 @@ async fn profile_entity(
         let min_value = extract_string(&agg_result, &format!("p{i}_min"));
         let max_value = extract_string(&agg_result, &format!("p{i}_max"));
 
-        if distinct_count > 0 && distinct_count <= max_sample as u64 {
+        if distinct_count > 0 {
             need_samples.push((i, prop, distinct_count));
         }
 

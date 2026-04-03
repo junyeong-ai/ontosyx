@@ -114,6 +114,7 @@ pub fn router(state: AppState) -> Router {
         )
         // Ontology management
         .route("/ontologies", get(ontology::list_ontologies))
+        .route("/ontologies/{id}/enrich", post(ontology::enrich_ontology))
         // Ontology import/export (stateless transforms)
         .route("/ontology/normalize", post(ontology::normalize_ontology))
         .route("/ontology/export", post(ontology::export_ontology))

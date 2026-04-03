@@ -387,6 +387,28 @@ impl OntologyStore for PostgresStore {
         .map_err(to_ox_error)?;
         Ok(id)
     }
+
+    async fn update_ontology_ir(
+        &self,
+        id: Uuid,
+        ontology_ir: &serde_json::Value,
+    ) -> OxResult<()> {
+        let rows = sqlx::query(
+            "UPDATE saved_ontologies SET ontology_ir = $1 WHERE id = $2",
+        )
+        .bind(ontology_ir)
+        .bind(id)
+        .execute(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+
+        if rows.rows_affected() == 0 {
+            return Err(OxError::NotFound {
+                entity: format!("saved_ontology {id}"),
+            });
+        }
+        Ok(())
+    }
 }
 
 // ---------------------------------------------------------------------------
