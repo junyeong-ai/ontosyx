@@ -1,5 +1,5 @@
 [prompt]
-version = "1.4.0"
+version = "1.0.0"
 description = "Refine ontology metadata using graph profile and/or additional context"
 max_tokens = 16384
 temperature = 0.0

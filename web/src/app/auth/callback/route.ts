@@ -29,7 +29,7 @@ interface BackendTokenResponse {
 }
 
 const BACKEND =
-  process.env.ONTOSYX_API_URL ?? "http://localhost:3001/api";
+  process.env.ONTOSYX_API_URL ?? "http://localhost:3101/api";
 
 export async function GET(request: NextRequest) {
   const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";

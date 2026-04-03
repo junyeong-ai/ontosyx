@@ -1,5 +1,5 @@
 [prompt]
-version = "2.4.0"
+version = "1.0.0"
 description = "Analyze sample data and design a graph ontology (OntologyIR)"
 max_tokens = 16384
 temperature = 0.0

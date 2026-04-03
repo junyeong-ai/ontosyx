@@ -1,5 +1,5 @@
 [prompt]
-version = "2.0.0"
+version = "1.0.0"
 description = "Translate natural language question into QueryIR"
 max_tokens = 8192
 temperature = 0.0

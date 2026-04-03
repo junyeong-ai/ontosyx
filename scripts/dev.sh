@@ -22,7 +22,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 WEB_DIR="$ROOT_DIR/web"
 
 # ── Ports ───────────────────────────────────────────────────────
-BE_PORT="${OX_BE_PORT:-3001}"
+BE_PORT="${OX_BE_PORT:-3101}"
 FE_PORT="${OX_FE_PORT:-3100}"
 PG_PORT=5433
 NEO4J_BOLT=7687

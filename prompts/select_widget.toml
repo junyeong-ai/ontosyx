@@ -1,5 +1,5 @@
 [prompt]
-version = "1.2.0"
+version = "1.0.0"
 description = "Select the best visualization widget for query results"
 max_tokens = 256
 temperature = 0.0

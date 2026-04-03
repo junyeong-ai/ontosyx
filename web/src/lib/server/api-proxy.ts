@@ -13,7 +13,7 @@ import { cookies } from "next/headers";
 import { isAuthEnabled, COOKIE_NAME } from "./auth";
 
 const BACKEND =
-  process.env.ONTOSYX_API_URL ?? "http://localhost:3001/api";
+  process.env.ONTOSYX_API_URL ?? "http://localhost:3101/api";
 
 const API_KEY = process.env.OX_API_KEY;
 

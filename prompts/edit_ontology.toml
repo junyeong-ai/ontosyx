@@ -1,5 +1,5 @@
 [prompt]
-version = "1.1.0"
+version = "1.0.0"
 description = "Generate surgical OntologyCommand operations from a user's edit request"
 max_tokens = 8192
 temperature = 0.0
