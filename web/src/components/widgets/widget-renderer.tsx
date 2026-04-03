@@ -158,8 +158,8 @@ export function viableTypes(data: QueryResult): Set<string> {
   if (stringCols.length >= 1 && numericCols.length >= 2) {
     viable.add("combo_chart");
   }
-  // scatter: 2 numeric columns
-  if (numericCols.length >= 2) {
+  // scatter: 2+ numeric columns, enough data points to be meaningful
+  if (numericCols.length >= 2 && rows.length >= 5) {
     viable.add("scatter");
   }
   // stat card: 1 row, 1-2 numeric columns
