@@ -131,6 +131,7 @@ pub async fn chat_stream(
         source_profile,
         repo_insights,
         knowledge_store: Some(Arc::clone(&state.store) as Arc<dyn ox_store::KnowledgeStore>),
+        user_question: Some(user_message.clone()),
     });
 
     // Parse execution mode from request

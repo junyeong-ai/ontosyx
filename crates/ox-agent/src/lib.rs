@@ -51,6 +51,9 @@ pub struct DomainContext {
     pub repo_insights: Option<ox_core::repo_insights::RepoInsights>,
     /// Knowledge store for failure-driven learning corrections.
     pub knowledge_store: Option<Arc<dyn ox_store::KnowledgeStore>>,
+    /// Original user question — always passed to translate_query as primary context.
+    /// Prevents agent-driven question fragmentation that defeats graph traversal.
+    pub user_question: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -137,6 +140,7 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
             .tool(VisualizeTool)
             .system_prompt(system_prompt.to_owned())
             .execution_mode(execution_mode)
+            .max_iterations(12)
             .cache(CacheConfig::static_and_tools());
 
         // RAG tools
@@ -192,6 +196,7 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
         {
             builder = builder.hook(RecoveryDetectionHook::new(
                 Arc::clone(kb),
+                memory.clone(),
                 ontology.name.clone(),
                 ontology.version as i32,
             ));

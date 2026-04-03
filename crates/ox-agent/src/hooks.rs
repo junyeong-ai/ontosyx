@@ -165,7 +165,8 @@ impl EmbeddingHook {
             }
             "execute_analysis" => {
                 let content = if output.len() > 500 {
-                    format!("{}...", &output[..500])
+                    let end = output.floor_char_boundary(500);
+                    format!("{}...", &output[..end])
                 } else {
                     output.to_string()
                 };
@@ -174,7 +175,8 @@ impl EmbeddingHook {
             "explain_ontology" => {
                 // Brain explain output is plain text (not JSON)
                 let truncated = if output.len() > 500 {
-                    format!("{}...", &output[..500])
+                    let end = output.floor_char_boundary(500);
+                    format!("{}...", &output[..end])
                 } else {
                     output.to_string()
                 };
@@ -263,6 +265,7 @@ impl Hook for EmbeddingHook {
 /// - Zero LLM cost: corrections are extracted mechanically from tool outputs.
 pub struct RecoveryDetectionHook {
     knowledge_store: Arc<dyn KnowledgeStore>,
+    memory: Option<Arc<ox_memory::MemoryStore>>,
     ontology_name: String,
     ontology_version: i32,
     /// Per-session tool outcome tracking: session_id → list of outcomes.
@@ -278,11 +281,13 @@ struct ToolOutcome {
 impl RecoveryDetectionHook {
     pub fn new(
         knowledge_store: Arc<dyn KnowledgeStore>,
+        memory: Option<Arc<ox_memory::MemoryStore>>,
         ontology_name: String,
         ontology_version: i32,
     ) -> Self {
         Self {
             knowledge_store,
+            memory,
             ontology_name,
             ontology_version,
             session_outcomes: DashMap::new(),
@@ -435,6 +440,23 @@ impl Hook for RecoveryDetectionHook {
                         });
                     } else {
                         warn!("Cannot persist recovery correction: no workspace context scope");
+                    }
+
+                    // Clean stale session memories (poisoned by failed queries)
+                    if let Some(ref memory) = self.memory {
+                        let sid = session_id.to_string();
+                        let mem = Arc::clone(memory);
+                        tokio::spawn(async move {
+                            match mem.cleanup_by_session(&sid).await {
+                                Ok(n) if n > 0 => info!(
+                                    session_id = %sid,
+                                    count = n,
+                                    "Cleaned stale session memories after recovery"
+                                ),
+                                Err(e) => warn!(error = %e, "Failed to clean stale session memories"),
+                                _ => {}
+                            }
+                        });
                     }
 
                     // Clear session outcomes after extraction
