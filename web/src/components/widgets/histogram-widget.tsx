@@ -65,21 +65,31 @@ export function HistogramWidget({ spec, data }: HistogramWidgetProps) {
   const tick = axisTickStyle(isDark);
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <BarChart
-        data={binData}
-        margin={{ top: 8, right: 16, bottom: 8, left: 0 }}
-      >
-        <CartesianGrid strokeDasharray="3 3" stroke={gridStroke(isDark)} />
-        <XAxis
-          dataKey="bin"
-          tick={tick}
-          stroke={axisLineStroke(isDark)}
-        />
-        <YAxis tick={tick} stroke={axisLineStroke(isDark)} />
-        <Tooltip contentStyle={tooltipStyle(isDark)} />
-        <Bar dataKey="count" fill="#10b981" radius={[2, 2, 0, 0]} />
-      </BarChart>
-    </ResponsiveContainer>
+    <div className="space-y-2">
+      {spec.title && (
+        <h4 className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+          {spec.title}
+        </h4>
+      )}
+      <div className="h-64 w-full overflow-hidden">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart
+            data={binData}
+            margin={{ top: 8, right: 16, bottom: 8, left: 0 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke={gridStroke(isDark)} />
+            <XAxis
+              dataKey="bin"
+              tick={tick}
+              stroke={axisLineStroke(isDark)}
+            />
+            <YAxis tick={tick} stroke={axisLineStroke(isDark)} />
+            <Tooltip contentStyle={tooltipStyle(isDark)} />
+            <Bar dataKey="count" fill="#10b981" radius={[2, 2, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      <p className="text-[10px] text-zinc-400">{binData.length} bins</p>
+    </div>
   );
 }

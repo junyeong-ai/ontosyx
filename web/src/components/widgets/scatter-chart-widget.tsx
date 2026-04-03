@@ -44,29 +44,39 @@ export function ScatterChartWidget({ spec, data }: ScatterChartWidgetProps) {
   const tick = axisTickStyle(isDark);
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <ScatterChart margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke={gridStroke(isDark)} />
-        <XAxis
-          dataKey={xKey}
-          type="number"
-          name={xKey}
-          tick={tick}
-          stroke={axisLineStroke(isDark)}
-        />
-        <YAxis
-          dataKey={yKey}
-          type="number"
-          name={yKey}
-          tick={tick}
-          stroke={axisLineStroke(isDark)}
-        />
-        {zKey && (
-          <ZAxis dataKey={zKey} type="number" name={zKey} range={[20, 400]} />
-        )}
-        <Tooltip contentStyle={tooltipStyle(isDark)} />
-        <Scatter data={rows} fill="#10b981" />
-      </ScatterChart>
-    </ResponsiveContainer>
+    <div className="space-y-2">
+      {spec.title && (
+        <h4 className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+          {spec.title}
+        </h4>
+      )}
+      <div className="h-64 w-full overflow-hidden">
+        <ResponsiveContainer width="100%" height="100%">
+          <ScatterChart margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={gridStroke(isDark)} />
+            <XAxis
+              dataKey={xKey}
+              type="number"
+              name={xKey}
+              tick={tick}
+              stroke={axisLineStroke(isDark)}
+            />
+            <YAxis
+              dataKey={yKey}
+              type="number"
+              name={yKey}
+              tick={tick}
+              stroke={axisLineStroke(isDark)}
+            />
+            {zKey && (
+              <ZAxis dataKey={zKey} type="number" name={zKey} range={[20, 400]} />
+            )}
+            <Tooltip contentStyle={tooltipStyle(isDark)} />
+            <Scatter data={rows} fill="#10b981" />
+          </ScatterChart>
+        </ResponsiveContainer>
+      </div>
+      <p className="text-[10px] text-zinc-400">{rows.length} data points</p>
+    </div>
   );
 }
