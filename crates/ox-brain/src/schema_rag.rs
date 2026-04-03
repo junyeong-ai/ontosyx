@@ -17,13 +17,18 @@ use ox_memory::vector::MemoryFilter;
 use tracing::{info, warn};
 
 /// Maximum schema nodes to include in compact schema for query translation.
-const MAX_SCHEMA_NODES: usize = 20;
+const MAX_SCHEMA_NODES: usize = 30;
 
 /// Minimum similarity score for schema node matches.
-const MIN_SCHEMA_SCORE: f32 = 0.3;
+const MIN_SCHEMA_SCORE: f32 = 0.25;
 
 /// Top-k results from vector search before graph expansion.
-const VECTOR_TOP_K: usize = 8;
+const VECTOR_TOP_K: usize = 12;
+
+/// Ontologies at or below this node count get full progressive schema
+/// without vector search. Modern LLMs handle ~12K tokens of schema easily,
+/// and RAG on small ontologies risks omitting nodes the query needs.
+pub const FULL_SCHEMA_NODE_THRESHOLD: usize = 50;
 
 // ---------------------------------------------------------------------------
 // Schema Indexing — runs once when ontology is saved
@@ -75,12 +80,11 @@ pub async fn index_ontology_schema(memory: &MemoryStore, ontology: &OntologyIR, 
 // Schema Discovery — runs per query translation
 // ---------------------------------------------------------------------------
 
-/// Discover the relevant sub-schema for a user's question.
+/// Discover relevant sub-schema via vector search + BFS graph expansion.
 ///
-/// Returns compact schema JSON string optimized for LLM query translation.
-/// Falls back to full ontology serialization if memory store unavailable.
-/// Discover relevant sub-schema for a question via vector search + graph expansion.
-/// Returns (compact_schema_json, discovered_labels).
+/// Returns `(progressive_schema_text, discovered_labels)` — a compact text
+/// representation optimized for LLM query translation, plus the list of
+/// labels included (for downstream Knowledge RAG filtering).
 pub async fn discover_schema(
     memory: &MemoryStore,
     ontology: &OntologyIR,
@@ -132,29 +136,29 @@ pub async fn discover_schema(
         }
     }
 
-    // Step 3: Graph expansion — add 1-hop neighbors
+    // Step 3: Graph expansion — BFS from seed nodes until budget exhausted.
+    // Unlike fixed 1-hop, this follows the graph structure outward from seeds,
+    // ensuring multi-hop query chains (e.g., Regulation→Ingredient→Product→Brand)
+    // are fully covered up to MAX_SCHEMA_NODES.
     let seed_labels: Vec<&str> = selected_labels.iter().copied().collect();
-    for label in &seed_labels {
-        for neighbor in ontology.neighbor_labels(label) {
-            selected_labels.insert(neighbor);
+
+    let mut frontier: Vec<&str> = seed_labels.clone();
+    while selected_labels.len() < MAX_SCHEMA_NODES && !frontier.is_empty() {
+        let mut next_frontier = Vec::new();
+        for label in &frontier {
+            for neighbor in ontology.neighbor_labels(label) {
+                if selected_labels.len() >= MAX_SCHEMA_NODES {
+                    break;
+                }
+                if selected_labels.insert(neighbor) {
+                    next_frontier.push(neighbor);
+                }
+            }
         }
+        frontier = next_frontier;
     }
 
-    // Cap at MAX_SCHEMA_NODES (prioritize direct matches)
-    let final_labels: Vec<&str> = if selected_labels.len() <= MAX_SCHEMA_NODES {
-        selected_labels.into_iter().collect()
-    } else {
-        let mut result: Vec<&str> = seed_labels.clone();
-        for label in &selected_labels {
-            if result.len() >= MAX_SCHEMA_NODES {
-                break;
-            }
-            if !seed_labels.contains(label) {
-                result.push(label);
-            }
-        }
-        result
-    };
+    let final_labels: Vec<&str> = selected_labels.into_iter().collect();
 
     let preview: String = question.chars().take(50).collect();
     info!(
@@ -198,7 +202,7 @@ pub(crate) fn build_progressive_schema(
         if expanded_set.contains(src) && expanded_set.contains(tgt) {
             let cardinality = format!("{:?}", edge.cardinality);
             output.push_str(&format!("  ({src})-[:{}]->({tgt}) [{cardinality}]\n", edge.label));
-            // Include edge properties if they exist (e.g., concentration_pct on CONTAINS_INGREDIENT)
+            // Include edge properties if they exist (e.g., concentration_pct on HAS_INGREDIENT)
             for p in &edge.properties {
                 output.push_str(&format!("    edge.{}: {}\n", p.name, format_property_type(&p.property_type)));
             }
@@ -222,7 +226,7 @@ pub(crate) fn build_progressive_schema(
         }
     }
 
-    // Tier 3: Property descriptions (seed labels only — most relevant nodes)
+    // Tier 3: Property descriptions + sample values (seed labels + edge properties)
     let mut has_details = false;
     for label in seed_labels {
         if let Some(node) = ontology.node_by_label(label) {
@@ -241,6 +245,25 @@ pub(crate) fn build_progressive_schema(
                 for line in &described_props {
                     output.push_str(line);
                     output.push('\n');
+                }
+            }
+        }
+    }
+
+    // Edge property details (enriched sample values for edge properties)
+    for edge in &ontology.edge_types {
+        let src = ontology.node_label(edge.source_node_id.as_ref()).unwrap_or("?");
+        let tgt = ontology.node_label(edge.target_node_id.as_ref()).unwrap_or("?");
+        if expanded_set.contains(src) && expanded_set.contains(tgt) {
+            for p in &edge.properties {
+                if let Some(desc) = &p.description {
+                    if !desc.is_empty() {
+                        if !has_details {
+                            output.push_str("\nProperty details:\n");
+                            has_details = true;
+                        }
+                        output.push_str(&format!("  {}.{}: {}\n", edge.label, p.name, desc));
+                    }
                 }
             }
         }
