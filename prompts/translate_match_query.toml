@@ -13,11 +13,11 @@ The output schema is enforced — follow these semantic rules only.
 
 1. Variable naming: first lowercase letter of the label (e.g., "p" for Product, "c" for Customer). If letters collide, use first two letters (e.g., "ca" for Category vs "cu" for Customer).
 
-2. Label matching: use ONLY the edge and node labels listed in the "Graph edges" section. NEVER invent or modify labels. For example, if the ontology says HAS_INGREDIENT, do NOT use CONTAINS_INGREDIENT. Copy-paste the exact label from the ontology — this is the #1 cause of errors.
+2. Label matching: use ONLY the edge and node labels listed in the "Graph edges" section. NEVER invent or modify labels. For example, if the ontology says BELONGS_TO, do NOT use IN_CATEGORY. Copy-paste the exact label from the ontology — this is the #1 cause of errors.
 
 3. Default limit: apply limit 25 for open-ended listing queries. Do NOT apply limit for aggregation or count queries.
 
-3b. String matching: when searching by name, use "contains" op instead of "eq" for more robust matching. Data may be in Korean, English, or mixed — use the most specific term from the user's question. For example, if the user asks about "레티놀", use string_value "레티놀" with contains. If uncertain about exact values, prefer contains over eq.
+3b. String matching: when searching by name, use "contains" op instead of "eq" for more robust matching. Data may be in Korean, English, or mixed — use the most specific term from the user's question. If uncertain about exact values, prefer contains over eq.
 
 4. Relationship direction: relationships are ALWAYS from source to target as defined in the ontology. No direction field needed — set "source" to the source node variable and "target" to the target node variable.
 
@@ -148,23 +148,23 @@ Q: "Products over $100 with rating above 4"
 }
 
 ### Example 7: Edge property access
-Q: "Products with concentration above 0.3%"
-Ontology: Product -[CONTAINS_INGREDIENT {concentration_pct: float}]-> Ingredient
+Q: "Orders with quantity above 10"
+Ontology uses: CONTAINS(Order→Product) with edge property {quantity: integer}
 {
   "nodes": [
-    {"variable": "p", "label": "Product"},
-    {"variable": "i", "label": "Ingredient"}
+    {"variable": "o", "label": "Order"},
+    {"variable": "p", "label": "Product"}
   ],
   "relationships": [
-    {"label": "CONTAINS_INGREDIENT", "source": "p", "target": "i", "variable": "r", "min_hops": null, "max_hops": null}
+    {"label": "CONTAINS", "source": "o", "target": "p", "variable": "r", "min_hops": null, "max_hops": null}
   ],
   "conditions": [
-    {"variable": "r", "field": "concentration_pct", "op": "gt", "string_value": null, "number_value": 0.3, "bool_value": null, "list_values": []}
+    {"variable": "r", "field": "quantity", "op": "gt", "string_value": null, "number_value": 10.0, "bool_value": null, "list_values": []}
   ],
   "returns": [
+    {"variable": "o", "field": "date", "alias": null, "aggregate": null, "distinct": null},
     {"variable": "p", "field": "name", "alias": null, "aggregate": null, "distinct": null},
-    {"variable": "i", "field": "name", "alias": null, "aggregate": null, "distinct": null},
-    {"variable": "r", "field": "concentration_pct", "alias": null, "aggregate": null, "distinct": null}
+    {"variable": "r", "field": "quantity", "alias": null, "aggregate": null, "distinct": null}
   ],
   "group_by": [],
   "order_by": [],
@@ -173,34 +173,32 @@ Ontology: Product -[CONTAINS_INGREDIENT {concentration_pct: float}]-> Ingredient
 }
 
 ### Example 8: Deep multi-hop chain (4+ hops)
-Q: "If EU tightens retinol concentration to 0.3%, which products, brands, and customers are affected?"
-Ontology: Regulation, Ingredient, Product, Brand, Customer; edges: REGULATES(Regulation→Ingredient), HAS_INGREDIENT(Product→Ingredient) {concentration_pct: float}, MADE_BY(Product→Brand), PURCHASED_BY(Product→Customer)
+Q: "Customers who ordered products in the Electronics category with average review rating above 4"
 {
   "nodes": [
-    {"variable": "reg", "label": "Regulation"},
-    {"variable": "i", "label": "Ingredient"},
+    {"variable": "cu", "label": "Customer"},
+    {"variable": "o", "label": "Order"},
     {"variable": "p", "label": "Product"},
-    {"variable": "b", "label": "Brand"},
-    {"variable": "cu", "label": "Customer"}
+    {"variable": "ca", "label": "Category"},
+    {"variable": "re", "label": "Review"}
   ],
   "relationships": [
-    {"label": "REGULATES", "source": "reg", "target": "i", "variable": null, "min_hops": null, "max_hops": null},
-    {"label": "HAS_INGREDIENT", "source": "p", "target": "i", "variable": "r", "min_hops": null, "max_hops": null},
-    {"label": "MADE_BY", "source": "p", "target": "b", "variable": null, "min_hops": null, "max_hops": null},
-    {"label": "PURCHASED_BY", "source": "p", "target": "cu", "variable": null, "min_hops": null, "max_hops": null}
+    {"label": "PLACED", "source": "cu", "target": "o", "variable": null, "min_hops": null, "max_hops": null},
+    {"label": "CONTAINS", "source": "o", "target": "p", "variable": null, "min_hops": null, "max_hops": null},
+    {"label": "BELONGS_TO", "source": "p", "target": "ca", "variable": null, "min_hops": null, "max_hops": null},
+    {"label": "ABOUT", "source": "re", "target": "p", "variable": null, "min_hops": null, "max_hops": null}
   ],
   "conditions": [
-    {"variable": "reg", "field": "authority", "op": "eq", "string_value": "EU_SCCS", "number_value": null, "bool_value": null, "list_values": []},
-    {"variable": "r", "field": "concentration_pct", "op": "gt", "string_value": null, "number_value": 0.3, "bool_value": null, "list_values": []}
+    {"variable": "ca", "field": "name", "op": "eq", "string_value": "Electronics", "number_value": null, "bool_value": null, "list_values": []},
+    {"variable": "re", "field": "rating", "op": "gt", "string_value": null, "number_value": 4.0, "bool_value": null, "list_values": []}
   ],
   "returns": [
-    {"variable": "p", "field": "name", "alias": "product", "aggregate": null, "distinct": null},
-    {"variable": "b", "field": "name", "alias": "brand", "aggregate": null, "distinct": null},
     {"variable": "cu", "field": "name", "alias": "customer", "aggregate": null, "distinct": null},
-    {"variable": "r", "field": "concentration_pct", "alias": "concentration", "aggregate": null, "distinct": null}
+    {"variable": "p", "field": "name", "alias": "product", "aggregate": null, "distinct": null},
+    {"variable": "re", "field": "rating", "alias": "rating", "aggregate": null, "distinct": null}
   ],
   "group_by": [],
-  "order_by": [{"field": "r.concentration_pct", "descending": true}],
+  "order_by": [{"field": "re.rating", "descending": true}],
   "limit": null,
   "skip": null
 }

@@ -17,6 +17,7 @@ export type {
   NeighborhoodFocus,
   ChatMessage,
   ToolCall,
+  ToolStep,
   WorkspaceMode,
   DesignBottomTab,
   AnalyzeRightTab,

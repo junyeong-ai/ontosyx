@@ -34,7 +34,7 @@ export function CopyButton({ text, variant = "absolute" }: CopyButtonProps) {
   return (
     <button
       onClick={handleCopy}
-      className={`rounded p-1 text-zinc-400 transition-colors hover:bg-zinc-200 hover:text-zinc-600 focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:outline-none dark:hover:bg-zinc-700 dark:hover:text-zinc-300 ${
+      className={`cursor-pointer rounded p-1 text-zinc-400 transition-colors hover:bg-zinc-200 hover:text-zinc-600 focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:outline-none dark:hover:bg-zinc-700 dark:hover:text-zinc-300 ${
         variant === "absolute" ? "absolute right-2 top-2" : ""
       }`}
       aria-label="Copy to clipboard"

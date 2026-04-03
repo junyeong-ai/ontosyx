@@ -12,6 +12,7 @@ use uuid::Uuid;
 use ox_core::resolve_query_bindings;
 use ox_store::QueryExecution;
 
+use crate::progress::{ProgressSender, StepStatus, ToolProgress};
 use crate::DomainContext;
 
 // ---------------------------------------------------------------------------
@@ -34,15 +35,53 @@ struct QueryGraphOutput {
     rows: serde_json::Value,
     #[serde(skip_serializing_if = "Option::is_none")]
     widget_hint: Option<WidgetHintOutput>,
+    /// Per-step timing breakdown.
+    step_timings: Vec<StepTiming>,
     /// Guidance for the agent on how to proceed with results.
     #[serde(skip_serializing_if = "Option::is_none")]
     guidance: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
+struct StepTiming {
+    step: String,
+    duration_ms: u64,
+}
+
+#[derive(Debug, Serialize)]
 struct WidgetHintOutput {
     widget_type: String,
     title: String,
+}
+
+/// Step identifiers for query_graph execution phases.
+/// Used by `emit_step` for `total_steps` and referenced by index below.
+const STEP_TRANSLATING: &str = "translating";
+const STEP_COMPILING: &str = "compiling";
+const STEP_EXECUTING: &str = "executing";
+const TOTAL_STEPS: u32 = 3;
+
+/// Emit a sub-step progress event (no-op if channel not provided).
+fn emit_step(
+    tx: &Option<ProgressSender>,
+    step: &str,
+    status: StepStatus,
+    index: u32,
+    duration_ms: Option<u64>,
+    metadata: Option<serde_json::Value>,
+) {
+    if let Some(tx) = tx {
+        tracing::debug!(step, ?status, index, "Emitting tool progress");
+        let _ = tx.send(ToolProgress {
+            tool_name: super::QUERY_GRAPH.to_string(),
+            step: step.to_string(),
+            status,
+            step_index: index,
+            total_steps: TOTAL_STEPS,
+            duration_ms,
+            metadata,
+        });
+    }
 }
 
 /// Translates natural language to a graph query, executes it, persists the result,
@@ -75,42 +114,80 @@ impl SchemaTool for QueryGraphTool {
         };
 
         let start = std::time::Instant::now();
+        let tx = &self.domain.progress_tx;
+        let mut step_timings = Vec::with_capacity(3);
 
         let question = input.question.clone();
 
         // Step 1: Translate NL → QueryIR (timeout: 60s)
+        emit_step(tx, STEP_TRANSLATING, StepStatus::Started, 0, None, None);
+        let t1 = std::time::Instant::now();
         let query_ir = match tokio::time::timeout(
             std::time::Duration::from_secs(60),
             self.brain.translate_query(&question, ontology),
         )
         .await
         {
-            Ok(Ok(ir)) => ir,
-            Ok(Err(e)) => return ToolResult::error(format!("Query translation failed: {e}")),
-            Err(_) => return ToolResult::error("Query translation timed out after 60 seconds"),
+            Ok(Ok(ir)) => {
+                let ms = t1.elapsed().as_millis() as u64;
+                step_timings.push(StepTiming { step: STEP_TRANSLATING.into(), duration_ms: ms });
+                emit_step(tx, STEP_TRANSLATING, StepStatus::Completed, 0, Some(ms), None);
+                ir
+            }
+            Ok(Err(e)) => {
+                emit_step(tx, STEP_TRANSLATING, StepStatus::Failed, 0, Some(t1.elapsed().as_millis() as u64), None);
+                return ToolResult::error(format!("Query translation failed: {e}"));
+            }
+            Err(_) => {
+                emit_step(tx, STEP_TRANSLATING, StepStatus::Failed, 0, Some(60_000), None);
+                return ToolResult::error("Query translation timed out after 60 seconds");
+            }
         };
 
         // Step 2: Compile QueryIR → target language
+        emit_step(tx, STEP_COMPILING, StepStatus::Started, 1, None, None);
+        let t2 = std::time::Instant::now();
         let compiled = match self.domain.compiler.compile_query(&query_ir) {
-            Ok(c) => c,
-            Err(e) => return ToolResult::error(format!("Query compilation failed: {e}")),
+            Ok(c) => {
+                let ms = t2.elapsed().as_millis() as u64;
+                step_timings.push(StepTiming { step: STEP_COMPILING.into(), duration_ms: ms });
+                emit_step(tx, STEP_COMPILING, StepStatus::Completed, 1, Some(ms),
+                    Some(serde_json::json!({ "cypher": truncate(&c.statement, 500) })));
+                c
+            }
+            Err(e) => {
+                emit_step(tx, STEP_COMPILING, StepStatus::Failed, 1, Some(t2.elapsed().as_millis() as u64), None);
+                return ToolResult::error(format!("Query compilation failed: {e}"));
+            }
         };
 
         // Step 3: Execute (timeout: 60s)
+        emit_step(tx, STEP_EXECUTING, StepStatus::Started, 2, None, None);
+        let t3 = std::time::Instant::now();
         let results = match tokio::time::timeout(
             std::time::Duration::from_secs(60),
             runtime.execute_query(&compiled.statement, &compiled.params),
         )
         .await
         {
-            Ok(Ok(r)) => r,
+            Ok(Ok(r)) => {
+                let ms = t3.elapsed().as_millis() as u64;
+                step_timings.push(StepTiming { step: STEP_EXECUTING.into(), duration_ms: ms });
+                emit_step(tx, STEP_EXECUTING, StepStatus::Completed, 2, Some(ms),
+                    Some(serde_json::json!({ "row_count": r.metadata.rows_returned })));
+                r
+            }
             Ok(Err(e)) => {
+                emit_step(tx, STEP_EXECUTING, StepStatus::Failed, 2, Some(t3.elapsed().as_millis() as u64), None);
                 return ToolResult::error(format!(
                     "Query execution failed: {e}\nCompiled query: {}",
                     truncate(&compiled.statement, 500),
                 ));
             }
-            Err(_) => return ToolResult::error("Query execution timed out after 60 seconds"),
+            Err(_) => {
+                emit_step(tx, STEP_EXECUTING, StepStatus::Failed, 2, Some(60_000), None);
+                return ToolResult::error("Query execution timed out after 60 seconds");
+            }
         };
 
         let execution_time_ms = start.elapsed().as_millis() as i64;
@@ -206,6 +283,7 @@ impl SchemaTool for QueryGraphTool {
             row_count: results.metadata.rows_returned as usize,
             rows: serde_json::to_value(&results.rows).unwrap_or_default(),
             widget_hint,
+            step_timings,
             guidance,
         };
 

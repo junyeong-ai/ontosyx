@@ -17,7 +17,8 @@ use ox_memory::vector::MemoryFilter;
 use tracing::{info, warn};
 
 /// Maximum schema nodes to include in compact schema for query translation.
-const MAX_SCHEMA_NODES: usize = 30;
+/// Increase for ontologies with deep multi-hop patterns.
+const MAX_SCHEMA_NODES: usize = 40;
 
 /// Minimum similarity score for schema node matches.
 const MIN_SCHEMA_SCORE: f32 = 0.25;
@@ -29,6 +30,11 @@ const VECTOR_TOP_K: usize = 12;
 /// without vector search. Modern LLMs handle ~12K tokens of schema easily,
 /// and RAG on small ontologies risks omitting nodes the query needs.
 pub const FULL_SCHEMA_NODE_THRESHOLD: usize = 50;
+
+/// Maximum properties with descriptions per node in Tier 3.
+/// Prevents token explosion on nodes with many described properties.
+/// Properties are ranked by description length (longer = more informative).
+const MAX_DESCRIBED_PROPS_PER_NODE: usize = 15;
 
 // ---------------------------------------------------------------------------
 // Schema Indexing — runs once when ontology is saved
@@ -138,7 +144,7 @@ pub async fn discover_schema(
 
     // Step 3: Graph expansion — BFS from seed nodes until budget exhausted.
     // Unlike fixed 1-hop, this follows the graph structure outward from seeds,
-    // ensuring multi-hop query chains (e.g., Regulation→Ingredient→Product→Brand)
+    // ensuring multi-hop query chains (e.g., NodeA→NodeB→NodeC→NodeD)
     // are fully covered up to MAX_SCHEMA_NODES.
     let seed_labels: Vec<&str> = selected_labels.iter().copied().collect();
 
@@ -202,7 +208,7 @@ pub(crate) fn build_progressive_schema(
         if expanded_set.contains(src) && expanded_set.contains(tgt) {
             let cardinality = format!("{:?}", edge.cardinality);
             output.push_str(&format!("  ({src})-[:{}]->({tgt}) [{cardinality}]\n", edge.label));
-            // Include edge properties if they exist (e.g., concentration_pct on HAS_INGREDIENT)
+            // Include edge properties if they exist (e.g., quantity on CONTAINS)
             for p in &edge.properties {
                 output.push_str(&format!("    edge.{}: {}\n", p.name, format_property_type(&p.property_type)));
             }
@@ -227,24 +233,37 @@ pub(crate) fn build_progressive_schema(
     }
 
     // Tier 3: Property descriptions + sample values (seed labels + edge properties)
+    // Pruned to MAX_DESCRIBED_PROPS_PER_NODE per node to prevent token explosion.
+    // Properties ranked by description length (longer descriptions contain more
+    // informative data like sample values, enum lists, and ranges).
     let mut has_details = false;
     for label in seed_labels {
         if let Some(node) = ontology.node_by_label(label) {
-            let described_props: Vec<String> = node.properties.iter()
+            let mut described_props: Vec<(&str, &str)> = node.properties.iter()
                 .filter_map(|p| {
                     p.description.as_ref()
                         .filter(|d| !d.is_empty())
-                        .map(|d| format!("  {}.{}: {}", label, p.name, d))
+                        .map(|d| (p.name.as_str(), d.as_str()))
                 })
                 .collect();
-            if !described_props.is_empty() {
+            // Rank by description length (descending) — longer = more informative
+            described_props.sort_by(|a, b| b.1.len().cmp(&a.1.len()));
+            let total = described_props.len();
+            let pruned = &described_props[..total.min(MAX_DESCRIBED_PROPS_PER_NODE)];
+
+            if !pruned.is_empty() {
                 if !has_details {
                     output.push_str("\nProperty details:\n");
                     has_details = true;
                 }
-                for line in &described_props {
-                    output.push_str(line);
-                    output.push('\n');
+                for (prop_name, desc) in pruned {
+                    output.push_str(&format!("  {label}.{prop_name}: {desc}\n"));
+                }
+                if total > MAX_DESCRIBED_PROPS_PER_NODE {
+                    output.push_str(&format!(
+                        "  ... and {} more properties (see Tier 2 for names)\n",
+                        total - MAX_DESCRIBED_PROPS_PER_NODE,
+                    ));
                 }
             }
         }

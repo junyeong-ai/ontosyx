@@ -31,6 +31,16 @@ export interface AgentToolReviewEvent {
   input: unknown;
 }
 
+export interface AgentToolProgressEvent {
+  tool_call_id: string;
+  step: string;
+  status: "started" | "completed" | "failed";
+  step_index: number;
+  total_steps: number;
+  duration_ms?: number;
+  metadata?: Record<string, unknown>;
+}
+
 export interface AgentCompleteEvent {
   session_id: string;
   text: string;
@@ -52,6 +62,7 @@ export interface StreamCallbacks {
   onThinking?: (content: string) => void;
   onToolStart?: (event: AgentToolStartEvent) => void;
   onToolComplete?: (event: AgentToolCompleteEvent) => void;
+  onToolProgress?: (event: AgentToolProgressEvent) => void;
   onToolReview?: (event: AgentToolReviewEvent) => void;
   onUsage?: (event: { input_tokens: number; output_tokens: number }) => void;
   onComplete?: (event: AgentCompleteEvent) => void;
@@ -125,6 +136,11 @@ export async function chatStream(
         const d = data as Record<string, unknown> & AgentToolCompleteEvent;
         if (handleSseError(d, callbacks.onError)) return;
         callbacks.onToolComplete?.(d);
+      },
+      tool_progress: (data) => {
+        const d = data as Record<string, unknown> & AgentToolProgressEvent;
+        if (handleSseError(d, callbacks.onError)) return;
+        callbacks.onToolProgress?.(d);
       },
       tool_review: (data) => {
         const d = data as Record<string, unknown> & AgentToolReviewEvent;

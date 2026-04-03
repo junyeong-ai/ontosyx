@@ -272,9 +272,23 @@ pub struct RecoveryDetectionHook {
     session_outcomes: DashMap<String, Vec<ToolOutcome>>,
 }
 
+/// Distinguishes three outcome states for recovery detection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OutcomeKind {
+    /// Tool returned an error.
+    Error,
+    /// Tool succeeded but query returned 0 rows.
+    Empty,
+    /// Tool succeeded with row_count > 0.
+    Success,
+}
+
 struct ToolOutcome {
-    is_error: bool,
+    kind: OutcomeKind,
     text: String,
+    compiled_query: Option<String>,
+    #[allow(dead_code)]
+    row_count: usize,
     timestamp: chrono::DateTime<Utc>,
 }
 
@@ -332,10 +346,21 @@ impl Hook for RecoveryDetectionHook {
             let is_error = tool_result.is_error();
             let text = tool_result.text();
 
+            // Classify outcome: Error / Empty (0 rows) / Success (N rows)
+            let (kind, compiled_query, row_count) = if is_error {
+                (OutcomeKind::Error, None, 0)
+            } else {
+                let (cq, rc) = parse_query_metrics(&text);
+                let kind = if rc == 0 { OutcomeKind::Empty } else { OutcomeKind::Success };
+                (kind, cq, rc)
+            };
+
             // Record this outcome
             let outcome = ToolOutcome {
-                is_error,
+                kind,
                 text: text.clone(),
+                compiled_query,
+                row_count,
                 timestamp: Utc::now(),
             };
             self.session_outcomes
@@ -343,41 +368,55 @@ impl Hook for RecoveryDetectionHook {
                 .or_default()
                 .push(outcome);
 
-            // Check for recovery pattern: prior error + current success
-            if !is_error {
-                let has_prior_error = self
+            // Check for recovery pattern: prior failure (error or empty) + current success
+            if kind == OutcomeKind::Success {
+                // Extract failure data while holding the DashMap guard
+                let prior_failure_data = self
                     .session_outcomes
                     .get(session_id)
-                    .map(|outcomes| outcomes.iter().any(|o| o.is_error))
-                    .unwrap_or(false);
+                    .and_then(|outcomes| {
+                        outcomes.iter().rev().skip(1)
+                            .find(|o| matches!(o.kind, OutcomeKind::Error | OutcomeKind::Empty))
+                            .map(|o| (o.kind, o.text.clone(), o.compiled_query.clone()))
+                    });
 
-                if has_prior_error {
-                    // Recovery detected! Extract the correction.
-                    let error_text = self
-                        .session_outcomes
-                        .get(session_id)
-                        .and_then(|outcomes| {
-                            outcomes.iter().rev().find(|o| o.is_error).map(|o| o.text.clone())
-                        })
-                        .unwrap_or_default();
+                if let Some((failure_kind, failure_text, failure_compiled)) = prior_failure_data {
 
                     // Extract labels and query from success output
-                    let (compiled_query, labels, execution_id) = parse_success_output(&text);
+                    let (success_query, labels, execution_id) = parse_success_output(&text);
 
-                    let title = format!(
-                        "Recovery: query_graph failed then succeeded in session {}",
-                        &session_id[..8.min(session_id.len())]
-                    );
-                    let error_excerpt = if error_text.len() > 200 {
-                        &error_text[..error_text.floor_char_boundary(200)]
-                    } else {
-                        &error_text
+                    // Build correction content based on failure type
+                    let session_short = &session_id[..8.min(session_id.len())];
+                    let (title, content, extraction_method) = match failure_kind {
+                        OutcomeKind::Error => {
+                            let error_excerpt = if failure_text.len() > 200 {
+                                &failure_text[..failure_text.floor_char_boundary(200)]
+                            } else {
+                                &failure_text
+                            };
+                            (
+                                format!("Recovery: query_graph failed then succeeded in session {session_short}"),
+                                format!(
+                                    "Failed: {}\nCorrection: {}",
+                                    error_excerpt,
+                                    success_query.as_deref().unwrap_or("(successful query)"),
+                                ),
+                                "recovery_detection",
+                            )
+                        }
+                        OutcomeKind::Empty => {
+                            (
+                                format!("Refinement: query_graph empty then succeeded in session {session_short}"),
+                                format!(
+                                    "Empty (0 rows): {}\nCorrection: {}",
+                                    failure_compiled.as_deref().unwrap_or("(unknown query)"),
+                                    success_query.as_deref().unwrap_or("(successful query)"),
+                                ),
+                                "zero_row_recovery",
+                            )
+                        }
+                        OutcomeKind::Success => unreachable!(),
                     };
-                    let content = format!(
-                        "Failed: {}\nCorrection: {}",
-                        error_excerpt,
-                        compiled_query.as_deref().unwrap_or("(successful query)")
-                    );
 
                     let hash = ox_brain::knowledge_util::content_hash(&self.ontology_name, &content);
 
@@ -393,9 +432,9 @@ impl Hook for RecoveryDetectionHook {
                         title,
                         content,
                         structured_data: serde_json::json!({
-                            "extraction_method": "recovery_detection",
-                            "failed_error": error_excerpt,
-                            "success_query": compiled_query,
+                            "extraction_method": extraction_method,
+                            "failure_kind": format!("{:?}", failure_kind),
+                            "success_query": success_query,
                             "success_execution_id": execution_id,
                         }),
                         embedding: None,
@@ -461,17 +500,32 @@ impl Hook for RecoveryDetectionHook {
 
                     // Clear session outcomes after extraction
                     self.session_outcomes.remove(session_id);
+                } else {
+                    // Success with no prior failure — clean up to prevent unbounded growth.
+                    self.session_outcomes.remove(session_id);
                 }
             }
 
             // Periodic cleanup of stale sessions
-            if self.session_outcomes.len() > 100 {
+            if self.session_outcomes.len() > 50 {
                 self.cleanup_stale_sessions();
             }
         }
 
         Ok(HookOutput::allow())
     }
+}
+
+/// Parse compiled_query and row_count from query_graph output (success or empty).
+/// Used for outcome classification (Error/Empty/Success).
+fn parse_query_metrics(output: &str) -> (Option<String>, usize) {
+    let parsed: serde_json::Value = match serde_json::from_str(output) {
+        Ok(v) => v,
+        Err(_) => return (None, 0),
+    };
+    let compiled_query = parsed.get("compiled_query").and_then(|v| v.as_str()).map(String::from);
+    let row_count = parsed.get("row_count").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+    (compiled_query, row_count)
 }
 
 /// Parse successful query_graph output to extract compiled query, labels, and execution ID.

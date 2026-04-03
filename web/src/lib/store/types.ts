@@ -33,6 +33,15 @@ export interface NeighborhoodFocus {
 // Chat message types
 // ---------------------------------------------------------------------------
 
+export interface ToolStep {
+  step: string;
+  status: "started" | "completed" | "failed";
+  stepIndex: number;
+  totalSteps: number;
+  durationMs?: number;
+  metadata?: Record<string, unknown>;
+}
+
 export interface ToolCall {
   id: string;
   name: string;
@@ -40,6 +49,8 @@ export interface ToolCall {
   output?: string;
   status: "running" | "done" | "error" | "review";
   durationMs?: number;
+  /** Sub-step progress for long-running tools (e.g., query_graph). */
+  steps?: ToolStep[];
 }
 
 export interface ChatMessage {

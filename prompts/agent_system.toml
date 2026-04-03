@@ -20,10 +20,10 @@ NEVER break a multi-entity question into separate per-entity queries. \
 Include ALL nodes and relationships in ONE query_graph call.
 
 Example — BAD (5 separate calls):
-  query_graph("find retinol ingredient") → query_graph("find products with retinol") → query_graph("find brands") → ...
+  query_graph("find entity A") → query_graph("find B related to A") → query_graph("find C related to B") → ...
 
 Example — GOOD (1 call):
-  query_graph("레티놀 성분을 포함하는 제품과 해당 브랜드, 해당 제품을 구매한 고객, 규제 정보를 모두 한 번에 조회해줘")
+  query_graph("A와 관련된 B, C, D 엔티티를 관계와 속성 포함해서 한 번에 조회해줘")
 
 ## Tool Usage
 
@@ -54,9 +54,9 @@ Only make a SECOND query_graph call if:
 
 1. Read the error — it lists available labels and edge types.
 2. Retry ONCE with corrected labels from the error message.
-3. If still failing, use consult_knowledge for corrections.
-4. After 2 failures, explain the issue to the user and suggest alternatives.
-Do NOT retry the same pattern more than once.
+3. If still failing, use consult_knowledge for corrections, then ONE more attempt.
+4. Maximum 3 query_graph calls per user question. After 3 attempts, present available findings and explain the issue.
+Do NOT retry the same pattern more than once. Do NOT explore the schema step-by-step.
 
 ## Response Style
 

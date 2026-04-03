@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useAppStore, type ChatMessage } from "@/lib/store";
+import { useAppStore, type ChatMessage, type ToolStep } from "@/lib/store";
 import { chatStream, fetchSessionMessages, listAgentSessions, rawQuery, suggestInsights, type InsightSuggestion } from "@/lib/api";
 import type { AgentSession } from "@/types/api";
 import { errorMessage } from "@/lib/error-messages";
@@ -12,6 +12,17 @@ import { MessageBubble } from "./message-bubble";
 import { motion, AnimatePresence } from "motion/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { AiNetworkIcon } from "@hugeicons/core-free-icons";
+
+/** Upsert a step in the steps array (replace by step name, or append). */
+function upsertToolStep(steps: ToolStep[], update: ToolStep): ToolStep[] {
+  const idx = steps.findIndex((s) => s.step === update.step);
+  if (idx >= 0) {
+    const copy = [...steps];
+    copy[idx] = update;
+    return copy;
+  }
+  return [...steps, update];
+}
 
 export function ChatPanel() {
   const {
@@ -226,11 +237,56 @@ export function ChatPanel() {
                 ],
               });
             },
+            onToolProgress(event) {
+              const toolCalls = getAssistant()?.toolCalls ?? [];
+              updateMessage(assistantId, {
+                toolCalls: toolCalls.map((tc) =>
+                  tc.id === event.tool_call_id
+                    ? {
+                        ...tc,
+                        steps: upsertToolStep(tc.steps ?? [], {
+                          step: event.step,
+                          status: event.status,
+                          stepIndex: event.step_index,
+                          totalSteps: event.total_steps,
+                          durationMs: event.duration_ms,
+                          metadata: event.metadata,
+                        }),
+                      }
+                    : tc,
+                ),
+              });
+            },
             onToolComplete(event) {
+              // Parse step_timings from tool output to populate steps
+              // (progress events arrive simultaneously with complete in drain mode)
+              let completedSteps: ToolStep[] | undefined;
+              if (!event.is_error && event.output) {
+                try {
+                  const parsed = JSON.parse(event.output);
+                  if (Array.isArray(parsed.step_timings)) {
+                    completedSteps = parsed.step_timings.map((t: { step: string; duration_ms: number }, i: number) => ({
+                      step: t.step,
+                      status: "completed" as const,
+                      stepIndex: i,
+                      totalSteps: parsed.step_timings.length,
+                      durationMs: t.duration_ms,
+                    }));
+                  }
+                } catch { /* not JSON or no step_timings */ }
+              }
+
               updateMessage(assistantId, {
                 toolCalls: (getAssistant()?.toolCalls ?? []).map((tc) =>
                   tc.id === event.id
-                    ? { ...tc, output: event.output, status: event.is_error ? "error" : "done", durationMs: event.duration_ms }
+                    ? {
+                        ...tc,
+                        output: event.output,
+                        status: event.is_error ? "error" : "done",
+                        durationMs: event.duration_ms,
+                        // Populate steps from step_timings if not already set from progress events
+                        steps: tc.steps?.length ? tc.steps : completedSteps,
+                      }
                     : tc,
                 ),
               });

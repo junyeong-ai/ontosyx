@@ -28,4 +28,21 @@ export const TOOL_META: Record<string, { label: string; icon: typeof DatabaseIco
   raw_cypher: { label: "Raw Cypher", icon: DatabaseIcon, verb: "Executing query" },
 };
 
+// ---------------------------------------------------------------------------
+// Sub-step labels for tool progress display (machine-readable → Korean)
+// ---------------------------------------------------------------------------
+
+/** Full step labels for inline progress (chat panel). */
+export const STEP_LABELS: Record<string, string> = {
+  translating: "자연어 → 쿼리 변환",
+  compiling: "쿼리 컴파일",
+  executing: "쿼리 실행",
+};
+
+/** Short step labels for timing badges (results panel). */
+export const STEP_TIMING_LABELS: Record<string, string> = {
+  translating: "번역",
+  compiling: "컴파일",
+  executing: "실행",
+};
 export const DEFAULT_TOOL_META = { label: "Tool", icon: AiNetworkIcon, verb: "Processing" };

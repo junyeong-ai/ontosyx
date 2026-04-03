@@ -9,6 +9,7 @@ import { Message01Icon } from "@hugeicons/core-free-icons";
 import { EmptyState } from "@/components/ui/empty-state";
 import { WidgetRenderer } from "@/components/widgets/widget-renderer";
 import { toast } from "sonner";
+import { STEP_TIMING_LABELS } from "@/lib/constants/tool-meta";
 
 // ---------------------------------------------------------------------------
 // Results panel — displays latest tool outputs as visualizations
@@ -142,11 +143,19 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
           )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {toolCall.durationMs != null && toolCall.durationMs > 0 && (
+          {parsed?.step_timings && parsed.step_timings.length > 0 ? (
+            <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
+              {parsed.step_timings.map((st) => {
+                const label = STEP_TIMING_LABELS[st.step] ?? st.step;
+                const ms = st.duration_ms;
+                return `${label} ${ms < 100 ? "<0.1s" : `${(ms / 1000).toFixed(1)}s`}`;
+              }).join(" · ")}
+            </span>
+          ) : toolCall.durationMs != null && toolCall.durationMs > 0 ? (
             <span className="text-[10px] text-zinc-400">
               {toolCall.durationMs < 100 ? "<0.1s" : `${(toolCall.durationMs / 1000).toFixed(1)}s`}
             </span>
-          )}
+          ) : null}
           <button
             onClick={() => setPinOpen(!pinOpen)}
             className="rounded px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 transition-colors hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950 dark:hover:text-emerald-400"
@@ -358,7 +367,7 @@ function JsonPreview({ raw }: { raw?: string }) {
 
 function tryParseQueryOutput(
   output: string | undefined,
-): { compiled_query: string; columns: string[]; rows: unknown[][]; row_count: number; widget_hint?: { widget_type: string; title: string } } | null {
+): { compiled_query: string; columns: string[]; rows: unknown[][]; row_count: number; widget_hint?: { widget_type: string; title: string }; step_timings?: { step: string; duration_ms: number }[] } | null {
   if (!output) return null;
   try {
     const parsed = JSON.parse(output);
@@ -369,6 +378,7 @@ function tryParseQueryOutput(
         rows: parsed.rows,
         row_count: parsed.row_count,
         widget_hint: parsed.widget_hint ?? undefined,
+        step_timings: Array.isArray(parsed.step_timings) ? parsed.step_timings : undefined,
       };
     }
   } catch {

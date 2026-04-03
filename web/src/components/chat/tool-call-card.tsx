@@ -9,11 +9,13 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowDown01Icon,
   ArrowUp01Icon,
+  CheckmarkCircle01Icon,
+  CancelCircleIcon,
 } from "@hugeicons/core-free-icons";
 import { Spinner } from "@/components/ui/spinner";
 import { CopyButton } from "@/components/ui/copy-button";
 import { toolErrorMessage } from "@/lib/error-messages";
-import { TOOL_META, DEFAULT_TOOL_META } from "@/lib/constants/tool-meta";
+import { TOOL_META, DEFAULT_TOOL_META, STEP_LABELS } from "@/lib/constants/tool-meta";
 
 // ---------------------------------------------------------------------------
 // ToolCallCard — rich display for tool invocations
@@ -70,8 +72,8 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
           {isRunning ? `${meta.verb}...` : meta.label}
         </span>
 
-        {/* Duration badge */}
-        {isDone && toolCall.durationMs != null && toolCall.durationMs > 0 && (
+        {/* Duration badge — show total time */}
+        {(isDone || isError) && toolCall.durationMs != null && toolCall.durationMs > 0 && (
           <span className="rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] tabular-nums text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400">
             {toolCall.durationMs < 100 ? "<0.1s" : `${(toolCall.durationMs / 1000).toFixed(1)}s`}
           </span>
@@ -120,6 +122,48 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
           />
         )}
       </div>
+
+      {/* Sub-step progress: shown during execution (realtime) and after completion (summary) */}
+      {toolCall.steps && toolCall.steps.length > 0 && (
+        <div className={`border-t px-3 py-2 space-y-1 ${
+          isRunning
+            ? "border-emerald-200/30 dark:border-emerald-800/20"
+            : "border-zinc-200/50 dark:border-zinc-700/30"
+        }`}>
+          {Array.from({ length: toolCall.steps[0]?.totalSteps ?? 0 }, (_, i) => {
+            const step = toolCall.steps?.find((s) => s.stepIndex === i);
+            const label = step ? (STEP_LABELS[step.step] ?? step.step) : `Step ${i + 1}`;
+            const status = step?.status ?? "pending";
+            return (
+              <div key={i} className="flex items-center gap-2 text-xs">
+                {status === "started" ? (
+                  <Spinner size="sm" className="h-3 w-3 text-emerald-500" />
+                ) : status === "completed" ? (
+                  <HugeiconsIcon icon={CheckmarkCircle01Icon} className="h-3 w-3 text-emerald-500" size="100%" />
+                ) : status === "failed" ? (
+                  <HugeiconsIcon icon={CancelCircleIcon} className="h-3 w-3 text-red-500" size="100%" />
+                ) : (
+                  <span className="inline-block h-3 w-3 rounded-full border border-zinc-300 dark:border-zinc-600" />
+                )}
+                <span className={
+                  status === "started"
+                    ? "text-emerald-700 dark:text-emerald-400 font-medium"
+                    : status === "failed"
+                      ? "text-red-600 dark:text-red-400"
+                      : "text-zinc-500 dark:text-zinc-400"
+                }>
+                  {label}
+                </span>
+                {step?.durationMs != null && (
+                  <span className="text-[10px] tabular-nums text-zinc-400 dark:text-zinc-500">
+                    {step.durationMs < 100 ? "<0.1s" : `${(step.durationMs / 1000).toFixed(1)}s`}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* HITL approval buttons */}
       {toolCall.status === "review" && (
