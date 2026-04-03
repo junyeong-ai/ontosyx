@@ -586,6 +586,26 @@ mod tests {
     }
 
     #[test]
+    fn match_query_ir_within_structured_output_limits() {
+        let schema = schemars::schema_for!(ox_core::match_query_ir::MatchQueryIR);
+        let value = schema.to_value();
+        let mut transformed = transform_for_structured_output(&value);
+        enforce_strict_object_schemas(&mut transformed);
+        clean_nullable_flags(&mut transformed);
+        let optional = count_optional_params(&transformed);
+        let total = count_total_properties(&transformed);
+        eprintln!("MatchQueryIR optional params: {optional}, total properties: {total}");
+        assert!(
+            optional <= 24,
+            "MatchQueryIR has {optional} optional params (limit 24)"
+        );
+        assert!(
+            total <= 50,
+            "MatchQueryIR has {total} total properties (limit 50)"
+        );
+    }
+
+    #[test]
     fn transform_load_plan_schema_preserves_enums() {
         let schema = schemars::schema_for!(ox_core::load_plan::LoadPlan);
         let value = schema.to_value();
@@ -619,3 +639,31 @@ mod tests {
         );
     }
 }
+
+    #[test]
+    fn measure_query_ir_complexity() {
+        let schema = schemars::schema_for!(ox_core::query_ir::QueryIR);
+        let mut value = schema.to_value();
+        
+        let optional_before = count_optional_params(&value);
+        let total_before = count_total_properties(&value);
+        eprintln!("BEFORE transform: optional={}, total={}", optional_before, total_before);
+        
+        // Transform
+        value = transform_for_structured_output(&value);
+        enforce_strict_object_schemas(&mut value);
+        clean_nullable_flags(&mut value);
+        
+        let optional_after = count_optional_params(&value);
+        let total_after = count_total_properties(&value);
+        eprintln!("AFTER transform: optional={}, total={}", optional_after, total_after);
+        
+        // Show first few properties at root level
+        if let Some(props) = value.get("properties").and_then(|p| p.as_object()) {
+            eprintln!("Root properties ({}): {:?}", props.len(), props.keys().collect::<Vec<_>>());
+        }
+        
+        // Dump full schema for analysis
+        let schema_str = serde_json::to_string_pretty(&value).unwrap();
+        eprintln!("Total schema size: {} chars", schema_str.len());
+    }

@@ -391,7 +391,7 @@ impl OntologyDesigner for DefaultBrain {
         let input: ox_core::ontology_input::OntologyInputIR = self
             .call_structured(
                 "design_ontology",
-                Some("2.0.0"),
+                Some("1.0.0"),
                 "design_ontology",
                 &vars,
                 "Designing ontology from sample data",
@@ -498,7 +498,7 @@ impl OntologyDesigner for DefaultBrain {
         let input: ox_core::ontology_input::OntologyInputIR = self
             .call_structured(
                 "refine_ontology",
-                Some("1.1.0"),
+                Some("1.0.0"),
                 "refine_ontology",
                 &vars,
                 "Refining ontology metadata",
@@ -574,30 +574,35 @@ impl OntologyEditor for DefaultBrain {
 #[async_trait]
 impl QueryTranslator for DefaultBrain {
     async fn translate_query(&self, question: &str, ontology: &OntologyIR) -> OxResult<QueryIR> {
-        // Schema RAG: discover relevant sub-schema and which labels are relevant
-        let (ontology_json, discovered_labels) = if let Some(memory) = &self.memory {
+        // Schema context: use vector RAG only for large ontologies (>50 nodes)
+        // where full schema would consume too many tokens. For small/medium
+        // ontologies, provide ALL nodes — modern LLMs handle this easily
+        // and RAG risks omitting nodes needed for multi-hop queries.
+        let use_rag = ontology.node_types.len() > schema_rag::FULL_SCHEMA_NODE_THRESHOLD
+            && self.memory.is_some();
+
+        let (ontology_json, discovered_labels) = if use_rag {
+            let memory = self.memory.as_ref().unwrap();
             let oid = self.ontology_id.as_deref().unwrap_or(&ontology.id);
             schema_rag::discover_schema(memory, ontology, question, oid).await
-        } else if ontology.node_types.len() <= 20 {
-            // Small ontology: use all labels as both seed and expanded
+        } else {
             let all_node_labels: Vec<&str> = ontology
                 .node_types
                 .iter()
                 .map(|n| n.label.as_str())
                 .collect();
-            let all_label_strings: Vec<String> = ontology.node_types.iter().map(|n| n.label.clone())
+            let all_label_strings: Vec<String> = ontology
+                .node_types
+                .iter()
+                .map(|n| n.label.clone())
                 .chain(ontology.edge_types.iter().map(|e| e.label.clone()))
                 .collect();
-            // Use progressive schema even for small ontologies (consistent format)
             let schema = schema_rag::build_progressive_schema(
-                ontology, &all_node_labels, &all_node_labels,
+                ontology,
+                &all_node_labels,
+                &all_node_labels,
             );
             (schema, all_label_strings)
-        } else {
-            let all_labels: Vec<String> = ontology.node_types.iter().map(|n| n.label.clone())
-                .chain(ontology.edge_types.iter().map(|e| e.label.clone()))
-                .collect();
-            (serialize_pretty(ontology, "ontology")?, all_labels)
         };
 
         // Knowledge RAG: label-based lookup using question-relevant labels only
@@ -620,53 +625,82 @@ impl QueryTranslator for DefaultBrain {
         vars.insert("ontology", ontology_json.as_str());
         vars.insert("knowledge", knowledge_context.as_str());
 
-        // Attempt 1: standard structured completion
-        let result: OxResult<QueryIR> = self
-            .call_structured(
-                "translate_query",
-                Some("2.0.0"),
-                "translate_query",
+        // Strategy: MatchQueryIR-first (structured output, 95% of queries),
+        // fallback to full QueryIR (JSON mode, for PathFind/Chain/etc.)
+        let query_ir = match self
+            .call_structured::<ox_core::MatchQueryIR>(
+                "translate_match_query",
+                Some("1.0.0"),
+                "translate_match_query",
                 &vars,
-                "Translating natural language to QueryIR",
+                "Translating to MatchQueryIR (structured output)",
             )
-            .await;
-
-        let query_ir = match result {
-            Ok(qir) => qir,
-            Err(first_err) => {
-                // Attempt 2: retry once on deserialization failure
+            .await
+            .and_then(|match_ir| match_ir.into_query_ir())
+        {
+            Ok(qir) => {
+                info!("MatchQueryIR structured output succeeded");
+                qir
+            }
+            Err(match_err) => {
+                // Fallback: full QueryIR via JSON mode (handles PathFind, Chain, etc.)
                 info!(
-                    error = %first_err,
-                    "Query translation failed, retrying once"
+                    error = %match_err,
+                    "MatchQueryIR path failed, falling back to full QueryIR"
                 );
-                let retry_result = self.call_structured::<QueryIR>(
-                    "translate_query",
-                    Some("2.0.0"),
-                    "translate_query",
-                    &vars,
-                    "Retrying query translation",
-                )
-                .await;
+                let result: OxResult<QueryIR> = self
+                    .call_structured(
+                        "translate_query",
+                        Some("1.0.0"),
+                        "translate_query",
+                        &vars,
+                        "Translating to QueryIR (JSON mode fallback)",
+                    )
+                    .await;
 
-                retry_result.map_err(|retry_err| {
-                    info!(retry_error = %retry_err, "Query translation retry also failed");
-                    first_err
-                })?
+                match result {
+                    Ok(qir) => qir,
+                    Err(first_err) => {
+                        // Final retry on JSON mode failure
+                        info!(
+                            error = %first_err,
+                            "QueryIR translation failed, retrying once"
+                        );
+                        self.call_structured::<QueryIR>(
+                            "translate_query",
+                            Some("1.0.0"),
+                            "translate_query",
+                            &vars,
+                            "Retrying query translation",
+                        )
+                        .await
+                        .map_err(|retry_err| {
+                            info!(retry_error = %retry_err, "Query translation retry also failed");
+                            first_err
+                        })?
+                    }
+                }
             }
         };
 
         // Post-translation validation: reject queries with non-existent labels.
         let warnings = validate_query_labels(&query_ir, ontology);
         if !warnings.is_empty() {
-            let available: Vec<String> = ontology
+            let available_nodes: Vec<&str> = ontology
                 .node_types
                 .iter()
-                .map(|n| n.label.clone())
+                .map(|n| n.label.as_str())
+                .collect();
+            let available_edges: Vec<&str> = ontology
+                .edge_types
+                .iter()
+                .map(|e| e.label.as_str())
                 .collect();
             let msg = format!(
-                "Query references unknown labels: {}. Available node types: {}",
+                "Query references unknown labels: {}. Available node types: [{}]. Available edge types: [{}]",
                 warnings.join("; "),
-                available.join(", "),
+                available_nodes.join(", "),
+                available_edges.join(", "),
             );
             warn!(%msg, "Rejecting query with invalid labels");
             return Err(OxError::Validation {

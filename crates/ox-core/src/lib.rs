@@ -4,6 +4,7 @@ pub(crate) mod test_fixtures;
 pub mod eval;
 
 pub mod design_project;
+pub mod match_query_ir;
 pub mod error;
 pub mod graph_audit;
 pub mod graph_exploration;
@@ -47,6 +48,7 @@ pub use query_bindings::{
     BindingKind, EdgeBinding, NodeBinding, PropertyBinding, ResolvedQueryBindings,
     resolve_query_bindings,
 };
+pub use match_query_ir::MatchQueryIR;
 pub use query_ir::QueryIR;
 pub use repo_insights::{
     CodeLabel, FieldHint, FileContent, FileSelection, OrmRelationType, OrmRelationship,
