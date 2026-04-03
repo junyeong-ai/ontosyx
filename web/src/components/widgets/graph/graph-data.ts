@@ -13,6 +13,70 @@ export interface ExtractedGraph {
   totalLinks: number;
 }
 
+/** Compute structural properties for nodes that lack their own. */
+function enrichNodes(
+  nodeMap: Map<string, GraphNodeData>,
+  links: GraphLinkData[],
+): void {
+  if (links.length === 0) return;
+  const needsEnrichment = [...nodeMap.values()].some(
+    (n) => Object.keys(n.properties).length === 0,
+  );
+  if (!needsEnrichment) return;
+
+  const degrees = new Map<string, number>();
+  const relTypes = new Map<string, Set<string>>();
+  const neighborLabels = new Map<string, Set<string>>();
+
+  for (const link of links) {
+    const src = link.source;
+    const tgt = link.target;
+
+    degrees.set(src, (degrees.get(src) ?? 0) + 1);
+    degrees.set(tgt, (degrees.get(tgt) ?? 0) + 1);
+
+    if (link.label) {
+      if (!relTypes.has(src)) relTypes.set(src, new Set());
+      if (!relTypes.has(tgt)) relTypes.set(tgt, new Set());
+      relTypes.get(src)!.add(link.label);
+      relTypes.get(tgt)!.add(link.label);
+    }
+
+    if (src !== tgt) {
+      const srcNode = nodeMap.get(src);
+      const tgtNode = nodeMap.get(tgt);
+      if (!neighborLabels.has(src)) neighborLabels.set(src, new Set());
+      if (!neighborLabels.has(tgt)) neighborLabels.set(tgt, new Set());
+      neighborLabels.get(src)!.add(tgtNode?.label ?? tgt);
+      neighborLabels.get(tgt)!.add(srcNode?.label ?? src);
+    }
+  }
+
+  const MAX_NEIGHBORS = 5;
+  for (const [id, node] of nodeMap) {
+    if (Object.keys(node.properties).length > 0) continue;
+    const deg = degrees.get(id) ?? 0;
+    const types = relTypes.get(id);
+    const nbrs = neighborLabels.get(id);
+
+    node.properties = {
+      connections: deg,
+      ...(types?.size
+        ? { relationship_types: [...types].join(", ") }
+        : {}),
+      ...(nbrs?.size
+        ? {
+            neighbors:
+              nbrs.size <= MAX_NEIGHBORS
+                ? [...nbrs].join(", ")
+                : [...nbrs].slice(0, MAX_NEIGHBORS).join(", ") +
+                  ` (+${nbrs.size - MAX_NEIGHBORS})`,
+          }
+        : {}),
+    };
+  }
+}
+
 export function extractGraphData(
   data: QueryResult,
   nodeConfig: NodeVizConfig | undefined,
@@ -170,6 +234,8 @@ export function extractGraphData(
       }
     }
   }
+
+  enrichNodes(nodeMap, links);
 
   const allNodes = Array.from(nodeMap.values());
   const totalNodes = allNodes.length;

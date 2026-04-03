@@ -153,14 +153,24 @@ export const GraphWidget = memo(function GraphWidget({
         ctx.stroke();
       }
 
-      // Label — show at appropriate zoom
-      const fontSize = Math.max(10, 12 / globalScale);
-      if (globalScale > 0.6 || isSelected || isHovered) {
+      // Label — adaptive sizing with canvas-space cap to prevent overlap
+      const baseFontSize = Math.min(12 / globalScale, 6);
+      const selectedFontSize = Math.min(12 / globalScale, 9);
+      const fontSize = isSelected || isHovered ? selectedFontSize : baseFontSize;
+      const screenPx = fontSize * globalScale;
+
+      if (screenPx >= 4 || isSelected || isHovered) {
+        const maxChars = globalScale >= 1.5 ? Infinity : 10;
+        const displayLabel =
+          gn.label.length > maxChars
+            ? gn.label.slice(0, maxChars) + "\u2026"
+            : gn.label;
+
         ctx.font = `${isSelected ? "600" : "400"} ${fontSize}px Inter, system-ui, sans-serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
         ctx.fillStyle = isDark ? "#e4e4e7" : "#3f3f46";
-        ctx.fillText(gn.label, x, y + r + 2);
+        ctx.fillText(displayLabel, x, y + r + 2);
       }
     },
     [selectedNode, hoveredNodeId, isDark],
