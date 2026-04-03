@@ -51,6 +51,7 @@ impl SchemaTool for ConsultKnowledgeTool {
         "Search the workspace knowledge base for learned corrections from past query failures \
          and admin-created hints. Use before complex queries to check if there are known \
          pitfalls or recommended approaches for this ontology.";
+    const READ_ONLY: bool = true;
 
     async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
         let ontology_name = match &self.ontology_name {

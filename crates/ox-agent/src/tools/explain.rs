@@ -33,6 +33,7 @@ impl SchemaTool for ExplainOntologyTool {
     const DESCRIPTION: &'static str = "Explain ontology concepts, relationships, data patterns, and quality insights. \
          Includes actual graph data statistics (node counts, edge counts) when available. \
          Use for 'what is', 'explain', 'describe', or 'help' questions about the knowledge graph.";
+    const READ_ONLY: bool = true;
 
     async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
         let mut context = String::new();

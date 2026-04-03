@@ -50,6 +50,7 @@ impl SchemaTool for SearchRecipesTool {
          Recipes include pre-built templates for time series, segmentation, classification, \
          regression, anomaly detection, and statistical analysis. \
          Returns recipe details including required input columns and parameters.";
+    const READ_ONLY: bool = true;
 
     async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
         let params = ox_store::CursorParams {

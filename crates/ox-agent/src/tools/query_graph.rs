@@ -34,6 +34,9 @@ struct QueryGraphOutput {
     rows: serde_json::Value,
     #[serde(skip_serializing_if = "Option::is_none")]
     widget_hint: Option<WidgetHintOutput>,
+    /// Guidance for the agent on how to proceed with results.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    guidance: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -54,8 +57,11 @@ impl SchemaTool for QueryGraphTool {
     type Input = QueryGraphInput;
     const NAME: &'static str = super::QUERY_GRAPH;
     const DESCRIPTION: &'static str = "Execute a natural language query against the knowledge graph database. \
-         Translates the question to a graph query, runs it, and returns structured results \
-         with columns and rows. Use this for any data retrieval, aggregation, or exploration.";
+         Translates the question to a graph query, runs it, and returns structured results. \
+         IMPORTANT: Include ALL needed entities and relationships in a single question — \
+         the engine handles multi-hop chains (e.g., A→B→C→D) in one query. \
+         Do NOT split into separate calls per entity.";
+    const READ_ONLY: bool = true;
 
     async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
         let ontology = match self.domain.ontology.as_ref() {
@@ -70,10 +76,12 @@ impl SchemaTool for QueryGraphTool {
 
         let start = std::time::Instant::now();
 
+        let question = input.question.clone();
+
         // Step 1: Translate NL → QueryIR (timeout: 60s)
         let query_ir = match tokio::time::timeout(
             std::time::Duration::from_secs(60),
-            self.brain.translate_query(&input.question, ontology),
+            self.brain.translate_query(&question, ontology),
         )
         .await
         {
@@ -175,6 +183,21 @@ impl SchemaTool for QueryGraphTool {
             None
         };
 
+        // Guidance: tell agent when data is sufficient to avoid unnecessary follow-up queries
+        let guidance = if results.metadata.rows_returned >= 2 {
+            Some(format!(
+                "Got {} rows with {} columns. Analyze these results directly and present findings. \
+                 Do NOT make additional queries unless the user asks a follow-up question.",
+                results.metadata.rows_returned,
+                results.columns.len()
+            ))
+        } else if results.metadata.rows_returned == 0 {
+            Some("No results found. Try broadening the search — use CONTAINS instead of exact match, \
+                  or check property names in the ontology schema.".to_string())
+        } else {
+            None
+        };
+
         let output = QueryGraphOutput {
             execution_id: execution_id.to_string(),
             compiled_query: compiled.statement,
@@ -183,6 +206,7 @@ impl SchemaTool for QueryGraphTool {
             row_count: results.metadata.rows_returned as usize,
             rows: serde_json::to_value(&results.rows).unwrap_or_default(),
             widget_hint,
+            guidance,
         };
 
         ToolResult::success(serde_json::to_string_pretty(&output).unwrap_or_default())

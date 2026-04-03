@@ -73,6 +73,7 @@ impl SchemaTool for RecallMemoryTool {
     const DESCRIPTION: &'static str = "Search long-term memory for relevant past queries, analyses, edits, and sessions. \
          Use 'semantic' mode for meaning-based search, or 'pattern' mode for exact keyword matching. \
          Call this when the user references past work or when context from previous sessions would help.";
+    const READ_ONLY: bool = true;
 
     async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
         let source_hint = input.source.as_deref().and_then(parse_memory_source);

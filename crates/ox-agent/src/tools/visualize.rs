@@ -46,6 +46,7 @@ impl SchemaTool for VisualizeTool {
          stat_card (single key metric), table (detailed tabular data), \
          graph (relationship/network visualization). \
          Returns a spec the frontend renders.";
+    const READ_ONLY: bool = true;
 
     async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
         let columns = if let Some(arr) = input.data.as_array() {

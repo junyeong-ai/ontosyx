@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use ox_core::error::{OxError, OxResult};
 use serde::{Deserialize, Serialize};
 
@@ -142,8 +140,8 @@ pub async fn structured_completion_with_thresholds<
         );
     }
 
-    // Send with transport-level retry (rate limit, overloaded, 5xx)
-    let response = match send_with_retry(client, request.clone()).await {
+    // Branchforge Client handles retry/backoff/circuit-breaker internally.
+    let response = match client.send(request.clone()).await {
         Ok(resp) => resp,
         // Content filter with schema → mode switch (not a retry, different request)
         Err(e) if use_schema && is_content_filtered(&e) => {
@@ -152,11 +150,9 @@ pub async fn structured_completion_with_thresholds<
             );
             let mut fallback = request;
             fallback.output_format = None;
-            send_with_retry(client, fallback)
-                .await
-                .map_err(|e| OxError::Runtime {
-                    message: format!("LLM request failed (JSON fallback): {e}"),
-                })?
+            client.send(fallback).await.map_err(|e| OxError::Runtime {
+                message: format!("LLM request failed (JSON fallback): {e}"),
+            })?
         }
         Err(e) => {
             return Err(OxError::Runtime {
@@ -234,52 +230,6 @@ fn extract_json(text: &str) -> &str {
 
     // Pattern 3: Plain JSON (already valid)
     trimmed
-}
-
-/// Send a request with transport-level retry for transient errors.
-/// Handles rate limits, overloaded models, circuit breaker, and 5xx errors.
-async fn send_with_retry(
-    client: &branchforge::Client,
-    request: branchforge::client::CreateMessageRequest,
-) -> Result<branchforge::types::ApiResponse, branchforge::Error> {
-    const MAX_RETRIES: u32 = 2;
-
-    let mut last_error = None;
-    for attempt in 0..=MAX_RETRIES {
-        match client.send(request.clone()).await {
-            Ok(resp) => return Ok(resp),
-            Err(e) if attempt < MAX_RETRIES && is_retryable(&e) => {
-                let delay = Duration::from_millis(500 * 2u64.pow(attempt));
-                tracing::warn!(
-                    attempt = attempt + 1,
-                    "Retryable LLM error, retrying in {delay:?}: {e}"
-                );
-                tokio::time::sleep(delay).await;
-                last_error = Some(e);
-            }
-            Err(e) => return Err(e),
-        }
-    }
-    Err(last_error.unwrap_or_else(|| branchforge::Error::Api {
-        message: "retry loop completed without any attempt".into(),
-        status: None,
-        error_type: None,
-    }))
-}
-
-fn is_retryable(err: &branchforge::Error) -> bool {
-    matches!(
-        err,
-        branchforge::Error::RateLimit { .. }
-            | branchforge::Error::ModelOverloaded { .. }
-            | branchforge::Error::CircuitOpen
-    ) || matches!(
-        err,
-        branchforge::Error::Api {
-            status: Some(500..=599),
-            ..
-        }
-    )
 }
 
 fn is_content_filtered(err: &branchforge::Error) -> bool {

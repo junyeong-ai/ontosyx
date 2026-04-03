@@ -43,6 +43,7 @@ impl SchemaTool for IntrospectSourceTool {
          definitions, data types, constraints, and statistics for a specific table. Useful when \
          exploring large schemas progressively or when you need to understand a table's structure \
          before querying or designing.";
+    const READ_ONLY: bool = true;
 
     async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
         let schema = match &self.domain.source_schema {
