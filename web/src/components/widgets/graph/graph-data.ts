@@ -3,6 +3,31 @@ import type { GraphNodeData, GraphLinkData } from "./graph-types";
 import { resolveColorMap, assignNodeColor, assignNodeSize } from "./graph-utils";
 
 // ---------------------------------------------------------------------------
+// Value resolution — safely convert cell values to display strings
+// ---------------------------------------------------------------------------
+
+/** Safely convert a cell value to a display string.
+ *  Handles: string, number, PropertyValue {type,value}, node objects, null. */
+function resolveDisplayValue(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    // PropertyValue wrapper: {type: "string", value: "..."}
+    if ("type" in obj && "value" in obj) return resolveDisplayValue(obj.value);
+    if ("type" in obj && obj.type === "null") return "";
+    // Node object: prefer name > label > title > id
+    for (const key of ["name", "label", "title", "id"]) {
+      if (key in obj && obj[key] != null) return resolveDisplayValue(obj[key]);
+    }
+    // Fallback: truncated JSON
+    try { return JSON.stringify(value).slice(0, 80); } catch { return "(object)"; }
+  }
+  return String(value);
+}
+
+// ---------------------------------------------------------------------------
 // Data extraction — transforms QueryResult rows into graph nodes & links
 // ---------------------------------------------------------------------------
 
@@ -164,7 +189,7 @@ export function extractGraphData(
     const typeCol = cols.find((c) => ["type", "node_type", "label_type", "category"].includes(c.toLowerCase()));
 
     for (const row of data.rows) {
-      const id = String(row[idCol] ?? "");
+      const id = resolveDisplayValue(row[idCol]);
       if (!id) continue;
 
       const properties: Record<string, unknown> = {};
@@ -172,10 +197,10 @@ export function extractGraphData(
         if (row[c] != null) properties[c] = row[c];
       }
 
-      const nodeType = typeCol ? String(row[typeCol] ?? "") : undefined;
+      const nodeType = typeCol ? resolveDisplayValue(row[typeCol]) : undefined;
       const node: GraphNodeData = {
         id,
-        label: String(row[labelCol] ?? id),
+        label: resolveDisplayValue(row[labelCol]) || id,
         type: nodeType,
         properties,
         __color: "",
@@ -192,8 +217,8 @@ export function extractGraphData(
       const edgeLabelCol = edgeConfig?.label_field ?? cols[2];
 
       for (const row of data.rows) {
-        const src = String(row[col1] ?? "");
-        const tgt = String(row[col2] ?? "");
+        const src = resolveDisplayValue(row[col1]);
+        const tgt = resolveDisplayValue(row[col2]);
         if (!src || !tgt) continue;
 
         if (!nodeMap.has(src)) {
@@ -228,7 +253,7 @@ export function extractGraphData(
           id: `${src}->${tgt}:${links.length}`,
           source: src,
           target: tgt,
-          label: edgeLabelCol ? String(row[edgeLabelCol] ?? "") : undefined,
+          label: edgeLabelCol ? resolveDisplayValue(row[edgeLabelCol]) : undefined,
           properties: edgeProps,
         });
       }

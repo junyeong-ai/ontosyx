@@ -35,6 +35,8 @@ The output schema is enforced — follow these semantic rules only.
 
 10. Aggregation: set aggregate field on return clauses (e.g., aggregate="count"). Include the grouping field in BOTH returns and group_by. Alias is required for aggregation returns.
 
+10b. NEVER use "collect" or "collect_list" as aggregate — they return arrays, not individual rows. Only these aggregates are allowed: count, sum, avg, min, max. If the user asks for "list of X per group", return the grouped fields directly without aggregation instead.
+
 ## EXAMPLES
 
 Ontology for examples:

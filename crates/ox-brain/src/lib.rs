@@ -600,7 +600,6 @@ impl QueryTranslator for DefaultBrain {
             let schema = schema_rag::build_progressive_schema(
                 ontology,
                 &all_node_labels,
-                &all_node_labels,
             );
             (schema, all_label_strings)
         };

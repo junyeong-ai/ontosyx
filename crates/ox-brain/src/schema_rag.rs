@@ -179,7 +179,7 @@ pub async fn discover_schema(
     // Tier 2: Property names + types (all expanded labels) — compact, no descriptions
     // Tier 3: Property descriptions (seed labels only) — full detail for most relevant
     let labels_out: Vec<String> = final_labels.iter().map(|s| s.to_string()).collect();
-    let schema = build_progressive_schema(ontology, &seed_labels, &final_labels);
+    let schema = build_progressive_schema(ontology, &final_labels);
     (schema, labels_out)
 }
 
@@ -192,7 +192,6 @@ pub async fn discover_schema(
 /// - Tier 3: Property descriptions — enables value matching (enums, ranges)
 pub(crate) fn build_progressive_schema(
     ontology: &OntologyIR,
-    seed_labels: &[&str],
     expanded_labels: &[&str],
 ) -> String {
     let expanded_set: HashSet<&str> = expanded_labels.iter().copied().collect();
@@ -232,12 +231,15 @@ pub(crate) fn build_progressive_schema(
         }
     }
 
-    // Tier 3: Property descriptions + sample values (seed labels + edge properties)
+    // Tier 3: Property descriptions + sample values (ALL expanded labels + edge properties)
     // Pruned to MAX_DESCRIBED_PROPS_PER_NODE per node to prevent token explosion.
     // Properties ranked by description length (longer descriptions contain more
     // informative data like sample values, enum lists, and ranges).
+    // NOTE: Uses expanded_labels (not just seeds) so that BFS-discovered neighbor
+    // nodes also get property descriptions — critical for LLM to distinguish
+    // between similarly-named properties (e.g., name vs name_inci).
     let mut has_details = false;
-    for label in seed_labels {
+    for label in expanded_labels {
         if let Some(node) = ontology.node_by_label(label) {
             let mut described_props: Vec<(&str, &str)> = node.properties.iter()
                 .filter_map(|p| {
