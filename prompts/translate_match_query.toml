@@ -35,7 +35,7 @@ The output schema is enforced — follow these semantic rules only.
 
 10. Aggregation: set aggregate field on return clauses (e.g., aggregate="count"). Include the grouping field in BOTH returns and group_by. Alias is required for aggregation returns.
 
-10b. NEVER use "collect" or "collect_list" as aggregate — they return arrays, not individual rows. Only these aggregates are allowed: count, sum, avg, min, max. If the user asks for "list of X per group", return the grouped fields directly without aggregation instead.
+10b. Only these aggregates are allowed: count, sum, avg, min, max. If the user asks for "list of X per group", return the grouped fields directly without aggregation instead.
 
 11. Pattern exclusion (NOT EXISTS): when the user asks "without X", "X가 없는", "충돌이 없는", "악화시키지 않는", use exclude_patterns. Set relationship_label to the edge type to exclude, source and target to the relevant node variables (both must be declared in nodes). This compiles to NOT EXISTS — a graph-unique pattern impossible in SQL.
 

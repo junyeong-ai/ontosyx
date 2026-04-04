@@ -150,6 +150,33 @@ pub enum ConditionOp {
     IsNotNull,
 }
 
+/// Aggregation functions allowed in MatchQueryIR.
+///
+/// Restricted subset of [`AggFunction`] — excludes `collect` and `collect_list`
+/// which return arrays instead of scalar values, breaking row-per-entity output.
+/// The full `AggFunction` enum is available in QueryIR for the fallback path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum MatchAggFunction {
+    Count,
+    Sum,
+    Avg,
+    Min,
+    Max,
+}
+
+impl From<MatchAggFunction> for AggFunction {
+    fn from(f: MatchAggFunction) -> Self {
+        match f {
+            MatchAggFunction::Count => AggFunction::Count,
+            MatchAggFunction::Sum => AggFunction::Sum,
+            MatchAggFunction::Avg => AggFunction::Avg,
+            MatchAggFunction::Min => AggFunction::Min,
+            MatchAggFunction::Max => AggFunction::Max,
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Return / projection (flat struct with optional aggregate overlay)
 // ---------------------------------------------------------------------------
@@ -168,8 +195,10 @@ pub struct ReturnClause {
     pub field: Option<String>,
     /// Output alias
     pub alias: Option<String>,
-    /// Aggregation function (None = plain field/variable)
-    pub aggregate: Option<AggFunction>,
+    /// Aggregation function (None = plain field/variable).
+    /// Only count/sum/avg/min/max allowed — collect/collect_list are excluded
+    /// from the schema to prevent LLM from generating them.
+    pub aggregate: Option<MatchAggFunction>,
     /// DISTINCT flag for aggregation
     pub distinct: Option<bool>,
 }
@@ -260,25 +289,9 @@ impl MatchQueryIR {
             }
         }
 
-        // Reject collect/collect_list — these collapse rows into arrays,
-        // producing 1-row results that agents can't interpret per-entity.
-        // Use count/sum/avg/min/max instead for aggregation.
-        for (i, ret) in self.returns.iter().enumerate() {
-            if matches!(
-                ret.aggregate,
-                Some(AggFunction::Collect) | Some(AggFunction::CollectList)
-            ) {
-                return Err(OxError::Validation {
-                    field: format!("returns[{i}].aggregate"),
-                    message: format!(
-                        "collect/collect_list not allowed in MatchQueryIR — returns arrays instead of individual rows. \
-                         Use plain fields without aggregate, or use count/sum/avg for aggregation."
-                    ),
-                });
-            }
-        }
-
         // Mixed aggregation + non-aggregation without group_by collapses rows.
+        // Note: collect/collect_list are prevented at the schema level —
+        // MatchAggFunction only includes count/sum/avg/min/max.
         let has_aggregation = self.returns.iter().any(|r| r.aggregate.is_some());
         let has_non_agg = self.returns.iter().any(|r| r.aggregate.is_none());
         if has_aggregation && has_non_agg && self.group_by.is_empty() {
@@ -559,7 +572,7 @@ fn return_to_projection(r: &ReturnClause) -> Projection {
             }),
         };
         Projection::Aggregation {
-            function: func,
+            function: func.into(),
             argument,
             alias: r.alias.clone().unwrap_or_else(|| format!("{func:?}").to_lowercase()),
             distinct: r.distinct.unwrap_or(false),
@@ -677,7 +690,7 @@ mod tests {
             variable: "o".into(),
             field: None,
             alias: Some("order_count".into()),
-            aggregate: Some(AggFunction::Count),
+            aggregate: Some(MatchAggFunction::Count),
             distinct: Some(false),
         };
         let proj = return_to_projection(&ret);
@@ -902,7 +915,7 @@ mod tests {
                 variable: "p".into(),
                 field: None,
                 alias: Some("total".into()),
-                aggregate: Some(AggFunction::Count),
+                aggregate: Some(MatchAggFunction::Count),
                 distinct: None,
             },
         ];
@@ -917,7 +930,7 @@ mod tests {
             variable: "p".into(),
             field: None,
             alias: Some("total".into()),
-            aggregate: Some(AggFunction::Count),
+            aggregate: Some(MatchAggFunction::Count),
             distinct: None,
         }];
         assert!(ir.into_query_ir().is_ok());
