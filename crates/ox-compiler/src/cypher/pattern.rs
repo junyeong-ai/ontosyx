@@ -23,7 +23,9 @@ pub(super) fn compile_pattern(pattern: &GraphPattern, pc: &mut ParamCollector) -
             property_filters,
             var_length,
         } => {
-            let var = variable.as_deref().unwrap_or("");
+            let var = variable.as_deref()
+                .filter(|v| !v.is_empty() && *v != "null" && *v != "-" && v.chars().next().is_some_and(|c| c.is_alphabetic() || c == '_'))
+                .unwrap_or("");
             let lbl = label
                 .as_deref()
                 .map(|l| format!(":{}", escape_identifier(l)))
@@ -59,7 +61,9 @@ pub(super) fn compile_pattern(pattern: &GraphPattern, pc: &mut ParamCollector) -
                         label,
                         direction,
                     } => {
-                        let var = variable.as_deref().unwrap_or("");
+                        let var = variable.as_deref()
+                .filter(|v| !v.is_empty() && *v != "null" && *v != "-" && v.chars().next().is_some_and(|c| c.is_alphabetic() || c == '_'))
+                .unwrap_or("");
                         let lbl = label
                             .as_deref()
                             .map(|l| format!(":{}", escape_identifier(l)))

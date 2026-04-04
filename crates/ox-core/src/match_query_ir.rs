@@ -357,7 +357,7 @@ impl MatchQueryIR {
             let variable = rel
                 .variable
                 .as_deref()
-                .filter(|v| !v.is_empty() && *v != "null")
+                .filter(|v| !v.is_empty() && *v != "null" && *v != "-" && v.starts_with(|c: char| c.is_alphabetic() || c == '_'))
                 .map(String::from);
             patterns.push(GraphPattern::Relationship {
                 variable,
