@@ -477,7 +477,7 @@ export function QueryBuilder() {
                 </span>
                 <button
                   onClick={() => navigator.clipboard.writeText(cypherPreview)}
-                  className="text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                  className="cursor-pointer text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
                 >
                   Copy
                 </button>

@@ -8,9 +8,9 @@ import {
   UserIcon,
   ThumbsUpIcon,
   ThumbsDownIcon,
-  CopyIcon,
 } from "@hugeicons/core-free-icons";
 import { Alert } from "@/components/ui/alert";
+import { CopyButton } from "@/components/ui/copy-button";
 import { Streamdown } from "streamdown";
 import { code } from "@streamdown/code";
 import { streamdownComponents } from "@/components/chat/streamdown-components";
@@ -127,14 +127,9 @@ export function MessageBubble({ message, onSend }: MessageBubbleProps) {
           <div className="group/msg relative max-w-none rounded-2xl bg-white px-4 py-2.5 text-sm leading-relaxed text-zinc-800 shadow-sm ring-1 ring-zinc-100 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-zinc-700">
             {/* Copy button — visible on hover */}
             {message.content && !message.isStreaming && (
-              <button
-                onClick={() => navigator.clipboard.writeText(message.content!)}
-                className="absolute right-2 top-2 rounded p-1 text-zinc-300 opacity-0 transition-opacity hover:bg-zinc-100 hover:text-zinc-500 group-hover/msg:opacity-100 dark:text-zinc-600 dark:hover:bg-zinc-700 dark:hover:text-zinc-400"
-                aria-label="Copy response"
-                title="Copy"
-              >
-                <HugeiconsIcon icon={CopyIcon} className="h-3 w-3" size="100%" />
-              </button>
+              <div className="opacity-0 group-hover/msg:opacity-100 transition-opacity">
+                <CopyButton text={message.content} />
+              </div>
             )}
             {message.content ? (
               <div className="prose-message">

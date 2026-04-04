@@ -6,6 +6,7 @@ import type { Dashboard, QueryResult, WidgetSpec } from "@/types/api";
 import { listDashboards, addWidget, normalizeQueryResult } from "@/lib/api";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Message01Icon } from "@hugeicons/core-free-icons";
+import { CopyButton } from "@/components/ui/copy-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { WidgetRenderer } from "@/components/widgets/widget-renderer";
 import { toast } from "sonner";
@@ -503,16 +504,9 @@ function QueryBlock({ query }: { query: string }) {
         className="block max-h-20 overflow-auto rounded bg-zinc-900 px-2 py-1.5 pr-8 text-[11px] font-mono leading-relaxed text-zinc-300"
         dangerouslySetInnerHTML={{ __html: highlightCypher(query) }}
       />
-      <button
-        onClick={() => navigator.clipboard.writeText(query)}
-        className="absolute right-1 top-1 rounded p-0.5 text-zinc-500 opacity-0 transition-opacity hover:text-zinc-300 group-hover/qb:opacity-100"
-        aria-label="Copy query"
-        title="Copy query"
-      >
-        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-        </svg>
-      </button>
+      <div className="opacity-0 group-hover/qb:opacity-100 transition-opacity">
+        <CopyButton text={query} />
+      </div>
     </div>
   );
 }
