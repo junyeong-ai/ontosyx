@@ -247,8 +247,6 @@ export function ChatPanel() {
                         steps: upsertToolStep(tc.steps ?? [], {
                           step: event.step,
                           status: event.status,
-                          stepIndex: event.step_index,
-                          totalSteps: event.total_steps,
                           durationMs: event.duration_ms,
                           metadata: event.metadata,
                         }),
@@ -265,11 +263,9 @@ export function ChatPanel() {
                 try {
                   const parsed = JSON.parse(event.output);
                   if (Array.isArray(parsed.step_timings)) {
-                    completedSteps = parsed.step_timings.map((t: { step: string; duration_ms: number }, i: number) => ({
+                    completedSteps = parsed.step_timings.map((t: { step: string; duration_ms: number }) => ({
                       step: t.step,
                       status: "completed" as const,
-                      stepIndex: i,
-                      totalSteps: parsed.step_timings.length,
                       durationMs: t.duration_ms,
                     }));
                   }

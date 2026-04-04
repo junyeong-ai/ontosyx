@@ -55,29 +55,24 @@ struct WidgetHintOutput {
 }
 
 /// Step identifiers for query_graph execution phases.
-/// Used by `emit_step` for `total_steps` and referenced by index below.
-const STEP_TRANSLATING: &str = "translating";
+/// Brain emits its own sub-steps (schema_discovery, llm_primary, etc.)
+/// during translate_query. The tool only emits compile + execute.
 const STEP_COMPILING: &str = "compiling";
 const STEP_EXECUTING: &str = "executing";
-const TOTAL_STEPS: u32 = 3;
 
 /// Emit a sub-step progress event (no-op if channel not provided).
 fn emit_step(
     tx: &Option<ProgressSender>,
     step: &str,
     status: StepStatus,
-    index: u32,
     duration_ms: Option<u64>,
     metadata: Option<serde_json::Value>,
 ) {
     if let Some(tx) = tx {
-        tracing::debug!(step, ?status, index, "Emitting tool progress");
         let _ = tx.send(ToolProgress {
             tool_name: super::QUERY_GRAPH.to_string(),
             step: step.to_string(),
             status,
-            step_index: index,
-            total_steps: TOTAL_STEPS,
             duration_ms,
             metadata,
         });
@@ -120,49 +115,47 @@ impl SchemaTool for QueryGraphTool {
         let question = input.question.clone();
 
         // Step 1: Translate NL → QueryIR (timeout: 60s)
-        emit_step(tx, STEP_TRANSLATING, StepStatus::Started, 0, None, None);
+        // Brain emits its own sub-steps (schema_discovery, llm_primary, llm_fallback)
+        // via the progress channel, providing real-time visibility during translation.
         let t1 = std::time::Instant::now();
         let query_ir = match tokio::time::timeout(
             std::time::Duration::from_secs(60),
-            self.brain.translate_query(&question, ontology),
+            self.brain.translate_query(&question, ontology, tx.as_ref()),
         )
         .await
         {
             Ok(Ok(ir)) => {
                 let ms = t1.elapsed().as_millis() as u64;
-                step_timings.push(StepTiming { step: STEP_TRANSLATING.into(), duration_ms: ms });
-                emit_step(tx, STEP_TRANSLATING, StepStatus::Completed, 0, Some(ms), None);
+                step_timings.push(StepTiming { step: "translating".into(), duration_ms: ms });
                 ir
             }
             Ok(Err(e)) => {
-                emit_step(tx, STEP_TRANSLATING, StepStatus::Failed, 0, Some(t1.elapsed().as_millis() as u64), None);
                 return ToolResult::error(format!("Query translation failed: {e}"));
             }
             Err(_) => {
-                emit_step(tx, STEP_TRANSLATING, StepStatus::Failed, 0, Some(60_000), None);
                 return ToolResult::error("Query translation timed out after 60 seconds");
             }
         };
 
         // Step 2: Compile QueryIR → target language
-        emit_step(tx, STEP_COMPILING, StepStatus::Started, 1, None, None);
+        emit_step(tx, STEP_COMPILING, StepStatus::Started, None, None);
         let t2 = std::time::Instant::now();
         let compiled = match self.domain.compiler.compile_query(&query_ir) {
             Ok(c) => {
                 let ms = t2.elapsed().as_millis() as u64;
                 step_timings.push(StepTiming { step: STEP_COMPILING.into(), duration_ms: ms });
-                emit_step(tx, STEP_COMPILING, StepStatus::Completed, 1, Some(ms),
+                emit_step(tx, STEP_COMPILING, StepStatus::Completed, Some(ms),
                     Some(serde_json::json!({ "cypher": truncate(&c.statement, 500) })));
                 c
             }
             Err(e) => {
-                emit_step(tx, STEP_COMPILING, StepStatus::Failed, 1, Some(t2.elapsed().as_millis() as u64), None);
+                emit_step(tx, STEP_COMPILING, StepStatus::Failed, Some(t2.elapsed().as_millis() as u64), None);
                 return ToolResult::error(format!("Query compilation failed: {e}"));
             }
         };
 
         // Step 3: Execute (timeout: 60s)
-        emit_step(tx, STEP_EXECUTING, StepStatus::Started, 2, None, None);
+        emit_step(tx, STEP_EXECUTING, StepStatus::Started, None, None);
         let t3 = std::time::Instant::now();
         let results = match tokio::time::timeout(
             std::time::Duration::from_secs(60),
@@ -173,19 +166,19 @@ impl SchemaTool for QueryGraphTool {
             Ok(Ok(r)) => {
                 let ms = t3.elapsed().as_millis() as u64;
                 step_timings.push(StepTiming { step: STEP_EXECUTING.into(), duration_ms: ms });
-                emit_step(tx, STEP_EXECUTING, StepStatus::Completed, 2, Some(ms),
+                emit_step(tx, STEP_EXECUTING, StepStatus::Completed, Some(ms),
                     Some(serde_json::json!({ "row_count": r.metadata.rows_returned })));
                 r
             }
             Ok(Err(e)) => {
-                emit_step(tx, STEP_EXECUTING, StepStatus::Failed, 2, Some(t3.elapsed().as_millis() as u64), None);
+                emit_step(tx, STEP_EXECUTING, StepStatus::Failed, Some(t3.elapsed().as_millis() as u64), None);
                 return ToolResult::error(format!(
                     "Query execution failed: {e}\nCompiled query: {}",
                     truncate(&compiled.statement, 500),
                 ));
             }
             Err(_) => {
-                emit_step(tx, STEP_EXECUTING, StepStatus::Failed, 2, Some(60_000), None);
+                emit_step(tx, STEP_EXECUTING, StepStatus::Failed, Some(60_000), None);
                 return ToolResult::error("Query execution timed out after 60 seconds");
             }
         };

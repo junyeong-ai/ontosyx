@@ -145,7 +145,7 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
             .tool(VisualizeTool)
             .system_prompt(system_prompt.to_owned())
             .execution_mode(execution_mode)
-            .max_iterations(12)
+            .max_iterations(16)
             .cache(CacheConfig::static_and_tools());
 
         // RAG tools

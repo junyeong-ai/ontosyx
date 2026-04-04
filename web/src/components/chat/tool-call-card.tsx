@@ -130,38 +130,31 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
             ? "border-emerald-200/30 dark:border-emerald-800/20"
             : "border-zinc-200/50 dark:border-zinc-700/30"
         }`}>
-          {Array.from({ length: toolCall.steps[0]?.totalSteps ?? 0 }, (_, i) => {
-            const step = toolCall.steps?.find((s) => s.stepIndex === i);
-            const label = step ? (STEP_LABELS[step.step] ?? step.step) : `Step ${i + 1}`;
-            const status = step?.status ?? "pending";
-            return (
-              <div key={i} className="flex items-center gap-2 text-xs">
-                {status === "started" ? (
-                  <Spinner size="sm" className="h-3 w-3 text-emerald-500" />
-                ) : status === "completed" ? (
-                  <HugeiconsIcon icon={CheckmarkCircle01Icon} className="h-3 w-3 text-emerald-500" size="100%" />
-                ) : status === "failed" ? (
-                  <HugeiconsIcon icon={CancelCircleIcon} className="h-3 w-3 text-red-500" size="100%" />
-                ) : (
-                  <span className="inline-block h-3 w-3 rounded-full border border-zinc-300 dark:border-zinc-600" />
-                )}
-                <span className={
-                  status === "started"
-                    ? "text-emerald-700 dark:text-emerald-400 font-medium"
-                    : status === "failed"
-                      ? "text-red-600 dark:text-red-400"
-                      : "text-zinc-500 dark:text-zinc-400"
-                }>
-                  {label}
+          {toolCall.steps.map((step) => (
+            <div key={step.step} className="flex items-center gap-2 text-xs">
+              {step.status === "started" ? (
+                <Spinner size="sm" className="h-3 w-3 text-emerald-500" />
+              ) : step.status === "completed" ? (
+                <HugeiconsIcon icon={CheckmarkCircle01Icon} className="h-3 w-3 text-emerald-500" size="100%" />
+              ) : (
+                <HugeiconsIcon icon={CancelCircleIcon} className="h-3 w-3 text-red-500" size="100%" />
+              )}
+              <span className={
+                step.status === "started"
+                  ? "text-emerald-700 dark:text-emerald-400 font-medium"
+                  : step.status === "failed"
+                    ? "text-red-600 dark:text-red-400"
+                    : "text-zinc-500 dark:text-zinc-400"
+              }>
+                {STEP_LABELS[step.step] ?? step.step}
+              </span>
+              {step.durationMs != null && (
+                <span className="text-[10px] tabular-nums text-zinc-400 dark:text-zinc-500">
+                  {step.durationMs < 100 ? "<0.1s" : `${(step.durationMs / 1000).toFixed(1)}s`}
                 </span>
-                {step?.durationMs != null && (
-                  <span className="text-[10px] tabular-nums text-zinc-400 dark:text-zinc-500">
-                    {step.durationMs < 100 ? "<0.1s" : `${(step.durationMs / 1000).toFixed(1)}s`}
-                  </span>
-                )}
-              </div>
-            );
-          })}
+              )}
+            </div>
+          ))}
         </div>
       )}
 

@@ -36,8 +36,6 @@ export interface NeighborhoodFocus {
 export interface ToolStep {
   step: string;
   status: "started" | "completed" | "failed";
-  stepIndex: number;
-  totalSteps: number;
   durationMs?: number;
   metadata?: Record<string, unknown>;
 }

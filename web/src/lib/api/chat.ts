@@ -35,8 +35,6 @@ export interface AgentToolProgressEvent {
   tool_call_id: string;
   step: string;
   status: "started" | "completed" | "failed";
-  step_index: number;
-  total_steps: number;
   duration_ms?: number;
   metadata?: Record<string, unknown>;
 }

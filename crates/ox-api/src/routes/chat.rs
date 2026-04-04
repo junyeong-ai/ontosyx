@@ -117,7 +117,7 @@ pub async fn chat_stream(
         (None, None, None)
     };
 
-    // Progress channel for sub-step events from long-running tools
+    // Progress channel for sub-step events from long-running tools.
     let (progress_tx, progress_rx) = ox_agent::progress::channel();
 
     // Build domain context
@@ -260,7 +260,6 @@ pub async fn chat_stream(
                 let mut event_stream = std::pin::pin!(event_stream);
                 let memory_for_stream = state.memory.clone();
                 let mut event_sequence: i32 = 0;
-                // Track running tool calls by name → branchforge ID for progress correlation
                 let mut running_tools: std::collections::HashMap<String, String> = std::collections::HashMap::new();
                 let mut progress_rx = progress_rx;
 
@@ -274,24 +273,23 @@ pub async fn chat_stream(
                                     running_tools.insert(name.clone(), id.clone());
                                 }
                                 AgentEvent::ToolComplete { name, .. } => {
-                                    // Drain progress events BEFORE removing from running_tools.
-                                    // Progress events may arrive just before ToolComplete
-                                    // due to async scheduling.
+                                    // Drain progress events (Brain sub-steps + tool steps).
+                                    // Events accumulate during handle() and arrive together
+                                    // when ToolComplete fires. This shows sub-step breakdown
+                                    // (schema_discovery, llm_primary, compiling, executing).
                                     while let Ok(progress) = progress_rx.try_recv() {
                                         if let Some(tool_call_id) = running_tools.get(&progress.tool_name) {
                                             let data = serde_json::json!({
                                                 "tool_call_id": tool_call_id,
                                                 "step": progress.step,
                                                 "status": progress.status,
-                                                "step_index": progress.step_index,
-                                                "total_steps": progress.total_steps,
                                                 "duration_ms": progress.duration_ms,
                                                 "metadata": progress.metadata,
                                             });
                                             yield Ok(Event::default().event("tool_progress").data(data.to_string()));
                                         }
                                     }
-                                    running_tools.remove(name);
+                                    running_tools.remove(name.as_str());
                                 }
                                 _ => {}
                             }
