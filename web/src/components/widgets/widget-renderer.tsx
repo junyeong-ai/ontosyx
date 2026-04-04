@@ -18,6 +18,7 @@ import { TreemapWidget } from "./treemap-widget";
 import { FunnelWidget } from "./funnel-widget";
 import { CATEGORY_THRESHOLD } from "./chart-utils";
 import { cn } from "@/lib/cn";
+import { WidgetErrorBoundary } from "./widget-error-boundary";
 
 export interface WidgetRendererProps {
   spec: WidgetSpec;
@@ -90,14 +91,15 @@ function autoDetectWidgetType(data: QueryResult, _spec: WidgetSpec): string {
     (col) => typeof firstRow[col] === "number",
   ).length;
 
-  // 2 numeric columns with many rows → scatter
-  if (numericCount === 2 && numRows >= 5 && numCols === 2) {
+  // Exactly 2 numeric columns with sufficient rows → scatter
+  if (numericCount >= 2 && numRows >= 5 && numCols <= 3) {
     return "scatter";
   }
 
-  // Single numeric column (no string label) → histogram
-  if (numCols === 1 && numRows >= 5 && numericCount === 1) {
-    return "histogram";
+  // Single numeric column (pure distribution data) → histogram
+  if (numericCount === 1 && numCols <= 2 && numRows >= 5) {
+    const stringCount = numCols - numericCount;
+    if (stringCount === 0) return "histogram";
   }
 
   // 3+ columns: label + 2+ numeric → combo chart
@@ -131,6 +133,7 @@ const SWITCHABLE_TYPES = [
   { value: "line_chart", label: "Line", icon: "⌇" },
   { value: "combo_chart", label: "Combo", icon: "⊞" },
   { value: "scatter", label: "Scatter", icon: "∴" },
+  { value: "histogram", label: "Hist", icon: "▌" },
   { value: "stat_card", label: "Stat", icon: "#" },
   { value: "heatmap", label: "Heat", icon: "▦" },
   { value: "treemap", label: "Tree", icon: "▣" },
@@ -169,6 +172,10 @@ export function viableTypes(data: QueryResult): Set<string> {
   // graph: edge-like columns
   if (looksLikeGraph(data)) {
     viable.add("graph");
+  }
+  // histogram: 1 numeric column with enough rows
+  if (numericCols.length >= 1 && rows.length >= 5) {
+    viable.add("histogram");
   }
   // heatmap: 3+ columns with at least 1 numeric
   if (columns.length >= 3 && numericCols.length >= 1 && rows.length >= 2) {
@@ -259,7 +266,9 @@ export function WidgetRenderer({ spec, data }: WidgetRendererProps) {
           ))}
         </div>
       )}
-      {renderWidget(activeType)}
+      <WidgetErrorBoundary widgetType={activeType}>
+        {renderWidget(activeType)}
+      </WidgetErrorBoundary>
     </div>
   );
 }

@@ -296,7 +296,6 @@ function tryParseToolResult(toolName: string, output: string): ParsedToolResult 
 
     if (toolName === "visualize" && parsed.chart_type) {
       const spec: WidgetSpec = {
-        widget: parsed.chart_type,
         widget_type: parsed.chart_type,
         title: parsed.title,
         x_axis: parsed.x_axis,
