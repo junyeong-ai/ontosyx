@@ -48,15 +48,15 @@ export const NodeDetailPanel = memo(function NodeDetailPanel({
           </svg>
         </button>
       </div>
-      <div className="max-h-48 overflow-auto px-3 py-2">
+      <div className="max-h-64 overflow-auto px-3 py-2">
         {entries.length > 0 ? (
-          <dl className="space-y-1">
+          <dl className="space-y-1.5">
             {entries.map(([key, val]) => (
-              <div key={key} className="flex justify-between gap-2 text-[10px]">
-                <dt className="shrink-0 font-medium text-zinc-500 dark:text-zinc-400">
+              <div key={key} className="text-[10px]">
+                <dt className="font-medium text-zinc-500 dark:text-zinc-400">
                   {key}
                 </dt>
-                <dd className="truncate text-right text-zinc-700 dark:text-zinc-300">
+                <dd className="mt-0.5 text-zinc-700 dark:text-zinc-300 break-words">
                   {formatValue(val)}
                 </dd>
               </div>

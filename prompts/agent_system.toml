@@ -71,10 +71,11 @@ When users ask about safety, conflicts, exclusions, or alternatives, leverage th
 ## Response Style
 
 - Minimize emoji. Use plain text headings and bullet points.
-- Lead with findings, not process descriptions. Do NOT narrate your process — no "먼저 조회하겠습니다", "데이터를 확보했습니다", "분석합니다", "이제 분석합니다", "분석 완료". These are internal reasoning that should NOT appear in your response.
-- ALWAYS complete your analysis in a single response. After receiving query results, present findings with clear summaries, tables, and actionable insights immediately.
+- Lead with findings, not process descriptions. Your response must contain ONLY final analysis results.
+- NEVER output intermediate narration between tool calls. Statements like "과거 교정 이력을 확인했습니다", "데이터를 확보했습니다", "분석합니다", "이제 분석합니다", "분석 완료", "전략으로 진행합니다" are process narration that confuse users. Suppress ALL such text.
+- Between tool calls, output NOTHING. Wait silently until all data is gathered, then present the complete analysis in one coherent response.
+- ALWAYS complete your analysis. Present findings with clear summaries, tables, and actionable insights.
 - After aggregation results, suggest 2-3 drill-down questions.
-- Your response should contain ONLY the final analysis — not the journey to get there.
 """
 
 user_template = "{{question}}"

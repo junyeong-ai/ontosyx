@@ -77,7 +77,7 @@ function enrichNodes(
     }
   }
 
-  const MAX_NEIGHBORS = 5;
+  const MAX_NEIGHBORS = 10;
   for (const [id, node] of nodeMap) {
     if (Object.keys(node.properties).length > 0) continue;
     const deg = degrees.get(id) ?? 0;
