@@ -17,6 +17,9 @@ use crate::store::{
     WorkspaceStore,
 };
 
+/// System user identifier for automated operations (schema adoption, seeding).
+const SYSTEM_USER: &str = "system";
+
 // ---------------------------------------------------------------------------
 // Per-request workspace context via task-local
 // ---------------------------------------------------------------------------
@@ -377,11 +380,12 @@ impl OntologyStore for PostgresStore {
         let id = Uuid::new_v4();
         sqlx::query(
             "INSERT INTO saved_ontologies (id, name, version, ontology_ir, created_by, created_at)
-             VALUES ($1, $2, 1, $3, 'system:adopt', NOW())",
+             VALUES ($1, $2, 1, $3, $4, NOW())",
         )
         .bind(id)
         .bind(name)
         .bind(ontology_ir)
+        .bind(SYSTEM_USER)
         .execute(&self.pool)
         .await
         .map_err(to_ox_error)?;
@@ -2069,11 +2073,12 @@ impl AgentSessionStore for PostgresStore {
 
     async fn create_agent_event(&self, e: &AgentEvent) -> OxResult<()> {
         sqlx::query(
-            "INSERT INTO agent_events (id, session_id, sequence, event_type, payload, created_at)
-             VALUES ($1, $2, $3, $4, $5, $6)",
+            "INSERT INTO agent_events (id, session_id, workspace_id, sequence, event_type, payload, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)",
         )
         .bind(e.id)
         .bind(e.session_id)
+        .bind(e.workspace_id)
         .bind(e.sequence)
         .bind(&e.event_type)
         .bind(&e.payload)
@@ -2130,7 +2135,7 @@ impl AgentSessionStore for PostgresStore {
 
 #[async_trait]
 impl EmbeddingRetryStore for PostgresStore {
-    async fn enqueue_pending_embedding(
+    async fn create_pending_embedding(
         &self,
         content: &str,
         metadata: &serde_json::Value,
@@ -3453,16 +3458,17 @@ impl KnowledgeStore for PostgresStore {
     async fn create_knowledge_entry(&self, entry: &KnowledgeEntry) -> OxResult<()> {
         sqlx::query(
             "INSERT INTO knowledge_entries (
-                id, ontology_name, ontology_version_min, ontology_version_max,
+                id, workspace_id, ontology_name, ontology_version_min, ontology_version_max,
                 kind, status, confidence, title, content, structured_data,
                 version_checked, content_hash, source_execution_ids, source_session_id,
                 affected_labels, affected_properties, created_by
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
             ON CONFLICT (workspace_id, ontology_name, content_hash) DO UPDATE SET
                 confidence = GREATEST(knowledge_entries.confidence, EXCLUDED.confidence),
                 updated_at = now()",
         )
         .bind(entry.id)
+        .bind(entry.workspace_id)
         .bind(&entry.ontology_name)
         .bind(entry.ontology_version_min)
         .bind(entry.ontology_version_max)

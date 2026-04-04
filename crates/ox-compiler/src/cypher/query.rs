@@ -23,20 +23,17 @@ pub(super) fn compile_op(
         } => {
             let keyword = if *optional { "OPTIONAL MATCH" } else { "MATCH" };
             for pattern in patterns {
-                parts.push(format!("{keyword} {}", compile_pattern(pattern, pc)));
+                parts.push(format!("{keyword} {}", compile_pattern(pattern, pc)?));
             }
             if let Some(filter) = filter {
-                parts.push(format!("WHERE {}", compile_expr(filter, pc)));
+                parts.push(format!("WHERE {}", compile_expr(filter, pc)?));
             }
             if !projections.is_empty() {
-                parts.push(format!(
-                    "RETURN {}",
-                    projections
-                        .iter()
-                        .map(|p| compile_projection(p, pc))
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                ));
+                let projs = projections
+                    .iter()
+                    .map(|p| compile_projection(p, pc))
+                    .collect::<OxResult<Vec<_>>>()?;
+                parts.push(format!("RETURN {}", projs.join(", ")));
             }
         }
 
@@ -66,13 +63,13 @@ pub(super) fn compile_op(
                         &start.label,
                         &start.property_filters,
                         pc,
-                    );
+                    )?;
                     let end_pat = compile_node_ref_inline(
                         &end.variable,
                         &end.label,
                         &end.property_filters,
                         pc,
-                    );
+                    )?;
                     let rel = format_direction_pattern(&format!("[{rel_types}{depth}]"), direction);
                     parts.push(format!("MATCH p = {start_pat}{rel}{end_pat}"));
                     parts.push("RETURN p".to_string());
@@ -80,9 +77,9 @@ pub(super) fn compile_op(
                 }
             };
             let start_pat =
-                compile_node_ref_inline(&start.variable, &start.label, &start.property_filters, pc);
+                compile_node_ref_inline(&start.variable, &start.label, &start.property_filters, pc)?;
             let end_pat =
-                compile_node_ref_inline(&end.variable, &end.label, &end.property_filters, pc);
+                compile_node_ref_inline(&end.variable, &end.label, &end.property_filters, pc)?;
             let rel = format_direction_pattern(&format!("[{rel_types}{depth}]"), direction);
             parts.push(format!("MATCH p = {path_fn}({start_pat}{rel}{end_pat})"));
             parts.push("RETURN p".to_string());
@@ -132,7 +129,7 @@ pub(super) fn compile_op(
                     let mut sub_parts = Vec::new();
                     compile_op(&q.operation, &mut sub_parts, pc)?;
                     if !q.order_by.is_empty() {
-                        sub_parts.push(compile_order_by(&q.order_by, pc));
+                        sub_parts.push(compile_order_by(&q.order_by, pc)?);
                     }
                     Ok(sub_parts.join("\n"))
                 })
@@ -156,7 +153,7 @@ pub(super) fn compile_op(
             }
             compile_op(&inner.operation, &mut inner_parts, pc)?;
             if !inner.order_by.is_empty() {
-                inner_parts.push(compile_order_by(&inner.order_by, pc));
+                inner_parts.push(compile_order_by(&inner.order_by, pc)?);
             }
             if let Some(skip) = inner.skip {
                 inner_parts.push(format!("SKIP {skip}"));
@@ -180,17 +177,14 @@ pub(super) fn compile_op(
                 }
             }
             for op in operations {
-                parts.push(compile_mutate_op(op, pc));
+                parts.push(compile_mutate_op(op, pc)?);
             }
             if !returning.is_empty() {
-                parts.push(format!(
-                    "RETURN {}",
-                    returning
-                        .iter()
-                        .map(|p| compile_projection(p, pc))
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                ));
+                let projs = returning
+                    .iter()
+                    .map(|p| compile_projection(p, pc))
+                    .collect::<OxResult<Vec<_>>>()?;
+                parts.push(format!("RETURN {}", projs.join(", ")));
             }
         }
 
@@ -246,7 +240,7 @@ pub(super) fn compile_op(
 
             // Add user-supplied params
             for (key, value) in params {
-                config_entries.push(format!("{key}: {}", compile_expr(value, pc)));
+                config_entries.push(format!("{key}: {}", compile_expr(value, pc)?));
             }
 
             let config = if config_entries.is_empty() {
@@ -260,14 +254,11 @@ pub(super) fn compile_op(
             ));
 
             if !projections.is_empty() {
-                parts.push(format!(
-                    "RETURN {}",
-                    projections
-                        .iter()
-                        .map(|p| compile_projection(p, pc))
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                ));
+                let projs = projections
+                    .iter()
+                    .map(|p| compile_projection(p, pc))
+                    .collect::<OxResult<Vec<_>>>()?;
+                parts.push(format!("RETURN {}", projs.join(", ")));
             }
         }
     }

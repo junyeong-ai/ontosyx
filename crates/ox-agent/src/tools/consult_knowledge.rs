@@ -61,11 +61,15 @@ impl SchemaTool for ConsultKnowledgeTool {
         let version = self.ontology_version.unwrap_or(1);
 
         // Extract labels from query for label-based search
-        // Use the query words that could be labels (capitalized words)
+        // Use words that could be labels (PascalCase or non-ASCII like Korean)
         let possible_labels: Vec<&str> = input
             .query
             .split_whitespace()
-            .filter(|w| w.chars().next().is_some_and(|c| c.is_uppercase()))
+            .filter(|w| {
+                w.chars()
+                    .next()
+                    .is_some_and(|c| c.is_uppercase() || !c.is_ascii())
+            })
             .collect();
 
         let kinds: Vec<&str> = match input.kind.as_deref() {

@@ -16,7 +16,13 @@ use crate::profiler::{DataProfile, PropertyStats};
 // Enrichment markers — used for idempotent re-enrichment
 // ---------------------------------------------------------------------------
 
-const SEPARATOR: &str = " | ";
+/// Enrichment marker: newline + bracketed tag. Unambiguous, no collision with
+/// user descriptions (unlike the legacy ` | ` separator).
+const ENRICHMENT_MARKER: &str = "\n[enriched] ";
+
+/// Legacy separator (pre-v1). Supported in strip only for data migration.
+const LEGACY_SEPARATOR: &str = " | ";
+
 const PREFIX_VALUES: &str = "Values: ";
 const PREFIX_RANGE: &str = "Range: ";
 const PREFIX_EXAMPLES: &str = "Examples: ";
@@ -67,7 +73,7 @@ pub fn enrich_descriptions(ontology: &OntologyIR, profile: &DataProfile) -> Enri
                 let old = prop.description.clone();
                 let manual = strip_enrichment(&prop.description);
                 let new_desc = match manual {
-                    Some(manual) => format!("{manual}{SEPARATOR}{enrichment}"),
+                    Some(manual) => format!("{manual}{ENRICHMENT_MARKER}{enrichment}"),
                     None => enrichment.clone(),
                 };
                 if prop.description.as_deref() != Some(&new_desc) {
@@ -97,7 +103,7 @@ pub fn enrich_descriptions(ontology: &OntologyIR, profile: &DataProfile) -> Enri
                 let old = prop.description.clone();
                 let manual = strip_enrichment(&prop.description);
                 let new_desc = match manual {
-                    Some(manual) => format!("{manual}{SEPARATOR}{enrichment}"),
+                    Some(manual) => format!("{manual}{ENRICHMENT_MARKER}{enrichment}"),
                     None => enrichment.clone(),
                 };
                 if prop.description.as_deref() != Some(&new_desc) {
@@ -170,6 +176,9 @@ fn format_enrichment(stats: &PropertyStats) -> Option<String> {
 
 /// Strip previous enrichment suffix from a description.
 /// Returns the manual part only, or None if the entire description was generated.
+///
+/// Handles both the current `\n[enriched] ` marker and the legacy ` | ` separator
+/// for seamless data migration on re-enrichment.
 fn strip_enrichment(description: &Option<String>) -> Option<String> {
     let desc = description.as_deref()?;
 
@@ -181,9 +190,19 @@ fn strip_enrichment(description: &Option<String>) -> Option<String> {
         return None;
     }
 
-    // Separator-based enrichment suffix
-    if let Some(idx) = desc.rfind(SEPARATOR) {
-        let after = &desc[idx + SEPARATOR.len()..];
+    // Current format: newline + bracketed marker
+    if let Some(idx) = desc.rfind(ENRICHMENT_MARKER) {
+        let manual = desc[..idx].trim_end();
+        return if manual.is_empty() {
+            None
+        } else {
+            Some(manual.to_string())
+        };
+    }
+
+    // Legacy format: ` | ` separator with enrichment prefix
+    if let Some(idx) = desc.rfind(LEGACY_SEPARATOR) {
+        let after = &desc[idx + LEGACY_SEPARATOR.len()..];
         if after.starts_with(PREFIX_VALUES)
             || after.starts_with(PREFIX_RANGE)
             || after.starts_with(PREFIX_EXAMPLES)
@@ -293,10 +312,31 @@ mod tests {
 
     #[test]
     fn strip_manual_plus_enrichment() {
+        // Current format
+        let desc = Some("Regulatory authority.\n[enriched] Values: \"EU_SCCS\" (1 distinct)".to_string());
+        assert_eq!(
+            strip_enrichment(&desc),
+            Some("Regulatory authority.".to_string())
+        );
+    }
+
+    #[test]
+    fn strip_legacy_format() {
+        // Legacy ` | ` separator still works for data migration
         let desc = Some("Regulatory authority. | Values: \"EU_SCCS\" (1 distinct)".to_string());
         assert_eq!(
             strip_enrichment(&desc),
             Some("Regulatory authority.".to_string())
+        );
+    }
+
+    #[test]
+    fn strip_preserves_pipe_in_manual() {
+        // User description with pipes should NOT be stripped
+        let desc = Some("Type A | Type B classification".to_string());
+        assert_eq!(
+            strip_enrichment(&desc),
+            Some("Type A | Type B classification".to_string())
         );
     }
 
@@ -319,7 +359,7 @@ mod tests {
         // First enrichment
         let desc = Some("Manual desc".to_string());
         let manual = strip_enrichment(&desc);
-        let enriched = format!("{}{SEPARATOR}Values: \"a\" (1 distinct)", manual.unwrap());
+        let enriched = format!("{}{ENRICHMENT_MARKER}Values: \"a\" (1 distinct)", manual.unwrap());
         // Second enrichment (should strip first, re-apply)
         let desc2 = Some(enriched);
         let manual2 = strip_enrichment(&desc2);

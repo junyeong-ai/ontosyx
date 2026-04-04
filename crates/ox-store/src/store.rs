@@ -490,7 +490,7 @@ pub trait ReportStore: Send + Sync {
 /// Queue for embedding operations that failed and need retry on the next periodic sweep.
 #[async_trait]
 pub trait EmbeddingRetryStore: Send + Sync {
-    async fn enqueue_pending_embedding(
+    async fn create_pending_embedding(
         &self,
         content: &str,
         metadata: &serde_json::Value,

@@ -69,7 +69,7 @@ impl GraphCompiler for CypherCompiler {
         compile_op(&query.operation, &mut parts, &mut collector)?;
 
         if !query.order_by.is_empty() {
-            parts.push(compile_order_by(&query.order_by, &mut collector));
+            parts.push(compile_order_by(&query.order_by, &mut collector)?);
         }
 
         // SKIP/LIMIT stay inline (integers, safe for query plan caching)

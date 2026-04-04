@@ -60,6 +60,7 @@ pub struct QueryExecutionSummary {
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct SavedOntology {
     pub id: Uuid,
+    pub workspace_id: Uuid,
     pub name: String,
     pub description: Option<String>,
     pub version: i32,
@@ -272,6 +273,7 @@ pub struct Dashboard {
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct AnalysisRecipe {
     pub id: Uuid,
+    pub workspace_id: Uuid,
     pub name: String,
     pub description: String,
     pub algorithm_type: String,

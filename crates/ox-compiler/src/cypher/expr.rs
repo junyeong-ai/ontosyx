@@ -1,3 +1,4 @@
+use ox_core::error::{OxError, OxResult};
 use ox_core::query_ir::{AggFunction, Expr, OrderClause, Projection, SortDirection};
 use ox_core::types::PropertyValue;
 
@@ -5,8 +6,8 @@ use super::params::{ParamCollector, escape_identifier};
 use super::pattern::compile_pattern;
 use super::query::compile_op;
 
-pub(super) fn compile_expr(expr: &Expr, pc: &mut ParamCollector) -> String {
-    match expr {
+pub(super) fn compile_expr(expr: &Expr, pc: &mut ParamCollector) -> OxResult<String> {
+    Ok(match expr {
         Expr::Literal { value } => compile_value(value, pc),
 
         Expr::Property { variable, field } => match field {
@@ -15,51 +16,42 @@ pub(super) fn compile_expr(expr: &Expr, pc: &mut ParamCollector) -> String {
         },
 
         Expr::Comparison { left, op, right } => {
-            format!(
-                "{} {op} {}",
-                compile_expr(left, pc),
-                compile_expr(right, pc)
-            )
+            format!("{} {op} {}", compile_expr(left, pc)?, compile_expr(right, pc)?)
         }
 
         Expr::Logical { left, op, right } => {
-            format!(
-                "({} {op} {})",
-                compile_expr(left, pc),
-                compile_expr(right, pc)
-            )
+            format!("({} {op} {})", compile_expr(left, pc)?, compile_expr(right, pc)?)
         }
 
-        Expr::Not { inner } => format!("NOT ({})", compile_expr(inner, pc)),
+        Expr::Not { inner } => format!("NOT ({})", compile_expr(inner, pc)?),
 
         Expr::In { expr, values } => {
             let vals: Vec<String> = values.iter().map(|v| compile_value(v, pc)).collect();
-            format!("{} IN [{}]", compile_expr(expr, pc), vals.join(", "))
+            format!("{} IN [{}]", compile_expr(expr, pc)?, vals.join(", "))
         }
 
         Expr::IsNull { expr, negated } => {
             if *negated {
-                format!("{} IS NOT NULL", compile_expr(expr, pc))
+                format!("{} IS NOT NULL", compile_expr(expr, pc)?)
             } else {
-                format!("{} IS NULL", compile_expr(expr, pc))
+                format!("{} IS NULL", compile_expr(expr, pc)?)
             }
         }
 
         Expr::StringOp { left, op, right } => {
-            format!(
-                "{} {op} {}",
-                compile_expr(left, pc),
-                compile_expr(right, pc)
-            )
+            format!("{} {op} {}", compile_expr(left, pc)?, compile_expr(right, pc)?)
         }
 
         Expr::FunctionCall { function, args } => {
-            let args_str: Vec<String> = args.iter().map(|a| compile_expr(a, pc)).collect();
+            let args_str = args
+                .iter()
+                .map(|a| compile_expr(a, pc))
+                .collect::<OxResult<Vec<_>>>()?;
             format!("{function}({})", args_str.join(", "))
         }
 
         Expr::Exists { pattern } => {
-            format!("EXISTS {{ MATCH {} }}", compile_pattern(pattern, pc))
+            format!("EXISTS {{ MATCH {} }}", compile_pattern(pattern, pc)?)
         }
 
         Expr::Case {
@@ -70,17 +62,17 @@ pub(super) fn compile_expr(expr: &Expr, pc: &mut ParamCollector) -> String {
             let mut parts = Vec::new();
             parts.push("CASE".to_string());
             if let Some(op) = operand {
-                parts.push(compile_expr(op, pc));
+                parts.push(compile_expr(op, pc)?);
             }
             for wc in when_clauses {
                 parts.push(format!(
                     "WHEN {} THEN {}",
-                    compile_expr(&wc.condition, pc),
-                    compile_expr(&wc.result, pc),
+                    compile_expr(&wc.condition, pc)?,
+                    compile_expr(&wc.result, pc)?,
                 ));
             }
             if let Some(els) = else_result {
-                parts.push(format!("ELSE {}", compile_expr(els, pc)));
+                parts.push(format!("ELSE {}", compile_expr(els, pc)?));
             }
             parts.push("END".to_string());
             parts.join(" ")
@@ -90,16 +82,17 @@ pub(super) fn compile_expr(expr: &Expr, pc: &mut ParamCollector) -> String {
             query,
             import_variables,
         } => {
-            // Compile as COUNT { WITH vars ... } subquery expression
             let mut inner_parts = Vec::new();
             if !import_variables.is_empty() {
                 inner_parts.push(format!("WITH {}", import_variables.join(", ")));
             }
-            // compile_op may fail; in expr context we panic on error (IR should be valid)
-            compile_op(&query.operation, &mut inner_parts, pc)
-                .expect("subquery compilation should not fail");
+            compile_op(&query.operation, &mut inner_parts, pc).map_err(|e| {
+                OxError::Compilation {
+                    message: format!("Subquery compilation failed: {e}"),
+                }
+            })?;
             if !query.order_by.is_empty() {
-                inner_parts.push(compile_order_by(&query.order_by, pc));
+                inner_parts.push(compile_order_by(&query.order_by, pc)?);
             }
             if let Some(skip) = query.skip {
                 inner_parts.push(format!("SKIP {skip}"));
@@ -109,7 +102,7 @@ pub(super) fn compile_expr(expr: &Expr, pc: &mut ParamCollector) -> String {
             }
             format!("COUNT {{ {} }}", inner_parts.join(" "))
         }
-    }
+    })
 }
 
 /// Compile a PropertyValue into a parameterized placeholder or inline literal.
@@ -131,8 +124,8 @@ pub(super) fn compile_value(value: &PropertyValue, pc: &mut ParamCollector) -> S
     }
 }
 
-pub(super) fn compile_projection(proj: &Projection, pc: &mut ParamCollector) -> String {
-    match proj {
+pub(super) fn compile_projection(proj: &Projection, pc: &mut ParamCollector) -> OxResult<String> {
+    Ok(match proj {
         Projection::Field {
             variable,
             field,
@@ -149,7 +142,7 @@ pub(super) fn compile_projection(proj: &Projection, pc: &mut ParamCollector) -> 
             .map(|a| format!("{variable} AS {a}"))
             .unwrap_or_else(|| variable.clone()),
         Projection::Expression { expr, alias } => {
-            format!("{} AS {alias}", compile_expr(expr, pc))
+            format!("{} AS {alias}", compile_expr(expr, pc)?)
         }
         Projection::Aggregation {
             function,
@@ -157,19 +150,18 @@ pub(super) fn compile_projection(proj: &Projection, pc: &mut ParamCollector) -> 
             alias,
             distinct,
         } => {
-            let target = compile_projection(argument, pc);
+            let target = compile_projection(argument, pc)?;
             let func_str = compile_agg_function(function, &target, *distinct);
             format!("{func_str} AS {alias}")
         }
         Projection::AllProperties { variable } => format!("{variable} {{.*}}"),
-    }
+    })
 }
 
-pub(super) fn compile_order_by(clauses: &[OrderClause], pc: &mut ParamCollector) -> String {
-    let items: Vec<String> = clauses
+pub(super) fn compile_order_by(clauses: &[OrderClause], pc: &mut ParamCollector) -> OxResult<String> {
+    let items = clauses
         .iter()
         .map(|c| {
-            // For aliased projections (aggregation, expression), use the alias in ORDER BY
             let order_ref = match &c.projection {
                 Projection::Aggregation { alias, .. } => alias.clone(),
                 Projection::Expression { alias, .. } => alias.clone(),
@@ -186,15 +178,15 @@ pub(super) fn compile_order_by(clauses: &[OrderClause], pc: &mut ParamCollector)
                     variable,
                     alias: None,
                 } => escape_identifier(variable),
-                other => compile_projection(other, pc),
+                other => compile_projection(other, pc)?,
             };
-            match c.direction {
+            Ok(match c.direction {
                 SortDirection::Asc => order_ref,
                 SortDirection::Desc => format!("{order_ref} DESC"),
-            }
+            })
         })
-        .collect();
-    format!("ORDER BY {}", items.join(", "))
+        .collect::<OxResult<Vec<_>>>()?;
+    Ok(format!("ORDER BY {}", items.join(", ")))
 }
 
 pub(super) fn compile_agg_function(function: &AggFunction, target: &str, distinct: bool) -> String {

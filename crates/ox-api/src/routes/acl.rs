@@ -92,8 +92,11 @@ pub(crate) async fn create_policy(
 
 pub(crate) async fn list_policies(
     State(state): State<AppState>,
+    _principal: Principal,
+    ws: WorkspaceContext,
     Query(params): Query<ListPoliciesParams>,
 ) -> Result<Json<Vec<AclPolicy>>, AppError> {
+    ws.require_admin()?;
     let policies = state
         .store
         .list_acl_policies(
@@ -112,8 +115,11 @@ pub(crate) async fn list_policies(
 
 pub(crate) async fn get_policy(
     State(state): State<AppState>,
+    _principal: Principal,
+    ws: WorkspaceContext,
     Path(id): Path<Uuid>,
 ) -> Result<Json<AclPolicy>, AppError> {
+    ws.require_admin()?;
     let policy = state
         .store
         .get_acl_policy(id)

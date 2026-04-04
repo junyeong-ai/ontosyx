@@ -21,7 +21,7 @@ use crate::query_ir::{
     AggFunction, ComparisonOp, Expr, GraphPattern, LogicalOp, OrderClause, Projection, QueryIR,
     QueryOp, SortDirection, StringOp, VarLength,
 };
-use crate::types::{Direction, PropertyValue};
+use crate::types::{Direction, PropertyValue, sanitize_variable};
 
 // ---------------------------------------------------------------------------
 // Top-level IR
@@ -233,6 +233,13 @@ impl MatchQueryIR {
     /// - Every condition that requires a value has one
     /// - Every relationship references variables declared in nodes
     fn validate(&self) -> Result<(), OxError> {
+        if self.nodes.is_empty() {
+            return Err(OxError::Validation {
+                field: "nodes".into(),
+                message: "MatchQueryIR must have at least one node pattern".into(),
+            });
+        }
+
         if self.returns.is_empty() {
             return Err(OxError::Validation {
                 field: "returns".into(),
@@ -304,20 +311,44 @@ impl MatchQueryIR {
         }
 
         for (i, cond) in self.conditions.iter().enumerate() {
+            // Condition variable must reference a declared node
+            if !node_vars.contains(cond.variable.as_str()) {
+                return Err(OxError::Validation {
+                    field: format!("conditions[{i}].variable"),
+                    message: format!(
+                        "Condition variable '{}' not found in node patterns. Declared nodes: {:?}",
+                        cond.variable,
+                        node_vars.iter().collect::<Vec<_>>()
+                    ),
+                });
+            }
+
             let needs_value = !matches!(
                 cond.op,
                 ConditionOp::IsNull | ConditionOp::IsNotNull
             );
-            let has_value = cond.string_value.is_some()
-                || cond.number_value.is_some()
-                || cond.bool_value.is_some()
-                || (cond.op == ConditionOp::InList && !cond.list_values.is_empty());
-            if needs_value && !has_value {
+            let value_count = cond.string_value.is_some() as u8
+                + cond.number_value.is_some() as u8
+                + cond.bool_value.is_some() as u8
+                + (!cond.list_values.is_empty()) as u8;
+
+            if needs_value && value_count == 0 {
                 return Err(OxError::Validation {
                     field: format!("conditions[{i}]"),
                     message: format!(
                         "Condition on {}.{} with op {:?} requires a value (string_value, number_value, or bool_value)",
                         cond.variable, cond.field, cond.op
+                    ),
+                });
+            }
+
+            // Exactly one value field should be set (mutual exclusion)
+            if needs_value && value_count > 1 {
+                return Err(OxError::Validation {
+                    field: format!("conditions[{i}]"),
+                    message: format!(
+                        "Condition on {}.{} has multiple value fields set — only one of string_value, number_value, bool_value, or list_values should be provided",
+                        cond.variable, cond.field
                     ),
                 });
             }
@@ -350,6 +381,20 @@ impl MatchQueryIR {
             const MAX_HOPS: u32 = 10;
             let min_h = rel.min_hops.filter(|&v| v <= MAX_HOPS);
             let max_h = rel.max_hops.filter(|&v| v <= MAX_HOPS);
+            if rel.min_hops.is_some_and(|v| v > MAX_HOPS)
+                || rel.max_hops.is_some_and(|v| v > MAX_HOPS)
+            {
+                tracing::warn!(
+                    min_hops = ?rel.min_hops,
+                    max_hops = ?rel.max_hops,
+                    "Clamped variable-length hops to MAX_HOPS={MAX_HOPS}"
+                );
+            }
+            // Ensure min <= max; swap if reversed
+            let (min_h, max_h) = match (min_h, max_h) {
+                (Some(mn), Some(mx)) if mn > mx => (Some(mx), Some(mn)),
+                other => other,
+            };
             let var_length = match (min_h, max_h) {
                 (None, None) | (Some(0), Some(0)) | (Some(1), Some(1)) => None,
                 (Some(0), None) => None,
@@ -362,7 +407,7 @@ impl MatchQueryIR {
             let variable = rel
                 .variable
                 .as_deref()
-                .filter(|v| !v.is_empty() && *v != "null" && *v != "-" && v.starts_with(|c: char| c.is_alphabetic() || c == '_'))
+                .and_then(sanitize_variable)
                 .map(String::from);
             patterns.push(GraphPattern::Relationship {
                 variable,
@@ -414,7 +459,7 @@ impl MatchQueryIR {
 
         let order_by: Vec<OrderClause> = self.order_by.iter().map(sort_to_order).collect();
 
-        Ok(QueryIR {
+        let qir = QueryIR {
             operation: QueryOp::Match {
                 patterns,
                 filter,
@@ -425,7 +470,9 @@ impl MatchQueryIR {
             limit: self.limit.map(|v| v as usize),
             skip: self.skip.map(|v| v as usize),
             order_by,
-        })
+        };
+        qir.validate()?;
+        Ok(qir)
     }
 }
 

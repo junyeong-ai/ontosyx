@@ -58,9 +58,11 @@ pub async fn audit_log(State(state): State<AppState>, req: Request, next: Next) 
     // Must use spawn_scoped to propagate workspace task-locals (WORKSPACE_ID)
     // because tokio::spawn loses them and RLS blocks the INSERT.
     let store = state.store.clone();
+    let request_id = Uuid::new_v4();
     let action = format!("{} {}", method.as_str(), &path);
     let resource_type = extract_resource_type(&path);
     let details = json!({
+        "request_id": request_id,
         "method": method.as_str(),
         "path": path,
         "status": status,

@@ -112,7 +112,7 @@ impl EmbeddingHook {
                         warn!(id = %entry_id, error = %e, "Memory embedding failed");
                         if let Some(store) = retry_store {
                             let _ = store
-                                .enqueue_pending_embedding(&content_clone, &metadata_json)
+                                .create_pending_embedding(&content_clone, &metadata_json)
                                 .await;
                         }
                     }
@@ -538,14 +538,18 @@ fn parse_success_output(output: &str) -> (Option<String>, Vec<String>, Option<St
     let compiled_query = parsed.get("compiled_query").and_then(|v| v.as_str()).map(String::from);
     let execution_id = parsed.get("execution_id").and_then(|v| v.as_str()).map(String::from);
 
-    // Extract labels from columns (heuristic: column names often contain label references)
+    // Extract labels from columns (heuristic: PascalCase or non-ASCII starts like Korean)
     let labels: Vec<String> = parsed
         .get("columns")
         .and_then(|c| c.as_array())
         .map(|arr| {
             arr.iter()
                 .filter_map(|v| v.as_str())
-                .filter(|s| s.chars().next().is_some_and(|c| c.is_uppercase()))
+                .filter(|s| {
+                    s.chars()
+                        .next()
+                        .is_some_and(|c| c.is_uppercase() || !c.is_ascii())
+                })
                 .map(String::from)
                 .collect()
         })

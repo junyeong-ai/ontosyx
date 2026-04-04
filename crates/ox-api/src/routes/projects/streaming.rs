@@ -3,7 +3,7 @@ use std::convert::Infallible;
 use axum::{
     Json,
     extract::{Path, State},
-    response::sse::{Event, Sse},
+    response::sse::{Event, KeepAlive, Sse},
 };
 use futures_core::Stream;
 use serde::Serialize;
@@ -42,6 +42,10 @@ fn sse_phase(phase: &str, detail: Option<&str>) -> String {
         Some(d) => serde_json::json!({ "phase": phase, "detail": d }).to_string(),
         None => serde_json::json!({ "phase": phase }).to_string(),
     }
+}
+
+fn sse_heartbeat() -> String {
+    serde_json::json!({ "ts": chrono::Utc::now().timestamp() }).to_string()
 }
 
 fn sse_error(error_type: &str, message: &str) -> String {
@@ -577,7 +581,7 @@ pub(crate) async fn design_project_stream(
         ));
     };
 
-    Ok(Sse::new(stream))
+    Ok(Sse::new(stream).keep_alive(KeepAlive::new().interval(std::time::Duration::from_secs(30))))
 }
 
 // ---------------------------------------------------------------------------
@@ -915,5 +919,5 @@ pub(crate) async fn refine_project_stream(
         ));
     };
 
-    Ok(Sse::new(stream))
+    Ok(Sse::new(stream).keep_alive(KeepAlive::new().interval(std::time::Duration::from_secs(30))))
 }

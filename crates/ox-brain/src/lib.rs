@@ -699,8 +699,12 @@ impl QueryTranslator for DefaultBrain {
                         .await
                         .map_err(|retry_err| {
                             ctx.progress("llm_retry").failed(t_retry.elapsed().as_millis() as u64);
-                            info!(retry_error = %retry_err, "Query translation retry also failed");
-                            first_err
+                            info!(
+                                first_error = %first_err,
+                                retry_error = %retry_err,
+                                "Query translation retry also failed"
+                            );
+                            retry_err
                         });
                         if retry_result.is_ok() {
                             ctx.progress("llm_retry").completed(t_retry.elapsed().as_millis() as u64);

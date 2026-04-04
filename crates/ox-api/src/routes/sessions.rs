@@ -30,20 +30,38 @@ pub(crate) async fn list_sessions(
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/sessions/:id — get single session
+// Shared: fetch session with ownership check
 // ---------------------------------------------------------------------------
 
-pub(crate) async fn get_session(
-    State(state): State<AppState>,
-    _principal: Principal,
-    Path(id): Path<Uuid>,
-) -> Result<Json<AgentSession>, AppError> {
+async fn load_owned_session(
+    state: &AppState,
+    principal: &Principal,
+    id: Uuid,
+) -> Result<AgentSession, AppError> {
     let session = state
         .store
         .get_agent_session(id)
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("Agent session"))?;
+
+    if session.user_id != principal.id {
+        return Err(AppError::forbidden("Not your session"));
+    }
+
+    Ok(session)
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/sessions/:id — get single session
+// ---------------------------------------------------------------------------
+
+pub(crate) async fn get_session(
+    State(state): State<AppState>,
+    principal: Principal,
+    Path(id): Path<Uuid>,
+) -> Result<Json<AgentSession>, AppError> {
+    let session = load_owned_session(&state, &principal, id).await?;
     Ok(Json(session))
 }
 
@@ -53,9 +71,10 @@ pub(crate) async fn get_session(
 
 pub(crate) async fn list_session_events(
     State(state): State<AppState>,
-    _principal: Principal,
+    principal: Principal,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<AgentEvent>>, AppError> {
+    load_owned_session(&state, &principal, id).await?;
     let events = state
         .store
         .list_agent_events(id)
@@ -70,15 +89,10 @@ pub(crate) async fn list_session_events(
 
 pub(crate) async fn get_session_messages(
     State(state): State<AppState>,
-    _principal: Principal,
+    principal: Principal,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let session = state
-        .store
-        .get_agent_session(id)
-        .await
-        .map_err(AppError::from)?
-        .ok_or_else(|| AppError::not_found("Agent session"))?;
+    let session = load_owned_session(&state, &principal, id).await?;
 
     let events = state
         .store

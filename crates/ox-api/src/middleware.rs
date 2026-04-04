@@ -388,7 +388,7 @@ pub async fn workspace_context(
     next: Next,
 ) -> Result<Response, AppError> {
     use crate::workspace::{WorkspaceContext, WorkspaceRole};
-    use ox_runtime::{GRAPH_SYSTEM_BYPASS, GRAPH_WORKSPACE_ID};
+    use ox_runtime::GRAPH_WORKSPACE_ID;
     use ox_store::WORKSPACE_ID;
 
     // Requires auth claims (must run after require_auth)
@@ -398,41 +398,32 @@ pub async fn workspace_context(
         .cloned()
         .ok_or_else(|| AppError::unauthorized("Authentication required"))?;
 
-    // API key users: if X-Workspace-Id is provided, scope to that workspace
-    // (same as JWT users). Otherwise, use SYSTEM_BYPASS for cross-workspace access.
+    // API key users: must provide X-Workspace-Id header to scope data access.
+    // System bypass is only used internally (e.g., scheduled tasks via with_system_bypass).
     if claims.sub.starts_with("system:") {
-        let explicit_workspace = req
+        let workspace_id = req
             .headers()
             .get("x-workspace-id")
             .and_then(|v| v.to_str().ok())
-            .and_then(|s| Uuid::parse_str(s).ok());
-
-        if let Some(workspace_id) = explicit_workspace {
-            // Explicit workspace: scope to it (no bypass)
-            let ws_ctx = WorkspaceContext {
-                workspace_id,
-                workspace_role: WorkspaceRole::Owner,
-            };
-            req.extensions_mut().insert(ws_ctx);
-            let response = WORKSPACE_ID
-                .scope(
-                    workspace_id,
-                    GRAPH_WORKSPACE_ID.scope(workspace_id, next.run(req)),
+            .and_then(|s| Uuid::parse_str(s).ok())
+            .ok_or_else(|| {
+                AppError::bad_request(
+                    "API key requests require X-Workspace-Id header",
                 )
-                .await;
-            return Ok(response);
-        } else {
-            // No workspace specified: system bypass (all data visible)
-            let ws_ctx = WorkspaceContext {
-                workspace_id: Uuid::nil(),
-                workspace_role: WorkspaceRole::Owner,
-            };
-            req.extensions_mut().insert(ws_ctx);
-            let response = ox_store::SYSTEM_BYPASS
-                .scope(true, GRAPH_SYSTEM_BYPASS.scope(true, next.run(req)))
-                .await;
-            return Ok(response);
-        }
+            })?;
+
+        let ws_ctx = WorkspaceContext {
+            workspace_id,
+            workspace_role: WorkspaceRole::Owner,
+        };
+        req.extensions_mut().insert(ws_ctx);
+        let response = WORKSPACE_ID
+            .scope(
+                workspace_id,
+                GRAPH_WORKSPACE_ID.scope(workspace_id, next.run(req)),
+            )
+            .await;
+        return Ok(response);
     }
 
     let user_id: Uuid = claims.user_id()?;

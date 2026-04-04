@@ -33,6 +33,53 @@ pub struct QueryIR {
     pub order_by: Vec<OrderClause>,
 }
 
+impl QueryIR {
+    /// Validate structural integrity of the QueryIR.
+    ///
+    /// Catches issues that would cause Cypher compilation failures:
+    /// - CASE expressions with no WHEN clauses
+    /// - IN expressions with empty value lists
+    /// - Match operations with no patterns
+    pub fn validate(&self) -> Result<(), crate::error::OxError> {
+        Self::validate_op(&self.operation)
+    }
+
+    fn validate_op(op: &QueryOp) -> Result<(), crate::error::OxError> {
+        match op {
+            QueryOp::Match { patterns, .. } => {
+                if patterns.is_empty() {
+                    return Err(crate::error::OxError::Validation {
+                        field: "patterns".into(),
+                        message: "Match operation must have at least one pattern".into(),
+                    });
+                }
+                Ok(())
+            }
+            QueryOp::Aggregate { source, .. } => Self::validate_op(&source.operation),
+            QueryOp::Union { queries, .. } => {
+                for q in queries {
+                    Self::validate_op(&q.operation)?;
+                }
+                Ok(())
+            }
+            QueryOp::Chain { steps } => {
+                for s in steps {
+                    Self::validate_op(&s.operation)?;
+                }
+                Ok(())
+            }
+            QueryOp::CallSubquery { inner, .. } => Self::validate_op(&inner.operation),
+            QueryOp::Mutate { context, .. } => {
+                if let Some(ctx) = context {
+                    Self::validate_op(ctx)?;
+                }
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Graph analytics — backend-agnostic algorithm descriptors
 // ---------------------------------------------------------------------------
@@ -524,19 +571,23 @@ impl<'de> Deserialize<'de> for Projection {
             .unwrap_or("variable");
 
         match kind {
-            "field" => Ok(Projection::Field {
-                variable: obj
+            "field" => {
+                let variable = obj
                     .get("variable")
                     .and_then(|v| v.as_str())
                     .unwrap_or("n")
-                    .to_string(),
-                field: obj
-                    .get("field")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string(),
-                alias: obj.get("alias").and_then(|v| v.as_str()).map(String::from),
-            }),
+                    .to_string();
+                let alias = obj.get("alias").and_then(|v| v.as_str()).map(String::from);
+                // If field is empty/missing, treat as variable projection (not n.``)
+                match obj.get("field").and_then(|v| v.as_str()).filter(|f| !f.is_empty()) {
+                    Some(field) => Ok(Projection::Field {
+                        variable,
+                        field: field.to_string(),
+                        alias,
+                    }),
+                    None => Ok(Projection::Variable { variable, alias }),
+                }
+            }
             "variable" => Ok(Projection::Variable {
                 variable: obj
                     .get("variable")

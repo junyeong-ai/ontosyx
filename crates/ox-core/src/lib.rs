@@ -64,7 +64,7 @@ pub use source_analysis::{
 pub use source_mapping::SourceMapping;
 pub use source_schema::{SourceProfile, SourceSchema};
 pub use table_clustering::{ClusterPlan, TableCluster, cluster_tables};
-pub use types::{escape_cypher_identifier, is_valid_graph_identifier};
+pub use types::{escape_cypher_identifier, is_valid_graph_identifier, sanitize_variable};
 pub use widget_spec::WidgetSpec;
 
 // ---------------------------------------------------------------------------

@@ -36,6 +36,10 @@ pub const FULL_SCHEMA_NODE_THRESHOLD: usize = 50;
 /// Properties are ranked by description length (longer = more informative).
 const MAX_DESCRIBED_PROPS_PER_NODE: usize = 15;
 
+/// Maximum properties with descriptions per edge in Tier 3.
+/// Prevents token explosion on edges with many described properties.
+const MAX_DESCRIBED_PROPS_PER_EDGE: usize = 10;
+
 // ---------------------------------------------------------------------------
 // Schema Indexing — runs once when ontology is saved
 // ---------------------------------------------------------------------------
@@ -276,15 +280,32 @@ pub(crate) fn build_progressive_schema(
         let src = ontology.node_label(edge.source_node_id.as_ref()).unwrap_or("?");
         let tgt = ontology.node_label(edge.target_node_id.as_ref()).unwrap_or("?");
         if expanded_set.contains(src) && expanded_set.contains(tgt) {
-            for p in &edge.properties {
-                if let Some(desc) = &p.description {
-                    if !desc.is_empty() {
-                        if !has_details {
-                            output.push_str("\nProperty details:\n");
-                            has_details = true;
-                        }
-                        output.push_str(&format!("  {}.{}: {}\n", edge.label, p.name, desc));
-                    }
+            let mut described: Vec<(&str, &str)> = edge
+                .properties
+                .iter()
+                .filter_map(|p| {
+                    p.description
+                        .as_deref()
+                        .filter(|d| !d.is_empty())
+                        .map(|d| (p.name.as_str(), d))
+                })
+                .collect();
+            described.sort_by(|a, b| b.1.len().cmp(&a.1.len()));
+            let total = described.len();
+            let pruned: Vec<_> = described.into_iter().take(MAX_DESCRIBED_PROPS_PER_EDGE).collect();
+            if !pruned.is_empty() {
+                if !has_details {
+                    output.push_str("\nProperty details:\n");
+                    has_details = true;
+                }
+                for (prop_name, desc) in pruned {
+                    output.push_str(&format!("  {}.{prop_name}: {desc}\n", edge.label));
+                }
+                if total > MAX_DESCRIBED_PROPS_PER_EDGE {
+                    output.push_str(&format!(
+                        "  ... and {} more edge properties\n",
+                        total - MAX_DESCRIBED_PROPS_PER_EDGE,
+                    ));
                 }
             }
         }

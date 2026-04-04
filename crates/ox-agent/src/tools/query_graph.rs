@@ -75,12 +75,22 @@ impl SchemaTool for QueryGraphTool {
     async fn handle(&self, input: Self::Input, ctx: &ExecutionContext) -> ToolResult {
         let ontology = match self.domain.ontology.as_ref() {
             Some(o) => o,
-            None => return ToolResult::error("No ontology loaded"),
+            None => {
+                return ToolResult::error(
+                    "No ontology loaded. Create a project from a data source first, \
+                     or use introspect_source to connect to a database.",
+                )
+            }
         };
 
         let runtime = match self.domain.runtime.as_ref() {
             Some(r) => r,
-            None => return ToolResult::error("Graph database not connected"),
+            None => {
+                return ToolResult::error(
+                    "Graph database not connected. The project needs a deployed schema \
+                     with loaded data before queries can execute.",
+                )
+            }
         };
 
         let start = std::time::Instant::now();

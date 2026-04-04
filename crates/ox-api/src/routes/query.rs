@@ -145,6 +145,14 @@ pub async fn raw_query(
         return Err(AppError::bad_request("query must not be empty"));
     }
 
+    // Block write operations unless user has designer role
+    let upper = req.query.to_uppercase();
+    const WRITE_KEYWORDS: &[&str] = &["DELETE", "DETACH", "CREATE", "MERGE", "SET ", "REMOVE "];
+    let has_write = WRITE_KEYWORDS.iter().any(|kw| upper.contains(kw));
+    if has_write {
+        principal.require_designer()?;
+    }
+
     let target = state.compiler.target_name().to_string();
     info!(user_id = %principal.id, target = %target, "Raw query submitted");
 
@@ -489,6 +497,7 @@ use ox_core::graph_exploration::GraphSchemaOverview;
 pub async fn graph_overview(
     State(state): State<AppState>,
     _principal: Principal,
+    _ws: WorkspaceContext,
 ) -> Result<Json<GraphSchemaOverview>, AppError> {
     let runtime = state.runtime.as_ref().ok_or_else(AppError::no_runtime)?;
     let timeout = state.timeouts.raw_query;

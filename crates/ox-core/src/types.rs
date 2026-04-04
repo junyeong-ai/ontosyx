@@ -377,6 +377,25 @@ pub fn is_valid_graph_identifier(name: &str) -> bool {
         .all(|c| c.is_alphanumeric() || c == '_' || c == ' ')
 }
 
+/// Sanitize a variable name from LLM output.
+///
+/// Returns `None` for invalid/nonsensical names:
+/// - empty string, `"null"`, `"-"`, or names not starting with a letter/underscore.
+///
+/// Used in both MatchQueryIR conversion and Cypher pattern compilation
+/// to ensure consistent handling of LLM-generated variable names.
+pub fn sanitize_variable(v: &str) -> Option<&str> {
+    if v.is_empty()
+        || v == "null"
+        || v == "-"
+        || !v.starts_with(|c: char| c.is_alphabetic() || c == '_')
+    {
+        None
+    } else {
+        Some(v)
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Shared serde helpers
 // ---------------------------------------------------------------------------

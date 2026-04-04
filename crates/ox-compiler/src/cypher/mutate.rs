@@ -1,16 +1,17 @@
+use ox_core::error::OxResult;
 use ox_core::query_ir::{MutateOp, PropertyAssignment};
 
 use super::expr::compile_expr;
 use super::params::{ParamCollector, escape_identifier};
 
-pub(super) fn compile_mutate_op(op: &MutateOp, pc: &mut ParamCollector) -> String {
-    match op {
+pub(super) fn compile_mutate_op(op: &MutateOp, pc: &mut ParamCollector) -> OxResult<String> {
+    Ok(match op {
         MutateOp::CreateNode {
             variable,
             label,
             properties,
         } => {
-            let props = compile_assignments(properties, pc);
+            let props = compile_assignments(properties, pc)?;
             let escaped_label = escape_identifier(label);
             format!("CREATE ({variable}:{escaped_label} {{{props}}})")
         }
@@ -26,7 +27,7 @@ pub(super) fn compile_mutate_op(op: &MutateOp, pc: &mut ParamCollector) -> Strin
             let props = if properties.is_empty() {
                 String::new()
             } else {
-                format!(" {{{}}}", compile_assignments(properties, pc))
+                format!(" {{{}}}", compile_assignments(properties, pc)?)
             };
             let escaped_label = escape_identifier(label);
             format!("CREATE ({source})-[{var}:{escaped_label}{props}]->({target})")
@@ -39,19 +40,19 @@ pub(super) fn compile_mutate_op(op: &MutateOp, pc: &mut ParamCollector) -> Strin
             on_create,
             on_match,
         } => {
-            let match_props = compile_assignments(match_properties, pc);
+            let match_props = compile_assignments(match_properties, pc)?;
             let escaped_label = escape_identifier(label);
             let mut stmt = format!("MERGE ({variable}:{escaped_label} {{{match_props}}})");
             if !on_create.is_empty() {
                 stmt.push_str(&format!(
                     "\n  ON CREATE SET {}",
-                    compile_set_assignments(variable, on_create, pc)
+                    compile_set_assignments(variable, on_create, pc)?
                 ));
             }
             if !on_match.is_empty() {
                 stmt.push_str(&format!(
                     "\n  ON MATCH SET {}",
-                    compile_set_assignments(variable, on_match, pc)
+                    compile_set_assignments(variable, on_match, pc)?
                 ));
             }
             stmt
@@ -70,7 +71,7 @@ pub(super) fn compile_mutate_op(op: &MutateOp, pc: &mut ParamCollector) -> Strin
             let match_props = if match_properties.is_empty() {
                 String::new()
             } else {
-                format!(" {{{}}}", compile_assignments(match_properties, pc))
+                format!(" {{{}}}", compile_assignments(match_properties, pc)?)
             };
             let escaped_label = escape_identifier(label);
             let mut stmt =
@@ -78,13 +79,13 @@ pub(super) fn compile_mutate_op(op: &MutateOp, pc: &mut ParamCollector) -> Strin
             if !on_create.is_empty() {
                 stmt.push_str(&format!(
                     "\n  ON CREATE SET {}",
-                    compile_set_assignments(var, on_create, pc)
+                    compile_set_assignments(var, on_create, pc)?
                 ));
             }
             if !on_match.is_empty() {
                 stmt.push_str(&format!(
                     "\n  ON MATCH SET {}",
-                    compile_set_assignments(var, on_match, pc)
+                    compile_set_assignments(var, on_match, pc)?
                 ));
             }
             stmt
@@ -97,7 +98,7 @@ pub(super) fn compile_mutate_op(op: &MutateOp, pc: &mut ParamCollector) -> Strin
         } => format!(
             "SET {variable}.{} = {}",
             escape_identifier(property),
-            compile_expr(value, pc)
+            compile_expr(value, pc)?
         ),
 
         MutateOp::Delete { variable, detach } => {
@@ -115,40 +116,40 @@ pub(super) fn compile_mutate_op(op: &MutateOp, pc: &mut ParamCollector) -> Strin
         MutateOp::RemoveLabel { variable, label } => {
             format!("REMOVE {variable}:{}", escape_identifier(label))
         }
-    }
+    })
 }
 
 pub(super) fn compile_assignments(
     assignments: &[PropertyAssignment],
     pc: &mut ParamCollector,
-) -> String {
-    assignments
+) -> OxResult<String> {
+    let items = assignments
         .iter()
         .map(|a| {
-            format!(
+            Ok(format!(
                 "{}: {}",
                 escape_identifier(&a.property),
-                compile_expr(&a.value, pc)
-            )
+                compile_expr(&a.value, pc)?
+            ))
         })
-        .collect::<Vec<_>>()
-        .join(", ")
+        .collect::<OxResult<Vec<_>>>()?;
+    Ok(items.join(", "))
 }
 
 pub(super) fn compile_set_assignments(
     variable: &str,
     assignments: &[PropertyAssignment],
     pc: &mut ParamCollector,
-) -> String {
-    assignments
+) -> OxResult<String> {
+    let items = assignments
         .iter()
         .map(|a| {
-            format!(
+            Ok(format!(
                 "{variable}.{} = {}",
                 escape_identifier(&a.property),
-                compile_expr(&a.value, pc)
-            )
+                compile_expr(&a.value, pc)?
+            ))
         })
-        .collect::<Vec<_>>()
-        .join(", ")
+        .collect::<OxResult<Vec<_>>>()?;
+    Ok(items.join(", "))
 }
