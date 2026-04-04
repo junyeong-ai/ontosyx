@@ -220,9 +220,21 @@ export function ChatPanel() {
           },
           {
             onText(delta) {
-              updateMessage(assistantId, {
-                content: (getAssistant()?.content ?? "") + delta,
-              });
+              // Text arriving while tools are still running is intermediate
+              // reasoning (e.g., "분석합니다", "데이터를 확보했습니다").
+              // Route it to the thinking field so it renders as a collapsible
+              // block instead of polluting the final response.
+              const msg = getAssistant();
+              const hasRunningTool = msg?.toolCalls?.some((tc) => tc.status === "running");
+              if (hasRunningTool) {
+                updateMessage(assistantId, {
+                  thinking: (msg?.thinking ?? "") + delta,
+                });
+              } else {
+                updateMessage(assistantId, {
+                  content: (msg?.content ?? "") + delta,
+                });
+              }
             },
             onThinking(content) {
               updateMessage(assistantId, {
