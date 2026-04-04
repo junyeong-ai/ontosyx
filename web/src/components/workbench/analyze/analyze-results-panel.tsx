@@ -143,19 +143,11 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
           )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {parsed?.step_timings && parsed.step_timings.length > 0 ? (
-            <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
-              {parsed.step_timings.map((st) => {
-                const label = STEP_TIMING_LABELS[st.step] ?? st.step;
-                const ms = st.duration_ms;
-                return `${label} ${ms < 100 ? "<0.1s" : `${(ms / 1000).toFixed(1)}s`}`;
-              }).join(" · ")}
-            </span>
-          ) : toolCall.durationMs != null && toolCall.durationMs > 0 ? (
+          {toolCall.durationMs != null && toolCall.durationMs > 0 && (
             <span className="text-[10px] text-zinc-400">
               {toolCall.durationMs < 100 ? "<0.1s" : `${(toolCall.durationMs / 1000).toFixed(1)}s`}
             </span>
-          ) : null}
+          )}
           <button
             onClick={() => setPinOpen(!pinOpen)}
             className="rounded px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 transition-colors hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950 dark:hover:text-emerald-400"
@@ -165,6 +157,20 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
           </button>
         </div>
       </div>
+      {/* Step timings — separate line below header for readability */}
+      {parsed?.step_timings && parsed.step_timings.length > 0 && (
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 px-3 pb-2 text-[10px] text-zinc-400 dark:text-zinc-500">
+          {parsed.step_timings.map((st) => {
+            const label = STEP_TIMING_LABELS[st.step] ?? st.step;
+            const ms = st.duration_ms;
+            return (
+              <span key={st.step}>
+                {label} {ms < 100 ? "<0.1s" : `${(ms / 1000).toFixed(1)}s`}
+              </span>
+            );
+          })}
+        </div>
+      )}
 
       {/* Pin-to-dashboard inline form */}
       {pinOpen && (

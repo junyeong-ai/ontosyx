@@ -51,6 +51,10 @@ export function unwrapPropertyValue(cell: unknown): unknown {
     }
     return out;
   }
+  // Recursively unwrap nested values (e.g., PropertyValue wrapping a node object)
+  if (v && typeof v === "object" && !Array.isArray(v)) {
+    return unwrapPropertyValue(v);
+  }
   return v;
 }
 

@@ -144,10 +144,20 @@ export function formatValue(value: unknown): string {
   if (Array.isArray(value)) return value.map(formatValue).join(", ");
   if (typeof value === "object") {
     const obj = value as Record<string, unknown>;
+    // PropertyValue wrapper: {type: "string", value: "..."}
     if ("type" in obj && "value" in obj) return formatValue(obj.value);
     if ("type" in obj && obj.type === "null") return "\u2014";
+    // Node object with properties sub-object
     if ("properties" in obj && typeof obj.properties === "object" && obj.properties !== null) {
-      return JSON.stringify(obj.properties);
+      const props = obj.properties as Record<string, unknown>;
+      // Prefer name > label > title > id for display
+      for (const key of ["name", "label", "title", "id"]) {
+        if (key in props && props[key] != null) return formatValue(props[key]);
+      }
+    }
+    // Plain object — prefer name > label > title > id
+    for (const key of ["name", "label", "title", "id"]) {
+      if (key in obj && obj[key] != null && typeof obj[key] !== "object") return String(obj[key]);
     }
     return JSON.stringify(value);
   }
