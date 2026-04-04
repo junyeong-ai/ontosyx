@@ -342,12 +342,17 @@ impl MatchQueryIR {
         }
 
         for rel in &self.relationships {
-            // Normalize var_length: single-hop or zero-hop → normal relationship.
-            // Neo4j treats [r:TYPE*N..N] as List<Relationship>, breaking r.prop access.
-            // LLM commonly generates (0,0), (1,1), or (null,null) — all mean "direct edge".
-            let var_length = match (rel.min_hops, rel.max_hops) {
+            // Normalize var_length: single-hop, zero-hop, or nonsensical values → direct edge.
+            // LLM commonly generates (0,0), (1,1), (null,null), or arbitrary large numbers
+            // like (694,694) — all should be treated as direct single-hop edges.
+            // Only intentional variable-length paths (e.g., *1..5 for network traversal)
+            // should produce VarLength. Max reasonable depth is 10.
+            const MAX_HOPS: u32 = 10;
+            let min_h = rel.min_hops.filter(|&v| v <= MAX_HOPS);
+            let max_h = rel.max_hops.filter(|&v| v <= MAX_HOPS);
+            let var_length = match (min_h, max_h) {
                 (None, None) | (Some(0), Some(0)) | (Some(1), Some(1)) => None,
-                (Some(0), None) => None, // *0.. is equivalent to *
+                (Some(0), None) => None,
                 (min, max) => Some(VarLength {
                     min: min.map(|v| v as usize),
                     max: max.map(|v| v as usize),
