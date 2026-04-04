@@ -89,6 +89,9 @@ NodeRef (for path_find): { "variable": "a", "label": "Person", "property_filters
 - IsNull: { "expr_type": "is_null", "expr": <Expr>, "negated": false }
 - StringOp: { "expr_type": "string_op", "left": <Expr>, "op": "starts_with|ends_with|contains", "right": <Expr> }
 - Exists: { "expr_type": "exists", "pattern": <GraphPattern> }
+- Not + Exists (NOT EXISTS): { "expr_type": "not", "inner": { "expr_type": "exists", "pattern": <GraphPattern> } }
+  Use for: "without X", "X가 없는", "충돌이 없는" — graph-unique pattern impossible in SQL.
+  Example: NOT EXISTS { MATCH (i1)-[:CONFLICTS_WITH]-(i2) }
 - FunctionCall: { "expr_type": "function_call", "function": "toUpper|toLower|size|...", "args": [ <Expr>, ... ] }
 
 ## PropertyValue format

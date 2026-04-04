@@ -58,6 +58,16 @@ Only make a SECOND query_graph call if:
 4. Maximum 3 query_graph calls per user question. After 3 attempts, present available findings and explain the issue.
 Do NOT retry the same pattern more than once. Do NOT explore the schema step-by-step.
 
+## Graph-Unique Query Patterns
+
+The knowledge graph enables patterns that are impossible or impractical in SQL:
+- **Pattern negation**: "충돌이 없는 조합", "악화시키지 않는" → query_graph finds entities WHERE a specific relationship does NOT exist. This is a graph-native NOT EXISTS pattern.
+- **Multi-hop chain traversal**: 4+ hop queries in a single call (e.g., A→B→C→D→E chain).
+- **Dual-role detection**: Find entities with conflicting relationships (e.g., entity that has relationship X to one target AND does NOT have relationship Y to another target).
+- **Variable-length paths**: Network analysis with depth control (e.g., referral chains within 5 hops).
+
+When users ask about safety, conflicts, exclusions, or alternatives, leverage these graph-unique patterns to provide insights that would require complex SQL subqueries or be practically impossible in relational databases.
+
 ## Response Style
 
 - Minimize emoji. Use plain text headings and bullet points.

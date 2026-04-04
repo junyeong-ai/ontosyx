@@ -41,6 +41,10 @@ pub struct MatchQueryIR {
     /// Filter conditions (implicit AND between all conditions)
     #[serde(default)]
     pub conditions: Vec<Condition>,
+    /// Patterns that must NOT exist in the graph (compiled to NOT EXISTS).
+    /// Use for safety checks, conflict avoidance, and exclusion queries.
+    #[serde(default)]
+    pub exclude_patterns: Vec<ExcludePattern>,
     /// RETURN clause
     pub returns: Vec<ReturnClause>,
     /// GROUP BY fields (for aggregation queries)
@@ -83,6 +87,21 @@ pub struct RelationshipPattern {
     pub min_hops: Option<u32>,
     /// Variable-length path: maximum hops
     pub max_hops: Option<u32>,
+}
+
+/// A relationship pattern that must NOT exist in the graph.
+///
+/// Compiled to `WHERE NOT EXISTS { MATCH (source)-[:label]-(target) }`.
+/// Use for safety validation, conflict avoidance, and exclusion queries —
+/// patterns that are impossible in SQL without expensive NOT IN subqueries.
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+pub struct ExcludePattern {
+    /// Relationship label to exclude (e.g., "CONFLICTS_WITH", "AGGRAVATES").
+    pub relationship_label: String,
+    /// Source node variable (must be declared in `nodes`).
+    pub source: String,
+    /// Target node variable (must be declared in `nodes`).
+    pub target: String,
 }
 
 // ---------------------------------------------------------------------------
@@ -218,6 +237,29 @@ impl MatchQueryIR {
             }
         }
 
+        for (i, exclude) in self.exclude_patterns.iter().enumerate() {
+            if !node_vars.contains(exclude.source.as_str()) {
+                return Err(OxError::Validation {
+                    field: format!("exclude_patterns[{i}].source"),
+                    message: format!(
+                        "Exclude pattern source '{}' not found in node patterns. Declared nodes: {:?}",
+                        exclude.source,
+                        node_vars.iter().collect::<Vec<_>>()
+                    ),
+                });
+            }
+            if !node_vars.contains(exclude.target.as_str()) {
+                return Err(OxError::Validation {
+                    field: format!("exclude_patterns[{i}].target"),
+                    message: format!(
+                        "Exclude pattern target '{}' not found in node patterns. Declared nodes: {:?}",
+                        exclude.target,
+                        node_vars.iter().collect::<Vec<_>>()
+                    ),
+                });
+            }
+        }
+
         // Reject collect/collect_list — these collapse rows into arrays,
         // producing 1-row results that agents can't interpret per-entity.
         // Use count/sum/avg/min/max instead for aggregation.
@@ -315,7 +357,31 @@ impl MatchQueryIR {
             });
         }
 
-        let filter = conditions_to_filter(&self.conditions);
+        // Build filter from conditions + exclude_patterns (NOT EXISTS).
+        let mut filter = conditions_to_filter(&self.conditions);
+        for exclude in &self.exclude_patterns {
+            let not_exists = Expr::Not {
+                inner: Box::new(Expr::Exists {
+                    pattern: Box::new(GraphPattern::Relationship {
+                        variable: None,
+                        label: Some(exclude.relationship_label.clone()),
+                        source: exclude.source.clone(),
+                        target: exclude.target.clone(),
+                        direction: Direction::Both,
+                        property_filters: Vec::new(),
+                        var_length: None,
+                    }),
+                }),
+            };
+            filter = Some(match filter {
+                Some(existing) => Expr::Logical {
+                    left: Box::new(existing),
+                    op: LogicalOp::And,
+                    right: Box::new(not_exists),
+                },
+                None => not_exists,
+            });
+        }
         let projections: Vec<Projection> = self.returns.iter().map(return_to_projection).collect();
 
         let group_by: Vec<Projection> = self
@@ -557,6 +623,7 @@ mod tests {
             }],
             relationships: vec![],
             conditions: vec![],
+            exclude_patterns: vec![],
             returns: vec![ReturnClause {
                 variable: "p".into(),
                 field: None,

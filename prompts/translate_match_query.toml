@@ -37,6 +37,8 @@ The output schema is enforced — follow these semantic rules only.
 
 10b. NEVER use "collect" or "collect_list" as aggregate — they return arrays, not individual rows. Only these aggregates are allowed: count, sum, avg, min, max. If the user asks for "list of X per group", return the grouped fields directly without aggregation instead.
 
+11. Pattern exclusion (NOT EXISTS): when the user asks "without X", "X가 없는", "충돌이 없는", "악화시키지 않는", use exclude_patterns. Set relationship_label to the edge type to exclude, source and target to the relevant node variables (both must be declared in nodes). This compiles to NOT EXISTS — a graph-unique pattern impossible in SQL.
+
 ## EXAMPLES
 
 Ontology for examples:
@@ -202,6 +204,58 @@ Q: "Customers who ordered products in the Electronics category with average revi
   "group_by": [],
   "order_by": [{"field": "re.rating", "descending": true}],
   "limit": null,
+  "skip": null
+}
+
+### Example 9: Pattern exclusion — synergy without conflict
+Q: "Find ingredient pairs that synergize but do NOT conflict"
+{
+  "nodes": [
+    {"variable": "i1", "label": "Ingredient"},
+    {"variable": "i2", "label": "Ingredient"}
+  ],
+  "relationships": [
+    {"label": "SYNERGIZES_WITH", "source": "i1", "target": "i2", "variable": "syn", "min_hops": null, "max_hops": null}
+  ],
+  "conditions": [],
+  "exclude_patterns": [
+    {"relationship_label": "CONFLICTS_WITH", "source": "i1", "target": "i2"}
+  ],
+  "returns": [
+    {"variable": "i1", "field": "name", "alias": "ingredient_1", "aggregate": null, "distinct": null},
+    {"variable": "i2", "field": "name", "alias": "ingredient_2", "aggregate": null, "distinct": null},
+    {"variable": "syn", "field": "boost_pct", "alias": "synergy_boost", "aggregate": null, "distinct": null}
+  ],
+  "group_by": [],
+  "order_by": [{"field": "syn.boost_pct", "descending": true}],
+  "limit": null,
+  "skip": null
+}
+
+### Example 10: Pattern exclusion — safe alternative (treats X but does NOT aggravate Y)
+Q: "Find ingredients that treat aging but do NOT aggravate sensitive skin"
+{
+  "nodes": [
+    {"variable": "i", "label": "Ingredient"},
+    {"variable": "sc_treat", "label": "SkinConcern"},
+    {"variable": "sc_avoid", "label": "SkinConcern"}
+  ],
+  "relationships": [
+    {"label": "TREATS", "source": "i", "target": "sc_treat", "variable": null, "min_hops": null, "max_hops": null}
+  ],
+  "conditions": [
+    {"variable": "sc_treat", "field": "name", "op": "eq", "string_value": "aging", "number_value": null, "bool_value": null, "list_values": []},
+    {"variable": "sc_avoid", "field": "name", "op": "eq", "string_value": "sensitive", "number_value": null, "bool_value": null, "list_values": []}
+  ],
+  "exclude_patterns": [
+    {"relationship_label": "AGGRAVATES", "source": "i", "target": "sc_avoid"}
+  ],
+  "returns": [
+    {"variable": "i", "field": "name", "alias": "safe_ingredient", "aggregate": null, "distinct": null}
+  ],
+  "group_by": [],
+  "order_by": [],
+  "limit": 25,
   "skip": null
 }
 
