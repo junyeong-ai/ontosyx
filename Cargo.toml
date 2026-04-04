@@ -34,7 +34,7 @@ ox-agent = { path = "crates/ox-agent" }
 ox-memory = { path = "crates/ox-memory" }
 
 # LLM runtime
-branchforge = { version = "0.4", default-features = false }
+branchforge = { path = "../branchforge", default-features = false }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }

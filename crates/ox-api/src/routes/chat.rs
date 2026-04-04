@@ -117,9 +117,6 @@ pub async fn chat_stream(
         (None, None, None)
     };
 
-    // Progress channel for sub-step events from long-running tools.
-    let (progress_tx, progress_rx) = ox_agent::progress::channel();
-
     // Build domain context
     let domain = Arc::new(DomainContext {
         compiler: Arc::clone(&state.compiler),
@@ -135,7 +132,6 @@ pub async fn chat_stream(
         repo_insights,
         knowledge_store: Some(Arc::clone(&state.store) as Arc<dyn ox_store::KnowledgeStore>),
         user_question: Some(user_message.clone()),
-        progress_tx: Some(progress_tx),
     });
 
     // Parse execution mode from request
@@ -260,40 +256,11 @@ pub async fn chat_stream(
                 let mut event_stream = std::pin::pin!(event_stream);
                 let memory_for_stream = state.memory.clone();
                 let mut event_sequence: i32 = 0;
-                let mut running_tools: std::collections::HashMap<String, String> = std::collections::HashMap::new();
-                let mut progress_rx = progress_rx;
 
                 while let Some(event_result) = event_stream.next().await {
                     {
                     match event_result {
                         Ok(ref agent_event) => {
-                            // Track running tools for progress correlation
-                            match agent_event {
-                                AgentEvent::ToolStart { id, name, .. } => {
-                                    running_tools.insert(name.clone(), id.clone());
-                                }
-                                AgentEvent::ToolComplete { name, .. } => {
-                                    // Drain progress events (Brain sub-steps + tool steps).
-                                    // Events accumulate during handle() and arrive together
-                                    // when ToolComplete fires. This shows sub-step breakdown
-                                    // (schema_discovery, llm_primary, compiling, executing).
-                                    while let Ok(progress) = progress_rx.try_recv() {
-                                        if let Some(tool_call_id) = running_tools.get(&progress.tool_name) {
-                                            let data = serde_json::json!({
-                                                "tool_call_id": tool_call_id,
-                                                "step": progress.step,
-                                                "status": progress.status,
-                                                "duration_ms": progress.duration_ms,
-                                                "metadata": progress.metadata,
-                                            });
-                                            yield Ok(Event::default().event("tool_progress").data(data.to_string()));
-                                        }
-                                    }
-                                    running_tools.remove(name.as_str());
-                                }
-                                _ => {}
-                            }
-
                             // Record event for audit (fire-and-forget)
                             event_sequence += 1;
                             if let Some(sse_event) = agent_event_to_sse(agent_event) {
@@ -495,6 +462,16 @@ fn agent_event_to_sse(event: &AgentEvent) -> Option<Event> {
         } => (
             "tool_complete",
             serde_json::json!({ "id": id, "name": name, "output": output, "is_error": is_error, "duration_ms": duration_ms }),
+        ),
+        AgentEvent::ToolProgress { id, name: _, step, status, duration_ms, metadata } => (
+            "tool_progress",
+            serde_json::json!({
+                "tool_call_id": id,
+                "step": step,
+                "status": status,
+                "duration_ms": duration_ms,
+                "metadata": metadata,
+            }),
         ),
         AgentEvent::ToolBlocked { id, name, reason } => (
             "tool_blocked",

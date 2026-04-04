@@ -13,7 +13,6 @@ pub mod ontology_command;
 pub mod ontology_diff;
 pub mod ontology_input;
 pub mod ontology_ir;
-pub mod progress;
 pub mod quality;
 pub mod query_bindings;
 pub mod query_ir;

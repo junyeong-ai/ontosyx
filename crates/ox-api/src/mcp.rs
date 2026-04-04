@@ -225,7 +225,7 @@ impl OntosyxMcpServer {
         // Translate NL -> QueryIR
         let query_ir = self
             .brain
-            .translate_query(&params.question, &ontology, None)
+            .translate_query(&params.question, &ontology, &branchforge::ExecutionContext::permissive())
             .await
             .map_err(|e| {
                 McpError::internal_error(format!("Query translation failed: {e}"), None)

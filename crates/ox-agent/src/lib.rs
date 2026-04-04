@@ -7,7 +7,6 @@
 //! for durable sessions, tool execution, and human-in-the-loop workflows.
 
 pub mod hooks;
-pub mod progress;
 pub mod recipes;
 pub mod tools;
 
@@ -55,10 +54,6 @@ pub struct DomainContext {
     /// Original user question — always passed to translate_query as primary context.
     /// Prevents agent-driven question fragmentation that defeats graph traversal.
     pub user_question: Option<String>,
-    /// Channel for emitting sub-step progress from tools (e.g., query_graph steps).
-    /// When `Some`, tools should send [`progress::ToolProgress`] events for each step.
-    /// The SSE handler merges these into the client event stream.
-    pub progress_tx: Option<progress::ProgressSender>,
 }
 
 // ---------------------------------------------------------------------------
