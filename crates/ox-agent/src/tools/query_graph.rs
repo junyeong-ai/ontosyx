@@ -230,10 +230,11 @@ impl SchemaTool for QueryGraphTool {
         // Guidance: tell agent when data is sufficient to avoid unnecessary follow-up queries
         let guidance = if results.metadata.rows_returned >= 2 {
             Some(format!(
-                "Got {} rows with {} columns. Analyze these results directly and present findings. \
-                 Do NOT make additional queries unless the user asks a follow-up question.",
+                "Got {} rows with columns: [{}]. Analyze these results directly and present findings. \
+                 Do NOT make additional queries unless the user asks a follow-up question. \
+                 If using execute_analysis, pass this data in the 'data' field and access columns by these exact names.",
                 results.metadata.rows_returned,
-                results.columns.len()
+                results.columns.join(", "),
             ))
         } else if results.metadata.rows_returned == 0 {
             Some("No results found. Try broadening the search — use CONTAINS instead of exact match, \

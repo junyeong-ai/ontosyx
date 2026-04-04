@@ -67,9 +67,11 @@ impl SchemaTool for ExecuteAnalysisTool {
     type Input = ExecuteAnalysisInput;
     const NAME: &'static str = super::EXECUTE_ANALYSIS;
     const DESCRIPTION: &'static str = "Execute Python data analysis code in a sandboxed environment. \
-         Available libraries: pandas, numpy, scikit-learn, statsmodels, matplotlib. \
-         Input data is available at /sandbox/input.json. Print results to stdout as JSON. \
-         Timeout: 120 seconds.";
+         Available libraries: pandas, numpy, scikit-learn, statsmodels, matplotlib, scipy. \
+         Pass query results in the 'data' field — the code reads it from /sandbox/input.json. \
+         Data format: {\"columns\": [...], \"rows\": [[cell, ...], ...]} where cells are {\"type\": \"string\", \"value\": \"...\"} objects. \
+         Use pandas: df = pd.DataFrame([{col: row[i].get('value') for i, col in enumerate(data['columns'])} for row in data['rows']]). \
+         Print results to stdout as JSON. Timeout: 120 seconds.";
 
     async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
         // Compute input hash for cache lookup
