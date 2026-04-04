@@ -133,16 +133,11 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
 
   return (
     <div data-tool-id={toolCall.id} className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+      {/* Header — consistent for all tool types */}
       <div className="flex items-center justify-between gap-3 border-b border-zinc-100 px-4 py-2 dark:border-zinc-800">
-        <div className="min-w-0 flex-1">
-          {toolCall.name === "query_graph" && parsed?.compiled_query ? (
-            <QueryBlock query={parsed.compiled_query} />
-          ) : (
-            <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-              {toolCall.name}
-            </span>
-          )}
-        </div>
+        <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+          {toolCall.name}
+        </span>
         <div className="flex shrink-0 items-center gap-2">
           {toolCall.durationMs != null && toolCall.durationMs > 0 && (
             <span className="text-[10px] text-zinc-400">
@@ -151,16 +146,22 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
           )}
           <button
             onClick={() => setPinOpen(!pinOpen)}
-            className="rounded px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 transition-colors hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950 dark:hover:text-emerald-400"
+            className="cursor-pointer rounded px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 transition-colors hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950 dark:hover:text-emerald-400"
             title="Pin to Dashboard"
           >
             Pin
           </button>
         </div>
       </div>
+      {/* Cypher query block — below header for query_graph results */}
+      {toolCall.name === "query_graph" && parsed?.compiled_query && (
+        <div className="px-3 pt-2">
+          <QueryBlock query={parsed.compiled_query} />
+        </div>
+      )}
       {/* Step timings — separate line below header for readability */}
       {parsed?.step_timings && parsed.step_timings.length > 0 && (
-        <div className="flex flex-wrap gap-x-3 gap-y-0.5 px-3 pb-2 text-[10px] text-zinc-400 dark:text-zinc-500">
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 px-3 pb-2 pt-1 text-[10px] text-zinc-400 dark:text-zinc-500">
           {parsed.step_timings.map((st) => {
             const label = STEP_TIMING_LABELS[st.step] ?? st.step;
             const ms = st.duration_ms;

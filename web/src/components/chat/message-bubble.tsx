@@ -159,15 +159,16 @@ export function MessageBubble({ message, onSend }: MessageBubbleProps) {
           <SuggestedFollowups content={message.content} onSend={onSend} />
         )}
 
-        {/* General message feedback */}
+        {/* Feedback + copy for completed responses */}
         {!message.isStreaming && message.role === "assistant" && message.content && !message.error && (
-          hasQueryResult(message) ? (
-            <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1">
+            {hasQueryResult(message) ? (
               <FeedbackButtons executionId={getExecutionId(message)} />
-            </div>
-          ) : (
-            <MessageFeedback messageId={message.id} />
-          )
+            ) : (
+              <MessageFeedback messageId={message.id} />
+            )}
+            <CopyButton text={message.content} variant="inline" />
+          </div>
         )}
       </div>
     </div>
