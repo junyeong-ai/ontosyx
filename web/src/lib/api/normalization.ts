@@ -66,18 +66,33 @@ export function unwrapPropertyValue(cell: unknown): unknown {
  *
  * Returns the extracted properties object, or null if not a node/relationship.
  */
+/** Internal fields injected by Neo4j driver or RLS isolation — never shown to users. */
+const INTERNAL_FIELDS = new Set([
+  "labels", "id", "element_id", "keys",
+  "_workspace_id",          // RLS workspace isolation property
+  "start_node_id", "end_node_id", "type",  // Relationship metadata
+]);
+
+/** Check if a field key is internal (should be stripped from display). */
+function isInternalField(key: string): boolean {
+  return INTERNAL_FIELDS.has(key);
+}
+
 export function extractNodeProperties(obj: Record<string, unknown>): Record<string, unknown> | null {
   // Structured node: { labels: [...], properties: { name, price, ... }, id?, keys? }
   if ("properties" in obj && typeof obj.properties === "object" && obj.properties !== null && !Array.isArray(obj.properties)) {
-    return obj.properties as Record<string, unknown>;
+    const raw = obj.properties as Record<string, unknown>;
+    const filtered: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(raw)) {
+      if (!isInternalField(k)) filtered[k] = v;
+    }
+    return Object.keys(filtered).length > 0 ? filtered : null;
   }
   // Flat node from neo4rs: has `labels` (node) or `type` + `start_node_id`/`end_node_id` (relationship)
-  // Strip known internal metadata fields
   if ("labels" in obj && Array.isArray(obj.labels)) {
     const props: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(obj)) {
-      // Skip Neo4j internal metadata fields
-      if (k === "labels" || k === "id" || k === "element_id" || k === "keys") continue;
+      if (isInternalField(k)) continue;
       props[k] = v;
     }
     return Object.keys(props).length > 0 ? props : null;
