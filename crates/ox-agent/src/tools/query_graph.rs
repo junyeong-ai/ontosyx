@@ -112,24 +112,24 @@ impl SchemaTool for QueryGraphTool {
         };
 
         // Step 2: Compile QueryIR → target language
-        ctx.emit_progress("compiling", "started", None, None);
+        ctx.progress("compiling").started();
         let t2 = std::time::Instant::now();
         let compiled = match self.domain.compiler.compile_query(&query_ir) {
             Ok(c) => {
                 let ms = t2.elapsed().as_millis() as u64;
                 step_timings.push(StepTiming { step: "compiling".into(), duration_ms: ms });
-                ctx.emit_progress("compiling", "completed", Some(ms),
-                    Some(serde_json::json!({ "cypher": truncate(&c.statement, 500) })));
+                ctx.progress("compiling").completed_with(ms,
+                    serde_json::json!({ "cypher": truncate(&c.statement, 500) }));
                 c
             }
             Err(e) => {
-                ctx.emit_progress("compiling", "failed", Some(t2.elapsed().as_millis() as u64), None);
+                ctx.progress("compiling").failed(t2.elapsed().as_millis() as u64);
                 return ToolResult::error(format!("Query compilation failed: {e}"));
             }
         };
 
         // Step 3: Execute (timeout: 60s)
-        ctx.emit_progress("executing", "started", None, None);
+        ctx.progress("executing").started();
         let t3 = std::time::Instant::now();
         let results = match tokio::time::timeout(
             std::time::Duration::from_secs(60),
@@ -140,19 +140,19 @@ impl SchemaTool for QueryGraphTool {
             Ok(Ok(r)) => {
                 let ms = t3.elapsed().as_millis() as u64;
                 step_timings.push(StepTiming { step: "executing".into(), duration_ms: ms });
-                ctx.emit_progress("executing", "completed", Some(ms),
-                    Some(serde_json::json!({ "row_count": r.metadata.rows_returned })));
+                ctx.progress("executing").completed_with(ms,
+                    serde_json::json!({ "row_count": r.metadata.rows_returned }));
                 r
             }
             Ok(Err(e)) => {
-                ctx.emit_progress("executing", "failed", Some(t3.elapsed().as_millis() as u64), None);
+                ctx.progress("executing").failed(t3.elapsed().as_millis() as u64);
                 return ToolResult::error(format!(
                     "Query execution failed: {e}\nCompiled query: {}",
                     truncate(&compiled.statement, 500),
                 ));
             }
             Err(_) => {
-                ctx.emit_progress("executing", "failed", Some(60_000), None);
+                ctx.progress("executing").failed(60_000);
                 return ToolResult::error("Query execution timed out after 60 seconds");
             }
         };

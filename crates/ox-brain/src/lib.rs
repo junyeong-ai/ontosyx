@@ -579,14 +579,8 @@ impl OntologyEditor for DefaultBrain {
 #[async_trait]
 impl QueryTranslator for DefaultBrain {
     async fn translate_query(&self, question: &str, ontology: &OntologyIR, ctx: &branchforge::ExecutionContext) -> OxResult<QueryIR> {
-        // Emit progress sub-steps via branchforge's ExecutionContext.
-        // These become AgentEvent::ToolProgress in the event stream.
-        let emit = |step: &str, status: &str, duration_ms: Option<u64>, metadata: Option<serde_json::Value>| {
-            ctx.emit_progress(step, status, duration_ms, metadata);
-        };
-
         // Phase 1: Schema discovery
-        emit("schema_discovery", "started", None, None);
+        ctx.progress("schema_discovery").started();
         let t_schema = std::time::Instant::now();
 
         let use_rag = ontology.node_types.len() > schema_rag::FULL_SCHEMA_NODE_THRESHOLD
@@ -615,10 +609,10 @@ impl QueryTranslator for DefaultBrain {
             (schema, all_label_strings)
         };
 
-        emit("schema_discovery", "completed", Some(t_schema.elapsed().as_millis() as u64), None);
+        ctx.progress("schema_discovery").completed(t_schema.elapsed().as_millis() as u64);
 
         // Phase 2: Knowledge RAG
-        emit("knowledge_lookup", "started", None, None);
+        ctx.progress("knowledge_lookup").started();
         let t_knowledge = std::time::Instant::now();
         let label_refs: Vec<&str> = discovered_labels.iter().map(|s| s.as_str()).collect();
         let knowledge_context = if let Some(kb) = &self.knowledge_store {
@@ -634,7 +628,7 @@ impl QueryTranslator for DefaultBrain {
             String::new()
         };
 
-        emit("knowledge_lookup", "completed", Some(t_knowledge.elapsed().as_millis() as u64), None);
+        ctx.progress("knowledge_lookup").completed(t_knowledge.elapsed().as_millis() as u64);
 
         let mut vars = HashMap::new();
         vars.insert("question", question);
@@ -642,7 +636,7 @@ impl QueryTranslator for DefaultBrain {
         vars.insert("knowledge", knowledge_context.as_str());
 
         // Phase 3: Primary LLM call (MatchQueryIR structured output)
-        emit("llm_primary", "started", None, None);
+        ctx.progress("llm_primary").started();
         let t_llm = std::time::Instant::now();
         let query_ir = match self
             .call_structured::<ox_core::MatchQueryIR>(
@@ -656,16 +650,16 @@ impl QueryTranslator for DefaultBrain {
             .and_then(|match_ir| match_ir.into_query_ir())
         {
             Ok(qir) => {
-                emit("llm_primary", "completed", Some(t_llm.elapsed().as_millis() as u64), None);
+                ctx.progress("llm_primary").completed(t_llm.elapsed().as_millis() as u64);
                 info!("MatchQueryIR structured output succeeded");
                 qir
             }
             Err(match_err) => {
-                emit("llm_primary", "failed", Some(t_llm.elapsed().as_millis() as u64),
-                    Some(serde_json::json!({ "error": format!("{match_err}").chars().take(200).collect::<String>() })));
+                ctx.progress("llm_primary").failed_with(t_llm.elapsed().as_millis() as u64,
+                    serde_json::json!({ "error": format!("{match_err}").chars().take(200).collect::<String>() }));
 
                 // Phase 4: Fallback LLM call (full QueryIR JSON mode)
-                emit("llm_fallback", "started", None, None);
+                ctx.progress("llm_fallback").started();
                 let t_fallback = std::time::Instant::now();
                 info!(
                     error = %match_err,
@@ -683,13 +677,13 @@ impl QueryTranslator for DefaultBrain {
 
                 match result {
                     Ok(qir) => {
-                        emit("llm_fallback", "completed", Some(t_fallback.elapsed().as_millis() as u64), None);
+                        ctx.progress("llm_fallback").completed(t_fallback.elapsed().as_millis() as u64);
                         qir
                     }
                     Err(first_err) => {
-                        emit("llm_fallback", "failed", Some(t_fallback.elapsed().as_millis() as u64), None);
+                        ctx.progress("llm_fallback").failed(t_fallback.elapsed().as_millis() as u64);
                         // Final retry
-                        emit("llm_retry", "started", None, None);
+                        ctx.progress("llm_retry").started();
                         let t_retry = std::time::Instant::now();
                         info!(
                             error = %first_err,
@@ -704,12 +698,12 @@ impl QueryTranslator for DefaultBrain {
                         )
                         .await
                         .map_err(|retry_err| {
-                            emit("llm_retry", "failed", Some(t_retry.elapsed().as_millis() as u64), None);
+                            ctx.progress("llm_retry").failed(t_retry.elapsed().as_millis() as u64);
                             info!(retry_error = %retry_err, "Query translation retry also failed");
                             first_err
                         });
                         if retry_result.is_ok() {
-                            emit("llm_retry", "completed", Some(t_retry.elapsed().as_millis() as u64), None);
+                            ctx.progress("llm_retry").completed(t_retry.elapsed().as_millis() as u64);
                         }
                         retry_result?
                     }

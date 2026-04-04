@@ -463,7 +463,7 @@ fn agent_event_to_sse(event: &AgentEvent) -> Option<Event> {
             "tool_complete",
             serde_json::json!({ "id": id, "name": name, "output": output, "is_error": is_error, "duration_ms": duration_ms }),
         ),
-        AgentEvent::ToolProgress { id, name: _, step, status, duration_ms, metadata } => (
+        AgentEvent::ToolProgress { id, name: _, step, status, timestamp: _, duration_ms, metadata } => (
             "tool_progress",
             serde_json::json!({
                 "tool_call_id": id,
