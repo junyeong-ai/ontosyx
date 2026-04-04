@@ -220,17 +220,25 @@ export function ChatPanel() {
           },
           {
             onText(delta) {
-              // Text arriving while tools are still running is intermediate
-              // reasoning (e.g., "분석합니다", "데이터를 확보했습니다").
-              // Route it to the thinking field so it renders as a collapsible
-              // block instead of polluting the final response.
+              // Text between tool calls is intermediate reasoning
+              // (e.g., "과거 보정 패턴을 확인했습니다", "데이터를 확보했습니다").
+              // Route to thinking if ANY tool has been called — only text
+              // arriving BEFORE the first tool call or AFTER the final
+              // tool_complete (when isLoading becomes false via onComplete)
+              // goes to content. Since onComplete sets isStreaming=false,
+              // and the last text chunk arrives before onComplete, we use
+              // "has any toolCalls" as the divider.
               const msg = getAssistant();
-              const hasRunningTool = msg?.toolCalls?.some((tc) => tc.status === "running");
-              if (hasRunningTool) {
+              const hasAnyToolCalls = msg?.toolCalls && msg.toolCalls.length > 0;
+              const allToolsDone = hasAnyToolCalls && msg.toolCalls!.every((tc) => tc.status === "done" || tc.status === "error");
+
+              if (hasAnyToolCalls && !allToolsDone) {
+                // Tools in progress or between calls → thinking
                 updateMessage(assistantId, {
                   thinking: (msg?.thinking ?? "") + delta,
                 });
               } else {
+                // No tools yet (pre-tool text) or all done (final analysis)
                 updateMessage(assistantId, {
                   content: (msg?.content ?? "") + delta,
                 });

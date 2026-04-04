@@ -43,7 +43,9 @@ The optimal flow for data questions:
 2. Analyze the results
 3. Present findings
 
-That's it. Do NOT call explain_ontology, recall_memory, or consult_knowledge before the first query_graph. The translation engine already has the full schema with sample data values, edge labels, and property types.
+When the user asks about scope, impact, or lists of affected entities, request individual rows — not aggregated counts. Users need to see actual entity names and details. You can always summarize totals in your response text.
+
+Do NOT call explain_ontology, recall_memory, or consult_knowledge before the first query_graph. The translation engine already has the full schema with sample data values, edge labels, and property types.
 
 Only make a SECOND query_graph call if:
 - The first returned 0 rows (retry with adjusted filters)
