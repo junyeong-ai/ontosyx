@@ -339,7 +339,9 @@ impl MatchQueryIR {
                 });
             }
 
-            // Exactly one value field should be set (mutual exclusion)
+            // Exactly one value field should be set (mutual exclusion).
+            // Note: normalize_conditions() should have resolved most conflicts
+            // before this point. This check catches any remaining edge cases.
             if needs_value && value_count > 1 {
                 return Err(OxError::Validation {
                     field: format!("conditions[{i}]"),
@@ -354,8 +356,36 @@ impl MatchQueryIR {
         Ok(())
     }
 
+    /// Normalize LLM-generated conditions: when multiple value fields are set
+    /// on a condition (e.g., both string_value and list_values), resolve the
+    /// ambiguity by keeping the most specific one. This avoids expensive fallback
+    /// retries (2 additional LLM calls) for a common and harmless LLM output pattern.
+    fn normalize_conditions(&mut self) {
+        for cond in &mut self.conditions {
+            let value_count = cond.string_value.is_some() as u8
+                + cond.number_value.is_some() as u8
+                + cond.bool_value.is_some() as u8
+                + (!cond.list_values.is_empty()) as u8;
+
+            if value_count > 1 {
+                // Priority: list_values > string_value > number_value > bool_value
+                if !cond.list_values.is_empty() {
+                    cond.string_value = None;
+                    cond.number_value = None;
+                    cond.bool_value = None;
+                } else if cond.string_value.is_some() {
+                    cond.number_value = None;
+                    cond.bool_value = None;
+                } else if cond.number_value.is_some() {
+                    cond.bool_value = None;
+                }
+            }
+        }
+    }
+
     /// Validate and convert to QueryIR.
-    pub fn into_query_ir(self) -> Result<QueryIR, OxError> {
+    pub fn into_query_ir(mut self) -> Result<QueryIR, OxError> {
+        self.normalize_conditions();
         self.validate()?;
 
         let mut patterns: Vec<GraphPattern> =
