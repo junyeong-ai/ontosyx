@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/use-auth";
 import { listUsers, updateUserRole } from "@/lib/api";
 import { Spinner } from "@/components/ui/spinner";
+import { SettingsSelect } from "@/components/ui/form-input";
 import type { UserInfo } from "@/types/api";
 
 const ROLE_DESCRIPTIONS: Record<string, string> = {
@@ -128,13 +129,13 @@ export default function TeamPage() {
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-zinc-100 dark:border-zinc-800">
-                  <th className="px-6 py-2.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                  <th className="py-3 pr-6 text-xs font-medium text-zinc-500 dark:text-zinc-400">
                     User
                   </th>
-                  <th className="px-6 py-2.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                  <th className="py-3 pr-6 text-xs font-medium text-zinc-500 dark:text-zinc-400">
                     Email
                   </th>
-                  <th className="px-6 py-2.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                  <th className="py-3 pr-6 text-xs font-medium text-zinc-500 dark:text-zinc-400">
                     Role
                   </th>
                 </tr>
@@ -144,7 +145,7 @@ export default function TeamPage() {
                   const isMe = member.id === user?.sub;
                   return (
                     <tr key={member.id}>
-                      <td className="px-6 py-3">
+                      <td className="py-3 pr-6">
                         <div className="flex items-center gap-2.5">
                           {member.picture ? (
                             <img
@@ -173,27 +174,27 @@ export default function TeamPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-6 py-3 text-zinc-600 dark:text-zinc-400">
+                      <td className="py-3 pr-6 text-zinc-600 dark:text-zinc-400">
                         {member.email}
                       </td>
-                      <td className="px-6 py-3">
+                      <td className="py-3 pr-6">
                         {isAdmin && !isMe ? (
                           <div className="relative">
-                            <select
+                            <SettingsSelect
                               value={member.role}
                               onChange={(e) =>
                                 handleRoleChange(member.id, e.target.value)
                               }
                               disabled={updatingId === member.id}
                               aria-label={`Change role for ${member.name ?? member.email}`}
-                              className="appearance-none rounded-md border border-zinc-200 bg-white px-2.5 py-1 pr-7 text-xs font-medium capitalize text-zinc-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                              className="capitalize"
                             >
                               {ROLES.map((r) => (
                                 <option key={r} value={r}>
                                   {r}
                                 </option>
                               ))}
-                            </select>
+                            </SettingsSelect>
                             {updatingId === member.id && (
                               <Spinner
                                 size="sm"

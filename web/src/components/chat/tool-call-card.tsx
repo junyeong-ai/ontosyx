@@ -16,6 +16,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { CopyButton } from "@/components/ui/copy-button";
 import { toolErrorMessage } from "@/lib/error-messages";
 import { TOOL_META, DEFAULT_TOOL_META, STEP_LABELS } from "@/lib/constants/tool-meta";
+import { useAuth } from "@/lib/use-auth";
 
 // ---------------------------------------------------------------------------
 // ToolCallCard — rich display for tool invocations
@@ -27,6 +28,7 @@ interface ToolCallCardProps {
 
 export function ToolCallCard({ toolCall }: ToolCallCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const { isAdmin } = useAuth();
   const meta = TOOL_META[toolCall.name] ?? DEFAULT_TOOL_META;
   const isRunning = toolCall.status === "running";
   const isDone = toolCall.status === "done";
@@ -114,7 +116,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
           </span>
         )}
 
-        {!isRunning && toolCall.output && (
+        {!isRunning && toolCall.output && (isAdmin || isError) && (
           <HugeiconsIcon
             icon={isExpanded ? ArrowUp01Icon : ArrowDown01Icon}
             className="ml-auto h-3 w-3 text-zinc-400"
@@ -237,7 +239,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
               </div>
             )}
 
-            {isExpanded && (
+            {isExpanded && isAdmin && (
               <details className="mt-1">
                 <summary className="cursor-pointer text-[10px] text-zinc-400 hover:text-zinc-600">
                   Technical details
@@ -254,8 +256,8 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
         );
       })()}
 
-      {/* Success: expanded raw output */}
-      {isExpanded && !isError && toolCall.output && (
+      {/* Success: expanded raw output (admin only — may contain internal schema details) */}
+      {isExpanded && isAdmin && !isError && toolCall.output && (
         <div className="border-t border-zinc-200/50 dark:border-zinc-700/30">
           <div className="relative">
             <CopyButton text={toolCall.output} />

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { request } from "@/lib/api/client";
 import { Spinner } from "@/components/ui/spinner";
+import { SettingsSelect } from "@/components/ui/form-input";
 
 interface UsageSummary {
   resource_type: string;
@@ -60,15 +61,14 @@ export default function UsageSettingsPage() {
             LLM token usage, compute costs, and request volumes.
           </p>
         </div>
-        <select
+        <SettingsSelect
           value={days}
           onChange={(e) => setDays(Number(e.target.value))}
-          className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
         >
           <option value={7}>Last 7 days</option>
           <option value={30}>Last 30 days</option>
           <option value={90}>Last 90 days</option>
-        </select>
+        </SettingsSelect>
       </div>
 
       {loading ? (
@@ -102,29 +102,29 @@ export default function UsageSettingsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-zinc-500 dark:border-zinc-700">
-                  <th className="py-2">Resource Type</th>
-                  <th className="py-2 text-right">Input Tokens</th>
-                  <th className="py-2 text-right">Output Tokens</th>
-                  <th className="py-2 text-right">Requests</th>
-                  <th className="py-2 text-right">Cost</th>
+                  <th className="py-3 pr-6">Resource Type</th>
+                  <th className="py-3 pr-6 text-right">Input Tokens</th>
+                  <th className="py-3 pr-6 text-right">Output Tokens</th>
+                  <th className="py-3 pr-6 text-right">Requests</th>
+                  <th className="py-3 pr-6 text-right">Cost</th>
                 </tr>
               </thead>
               <tbody>
                 {usage.map((u) => (
                   <tr key={u.resource_type} className="border-b border-zinc-100 dark:border-zinc-800">
-                    <td className="py-2 font-medium text-zinc-900 dark:text-zinc-100">
+                    <td className="py-3 pr-6 font-medium text-zinc-900 dark:text-zinc-100">
                       {u.resource_type}
                     </td>
-                    <td className="py-2 text-right text-zinc-500">
+                    <td className="py-3 pr-6 text-right text-zinc-500">
                       {formatTokens(u.total_input_tokens)}
                     </td>
-                    <td className="py-2 text-right text-zinc-500">
+                    <td className="py-3 pr-6 text-right text-zinc-500">
                       {formatTokens(u.total_output_tokens)}
                     </td>
-                    <td className="py-2 text-right text-zinc-500">
+                    <td className="py-3 pr-6 text-right text-zinc-500">
                       {u.request_count.toLocaleString()}
                     </td>
-                    <td className="py-2 text-right text-zinc-500">
+                    <td className="py-3 pr-6 text-right text-zinc-500">
                       ${u.total_cost_usd.toFixed(4)}
                     </td>
                   </tr>

@@ -121,27 +121,27 @@ export default function ApprovalsSettingsPage() {
         <table className="mt-2 w-full text-sm">
           <thead>
             <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-zinc-500 dark:border-zinc-700">
-              <th className="py-2">Action</th>
-              <th className="py-2">Resource</th>
-              <th className="py-2">Status</th>
-              <th className="py-2">Date</th>
+              <th className="py-3 pr-6">Action</th>
+              <th className="py-3 pr-6">Resource</th>
+              <th className="py-3 pr-6">Status</th>
+              <th className="py-3 pr-6">Date</th>
             </tr>
           </thead>
           <tbody>
             {resolved.map((a) => (
               <tr key={a.id} className="border-b border-zinc-100 dark:border-zinc-800">
-                <td className="py-2 text-zinc-900 dark:text-zinc-100">
+                <td className="py-3 pr-6 text-zinc-900 dark:text-zinc-100">
                   {a.action_type.replace(/_/g, " ")}
                 </td>
-                <td className="py-2 text-zinc-500">
+                <td className="py-3 pr-6 text-zinc-500">
                   {a.resource_type} {a.resource_id.slice(0, 8)}...
                 </td>
-                <td className="py-2">
+                <td className="py-3 pr-6">
                   <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge(a.status)}`}>
                     {a.status}
                   </span>
                 </td>
-                <td className="py-2 text-zinc-500">
+                <td className="py-3 pr-6 text-zinc-500">
                   {new Date(a.created_at).toLocaleDateString()}
                 </td>
               </tr>

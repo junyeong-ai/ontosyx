@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { request } from "@/lib/api/client";
 import { Spinner } from "@/components/ui/spinner";
+import { SettingsSelect } from "@/components/ui/form-input";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -20,6 +22,16 @@ interface QualityRule {
   cypher_check: string | null;
   is_active: boolean;
   created_at: string;
+}
+
+interface QualityResult {
+  id: string;
+  workspace_id: string;
+  rule_id: string;
+  passed: boolean;
+  actual_value: number | null;
+  details: Record<string, unknown>;
+  evaluated_at: string;
 }
 
 interface DashboardEntry {
@@ -80,6 +92,10 @@ export default function QualitySettingsPage() {
   const [form, setForm] = useState<RuleFormValues>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [executingId, setExecutingId] = useState<string | null>(null);
+  const [executingAll, setExecutingAll] = useState(false);
+  const confirm = useConfirm();
 
   const load = useCallback(async () => {
     try {
@@ -100,6 +116,7 @@ export default function QualitySettingsPage() {
   const openCreate = () => {
     setEditingId(null);
     setForm(EMPTY_FORM);
+    setErrors({});
     setFormOpen(true);
   };
 
@@ -115,6 +132,7 @@ export default function QualitySettingsPage() {
       severity: d.severity,
       cypher_check: d.cypher_check ?? "",
     });
+    setErrors({});
     setFormOpen(true);
   };
 
@@ -123,12 +141,28 @@ export default function QualitySettingsPage() {
     setFormOpen(false);
     setEditingId(null);
     setForm(EMPTY_FORM);
+    setErrors({});
+  };
+
+  // ---- Clear single field error on change ----
+  const clearError = (field: string) => {
+    if (errors[field]) setErrors((prev) => { const { [field]: _, ...rest } = prev; return rest; });
+  };
+
+  // ---- Validate ----
+  const validate = (): boolean => {
+    const e: Record<string, string> = {};
+    if (!form.name.trim()) e.name = "Required";
+    if (!form.target_label.trim()) e.target_label = "Required";
+    if (form.threshold < 0 || form.threshold > 100) e.threshold = "Must be 0-100";
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
   // ---- Submit (create or update) ----
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.target_label.trim()) return;
+    if (!validate()) return;
 
     const body: Record<string, unknown> = {
       name: form.name.trim(),
@@ -169,6 +203,13 @@ export default function QualitySettingsPage() {
 
   // ---- Delete ----
   const handleDelete = async (ruleId: string) => {
+    const rule = dashboard.find((d) => d.rule_id === ruleId);
+    const ok = await confirm({
+      title: `Delete quality rule '${rule?.name ?? ruleId}'?`,
+      description: "This action cannot be undone. The rule and its evaluation history will be permanently removed.",
+      variant: "danger",
+    });
+    if (!ok) return;
     setDeletingId(ruleId);
     try {
       await request(`/quality/rules/${ruleId}`, { method: "DELETE" });
@@ -178,6 +219,45 @@ export default function QualitySettingsPage() {
       toast.error("Failed to delete rule");
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  // ---- Execute single rule ----
+  const handleExecute = async (ruleId: string) => {
+    setExecutingId(ruleId);
+    try {
+      const result = await request<QualityResult>(`/quality/rules/${ruleId}/execute`, {
+        method: "POST",
+      });
+      toast.success(
+        result.passed
+          ? `Rule passed (${result.actual_value?.toFixed(1) ?? "-"}%)`
+          : `Rule failed (${result.actual_value?.toFixed(1) ?? "-"}%)`,
+      );
+      await load();
+    } catch {
+      toast.error("Failed to execute rule");
+    } finally {
+      setExecutingId(null);
+    }
+  };
+
+  // ---- Execute all rules ----
+  const handleExecuteAll = async () => {
+    setExecutingAll(true);
+    try {
+      const results = await request<QualityResult[]>("/quality/execute-all", {
+        method: "POST",
+      });
+      const passedCount = results.filter((r) => r.passed).length;
+      toast.success(
+        `Executed ${results.length} rules: ${passedCount} passed, ${results.length - passedCount} failed`,
+      );
+      await load();
+    } catch {
+      toast.error("Failed to execute rules");
+    } finally {
+      setExecutingAll(false);
     }
   };
 
@@ -200,12 +280,21 @@ export default function QualitySettingsPage() {
           </p>
         </div>
         {!formOpen && (
-          <button
-            onClick={openCreate}
-            className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
-          >
-            Create Rule
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExecuteAll}
+              disabled={executingAll || dashboard.length === 0}
+              className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+            >
+              {executingAll ? "Executing..." : "Execute All"}
+            </button>
+            <button
+              onClick={openCreate}
+              className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+            >
+              Create Rule
+            </button>
+          </div>
         )}
       </div>
 
@@ -238,6 +327,8 @@ export default function QualitySettingsPage() {
         <RuleForm
           form={form}
           setForm={setForm}
+          errors={errors}
+          clearError={clearError}
           isEditing={!!editingId}
           saving={saving}
           onSubmit={handleSubmit}
@@ -246,18 +337,18 @@ export default function QualitySettingsPage() {
       )}
 
       {/* Rules table */}
-      <div className="mt-6">
-        <table className="w-full text-sm">
+      <div className="mt-6 overflow-x-auto -mx-6 px-6">
+        <table className="w-full min-w-[900px] text-sm">
           <thead>
             <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-zinc-500 dark:border-zinc-700">
-              <th className="py-2">Rule</th>
-              <th className="py-2">Type</th>
-              <th className="py-2">Target</th>
-              <th className="py-2">Threshold</th>
-              <th className="py-2">Severity</th>
-              <th className="py-2">Status</th>
-              <th className="py-2">Value</th>
-              <th className="py-2 text-right">Actions</th>
+              <th className="py-3 pr-6">Rule</th>
+              <th className="py-3 pr-6">Type</th>
+              <th className="py-3 pr-6">Target</th>
+              <th className="py-3 pr-6">Threshold</th>
+              <th className="py-3 pr-6">Severity</th>
+              <th className="py-3 pr-6">Status</th>
+              <th className="py-3 pr-6">Value</th>
+              <th className="py-3 pr-6 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -266,19 +357,19 @@ export default function QualitySettingsPage() {
                 key={d.rule_id}
                 className="border-b border-zinc-100 dark:border-zinc-800"
               >
-                <td className="py-2 font-medium text-zinc-900 dark:text-zinc-100">
+                <td className="py-3 pr-6 font-medium text-zinc-900 dark:text-zinc-100">
                   {d.name}
                 </td>
-                <td className="py-2 text-zinc-500">{d.rule_type}</td>
-                <td className="py-2 text-zinc-500">
+                <td className="py-3 pr-6 text-zinc-500">{d.rule_type}</td>
+                <td className="py-3 pr-6 text-zinc-500">
                   {d.target_label}
                   {d.target_property ? `.${d.target_property}` : ""}
                 </td>
-                <td className="py-2 text-zinc-500">{d.threshold}%</td>
-                <td className="py-2">
+                <td className="py-3 pr-6 text-zinc-500">{d.threshold}%</td>
+                <td className="py-3 pr-6">
                   <SeverityBadge severity={d.severity} />
                 </td>
-                <td className="py-2">
+                <td className="py-3 pr-6">
                   {d.latest_passed === null ? (
                     <span className="text-zinc-400">-</span>
                   ) : d.latest_passed ? (
@@ -289,13 +380,20 @@ export default function QualitySettingsPage() {
                     <span className="text-red-600 dark:text-red-400">Fail</span>
                   )}
                 </td>
-                <td className="py-2 text-zinc-500">
+                <td className="py-3 pr-6 text-zinc-500">
                   {d.latest_value !== null
                     ? `${d.latest_value.toFixed(1)}%`
                     : "-"}
                 </td>
-                <td className="py-2 text-right">
+                <td className="py-3 pr-6 text-right">
                   <div className="flex items-center justify-end gap-1">
+                    <button
+                      onClick={() => handleExecute(d.rule_id)}
+                      disabled={executingId === d.rule_id || executingAll}
+                      className="rounded px-2 py-1 text-xs text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50 dark:text-emerald-400 dark:hover:bg-emerald-950"
+                    >
+                      {executingId === d.rule_id ? "..." : "Run"}
+                    </button>
                     <button
                       onClick={() => openEdit(d)}
                       className="rounded px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
@@ -355,6 +453,8 @@ function SeverityBadge({ severity }: { severity: string }) {
 function RuleForm({
   form,
   setForm,
+  errors,
+  clearError,
   isEditing,
   saving,
   onSubmit,
@@ -362,13 +462,17 @@ function RuleForm({
 }: {
   form: RuleFormValues;
   setForm: React.Dispatch<React.SetStateAction<RuleFormValues>>;
+  errors: Record<string, string>;
+  clearError: (field: string) => void;
   isEditing: boolean;
   saving: boolean;
   onSubmit: (e: React.FormEvent) => void;
   onCancel: () => void;
 }) {
-  const update = (patch: Partial<RuleFormValues>) =>
+  const update = (field: string, patch: Partial<RuleFormValues>) => {
     setForm((prev) => ({ ...prev, ...patch }));
+    clearError(field);
+  };
 
   return (
     <form
@@ -396,11 +500,12 @@ function RuleForm({
           </label>
           <input
             value={form.name}
-            onChange={(e) => update({ name: e.target.value })}
+            onChange={(e) => update("name", { name: e.target.value })}
             placeholder="e.g. Brand completeness"
             required
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            className={`mt-0.5 w-full rounded-md border bg-white px-3 py-1.5 text-xs dark:bg-zinc-900 ${errors.name ? "border-red-400 dark:border-red-600" : "border-zinc-200 dark:border-zinc-700"}`}
           />
+          {errors.name && <p className="mt-0.5 text-[10px] text-red-500">{errors.name}</p>}
         </div>
 
         {/* Rule type */}
@@ -408,17 +513,16 @@ function RuleForm({
           <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
             Rule Type
           </label>
-          <select
+          <SettingsSelect
             value={form.rule_type}
-            onChange={(e) => update({ rule_type: e.target.value })}
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            onChange={(e) => update("rule_type", { rule_type: e.target.value })}
           >
             {RULE_TYPES.map((t) => (
               <option key={t} value={t}>
                 {t}
               </option>
             ))}
-          </select>
+          </SettingsSelect>
         </div>
 
         {/* Severity */}
@@ -426,17 +530,16 @@ function RuleForm({
           <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
             Severity
           </label>
-          <select
+          <SettingsSelect
             value={form.severity}
-            onChange={(e) => update({ severity: e.target.value })}
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            onChange={(e) => update("severity", { severity: e.target.value })}
           >
             {SEVERITIES.map((s) => (
               <option key={s} value={s}>
                 {s}
               </option>
             ))}
-          </select>
+          </SettingsSelect>
         </div>
 
         {/* Target label */}
@@ -446,11 +549,12 @@ function RuleForm({
           </label>
           <input
             value={form.target_label}
-            onChange={(e) => update({ target_label: e.target.value })}
+            onChange={(e) => update("target_label", { target_label: e.target.value })}
             placeholder="e.g. Brand, Product"
             required
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            className={`mt-0.5 w-full rounded-md border bg-white px-3 py-1.5 text-xs dark:bg-zinc-900 ${errors.target_label ? "border-red-400 dark:border-red-600" : "border-zinc-200 dark:border-zinc-700"}`}
           />
+          {errors.target_label && <p className="mt-0.5 text-[10px] text-red-500">{errors.target_label}</p>}
         </div>
 
         {/* Target property */}
@@ -461,7 +565,7 @@ function RuleForm({
           </label>
           <input
             value={form.target_property}
-            onChange={(e) => update({ target_property: e.target.value })}
+            onChange={(e) => update("target_property", { target_property: e.target.value })}
             placeholder="e.g. email"
             className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
           />
@@ -478,9 +582,10 @@ function RuleForm({
             max={100}
             step={1}
             value={form.threshold}
-            onChange={(e) => update({ threshold: Number(e.target.value) })}
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            onChange={(e) => update("threshold", { threshold: Number(e.target.value) })}
+            className={`mt-0.5 w-full rounded-md border bg-white px-3 py-1.5 text-xs dark:bg-zinc-900 ${errors.threshold ? "border-red-400 dark:border-red-600" : "border-zinc-200 dark:border-zinc-700"}`}
           />
+          {errors.threshold && <p className="mt-0.5 text-[10px] text-red-500">{errors.threshold}</p>}
         </div>
 
         {/* Cypher check — only for custom type */}
@@ -491,7 +596,7 @@ function RuleForm({
             </label>
             <textarea
               value={form.cypher_check}
-              onChange={(e) => update({ cypher_check: e.target.value })}
+              onChange={(e) => update("cypher_check", { cypher_check: e.target.value })}
               placeholder="MATCH (n:Label) WHERE ... RETURN count(n) as value"
               rows={3}
               className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-900"

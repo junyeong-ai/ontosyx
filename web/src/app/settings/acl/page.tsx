@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { request } from "@/lib/api/client";
 import { Spinner } from "@/components/ui/spinner";
+import { SettingsSelect } from "@/components/ui/form-input";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -65,6 +67,8 @@ export default function AclSettingsPage() {
   const [form, setForm] = useState<PolicyFormValues>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const confirm = useConfirm();
 
   const load = useCallback(async () => {
     try {
@@ -85,6 +89,7 @@ export default function AclSettingsPage() {
   const openCreate = () => {
     setEditingId(null);
     setForm(EMPTY_FORM);
+    setErrors({});
     setFormOpen(true);
   };
 
@@ -102,6 +107,7 @@ export default function AclSettingsPage() {
       mask_pattern: p.mask_pattern ?? "",
       priority: p.priority,
     });
+    setErrors({});
     setFormOpen(true);
   };
 
@@ -110,12 +116,27 @@ export default function AclSettingsPage() {
     setFormOpen(false);
     setEditingId(null);
     setForm(EMPTY_FORM);
+    setErrors({});
+  };
+
+  // ---- Clear single field error on change ----
+  const clearError = (field: string) => {
+    if (errors[field]) setErrors((prev) => { const { [field]: _, ...rest } = prev; return rest; });
+  };
+
+  // ---- Validate ----
+  const validate = (): boolean => {
+    const e: Record<string, string> = {};
+    if (!form.name.trim()) e.name = "Required";
+    if (!form.subject_value.trim()) e.subject_value = "Required";
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
   // ---- Submit ----
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.subject_value.trim()) return;
+    if (!validate()) return;
 
     const propsArray = form.properties
       .split(",")
@@ -165,6 +186,13 @@ export default function AclSettingsPage() {
 
   // ---- Delete ----
   const handleDelete = async (id: string) => {
+    const policy = policies.find((p) => p.id === id);
+    const ok = await confirm({
+      title: `Delete ACL policy '${policy?.name ?? id}'?`,
+      description: "This action cannot be undone. The access control policy will be permanently removed.",
+      variant: "danger",
+    });
+    if (!ok) return;
     setDeletingId(id);
     try {
       await request(`/acl/policies/${id}`, { method: "DELETE" });
@@ -219,6 +247,8 @@ export default function AclSettingsPage() {
         <PolicyForm
           form={form}
           setForm={setForm}
+          errors={errors}
+          clearError={clearError}
           isEditing={!!editingId}
           saving={saving}
           onSubmit={handleSubmit}
@@ -227,17 +257,17 @@ export default function AclSettingsPage() {
       )}
 
       {/* Policies table */}
-      <div className="mt-6">
-        <table className="w-full text-sm">
+      <div className="mt-6 overflow-x-auto -mx-6 px-6">
+        <table className="w-full min-w-[960px] text-sm">
           <thead>
             <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-zinc-500 dark:border-zinc-700">
-              <th className="py-2">Policy</th>
-              <th className="py-2">Subject</th>
-              <th className="py-2">Resource</th>
-              <th className="py-2">Action</th>
-              <th className="py-2">Properties</th>
-              <th className="py-2">Priority</th>
-              <th className="py-2 text-right">Actions</th>
+              <th className="py-3 pr-6">Policy</th>
+              <th className="py-3 pr-6">Subject</th>
+              <th className="py-3 pr-6">Resource</th>
+              <th className="py-3 pr-6">Action</th>
+              <th className="py-3 pr-6">Properties</th>
+              <th className="py-3 pr-6">Priority</th>
+              <th className="py-3 pr-6 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -246,13 +276,13 @@ export default function AclSettingsPage() {
                 key={p.id}
                 className="border-b border-zinc-100 dark:border-zinc-800"
               >
-                <td className="py-2 font-medium text-zinc-900 dark:text-zinc-100">
+                <td className="py-3 pr-6 font-medium text-zinc-900 dark:text-zinc-100">
                   {p.name}
                 </td>
-                <td className="py-2 text-zinc-500">
+                <td className="py-3 pr-6 text-zinc-500">
                   {p.subject_type}:{p.subject_value}
                 </td>
-                <td className="py-2 text-zinc-500">
+                <td className="py-3 pr-6 text-zinc-500">
                   {p.resource_value || p.resource_type}
                 </td>
                 <td className={`py-2 font-medium ${actionColor(p.action)}`}>
@@ -263,11 +293,11 @@ export default function AclSettingsPage() {
                     </span>
                   )}
                 </td>
-                <td className="py-2 text-zinc-500">
+                <td className="py-3 pr-6 text-zinc-500">
                   {p.properties?.join(", ") || "all"}
                 </td>
-                <td className="py-2 text-zinc-500">{p.priority}</td>
-                <td className="py-2 text-right">
+                <td className="py-3 pr-6 text-zinc-500">{p.priority}</td>
+                <td className="py-3 pr-6 text-right">
                   <div className="flex items-center justify-end gap-1">
                     <button
                       onClick={() => openEdit(p)}
@@ -307,6 +337,8 @@ export default function AclSettingsPage() {
 function PolicyForm({
   form,
   setForm,
+  errors,
+  clearError,
   isEditing,
   saving,
   onSubmit,
@@ -314,13 +346,17 @@ function PolicyForm({
 }: {
   form: PolicyFormValues;
   setForm: React.Dispatch<React.SetStateAction<PolicyFormValues>>;
+  errors: Record<string, string>;
+  clearError: (field: string) => void;
   isEditing: boolean;
   saving: boolean;
   onSubmit: (e: React.FormEvent) => void;
   onCancel: () => void;
 }) {
-  const update = (patch: Partial<PolicyFormValues>) =>
+  const update = (field: string, patch: Partial<PolicyFormValues>) => {
     setForm((prev) => ({ ...prev, ...patch }));
+    clearError(field);
+  };
 
   return (
     <form
@@ -348,11 +384,12 @@ function PolicyForm({
           </label>
           <input
             value={form.name}
-            onChange={(e) => update({ name: e.target.value })}
+            onChange={(e) => update("name", { name: e.target.value })}
             placeholder="e.g. Mask PII for viewers"
             required
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            className={`mt-0.5 w-full rounded-md border bg-white px-3 py-1.5 text-xs dark:bg-zinc-900 ${errors.name ? "border-red-400 dark:border-red-600" : "border-zinc-200 dark:border-zinc-700"}`}
           />
+          {errors.name && <p className="mt-0.5 text-[10px] text-red-500">{errors.name}</p>}
         </div>
 
         {/* Subject type */}
@@ -360,17 +397,16 @@ function PolicyForm({
           <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
             Subject Type
           </label>
-          <select
+          <SettingsSelect
             value={form.subject_type}
-            onChange={(e) => update({ subject_type: e.target.value })}
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            onChange={(e) => update("subject_type", { subject_type: e.target.value })}
           >
             {SUBJECT_TYPES.map((t) => (
               <option key={t} value={t}>
                 {t.replace(/_/g, " ")}
               </option>
             ))}
-          </select>
+          </SettingsSelect>
         </div>
 
         {/* Subject value */}
@@ -380,11 +416,12 @@ function PolicyForm({
           </label>
           <input
             value={form.subject_value}
-            onChange={(e) => update({ subject_value: e.target.value })}
+            onChange={(e) => update("subject_value", { subject_value: e.target.value })}
             placeholder="e.g. viewer, admin"
             required
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            className={`mt-0.5 w-full rounded-md border bg-white px-3 py-1.5 text-xs dark:bg-zinc-900 ${errors.subject_value ? "border-red-400 dark:border-red-600" : "border-zinc-200 dark:border-zinc-700"}`}
           />
+          {errors.subject_value && <p className="mt-0.5 text-[10px] text-red-500">{errors.subject_value}</p>}
         </div>
 
         {/* Resource type */}
@@ -392,17 +429,16 @@ function PolicyForm({
           <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
             Resource Type
           </label>
-          <select
+          <SettingsSelect
             value={form.resource_type}
-            onChange={(e) => update({ resource_type: e.target.value })}
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            onChange={(e) => update("resource_type", { resource_type: e.target.value })}
           >
             {RESOURCE_TYPES.map((t) => (
               <option key={t} value={t}>
                 {t.replace(/_/g, " ")}
               </option>
             ))}
-          </select>
+          </SettingsSelect>
         </div>
 
         {/* Resource value */}
@@ -413,7 +449,7 @@ function PolicyForm({
           </label>
           <input
             value={form.resource_value}
-            onChange={(e) => update({ resource_value: e.target.value })}
+            onChange={(e) => update("resource_value", { resource_value: e.target.value })}
             placeholder="e.g. Customer"
             className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
           />
@@ -424,17 +460,16 @@ function PolicyForm({
           <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
             Action
           </label>
-          <select
+          <SettingsSelect
             value={form.action}
-            onChange={(e) => update({ action: e.target.value })}
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            onChange={(e) => update("action", { action: e.target.value })}
           >
             {ACTIONS.map((a) => (
               <option key={a} value={a}>
                 {a}
               </option>
             ))}
-          </select>
+          </SettingsSelect>
         </div>
 
         {/* Priority */}
@@ -446,7 +481,7 @@ function PolicyForm({
             type="number"
             min={0}
             value={form.priority}
-            onChange={(e) => update({ priority: Number(e.target.value) })}
+            onChange={(e) => update("priority", { priority: Number(e.target.value) })}
             className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
           />
         </div>
@@ -461,7 +496,7 @@ function PolicyForm({
           </label>
           <input
             value={form.properties}
-            onChange={(e) => update({ properties: e.target.value })}
+            onChange={(e) => update("properties", { properties: e.target.value })}
             placeholder="e.g. email, phone"
             className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
           />
@@ -475,7 +510,7 @@ function PolicyForm({
             </label>
             <input
               value={form.mask_pattern}
-              onChange={(e) => update({ mask_pattern: e.target.value })}
+              onChange={(e) => update("mask_pattern", { mask_pattern: e.target.value })}
               placeholder="e.g. ***"
               className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
             />

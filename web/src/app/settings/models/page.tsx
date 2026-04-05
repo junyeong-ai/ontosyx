@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { request } from "@/lib/api/client";
 import { Spinner } from "@/components/ui/spinner";
+import { SettingsSelect, SettingsSwitch } from "@/components/ui/form-input";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { ModelConfig, ModelRoutingRule } from "@/lib/api/models";
 
 // ---------------------------------------------------------------------------
@@ -91,6 +93,7 @@ export default function ModelsSettingsPage() {
   const [savingConfig, setSavingConfig] = useState(false);
   const [deletingConfigId, setDeletingConfigId] = useState<string | null>(null);
   const [testingId, setTestingId] = useState<string | null>(null);
+  const [configErrors, setConfigErrors] = useState<Record<string, string>>({});
 
   // Rule form state
   const [ruleFormOpen, setRuleFormOpen] = useState(false);
@@ -98,6 +101,7 @@ export default function ModelsSettingsPage() {
   const [ruleForm, setRuleForm] = useState<RuleFormValues>(EMPTY_RULE_FORM);
   const [savingRule, setSavingRule] = useState(false);
   const [deletingRuleId, setDeletingRuleId] = useState<string | null>(null);
+  const confirm = useConfirm();
 
   const load = useCallback(async () => {
     try {
@@ -123,6 +127,7 @@ export default function ModelsSettingsPage() {
   const openCreateConfig = () => {
     setEditingConfigId(null);
     setConfigForm(EMPTY_CONFIG_FORM);
+    setConfigErrors({});
     setConfigFormOpen(true);
   };
 
@@ -144,6 +149,7 @@ export default function ModelsSettingsPage() {
       region: c.region ?? "",
       base_url: c.base_url ?? "",
     });
+    setConfigErrors({});
     setConfigFormOpen(true);
   };
 
@@ -151,11 +157,27 @@ export default function ModelsSettingsPage() {
     setConfigFormOpen(false);
     setEditingConfigId(null);
     setConfigForm(EMPTY_CONFIG_FORM);
+    setConfigErrors({});
+  };
+
+  const clearConfigError = (field: string) => {
+    if (configErrors[field]) setConfigErrors((prev) => { const { [field]: _, ...rest } = prev; return rest; });
+  };
+
+  const validateConfig = (): boolean => {
+    const e: Record<string, string> = {};
+    if (!configForm.name.trim()) e.name = "Required";
+    if (!configForm.provider.trim()) e.provider = "Required";
+    if (!configForm.model_id.trim()) e.model_id = "Required";
+    if (configForm.max_tokens < 1) e.max_tokens = "Must be at least 1";
+    if (configForm.temperature && (Number(configForm.temperature) < 0 || Number(configForm.temperature) > 2)) e.temperature = "Must be 0-2";
+    setConfigErrors(e);
+    return Object.keys(e).length === 0;
   };
 
   const handleSubmitConfig = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!configForm.name.trim() || !configForm.model_id.trim()) return;
+    if (!validateConfig()) return;
 
     const body: Record<string, unknown> = {
       name: configForm.name.trim(),
@@ -199,6 +221,13 @@ export default function ModelsSettingsPage() {
   };
 
   const handleDeleteConfig = async (id: string) => {
+    const config = configs.find((c) => c.id === id);
+    const ok = await confirm({
+      title: `Delete model config '${config?.name ?? id}'?`,
+      description: "This action cannot be undone. Any routing rules referencing this config will also be affected.",
+      variant: "danger",
+    });
+    if (!ok) return;
     setDeletingConfigId(id);
     try {
       await request(`/models/configs/${id}`, { method: "DELETE" });
@@ -303,6 +332,13 @@ export default function ModelsSettingsPage() {
   };
 
   const handleDeleteRule = async (id: string) => {
+    const rule = rules.find((r) => r.id === id);
+    const ok = await confirm({
+      title: `Delete routing rule for '${rule?.operation ?? id}'?`,
+      description: "This action cannot be undone. The routing rule will be permanently removed.",
+      variant: "danger",
+    });
+    if (!ok) return;
     setDeletingRuleId(id);
     try {
       await request(`/models/routing-rules/${id}`, { method: "DELETE" });
@@ -375,6 +411,8 @@ export default function ModelsSettingsPage() {
         <ConfigForm
           form={configForm}
           setForm={setConfigForm}
+          errors={configErrors}
+          clearError={clearConfigError}
           isEditing={!!editingConfigId}
           saving={savingConfig}
           onSubmit={handleSubmitConfig}
@@ -383,16 +421,16 @@ export default function ModelsSettingsPage() {
       )}
 
       {/* Configs table */}
-      <div className="mt-6">
-        <table className="w-full text-sm">
+      <div className="mt-6 overflow-x-auto -mx-6 px-6">
+        <table className="w-full min-w-[640px] text-sm">
           <thead>
             <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-zinc-500 dark:border-zinc-700">
-              <th className="py-2">Name</th>
-              <th className="py-2">Provider</th>
-              <th className="py-2">Model</th>
-              <th className="py-2">Priority</th>
-              <th className="py-2">Enabled</th>
-              <th className="py-2 text-right">Actions</th>
+              <th className="py-3 pr-6">Name</th>
+              <th className="py-3 pr-6">Provider</th>
+              <th className="py-3 pr-6">Model</th>
+              <th className="py-3 pr-6">Priority</th>
+              <th className="py-3 pr-6">Enabled</th>
+              <th className="py-3 pr-6 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -401,17 +439,17 @@ export default function ModelsSettingsPage() {
                 key={c.id}
                 className="border-b border-zinc-100 dark:border-zinc-800"
               >
-                <td className="py-2 font-medium text-zinc-900 dark:text-zinc-100">
+                <td className="py-3 pr-6 font-medium text-zinc-900 dark:text-zinc-100">
                   {c.name}
                 </td>
-                <td className="py-2 text-zinc-500">
+                <td className="py-3 pr-6 text-zinc-500">
                   <ProviderBadge provider={c.provider} />
                 </td>
-                <td className="py-2 font-mono text-xs text-zinc-500">
+                <td className="py-3 pr-6 font-mono text-xs text-zinc-500">
                   {c.model_id}
                 </td>
-                <td className="py-2 text-zinc-500">{c.priority}</td>
-                <td className="py-2">
+                <td className="py-3 pr-6 text-zinc-500">{c.priority}</td>
+                <td className="py-3 pr-6">
                   <button
                     onClick={() => handleToggleEnabled(c)}
                     className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
@@ -423,7 +461,7 @@ export default function ModelsSettingsPage() {
                     {c.enabled ? "On" : "Off"}
                   </button>
                 </td>
-                <td className="py-2 text-right">
+                <td className="py-3 pr-6 text-right">
                   <div className="flex items-center justify-end gap-1">
                     <button
                       onClick={() => handleTestConfig(c.id)}
@@ -494,15 +532,15 @@ export default function ModelsSettingsPage() {
       )}
 
       {/* Rules table */}
-      <div className="mt-6">
-        <table className="w-full text-sm">
+      <div className="mt-6 overflow-x-auto -mx-6 px-6">
+        <table className="w-full min-w-[640px] text-sm">
           <thead>
             <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-zinc-500 dark:border-zinc-700">
-              <th className="py-2">Operation</th>
-              <th className="py-2">Model Config</th>
-              <th className="py-2">Priority</th>
-              <th className="py-2">Enabled</th>
-              <th className="py-2 text-right">Actions</th>
+              <th className="py-3 pr-6">Operation</th>
+              <th className="py-3 pr-6">Model Config</th>
+              <th className="py-3 pr-6">Priority</th>
+              <th className="py-3 pr-6">Enabled</th>
+              <th className="py-3 pr-6 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -511,12 +549,12 @@ export default function ModelsSettingsPage() {
                 key={r.id}
                 className="border-b border-zinc-100 dark:border-zinc-800"
               >
-                <td className="py-2 font-medium text-zinc-900 dark:text-zinc-100">
+                <td className="py-3 pr-6 font-medium text-zinc-900 dark:text-zinc-100">
                   {r.operation}
                 </td>
-                <td className="py-2 text-zinc-500">{configName(r.model_config_id)}</td>
-                <td className="py-2 text-zinc-500">{r.priority}</td>
-                <td className="py-2">
+                <td className="py-3 pr-6 text-zinc-500">{configName(r.model_config_id)}</td>
+                <td className="py-3 pr-6 text-zinc-500">{r.priority}</td>
+                <td className="py-3 pr-6">
                   <span
                     className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
                       r.enabled
@@ -527,7 +565,7 @@ export default function ModelsSettingsPage() {
                     {r.enabled ? "On" : "Off"}
                   </span>
                 </td>
-                <td className="py-2 text-right">
+                <td className="py-3 pr-6 text-right">
                   <div className="flex items-center justify-end gap-1">
                     <button
                       onClick={() => openEditRule(r)}
@@ -590,6 +628,8 @@ function ProviderBadge({ provider }: { provider: string }) {
 function ConfigForm({
   form,
   setForm,
+  errors,
+  clearError,
   isEditing,
   saving,
   onSubmit,
@@ -597,13 +637,17 @@ function ConfigForm({
 }: {
   form: ConfigFormValues;
   setForm: React.Dispatch<React.SetStateAction<ConfigFormValues>>;
+  errors: Record<string, string>;
+  clearError: (field: string) => void;
   isEditing: boolean;
   saving: boolean;
   onSubmit: (e: React.FormEvent) => void;
   onCancel: () => void;
 }) {
-  const update = (patch: Partial<ConfigFormValues>) =>
+  const update = (field: string, patch: Partial<ConfigFormValues>) => {
     setForm((prev) => ({ ...prev, ...patch }));
+    clearError(field);
+  };
 
   return (
     <form
@@ -631,11 +675,12 @@ function ConfigForm({
           </label>
           <input
             value={form.name}
-            onChange={(e) => update({ name: e.target.value })}
+            onChange={(e) => update("name", { name: e.target.value })}
             placeholder="e.g. Claude 4 Sonnet"
             required
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            className={`mt-0.5 w-full rounded-md border bg-white px-3 py-1.5 text-xs dark:bg-zinc-900 ${errors.name ? "border-red-400 dark:border-red-600" : "border-zinc-200 dark:border-zinc-700"}`}
           />
+          {errors.name && <p className="mt-0.5 text-[10px] text-red-500">{errors.name}</p>}
         </div>
 
         {/* Provider */}
@@ -643,17 +688,18 @@ function ConfigForm({
           <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
             Provider
           </label>
-          <select
+          <SettingsSelect
             value={form.provider}
-            onChange={(e) => update({ provider: e.target.value })}
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            onChange={(e) => update("provider", { provider: e.target.value })}
+            className={errors.provider ? "border-red-400 dark:border-red-600" : ""}
           >
             {PROVIDERS.map((p) => (
               <option key={p} value={p}>
                 {p}
               </option>
             ))}
-          </select>
+          </SettingsSelect>
+          {errors.provider && <p className="mt-0.5 text-[10px] text-red-500">{errors.provider}</p>}
         </div>
 
         {/* Model ID */}
@@ -663,11 +709,12 @@ function ConfigForm({
           </label>
           <input
             value={form.model_id}
-            onChange={(e) => update({ model_id: e.target.value })}
+            onChange={(e) => update("model_id", { model_id: e.target.value })}
             placeholder="e.g. claude-sonnet-4-20250514"
             required
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            className={`mt-0.5 w-full rounded-md border bg-white px-3 py-1.5 text-xs dark:bg-zinc-900 ${errors.model_id ? "border-red-400 dark:border-red-600" : "border-zinc-200 dark:border-zinc-700"}`}
           />
+          {errors.model_id && <p className="mt-0.5 text-[10px] text-red-500">{errors.model_id}</p>}
         </div>
 
         {/* Max Tokens */}
@@ -679,9 +726,10 @@ function ConfigForm({
             type="number"
             min={1}
             value={form.max_tokens}
-            onChange={(e) => update({ max_tokens: Number(e.target.value) })}
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            onChange={(e) => update("max_tokens", { max_tokens: Number(e.target.value) })}
+            className={`mt-0.5 w-full rounded-md border bg-white px-3 py-1.5 text-xs dark:bg-zinc-900 ${errors.max_tokens ? "border-red-400 dark:border-red-600" : "border-zinc-200 dark:border-zinc-700"}`}
           />
+          {errors.max_tokens && <p className="mt-0.5 text-[10px] text-red-500">{errors.max_tokens}</p>}
         </div>
 
         {/* Temperature */}
@@ -696,10 +744,11 @@ function ConfigForm({
             max={2}
             step={0.1}
             value={form.temperature}
-            onChange={(e) => update({ temperature: e.target.value })}
+            onChange={(e) => update("temperature", { temperature: e.target.value })}
             placeholder="default"
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+            className={`mt-0.5 w-full rounded-md border bg-white px-3 py-1.5 text-xs dark:bg-zinc-900 ${errors.temperature ? "border-red-400 dark:border-red-600" : "border-zinc-200 dark:border-zinc-700"}`}
           />
+          {errors.temperature && <p className="mt-0.5 text-[10px] text-red-500">{errors.temperature}</p>}
         </div>
 
         {/* Timeout */}
@@ -711,7 +760,7 @@ function ConfigForm({
             type="number"
             min={1}
             value={form.timeout_secs}
-            onChange={(e) => update({ timeout_secs: Number(e.target.value) })}
+            onChange={(e) => update("timeout_secs", { timeout_secs: Number(e.target.value) })}
             className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
           />
         </div>
@@ -724,7 +773,7 @@ function ConfigForm({
           <input
             type="number"
             value={form.priority}
-            onChange={(e) => update({ priority: Number(e.target.value) })}
+            onChange={(e) => update("priority", { priority: Number(e.target.value) })}
             className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
           />
         </div>
@@ -737,7 +786,7 @@ function ConfigForm({
           </label>
           <input
             value={form.api_key_env}
-            onChange={(e) => update({ api_key_env: e.target.value })}
+            onChange={(e) => update("api_key_env", { api_key_env: e.target.value })}
             placeholder="e.g. ANTHROPIC_API_KEY"
             className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
           />
@@ -751,7 +800,7 @@ function ConfigForm({
           </label>
           <input
             value={form.base_url}
-            onChange={(e) => update({ base_url: e.target.value })}
+            onChange={(e) => update("base_url", { base_url: e.target.value })}
             placeholder="e.g. https://api.example.com"
             className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
           />
@@ -765,7 +814,7 @@ function ConfigForm({
           </label>
           <input
             value={form.region}
-            onChange={(e) => update({ region: e.target.value })}
+            onChange={(e) => update("region", { region: e.target.value })}
             placeholder="e.g. us-east-1"
             className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
           />
@@ -782,7 +831,7 @@ function ConfigForm({
             step="0.01"
             min="0"
             value={form.cost_per_1m_input}
-            onChange={(e) => update({ cost_per_1m_input: e.target.value })}
+            onChange={(e) => update("cost_per_1m_input", { cost_per_1m_input: e.target.value })}
             placeholder="e.g. 3.00"
             className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
           />
@@ -799,7 +848,7 @@ function ConfigForm({
             step="0.01"
             min="0"
             value={form.cost_per_1m_output}
-            onChange={(e) => update({ cost_per_1m_output: e.target.value })}
+            onChange={(e) => update("cost_per_1m_output", { cost_per_1m_output: e.target.value })}
             placeholder="e.g. 15.00"
             className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
           />
@@ -816,23 +865,15 @@ function ConfigForm({
             step="0.01"
             min="0"
             value={form.daily_budget_usd}
-            onChange={(e) => update({ daily_budget_usd: e.target.value })}
+            onChange={(e) => update("daily_budget_usd", { daily_budget_usd: e.target.value })}
             placeholder="e.g. 50.00"
             className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
           />
         </div>
 
         {/* Enabled */}
-        <div className="flex items-center gap-2 self-end pb-1">
-          <input
-            type="checkbox"
-            checked={form.enabled}
-            onChange={(e) => update({ enabled: e.target.checked })}
-            className="rounded border-zinc-300"
-          />
-          <label className="text-xs text-zinc-600 dark:text-zinc-400">
-            Enabled
-          </label>
+        <div className="flex items-center self-end pb-1">
+          <SettingsSwitch label="Enabled" checked={form.enabled} onChange={(v) => update("enabled", { enabled: v })} />
         </div>
       </div>
 
@@ -910,17 +951,16 @@ function RuleForm({
           <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
             Operation
           </label>
-          <select
+          <SettingsSelect
             value={form.operation}
             onChange={(e) => update({ operation: e.target.value })}
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
           >
             {OPERATIONS.map((o) => (
               <option key={o} value={o}>
                 {o}
               </option>
             ))}
-          </select>
+          </SettingsSelect>
         </div>
 
         {/* Model Config */}
@@ -928,17 +968,16 @@ function RuleForm({
           <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
             Model Config
           </label>
-          <select
+          <SettingsSelect
             value={form.model_config_id}
             onChange={(e) => update({ model_config_id: e.target.value })}
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
           >
             {configs.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name} ({c.model_id})
               </option>
             ))}
-          </select>
+          </SettingsSelect>
         </div>
 
         {/* Priority */}
@@ -955,16 +994,8 @@ function RuleForm({
         </div>
 
         {/* Enabled */}
-        <div className="flex items-center gap-2 self-end pb-1">
-          <input
-            type="checkbox"
-            checked={form.enabled}
-            onChange={(e) => update({ enabled: e.target.checked })}
-            className="rounded border-zinc-300"
-          />
-          <label className="text-xs text-zinc-600 dark:text-zinc-400">
-            Enabled
-          </label>
+        <div className="flex items-center self-end pb-1">
+          <SettingsSwitch label="Enabled" checked={form.enabled} onChange={(v) => update({ enabled: v })} />
         </div>
       </div>
 

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { ScheduledTask } from "@/types/api";
 import {
   listScheduledTasks,
@@ -22,6 +23,7 @@ const STATUS_BADGE: Record<string, string> = {
 export default function SchedulesPage() {
   const [tasks, setTasks] = useState<ScheduledTask[]>([]);
   const [loading, setLoading] = useState(true);
+  const confirm = useConfirm();
 
   useEffect(() => {
     listScheduledTasks()
@@ -51,6 +53,13 @@ export default function SchedulesPage() {
   };
 
   const handleDelete = async (id: string) => {
+    const task = tasks.find((t) => t.id === id);
+    const ok = await confirm({
+      title: `Delete scheduled task '${task?.description ?? id}'?`,
+      description: "This action cannot be undone. The scheduled task will be permanently removed.",
+      variant: "danger",
+    });
+    if (!ok) return;
     const snapshot = tasks;
     setTasks((prev) => prev.filter((t) => t.id !== id));
     try {
@@ -90,25 +99,25 @@ export default function SchedulesPage() {
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
-                <th className="px-3 py-2 font-semibold text-zinc-500">
+                <th className="py-3 pr-6 font-semibold text-zinc-500">
                   Description
                 </th>
-                <th className="px-3 py-2 font-semibold text-zinc-500">
+                <th className="py-3 pr-6 font-semibold text-zinc-500">
                   Cron
                 </th>
-                <th className="px-3 py-2 font-semibold text-zinc-500">
+                <th className="py-3 pr-6 font-semibold text-zinc-500">
                   Status
                 </th>
-                <th className="px-3 py-2 font-semibold text-zinc-500">
+                <th className="py-3 pr-6 font-semibold text-zinc-500">
                   Last Run
                 </th>
-                <th className="px-3 py-2 font-semibold text-zinc-500">
+                <th className="py-3 pr-6 font-semibold text-zinc-500">
                   Next Run
                 </th>
-                <th className="px-3 py-2 font-semibold text-zinc-500">
+                <th className="py-3 pr-6 font-semibold text-zinc-500">
                   Enabled
                 </th>
-                <th className="px-3 py-2 font-semibold text-zinc-500" />
+                <th className="py-3 pr-6 font-semibold text-zinc-500" />
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
@@ -117,13 +126,13 @@ export default function SchedulesPage() {
                   key={task.id}
                   className="bg-white dark:bg-zinc-950 hover:bg-zinc-50 dark:hover:bg-zinc-900"
                 >
-                  <td className="px-3 py-2 text-zinc-700 dark:text-zinc-300">
+                  <td className="py-3 pr-6 text-zinc-700 dark:text-zinc-300">
                     {task.description ?? task.recipe_id.slice(0, 8)}
                   </td>
-                  <td className="px-3 py-2 font-mono text-zinc-500">
+                  <td className="py-3 pr-6 font-mono text-zinc-500">
                     {task.cron_expression}
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="py-3 pr-6">
                     {task.last_status ? (
                       <span
                         className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${STATUS_BADGE[task.last_status] ?? "bg-zinc-100 text-zinc-500"}`}
@@ -134,15 +143,15 @@ export default function SchedulesPage() {
                       <span className="text-zinc-400">--</span>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-zinc-500">
+                  <td className="py-3 pr-6 text-zinc-500">
                     {task.last_run_at
                       ? new Date(task.last_run_at).toLocaleString()
                       : "--"}
                   </td>
-                  <td className="px-3 py-2 text-zinc-500">
+                  <td className="py-3 pr-6 text-zinc-500">
                     {new Date(task.next_run_at).toLocaleString()}
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="py-3 pr-6">
                     <button
                       onClick={() => handleToggle(task)}
                       className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
@@ -161,7 +170,7 @@ export default function SchedulesPage() {
                       />
                     </button>
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="py-3 pr-6">
                     <button
                       onClick={() => handleDelete(task.id)}
                       className="rounded-md px-2 py-1 text-[10px] font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
