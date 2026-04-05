@@ -266,6 +266,7 @@ impl Hook for EmbeddingHook {
 pub struct RecoveryDetectionHook {
     knowledge_store: Arc<dyn KnowledgeStore>,
     memory: Option<Arc<ox_memory::MemoryStore>>,
+    workspace_id: Uuid,
     ontology_name: String,
     ontology_version: i32,
     /// Per-session tool outcome tracking: session_id → list of outcomes.
@@ -296,12 +297,14 @@ impl RecoveryDetectionHook {
     pub fn new(
         knowledge_store: Arc<dyn KnowledgeStore>,
         memory: Option<Arc<ox_memory::MemoryStore>>,
+        workspace_id: Uuid,
         ontology_name: String,
         ontology_version: i32,
     ) -> Self {
         Self {
             knowledge_store,
             memory,
+            workspace_id,
             ontology_name,
             ontology_version,
             session_outcomes: DashMap::new(),
@@ -428,7 +431,7 @@ impl Hook for RecoveryDetectionHook {
 
                     let entry = KnowledgeEntry {
                         id: Uuid::new_v4(),
-                        workspace_id: Uuid::nil(), // RLS default
+                        workspace_id: self.workspace_id,
                         ontology_name: self.ontology_name.clone(),
                         ontology_version_min: self.ontology_version,
                         ontology_version_max: None,

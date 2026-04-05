@@ -40,6 +40,7 @@ pub struct DomainContext {
     pub store: Arc<dyn Store>,
     pub ontology: Option<OntologyIR>,
     pub user_id: String,
+    pub workspace_id: uuid::Uuid,
     pub saved_ontology_id: Option<uuid::Uuid>,
     pub project_id: Option<uuid::Uuid>,
     pub project_revision: Option<i32>,
@@ -197,6 +198,7 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
             builder = builder.hook(RecoveryDetectionHook::new(
                 Arc::clone(kb),
                 memory.clone(),
+                domain.workspace_id,
                 ontology.name.clone(),
                 ontology.version as i32,
             ));

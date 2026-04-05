@@ -124,6 +124,7 @@ pub async fn chat_stream(
         store: Arc::clone(&state.store),
         ontology: Some(ontology),
         user_id: user_id.clone(),
+        workspace_id: ws.workspace_id,
         saved_ontology_id: req.saved_ontology_id,
         project_id: req.project_id,
         project_revision: req.project_revision,
