@@ -4,11 +4,14 @@
 
 export interface Dashboard {
   id: string;
+  workspace_id: string;
   user_id: string;
   name: string;
   description: string | null;
   layout: DashboardWidgetPosition[];
   is_public: boolean;
+  share_token: string | null;
+  shared_at: string | null;
   created_at: string;
   updated_at: string;
 }

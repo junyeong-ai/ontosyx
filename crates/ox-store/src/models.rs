@@ -257,11 +257,14 @@ pub struct WorkbenchPerspective {
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Dashboard {
     pub id: Uuid,
+    pub workspace_id: Uuid,
     pub user_id: String,
     pub name: String,
     pub description: Option<String>,
     pub layout: serde_json::Value,
     pub is_public: bool,
+    pub share_token: Option<String>,
+    pub shared_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -594,6 +597,9 @@ pub struct LineageEntry {
     pub source_table: Option<String>,
     pub source_columns: Option<Vec<String>>,
     pub load_plan_hash: Option<String>,
+    /// Column-level property mappings: source_column -> graph_property + transform.
+    /// Stored as JSON array of `{source_column, graph_property, transform?}`.
+    pub property_mappings: Option<serde_json::Value>,
     pub record_count: i64,
     pub loaded_by: Option<Uuid>,
     pub started_at: DateTime<Utc>,
@@ -728,6 +734,59 @@ pub struct RoutingRuleUpdate {
     pub model_config_id: Option<Uuid>,
     pub priority: Option<i32>,
     pub enabled: Option<bool>,
+}
+
+// ---------------------------------------------------------------------------
+// Load Checkpoints — watermark-based incremental loading state
+// ---------------------------------------------------------------------------
+
+/// Tracks the last successfully loaded watermark value for incremental (delta) loads.
+/// Each checkpoint is unique per (workspace, project, source_table, graph_label).
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct LoadCheckpoint {
+    pub id: Uuid,
+    pub workspace_id: Uuid,
+    pub project_id: Uuid,
+    pub source_table: String,
+    pub graph_label: String,
+    pub watermark_column: String,
+    pub watermark_value: String,
+    pub record_count: i64,
+    pub loaded_at: DateTime<Utc>,
+}
+
+// ---------------------------------------------------------------------------
+// NotificationChannel — configured notification destination
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct NotificationChannel {
+    pub id: Uuid,
+    pub workspace_id: Uuid,
+    pub name: String,
+    pub channel_type: String,
+    pub config: serde_json::Value,
+    pub events: Vec<String>,
+    pub enabled: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+// ---------------------------------------------------------------------------
+// NotificationLog — delivery log entry
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct NotificationLog {
+    pub id: Uuid,
+    pub workspace_id: Uuid,
+    pub channel_id: Uuid,
+    pub event_type: String,
+    pub subject: String,
+    pub body: String,
+    pub status: String,
+    pub error: Option<String>,
+    pub created_at: DateTime<Utc>,
 }
 
 // ---------------------------------------------------------------------------

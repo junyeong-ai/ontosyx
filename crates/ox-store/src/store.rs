@@ -142,11 +142,7 @@ pub trait OntologyStore: Send + Sync {
 
     /// Update ontology IR in place (e.g., after enrichment with sample values).
     /// Does not change version or metadata — only the ontology_ir JSON content.
-    async fn update_ontology_ir(
-        &self,
-        id: Uuid,
-        ontology_ir: &serde_json::Value,
-    ) -> OxResult<()>;
+    async fn update_ontology_ir(&self, id: Uuid, ontology_ir: &serde_json::Value) -> OxResult<()>;
 }
 
 #[async_trait]
@@ -355,10 +351,13 @@ pub trait DashboardStore: Send + Sync {
         &self,
         id: Uuid,
         name: &str,
+        description: Option<&str>,
         layout: &serde_json::Value,
         is_public: bool,
     ) -> OxResult<()>;
     async fn delete_dashboard(&self, id: Uuid) -> OxResult<bool>;
+    async fn update_dashboard_share_token(&self, id: Uuid, token: Option<&str>) -> OxResult<()>;
+    async fn get_dashboard_by_share_token(&self, token: &str) -> OxResult<Option<Dashboard>>;
 
     async fn create_widget(&self, widget: &DashboardWidget) -> OxResult<()>;
     async fn list_widgets(&self, dashboard_id: Uuid) -> OxResult<Vec<DashboardWidget>>;
@@ -434,6 +433,9 @@ pub trait PromptTemplateStore: Send + Sync {
         variables: &serde_json::Value,
         is_active: bool,
     ) -> OxResult<()>;
+    async fn delete_prompt_template(&self, id: Uuid) -> OxResult<()>;
+    /// Deactivate all versions of a prompt with the given name except `exclude_id`.
+    async fn deactivate_other_versions(&self, name: &str, exclude_id: Uuid) -> OxResult<()>;
 }
 
 // ---------------------------------------------------------------------------
@@ -452,6 +454,7 @@ pub trait AgentSessionStore: Send + Sync {
     ) -> OxResult<CursorPage<AgentSession>>;
     async fn create_agent_event(&self, event: &AgentEvent) -> OxResult<()>;
     async fn list_agent_events(&self, session_id: Uuid) -> OxResult<Vec<AgentEvent>>;
+    async fn delete_agent_session(&self, id: Uuid) -> OxResult<bool>;
     async fn cleanup_old_sessions(&self, retention_days: i64) -> OxResult<u64>;
 }
 
@@ -874,6 +877,57 @@ pub trait KnowledgeStore: Send + Sync {
 }
 
 // ---------------------------------------------------------------------------
+// LoadCheckpointStore — watermark-based incremental load state
+// ---------------------------------------------------------------------------
+
+#[async_trait]
+pub trait LoadCheckpointStore: Send + Sync {
+    /// Get the latest checkpoint for a specific (project, source_table, graph_label) combination.
+    async fn get_checkpoint(
+        &self,
+        project_id: Uuid,
+        source_table: &str,
+        graph_label: &str,
+    ) -> OxResult<Option<LoadCheckpoint>>;
+
+    /// Create or update a checkpoint (matched by project + source_table + graph_label).
+    async fn upsert_checkpoint(&self, checkpoint: &LoadCheckpoint) -> OxResult<()>;
+
+    /// List all checkpoints for a project.
+    async fn list_checkpoints(&self, project_id: Uuid) -> OxResult<Vec<LoadCheckpoint>>;
+
+    /// Delete a specific checkpoint (forces a full reload on next run).
+    async fn delete_checkpoint(&self, id: Uuid) -> OxResult<()>;
+}
+
+// ---------------------------------------------------------------------------
+// NotificationStore — notification channels and delivery log
+// ---------------------------------------------------------------------------
+
+#[async_trait]
+pub trait NotificationStore: Send + Sync {
+    async fn create_notification_channel(&self, ch: &NotificationChannel) -> OxResult<()>;
+    async fn get_notification_channel(&self, id: Uuid) -> OxResult<Option<NotificationChannel>>;
+    async fn list_notification_channels(&self) -> OxResult<Vec<NotificationChannel>>;
+    async fn update_notification_channel(
+        &self,
+        id: Uuid,
+        name: Option<&str>,
+        config: Option<&serde_json::Value>,
+        events: Option<&[String]>,
+        enabled: Option<bool>,
+    ) -> OxResult<()>;
+    async fn delete_notification_channel(&self, id: Uuid) -> OxResult<bool>;
+
+    /// Find channels that subscribe to a given event type and are enabled.
+    async fn list_channels_for_event(&self, event_type: &str)
+    -> OxResult<Vec<NotificationChannel>>;
+
+    async fn create_notification_log(&self, log: &NotificationLog) -> OxResult<()>;
+    async fn list_notification_logs(&self, limit: i64) -> OxResult<Vec<NotificationLog>>;
+}
+
+// ---------------------------------------------------------------------------
 // Store — super-trait combining all sub-traits
 // ---------------------------------------------------------------------------
 
@@ -904,7 +958,9 @@ pub trait Store:
     + AclStore
     + ModelConfigStore
     + KnowledgeStore
+    + LoadCheckpointStore
     + HealthStore
+    + NotificationStore
 {
 }
 
@@ -935,6 +991,8 @@ impl<T> Store for T where
         + AclStore
         + ModelConfigStore
         + KnowledgeStore
+        + LoadCheckpointStore
         + HealthStore
+        + NotificationStore
 {
 }

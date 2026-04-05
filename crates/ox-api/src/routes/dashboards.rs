@@ -26,16 +26,20 @@ pub struct DashboardCreateRequest {
 pub(crate) async fn create_dashboard(
     State(state): State<AppState>,
     principal: Principal,
+    ws: WorkspaceContext,
     Json(req): Json<DashboardCreateRequest>,
 ) -> Result<Json<Dashboard>, AppError> {
     validation::validate_name("name", &req.name)?;
 
     let dashboard = Dashboard {
         id: Uuid::new_v4(),
+        workspace_id: ws.workspace_id,
         user_id: principal.id.clone(),
         name: req.name,
         description: req.description,
         is_public: false,
+        share_token: None,
+        shared_at: None,
         layout: serde_json::json!([]),
         created_at: Utc::now(),
         updated_at: Utc::now(),
@@ -74,7 +78,7 @@ pub(crate) async fn list_dashboards(
 
 pub(crate) async fn get_dashboard(
     State(state): State<AppState>,
-    _principal: Principal,
+    principal: Principal,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Dashboard>, AppError> {
     let dashboard = state
@@ -83,6 +87,12 @@ pub(crate) async fn get_dashboard(
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("Dashboard"))?;
+
+    // Non-admin users can only view their own or public dashboards
+    if !principal.role.is_admin() && !dashboard.is_public && dashboard.user_id != principal.id {
+        return Err(AppError::not_found("Dashboard"));
+    }
+
     Ok(Json(dashboard))
 }
 
@@ -132,7 +142,13 @@ pub(crate) async fn update_dashboard(
 
     state
         .store
-        .update_dashboard(id, &dashboard.name, &dashboard.layout, dashboard.is_public)
+        .update_dashboard(
+            id,
+            &dashboard.name,
+            dashboard.description.as_deref(),
+            &dashboard.layout,
+            dashboard.is_public,
+        )
         .await
         .map_err(AppError::from)?;
 
@@ -201,6 +217,14 @@ pub(crate) async fn add_widget(
     Json(req): Json<WidgetCreateRequest>,
 ) -> Result<Json<ox_store::DashboardWidget>, AppError> {
     principal.require_designer()?;
+
+    let dash = state
+        .store
+        .get_dashboard(dashboard_id)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::not_found("Dashboard"))?;
+    principal.require_owner(&dash.user_id, "dashboard")?;
 
     let widget = ox_store::DashboardWidget {
         id: Uuid::new_v4(),
@@ -319,4 +343,146 @@ pub(crate) async fn delete_widget(
     } else {
         Err(AppError::not_found("Dashboard widget"))
     }
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/dashboards/:id/share — generate a share token
+// ---------------------------------------------------------------------------
+
+pub(crate) async fn share_dashboard(
+    State(state): State<AppState>,
+    principal: Principal,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    principal.require_designer()?;
+
+    let dash = state
+        .store
+        .get_dashboard(id)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::not_found("Dashboard"))?;
+    principal.require_owner(&dash.user_id, "dashboard")?;
+
+    // Generate a cryptographically random 32-byte token (64 hex chars)
+    use std::fmt::Write;
+    let mut token = String::with_capacity(64);
+    for b in Uuid::new_v4()
+        .into_bytes()
+        .iter()
+        .chain(Uuid::new_v4().into_bytes().iter())
+    {
+        let _ = write!(token, "{b:02x}");
+    }
+
+    state
+        .store
+        .update_dashboard_share_token(id, Some(&token))
+        .await
+        .map_err(AppError::from)?;
+
+    Ok(Json(serde_json::json!({ "share_token": token })))
+}
+
+// ---------------------------------------------------------------------------
+// DELETE /api/dashboards/:id/share — revoke share token
+// ---------------------------------------------------------------------------
+
+pub(crate) async fn unshare_dashboard(
+    State(state): State<AppState>,
+    principal: Principal,
+    Path(id): Path<Uuid>,
+) -> Result<axum::http::StatusCode, AppError> {
+    principal.require_designer()?;
+
+    let dash = state
+        .store
+        .get_dashboard(id)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::not_found("Dashboard"))?;
+    principal.require_owner(&dash.user_id, "dashboard")?;
+
+    state
+        .store
+        .update_dashboard_share_token(id, None)
+        .await
+        .map_err(AppError::from)?;
+
+    Ok(axum::http::StatusCode::NO_CONTENT)
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/shared/dashboards/:token — public dashboard viewer (no auth)
+// ---------------------------------------------------------------------------
+
+pub(crate) async fn get_shared_dashboard(
+    State(state): State<AppState>,
+    Path(token): Path<String>,
+) -> Result<Json<SharedDashboardResponse>, AppError> {
+    // Public endpoint — no auth, no workspace context.
+    // Use SYSTEM_BYPASS to read through RLS; the share token itself is authorization.
+    let store = state.store.clone();
+    let (dashboard, widgets) = ox_store::SYSTEM_BYPASS
+        .scope(true, async move {
+            let dashboard = store
+                .get_dashboard_by_share_token(&token)
+                .await
+                .map_err(AppError::from)?
+                .ok_or_else(|| AppError::not_found("Shared dashboard"))?;
+
+            let widgets = store
+                .list_widgets(dashboard.id)
+                .await
+                .map_err(AppError::from)?;
+
+            Ok::<_, AppError>((dashboard, widgets))
+        })
+        .await?;
+
+    let safe_widgets: Vec<SharedWidgetResponse> = widgets
+        .into_iter()
+        .map(|w| SharedWidgetResponse {
+            id: w.id,
+            title: w.title,
+            widget_type: w.widget_type,
+            widget_spec: w.widget_spec,
+            position: w.position,
+            last_result: w.last_result,
+            last_refreshed: w.last_refreshed,
+            thresholds: w.thresholds,
+        })
+        .collect();
+
+    Ok(Json(SharedDashboardResponse {
+        id: dashboard.id,
+        name: dashboard.name,
+        description: dashboard.description,
+        layout: dashboard.layout,
+        widgets: safe_widgets,
+    }))
+}
+
+/// Public-safe view of a shared dashboard. Excludes user_id, share_token,
+/// timestamps, and other internal fields.
+#[derive(serde::Serialize)]
+pub(crate) struct SharedDashboardResponse {
+    pub id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub layout: serde_json::Value,
+    pub widgets: Vec<SharedWidgetResponse>,
+}
+
+/// Public-safe widget view. Excludes workspace_id, dashboard_id, and raw query.
+#[derive(serde::Serialize)]
+pub(crate) struct SharedWidgetResponse {
+    pub id: Uuid,
+    pub title: String,
+    pub widget_type: String,
+    pub widget_spec: serde_json::Value,
+    pub position: serde_json::Value,
+    pub last_result: Option<serde_json::Value>,
+    pub last_refreshed: Option<chrono::DateTime<chrono::Utc>>,
+    pub thresholds: Option<serde_json::Value>,
 }

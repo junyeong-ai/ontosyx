@@ -11,9 +11,9 @@ use crate::models::*;
 use crate::store::{
     AclStore, AgentSessionStore, AnalysisResultStore, AnalysisSnapshot, ApprovalStore, AuditStore,
     ConfigStore, CursorPage, CursorParams, DashboardStore, EmbeddingRetryStore, ExtendResult,
-    HealthStore, KnowledgeStore, LineageStore, MeteringStore, OntologyStore, PerspectiveStore,
-    PinStore, ProjectStore, PromptTemplateStore, QualityStore, QueryStore, RecipeStore,
-    ReportStore, ScheduledTaskStore, ToolApprovalStore, UserStore, VerificationStore,
+    HealthStore, KnowledgeStore, LineageStore, LoadCheckpointStore, MeteringStore, OntologyStore,
+    PerspectiveStore, PinStore, ProjectStore, PromptTemplateStore, QualityStore, QueryStore,
+    RecipeStore, ReportStore, ScheduledTaskStore, ToolApprovalStore, UserStore, VerificationStore,
     WorkspaceStore,
 };
 
@@ -392,19 +392,13 @@ impl OntologyStore for PostgresStore {
         Ok(id)
     }
 
-    async fn update_ontology_ir(
-        &self,
-        id: Uuid,
-        ontology_ir: &serde_json::Value,
-    ) -> OxResult<()> {
-        let rows = sqlx::query(
-            "UPDATE saved_ontologies SET ontology_ir = $1 WHERE id = $2",
-        )
-        .bind(ontology_ir)
-        .bind(id)
-        .execute(&self.pool)
-        .await
-        .map_err(to_ox_error)?;
+    async fn update_ontology_ir(&self, id: Uuid, ontology_ir: &serde_json::Value) -> OxResult<()> {
+        let rows = sqlx::query("UPDATE saved_ontologies SET ontology_ir = $1 WHERE id = $2")
+            .bind(ontology_ir)
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .map_err(to_ox_error)?;
 
         if rows.rows_affected() == 0 {
             return Err(OxError::NotFound {
@@ -1360,15 +1354,18 @@ impl RecipeStore for PostgresStore {
 impl DashboardStore for PostgresStore {
     async fn create_dashboard(&self, d: &Dashboard) -> OxResult<()> {
         sqlx::query(
-            "INSERT INTO dashboards (id, user_id, name, description, layout, is_public, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+            "INSERT INTO dashboards (id, workspace_id, user_id, name, description, layout, is_public, share_token, shared_at, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
         )
         .bind(d.id)
+        .bind(d.workspace_id)
         .bind(&d.user_id)
         .bind(&d.name)
         .bind(&d.description)
         .bind(&d.layout)
         .bind(d.is_public)
+        .bind(&d.share_token)
+        .bind(d.shared_at)
         .bind(d.created_at)
         .bind(d.updated_at)
         .execute(&self.pool)
@@ -1456,13 +1453,15 @@ impl DashboardStore for PostgresStore {
         &self,
         id: Uuid,
         name: &str,
+        description: Option<&str>,
         layout: &serde_json::Value,
         is_public: bool,
     ) -> OxResult<()> {
         sqlx::query(
-            "UPDATE dashboards SET name = $1, layout = $2, is_public = $3, updated_at = NOW() WHERE id = $4",
+            "UPDATE dashboards SET name = $1, description = $2, layout = $3, is_public = $4, updated_at = NOW() WHERE id = $5",
         )
         .bind(name)
+        .bind(description)
         .bind(layout)
         .bind(is_public)
         .bind(id)
@@ -1479,6 +1478,36 @@ impl DashboardStore for PostgresStore {
             .await
             .map_err(to_ox_error)?;
         Ok(result.rows_affected() > 0)
+    }
+
+    async fn update_dashboard_share_token(&self, id: Uuid, token: Option<&str>) -> OxResult<()> {
+        if let Some(token) = token {
+            sqlx::query(
+                "UPDATE dashboards SET share_token = $1, shared_at = NOW(), updated_at = NOW() WHERE id = $2",
+            )
+            .bind(token)
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .map_err(to_ox_error)?;
+        } else {
+            sqlx::query(
+                "UPDATE dashboards SET share_token = NULL, shared_at = NULL, updated_at = NOW() WHERE id = $1",
+            )
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .map_err(to_ox_error)?;
+        }
+        Ok(())
+    }
+
+    async fn get_dashboard_by_share_token(&self, token: &str) -> OxResult<Option<Dashboard>> {
+        sqlx::query_as::<_, Dashboard>("SELECT * FROM dashboards WHERE share_token = $1")
+            .bind(token)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(to_ox_error)
     }
 
     async fn create_widget(&self, w: &DashboardWidget) -> OxResult<()> {
@@ -1917,6 +1946,132 @@ impl HealthStore for PostgresStore {
 }
 
 // ---------------------------------------------------------------------------
+// NotificationStore
+// ---------------------------------------------------------------------------
+
+#[async_trait]
+impl crate::store::NotificationStore for PostgresStore {
+    async fn create_notification_channel(&self, ch: &NotificationChannel) -> OxResult<()> {
+        sqlx::query(
+            "INSERT INTO notification_channels (id, workspace_id, name, channel_type, config, events, enabled, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+        )
+        .bind(ch.id)
+        .bind(ch.workspace_id)
+        .bind(&ch.name)
+        .bind(&ch.channel_type)
+        .bind(&ch.config)
+        .bind(&ch.events)
+        .bind(ch.enabled)
+        .bind(ch.created_at)
+        .bind(ch.updated_at)
+        .execute(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        Ok(())
+    }
+
+    async fn get_notification_channel(&self, id: Uuid) -> OxResult<Option<NotificationChannel>> {
+        sqlx::query_as::<_, NotificationChannel>(
+            "SELECT * FROM notification_channels WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(to_ox_error)
+    }
+
+    async fn list_notification_channels(&self) -> OxResult<Vec<NotificationChannel>> {
+        sqlx::query_as::<_, NotificationChannel>(
+            "SELECT * FROM notification_channels ORDER BY name",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(to_ox_error)
+    }
+
+    async fn update_notification_channel(
+        &self,
+        id: Uuid,
+        name: Option<&str>,
+        config: Option<&serde_json::Value>,
+        events: Option<&[String]>,
+        enabled: Option<bool>,
+    ) -> OxResult<()> {
+        sqlx::query(
+            "UPDATE notification_channels SET
+                name = COALESCE($1, name),
+                config = COALESCE($2, config),
+                events = COALESCE($3, events),
+                enabled = COALESCE($4, enabled),
+                updated_at = NOW()
+             WHERE id = $5",
+        )
+        .bind(name)
+        .bind(config)
+        .bind(events)
+        .bind(enabled)
+        .bind(id)
+        .execute(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        Ok(())
+    }
+
+    async fn delete_notification_channel(&self, id: Uuid) -> OxResult<bool> {
+        let result = sqlx::query("DELETE FROM notification_channels WHERE id = $1")
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .map_err(to_ox_error)?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    async fn list_channels_for_event(
+        &self,
+        event_type: &str,
+    ) -> OxResult<Vec<NotificationChannel>> {
+        sqlx::query_as::<_, NotificationChannel>(
+            "SELECT * FROM notification_channels WHERE enabled = true AND $1 = ANY(events)",
+        )
+        .bind(event_type)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(to_ox_error)
+    }
+
+    async fn create_notification_log(&self, log: &NotificationLog) -> OxResult<()> {
+        sqlx::query(
+            "INSERT INTO notification_log (id, workspace_id, channel_id, event_type, subject, body, status, error, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+        )
+        .bind(log.id)
+        .bind(log.workspace_id)
+        .bind(log.channel_id)
+        .bind(&log.event_type)
+        .bind(&log.subject)
+        .bind(&log.body)
+        .bind(&log.status)
+        .bind(&log.error)
+        .bind(log.created_at)
+        .execute(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        Ok(())
+    }
+
+    async fn list_notification_logs(&self, limit: i64) -> OxResult<Vec<NotificationLog>> {
+        sqlx::query_as::<_, NotificationLog>(
+            "SELECT * FROM notification_log ORDER BY created_at DESC LIMIT $1",
+        )
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(to_ox_error)
+    }
+}
+
+// ---------------------------------------------------------------------------
 // PostgreSQL error code mapping
 // ---------------------------------------------------------------------------
 
@@ -2101,6 +2256,27 @@ impl AgentSessionStore for PostgresStore {
             })
     }
 
+    async fn delete_agent_session(&self, id: Uuid) -> OxResult<bool> {
+        // Delete events first (explicit rather than relying on CASCADE)
+        sqlx::query("DELETE FROM agent_events WHERE session_id = $1")
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| OxError::Runtime {
+                message: format!("Database error: {e}"),
+            })?;
+
+        let result = sqlx::query("DELETE FROM agent_sessions WHERE id = $1")
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| OxError::Runtime {
+                message: format!("Database error: {e}"),
+            })?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
     async fn cleanup_old_sessions(&self, retention_days: i64) -> OxResult<u64> {
         // Delete events first (CASCADE would handle this but be explicit)
         sqlx::query(
@@ -2272,6 +2448,31 @@ impl PromptTemplateStore for PostgresStore {
         .bind(content)
         .bind(variables)
         .bind(is_active)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| OxError::Runtime {
+            message: format!("Database error: {e}"),
+        })?;
+        Ok(())
+    }
+
+    async fn delete_prompt_template(&self, id: Uuid) -> OxResult<()> {
+        sqlx::query("DELETE FROM prompt_templates WHERE id = $1")
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| OxError::Runtime {
+                message: format!("Database error: {e}"),
+            })?;
+        Ok(())
+    }
+
+    async fn deactivate_other_versions(&self, name: &str, exclude_id: Uuid) -> OxResult<()> {
+        sqlx::query(
+            "UPDATE prompt_templates SET is_active = false WHERE name = $1 AND id != $2 AND is_active = true",
+        )
+        .bind(name)
+        .bind(exclude_id)
         .execute(&self.pool)
         .await
         .map_err(|e| OxError::Runtime {
@@ -2733,8 +2934,8 @@ impl LineageStore for PostgresStore {
             "INSERT INTO data_lineage
              (id, project_id, graph_label, graph_element_type, source_type,
               source_name, source_table, source_columns, load_plan_hash,
-              record_count, loaded_by, started_at, status)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
+              property_mappings, record_count, loaded_by, started_at, status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
         )
         .bind(e.id)
         .bind(e.project_id)
@@ -2745,6 +2946,7 @@ impl LineageStore for PostgresStore {
         .bind(&e.source_table)
         .bind(&e.source_columns)
         .bind(&e.load_plan_hash)
+        .bind(&e.property_mappings)
         .bind(e.record_count)
         .bind(e.loaded_by)
         .bind(e.started_at)
@@ -3592,15 +3794,14 @@ impl KnowledgeStore for PostgresStore {
         }
 
         let next_cursor = if has_more {
-            items.last().map(|r| format!("{}|{}", r.created_at.to_rfc3339(), r.id))
+            items
+                .last()
+                .map(|r| format!("{}|{}", r.created_at.to_rfc3339(), r.id))
         } else {
             None
         };
 
-        Ok(CursorPage {
-            items,
-            next_cursor,
-        })
+        Ok(CursorPage { items, next_cursor })
     }
 
     async fn list_active_knowledge(
@@ -3779,5 +3980,79 @@ impl KnowledgeStore for PostgresStore {
         .map_err(to_ox_error)?;
 
         Ok(result.rows_affected())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// LoadCheckpointStore — watermark-based incremental load state
+// ---------------------------------------------------------------------------
+
+#[async_trait]
+impl LoadCheckpointStore for PostgresStore {
+    async fn get_checkpoint(
+        &self,
+        project_id: Uuid,
+        source_table: &str,
+        graph_label: &str,
+    ) -> OxResult<Option<LoadCheckpoint>> {
+        sqlx::query_as(
+            "SELECT * FROM load_checkpoints
+             WHERE project_id = $1 AND source_table = $2 AND graph_label = $3",
+        )
+        .bind(project_id)
+        .bind(source_table)
+        .bind(graph_label)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(to_ox_error)
+    }
+
+    async fn upsert_checkpoint(&self, c: &LoadCheckpoint) -> OxResult<()> {
+        sqlx::query(
+            "INSERT INTO load_checkpoints
+             (id, workspace_id, project_id, source_table, graph_label,
+              watermark_column, watermark_value, record_count, loaded_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+             ON CONFLICT (workspace_id, project_id, source_table, graph_label)
+             DO UPDATE SET
+                watermark_column = EXCLUDED.watermark_column,
+                watermark_value = EXCLUDED.watermark_value,
+                record_count = load_checkpoints.record_count + EXCLUDED.record_count,
+                loaded_at = EXCLUDED.loaded_at",
+        )
+        .bind(c.id)
+        .bind(c.workspace_id)
+        .bind(c.project_id)
+        .bind(&c.source_table)
+        .bind(&c.graph_label)
+        .bind(&c.watermark_column)
+        .bind(&c.watermark_value)
+        .bind(c.record_count)
+        .bind(c.loaded_at)
+        .execute(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        Ok(())
+    }
+
+    async fn list_checkpoints(&self, project_id: Uuid) -> OxResult<Vec<LoadCheckpoint>> {
+        sqlx::query_as(
+            "SELECT * FROM load_checkpoints
+             WHERE project_id = $1
+             ORDER BY loaded_at DESC",
+        )
+        .bind(project_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(to_ox_error)
+    }
+
+    async fn delete_checkpoint(&self, id: Uuid) -> OxResult<()> {
+        sqlx::query("DELETE FROM load_checkpoints WHERE id = $1")
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .map_err(to_ox_error)?;
+        Ok(())
     }
 }

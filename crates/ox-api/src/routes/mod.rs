@@ -18,6 +18,7 @@ pub mod knowledge;
 pub mod lineage;
 pub mod load;
 pub mod models;
+pub mod notifications;
 pub mod ontology;
 pub mod perspectives;
 pub mod pins;
@@ -29,6 +30,7 @@ pub mod recipes;
 pub mod reports;
 pub mod schedules;
 pub mod sessions;
+pub mod sources;
 pub mod usage;
 pub mod users;
 pub mod workspaces;
@@ -39,7 +41,11 @@ pub fn router(state: AppState) -> Router {
     let public = Router::new()
         .route("/health", get(health::health_check))
         .route("/config/ui", get(config::get_ui_config))
-        .route("/auth/token", post(auth::create_token));
+        .route("/auth/token", post(auth::create_token))
+        .route(
+            "/shared/dashboards/{token}",
+            get(dashboards::get_shared_dashboard),
+        );
 
     // Protected routes (require JWT or API key)
     let protected = Router::new()
@@ -135,6 +141,8 @@ pub fn router(state: AppState) -> Router {
         // Data loading
         .route("/load", post(load::plan_load))
         .route("/load/execute", post(load::execute_load))
+        .route("/load/checkpoints", get(load::list_checkpoints))
+        .route("/load/checkpoints/{id}", delete(load::delete_checkpoint))
         // System
         .route("/prompts", get(load::list_prompts))
         // Config management
@@ -176,17 +184,11 @@ pub fn router(state: AppState) -> Router {
         .route("/knowledge", get(knowledge::list_knowledge))
         .route("/knowledge/stale", get(knowledge::list_stale))
         .route("/knowledge/stats", get(knowledge::knowledge_stats))
-        .route(
-            "/knowledge/bulk-review",
-            post(knowledge::bulk_review),
-        )
+        .route("/knowledge/bulk-review", post(knowledge::bulk_review))
         .route("/knowledge/{id}", get(knowledge::get_knowledge))
         .route("/knowledge/{id}", patch(knowledge::update_knowledge))
         .route("/knowledge/{id}", delete(knowledge::delete_knowledge))
-        .route(
-            "/knowledge/{id}/status",
-            patch(knowledge::update_status),
-        )
+        .route("/knowledge/{id}/status", patch(knowledge::update_status))
         // Scheduled tasks
         .route("/scheduled-tasks", get(schedules::list_schedules))
         .route("/scheduled-tasks/{id}", get(schedules::get_schedule))
@@ -205,6 +207,10 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/dashboards/{id}/widgets/{widget_id}",
             patch(dashboards::update_widget).delete(dashboards::delete_widget),
+        )
+        .route(
+            "/dashboards/{id}/share",
+            post(dashboards::share_dashboard).delete(dashboards::unshare_dashboard),
         )
         // Saved Reports
         .route("/reports", post(reports::create_report))
@@ -247,7 +253,8 @@ pub fn router(state: AppState) -> Router {
         )
         .route(
             "/admin/prompts/{id}",
-            patch(prompts_admin::update_prompt_template),
+            patch(prompts_admin::update_prompt_template)
+                .delete(prompts_admin::delete_prompt_template),
         )
         // Ontology verifications
         .route(
@@ -264,7 +271,10 @@ pub fn router(state: AppState) -> Router {
         .route("/ontology/adopt-graph", post(ontology::adopt_graph))
         // Agent sessions (audit)
         .route("/sessions", get(sessions::list_sessions))
-        .route("/sessions/{id}", get(sessions::get_session))
+        .route(
+            "/sessions/{id}",
+            get(sessions::get_session).delete(sessions::delete_session),
+        )
         .route("/sessions/{id}/events", get(sessions::list_session_events))
         .route(
             "/sessions/{id}/messages",
@@ -301,6 +311,23 @@ pub fn router(state: AppState) -> Router {
         .route("/quality/rules/{id}", delete(quality::delete_rule))
         .route("/quality/dashboard", get(quality::quality_dashboard))
         .route("/quality/rules/{id}/results", get(quality::rule_results))
+        .route("/quality/rules/{id}/execute", post(quality::execute_rule))
+        .route("/quality/execute-all", post(quality::execute_all_rules))
+        // Notification channels
+        .route(
+            "/notifications/channels",
+            post(notifications::create_channel),
+        )
+        .route("/notifications/channels", get(notifications::list_channels))
+        .route(
+            "/notifications/channels/{id}",
+            patch(notifications::update_channel).delete(notifications::delete_channel),
+        )
+        .route(
+            "/notifications/channels/{id}/test",
+            post(notifications::test_channel),
+        )
+        .route("/notifications/log", get(notifications::list_logs))
         // Model configs
         .route("/models/configs", get(models::list_model_configs))
         .route("/models/configs", post(models::create_model_config))
@@ -324,20 +351,6 @@ pub fn router(state: AppState) -> Router {
         .route("/acl/policies/{id}", patch(acl::update_policy))
         .route("/acl/policies/{id}", delete(acl::delete_policy))
         .route("/acl/effective", get(acl::effective_policies))
-        // Workspaces
-        .route("/workspaces", post(workspaces::create_workspace))
-        .route("/workspaces", get(workspaces::list_workspaces))
-        .route("/workspaces/{id}", get(workspaces::get_workspace))
-        .route("/workspaces/{id}", patch(workspaces::update_workspace))
-        .route("/workspaces/{id}", delete(workspaces::delete_workspace))
-        .route(
-            "/workspaces/{id}/members",
-            post(workspaces::add_member).get(workspaces::list_members),
-        )
-        .route(
-            "/workspaces/{id}/members/{uid}",
-            patch(workspaces::update_member_role).delete(workspaces::remove_member),
-        )
         // Middleware order (outer → inner): require_auth → workspace_context → audit_log
         // route_layer applies bottom-up, so audit_log (innermost) is first
         .route_layer(middleware::from_fn_with_state(
@@ -350,8 +363,41 @@ pub fn router(state: AppState) -> Router {
         ))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
 
+    // Auth-only routes: require authentication but NOT workspace context.
+    // Used for bootstrap endpoints that must work before a workspace is selected.
+    let auth_only = Router::new()
+        .route("/workspaces", post(workspaces::create_workspace))
+        .route("/workspaces", get(workspaces::list_workspaces))
+        .route("/workspaces/{id}", get(workspaces::get_workspace))
+        .route("/workspaces/{id}/members", get(workspaces::list_members))
+        .route(
+            "/sources/test-connection",
+            post(sources::test_source_connection),
+        )
+        .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
+
+    // Workspace management routes: require auth + workspace context for admin checks.
+    let workspace_mgmt = Router::new()
+        .route("/workspaces/{id}", patch(workspaces::update_workspace))
+        .route("/workspaces/{id}", delete(workspaces::delete_workspace))
+        .route("/workspaces/{id}/members", post(workspaces::add_member))
+        .route(
+            "/workspaces/{id}/members/{uid}",
+            patch(workspaces::update_member_role).delete(workspaces::remove_member),
+        )
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            workspace_context,
+        ))
+        .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
+
     // WebSocket routes (auth via query param, not middleware)
     let ws_routes = Router::new().route("/ws/collab", get(ws::collab_ws));
 
-    public.merge(protected).merge(ws_routes).with_state(state)
+    public
+        .merge(protected)
+        .merge(auth_only)
+        .merge(workspace_mgmt)
+        .merge(ws_routes)
+        .with_state(state)
 }

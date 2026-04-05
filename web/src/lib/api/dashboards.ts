@@ -98,3 +98,21 @@ export async function updateWidget(
     { method: "PATCH", body: JSON.stringify(req) },
   );
 }
+
+// ---------------------------------------------------------------------------
+// Dashboard Sharing
+// ---------------------------------------------------------------------------
+
+export async function shareDashboard(
+  id: string,
+): Promise<{ share_token: string }> {
+  return request(`/dashboards/${encodeURIComponent(id)}/share`, {
+    method: "POST",
+  });
+}
+
+export async function unshareDashboard(id: string): Promise<void> {
+  await request(`/dashboards/${encodeURIComponent(id)}/share`, {
+    method: "DELETE",
+  });
+}
