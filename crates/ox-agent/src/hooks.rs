@@ -311,9 +311,8 @@ impl RecoveryDetectionHook {
     /// Periodic cleanup: remove entries older than 10 minutes.
     fn cleanup_stale_sessions(&self) {
         let cutoff = Utc::now() - chrono::Duration::minutes(10);
-        self.session_outcomes.retain(|_, outcomes| {
-            outcomes.last().is_some_and(|o| o.timestamp > cutoff)
-        });
+        self.session_outcomes
+            .retain(|_, outcomes| outcomes.last().is_some_and(|o| o.timestamp > cutoff));
     }
 }
 
@@ -351,7 +350,11 @@ impl Hook for RecoveryDetectionHook {
                 (OutcomeKind::Error, None, 0)
             } else {
                 let (cq, rc) = parse_query_metrics(&text);
-                let kind = if rc == 0 { OutcomeKind::Empty } else { OutcomeKind::Success };
+                let kind = if rc == 0 {
+                    OutcomeKind::Empty
+                } else {
+                    OutcomeKind::Success
+                };
                 (kind, cq, rc)
             };
 
@@ -371,17 +374,17 @@ impl Hook for RecoveryDetectionHook {
             // Check for recovery pattern: prior failure (error or empty) + current success
             if kind == OutcomeKind::Success {
                 // Extract failure data while holding the DashMap guard
-                let prior_failure_data = self
-                    .session_outcomes
-                    .get(session_id)
-                    .and_then(|outcomes| {
-                        outcomes.iter().rev().skip(1)
+                let prior_failure_data =
+                    self.session_outcomes.get(session_id).and_then(|outcomes| {
+                        outcomes
+                            .iter()
+                            .rev()
+                            .skip(1)
                             .find(|o| matches!(o.kind, OutcomeKind::Error | OutcomeKind::Empty))
                             .map(|o| (o.kind, o.text.clone(), o.compiled_query.clone()))
                     });
 
                 if let Some((failure_kind, failure_text, failure_compiled)) = prior_failure_data {
-
                     // Extract labels and query from success output
                     let (success_query, labels, execution_id) = parse_success_output(&text);
 
@@ -395,7 +398,9 @@ impl Hook for RecoveryDetectionHook {
                                 &failure_text
                             };
                             (
-                                format!("Recovery: query_graph failed then succeeded in session {session_short}"),
+                                format!(
+                                    "Recovery: query_graph failed then succeeded in session {session_short}"
+                                ),
                                 format!(
                                     "Failed: {}\nCorrection: {}",
                                     error_excerpt,
@@ -404,21 +409,22 @@ impl Hook for RecoveryDetectionHook {
                                 "recovery_detection",
                             )
                         }
-                        OutcomeKind::Empty => {
-                            (
-                                format!("Refinement: query_graph empty then succeeded in session {session_short}"),
-                                format!(
-                                    "Empty (0 rows): {}\nCorrection: {}",
-                                    failure_compiled.as_deref().unwrap_or("(unknown query)"),
-                                    success_query.as_deref().unwrap_or("(successful query)"),
-                                ),
-                                "zero_row_recovery",
-                            )
-                        }
+                        OutcomeKind::Empty => (
+                            format!(
+                                "Refinement: query_graph empty then succeeded in session {session_short}"
+                            ),
+                            format!(
+                                "Empty (0 rows): {}\nCorrection: {}",
+                                failure_compiled.as_deref().unwrap_or("(unknown query)"),
+                                success_query.as_deref().unwrap_or("(successful query)"),
+                            ),
+                            "zero_row_recovery",
+                        ),
                         OutcomeKind::Success => unreachable!(),
                     };
 
-                    let hash = ox_brain::knowledge_util::content_hash(&self.ontology_name, &content);
+                    let hash =
+                        ox_brain::knowledge_util::content_hash(&self.ontology_name, &content);
 
                     let entry = KnowledgeEntry {
                         id: Uuid::new_v4(),
@@ -471,7 +477,9 @@ impl Hook for RecoveryDetectionHook {
                                             ontology = %entry.ontology_name,
                                             "Knowledge correction from recovery detection"
                                         ),
-                                        Err(e) => warn!(error = %e, "Failed to save recovery correction"),
+                                        Err(e) => {
+                                            warn!(error = %e, "Failed to save recovery correction")
+                                        }
                                     }
                                     branchforge::ToolResult::success("")
                                 }))
@@ -492,7 +500,9 @@ impl Hook for RecoveryDetectionHook {
                                     count = n,
                                     "Cleaned stale session memories after recovery"
                                 ),
-                                Err(e) => warn!(error = %e, "Failed to clean stale session memories"),
+                                Err(e) => {
+                                    warn!(error = %e, "Failed to clean stale session memories")
+                                }
                                 _ => {}
                             }
                         });
@@ -523,8 +533,14 @@ fn parse_query_metrics(output: &str) -> (Option<String>, usize) {
         Ok(v) => v,
         Err(_) => return (None, 0),
     };
-    let compiled_query = parsed.get("compiled_query").and_then(|v| v.as_str()).map(String::from);
-    let row_count = parsed.get("row_count").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+    let compiled_query = parsed
+        .get("compiled_query")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+    let row_count = parsed
+        .get("row_count")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0) as usize;
     (compiled_query, row_count)
 }
 
@@ -535,8 +551,14 @@ fn parse_success_output(output: &str) -> (Option<String>, Vec<String>, Option<St
         Err(_) => return (None, vec![], None),
     };
 
-    let compiled_query = parsed.get("compiled_query").and_then(|v| v.as_str()).map(String::from);
-    let execution_id = parsed.get("execution_id").and_then(|v| v.as_str()).map(String::from);
+    let compiled_query = parsed
+        .get("compiled_query")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+    let execution_id = parsed
+        .get("execution_id")
+        .and_then(|v| v.as_str())
+        .map(String::from);
 
     // Extract labels from columns (heuristic: PascalCase or non-ASCII starts like Korean)
     let labels: Vec<String> = parsed

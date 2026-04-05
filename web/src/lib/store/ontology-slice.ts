@@ -2,6 +2,7 @@ import type { StateCreator } from "zustand";
 import type { OntologyIR, OntologyCommand, PropertyPatch, Cardinality } from "@/types/api";
 import type { AppStore, OntologySlice } from "./types";
 import { type OntologyIndex, buildOntologyIndex } from "@/lib/ontology-index";
+import { toast } from "sonner";
 
 const MAX_UNDO_DEPTH = 50;
 
@@ -31,6 +32,9 @@ function invalidateIndex() {
   cachedIndex = null;
   cachedOntologyRef = null;
 }
+
+/** Track whether the undo cap warning has been shown for the current stack. */
+let capWarningShown = false;
 
 // ---------------------------------------------------------------------------
 // Optimistic command application (FE mirror of Rust OntologyCommand)
@@ -438,6 +442,7 @@ export const createOntologySlice: StateCreator<AppStore, [], [], OntologySlice> 
   ontology: null,
   setOntology: (ontology) => {
     invalidateIndex();
+    capWarningShown = false;
     if (ontology) ensureIndex(ontology);
     set({ ontology, commandStack: [], redoStack: [] });
   },
@@ -450,20 +455,28 @@ export const createOntologySlice: StateCreator<AppStore, [], [], OntologySlice> 
     ensureIndex(ontology);
     const { ontology: newOntology, inverse } = applyCommandToOntology(ontology, command);
     invalidateIndex();
-    const newStack = [...commandStack, { command, inverse, before: ontology }];
+    const newStack = [...commandStack, { command, inverse }];
+    const capped = capStack(newStack);
+    if (capped.length < newStack.length && !capWarningShown) {
+      toast.info("Undo history limit reached");
+      capWarningShown = true;
+    }
     set({
       ontology: newOntology,
-      commandStack: capStack(newStack),
+      commandStack: capped,
       redoStack: [],
     });
   },
   undo: () => {
-    const { commandStack } = get();
-    if (commandStack.length === 0) return;
+    const { commandStack, ontology } = get();
+    if (commandStack.length === 0 || !ontology) return;
     const last = commandStack[commandStack.length - 1];
+    ensureIndex(ontology);
+    const { ontology: restored } = applyCommandToOntology(ontology, last.inverse);
+    invalidateIndex();
     const newRedoStack = [...get().redoStack, last];
     set({
-      ontology: last.before,
+      ontology: restored,
       commandStack: capStack(commandStack.slice(0, -1)),
       redoStack: capStack(newRedoStack),
     });
@@ -472,18 +485,19 @@ export const createOntologySlice: StateCreator<AppStore, [], [], OntologySlice> 
     const { redoStack, ontology } = get();
     if (redoStack.length === 0 || !ontology) return;
     const entry = redoStack[redoStack.length - 1];
+    ensureIndex(ontology);
     const { ontology: newOntology, inverse } = applyCommandToOntology(ontology, entry.command);
-    const newStack = [...get().commandStack, { command: entry.command, inverse, before: ontology }];
+    invalidateIndex();
+    const newStack = [...get().commandStack, { command: entry.command, inverse }];
     set({
       ontology: newOntology,
       commandStack: capStack(newStack),
       redoStack: capStack(redoStack.slice(0, -1)),
     });
   },
-  clearCommandStack: () => set({ commandStack: [], redoStack: [] }),
-  resetOntology: () => set({ ontology: null, commandStack: [], redoStack: [] }),
-  loadSavedOntology: (ontology) =>
-    set({ ontology, commandStack: [], redoStack: [] }),
+  clearCommandStack: () => { capWarningShown = false; set({ commandStack: [], redoStack: [] }); },
+  resetOntology: () => { capWarningShown = false; set({ ontology: null, commandStack: [], redoStack: [] }); },
+  loadSavedOntology: (ontology) => { capWarningShown = false; set({ ontology, commandStack: [], redoStack: [] }); },
 
   nodeGroups: {},
   restoreNodeGroups: (groups) => set({ nodeGroups: groups }),

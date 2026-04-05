@@ -104,6 +104,12 @@ export async function updatePromptTemplate(
   });
 }
 
+export async function deletePromptTemplate(id: string): Promise<void> {
+  await request(`/admin/prompts/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Agent Sessions (Audit)
 // ---------------------------------------------------------------------------
@@ -129,6 +135,12 @@ export async function listAgentEvents(sessionId: string): Promise<AgentEvent[]> 
 
 export async function fetchSessionMessages(sessionId: string): Promise<{ messages: SessionMessage[] }> {
   return request(`/sessions/${encodeURIComponent(sessionId)}/messages`);
+}
+
+export async function deleteSession(sessionId: string): Promise<void> {
+  await request(`/sessions/${encodeURIComponent(sessionId)}`, {
+    method: "DELETE",
+  });
 }
 
 // ---------------------------------------------------------------------------

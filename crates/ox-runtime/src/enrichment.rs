@@ -62,7 +62,11 @@ pub fn enrich_descriptions(ontology: &OntologyIR, profile: &DataProfile) -> Enri
 
     // Enrich node properties
     for node_profile in &profile.node_profiles {
-        let Some(node) = ont.node_types.iter_mut().find(|n| n.label == node_profile.label) else {
+        let Some(node) = ont
+            .node_types
+            .iter_mut()
+            .find(|n| n.label == node_profile.label)
+        else {
             continue;
         };
         for stats in &node_profile.property_stats {
@@ -92,7 +96,11 @@ pub fn enrich_descriptions(ontology: &OntologyIR, profile: &DataProfile) -> Enri
 
     // Enrich edge properties
     for edge_profile in &profile.edge_profiles {
-        let Some(edge) = ont.edge_types.iter_mut().find(|e| e.label == edge_profile.label) else {
+        let Some(edge) = ont
+            .edge_types
+            .iter_mut()
+            .find(|e| e.label == edge_profile.label)
+        else {
             continue;
         };
         for stats in &edge_profile.property_stats {
@@ -276,8 +284,12 @@ mod tests {
             null_count: 0,
             distinct_count: 5000,
             sample_values: vec![
-                "제품A".into(), "제품B".into(), "제품C".into(),
-                "제품D".into(), "제품E".into(), "제품F".into(),
+                "제품A".into(),
+                "제품B".into(),
+                "제품C".into(),
+                "제품D".into(),
+                "제품E".into(),
+                "제품F".into(),
             ],
             min_value: Some("제품A".into()),
             max_value: Some("제품Z".into()),
@@ -313,7 +325,8 @@ mod tests {
     #[test]
     fn strip_manual_plus_enrichment() {
         // Current format
-        let desc = Some("Regulatory authority.\n[enriched] Values: \"EU_SCCS\" (1 distinct)".to_string());
+        let desc =
+            Some("Regulatory authority.\n[enriched] Values: \"EU_SCCS\" (1 distinct)".to_string());
         assert_eq!(
             strip_enrichment(&desc),
             Some("Regulatory authority.".to_string())
@@ -359,7 +372,10 @@ mod tests {
         // First enrichment
         let desc = Some("Manual desc".to_string());
         let manual = strip_enrichment(&desc);
-        let enriched = format!("{}{ENRICHMENT_MARKER}Values: \"a\" (1 distinct)", manual.unwrap());
+        let enriched = format!(
+            "{}{ENRICHMENT_MARKER}Values: \"a\" (1 distinct)",
+            manual.unwrap()
+        );
         // Second enrichment (should strip first, re-apply)
         let desc2 = Some(enriched);
         let manual2 = strip_enrichment(&desc2);

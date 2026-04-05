@@ -3,7 +3,7 @@ import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { cn } from "@/lib/cn";
 
 interface TabBarProps {
-  tabs: Array<{ id: string; label: string; icon?: IconSvgElement }>;
+  tabs: Array<{ id: string; label: string; icon?: IconSvgElement; badge?: number }>;
   activeTab: string;
   onTabChange: (tabId: string) => void;
 }
@@ -12,7 +12,7 @@ export function TabBar({ tabs, activeTab, onTabChange }: TabBarProps) {
   return (
     <Tabs.Root value={activeTab} onValueChange={(v) => v && onTabChange(v)}>
       <Tabs.List className="flex items-center">
-        {tabs.map(({ id, label, icon }) => (
+        {tabs.map(({ id, label, icon, badge }) => (
           <Tabs.Tab
             key={id}
             value={id}
@@ -25,6 +25,11 @@ export function TabBar({ tabs, activeTab, onTabChange }: TabBarProps) {
           >
             {icon && <HugeiconsIcon icon={icon} className="h-3 w-3" size="100%" />}
             {label}
+            {badge != null && badge > 0 && (
+              <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-100 px-1 text-[10px] font-bold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                {badge}
+              </span>
+            )}
           </Tabs.Tab>
         ))}
       </Tabs.List>

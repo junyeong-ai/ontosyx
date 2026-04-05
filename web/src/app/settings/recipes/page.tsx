@@ -2,7 +2,10 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Spinner } from "@/components/ui/spinner";
+import { SettingsSelect } from "@/components/ui/form-input";
+import { FormInput } from "@/components/ui/form-input";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { AnalysisRecipe, RecipeStatus } from "@/types/api";
 import {
   listRecipes,
@@ -36,7 +39,9 @@ export default function RecipesPage() {
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [runningRecipe, setRunningRecipe] = useState<AnalysisRecipe | null>(null);
+  const [search, setSearch] = useState("");
   const { isAdmin } = useAuth();
+  const confirm = useConfirm();
 
   useEffect(() => {
     listRecipes()
@@ -46,6 +51,13 @@ export default function RecipesPage() {
   }, []);
 
   const handleDelete = async (id: string) => {
+    const recipe = recipes.find((r) => r.id === id);
+    const ok = await confirm({
+      title: `Delete recipe '${recipe?.name ?? id}'?`,
+      description: "This action cannot be undone. The recipe and all its versions will be permanently removed.",
+      variant: "danger",
+    });
+    if (!ok) return;
     try {
       await deleteRecipe(id);
       setRecipes((prev) => prev.filter((r) => r.id !== id));
@@ -89,6 +101,13 @@ export default function RecipesPage() {
 
   const selected = recipes.find((r) => r.id === selectedId);
 
+  const filtered = recipes.filter(
+    (r) =>
+      !search ||
+      r.name.toLowerCase().includes(search.toLowerCase()) ||
+      r.description.toLowerCase().includes(search.toLowerCase()),
+  );
+
   return (
     <div>
       <h1 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
@@ -100,15 +119,26 @@ export default function RecipesPage() {
 
       <RecipeCreateForm onSubmit={handleCreate} />
 
+      <div className="mt-4 mb-4">
+        <FormInput
+          placeholder="Search by name or description..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="max-w-xs"
+        />
+      </div>
+
       {/* Gallery grid */}
       <div className="mt-6">
-        {recipes.length === 0 ? (
+        {filtered.length === 0 ? (
           <p className="text-sm text-zinc-400">
-            No recipes yet. The agent will create recipes when analyses produce useful results.
+            {recipes.length === 0
+              ? "No recipes yet. The agent will create recipes when analyses produce useful results."
+              : "No matching recipes."}
           </p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {recipes.map((r) => (
+            {filtered.map((r) => (
               <div
                 key={r.id}
                 onClick={() => setSelectedId(r.id === selectedId ? null : r.id)}
@@ -225,17 +255,16 @@ function RecipeDetail({
         </div>
         <div className="flex items-center gap-2">
           {isAdmin && (
-            <select
+            <SettingsSelect
               value={recipe.status}
               onChange={(e) =>
                 onStatusChange(recipe.id, e.target.value as RecipeStatus)
               }
-              className="rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
             >
               <option value="draft">Draft</option>
               <option value="approved">Approved</option>
               <option value="deprecated">Deprecated</option>
-            </select>
+            </SettingsSelect>
           )}
           <button
             onClick={loadVersions}
@@ -552,17 +581,16 @@ function RecipeCreateForm({
           <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
             Algorithm Type
           </label>
-          <select
+          <SettingsSelect
             value={algorithmType}
             onChange={(e) => setAlgorithmType(e.target.value)}
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
           >
             {ALGORITHM_TYPES.map((t) => (
               <option key={t} value={t}>
                 {t.replace(/_/g, " ")}
               </option>
             ))}
-          </select>
+          </SettingsSelect>
         </div>
 
         <div>

@@ -6,6 +6,7 @@ use branchforge::{SchemaTool, ToolResult};
 use ox_core::source_schema::SourceSchema;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::DomainContext;
 
@@ -38,6 +39,11 @@ struct DriftReport {
     unmapped_columns: Vec<UnmappedColumn>,
     /// Ontology properties whose source column no longer exists
     orphaned_properties: Vec<OrphanedProperty>,
+    /// Columns whose DB type is incompatible with the ontology property type
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    type_mismatches: Vec<TypeMismatch>,
+    /// SHA-256 checksum of the normalised source schema (for fast change detection)
+    schema_checksum: String,
     /// Summary statistics
     summary: DriftSummary,
 }
@@ -56,6 +62,24 @@ struct OrphanedProperty {
 }
 
 #[derive(Debug, Serialize)]
+struct TypeMismatch {
+    table: String,
+    column: String,
+    source_type: String,
+    ontology_type: String,
+    compatibility: TypeCompatibility,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum TypeCompatibility {
+    /// Safe widening — no data loss (e.g., source int → ontology float)
+    WideningSafe,
+    /// Incompatible — potential data loss or semantic mismatch (e.g., source int → ontology bool)
+    Breaking,
+}
+
+#[derive(Debug, Serialize)]
 struct DriftSummary {
     total_source_tables: usize,
     total_ontology_nodes: usize,
@@ -63,6 +87,7 @@ struct DriftSummary {
     orphaned_node_count: usize,
     unmapped_column_count: usize,
     orphaned_property_count: usize,
+    type_mismatch_count: usize,
     drift_detected: bool,
 }
 
@@ -104,7 +129,8 @@ impl SchemaTool for SchemaEvolutionTool {
                     return ToolResult::success(
                         serde_json::json!({
                             "status": "no_drift",
-                            "message": "Source schema and ontology are in sync. No updates needed."
+                            "message": "Source schema and ontology are in sync. No updates needed.",
+                            "schema_checksum": report.schema_checksum,
                         })
                         .to_string(),
                     );
@@ -143,8 +169,20 @@ impl SchemaTool for SchemaEvolutionTool {
                     ));
                 }
 
+                for tm in &report.type_mismatches {
+                    let severity = match tm.compatibility {
+                        TypeCompatibility::Breaking => "BREAKING TYPE CHANGE",
+                        TypeCompatibility::WideningSafe => "TYPE WIDENING",
+                    };
+                    suggestions.push(format!(
+                        "{severity}: Column '{}.{}' has source type '{}', ontology expects '{}'",
+                        tm.table, tm.column, tm.source_type, tm.ontology_type,
+                    ));
+                }
+
                 let output = serde_json::json!({
                     "drift_summary": report.summary,
+                    "schema_checksum": report.schema_checksum,
                     "suggestions": suggestions,
                     "suggestion_count": suggestions.len(),
                 });
@@ -155,6 +193,8 @@ impl SchemaTool for SchemaEvolutionTool {
 }
 
 fn detect_drift(schema: &SourceSchema, ontology: &ox_core::ontology_ir::OntologyIR) -> DriftReport {
+    let schema_checksum = compute_schema_checksum(schema);
+
     // Extract source table names
     let source_tables: std::collections::HashSet<String> =
         schema.tables.iter().map(|t| t.name.clone()).collect();
@@ -185,9 +225,10 @@ fn detect_drift(schema: &SourceSchema, ontology: &ox_core::ontology_ir::Ontology
         .map(|(label, _)| label.clone())
         .collect();
 
-    // Find unmapped columns and orphaned properties
+    // Find unmapped columns, orphaned properties, and type mismatches
     let mut unmapped_columns = Vec::new();
     let mut orphaned_properties = Vec::new();
+    let mut type_mismatches = Vec::new();
 
     for table in &schema.tables {
         // Find the ontology node mapped to this table
@@ -223,13 +264,36 @@ fn detect_drift(schema: &SourceSchema, ontology: &ox_core::ontology_ir::Ontology
                     });
                 }
             }
+
+            // Type compatibility: use PropertyType::check_compatibility_with()
+            for col in &table.columns {
+                if let Some(prop) = node.properties.iter().find(|p| p.name == col.name)
+                    && let Some(is_safe) =
+                        prop.property_type.check_compatibility_with(&col.data_type)
+                {
+                    type_mismatches.push(TypeMismatch {
+                        table: table.name.clone(),
+                        column: col.name.clone(),
+                        source_type: col.data_type.clone(),
+                        ontology_type: prop.property_type.to_string(),
+                        compatibility: if is_safe {
+                            TypeCompatibility::WideningSafe
+                        } else {
+                            TypeCompatibility::Breaking
+                        },
+                    });
+                }
+            }
         }
     }
 
     let drift_detected = !unmapped_tables.is_empty()
         || !orphaned_nodes.is_empty()
         || !unmapped_columns.is_empty()
-        || !orphaned_properties.is_empty();
+        || !orphaned_properties.is_empty()
+        || type_mismatches
+            .iter()
+            .any(|t| t.compatibility == TypeCompatibility::Breaking);
 
     DriftReport {
         summary: DriftSummary {
@@ -239,13 +303,47 @@ fn detect_drift(schema: &SourceSchema, ontology: &ox_core::ontology_ir::Ontology
             orphaned_node_count: orphaned_nodes.len(),
             unmapped_column_count: unmapped_columns.len(),
             orphaned_property_count: orphaned_properties.len(),
+            type_mismatch_count: type_mismatches.len(),
             drift_detected,
         },
         unmapped_tables,
         orphaned_nodes,
         unmapped_columns,
         orphaned_properties,
+        type_mismatches,
+        schema_checksum,
     }
+}
+
+// ---------------------------------------------------------------------------
+// Schema checksum — deterministic fast change detection
+// ---------------------------------------------------------------------------
+
+/// Compute a normalised SHA-256 checksum of the source schema.
+///
+/// Normalises table and column ordering to ensure deterministic output
+/// regardless of the order the source database returns metadata.
+fn compute_schema_checksum(schema: &SourceSchema) -> String {
+    // Sort tables by name, columns (name + type) within each table by name
+    let mut tables: Vec<(&str, Vec<(&str, &str)>)> = schema
+        .tables
+        .iter()
+        .map(|t| {
+            let mut cols: Vec<(&str, &str)> = t
+                .columns
+                .iter()
+                .map(|c| (c.name.as_str(), c.data_type.as_str()))
+                .collect();
+            cols.sort_unstable_by_key(|(name, _)| *name);
+            (t.name.as_str(), cols)
+        })
+        .collect();
+    tables.sort_unstable_by_key(|(name, _)| *name);
+
+    // Hash the normalised representation (includes types for change detection)
+    let normalised = serde_json::to_string(&tables).unwrap_or_default();
+    let hash = Sha256::digest(normalised.as_bytes());
+    format!("{hash:x}")
 }
 
 fn to_pascal_case(s: &str) -> String {

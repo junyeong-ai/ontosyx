@@ -194,10 +194,7 @@ pub async fn discover_schema(
 /// - Tier 1: Graph structure (edges) — enables multi-hop chain planning
 /// - Tier 2: Property names + types — enables WHERE filters and projections
 /// - Tier 3: Property descriptions — enables value matching (enums, ranges)
-pub(crate) fn build_progressive_schema(
-    ontology: &OntologyIR,
-    expanded_labels: &[&str],
-) -> String {
+pub(crate) fn build_progressive_schema(ontology: &OntologyIR, expanded_labels: &[&str]) -> String {
     let expanded_set: HashSet<&str> = expanded_labels.iter().copied().collect();
 
     let mut output = String::with_capacity(2048);
@@ -206,14 +203,25 @@ pub(crate) fn build_progressive_schema(
     // Explicit labels help the LLM use EXACT edge names (critical in JSON mode)
     output.push_str("Graph edges (use EXACTLY these edge labels):\n");
     for edge in &ontology.edge_types {
-        let src = ontology.node_label(edge.source_node_id.as_ref()).unwrap_or("?");
-        let tgt = ontology.node_label(edge.target_node_id.as_ref()).unwrap_or("?");
+        let src = ontology
+            .node_label(edge.source_node_id.as_ref())
+            .unwrap_or("?");
+        let tgt = ontology
+            .node_label(edge.target_node_id.as_ref())
+            .unwrap_or("?");
         if expanded_set.contains(src) && expanded_set.contains(tgt) {
             let cardinality = format!("{:?}", edge.cardinality);
-            output.push_str(&format!("  ({src})-[:{}]->({tgt}) [{cardinality}]\n", edge.label));
+            output.push_str(&format!(
+                "  ({src})-[:{}]->({tgt}) [{cardinality}]\n",
+                edge.label
+            ));
             // Include edge properties if they exist (e.g., quantity on CONTAINS)
             for p in &edge.properties {
-                output.push_str(&format!("    edge.{}: {}\n", p.name, format_property_type(&p.property_type)));
+                output.push_str(&format!(
+                    "    edge.{}: {}\n",
+                    p.name,
+                    format_property_type(&p.property_type)
+                ));
             }
         }
     }
@@ -225,10 +233,17 @@ pub(crate) fn build_progressive_schema(
             if node.properties.is_empty() {
                 continue; // Skip nodes with no properties — no useful info for query
             }
-            let props: Vec<String> = node.properties.iter()
+            let props: Vec<String> = node
+                .properties
+                .iter()
                 .map(|p| {
                     let nullable = if p.nullable { "?" } else { "" };
-                    format!("{}{}: {}", p.name, nullable, format_property_type(&p.property_type))
+                    format!(
+                        "{}{}: {}",
+                        p.name,
+                        nullable,
+                        format_property_type(&p.property_type)
+                    )
                 })
                 .collect();
             output.push_str(&format!("  {}: {{{}}}\n", label, props.join(", ")));
@@ -245,9 +260,12 @@ pub(crate) fn build_progressive_schema(
     let mut has_details = false;
     for label in expanded_labels {
         if let Some(node) = ontology.node_by_label(label) {
-            let mut described_props: Vec<(&str, &str)> = node.properties.iter()
+            let mut described_props: Vec<(&str, &str)> = node
+                .properties
+                .iter()
                 .filter_map(|p| {
-                    p.description.as_ref()
+                    p.description
+                        .as_ref()
                         .filter(|d| !d.is_empty())
                         .map(|d| (p.name.as_str(), d.as_str()))
                 })
@@ -277,8 +295,12 @@ pub(crate) fn build_progressive_schema(
 
     // Edge property details (enriched sample values for edge properties)
     for edge in &ontology.edge_types {
-        let src = ontology.node_label(edge.source_node_id.as_ref()).unwrap_or("?");
-        let tgt = ontology.node_label(edge.target_node_id.as_ref()).unwrap_or("?");
+        let src = ontology
+            .node_label(edge.source_node_id.as_ref())
+            .unwrap_or("?");
+        let tgt = ontology
+            .node_label(edge.target_node_id.as_ref())
+            .unwrap_or("?");
         if expanded_set.contains(src) && expanded_set.contains(tgt) {
             let mut described: Vec<(&str, &str)> = edge
                 .properties
@@ -292,7 +314,10 @@ pub(crate) fn build_progressive_schema(
                 .collect();
             described.sort_by(|a, b| b.1.len().cmp(&a.1.len()));
             let total = described.len();
-            let pruned: Vec<_> = described.into_iter().take(MAX_DESCRIBED_PROPS_PER_EDGE).collect();
+            let pruned: Vec<_> = described
+                .into_iter()
+                .take(MAX_DESCRIBED_PROPS_PER_EDGE)
+                .collect();
             if !pruned.is_empty() {
                 if !has_details {
                     output.push_str("\nProperty details:\n");
@@ -325,12 +350,17 @@ fn format_property_type(pt: &ox_core::types::PropertyType) -> String {
         ox_core::types::PropertyType::Duration => "duration".into(),
         ox_core::types::PropertyType::Bytes => "bytes".into(),
         ox_core::types::PropertyType::Map => "map".into(),
-        ox_core::types::PropertyType::List { element } => format!("list<{}>", format_property_type(element)),
+        ox_core::types::PropertyType::List { element } => {
+            format!("list<{}>", format_property_type(element))
+        }
     }
 }
 
 fn all_labels(ontology: &OntologyIR) -> Vec<String> {
-    ontology.node_types.iter().map(|n| n.label.clone())
+    ontology
+        .node_types
+        .iter()
+        .map(|n| n.label.clone())
         .chain(ontology.edge_types.iter().map(|e| e.label.clone()))
         .collect()
 }

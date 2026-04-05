@@ -94,7 +94,7 @@ export async function forwardProtectedRequest(
   const upstream = await fetch(`${BACKEND}${upstreamPath}`, {
     method: request.method,
     headers,
-    body: request.method === "GET" || request.method === "HEAD"
+    body: request.method === "GET" || request.method === "HEAD" || request.method === "DELETE"
       ? undefined
       : await request.text(),
     cache: "no-store",

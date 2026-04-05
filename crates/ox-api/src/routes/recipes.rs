@@ -12,6 +12,7 @@ use crate::error::AppError;
 use crate::principal::Principal;
 use crate::state::AppState;
 use crate::validation;
+use crate::workspace::WorkspaceContext;
 
 // ---------------------------------------------------------------------------
 // POST /api/recipes — save an analysis recipe
@@ -34,6 +35,7 @@ pub struct RecipeCreateRequest {
 pub(crate) async fn create_recipe(
     State(state): State<AppState>,
     principal: Principal,
+    ws: WorkspaceContext,
     Json(req): Json<RecipeCreateRequest>,
 ) -> Result<Json<AnalysisRecipe>, AppError> {
     principal.require_designer()?;
@@ -43,6 +45,7 @@ pub(crate) async fn create_recipe(
 
     let recipe = AnalysisRecipe {
         id: Uuid::new_v4(),
+        workspace_id: ws.workspace_id,
         name: req.name,
         description: req.description,
         algorithm_type: req.algorithm_type,
@@ -199,6 +202,7 @@ pub(crate) async fn update_recipe_status(
 pub(crate) async fn create_recipe_version(
     State(state): State<AppState>,
     principal: Principal,
+    ws: WorkspaceContext,
     Path(parent_id): Path<Uuid>,
     Json(req): Json<RecipeCreateRequest>,
 ) -> Result<Json<AnalysisRecipe>, AppError> {
@@ -217,6 +221,7 @@ pub(crate) async fn create_recipe_version(
 
     let recipe = AnalysisRecipe {
         id: Uuid::new_v4(),
+        workspace_id: ws.workspace_id,
         name: req.name,
         description: req.description,
         algorithm_type: req.algorithm_type,

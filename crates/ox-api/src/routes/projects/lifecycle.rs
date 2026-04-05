@@ -419,6 +419,7 @@ pub(crate) async fn delete_project(
 pub(crate) async fn complete_project(
     State(state): State<AppState>,
     principal: Principal,
+    ws: crate::workspace::WorkspaceContext,
     Path(id): Path<Uuid>,
     Json(req): Json<ProjectCompleteRequest>,
 ) -> Result<Json<DesignProject>, AppError> {
@@ -458,6 +459,7 @@ pub(crate) async fn complete_project(
 
     let saved = SavedOntology {
         id: Uuid::new_v4(),
+        workspace_id: ws.workspace_id,
         name: req.name,
         description: req.description,
         version: next_version,
@@ -501,7 +503,9 @@ pub(crate) async fn complete_project(
 
     // Knowledge lifecycle: mark stale entries when breaking schema changes detected.
     // Non-blocking — lifecycle failure doesn't affect project completion.
-    if next_version > 1 && let Some(prev) = &latest {
+    if next_version > 1
+        && let Some(prev) = &latest
+    {
         let store = Arc::clone(&state.store);
         let ontology_name = saved.name.clone();
         let prev_ir = prev.ontology_ir.clone();
@@ -899,6 +903,7 @@ pub(crate) async fn execute_load_from_source(
     // Create lineage entry before load execution
     let lineage_id = Uuid::new_v4();
     let source_type_str = source_config.source_type.to_string();
+    let property_mappings = extract_all_mappings(&req.plan);
     let lineage_entry = ox_store::LineageEntry {
         id: lineage_id,
         workspace_id: ws.workspace_id,
@@ -910,6 +915,7 @@ pub(crate) async fn execute_load_from_source(
         source_table: None,
         source_columns: None,
         load_plan_hash: None,
+        property_mappings: serde_json::to_value(&property_mappings).ok(),
         record_count: 0,
         loaded_by: principal.user_uuid().ok(),
         started_at: Utc::now(),
@@ -930,6 +936,14 @@ pub(crate) async fn execute_load_from_source(
         errors: Vec::new(),
     };
 
+    // Determine load mode: full (default) or incremental (watermark-based)
+    let incremental_config = match &req.plan.mode {
+        ox_core::load_plan::LoadMode::Incremental { watermark_column } => {
+            Some(watermark_column.clone())
+        }
+        ox_core::load_plan::LoadMode::Full => None,
+    };
+
     // Execute each load step: fetch from source table → execute against graph
     for (step_idx, (step, cypher)) in req.plan.steps.iter().zip(&compiled_statements).enumerate() {
         // Determine source table from the load operation
@@ -947,55 +961,169 @@ pub(crate) async fn execute_load_from_source(
 
         // Determine which columns to fetch based on the operation's property mappings
         let columns = extract_source_columns(&step.operation);
+        let graph_label = graph_label_for_op(&step.operation);
 
-        // Fetch and load in batches
-        let row_count = fetcher.count_rows(&source_table).await.map_err(|e| {
-            AppError::internal(format!("Failed to count rows in {source_table}: {e}"))
-        })?;
-
-        info!(
-            step = step_idx,
-            table = %source_table,
-            rows = row_count,
-            "Fetching data for load step"
-        );
-
-        let mut offset = 0u64;
-        while offset < row_count {
-            let rows = fetcher
-                .fetch_batch(&source_table, &columns, offset, req.batch_size)
+        // Incremental mode: look up previous checkpoint to get the watermark value
+        let watermark_state = if let Some(wm_col) = &incremental_config {
+            let checkpoint = state
+                .store
+                .get_checkpoint(id, &source_table, &graph_label)
                 .await
-                .map_err(|e| {
-                    AppError::internal(format!("Failed to fetch batch from {source_table}: {e}"))
-                })?;
+                .map_err(|e| AppError::internal(format!("Failed to read checkpoint: {e}")))?;
+            Some((wm_col.clone(), checkpoint))
+        } else {
+            None
+        };
 
-            if rows.is_empty() {
-                break;
+        // Branch: incremental fetch vs. full fetch
+        if let Some((wm_col, checkpoint)) = &watermark_state {
+            let wm_value = checkpoint
+                .as_ref()
+                .map(|c| c.watermark_value.clone())
+                .unwrap_or_default();
+
+            info!(
+                step = step_idx,
+                table = %source_table,
+                watermark_column = %wm_col,
+                watermark_from = %wm_value,
+                "Fetching incremental data for load step"
+            );
+
+            // Ensure the watermark column is included in the fetched columns
+            let mut inc_columns = columns.clone();
+            if !inc_columns.contains(wm_col) {
+                inc_columns.push(wm_col.clone());
             }
 
-            let batch_len = rows.len();
-            total_rows_fetched += batch_len as u64;
+            let mut max_watermark = wm_value.clone();
+            let mut step_rows: i64 = 0;
 
-            // Convert to LoadBatch
-            let values: Vec<serde_json::Value> =
-                rows.into_iter().map(serde_json::Value::Object).collect();
-            let batch = ox_runtime::LoadBatch::from_values(values).map_err(AppError::from)?;
+            loop {
+                let rows = fetcher
+                    .fetch_incremental(
+                        &source_table,
+                        &inc_columns,
+                        wm_col,
+                        &max_watermark,
+                        req.batch_size,
+                    )
+                    .await
+                    .map_err(|e| {
+                        AppError::internal(format!(
+                            "Failed to fetch incremental from {source_table}: {e}"
+                        ))
+                    })?;
 
-            // Execute against graph
-            let result = runtime
-                .execute_load(cypher, batch)
-                .await
-                .map_err(AppError::from)?;
+                if rows.is_empty() {
+                    break;
+                }
 
-            combined_result.nodes_created += result.nodes_created;
-            combined_result.nodes_updated += result.nodes_updated;
-            combined_result.edges_created += result.edges_created;
-            combined_result.edges_updated += result.edges_updated;
-            combined_result.batches_processed += result.batches_processed;
-            combined_result.batches_failed += result.batches_failed;
-            combined_result.errors.extend(result.errors);
+                let batch_len = rows.len();
+                total_rows_fetched += batch_len as u64;
+                step_rows += batch_len as i64;
 
-            offset += batch_len as u64;
+                // Track the max watermark value in this batch
+                for row in &rows {
+                    if let Some(val) = row.get(wm_col) {
+                        let val_str = match val {
+                            serde_json::Value::String(s) => s.clone(),
+                            other => other.to_string(),
+                        };
+                        if val_str > max_watermark {
+                            max_watermark = val_str;
+                        }
+                    }
+                }
+
+                let values: Vec<serde_json::Value> =
+                    rows.into_iter().map(serde_json::Value::Object).collect();
+                let batch = ox_runtime::LoadBatch::from_values(values).map_err(AppError::from)?;
+
+                let result = runtime
+                    .execute_load(cypher, batch)
+                    .await
+                    .map_err(AppError::from)?;
+
+                combined_result.nodes_created += result.nodes_created;
+                combined_result.nodes_updated += result.nodes_updated;
+                combined_result.edges_created += result.edges_created;
+                combined_result.edges_updated += result.edges_updated;
+                combined_result.batches_processed += result.batches_processed;
+                combined_result.batches_failed += result.batches_failed;
+                combined_result.errors.extend(result.errors);
+
+                // If we got fewer rows than the batch size, we're done
+                if (batch_len as u64) < req.batch_size {
+                    break;
+                }
+            }
+
+            // Upsert checkpoint with the new max watermark
+            if max_watermark != wm_value || step_rows > 0 {
+                let cp = ox_store::LoadCheckpoint {
+                    id: Uuid::new_v4(),
+                    workspace_id: ws.workspace_id,
+                    project_id: id,
+                    source_table: source_table.clone(),
+                    graph_label: graph_label.clone(),
+                    watermark_column: wm_col.clone(),
+                    watermark_value: max_watermark,
+                    record_count: step_rows,
+                    loaded_at: Utc::now(),
+                };
+                let _ = state.store.upsert_checkpoint(&cp).await;
+            }
+        } else {
+            // Full mode: original pagination-based fetch
+            let row_count = fetcher.count_rows(&source_table).await.map_err(|e| {
+                AppError::internal(format!("Failed to count rows in {source_table}: {e}"))
+            })?;
+
+            info!(
+                step = step_idx,
+                table = %source_table,
+                rows = row_count,
+                "Fetching data for load step"
+            );
+
+            let mut offset = 0u64;
+            while offset < row_count {
+                let rows = fetcher
+                    .fetch_batch(&source_table, &columns, offset, req.batch_size)
+                    .await
+                    .map_err(|e| {
+                        AppError::internal(format!(
+                            "Failed to fetch batch from {source_table}: {e}"
+                        ))
+                    })?;
+
+                if rows.is_empty() {
+                    break;
+                }
+
+                let batch_len = rows.len();
+                total_rows_fetched += batch_len as u64;
+
+                let values: Vec<serde_json::Value> =
+                    rows.into_iter().map(serde_json::Value::Object).collect();
+                let batch = ox_runtime::LoadBatch::from_values(values).map_err(AppError::from)?;
+
+                let result = runtime
+                    .execute_load(cypher, batch)
+                    .await
+                    .map_err(AppError::from)?;
+
+                combined_result.nodes_created += result.nodes_created;
+                combined_result.nodes_updated += result.nodes_updated;
+                combined_result.edges_created += result.edges_created;
+                combined_result.edges_updated += result.edges_updated;
+                combined_result.batches_processed += result.batches_processed;
+                combined_result.batches_failed += result.batches_failed;
+                combined_result.errors.extend(result.errors);
+
+                offset += batch_len as u64;
+            }
         }
     }
 
@@ -1043,20 +1171,29 @@ pub(crate) async fn execute_load_from_source(
         let store = Arc::clone(&state.store);
         let ontology_json = project.ontology.clone();
         crate::spawn_scoped::spawn_scoped(async move {
-            let Some(ont_json) = ontology_json else { return };
-            let Ok(ontology) = serde_json::from_value::<ox_core::OntologyIR>(ont_json) else { return };
-            let config = ox_runtime::profiler::ProfileConfig::for_ontology_size(ontology.node_types.len());
-            let Ok(profile) = ox_runtime::profiler::profile_graph(runtime.as_ref(), &ontology, &config).await else { return };
+            let Some(ont_json) = ontology_json else {
+                return;
+            };
+            let Ok(ontology) = serde_json::from_value::<ox_core::OntologyIR>(ont_json) else {
+                return;
+            };
+            let config =
+                ox_runtime::profiler::ProfileConfig::for_ontology_size(ontology.node_types.len());
+            let Ok(profile) =
+                ox_runtime::profiler::profile_graph(runtime.as_ref(), &ontology, &config).await
+            else {
+                return;
+            };
             let result = ox_runtime::enrichment::enrich_descriptions(&ontology, &profile);
-            if !result.changes.is_empty() {
-                if let Ok(ir_json) = serde_json::to_value(&result.ontology) {
-                    let _ = store.update_ontology_ir(ont_id, &ir_json).await;
-                    tracing::info!(
-                        ontology_id = %ont_id,
-                        changes = result.changes.len(),
-                        "Auto-enriched ontology after data load"
-                    );
-                }
+            if !result.changes.is_empty()
+                && let Ok(ir_json) = serde_json::to_value(&result.ontology)
+            {
+                let _ = store.update_ontology_ir(ont_id, &ir_json).await;
+                tracing::info!(
+                    ontology_id = %ont_id,
+                    changes = result.changes.len(),
+                    "Auto-enriched ontology after data load"
+                );
             }
         });
     }
@@ -1144,6 +1281,100 @@ fn resolve_source_table(
     }
 }
 
+/// Per-label aggregated property mappings extracted from a LoadPlan.
+#[derive(Serialize)]
+struct LabelMappings {
+    label: String,
+    element_type: String,
+    mappings: Vec<FlatPropertyMapping>,
+}
+
+/// Flat serializable property mapping for JSON storage.
+#[derive(Serialize)]
+struct FlatPropertyMapping {
+    source_column: String,
+    graph_property: String,
+    transform: Option<String>,
+    mapping_kind: String, // "match" or "set"
+}
+
+/// Extract all property mappings from a LoadPlan, grouped by target label.
+fn extract_all_mappings(plan: &ox_core::load_plan::LoadPlan) -> Vec<LabelMappings> {
+    use ox_core::load_plan::LoadOp;
+
+    plan.steps
+        .iter()
+        .map(|step| match &step.operation {
+            LoadOp::UpsertNode {
+                target_label,
+                match_fields,
+                set_fields,
+                ..
+            } => {
+                let mut mappings: Vec<FlatPropertyMapping> = match_fields
+                    .iter()
+                    .map(|m| FlatPropertyMapping {
+                        source_column: m.source_column.clone(),
+                        graph_property: m.graph_property.clone(),
+                        transform: m.transform.as_ref().map(|t| format!("{t:?}")),
+                        mapping_kind: "match".to_string(),
+                    })
+                    .collect();
+                mappings.extend(set_fields.iter().map(|m| FlatPropertyMapping {
+                    source_column: m.source_column.clone(),
+                    graph_property: m.graph_property.clone(),
+                    transform: m.transform.as_ref().map(|t| format!("{t:?}")),
+                    mapping_kind: "set".to_string(),
+                }));
+                LabelMappings {
+                    label: target_label.clone(),
+                    element_type: "node".to_string(),
+                    mappings,
+                }
+            }
+            LoadOp::UpsertEdge {
+                target_label,
+                source_match,
+                target_match,
+                set_fields,
+                ..
+            } => {
+                let mut mappings = vec![
+                    FlatPropertyMapping {
+                        source_column: source_match.source_field.clone(),
+                        graph_property: format!(
+                            "{}:{}",
+                            source_match.label, source_match.match_property
+                        ),
+                        transform: None,
+                        mapping_kind: "match".to_string(),
+                    },
+                    FlatPropertyMapping {
+                        source_column: target_match.source_field.clone(),
+                        graph_property: format!(
+                            "{}:{}",
+                            target_match.label, target_match.match_property
+                        ),
+                        transform: None,
+                        mapping_kind: "match".to_string(),
+                    },
+                ];
+                mappings.extend(set_fields.iter().map(|m| FlatPropertyMapping {
+                    source_column: m.source_column.clone(),
+                    graph_property: m.graph_property.clone(),
+                    transform: m.transform.as_ref().map(|t| format!("{t:?}")),
+                    mapping_kind: "set".to_string(),
+                }));
+                LabelMappings {
+                    label: target_label.clone(),
+                    element_type: "edge".to_string(),
+                    mappings,
+                }
+            }
+        })
+        .collect()
+}
+
 /// Extract source column names from a load operation's property mappings.
 fn extract_source_columns(op: &ox_core::load_plan::LoadOp) -> Vec<String> {
     use ox_core::load_plan::LoadOp;
@@ -1177,5 +1408,14 @@ fn extract_source_columns(op: &ox_core::load_plan::LoadOp) -> Vec<String> {
             cols.dedup();
             cols
         }
+    }
+}
+
+/// Extract the graph label from a load operation (for checkpoint keying).
+fn graph_label_for_op(op: &ox_core::load_plan::LoadOp) -> String {
+    use ox_core::load_plan::LoadOp;
+    match op {
+        LoadOp::UpsertNode { target_label, .. } => target_label.clone(),
+        LoadOp::UpsertEdge { target_label, .. } => target_label.clone(),
     }
 }

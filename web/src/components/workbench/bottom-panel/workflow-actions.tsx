@@ -378,6 +378,18 @@ export function WorkflowActions({
         connection_string: form.extend.connectionString.trim(),
         database: form.extend.database.trim(),
       };
+    } else if (form.extend.sourceType === "duckdb") {
+      if (!form.extend.duckdbFilePath.trim()) {
+        toast.error("File path is required");
+        return;
+      }
+      source = { type: "duckdb", file_path: form.extend.duckdbFilePath.trim() };
+    } else if (form.extend.sourceType === "snowflake") {
+      toast.error("Snowflake extend is not supported in this form");
+      return;
+    } else if (form.extend.sourceType === "bigquery") {
+      toast.error("BigQuery extend is not supported in this form");
+      return;
     } else if (form.extend.sourceType === "code_repository") {
       if (!form.extend.repoUrl.trim()) {
         toast.error("Repository URL is required");
@@ -613,6 +625,8 @@ export function WorkflowActions({
                 setSampleData={form.extend.setSampleData}
                 repoUrl={form.extend.repoUrl}
                 setRepoUrl={form.extend.setRepoUrl}
+                duckdbFilePath={form.extend.duckdbFilePath}
+                setDuckdbFilePath={form.extend.setDuckdbFilePath}
                 loading={loading}
                 onSubmit={handleExtend}
               />

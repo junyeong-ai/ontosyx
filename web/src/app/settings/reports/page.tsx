@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { Spinner } from "@/components/ui/spinner";
+import { SettingsSelect } from "@/components/ui/form-input";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import type {
   SavedReport,
   SavedOntology,
@@ -49,7 +51,16 @@ export default function ReportsPage() {
       .finally(() => setLoading(false));
   }, [ontologyFilter]);
 
+  const confirm = useConfirm();
+
   const handleDelete = async (id: string) => {
+    const report = reports.find((r) => r.id === id);
+    const ok = await confirm({
+      title: `Delete report '${report?.title ?? id}'?`,
+      description: "This action cannot be undone. The saved report will be permanently removed.",
+      variant: "danger",
+    });
+    if (!ok) return;
     try {
       await deleteReport(id);
       setReports((prev) => prev.filter((r) => r.id !== id));
@@ -100,20 +111,20 @@ export default function ReportsPage() {
         <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
           Ontology
         </label>
-        <select
+        <SettingsSelect
           value={ontologyFilter}
           onChange={(e) => {
             setOntologyFilter(e.target.value);
             setSelectedId(null);
           }}
-          className="mt-0.5 w-64 rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+          className="w-64"
         >
           {ontologies.map((o) => (
             <option key={o.id} value={o.id}>
               {o.name} (v{o.version})
             </option>
           ))}
-        </select>
+        </SettingsSelect>
       </div>
 
       {ontologyFilter && (
@@ -200,7 +211,7 @@ function ReportDetail({
   onUpdate: (id: string, patch: ReportUpdateRequest) => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const confirm = useConfirm();
   const [executing, setExecuting] = useState(false);
   const [paramValues, setParamValues] = useState<Record<string, unknown>>({});
   const [result, setResult] = useState<QueryResult | null>(null);
@@ -215,7 +226,6 @@ function ReportDetail({
   // Reset edit state when report changes
   useEffect(() => {
     setEditing(false);
-    setConfirmDelete(false);
     setResult(null);
     setEditTitle(report.title);
     setEditDescription(report.description ?? "");
@@ -273,29 +283,19 @@ function ReportDetail({
           >
             {editing ? "Cancel" : "Edit"}
           </button>
-          {confirmDelete ? (
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => onDelete(report.id)}
-                className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700"
-              >
-                Confirm
-              </button>
-              <button
-                onClick={() => setConfirmDelete(false)}
-                className="rounded-md px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-600"
-              >
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setConfirmDelete(true)}
-              className="rounded-md px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
-            >
-              Delete
-            </button>
-          )}
+          <button
+            onClick={async () => {
+              const ok = await confirm({
+                title: `Delete report '${report.title}'?`,
+                description: "This action cannot be undone. The saved report will be permanently removed.",
+                variant: "danger",
+              });
+              if (ok) onDelete(report.id);
+            }}
+            className="rounded-md px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+          >
+            Delete
+          </button>
         </div>
       </div>
 
@@ -338,10 +338,9 @@ function ReportDetail({
             <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
               Widget Type
             </label>
-            <select
+            <SettingsSelect
               value={editWidgetType}
               onChange={(e) => setEditWidgetType(e.target.value)}
-              className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
             >
               <option value="">Auto</option>
               {WIDGET_TYPES.map((t) => (
@@ -349,7 +348,7 @@ function ReportDetail({
                   {t.label}
                 </option>
               ))}
-            </select>
+            </SettingsSelect>
           </div>
           <div className="flex items-center gap-2">
             <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
@@ -677,10 +676,9 @@ function ReportCreateForm({
           <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
             Widget Type
           </label>
-          <select
+          <SettingsSelect
             value={widgetType}
             onChange={(e) => setWidgetType(e.target.value)}
-            className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
           >
             <option value="">Auto</option>
             {WIDGET_TYPES.map((t) => (
@@ -688,7 +686,7 @@ function ReportCreateForm({
                 {t.label}
               </option>
             ))}
-          </select>
+          </SettingsSelect>
         </div>
 
         <div className="flex items-center gap-2">

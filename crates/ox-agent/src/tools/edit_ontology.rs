@@ -44,9 +44,11 @@ impl SchemaTool for EditOntologyTool {
     async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
         let ontology = match self.domain.ontology.as_ref() {
             Some(o) => o,
-            None => return ToolResult::error(
-                "No ontology loaded. Create a project from a data source first."
-            ),
+            None => {
+                return ToolResult::error(
+                    "No ontology loaded. Create a project from a data source first.",
+                );
+            }
         };
 
         let output = match self

@@ -76,8 +76,12 @@ pub(super) fn compile_op(
                     return Ok(());
                 }
             };
-            let start_pat =
-                compile_node_ref_inline(&start.variable, &start.label, &start.property_filters, pc)?;
+            let start_pat = compile_node_ref_inline(
+                &start.variable,
+                &start.label,
+                &start.property_filters,
+                pc,
+            )?;
             let end_pat =
                 compile_node_ref_inline(&end.variable, &end.label, &end.property_filters, pc)?;
             let rel = format_direction_pattern(&format!("[{rel_types}{depth}]"), direction);

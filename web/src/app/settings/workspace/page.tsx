@@ -3,6 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { Spinner } from "@/components/ui/spinner";
+import { FormInput } from "@/components/ui/form-input";
+import { Button } from "@/components/ui/button";
+import { SettingsSection } from "@/components/settings/settings-section";
 import { getWorkspace, updateWorkspace, listMembers } from "@/lib/api/workspaces";
 import { getWorkspaceId, setWorkspaceName } from "@/lib/workspace";
 import { MembersTable } from "@/components/workspace/members-table";
@@ -63,15 +66,23 @@ export default function WorkspaceSettingsPage() {
 
   if (loading) return <Spinner />;
 
-  return (
-    <div>
-      <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-        Workspace Settings
-      </h1>
-      <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-        Manage workspace details and team members.
-      </p>
+  const hasChanges = editName.trim() !== (workspace?.name ?? "");
 
+  return (
+    <SettingsSection
+      title="Workspace Settings"
+      description="Manage workspace details and team members."
+      actions={
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={handleSave}
+          disabled={!hasChanges || saving}
+        >
+          {saving ? "Saving..." : "Save"}
+        </Button>
+      }
+    >
       {/* ── General ────────────────────────────────────────────── */}
       <section className="mt-6">
         <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
@@ -82,20 +93,19 @@ export default function WorkspaceSettingsPage() {
             <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
               Name
             </label>
-            <input
+            <FormInput
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
-              className="w-full max-w-sm rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-700 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400/50 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
             />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
               Slug
             </label>
-            <input
+            <FormInput
               value={workspace?.slug ?? ""}
               readOnly
-              className="w-full max-w-sm rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm font-mono text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-500"
+              className="bg-zinc-50 font-mono text-zinc-500 dark:bg-zinc-800/50 dark:text-zinc-500"
             />
           </div>
           <div>
@@ -108,18 +118,11 @@ export default function WorkspaceSettingsPage() {
                 : "-"}
             </p>
           </div>
-          <button
-            onClick={handleSave}
-            disabled={saving || editName.trim() === workspace?.name}
-            className="rounded-md bg-emerald-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-          >
-            {saving ? "Saving..." : "Save"}
-          </button>
         </div>
       </section>
 
       {/* ── Members ────────────────────────────────────────────── */}
       <MembersTable wsId={wsId} members={members} onReload={load} />
-    </div>
+    </SettingsSection>
   );
 }

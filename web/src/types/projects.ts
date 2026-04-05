@@ -21,13 +21,16 @@ export type DesignSource =
   | { type: "postgresql"; connection_string: string; schema?: string }
   | { type: "mysql"; connection_string: string; schema: string }
   | { type: "mongodb"; connection_string: string; database: string }
+  | { type: "snowflake"; account: string; user: string; password: string; warehouse: string; database: string; schema: string }
+  | { type: "bigquery"; project_id: string; dataset: string; credentials_path?: string }
+  | { type: "duckdb"; file_path: string }
   | { type: "code_repository"; url: string };
 
 // --- Design Projects (project-based ontology lifecycle) ---
 
 export type DesignProjectStatus = "analyzed" | "designed" | "completed";
 
-export type SourceTypeKind = "text" | "csv" | "json" | "postgresql" | "mysql" | "mongodb" | "ontology" | "code_repository";
+export type SourceTypeKind = "text" | "csv" | "json" | "postgresql" | "mysql" | "mongodb" | "snowflake" | "bigquery" | "duckdb" | "ontology" | "code_repository";
 
 export interface SourceConfig {
   source_type: SourceTypeKind;

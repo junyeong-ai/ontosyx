@@ -177,6 +177,24 @@ pub enum PiiDetectionMethod {
 }
 
 // ---------------------------------------------------------------------------
+// PII → DataClassification mapping
+// ---------------------------------------------------------------------------
+
+impl PiiType {
+    /// Map a PII type to its corresponding data classification level.
+    pub fn classify(&self) -> crate::ontology_ir::DataClassification {
+        use crate::ontology_ir::DataClassification;
+        match self {
+            PiiType::Email | PiiType::Phone | PiiType::Name | PiiType::Address => {
+                DataClassification::Confidential
+            }
+            PiiType::NationalId | PiiType::BirthDate => DataClassification::Restricted,
+            PiiType::Other => DataClassification::Internal,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Ambiguous columns
 // ---------------------------------------------------------------------------
 
@@ -367,4 +385,99 @@ pub struct ColumnClarification {
     pub table: String,
     pub column: String,
     pub hint: String,
+}
+
+// ---------------------------------------------------------------------------
+// apply_pii_classifications — enrich ontology properties with classifications
+// ---------------------------------------------------------------------------
+
+/// Cross-reference PII findings with ontology properties via source mapping
+/// and set `classification` on each matched property.
+///
+/// Matching logic:
+/// - For each PII finding (table, column), find the node whose source_table
+///   matches the finding's table (via SourceMapping or NodeTypeDef.source_table).
+/// - Then find the property whose source column (via SourceMapping) matches
+///   the finding's column.
+/// - Set classification based on PiiType.
+pub fn apply_pii_classifications(
+    ontology: &mut crate::ontology_ir::OntologyIR,
+    pii_findings: &[PiiFinding],
+    source_mapping: &crate::source_mapping::SourceMapping,
+) -> usize {
+    if pii_findings.is_empty() {
+        return 0;
+    }
+
+    // Build lookup: (table_lower, column_lower) → DataClassification
+    // Use the most restrictive classification when duplicates exist.
+    let mut pii_map: std::collections::HashMap<
+        (String, String),
+        crate::ontology_ir::DataClassification,
+    > = std::collections::HashMap::new();
+    for finding in pii_findings {
+        let key = (finding.table.to_lowercase(), finding.column.to_lowercase());
+        let classification = finding.pii_type.classify();
+        pii_map
+            .entry(key)
+            .and_modify(|existing| {
+                // Keep the more restrictive classification
+                if matches!(
+                    (&classification, &existing),
+                    (crate::ontology_ir::DataClassification::Restricted, _)
+                        | (
+                            crate::ontology_ir::DataClassification::Confidential,
+                            crate::ontology_ir::DataClassification::Internal
+                        )
+                        | (
+                            crate::ontology_ir::DataClassification::Confidential,
+                            crate::ontology_ir::DataClassification::Public
+                        )
+                        | (
+                            crate::ontology_ir::DataClassification::Internal,
+                            crate::ontology_ir::DataClassification::Public
+                        )
+                ) {
+                    *existing = classification;
+                }
+            })
+            .or_insert(classification);
+    }
+
+    let mut count = 0;
+
+    for node in &mut ontology.node_types {
+        // Resolve source table: prefer SourceMapping, fall back to NodeTypeDef.source_table
+        let source_table = source_mapping
+            .table_for_node(node.id.as_ref())
+            .map(|s| s.to_lowercase())
+            .or_else(|| node.source_table.as_ref().map(|s| s.to_lowercase()));
+
+        let source_table = match source_table {
+            Some(t) => t,
+            None => continue,
+        };
+
+        for prop in &mut node.properties {
+            // Only classify if not already classified
+            if prop.classification.is_some() {
+                continue;
+            }
+
+            // Resolve source column via SourceMapping
+            let source_column = source_mapping
+                .column_for_property(node.id.as_ref(), prop.id.as_ref())
+                .map(|s| s.to_lowercase());
+
+            // Fall back to property name as column name
+            let column_lower = source_column.unwrap_or_else(|| prop.name.to_lowercase());
+
+            if let Some(&classification) = pii_map.get(&(source_table.clone(), column_lower)) {
+                prop.classification = Some(classification);
+                count += 1;
+            }
+        }
+    }
+
+    count
 }

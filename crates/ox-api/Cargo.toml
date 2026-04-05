@@ -16,7 +16,7 @@ ox-runtime = { workspace = true }
 ox-brain = { workspace = true }
 ox-agent = { workspace = true }
 ox-store = { workspace = true }
-ox-source = { workspace = true }
+ox-source = { workspace = true, features = ["duckdb"] }
 ox-memory = { workspace = true, features = ["onnx"] }
 branchforge = { workspace = true, features = ["aws"] }
 async-trait = { workspace = true }

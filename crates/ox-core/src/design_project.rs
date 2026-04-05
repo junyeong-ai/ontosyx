@@ -62,6 +62,12 @@ pub enum SourceTypeKind {
     Postgresql,
     Mysql,
     Mongodb,
+    /// Snowflake data warehouse (account + database + schema).
+    Snowflake,
+    /// Google BigQuery dataset (project_id + dataset).
+    Bigquery,
+    /// DuckDB in-process file analysis (Parquet, CSV, JSON).
+    DuckDb,
     /// Code repository analyzed via LLM to extract ORM models as source schema.
     CodeRepository,
     /// Project started from an existing saved ontology (no data source).
@@ -77,6 +83,9 @@ impl fmt::Display for SourceTypeKind {
             Self::Postgresql => "postgresql",
             Self::Mysql => "mysql",
             Self::Mongodb => "mongodb",
+            Self::Snowflake => "snowflake",
+            Self::Bigquery => "bigquery",
+            Self::DuckDb => "duckdb",
             Self::CodeRepository => "code_repository",
             Self::Ontology => "ontology",
         };
@@ -100,6 +109,9 @@ impl<'de> Deserialize<'de> for SourceTypeKind {
             "postgresql" => Ok(Self::Postgresql),
             "mysql" => Ok(Self::Mysql),
             "mongodb" => Ok(Self::Mongodb),
+            "snowflake" => Ok(Self::Snowflake),
+            "bigquery" => Ok(Self::Bigquery),
+            "duckdb" => Ok(Self::DuckDb),
             "code_repository" => Ok(Self::CodeRepository),
             "ontology" => Ok(Self::Ontology),
             _ => Err(serde::de::Error::unknown_variant(
@@ -111,6 +123,9 @@ impl<'de> Deserialize<'de> for SourceTypeKind {
                     "postgresql",
                     "mysql",
                     "mongodb",
+                    "snowflake",
+                    "bigquery",
+                    "duckdb",
                     "code_repository",
                     "ontology",
                 ],

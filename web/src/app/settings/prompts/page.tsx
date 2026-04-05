@@ -1,37 +1,73 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useAuth } from "@/lib/use-auth";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { SettingsSection } from "@/components/settings/settings-section";
-import { SettingsListDetail } from "@/components/settings/settings-list-detail";
+import { SettingsSwitch, SettingsSelect, SettingsInput } from "@/components/ui/form-input";
+import { CodeEditor } from "@/components/ui/code-editor";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
+import { cn } from "@/lib/cn";
 import type { PromptTemplate } from "@/types/api";
-import { listPromptTemplates, createPromptTemplate, updatePromptTemplate } from "@/lib/api";
-
-const PROMPT_STATUS_COLORS: Record<string, string> = {
-  active: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-  inactive: "bg-zinc-200 text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400",
-};
+import {
+  listPromptTemplates,
+  createPromptTemplate,
+  updatePromptTemplate,
+  deletePromptTemplate,
+} from "@/lib/api";
 
 export default function PromptsPage() {
   const { isAdmin } = useAuth();
   const [templates, setTemplates] = useState<PromptTemplate[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [expandedName, setExpandedName] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"" | "active" | "inactive">("");
+
+  const reload = useCallback(async () => {
+    try {
+      const data = await listPromptTemplates();
+      setTemplates(data);
+    } catch {
+      toast.error("Failed to load prompts");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    listPromptTemplates()
-      .then(setTemplates)
-      .catch(() => toast.error("Failed to load prompts"))
-      .finally(() => setLoading(false));
-  }, []);
+    reload();
+  }, [reload]);
+
+  // Group templates by name, each group has versions sorted DESC
+  const grouped = useMemo(() => {
+    const map = new Map<string, PromptTemplate[]>();
+    for (const t of templates) {
+      const list = map.get(t.name) || [];
+      list.push(t);
+      map.set(t.name, list);
+    }
+    // Sort versions within each group (newest first)
+    for (const [, versions] of map) {
+      versions.sort((a, b) => b.version.localeCompare(a.version));
+    }
+    return Array.from(map.entries());
+  }, [templates]);
+
+  // Apply search and status filter
+  const filtered = useMemo(() => {
+    return grouped.filter(([name, versions]) => {
+      if (search && !name.toLowerCase().includes(search.toLowerCase())) return false;
+      if (statusFilter === "active" && !versions.some((v) => v.is_active)) return false;
+      if (statusFilter === "inactive" && versions.some((v) => v.is_active)) return false;
+      return true;
+    });
+  }, [grouped, search, statusFilter]);
 
   if (!isAdmin) {
     return (
-      <div className="text-sm text-zinc-500">
+      <div className="flex h-full items-center justify-center text-sm text-zinc-500">
         Admin access required to manage prompts.
       </div>
     );
@@ -46,76 +82,216 @@ export default function PromptsPage() {
   }
 
   return (
-    <SettingsSection
-      title="Prompt Templates"
-      description="Manage versioned prompt templates. Changes take effect on next agent session."
-    >
-      <SettingsListDetail<PromptTemplate>
-        title="Prompt Templates"
-        items={templates}
-        selectedId={selectedId}
-        onSelect={setSelectedId}
-        getId={(t) => t.id}
-        renderListItem={(t) => (
-          <>
-            <div className="font-medium">{t.name}</div>
-            <div className="flex items-center gap-2 text-xs text-zinc-400">
-              <span>v{t.version}</span>
-              <StatusBadge
-                status={t.is_active ? "active" : "inactive"}
-                colorMap={PROMPT_STATUS_COLORS}
-                className="px-1.5 py-0 text-[9px]"
-              />
-            </div>
-          </>
-        )}
-        renderDetail={(t) => (
-          <PromptEditor
-            template={t}
-            onSave={async (content, isActive) => {
-              await updatePromptTemplate(t.id, { content, is_active: isActive });
-              setTemplates((prev) =>
-                prev.map((item) =>
-                  item.id === t.id ? { ...item, content, is_active: isActive } : item,
-                ),
-              );
-              toast.success("Prompt updated");
-            }}
-            onNewVersion={async (name, version, content) => {
-              const created = await createPromptTemplate({ name, version, content });
-              setTemplates((prev) => [created, ...prev]);
-              setSelectedId(created.id);
-              toast.success(`Version ${version} created`);
-            }}
+    <div className="h-full overflow-y-auto">
+      <div className="mx-auto">
+        {/* Header */}
+        <div>
+          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+            Prompt Templates
+          </h1>
+          <p className="mt-1 text-sm text-zinc-500">
+            Manage versioned prompt templates. Changes take effect on next agent session.
+          </p>
+        </div>
+
+        {/* Search + Filter */}
+        <div className="mt-4 flex items-center gap-3">
+          <SettingsInput
+            placeholder="Search prompts..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="max-w-xs"
           />
-        )}
-      />
-    </SettingsSection>
+          <SettingsSelect
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as "" | "active" | "inactive")}
+          >
+            <option value="">All status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </SettingsSelect>
+          <span className="ml-auto text-sm tabular-nums text-zinc-400">
+            {filtered.length} prompt{filtered.length !== 1 ? "s" : ""}
+          </span>
+        </div>
+
+        {/* Cards */}
+        <div className="mt-5">
+          {filtered.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-zinc-300 px-6 py-16 text-center dark:border-zinc-700">
+              <p className="text-sm text-zinc-500">No prompt templates found.</p>
+              {search && (
+                <p className="mt-1 text-xs text-zinc-400">
+                  Try adjusting your search or filter.
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {filtered.map(([name, versions]) => (
+                <PromptCard
+                  key={name}
+                  name={name}
+                  versions={versions}
+                  isExpanded={expandedName === name}
+                  onToggle={() =>
+                    setExpandedName(expandedName === name ? null : name)
+                  }
+                  onUpdate={async (id, req) => {
+                    await updatePromptTemplate(id, req);
+                    // Reload all templates to reflect auto-deactivation
+                    await reload();
+                  }}
+                  onDelete={async (id) => {
+                    await deletePromptTemplate(id);
+                    setTemplates((prev) => prev.filter((t) => t.id !== id));
+                  }}
+                  onNewVersion={async (vName, version, content) => {
+                    const created = await createPromptTemplate({
+                      name: vName,
+                      version,
+                      content,
+                    });
+                    setTemplates((prev) => [created, ...prev]);
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
-function PromptEditor({
-  template,
-  onSave,
+// ---------------------------------------------------------------------------
+// PromptCard — one expandable card per prompt name
+// ---------------------------------------------------------------------------
+
+function PromptCard({
+  name,
+  versions,
+  isExpanded,
+  onToggle,
+  onUpdate,
+  onDelete,
   onNewVersion,
 }: {
-  template: PromptTemplate;
-  onSave: (content: string, isActive: boolean) => Promise<void>;
+  name: string;
+  versions: PromptTemplate[];
+  isExpanded: boolean;
+  onToggle: () => void;
+  onUpdate: (id: string, req: { content?: string; is_active?: boolean }) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
   onNewVersion: (name: string, version: string, content: string) => Promise<void>;
 }) {
-  const [content, setContent] = useState(template.content);
-  const [isActive, setIsActive] = useState(template.is_active);
+  const activeVersion = versions.find((v) => v.is_active) || versions[0];
+
+  return (
+    <div
+      className={cn(
+        "rounded-xl border transition-all",
+        isExpanded
+          ? "border-emerald-200 bg-white shadow-sm dark:border-emerald-800/40 dark:bg-zinc-900"
+          : "border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700",
+      )}
+    >
+      {/* Collapsed header */}
+      <button
+        onClick={onToggle}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left"
+      >
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-800 dark:text-zinc-200">
+          {name}
+        </span>
+        <span className="shrink-0 text-xs tabular-nums text-zinc-400">
+          v{activeVersion.version}
+        </span>
+        <span className="flex shrink-0 items-center gap-1.5 text-xs text-zinc-500">
+          <span
+            className={cn(
+              "h-2 w-2 rounded-full",
+              activeVersion.is_active
+                ? "bg-emerald-500"
+                : "bg-zinc-400",
+            )}
+          />
+          {activeVersion.is_active ? "Active" : "Inactive"}
+        </span>
+        <span className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] tabular-nums text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+          {versions.length} version{versions.length !== 1 ? "s" : ""}
+        </span>
+        <svg
+          className={cn(
+            "h-4 w-4 shrink-0 text-zinc-400 transition-transform",
+            isExpanded && "rotate-180",
+          )}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M19 9l-7 7-7-7"
+          />
+        </svg>
+      </button>
+
+      {/* Expanded detail */}
+      {isExpanded && (
+        <PromptCardDetail
+          name={name}
+          versions={versions}
+          onUpdate={onUpdate}
+          onDelete={onDelete}
+          onNewVersion={onNewVersion}
+        />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PromptCardDetail — expanded content with version selector + editor
+// ---------------------------------------------------------------------------
+
+function PromptCardDetail({
+  name,
+  versions,
+  onUpdate,
+  onDelete,
+  onNewVersion,
+}: {
+  name: string;
+  versions: PromptTemplate[];
+  onUpdate: (id: string, req: { content?: string; is_active?: boolean }) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+  onNewVersion: (name: string, version: string, content: string) => Promise<void>;
+}) {
+  const confirm = useConfirm();
+  const activeVersion = versions.find((v) => v.is_active) || versions[0];
+  const [selectedId, setSelectedId] = useState(activeVersion.id);
+  const selected = versions.find((v) => v.id === selectedId) || versions[0];
+
+  const [content, setContent] = useState(selected.content);
+  const [isActive, setIsActive] = useState(selected.is_active);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Sync editor state when switching versions
   useEffect(() => {
-    setContent(template.content);
-    setIsActive(template.is_active);
-  }, [template.id]);
+    setContent(selected.content);
+    setIsActive(selected.is_active);
+  }, [selected.id, selected.content, selected.is_active]);
+
+  const hasChanges = content !== selected.content || isActive !== selected.is_active;
 
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await onSave(content, isActive);
+      await onUpdate(selected.id, { content, is_active: isActive });
+      toast.success("Prompt updated");
     } catch {
       toast.error("Save failed");
     } finally {
@@ -123,42 +299,62 @@ function PromptEditor({
     }
   };
 
-  const hasChanges = content !== template.content || isActive !== template.is_active;
+  const handleDelete = async () => {
+    const ok = await confirm({
+      title: `Delete version v${selected.version}?`,
+      description: `This will permanently delete version v${selected.version} of "${name}". This action cannot be undone.`,
+      variant: "danger",
+      confirmLabel: "Delete",
+    });
+    if (!ok) return;
+    try {
+      await onDelete(selected.id);
+      toast.success(`Version v${selected.version} deleted`);
+    } catch {
+      toast.error("Delete failed");
+    }
+  };
+
+  const handleNewVersion = async () => {
+    const current = parseInt(selected.version, 10);
+    const newVersion = String(Number.isNaN(current) ? 1 : current + 1);
+    try {
+      await onNewVersion(name, newVersion, content);
+      toast.success(`Version v${newVersion} created`);
+    } catch {
+      toast.error("Failed to create version");
+    }
+  };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-            {template.name}
-          </h2>
-          <p className="text-xs text-zinc-400">
-            v{template.version} · by {template.created_by} · {new Date(template.created_at).toLocaleDateString()}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={async () => {
-              const parts = template.version.split(".");
-              const patch = parseInt(parts[2] || "0") + 1;
-              const newVersion = `${parts[0]}.${parts[1]}.${patch}`;
-              await onNewVersion(template.name, newVersion, content);
-            }}
-            className="text-[10px]"
-          >
+    <div className="border-t border-zinc-100 px-4 pb-4 pt-3 dark:border-zinc-800">
+      {/* Version selector + metadata + actions */}
+      <div className="flex flex-wrap items-center gap-3">
+        <SettingsSelect
+          value={selectedId}
+          onChange={(e) => setSelectedId(e.target.value)}
+          className="w-auto"
+        >
+          {versions.map((v) => (
+            <option key={v.id} value={v.id}>
+              v{v.version}
+              {v.is_active ? " (active)" : ""}
+            </option>
+          ))}
+        </SettingsSelect>
+        <span className="text-xs text-zinc-400">
+          by {selected.created_by} &middot;{" "}
+          {new Date(selected.created_at).toLocaleDateString()}
+        </span>
+
+        <div className="ml-auto flex items-center gap-2">
+          <SettingsSwitch label="Active" checked={isActive} onChange={setIsActive} />
+          <Button variant="outline" size="xs" onClick={handleNewVersion}>
             New Version
           </Button>
-          <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
-            <input
-              type="checkbox"
-              checked={isActive}
-              onChange={(e) => setIsActive(e.target.checked)}
-              className="rounded border-zinc-300"
-            />
-            Active
-          </label>
+          <Button variant="danger" size="xs" onClick={handleDelete}>
+            Delete
+          </Button>
           <Button
             variant="primary"
             size="sm"
@@ -170,12 +366,10 @@ function PromptEditor({
         </div>
       </div>
 
-      <textarea
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        rows={24}
-        className="w-full rounded-md border border-zinc-200 bg-zinc-50 p-3 font-mono text-xs text-zinc-800 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-      />
+      {/* Code editor */}
+      <div className="mt-3">
+        <CodeEditor value={content} onChange={setContent} height="400px" />
+      </div>
     </div>
   );
 }

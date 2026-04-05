@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/use-auth";
 import type { ConfigResponse, ConfigEntry, ConfigUpdateItem } from "@/types/api";
 import { FormInput } from "@/components/ui/form-input";
 import { Spinner } from "@/components/ui/spinner";
+import { TabBar } from "@/components/ui/tab-bar";
 
 // ---------------------------------------------------------------------------
 // Category display metadata
@@ -166,32 +167,16 @@ export default function SystemSettingsPage() {
       ) : (
         <>
           {/* Category tabs */}
-          <div className="mt-6 flex gap-1 border-b border-zinc-200 dark:border-zinc-800">
-            {categories.map((category) => {
-              const meta = CATEGORY_META[category];
-              const editCount = editCountByCategory(category);
-              return (
-                <button
-                  key={category}
-                  onClick={() => setActiveTab(category)}
-                  className={`relative px-4 py-2 text-sm font-medium transition-colors ${
-                    activeTab === category
-                      ? "text-emerald-700 dark:text-emerald-400"
-                      : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
-                  }`}
-                >
-                  {meta?.label ?? category}
-                  {editCount > 0 && (
-                    <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-100 px-1 text-[10px] font-bold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
-                      {editCount}
-                    </span>
-                  )}
-                  {activeTab === category && (
-                    <span className="absolute inset-x-0 -bottom-px h-0.5 bg-emerald-500" />
-                  )}
-                </button>
-              );
-            })}
+          <div className="mt-6 border-b border-zinc-200 dark:border-zinc-800">
+            <TabBar
+              tabs={categories.map((category) => ({
+                id: category,
+                label: CATEGORY_META[category]?.label ?? category,
+                badge: editCountByCategory(category),
+              }))}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+            />
           </div>
 
           {/* Active category content */}

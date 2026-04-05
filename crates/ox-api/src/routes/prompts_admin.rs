@@ -85,6 +85,13 @@ pub(crate) async fn create_prompt_template(
         .await
         .map_err(AppError::from)?;
 
+    // Auto-deactivate other versions of the same prompt
+    state
+        .store
+        .deactivate_other_versions(&row.name, row.id)
+        .await
+        .map_err(AppError::from)?;
+
     Ok(Json(row))
 }
 
@@ -114,14 +121,53 @@ pub(crate) async fn update_prompt_template(
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("Prompt template"))?;
 
+    let new_active = req.is_active.unwrap_or(existing.is_active);
+
     state
         .store
         .update_prompt_template(
             id,
             req.content.as_deref().unwrap_or(&existing.content),
             req.variables.as_ref().unwrap_or(&existing.variables),
-            req.is_active.unwrap_or(existing.is_active),
+            new_active,
         )
+        .await
+        .map_err(AppError::from)?;
+
+    // Auto-deactivate other versions of the same prompt when activating this one
+    if new_active {
+        state
+            .store
+            .deactivate_other_versions(&existing.name, id)
+            .await
+            .map_err(AppError::from)?;
+    }
+
+    Ok(Json(serde_json::json!({ "status": "ok" })))
+}
+
+// ---------------------------------------------------------------------------
+// DELETE /api/admin/prompts/:id — delete a prompt template version
+// ---------------------------------------------------------------------------
+
+pub(crate) async fn delete_prompt_template(
+    State(state): State<AppState>,
+    principal: Principal,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    principal.require_admin()?;
+
+    // Verify the template exists
+    state
+        .store
+        .get_prompt_template(id)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::not_found("Prompt template"))?;
+
+    state
+        .store
+        .delete_prompt_template(id)
         .await
         .map_err(AppError::from)?;
 

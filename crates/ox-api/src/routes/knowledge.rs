@@ -38,7 +38,11 @@ pub(crate) async fn create_knowledge(
 ) -> Result<Json<serde_json::Value>, AppError> {
     principal.require_designer()?;
     if !VALID_KINDS.contains(&req.kind.as_str()) {
-        return Err(AppError::bad_request(format!("Invalid kind '{}'. Must be one of: {}", req.kind, VALID_KINDS.join(", "))));
+        return Err(AppError::bad_request(format!(
+            "Invalid kind '{}'. Must be one of: {}",
+            req.kind,
+            VALID_KINDS.join(", ")
+        )));
     }
     if req.title.trim().is_empty() || req.title.len() > 500 {
         return Err(AppError::bad_request("Title must be 1-500 characters"));
@@ -206,7 +210,11 @@ pub(crate) async fn update_status(
 ) -> Result<Json<serde_json::Value>, AppError> {
     principal.require_admin()?;
     if !VALID_STATUSES.contains(&req.status.as_str()) {
-        return Err(AppError::bad_request(format!("Invalid status '{}'. Must be one of: {}", req.status, VALID_STATUSES.join(", "))));
+        return Err(AppError::bad_request(format!(
+            "Invalid status '{}'. Must be one of: {}",
+            req.status,
+            VALID_STATUSES.join(", ")
+        )));
     }
     state
         .store
@@ -296,7 +304,11 @@ pub(crate) async fn bulk_review(
 ) -> Result<Json<serde_json::Value>, AppError> {
     principal.require_admin()?;
     if !VALID_STATUSES.contains(&req.status.as_str()) {
-        return Err(AppError::bad_request(format!("Invalid status '{}'. Must be one of: {}", req.status, VALID_STATUSES.join(", "))));
+        return Err(AppError::bad_request(format!(
+            "Invalid status '{}'. Must be one of: {}",
+            req.status,
+            VALID_STATUSES.join(", ")
+        )));
     }
     if req.ids.len() > 100 {
         return Err(AppError::bad_request("Maximum 100 entries per bulk review"));

@@ -230,6 +230,27 @@ fn events_to_messages(session: &AgentSession, events: &[AgentEvent]) -> Vec<serd
 }
 
 // ---------------------------------------------------------------------------
+// DELETE /api/sessions/:id — delete a session and its events
+// ---------------------------------------------------------------------------
+
+pub(crate) async fn delete_session(
+    State(state): State<AppState>,
+    principal: Principal,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, AppError> {
+    // Verify ownership before deleting
+    load_owned_session(&state, &principal, id).await?;
+
+    state
+        .store
+        .delete_agent_session(id)
+        .await
+        .map_err(AppError::from)?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// ---------------------------------------------------------------------------
 // POST /api/sessions/:id/tools/:tool_id/respond — HITL tool review
 // ---------------------------------------------------------------------------
 

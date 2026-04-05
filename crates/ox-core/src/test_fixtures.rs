@@ -13,6 +13,7 @@ pub fn property(id: &str, name: &str) -> PropertyDef {
         nullable: false,
         default_value: None,
         description: None,
+        classification: None,
     }
 }
 

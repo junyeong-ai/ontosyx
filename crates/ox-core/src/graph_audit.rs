@@ -174,6 +174,7 @@ pub fn ontology_from_graph(overview: &GraphSchemaOverview, name: &str) -> Ontolo
                     nullable: !p.mandatory,
                     default_value: None,
                     description: None,
+                    classification: None,
                 })
                 .collect()
         };

@@ -154,6 +154,7 @@ async fn main() -> anyhow::Result<()> {
                 retry_initial_delay_ms: config.graph.retry_initial_delay_ms,
                 retry_max_delay_ms: config.graph.retry_max_delay_ms,
                 isolation_strategy: config.graph.isolation_strategy.clone(),
+                region: config.graph.region.clone(),
             },
         )
         .await?;
@@ -307,7 +308,11 @@ async fn main() -> anyhow::Result<()> {
     // Attach memory store (schema RAG) and knowledge store (failure-driven corrections) to brain
     let kb_store = Arc::clone(&store) as Arc<dyn ox_store::KnowledgeStore>;
     let brain: Arc<dyn ox_brain::Brain> = if let Some(ref mem) = memory {
-        Arc::new(brain_base.with_memory(Arc::clone(mem), None).with_knowledge(kb_store))
+        Arc::new(
+            brain_base
+                .with_memory(Arc::clone(mem), None)
+                .with_knowledge(kb_store),
+        )
     } else {
         Arc::new(brain_base.with_knowledge(kb_store))
     };

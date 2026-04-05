@@ -50,6 +50,9 @@ pub(crate) fn build_llm_input(
         | SourceTypeKind::Postgresql
         | SourceTypeKind::Mysql
         | SourceTypeKind::Mongodb
+        | SourceTypeKind::Snowflake
+        | SourceTypeKind::Bigquery
+        | SourceTypeKind::DuckDb
         | SourceTypeKind::CodeRepository
         | SourceTypeKind::Ontology => {
             // Structured: format from stored schema + profile

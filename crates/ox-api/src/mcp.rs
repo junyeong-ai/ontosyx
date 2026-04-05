@@ -225,7 +225,13 @@ impl OntosyxMcpServer {
         // Translate NL -> QueryIR
         let query_ir = self
             .brain
-            .translate_query(&params.question, &ontology, &branchforge::ExecutionContext::permissive())
+            .translate_query(
+                &params.question,
+                &ontology,
+                &branchforge::ExecutionContext::try_permissive().map_err(|e| {
+                    McpError::internal_error(format!("Security context failed: {e}"), None)
+                })?,
+            )
             .await
             .map_err(|e| {
                 McpError::internal_error(format!("Query translation failed: {e}"), None)

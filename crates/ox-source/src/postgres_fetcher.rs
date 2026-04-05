@@ -115,6 +115,54 @@ impl DataSourceFetcher for PostgresFetcher {
         Ok(count as u64)
     }
 
+    async fn fetch_incremental(
+        &self,
+        table: &str,
+        columns: &[String],
+        watermark_column: &str,
+        watermark_value: &str,
+        limit: u64,
+    ) -> OxResult<Vec<SourceRow>> {
+        let qualified = self.qualified_table(table);
+
+        let col_clause = if columns.is_empty() {
+            "*".to_string()
+        } else {
+            columns
+                .iter()
+                .map(|c| format!("\"{c}\""))
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+
+        // Use parameterized watermark value to prevent SQL injection.
+        // The watermark column is quoted; the comparison value is bound as $1.
+        let sql = format!(
+            "SELECT {col_clause} FROM {qualified} \
+             WHERE \"{watermark_column}\" > $1 \
+             ORDER BY \"{watermark_column}\" \
+             LIMIT {limit}"
+        );
+
+        let rows: Vec<PgRow> = sqlx::query(&sql)
+            .bind(watermark_value)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| OxError::Runtime {
+                message: format!(
+                    "Failed to fetch incremental from {table} (watermark {watermark_column} > {watermark_value}): {e}"
+                ),
+            })?;
+
+        let mut result = Vec::with_capacity(rows.len());
+        for row in &rows {
+            let map = pg_row_to_json_map(row)?;
+            result.push(map);
+        }
+
+        Ok(result)
+    }
+
     fn source_type(&self) -> &str {
         "postgresql"
     }

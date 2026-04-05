@@ -6,9 +6,52 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Delete01Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 import { Tooltip } from "@/components/ui/tooltip";
-import type { PropertyDef, PropertyPatch, OntologyCommand } from "@/types/api";
+import type { PropertyDef, PropertyPatch, OntologyCommand, DataClassification } from "@/types/api";
 import { formatPropertyType } from "@/types/api";
 import { InlineEdit } from "./inline-edit";
+
+// ---------------------------------------------------------------------------
+// Classification badge
+// ---------------------------------------------------------------------------
+
+const classificationStyles: Record<
+  DataClassification,
+  { bg: string; text: string; label: string }
+> = {
+  public: {
+    bg: "bg-emerald-100 dark:bg-emerald-900/40",
+    text: "text-emerald-700 dark:text-emerald-400",
+    label: "Public",
+  },
+  internal: {
+    bg: "bg-blue-100 dark:bg-blue-900/40",
+    text: "text-blue-700 dark:text-blue-400",
+    label: "Internal",
+  },
+  confidential: {
+    bg: "bg-amber-100 dark:bg-amber-900/40",
+    text: "text-amber-700 dark:text-amber-400",
+    label: "Confidential",
+  },
+  restricted: {
+    bg: "bg-red-100 dark:bg-red-900/40",
+    text: "text-red-700 dark:text-red-400",
+    label: "Restricted",
+  },
+};
+
+function ClassificationBadge({ classification }: { classification: DataClassification }) {
+  const style = classificationStyles[classification];
+  return (
+    <Tooltip content={`Data classification: ${style.label}`}>
+      <span
+        className={`inline-flex items-center rounded px-1 py-0.5 text-[9px] font-medium leading-none ${style.bg} ${style.text}`}
+      >
+        {style.label}
+      </span>
+    </Tooltip>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Add property form
@@ -161,6 +204,9 @@ export function PropertyRow({
               {prop.nullable ? "?" : "*"}
             </button>
           </Tooltip>
+          {prop.classification && (
+            <ClassificationBadge classification={prop.classification} />
+          )}
         </div>
         <InlineEdit
           value={prop.description || ""}

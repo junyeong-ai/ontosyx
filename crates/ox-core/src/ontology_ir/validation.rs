@@ -374,6 +374,7 @@ mod tests {
             nullable,
             default_value: None,
             description: None,
+            classification: None,
         }
     }
 

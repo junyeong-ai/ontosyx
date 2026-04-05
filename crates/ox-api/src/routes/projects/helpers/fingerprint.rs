@@ -161,6 +161,20 @@ pub(super) fn mongodb_fingerprint(connection_string: &str, database: &str) -> St
     format!("{:016x}", fnv1a(identity.as_bytes()))
 }
 
+/// Compute a stable fingerprint for a Snowflake source from its identity fields.
+/// Uses account, database, and schema to form the identity.
+pub(super) fn snowflake_fingerprint(account: &str, database: &str, schema: &str) -> String {
+    let identity = format!("{account}/{database}/{schema}");
+    format!("{:016x}", fnv1a(identity.as_bytes()))
+}
+
+/// Compute a stable fingerprint for a BigQuery source from its identity fields.
+/// Uses project_id and dataset to form the identity (credentials are excluded).
+pub(super) fn bigquery_fingerprint(project_id: &str, dataset: &str) -> String {
+    let identity = format!("{project_id}/{dataset}");
+    format!("{:016x}", fnv1a(identity.as_bytes()))
+}
+
 /// Compute a stable fingerprint for a CSV/JSON source from its full schema structure.
 /// Includes table names, column names+types, primary keys, and foreign keys so that
 /// structural changes (type change, PK/FK reorganization) invalidate decisions.

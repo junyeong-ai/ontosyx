@@ -4,7 +4,6 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { WorkbenchLayout } from "@/components/workbench/workbench-layout";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 import { PromptProvider } from "@/components/ui/prompt-dialog";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useHydrated } from "@/lib/store/use-hydrated";
@@ -39,7 +38,6 @@ export default function Home() {
   return (
     <ErrorBoundary>
       <TooltipProvider>
-        <ConfirmProvider>
         <PromptProvider>
           <div className="flex h-dvh overflow-hidden">
             <Sidebar />
@@ -51,7 +49,6 @@ export default function Home() {
             </div>
           </div>
         </PromptProvider>
-        </ConfirmProvider>
       </TooltipProvider>
     </ErrorBoundary>
   );

@@ -251,6 +251,73 @@ pub async fn execute_load(
 }
 
 // ---------------------------------------------------------------------------
+// GET /api/load/checkpoints — list checkpoints for a project
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize, utoipa::IntoParams)]
+pub struct CheckpointListQuery {
+    /// Project ID to list checkpoints for.
+    pub project_id: uuid::Uuid,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/load/checkpoints",
+    params(CheckpointListQuery),
+    responses(
+        (status = 200, description = "List of load checkpoints", body = Vec<Object>),
+    ),
+    security(("api_key" = [])),
+    tag = "Load",
+)]
+pub async fn list_checkpoints(
+    State(state): State<AppState>,
+    principal: Principal,
+    axum::extract::Query(query): axum::extract::Query<CheckpointListQuery>,
+) -> Result<Json<Vec<ox_store::LoadCheckpoint>>, AppError> {
+    principal.require_designer()?;
+
+    let checkpoints = state
+        .store
+        .list_checkpoints(query.project_id)
+        .await
+        .map_err(AppError::from)?;
+
+    Ok(Json(checkpoints))
+}
+
+// ---------------------------------------------------------------------------
+// DELETE /api/load/checkpoints/{id} — delete a checkpoint (force full reload)
+// ---------------------------------------------------------------------------
+
+#[utoipa::path(
+    delete,
+    path = "/api/load/checkpoints/{id}",
+    params(("id" = uuid::Uuid, Path, description = "Checkpoint ID")),
+    responses(
+        (status = 204, description = "Checkpoint deleted"),
+        (status = 404, description = "Checkpoint not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Load",
+)]
+pub async fn delete_checkpoint(
+    State(state): State<AppState>,
+    principal: Principal,
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+) -> Result<axum::http::StatusCode, AppError> {
+    principal.require_designer()?;
+
+    state
+        .store
+        .delete_checkpoint(id)
+        .await
+        .map_err(AppError::from)?;
+
+    Ok(axum::http::StatusCode::NO_CONTENT)
+}
+
+// ---------------------------------------------------------------------------
 // GET /api/prompts — list loaded prompt templates and versions
 // ---------------------------------------------------------------------------
 

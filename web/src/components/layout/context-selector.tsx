@@ -14,6 +14,7 @@ import {
   Search01Icon,
 } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { useGuardPendingEdits } from "@/lib/guard-pending-edits";
 import type { OntologyIR, DesignProjectSummary, Dashboard } from "@/types/api";
 import {
@@ -232,11 +233,22 @@ function AnalyzeSelector() {
 
   if (!ontology) {
     return (
-      <div className={TRIGGER_CLASS}>
-        <HugeiconsIcon icon={Message01Icon} className="h-3.5 w-3.5 text-zinc-400" size="100%" />
-        <span className="text-zinc-400">
-          {error ? "Failed to load ontology" : "No saved ontology"}
-        </span>
+      <div className="flex items-center gap-2">
+        <div className={TRIGGER_CLASS}>
+          <HugeiconsIcon icon={Message01Icon} className="h-3.5 w-3.5 text-zinc-400" size="100%" />
+          <span className="text-zinc-400">
+            {error ? "Failed to load ontology" : "No saved ontology"}
+          </span>
+        </div>
+        {!error && (
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={() => useAppStore.getState().setWorkspaceMode("design")}
+          >
+            Switch to Design
+          </Button>
+        )}
       </div>
     );
   }

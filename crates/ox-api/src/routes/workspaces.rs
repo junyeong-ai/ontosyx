@@ -206,7 +206,6 @@ pub async fn list_workspaces(
 /// GET /workspaces/:id — get workspace details.
 pub async fn get_workspace(
     State(state): State<AppState>,
-    _ws_ctx: WorkspaceContext,
     Path(id): Path<Uuid>,
 ) -> Result<Json<WorkspaceResponse>, AppError> {
     let workspace = state
@@ -414,7 +413,6 @@ pub async fn update_member_role(
 /// GET /workspaces/:id/members — list workspace members.
 pub async fn list_members(
     State(state): State<AppState>,
-    _ws_ctx: WorkspaceContext,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<MemberResponse>>, AppError> {
     let members = state

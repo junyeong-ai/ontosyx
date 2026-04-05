@@ -23,7 +23,8 @@ pub(super) fn compile_pattern(pattern: &GraphPattern, pc: &mut ParamCollector) -
             property_filters,
             var_length,
         } => {
-            let var = variable.as_deref()
+            let var = variable
+                .as_deref()
                 .and_then(sanitize_variable)
                 .unwrap_or("");
             let lbl = label
@@ -61,9 +62,10 @@ pub(super) fn compile_pattern(pattern: &GraphPattern, pc: &mut ParamCollector) -
                         label,
                         direction,
                     } => {
-                        let var = variable.as_deref()
-                .and_then(sanitize_variable)
-                .unwrap_or("");
+                        let var = variable
+                            .as_deref()
+                            .and_then(sanitize_variable)
+                            .unwrap_or("");
                         let lbl = label
                             .as_deref()
                             .map(|l| format!(":{}", escape_identifier(l)))
@@ -92,7 +94,10 @@ pub(super) fn compile_node_ref_inline(
     Ok(format!("({variable}{lbl}{props})"))
 }
 
-pub(super) fn compile_inline_props(filters: &[PropertyFilter], pc: &mut ParamCollector) -> OxResult<String> {
+pub(super) fn compile_inline_props(
+    filters: &[PropertyFilter],
+    pc: &mut ParamCollector,
+) -> OxResult<String> {
     if filters.is_empty() {
         return Ok(String::new());
     }

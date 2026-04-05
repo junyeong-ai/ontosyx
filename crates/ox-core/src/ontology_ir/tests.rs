@@ -9,6 +9,7 @@ fn property(id: &str, name: &str, nullable: bool) -> PropertyDef {
         nullable,
         default_value: None,
         description: None,
+        classification: None,
     }
 }
 

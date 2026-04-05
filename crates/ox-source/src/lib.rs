@@ -1,4 +1,7 @@
 pub mod analyzer;
+pub mod bigquery;
+#[cfg(feature = "duckdb")]
+pub mod duckdb_source;
 pub mod fetcher;
 pub mod mongodb;
 pub mod mysql;
@@ -7,6 +10,7 @@ pub mod postgres_fetcher;
 pub mod registry;
 pub mod repo;
 pub mod sample;
+pub mod snowflake;
 
 use async_trait::async_trait;
 use ox_core::error::OxResult;

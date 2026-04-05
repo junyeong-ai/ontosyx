@@ -188,7 +188,7 @@ pub struct ServerConfig {
 
 #[derive(Deserialize, Clone)]
 pub struct GraphConfig {
-    /// Graph database backend: "neo4j" (future: "neptune", "memgraph")
+    /// Graph database backend: "neo4j", "memgraph", or "neptune"
     pub backend: String,
     pub uri: String,
     pub username: String,
@@ -209,6 +209,9 @@ pub struct GraphConfig {
     /// "none": no graph isolation (all workspaces share graph data)
     #[serde(default = "default_isolation_strategy")]
     pub isolation_strategy: String,
+    /// AWS region for cloud-native backends (Neptune). Ignored by Neo4j.
+    /// If omitted, inferred from the endpoint URL.
+    pub region: Option<String>,
 }
 
 fn default_isolation_strategy() -> String {
@@ -229,6 +232,7 @@ impl fmt::Debug for GraphConfig {
             .field("retry_initial_delay_ms", &self.retry_initial_delay_ms)
             .field("retry_max_delay_ms", &self.retry_max_delay_ms)
             .field("isolation_strategy", &self.isolation_strategy)
+            .field("region", &self.region)
             .finish()
     }
 }

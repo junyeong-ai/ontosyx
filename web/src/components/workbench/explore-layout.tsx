@@ -8,6 +8,7 @@ import {
   Search02Icon,
   DatabaseIcon,
 } from "@hugeicons/core-free-icons";
+import { useAppStore } from "@/lib/store";
 import { searchGraph, expandNode, fetchGraphOverview } from "@/lib/api";
 import type { ExpandNeighbor, GraphOverview } from "@/lib/api/queries";
 import { Spinner } from "@/components/ui/spinner";
@@ -367,9 +368,22 @@ export function ExploreLayout() {
 
           {/* Empty graph fallback */}
           {!searched && !overviewLoading && (!overview || overview.labels.length === 0) && (
-            <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
-              <HugeiconsIcon icon={Search02Icon} className="h-5 w-5 text-zinc-300 dark:text-zinc-600" size="100%" />
-              <p className="text-xs text-zinc-400">Search for entities in your graph</p>
+            <div className="flex flex-col items-center gap-3 px-4 py-8 text-center">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-950/30">
+                <HugeiconsIcon icon={Search02Icon} className="h-4 w-4 text-emerald-500" size="100%" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">No graph data yet</p>
+                <p className="mt-1 text-xs text-zinc-400">
+                  Deploy a schema and load data from Design mode to start exploring.
+                </p>
+              </div>
+              <button
+                onClick={() => useAppStore.getState().setWorkspaceMode("design")}
+                className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50"
+              >
+                Switch to Design
+              </button>
             </div>
           )}
 

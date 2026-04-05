@@ -44,10 +44,6 @@ fn sse_phase(phase: &str, detail: Option<&str>) -> String {
     }
 }
 
-fn sse_heartbeat() -> String {
-    serde_json::json!({ "ts": chrono::Utc::now().timestamp() }).to_string()
-}
-
 fn sse_error(error_type: &str, message: &str) -> String {
     serde_json::json!({
         "error": { "type": error_type, "message": message }
@@ -490,7 +486,7 @@ pub(crate) async fn design_project_stream(
             }
         };
 
-        let (ontology, source_mapping) = match design_result {
+        let (mut ontology, source_mapping) = match design_result {
             Ok(result) => result,
             Err(e) => {
                 yield Ok(Event::default().event("error").data(
@@ -502,6 +498,18 @@ pub(crate) async fn design_project_stream(
 
         let design_ms = design_started.elapsed().as_millis() as u64;
         info!(project_id = %id, design_ms, "LLM design completed (stream)");
+
+        // Enrich ontology properties with data classifications from PII findings
+        if let Some(report) = &analysis_report {
+            let classified = ox_core::source_analysis::apply_pii_classifications(
+                &mut ontology,
+                &report.pii_findings,
+                &source_mapping,
+            );
+            if classified > 0 {
+                info!(project_id = %id, classified, "Applied PII-based data classifications to ontology properties");
+            }
+        }
 
         yield Ok(Event::default().event("phase").data(
             sse_phase("assessing_quality", None)

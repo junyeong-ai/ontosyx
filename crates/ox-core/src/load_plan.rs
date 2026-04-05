@@ -4,6 +4,23 @@ use serde::{Deserialize, Serialize};
 use crate::types::PropertyType;
 
 // ---------------------------------------------------------------------------
+// LoadMode — full vs. incremental (watermark-based) loading
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "mode", rename_all = "snake_case")]
+pub enum LoadMode {
+    /// Replace all data (default behavior).
+    #[default]
+    Full,
+    /// Only load records newer than the last checkpoint.
+    Incremental {
+        /// Column to use as watermark (e.g., "updated_at", "id").
+        watermark_column: String,
+    },
+}
+
+// ---------------------------------------------------------------------------
 // LoadPlan — DB-agnostic data loading strategy
 //
 // Describes HOW to load data from a source (CSV, JSON, RDB) into a graph,
@@ -29,6 +46,9 @@ pub struct LoadPlan {
     pub steps: Vec<LoadStep>,
     /// Batch execution configuration
     pub batch_config: BatchConfig,
+    /// Loading mode: full replacement or incremental (watermark-based).
+    #[serde(default)]
+    pub mode: LoadMode,
 }
 
 // ---------------------------------------------------------------------------

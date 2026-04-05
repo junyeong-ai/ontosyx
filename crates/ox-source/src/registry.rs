@@ -149,6 +149,53 @@ impl IntrospectorRegistry {
             Ok(Box::new(introspector) as Box<dyn DataSourceIntrospector>)
         });
 
+        // Snowflake: stub implementation (REST SQL API integration pending)
+        registry.register("snowflake", |input| async move {
+            let conn = input.connection_string.as_deref().ok_or_else(|| {
+                ox_core::error::OxError::Validation {
+                    field: "connection_string".to_string(),
+                    message: "Snowflake source requires a connection_string \
+                              (format: snowflake://{account}/{database}/{schema}\
+                              ?user={user}&password={password}&warehouse={warehouse})"
+                        .to_string(),
+                }
+            })?;
+            let introspector =
+                crate::snowflake::SnowflakeIntrospector::from_connection_string(conn)?;
+            Ok(Box::new(introspector) as Box<dyn DataSourceIntrospector>)
+        });
+
+        // BigQuery: stub implementation (gcp-bigquery-client integration pending)
+        registry.register("bigquery", |input| async move {
+            let conn = input.connection_string.as_deref().ok_or_else(|| {
+                ox_core::error::OxError::Validation {
+                    field: "connection_string".to_string(),
+                    message: "BigQuery source requires a connection_string \
+                              (format: bigquery://PROJECT_ID/DATASET)"
+                        .to_string(),
+                }
+            })?;
+            let introspector = crate::bigquery::BigQueryIntrospector::connect(conn).await?;
+            Ok(Box::new(introspector) as Box<dyn DataSourceIntrospector>)
+        });
+
+        // DuckDB: in-process file analysis (Parquet, CSV, JSON)
+        #[cfg(feature = "duckdb")]
+        registry.register("duckdb", |input| async move {
+            let path = input
+                .data
+                .as_deref()
+                .or(input.connection_string.as_deref())
+                .ok_or_else(|| ox_core::error::OxError::Validation {
+                    field: "file_path".to_string(),
+                    message: "DuckDB source requires a file path \
+                              (provide as 'data' or 'connection_string')"
+                        .to_string(),
+                })?;
+            let introspector = crate::duckdb_source::DuckDbIntrospector::from_file(path)?;
+            Ok(Box::new(introspector) as Box<dyn DataSourceIntrospector>)
+        });
+
         // JSON: synchronous analysis wrapped in async
         registry.register("json", |input| async move {
             let data =
@@ -185,6 +232,10 @@ mod tests {
         assert!(registry.supports("mongodb"));
         assert!(registry.supports("csv"));
         assert!(registry.supports("json"));
+        assert!(registry.supports("snowflake"));
+        assert!(registry.supports("bigquery"));
+        #[cfg(feature = "duckdb")]
+        assert!(registry.supports("duckdb"));
         assert!(!registry.supports("text"));
     }
 
@@ -193,7 +244,33 @@ mod tests {
         let registry = IntrospectorRegistry::with_defaults();
         let mut types = registry.registered_types();
         types.sort();
-        assert_eq!(types, vec!["csv", "json", "mongodb", "mysql", "postgresql"]);
+        #[cfg(feature = "duckdb")]
+        assert_eq!(
+            types,
+            vec![
+                "bigquery",
+                "csv",
+                "duckdb",
+                "json",
+                "mongodb",
+                "mysql",
+                "postgresql",
+                "snowflake"
+            ]
+        );
+        #[cfg(not(feature = "duckdb"))]
+        assert_eq!(
+            types,
+            vec![
+                "bigquery",
+                "csv",
+                "json",
+                "mongodb",
+                "mysql",
+                "postgresql",
+                "snowflake"
+            ]
+        );
     }
 
     #[tokio::test]

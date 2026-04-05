@@ -51,6 +51,8 @@ export function formatPropertyType(pt: PropertyType): string {
   return pt.type;
 }
 
+export type DataClassification = "public" | "internal" | "confidential" | "restricted";
+
 export interface PropertyDef {
   id: string;
   name: string;
@@ -60,6 +62,8 @@ export interface PropertyDef {
   description?: string | null;
   /** Source column name this property was derived from (set by LLM for DB sources) */
   source_column?: string | null;
+  /** Data sensitivity classification (derived from PII detection) */
+  classification?: DataClassification | null;
 }
 
 export type ConstraintDef =

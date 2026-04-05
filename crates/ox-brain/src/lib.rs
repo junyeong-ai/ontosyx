@@ -1,11 +1,11 @@
 pub mod auth;
 pub mod client_pool;
+pub mod knowledge_rag;
+pub mod knowledge_util;
 pub mod model_resolver;
 pub mod prompts;
 pub mod provider;
 pub mod schema;
-pub mod knowledge_rag;
-pub mod knowledge_util;
 pub mod schema_rag;
 
 use async_trait::async_trait;
@@ -578,7 +578,12 @@ impl OntologyEditor for DefaultBrain {
 
 #[async_trait]
 impl QueryTranslator for DefaultBrain {
-    async fn translate_query(&self, question: &str, ontology: &OntologyIR, ctx: &branchforge::ExecutionContext) -> OxResult<QueryIR> {
+    async fn translate_query(
+        &self,
+        question: &str,
+        ontology: &OntologyIR,
+        ctx: &branchforge::ExecutionContext,
+    ) -> OxResult<QueryIR> {
         // Phase 1: Schema discovery
         ctx.progress("schema_discovery").started();
         let t_schema = std::time::Instant::now();
@@ -602,14 +607,12 @@ impl QueryTranslator for DefaultBrain {
                 .map(|n| n.label.clone())
                 .chain(ontology.edge_types.iter().map(|e| e.label.clone()))
                 .collect();
-            let schema = schema_rag::build_progressive_schema(
-                ontology,
-                &all_node_labels,
-            );
+            let schema = schema_rag::build_progressive_schema(ontology, &all_node_labels);
             (schema, all_label_strings)
         };
 
-        ctx.progress("schema_discovery").completed(t_schema.elapsed().as_millis() as u64);
+        ctx.progress("schema_discovery")
+            .completed(t_schema.elapsed().as_millis() as u64);
 
         // Phase 2: Knowledge RAG
         ctx.progress("knowledge_lookup").started();
@@ -628,7 +631,8 @@ impl QueryTranslator for DefaultBrain {
             String::new()
         };
 
-        ctx.progress("knowledge_lookup").completed(t_knowledge.elapsed().as_millis() as u64);
+        ctx.progress("knowledge_lookup")
+            .completed(t_knowledge.elapsed().as_millis() as u64);
 
         let mut vars = HashMap::new();
         vars.insert("question", question);
@@ -650,7 +654,8 @@ impl QueryTranslator for DefaultBrain {
             .and_then(|match_ir| match_ir.into_query_ir())
         {
             Ok(qir) => {
-                ctx.progress("llm_primary").completed(t_llm.elapsed().as_millis() as u64);
+                ctx.progress("llm_primary")
+                    .completed(t_llm.elapsed().as_millis() as u64);
                 info!("MatchQueryIR structured output succeeded");
                 qir
             }
@@ -677,11 +682,13 @@ impl QueryTranslator for DefaultBrain {
 
                 match result {
                     Ok(qir) => {
-                        ctx.progress("llm_fallback").completed(t_fallback.elapsed().as_millis() as u64);
+                        ctx.progress("llm_fallback")
+                            .completed(t_fallback.elapsed().as_millis() as u64);
                         qir
                     }
                     Err(first_err) => {
-                        ctx.progress("llm_fallback").failed(t_fallback.elapsed().as_millis() as u64);
+                        ctx.progress("llm_fallback")
+                            .failed(t_fallback.elapsed().as_millis() as u64);
                         // Final retry
                         ctx.progress("llm_retry").started();
                         let t_retry = std::time::Instant::now();
@@ -689,25 +696,28 @@ impl QueryTranslator for DefaultBrain {
                             error = %first_err,
                             "QueryIR translation failed, retrying once"
                         );
-                        let retry_result = self.call_structured::<QueryIR>(
-                            "translate_query",
-                            Some("1.0.0"),
-                            "translate_query",
-                            &vars,
-                            "Retrying query translation",
-                        )
-                        .await
-                        .map_err(|retry_err| {
-                            ctx.progress("llm_retry").failed(t_retry.elapsed().as_millis() as u64);
-                            info!(
-                                first_error = %first_err,
-                                retry_error = %retry_err,
-                                "Query translation retry also failed"
-                            );
-                            retry_err
-                        });
+                        let retry_result = self
+                            .call_structured::<QueryIR>(
+                                "translate_query",
+                                Some("1.0.0"),
+                                "translate_query",
+                                &vars,
+                                "Retrying query translation",
+                            )
+                            .await
+                            .map_err(|retry_err| {
+                                ctx.progress("llm_retry")
+                                    .failed(t_retry.elapsed().as_millis() as u64);
+                                info!(
+                                    first_error = %first_err,
+                                    retry_error = %retry_err,
+                                    "Query translation retry also failed"
+                                );
+                                retry_err
+                            });
                         if retry_result.is_ok() {
-                            ctx.progress("llm_retry").completed(t_retry.elapsed().as_millis() as u64);
+                            ctx.progress("llm_retry")
+                                .completed(t_retry.elapsed().as_millis() as u64);
                         }
                         retry_result?
                     }

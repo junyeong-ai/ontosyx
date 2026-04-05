@@ -34,7 +34,7 @@ ox-agent = { path = "crates/ox-agent" }
 ox-memory = { path = "crates/ox-memory" }
 
 # LLM runtime
-branchforge = { path = "../branchforge", default-features = false }
+branchforge = { version = "0.7.0", default-features = false }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
@@ -60,6 +60,7 @@ utoipa-swagger-ui = { version = "9", features = ["axum"] }
 neo4rs = "0.8"
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "mysql", "chrono", "uuid"] }
 mongodb = "3"
+duckdb = { version = "1", features = ["bundled"] }
 
 # LLM
 reqwest = { version = "0.13", features = ["json", "stream"] }

@@ -640,30 +640,40 @@ mod tests {
     }
 }
 
-    #[test]
-    fn measure_query_ir_complexity() {
-        let schema = schemars::schema_for!(ox_core::query_ir::QueryIR);
-        let mut value = schema.to_value();
-        
-        let optional_before = count_optional_params(&value);
-        let total_before = count_total_properties(&value);
-        eprintln!("BEFORE transform: optional={}, total={}", optional_before, total_before);
-        
-        // Transform
-        value = transform_for_structured_output(&value);
-        enforce_strict_object_schemas(&mut value);
-        clean_nullable_flags(&mut value);
-        
-        let optional_after = count_optional_params(&value);
-        let total_after = count_total_properties(&value);
-        eprintln!("AFTER transform: optional={}, total={}", optional_after, total_after);
-        
-        // Show first few properties at root level
-        if let Some(props) = value.get("properties").and_then(|p| p.as_object()) {
-            eprintln!("Root properties ({}): {:?}", props.len(), props.keys().collect::<Vec<_>>());
-        }
-        
-        // Dump full schema for analysis
-        let schema_str = serde_json::to_string_pretty(&value).unwrap();
-        eprintln!("Total schema size: {} chars", schema_str.len());
+#[test]
+fn measure_query_ir_complexity() {
+    let schema = schemars::schema_for!(ox_core::query_ir::QueryIR);
+    let mut value = schema.to_value();
+
+    let optional_before = count_optional_params(&value);
+    let total_before = count_total_properties(&value);
+    eprintln!(
+        "BEFORE transform: optional={}, total={}",
+        optional_before, total_before
+    );
+
+    // Transform
+    value = transform_for_structured_output(&value);
+    enforce_strict_object_schemas(&mut value);
+    clean_nullable_flags(&mut value);
+
+    let optional_after = count_optional_params(&value);
+    let total_after = count_total_properties(&value);
+    eprintln!(
+        "AFTER transform: optional={}, total={}",
+        optional_after, total_after
+    );
+
+    // Show first few properties at root level
+    if let Some(props) = value.get("properties").and_then(|p| p.as_object()) {
+        eprintln!(
+            "Root properties ({}): {:?}",
+            props.len(),
+            props.keys().collect::<Vec<_>>()
+        );
     }
+
+    // Dump full schema for analysis
+    let schema_str = serde_json::to_string_pretty(&value).unwrap();
+    eprintln!("Total schema size: {} chars", schema_str.len());
+}

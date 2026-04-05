@@ -323,10 +323,7 @@ impl MatchQueryIR {
                 });
             }
 
-            let needs_value = !matches!(
-                cond.op,
-                ConditionOp::IsNull | ConditionOp::IsNotNull
-            );
+            let needs_value = !matches!(cond.op, ConditionOp::IsNull | ConditionOp::IsNotNull);
             let value_count = cond.string_value.is_some() as u8
                 + cond.number_value.is_some() as u8
                 + cond.bool_value.is_some() as u8
@@ -626,7 +623,10 @@ fn return_to_projection(r: &ReturnClause) -> Projection {
         Projection::Aggregation {
             function: func.into(),
             argument,
-            alias: r.alias.clone().unwrap_or_else(|| format!("{func:?}").to_lowercase()),
+            alias: r
+                .alias
+                .clone()
+                .unwrap_or_else(|| format!("{func:?}").to_lowercase()),
             distinct: r.distinct.unwrap_or(false),
         }
     } else {
@@ -733,7 +733,13 @@ mod tests {
             },
         ];
         let filter = conditions_to_filter(&conditions);
-        assert!(matches!(filter, Some(Expr::Logical { op: LogicalOp::And, .. })));
+        assert!(matches!(
+            filter,
+            Some(Expr::Logical {
+                op: LogicalOp::And,
+                ..
+            })
+        ));
     }
 
     #[test]
@@ -746,7 +752,13 @@ mod tests {
             distinct: Some(false),
         };
         let proj = return_to_projection(&ret);
-        assert!(matches!(proj, Projection::Aggregation { function: AggFunction::Count, .. }));
+        assert!(matches!(
+            proj,
+            Projection::Aggregation {
+                function: AggFunction::Count,
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -762,7 +774,9 @@ mod tests {
         };
         let expr = condition_value(&c).unwrap();
         match expr {
-            Expr::Literal { value: PropertyValue::Int(42) } => {}
+            Expr::Literal {
+                value: PropertyValue::Int(42),
+            } => {}
             other => panic!("expected Int(42), got: {other:?}"),
         }
     }
@@ -774,7 +788,9 @@ mod tests {
             descending: true,
         };
         let oc = sort_to_order(&s);
-        assert!(matches!(oc.projection, Projection::Field { ref variable, ref field, .. } if variable == "p" && field == "price"));
+        assert!(
+            matches!(oc.projection, Projection::Field { ref variable, ref field, .. } if variable == "p" && field == "price")
+        );
         assert_eq!(oc.direction, SortDirection::Desc);
     }
 
@@ -811,8 +827,14 @@ mod tests {
     #[test]
     fn var_length_relationship() {
         let mut ir = simple_ir();
-        ir.nodes.push(NodePattern { variable: "b".into(), label: "Person".into() });
-        ir.nodes[0] = NodePattern { variable: "a".into(), label: "Person".into() };
+        ir.nodes.push(NodePattern {
+            variable: "b".into(),
+            label: "Person".into(),
+        });
+        ir.nodes[0] = NodePattern {
+            variable: "a".into(),
+            label: "Person".into(),
+        };
         ir.relationships.push(RelationshipPattern {
             label: "KNOWS".into(),
             source: "a".into(),
@@ -831,7 +853,9 @@ mod tests {
         let qir = ir.into_query_ir().unwrap();
         if let QueryOp::Match { patterns, .. } = &qir.operation {
             let rel = &patterns[2];
-            assert!(matches!(rel, GraphPattern::Relationship { var_length: Some(vl), .. } if vl.min == Some(1) && vl.max == Some(3)));
+            assert!(
+                matches!(rel, GraphPattern::Relationship { var_length: Some(vl), .. } if vl.min == Some(1) && vl.max == Some(3))
+            );
         } else {
             panic!("expected Match");
         }
@@ -876,7 +900,13 @@ mod tests {
             list_values: vec![],
         });
         let qir = ir.into_query_ir().unwrap();
-        assert!(matches!(qir.operation, QueryOp::Match { filter: Some(_), .. }));
+        assert!(matches!(
+            qir.operation,
+            QueryOp::Match {
+                filter: Some(_),
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -884,7 +914,7 @@ mod tests {
         let mut ir = simple_ir();
         ir.relationships.push(RelationshipPattern {
             label: "PLACED".into(),
-            source: "c".into(),  // "c" not in nodes
+            source: "c".into(), // "c" not in nodes
             target: "p".into(),
             variable: None,
             min_hops: None,
@@ -904,7 +934,7 @@ mod tests {
             string_value: None,
             number_value: None,
             bool_value: None,
-            list_values: vec![],  // empty!
+            list_values: vec![], // empty!
         });
         let err = ir.into_query_ir().unwrap_err();
         assert!(matches!(err, OxError::Validation { ref field, .. } if field == "conditions[0]"));
@@ -913,7 +943,10 @@ mod tests {
     #[test]
     fn normalizes_var_length_1_1_to_none() {
         let mut ir = simple_ir();
-        ir.nodes.push(NodePattern { variable: "i".into(), label: "Ingredient".into() });
+        ir.nodes.push(NodePattern {
+            variable: "i".into(),
+            label: "Ingredient".into(),
+        });
         ir.relationships.push(RelationshipPattern {
             label: "HAS_INGREDIENT".into(),
             source: "p".into(),
@@ -925,7 +958,13 @@ mod tests {
         let qir = ir.into_query_ir().unwrap();
         if let QueryOp::Match { patterns, .. } = &qir.operation {
             let rel = &patterns[2];
-            assert!(matches!(rel, GraphPattern::Relationship { var_length: None, .. }));
+            assert!(matches!(
+                rel,
+                GraphPattern::Relationship {
+                    var_length: None,
+                    ..
+                }
+            ));
         } else {
             panic!("expected Match");
         }
@@ -934,7 +973,10 @@ mod tests {
     #[test]
     fn sanitizes_null_string_variable() {
         let mut ir = simple_ir();
-        ir.nodes.push(NodePattern { variable: "b".into(), label: "Brand".into() });
+        ir.nodes.push(NodePattern {
+            variable: "b".into(),
+            label: "Brand".into(),
+        });
         ir.relationships.push(RelationshipPattern {
             label: "MADE_BY".into(),
             source: "p".into(),
@@ -946,7 +988,10 @@ mod tests {
         let qir = ir.into_query_ir().unwrap();
         if let QueryOp::Match { patterns, .. } = &qir.operation {
             let rel = &patterns[2];
-            assert!(matches!(rel, GraphPattern::Relationship { variable: None, .. }));
+            assert!(matches!(
+                rel,
+                GraphPattern::Relationship { variable: None, .. }
+            ));
         } else {
             panic!("expected Match");
         }

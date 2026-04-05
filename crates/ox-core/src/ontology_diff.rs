@@ -189,9 +189,9 @@ pub fn structural_labels(diff: &OntologyDiff) -> Vec<String> {
     for nd in &diff.modified_nodes {
         let has_structural = nd.changes.iter().any(|c| match c {
             NodeChange::PropertyRemoved { .. } => true,
-            NodeChange::PropertyModified { changes, .. } => {
-                changes.iter().any(|pc| matches!(pc, PropertyChange::TypeChanged { .. }))
-            }
+            NodeChange::PropertyModified { changes, .. } => changes
+                .iter()
+                .any(|pc| matches!(pc, PropertyChange::TypeChanged { .. })),
             _ => false,
         });
         if has_structural {
@@ -200,7 +200,10 @@ pub fn structural_labels(diff: &OntologyDiff) -> Vec<String> {
     }
     for ed in &diff.modified_edges {
         let has_structural = ed.changes.iter().any(|c| {
-            matches!(c, EdgeChange::CardinalityChanged { .. } | EdgeChange::PropertyRemoved { .. })
+            matches!(
+                c,
+                EdgeChange::CardinalityChanged { .. } | EdgeChange::PropertyRemoved { .. }
+            )
         });
         if has_structural {
             labels.push(ed.label.clone());
@@ -714,6 +717,7 @@ mod tests {
             nullable: true,
             default_value: None,
             description: Some("Email address".to_string()),
+            classification: None,
         });
         new.rebuild_indices();
 
@@ -837,6 +841,7 @@ mod tests {
             nullable: true,
             default_value: None,
             description: None,
+            classification: None,
         });
         // 3. Remove Company (n2)
         new.node_types.retain(|n| n.id != "n2");
@@ -976,6 +981,7 @@ mod tests {
             nullable: true,
             default_value: None,
             description: None,
+            classification: None,
         });
         new.rebuild_indices();
 

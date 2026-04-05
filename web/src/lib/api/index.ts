@@ -15,6 +15,7 @@ export * from "./admin";
 export * from "./perspectives";
 export * from "./workspaces";
 export * from "./models";
+export * from "./sources";
 
 // Type re-exports from @/types/api (for backward compat with old import paths)
 export type { HealthResponse, InsightSuggestion, SessionMessage } from "@/types/api";

@@ -16,11 +16,19 @@ pub(super) fn compile_expr(expr: &Expr, pc: &mut ParamCollector) -> OxResult<Str
         },
 
         Expr::Comparison { left, op, right } => {
-            format!("{} {op} {}", compile_expr(left, pc)?, compile_expr(right, pc)?)
+            format!(
+                "{} {op} {}",
+                compile_expr(left, pc)?,
+                compile_expr(right, pc)?
+            )
         }
 
         Expr::Logical { left, op, right } => {
-            format!("({} {op} {})", compile_expr(left, pc)?, compile_expr(right, pc)?)
+            format!(
+                "({} {op} {})",
+                compile_expr(left, pc)?,
+                compile_expr(right, pc)?
+            )
         }
 
         Expr::Not { inner } => format!("NOT ({})", compile_expr(inner, pc)?),
@@ -39,7 +47,11 @@ pub(super) fn compile_expr(expr: &Expr, pc: &mut ParamCollector) -> OxResult<Str
         }
 
         Expr::StringOp { left, op, right } => {
-            format!("{} {op} {}", compile_expr(left, pc)?, compile_expr(right, pc)?)
+            format!(
+                "{} {op} {}",
+                compile_expr(left, pc)?,
+                compile_expr(right, pc)?
+            )
         }
 
         Expr::FunctionCall { function, args } => {
@@ -158,7 +170,10 @@ pub(super) fn compile_projection(proj: &Projection, pc: &mut ParamCollector) -> 
     })
 }
 
-pub(super) fn compile_order_by(clauses: &[OrderClause], pc: &mut ParamCollector) -> OxResult<String> {
+pub(super) fn compile_order_by(
+    clauses: &[OrderClause],
+    pc: &mut ParamCollector,
+) -> OxResult<String> {
     let items = clauses
         .iter()
         .map(|c| {

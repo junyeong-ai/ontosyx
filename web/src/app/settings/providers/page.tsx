@@ -100,13 +100,15 @@ export default function ProvidersPage() {
             </div>
           </section>
 
-          {/* Neo4j */}
+          {/* Graph Database */}
           <section className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
             <div className="border-b border-zinc-100 px-6 py-4 dark:border-zinc-800">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                    Neo4j
+                    {health.components.graph_backend && health.components.graph_backend !== "none"
+                      ? health.components.graph_backend
+                      : "Graph Database"}
                   </h2>
                   <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
                     Graph database for ontology queries and data exploration

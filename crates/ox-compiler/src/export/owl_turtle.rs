@@ -282,6 +282,7 @@ mod tests {
                             nullable: false,
                             default_value: None,
                             description: Some("Brand name in Korean".into()),
+                            classification: None,
                         },
                         PropertyDef {
                             id: "p2".into(),
@@ -290,6 +291,7 @@ mod tests {
                             nullable: true,
                             default_value: None,
                             description: None,
+                            classification: None,
                         },
                     ],
                     constraints: vec![ConstraintDef {
@@ -311,6 +313,7 @@ mod tests {
                         nullable: false,
                         default_value: None,
                         description: None,
+                        classification: None,
                     }],
                     constraints: vec![],
                 },

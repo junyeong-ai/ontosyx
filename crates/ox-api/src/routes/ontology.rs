@@ -713,10 +713,7 @@ pub async fn enrich_ontology(
     Path(id): Path<Uuid>,
     Json(req): Json<EnrichRequest>,
 ) -> Result<Json<EnrichResponse>, AppError> {
-    let runtime = state
-        .runtime
-        .as_ref()
-        .ok_or_else(AppError::no_runtime)?;
+    let runtime = state.runtime.as_ref().ok_or_else(AppError::no_runtime)?;
 
     let saved = state
         .store
@@ -729,8 +726,7 @@ pub async fn enrich_ontology(
         .map_err(|e| AppError::internal(format!("Failed to parse ontology IR: {e}")))?;
 
     // Profile graph data
-    let config =
-        ox_runtime::profiler::ProfileConfig::for_ontology_size(ontology.node_types.len());
+    let config = ox_runtime::profiler::ProfileConfig::for_ontology_size(ontology.node_types.len());
     let profile = ox_runtime::profiler::profile_graph(runtime.as_ref(), &ontology, &config)
         .await
         .map_err(AppError::from)?;
@@ -755,8 +751,9 @@ pub async fn enrich_ontology(
 
     // Apply if requested
     if req.apply && !result.changes.is_empty() {
-        let ir_json = serde_json::to_value(&result.ontology)
-            .map_err(|e| AppError::internal(format!("Failed to serialize enriched ontology: {e}")))?;
+        let ir_json = serde_json::to_value(&result.ontology).map_err(|e| {
+            AppError::internal(format!("Failed to serialize enriched ontology: {e}"))
+        })?;
         state
             .store
             .update_ontology_ir(id, &ir_json)

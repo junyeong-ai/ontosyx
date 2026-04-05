@@ -23,6 +23,7 @@ fn prop(id: &str, name: &str, ty: PropertyType, desc: Option<&str>) -> PropertyD
         nullable: false,
         default_value: None,
         description: desc.map(String::from),
+        classification: None,
     }
 }
 
@@ -34,6 +35,7 @@ fn nullable_prop(id: &str, name: &str, ty: PropertyType, desc: Option<&str>) -> 
         nullable: true,
         default_value: None,
         description: desc.map(String::from),
+        classification: None,
     }
 }
 

@@ -398,19 +398,22 @@ pub async fn workspace_context(
         .cloned()
         .ok_or_else(|| AppError::unauthorized("Authentication required"))?;
 
-    // API key users: must provide X-Workspace-Id header to scope data access.
-    // System bypass is only used internally (e.g., scheduled tasks via with_system_bypass).
+    // API key users: resolve workspace from X-Workspace-Id header.
+    // API keys have admin-level access, so any workspace is valid.
+    // No fallback — callers must explicitly specify which workspace to operate on.
     if claims.sub.starts_with("system:") {
         let workspace_id = req
             .headers()
             .get("x-workspace-id")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|s| Uuid::parse_str(s).ok())
             .ok_or_else(|| {
                 AppError::bad_request(
-                    "API key requests require X-Workspace-Id header",
+                    "X-Workspace-Id header required. Call GET /workspaces first to list available workspaces.",
                 )
-            })?;
+            })?
+            .to_str()
+            .map_err(|_| AppError::bad_request("Invalid X-Workspace-Id header"))?
+            .parse::<Uuid>()
+            .map_err(|_| AppError::bad_request("X-Workspace-Id must be a valid UUID"))?;
 
         let ws_ctx = WorkspaceContext {
             workspace_id,

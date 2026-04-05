@@ -414,11 +414,19 @@ pub(crate) async fn refine_project(
     // LLM refinement may not include sample values — enrichment ensures they're always present.
     let refined = if let Some((_, _, _)) = &graph_profile {
         if let Some(runtime) = &state.runtime {
-            let config =
-                ox_runtime::profiler::ProfileConfig::for_ontology_size(reconciled.ontology.node_types.len());
-            match ox_runtime::profiler::profile_graph(runtime.as_ref(), &reconciled.ontology, &config).await {
+            let config = ox_runtime::profiler::ProfileConfig::for_ontology_size(
+                reconciled.ontology.node_types.len(),
+            );
+            match ox_runtime::profiler::profile_graph(
+                runtime.as_ref(),
+                &reconciled.ontology,
+                &config,
+            )
+            .await
+            {
                 Ok(profile) => {
-                    let enriched = ox_runtime::enrichment::enrich_descriptions(&reconciled.ontology, &profile);
+                    let enriched =
+                        ox_runtime::enrichment::enrich_descriptions(&reconciled.ontology, &profile);
                     if !enriched.changes.is_empty() {
                         info!(
                             project_id = %id,

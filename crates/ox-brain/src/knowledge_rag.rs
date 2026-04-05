@@ -27,7 +27,12 @@ pub async fn discover_knowledge(
     }
 
     let entries = match store
-        .search_knowledge_by_labels(ontology_name, ontology_version, discovered_labels, top_k as i64)
+        .search_knowledge_by_labels(
+            ontology_name,
+            ontology_version,
+            discovered_labels,
+            top_k as i64,
+        )
         .await
     {
         Ok(entries) => entries,

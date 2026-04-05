@@ -53,6 +53,9 @@ pub(crate) async fn reanalyze_project(
         ProjectSource::Postgresql { .. } => SourceTypeKind::Postgresql,
         ProjectSource::Mysql { .. } => SourceTypeKind::Mysql,
         ProjectSource::Mongodb { .. } => SourceTypeKind::Mongodb,
+        ProjectSource::Snowflake { .. } => SourceTypeKind::Snowflake,
+        ProjectSource::Bigquery { .. } => SourceTypeKind::Bigquery,
+        ProjectSource::Duckdb { .. } => SourceTypeKind::DuckDb,
         ProjectSource::CodeRepository { .. } => SourceTypeKind::CodeRepository,
     };
 

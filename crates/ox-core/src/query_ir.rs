@@ -579,7 +579,11 @@ impl<'de> Deserialize<'de> for Projection {
                     .to_string();
                 let alias = obj.get("alias").and_then(|v| v.as_str()).map(String::from);
                 // If field is empty/missing, treat as variable projection (not n.``)
-                match obj.get("field").and_then(|v| v.as_str()).filter(|f| !f.is_empty()) {
+                match obj
+                    .get("field")
+                    .and_then(|v| v.as_str())
+                    .filter(|f| !f.is_empty())
+                {
                     Some(field) => Ok(Projection::Field {
                         variable,
                         field: field.to_string(),

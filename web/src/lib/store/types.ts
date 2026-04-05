@@ -97,7 +97,6 @@ export type Selection =
 export interface CommandEntry {
   command: OntologyCommand;
   inverse: OntologyCommand;
-  before: OntologyIR;
 }
 
 // ---------------------------------------------------------------------------

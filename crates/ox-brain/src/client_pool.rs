@@ -76,8 +76,9 @@ impl ClientPool {
                 message: format!("Client auth failed: {e}"),
             })?;
 
-        builder =
-            builder.models(branchforge::client::ModelConfig::default().primary(&config.model));
+        builder = builder
+            .models(branchforge::client::ModelConfig::default().primary(&config.model))
+            .retry(branchforge::RetryPolicy::default());
 
         let client = builder.build().await.map_err(|e| OxError::Runtime {
             message: format!("Client build failed: {e}"),

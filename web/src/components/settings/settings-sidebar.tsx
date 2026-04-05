@@ -12,35 +12,69 @@ interface NavItem {
   adminOnly?: boolean;
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { label: "Workspace", href: "/settings/workspace", adminOnly: true },
-  { label: "Profile", href: "/settings/profile" },
-  { label: "System", href: "/settings/system", adminOnly: true },
-  { label: "Providers", href: "/settings/providers" },
-  { label: "Team", href: "/settings/team", authOnly: true },
-  { label: "Prompts", href: "/settings/prompts", adminOnly: true },
-  { label: "Sessions", href: "/settings/sessions" },
-  { label: "Recipes", href: "/settings/recipes" },
-  { label: "Knowledge", href: "/settings/knowledge", adminOnly: true },
-  { label: "Schedules", href: "/settings/schedules", adminOnly: true },
-  { label: "Reports", href: "/settings/reports" },
-  { label: "Quality Rules", href: "/settings/quality", adminOnly: true },
-  { label: "Models", href: "/settings/models", adminOnly: true },
-  { label: "Access Control", href: "/settings/acl", adminOnly: true },
-  { label: "Data Lineage", href: "/settings/lineage" },
-  { label: "Usage", href: "/settings/usage", adminOnly: true },
-  { label: "Approvals", href: "/settings/approvals", adminOnly: true },
-  { label: "Audit Log", href: "/settings/audit", adminOnly: true },
+interface NavGroup {
+  title: string;
+  items: NavItem[];
+}
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    title: "Organization",
+    items: [
+      { label: "Workspace", href: "/settings/workspace", adminOnly: true },
+      { label: "Team", href: "/settings/team", authOnly: true },
+      { label: "Profile", href: "/settings/profile" },
+    ],
+  },
+  {
+    title: "System",
+    items: [
+      { label: "System", href: "/settings/system", adminOnly: true },
+      { label: "Providers", href: "/settings/providers" },
+      { label: "Models", href: "/settings/models", adminOnly: true },
+      { label: "Usage", href: "/settings/usage", adminOnly: true },
+      { label: "Notifications", href: "/settings/notifications", adminOnly: true },
+    ],
+  },
+  {
+    title: "Data",
+    items: [
+      { label: "Recipes", href: "/settings/recipes" },
+      { label: "Reports", href: "/settings/reports" },
+      { label: "Schedules", href: "/settings/schedules", adminOnly: true },
+      { label: "Knowledge", href: "/settings/knowledge", adminOnly: true },
+    ],
+  },
+  {
+    title: "Governance",
+    items: [
+      { label: "Quality Rules", href: "/settings/quality", adminOnly: true },
+      { label: "Access Control", href: "/settings/acl", adminOnly: true },
+      { label: "Data Lineage", href: "/settings/lineage" },
+      { label: "Audit Log", href: "/settings/audit", adminOnly: true },
+      { label: "Approvals", href: "/settings/approvals", adminOnly: true },
+    ],
+  },
+  {
+    title: "Development",
+    items: [
+      { label: "Prompts", href: "/settings/prompts", adminOnly: true },
+      { label: "Sessions", href: "/settings/sessions" },
+    ],
+  },
 ];
 
 export function SettingsSidebar() {
   const pathname = usePathname();
   const { authEnabled, isAdmin } = useAuth();
 
-  const visibleItems = NAV_ITEMS.filter(
-    (item) =>
-      (!item.authOnly || authEnabled) && (!item.adminOnly || isAdmin),
-  );
+  const isItemVisible = (item: NavItem) =>
+    (!item.authOnly || authEnabled) && (!item.adminOnly || isAdmin);
+
+  const visibleGroups = NAV_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter(isItemVisible),
+  })).filter((group) => group.items.length > 0);
 
   return (
     <aside className="flex w-52 shrink-0 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
@@ -67,32 +101,32 @@ export function SettingsSidebar() {
         </Link>
       </div>
 
-      {/* Section label */}
-      <div className="px-4 pt-4 pb-2">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-          Settings
-        </span>
-      </div>
-
-      {/* Navigation */}
-      <nav className="flex flex-col gap-0.5 overflow-y-auto px-2">
-        {visibleItems.map((item) => {
-          const isActive = pathname === item.href;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                isActive
-                  ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400"
-                  : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200",
-              )}
-            >
-              {item.label}
-            </Link>
-          );
-        })}
+      {/* Grouped navigation */}
+      <nav className="flex flex-col overflow-y-auto px-2 pb-4 pt-2">
+        {visibleGroups.map((group) => (
+          <div key={group.title} className="flex flex-col gap-0.5">
+            <span className="mt-4 mb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+              {group.title}
+            </span>
+            {group.items.map((item) => {
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "block rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                    isActive
+                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400"
+                      : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200",
+                  )}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </nav>
     </aside>
   );

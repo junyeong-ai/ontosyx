@@ -60,6 +60,37 @@ pub enum ProjectSource {
         /// MongoDB database name
         database: String,
     },
+    Snowflake {
+        /// Snowflake account identifier (e.g., `xy12345.us-east-1`)
+        account: String,
+        /// Login username
+        user: String,
+        /// Login password
+        password: String,
+        /// Compute warehouse name
+        #[serde(default)]
+        warehouse: String,
+        /// Target database
+        database: String,
+        /// Target schema within the database
+        #[serde(default = "default_snowflake_schema")]
+        schema: String,
+    },
+    Bigquery {
+        /// GCP project ID
+        project_id: String,
+        /// BigQuery dataset name
+        dataset: String,
+        /// Optional path to service account credentials JSON file.
+        /// Falls back to GOOGLE_APPLICATION_CREDENTIALS env var if omitted.
+        #[serde(default)]
+        credentials_path: Option<String>,
+    },
+    /// DuckDB in-process file analysis (Parquet, CSV, JSON).
+    /// The `file_path` must be an absolute path to a local file.
+    Duckdb {
+        file_path: String,
+    },
     CodeRepository {
         url: String,
     },
@@ -67,6 +98,10 @@ pub enum ProjectSource {
 
 fn default_pg_schema() -> String {
     "public".to_string()
+}
+
+fn default_snowflake_schema() -> String {
+    "PUBLIC".to_string()
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]

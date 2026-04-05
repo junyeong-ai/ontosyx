@@ -25,17 +25,82 @@ pub use schema::IndexStats;
 use schema::{compile_auto_indices, compile_index, compile_node_constraints};
 
 // ---------------------------------------------------------------------------
-// CypherCompiler — IR → Neo4j Cypher
+// CypherDialect — target-specific Cypher flavor
 // ---------------------------------------------------------------------------
 
-pub struct CypherCompiler;
+/// Cypher dialect controls which features are available during compilation.
+///
+/// - `Neo4j`: Full Cypher with APOC, shortestPath, MERGE ON CREATE/ON MATCH, CREATE INDEX.
+/// - `OpenCypher`: Subset supported by Neptune. No shortestPath, no APOC,
+///   no CREATE INDEX/CONSTRAINT DDL.
+/// - `Memgraph`: Bolt-compatible subset. Generates Neo4j 5.x DDL (constraints + indexes);
+///   the runtime rewrites statements to Memgraph syntax and filters unsupported types.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CypherDialect {
+    /// Full Neo4j Cypher (default). Supports all features.
+    #[default]
+    Neo4j,
+    /// openCypher subset (Neptune). No shortestPath, no APOC,
+    /// no CREATE INDEX, limited MERGE.
+    OpenCypher,
+    /// Memgraph Cypher. DDL is generated in Neo4j 5.x format and rewritten
+    /// by the MemGraphRuntime to Memgraph-compatible syntax at execution time.
+    /// No full-text/vector indexes, no NODE KEY constraints, no APOC/GDS.
+    Memgraph,
+}
+
+// ---------------------------------------------------------------------------
+// CypherCompiler — IR → Cypher (Neo4j or openCypher dialect)
+// ---------------------------------------------------------------------------
+
+pub struct CypherCompiler {
+    pub dialect: CypherDialect,
+}
+
+impl CypherCompiler {
+    /// Create a CypherCompiler targeting full Neo4j Cypher.
+    pub fn neo4j() -> Self {
+        Self {
+            dialect: CypherDialect::Neo4j,
+        }
+    }
+
+    /// Create a CypherCompiler targeting the openCypher subset (Neptune).
+    pub fn open_cypher() -> Self {
+        Self {
+            dialect: CypherDialect::OpenCypher,
+        }
+    }
+
+    /// Create a CypherCompiler targeting Memgraph.
+    /// Generates Neo4j 5.x-style DDL; the MemGraphRuntime rewrites it at execution.
+    pub fn memgraph() -> Self {
+        Self {
+            dialect: CypherDialect::Memgraph,
+        }
+    }
+}
 
 impl GraphCompiler for CypherCompiler {
     fn target_name(&self) -> &str {
-        "Cypher (Neo4j)"
+        match self.dialect {
+            CypherDialect::Neo4j => "Cypher (Neo4j)",
+            CypherDialect::OpenCypher => "openCypher (Neptune)",
+            CypherDialect::Memgraph => "Cypher (Memgraph)",
+        }
     }
 
     fn compile_schema(&self, ontology: &OntologyIR) -> OxResult<Vec<String>> {
+        // openCypher backends (Neptune) handle indexes automatically and
+        // do not support CREATE CONSTRAINT / CREATE INDEX DDL.
+        if self.dialect == CypherDialect::OpenCypher {
+            tracing::info!(
+                dialect = ?self.dialect,
+                "openCypher dialect: skipping schema DDL (indexes are automatic)"
+            );
+            return Ok(Vec::new());
+        }
+
         let mut statements = Vec::new();
 
         for node in &ontology.node_types {

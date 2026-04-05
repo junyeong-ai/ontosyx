@@ -42,6 +42,7 @@ export function useWorkflowFormState(projectId: string | undefined, projectTitle
   const [extendSampleData, setExtendSampleData] = useState("");
   const [extendRepoUrl, setExtendRepoUrl] = useState("");
   const [extendDatabase, setExtendDatabase] = useState("");
+  const [extendDuckdbFilePath, setExtendDuckdbFilePath] = useState("");
 
   // ---------------------------------------------------------------------------
   // Reset transient state when switching projects
@@ -76,6 +77,7 @@ export function useWorkflowFormState(projectId: string | undefined, projectTitle
       database: extendDatabase, setDatabase: setExtendDatabase,
       sampleData: extendSampleData, setSampleData: setExtendSampleData,
       repoUrl: extendRepoUrl, setRepoUrl: setExtendRepoUrl,
+      duckdbFilePath: extendDuckdbFilePath, setDuckdbFilePath: setExtendDuckdbFilePath,
     },
   };
 }

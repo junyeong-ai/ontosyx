@@ -47,8 +47,7 @@ pub struct ConsultKnowledgeTool {
 impl SchemaTool for ConsultKnowledgeTool {
     type Input = ConsultKnowledgeInput;
     const NAME: &'static str = super::CONSULT_KNOWLEDGE;
-    const DESCRIPTION: &'static str =
-        "Search the workspace knowledge base for learned corrections from past query failures \
+    const DESCRIPTION: &'static str = "Search the workspace knowledge base for learned corrections from past query failures \
          and admin-created hints. Use before complex queries to check if there are known \
          pitfalls or recommended approaches for this ontology.";
     const READ_ONLY: bool = true;
@@ -79,7 +78,8 @@ impl SchemaTool for ConsultKnowledgeTool {
 
         // Try label-based search first, then filter by kind
         let mut entries = if !possible_labels.is_empty() {
-            let mut results = self.knowledge_store
+            let mut results = self
+                .knowledge_store
                 .search_knowledge_by_labels(ontology_name, version, &possible_labels, 20)
                 .await
                 .unwrap_or_default();
@@ -117,7 +117,10 @@ impl SchemaTool for ConsultKnowledgeTool {
             .collect();
 
         let total = hits.len();
-        let output = ConsultKnowledgeOutput { entries: hits, total };
+        let output = ConsultKnowledgeOutput {
+            entries: hits,
+            total,
+        };
         ToolResult::success(serde_json::to_string_pretty(&output).unwrap_or_default())
     }
 }

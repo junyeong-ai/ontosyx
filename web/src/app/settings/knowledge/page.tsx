@@ -2,7 +2,10 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Spinner } from "@/components/ui/spinner";
+import { SettingsSelect } from "@/components/ui/form-input";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { KnowledgeEntry, KnowledgeStatus, KnowledgeKind } from "@/types/api";
 import {
   listKnowledge,
@@ -25,23 +28,51 @@ const STATUS: Record<string, { dot: string; label: string }> = {
   deprecated: { dot: "bg-zinc-300 dark:bg-zinc-600", label: "Deprecated" },
 };
 
+const KB_PAGE_LIMIT = 100;
+
 export default function KnowledgePage() {
   const [entries, setEntries] = useState<KnowledgeEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("");
   const [kindFilter, setKindFilter] = useState("");
+  const [nextCursor, setNextCursor] = useState<string | undefined>();
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const { isAdmin } = useAuth();
+  const confirm = useConfirm();
 
   const load = useCallback(async () => {
     try {
-      const page = await listKnowledge({ status: statusFilter || undefined, kind: kindFilter || undefined, limit: 100 });
+      const page = await listKnowledge({ status: statusFilter || undefined, kind: kindFilter || undefined, limit: KB_PAGE_LIMIT });
       setEntries(page.items);
+      setNextCursor(page.next_cursor);
+      setHasMore(page.items.length === KB_PAGE_LIMIT);
     } catch { toast.error("Failed to load knowledge entries"); }
     finally { setLoading(false); }
   }, [statusFilter, kindFilter]);
 
   useEffect(() => { load(); }, [load]);
+
+  const handleLoadMore = async () => {
+    if (!hasMore || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const page = await listKnowledge({
+        status: statusFilter || undefined,
+        kind: kindFilter || undefined,
+        limit: KB_PAGE_LIMIT,
+        cursor: nextCursor,
+      });
+      setEntries((prev) => [...prev, ...page.items]);
+      setNextCursor(page.next_cursor);
+      setHasMore(page.items.length === KB_PAGE_LIMIT);
+    } catch {
+      toast.error("Failed to load more entries");
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const handleStatus = useCallback(async (id: string, status: KnowledgeStatus) => {
     try {
@@ -52,6 +83,13 @@ export default function KnowledgePage() {
   }, []);
 
   const handleDelete = async (id: string) => {
+    const entry = entries.find((e) => e.id === id);
+    const ok = await confirm({
+      title: `Delete knowledge entry '${entry?.title ?? id}'?`,
+      description: "This action cannot be undone. The knowledge entry will be permanently removed.",
+      variant: "danger",
+    });
+    if (!ok) return;
     try {
       await deleteKnowledge(id);
       setEntries((p) => p.filter((e) => e.id !== id));
@@ -95,20 +133,18 @@ export default function KnowledgePage() {
 
         {/* Filters */}
         <div className="mt-4 flex items-center gap-3">
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-            className="rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-700 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+          <SettingsSelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="">All status</option>
             <option value="approved">Approved</option>
             <option value="draft">Draft</option>
             <option value="stale">Stale</option>
             <option value="deprecated">Deprecated</option>
-          </select>
-          <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value)}
-            className="rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-700 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+          </SettingsSelect>
+          <SettingsSelect value={kindFilter} onChange={(e) => setKindFilter(e.target.value)}>
             <option value="">All kinds</option>
             <option value="correction">Correction</option>
             <option value="hint">Hint</option>
-          </select>
+          </SettingsSelect>
           <span className="ml-auto text-sm tabular-nums text-zinc-400">{entries.length} entries</span>
         </div>
 
@@ -136,6 +172,14 @@ export default function KnowledgePage() {
                   onDelete={() => handleDelete(entry.id)}
                 />
               ))}
+            </div>
+          )}
+
+          {hasMore && !loading && entries.length > 0 && (
+            <div className="mt-4 flex justify-center">
+              <Button variant="outline" size="sm" onClick={handleLoadMore} disabled={loadingMore}>
+                {loadingMore ? "Loading..." : `Load more (showing ${entries.length})`}
+              </Button>
             </div>
           )}
         </div>

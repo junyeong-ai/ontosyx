@@ -270,7 +270,7 @@ pub async fn chat_stream(
                                     workspace_id: ws_id,
                                     sequence: event_sequence,
                                     event_type: agent_event.event_type().to_string(),
-                                    payload: serde_json::to_value(&agent_event).unwrap_or_default(),
+                                    payload: serde_json::to_value(agent_event).unwrap_or_default(),
                                     created_at: Utc::now(),
                                 };
                                 let store = Arc::clone(&store_for_events);
@@ -463,7 +463,15 @@ fn agent_event_to_sse(event: &AgentEvent) -> Option<Event> {
             "tool_complete",
             serde_json::json!({ "id": id, "name": name, "output": output, "is_error": is_error, "duration_ms": duration_ms }),
         ),
-        AgentEvent::ToolProgress { id, name: _, step, status, timestamp: _, duration_ms, metadata } => (
+        AgentEvent::ToolProgress {
+            id,
+            name: _,
+            step,
+            status,
+            timestamp: _,
+            duration_ms,
+            metadata,
+        } => (
             "tool_progress",
             serde_json::json!({
                 "tool_call_id": id,

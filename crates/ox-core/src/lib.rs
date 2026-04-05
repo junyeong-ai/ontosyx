@@ -4,11 +4,11 @@ pub(crate) mod test_fixtures;
 pub mod eval;
 
 pub mod design_project;
-pub mod match_query_ir;
 pub mod error;
 pub mod graph_audit;
 pub mod graph_exploration;
 pub mod load_plan;
+pub mod match_query_ir;
 pub mod ontology_command;
 pub mod ontology_diff;
 pub mod ontology_input;
@@ -26,7 +26,8 @@ pub mod widget_spec;
 
 pub use design_project::{DesignProjectStatus, SourceConfig, SourceHistoryEntry, SourceTypeKind};
 pub use error::{ErrorContext, OxError};
-pub use load_plan::LoadPlan;
+pub use load_plan::{LoadMode, LoadPlan};
+pub use match_query_ir::MatchQueryIR;
 pub use ontology_command::{
     CommandResult, EntityKind, MatchDecision, OntologyCommand, PropertyPatch, ReconcileConfidence,
     ReconcileReport, ReconcileResult, UncertainMatch,
@@ -39,6 +40,7 @@ pub use ontology_input::{
     InputEdgeTypeDef, InputIndexDef, InputNodeConstraint, InputNodeTypeDef, InputPropertyDef,
     NormalizeResult, NormalizeWarning, OntologyInputIR, normalize, to_exchange_format,
 };
+pub use ontology_ir::DataClassification;
 pub use ontology_ir::OntologyIR;
 pub use quality::{
     OntologyQualityReport, QualityConfidence, QualityGap, QualityGapCategory, QualityGapRef,
@@ -48,7 +50,6 @@ pub use query_bindings::{
     BindingKind, EdgeBinding, NodeBinding, PropertyBinding, ResolvedQueryBindings,
     resolve_query_bindings,
 };
-pub use match_query_ir::MatchQueryIR;
 pub use query_ir::QueryIR;
 pub use repo_insights::{
     CodeLabel, FieldHint, FileContent, FileSelection, OrmRelationType, OrmRelationship,
@@ -59,7 +60,7 @@ pub use source_analysis::{
     AnalysisWarningKind, ColumnClarification, ConfirmedRelationship, DesignOptions,
     ImpliedFkPattern, ImpliedRelationship, LargeSchemaWarning, PiiDecision, PiiDecisionEntry,
     PiiFinding, RepoAnalysisSummary, RepoColumnSuggestion, SchemaStats, SourceAnalysisReport,
-    TableExclusionReason, TableExclusionSuggestion, WarningLevel,
+    TableExclusionReason, TableExclusionSuggestion, WarningLevel, apply_pii_classifications,
 };
 pub use source_mapping::SourceMapping;
 pub use source_schema::{SourceProfile, SourceSchema};

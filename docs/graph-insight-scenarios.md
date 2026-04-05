@@ -3,7 +3,7 @@
 > RDS(관계형 데이터베이스)에서는 도출 불가능하거나 비현실적인 복잡한 인사이트를,
 > 온톨로지 기반 그래프 DB로 어떻게 즉시 도출하는지 비교합니다.
 
-**데이터셋**: Olive Young 뷰티 리테일 (100 제품, 30 브랜드, 25 성분, 8 피부 고민, 50 고객, 200 거래)
+**데이터셋**: Olive Young 뷰티 리테일 (100 제품, 31 브랜드, 25 성분, 8 피부 고민, 50 고객, 210 거래)
 
 ---
 
@@ -129,7 +129,7 @@ LIMIT 25
 ## 시나리오 2: 규제 변경 연쇄 영향 분석
 
 ### 질문
-> "EU가 레티놀 최대 농도를 0.3%로 강화하면,
+> "EU가 레티놀 최대 농도를 0.05%로 강화하면,
 > 영향받는 제품 → 브랜드 → 매장 → 고객까지 전체 영향 범위는?"
 
 ### 왜 이것이 가치 있는가
@@ -149,7 +149,7 @@ SELECT p.id, p.name, pi.concentration_pct
 FROM products p
 JOIN product_ingredients pi ON pi.product_id = p.id
 JOIN ingredients i ON i.id = pi.ingredient_id
-WHERE i.name = '레티놀' AND pi.concentration_pct > 0.3;
+WHERE i.name = '레티놀' AND pi.concentration_pct > 0.05;
 
 -- Step 3: 해당 제품의 브랜드
 SELECT DISTINCT b.name
@@ -186,7 +186,7 @@ WHERE ti.product_id IN (... Step 2 결과 ...);
 ```cypher
 MATCH (r:Regulation {authority: 'EU_SCCS'})-[:REGULATED_BY]-(i:Ingredient {name: '레티놀'})
 MATCH (p:Product)-[hi:HAS_INGREDIENT]->(i)
-WHERE hi.concentration_pct > 0.3
+WHERE hi.concentration_pct > 0.05
 MATCH (p)-[:MADE_BY]->(b:Brand)
 OPTIONAL MATCH (p)<-[:CONTAINS]-(t:Transaction)<-[:PURCHASED]-(c:Customer)
 OPTIONAL MATCH (t)-[:AT_STORE]->(s:Store)-[:LOCATED_IN]->(reg:Region)
@@ -206,7 +206,7 @@ ORDER BY affected_customers DESC
 ┌────────────────┐
 │   Regulation   │
 │ EU 레티놀 규제   │ ◄── 규제 강화 트리거
-│ max: 0.3%      │
+│ max: 0.05%      │
 └───────┬────────┘
         │ REGULATED_BY
         ▼
@@ -319,8 +319,8 @@ LIMIT 5;
 MATCH (sc1:SkinConcern {name: '건조'})<-[:TREATS]-(i1:Ingredient)
 // 노화를 치료하는 성분들
 MATCH (sc2:SkinConcern {name: '노화'})<-[:TREATS]-(i2:Ingredient)
-// 두 성분 간 시너지
-MATCH (i1)-[syn:SYNERGIZES_WITH]->(i2)
+// 두 성분 간 시너지 (방향 무관)
+MATCH (i1)-[syn:SYNERGIZES_WITH]-(i2)
 // 충돌 없음 확인
 WHERE NOT (i1)-[:CONFLICTS_WITH]-(i2)
 // 해당 성분을 포함하는 제품

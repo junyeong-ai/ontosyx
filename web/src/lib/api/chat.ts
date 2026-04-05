@@ -1,5 +1,6 @@
 import type { ChatStreamRequest } from "@/types/api";
 import { getPrincipalId } from "@/lib/principal";
+import { getWorkspaceId } from "@/lib/workspace";
 import { fetchWithTimeout, PROXY_BASE, DESIGN_TIMEOUT } from "./client";
 import { consumeSSEStream } from "./sse";
 
@@ -97,6 +98,10 @@ export async function chatStream(
   const principalId = getPrincipalId();
   if (principalId) {
     headers.set("x-principal-id", principalId);
+  }
+  const workspaceId = getWorkspaceId();
+  if (workspaceId) {
+    headers.set("x-workspace-id", workspaceId);
   }
 
   const res = await fetchWithTimeout(`${PROXY_BASE}/chat/stream`, {

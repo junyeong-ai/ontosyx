@@ -116,6 +116,7 @@ export const SOURCE_TYPE_OPTIONS: { value: DesignSource["type"]; label: string }
   { value: "text", label: "Text" },
   { value: "csv", label: "CSV" },
   { value: "json", label: "JSON" },
+  { value: "duckdb", label: "Local File" },
   { value: "code_repository", label: "Code Repo" },
   { value: "postgresql", label: "PostgreSQL" },
   { value: "mysql", label: "MySQL" },
@@ -135,6 +136,8 @@ export function ExtendSourceForm({
   setSampleData,
   repoUrl,
   setRepoUrl,
+  duckdbFilePath,
+  setDuckdbFilePath,
   loading,
   onSubmit,
 }: {
@@ -150,6 +153,8 @@ export function ExtendSourceForm({
   setSampleData: (v: string) => void;
   repoUrl: string;
   setRepoUrl: (v: string) => void;
+  duckdbFilePath?: string;
+  setDuckdbFilePath?: (v: string) => void;
   loading: boolean;
   onSubmit: () => void;
 }) {
@@ -212,6 +217,14 @@ export function ExtendSourceForm({
             onChange={(e) => setDatabase(e.target.value)}
           />
         </>
+      ) : sourceType === "duckdb" ? (
+        <FormInput
+          type="text"
+          placeholder="/path/to/data.parquet"
+          value={duckdbFilePath ?? ""}
+          onChange={(e) => setDuckdbFilePath?.(e.target.value)}
+          className="font-mono"
+        />
       ) : sourceType === "code_repository" ? (
         <FormInput
           type="text"
@@ -241,9 +254,11 @@ export function ExtendSourceForm({
               ? !connectionString.trim() || !database.trim()
               : sourceType === "mongodb"
                 ? !connectionString.trim() || !database.trim()
-                : sourceType === "code_repository"
-                  ? !repoUrl.trim()
-                  : !sampleData.trim())
+                : sourceType === "duckdb"
+                  ? !(duckdbFilePath ?? "").trim()
+                  : sourceType === "code_repository"
+                    ? !repoUrl.trim()
+                    : !sampleData.trim())
         }
         className="w-full text-xs"
       >

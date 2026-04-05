@@ -2,14 +2,14 @@ use super::CypherCompiler;
 use crate::GraphCompiler;
 
 use ox_core::load_plan::PropertyMapping;
-use ox_core::load_plan::{ConflictStrategy, LoadOp, LoadPlan, LoadStep};
+use ox_core::load_plan::{ConflictStrategy, LoadMode, LoadOp, LoadPlan, LoadStep};
 use ox_core::ontology_ir::*;
 use ox_core::query_ir::*;
 use ox_core::types::*;
 
 #[test]
 fn test_compile_simple_match() {
-    let compiler = CypherCompiler;
+    let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
@@ -67,7 +67,7 @@ fn test_compile_simple_match() {
 
 #[test]
 fn test_compile_relationship_pattern() {
-    let compiler = CypherCompiler;
+    let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Relationship {
@@ -105,7 +105,7 @@ fn test_compile_relationship_pattern() {
 
 #[test]
 fn test_compile_schema_constraints() {
-    let compiler = CypherCompiler;
+    let compiler = CypherCompiler::neo4j();
     let ontology = OntologyIR::new(
         "test".to_string(),
         "Test".to_string(),
@@ -124,6 +124,7 @@ fn test_compile_schema_constraints() {
                     nullable: false,
                     default_value: None,
                     description: None,
+                    classification: None,
                 },
                 PropertyDef {
                     id: "prop-name".into(),
@@ -132,6 +133,7 @@ fn test_compile_schema_constraints() {
                     nullable: false,
                     default_value: None,
                     description: None,
+                    classification: None,
                 },
             ],
             constraints: vec![ConstraintDef {
@@ -155,7 +157,7 @@ fn test_compile_schema_constraints() {
 
 #[test]
 fn test_compile_merge_node() {
-    let compiler = CypherCompiler;
+    let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
         operation: QueryOp::Mutate {
             context: None,
@@ -210,11 +212,12 @@ fn test_compile_merge_node() {
 
 #[test]
 fn test_compile_load_plan() {
-    let compiler = CypherCompiler;
+    let compiler = CypherCompiler::neo4j();
     let plan = LoadPlan {
         id: "test-load".to_string(),
         ontology_id: "test".to_string(),
         ontology_version: 1,
+        mode: LoadMode::Full,
         source: ox_core::load_plan::DataSourceSpec::Csv {
             delimiter: ',',
             has_header: true,
@@ -258,7 +261,7 @@ fn test_compile_load_plan() {
 
 #[test]
 fn test_parameterization_string_values() {
-    let compiler = CypherCompiler;
+    let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
@@ -322,7 +325,7 @@ fn test_parameterization_string_values() {
 
 #[test]
 fn test_parameterization_in_clause() {
-    let compiler = CypherCompiler;
+    let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
@@ -389,7 +392,7 @@ fn test_parameterization_in_clause() {
 
 #[test]
 fn test_parameterization_null_stays_inline() {
-    let compiler = CypherCompiler;
+    let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
@@ -431,7 +434,7 @@ fn test_parameterization_null_stays_inline() {
 
 #[test]
 fn test_parameterization_date_values() {
-    let compiler = CypherCompiler;
+    let compiler = CypherCompiler::neo4j();
     let date_val = chrono::NaiveDate::from_ymd_opt(2025, 6, 15).unwrap();
     let query = QueryIR {
         operation: QueryOp::Match {
@@ -474,7 +477,7 @@ fn test_parameterization_date_values() {
 
 #[test]
 fn test_compile_aggregate_query() {
-    let compiler = CypherCompiler;
+    let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
@@ -533,7 +536,7 @@ fn test_compile_aggregate_query() {
 
 #[test]
 fn test_compile_union_query() {
-    let compiler = CypherCompiler;
+    let compiler = CypherCompiler::neo4j();
     let q1 = QueryIR {
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
@@ -594,7 +597,7 @@ fn test_compile_union_query() {
 
 #[test]
 fn test_compile_chain_with_pass_through() {
-    let compiler = CypherCompiler;
+    let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
         operation: QueryOp::Chain {
             steps: vec![
@@ -664,11 +667,12 @@ fn test_compile_chain_with_pass_through() {
 fn test_compile_load_edge_upsert() {
     use ox_core::load_plan::{BatchConfig, DataSourceSpec, NodeMatch, PropertyMapping};
 
-    let compiler = CypherCompiler;
+    let compiler = CypherCompiler::neo4j();
     let plan = LoadPlan {
         id: "test-edge-load".to_string(),
         ontology_id: "test".to_string(),
         ontology_version: 1,
+        mode: LoadMode::Full,
         source: DataSourceSpec::Csv {
             delimiter: ',',
             has_header: true,
@@ -726,11 +730,12 @@ fn test_compile_load_edge_upsert() {
 fn test_compile_load_merge_non_null() {
     use ox_core::load_plan::{BatchConfig, DataSourceSpec, PropertyMapping};
 
-    let compiler = CypherCompiler;
+    let compiler = CypherCompiler::neo4j();
     let plan = LoadPlan {
         id: "test-merge-nonnull".to_string(),
         ontology_id: "test".to_string(),
         ontology_version: 1,
+        mode: LoadMode::Full,
         source: DataSourceSpec::Csv {
             delimiter: ',',
             has_header: true,
@@ -792,7 +797,7 @@ fn test_compile_load_merge_non_null() {
 
 #[test]
 fn test_call_subquery_compilation() {
-    let compiler = CypherCompiler;
+    let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
         operation: QueryOp::Chain {
             steps: vec![
@@ -873,7 +878,7 @@ fn test_call_subquery_compilation() {
 
 #[test]
 fn test_subquery_expr_count() {
-    let compiler = CypherCompiler;
+    let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
@@ -941,7 +946,7 @@ fn test_subquery_expr_count() {
 #[test]
 fn test_call_subquery_standalone() {
     // Test CallSubquery as a top-level operation
-    let compiler = CypherCompiler;
+    let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
         operation: QueryOp::CallSubquery {
             inner: Box::new(QueryIR {
@@ -995,7 +1000,7 @@ fn test_call_subquery_standalone() {
 
 #[test]
 fn test_collect_list_aggregation() {
-    let compiler = CypherCompiler;
+    let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Relationship {
@@ -1046,7 +1051,7 @@ fn test_collect_list_aggregation() {
 
 #[test]
 fn test_compile_shortest_path() {
-    let compiler = CypherCompiler;
+    let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
         operation: QueryOp::PathFind {
             start: NodeRef {
@@ -1096,7 +1101,7 @@ fn test_compile_shortest_path() {
 
 #[test]
 fn test_compile_all_shortest_paths() {
-    let compiler = CypherCompiler;
+    let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
         operation: QueryOp::PathFind {
             start: NodeRef {
@@ -1139,7 +1144,7 @@ fn test_compile_all_shortest_paths() {
 
 #[test]
 fn test_compile_all_paths_variable_length() {
-    let compiler = CypherCompiler;
+    let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
         operation: QueryOp::PathFind {
             start: NodeRef {
@@ -1190,7 +1195,7 @@ fn test_compile_all_paths_variable_length() {
 
 #[test]
 fn test_compile_case_expression() {
-    let compiler = CypherCompiler;
+    let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {

@@ -139,6 +139,30 @@ pub struct EdgeTypeDef {
 }
 
 // ---------------------------------------------------------------------------
+// DataClassification — sensitivity level for a property
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum DataClassification {
+    Public,
+    Internal,
+    Confidential,
+    Restricted,
+}
+
+impl std::fmt::Display for DataClassification {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Public => f.write_str("public"),
+            Self::Internal => f.write_str("internal"),
+            Self::Confidential => f.write_str("confidential"),
+            Self::Restricted => f.write_str("restricted"),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // PropertyDef — a single property on a node or edge
 // ---------------------------------------------------------------------------
 
@@ -158,6 +182,9 @@ pub struct PropertyDef {
     pub default_value: Option<PropertyValue>,
     /// Human-readable description
     pub description: Option<String>,
+    /// Data sensitivity classification (derived from PII detection)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub classification: Option<DataClassification>,
 }
 
 // ---------------------------------------------------------------------------

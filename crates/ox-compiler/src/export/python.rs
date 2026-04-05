@@ -269,6 +269,7 @@ mod tests {
                             nullable: false,
                             default_value: None,
                             description: None,
+                            classification: None,
                         },
                         PropertyDef {
                             id: PropertyId::new("p2"),
@@ -277,6 +278,7 @@ mod tests {
                             nullable: false,
                             default_value: None,
                             description: None,
+                            classification: None,
                         },
                         PropertyDef {
                             id: PropertyId::new("p3"),
@@ -285,6 +287,7 @@ mod tests {
                             nullable: true,
                             default_value: None,
                             description: None,
+                            classification: None,
                         },
                         PropertyDef {
                             id: PropertyId::new("p4"),
@@ -293,6 +296,7 @@ mod tests {
                             nullable: false,
                             default_value: None,
                             description: None,
+                            classification: None,
                         },
                     ],
                     constraints: vec![],
@@ -310,6 +314,7 @@ mod tests {
                             nullable: false,
                             default_value: None,
                             description: None,
+                            classification: None,
                         },
                         PropertyDef {
                             id: PropertyId::new("p6"),
@@ -318,6 +323,7 @@ mod tests {
                             nullable: false,
                             default_value: None,
                             description: None,
+                            classification: None,
                         },
                         PropertyDef {
                             id: PropertyId::new("p7"),
@@ -328,6 +334,7 @@ mod tests {
                             nullable: false,
                             default_value: None,
                             description: None,
+                            classification: None,
                         },
                     ],
                     constraints: vec![],
@@ -346,6 +353,7 @@ mod tests {
                     nullable: false,
                     default_value: None,
                     description: None,
+                    classification: None,
                 }],
                 cardinality: ox_core::ontology_ir::Cardinality::ManyToMany,
             }],
