@@ -24,11 +24,11 @@ Source DB / CSV / Code Repo
 | `ox-brain` | LLM orchestration via branchforge — ClientPool, ModelResolver, prompt caching |
 | `ox-compiler` | IR → Cypher compiler, export (Python, TypeScript, GraphQL, OWL, SHACL, Mermaid) |
 | `ox-runtime` | Neo4j driver with retry, sandbox isolation, workspace-scoped queries |
-| `ox-store` | PostgreSQL persistence — 25 store traits, RLS, 14 migrations |
+| `ox-store` | PostgreSQL persistence — store traits, RLS workspace isolation, migrations |
 | `ox-source` | Data source introspection — PostgreSQL, MySQL, MongoDB, CSV |
-| `ox-memory` | Semantic memory — ONNX embedding (jina-v5) + pgvector search |
-| `ox-agent` | AI agent with 10 domain tools built on branchforge |
-| `ox-api` | Axum HTTP server — 60+ endpoints, SSE streaming, OIDC auth |
+| `ox-memory` | Semantic memory — ONNX embedding + pgvector search |
+| `ox-agent` | AI agent with domain tools built on branchforge |
+| `ox-api` | Axum HTTP server — REST API, SSE streaming, OIDC auth |
 
 ### Frontend
 
@@ -50,7 +50,7 @@ Next.js 16, React 19, Tailwind CSS 4, Zustand 5, streamdown (AI-optimized stream
 
 # Or individually:
 ./scripts/dev.sh docker up     # Infrastructure only
-./scripts/dev.sh be start      # Backend on :3001
+./scripts/dev.sh be start      # Backend on :3101
 ./scripts/dev.sh fe start      # Frontend on :3100
 ```
 
@@ -72,8 +72,8 @@ Next.js 16, React 19, Tailwind CSS 4, Zustand 5, streamdown (AI-optimized stream
 | Service | URL |
 |---------|-----|
 | Frontend | http://localhost:3100 |
-| Backend API | http://localhost:3001/api/health |
-| Swagger UI | http://localhost:3001/swagger-ui/ |
+| Backend API | http://localhost:3101/api/health |
+| Swagger UI | http://localhost:3101/swagger-ui/ |
 | Neo4j Browser | http://localhost:7474 |
 
 ## API Endpoints

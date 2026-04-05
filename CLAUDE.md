@@ -27,7 +27,7 @@ Use `./scripts/dev.sh start` to launch everything (Docker + backend + frontend).
 - Rust: snake_case methods, PascalCase types. No `get_` prefix on getters.
 - Store trait verbs: `list_*`, `get_*`, `find_*`, `create_*`, `update_*`, `delete_*`.
 - Frontend: camelCase functions, PascalCase components. Zustand for state.
-- All LLM calls go through branchforge. Never call LLM APIs directly.
+- All LLM calls go through branchforge (crates.io). Never call LLM APIs directly.
 - Errors propagate via `OxResult<T>`. No `unwrap()` or `expect()` in library code.
 - Korean is the primary user language. English for code, comments, and docs.
 
@@ -44,7 +44,7 @@ Use `./scripts/dev.sh start` to launch everything (Docker + backend + frontend).
 
 ```bash
 docker compose up -d                        # Required: PostgreSQL + Neo4j
-cargo test --workspace                      # Unit tests (328+)
+cargo test --workspace                      # Unit tests
 ./scripts/e2e-test.sh                       # API integration tests
 ./scripts/e2e-full.sh                       # Full lifecycle test
 ```

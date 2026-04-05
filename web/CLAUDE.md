@@ -23,8 +23,16 @@ Do NOT add CSS rules for `.prose-message table`, `.prose-message pre`, `.prose-m
 
 ## API Proxy
 
-All API calls go through Next.js proxy routes in `app/api/proxy/`. Backend URL: `ONTOSYX_API_URL` env var (default: `http://localhost:3001/api`). Auth injected server-side.
+All API calls go through Next.js proxy routes in `app/api/proxy/`. Backend URL: `ONTOSYX_API_URL` env var (default: `http://localhost:3101/api`). Auth injected server-side.
 
 ## State Management
 
 Zustand with slices in `lib/store/`. UI layout persisted, chat messages not persisted.
+
+## Auth & Roles
+
+`useAuth()` hook returns `{ isAdmin, canWrite, user }`. Use `isAdmin` to gate admin-only UI (e.g., Technical details in error cards, settings pages marked `adminOnly`).
+
+## Settings Table Pattern
+
+All settings tables use `py-3 pr-6` on `<th>` and `<td>` for consistent column spacing. Tables with 7+ columns need `min-w-[900px]` or higher to prevent header truncation.

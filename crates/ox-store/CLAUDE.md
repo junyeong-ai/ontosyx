@@ -12,9 +12,22 @@ PostgreSQL persistence with Row-Level Security.
 ## Migration Conventions
 
 - File: `migrations/NNNN_description.sql` (sequential numbering).
-- Always add RLS policies for workspace-scoped tables.
 - Use `DOUBLE PRECISION` for monetary fields (not `NUMERIC` — sqlx maps NUMERIC to Decimal, not f64).
 - Migrations auto-run on server start via `pg_store.migrate()`.
+
+## RLS Policy Pattern (required for all workspace-scoped tables)
+
+Every workspace-scoped table MUST have all four:
+```sql
+ALTER TABLE my_table ENABLE ROW LEVEL SECURITY;
+ALTER TABLE my_table FORCE ROW LEVEL SECURITY;  -- even table owner obeys policies
+CREATE POLICY ws_isolation ON my_table
+    USING (workspace_id = current_setting('app.workspace_id', true)::uuid)
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true)::uuid);
+CREATE POLICY system_bypass ON my_table
+    USING (current_setting('app.system_bypass', true) = 'true');
+```
+Missing `FORCE` silently disables RLS for the table owner role. Missing `system_bypass` blocks scheduled tasks and cross-workspace operations.
 
 ## Method Naming
 
