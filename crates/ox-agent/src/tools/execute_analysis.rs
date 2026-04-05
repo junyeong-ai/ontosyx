@@ -66,12 +66,18 @@ pub struct ExecuteAnalysisTool {
 impl SchemaTool for ExecuteAnalysisTool {
     type Input = ExecuteAnalysisInput;
     const NAME: &'static str = super::EXECUTE_ANALYSIS;
-    const DESCRIPTION: &'static str = "Execute Python data analysis code in a sandboxed environment. \
-         Available libraries: pandas, numpy, scikit-learn, statsmodels, matplotlib, scipy. \
-         Pass query results in the 'data' field — the code reads it from /sandbox/input.json. \
-         Data format: {\"columns\": [...], \"rows\": [[cell, ...], ...]} where cells are {\"type\": \"string\", \"value\": \"...\"} objects. \
-         Use pandas: df = pd.DataFrame([{col: row[i].get('value') for i, col in enumerate(data['columns'])} for row in data['rows']]). \
-         Print results to stdout as JSON. Timeout: 120 seconds.";
+    const DESCRIPTION: &'static str = "Execute Python analysis in a sandboxed environment. \
+         Libraries: pandas, numpy, scikit-learn, statsmodels, scipy, matplotlib. \
+         Pass query results in the 'data' field. The code reads /sandbox/input.json. \
+         ALWAYS start code with this boilerplate:\n\
+         ```\n\
+         import json, pandas as pd\n\
+         with open('/sandbox/input.json') as f:\n\
+             data = json.load(f)\n\
+         cols = data['columns']\n\
+         df = pd.DataFrame([dict(zip(cols, row)) for row in data['rows']])\n\
+         ```\n\
+         Print results to stdout as JSON (use default=str for non-serializable types). Timeout: 120s.";
 
     async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
         // Compute input hash for cache lookup
@@ -187,9 +193,18 @@ pub async fn run_analysis_sandbox(
         .await
         .map_err(|e| format!("Semaphore closed: {e}"))?;
 
-    let data_json = input_data
-        .map(|d| serde_json::to_string(d).unwrap_or_default())
-        .unwrap_or_else(|| "{}".to_string());
+    // Ensure data is written as a JSON object, not a double-serialized string.
+    // LLMs sometimes pass data as a JSON string value instead of an object.
+    let data_json = match input_data {
+        Some(serde_json::Value::String(s)) => s.clone(),
+        Some(v) => {
+            // Flatten tagged PropertyValue cells ({type, value}) to plain values.
+            // This makes the data directly usable by Python without parsing envelopes.
+            let flattened = flatten_tagged_cells(v);
+            serde_json::to_string(&flattened).unwrap_or_default()
+        }
+        None => "{}".to_string(),
+    };
 
     let result = match tokio::time::timeout(timeout, execute_in_sandbox(code, &data_json)).await {
         Ok(Ok(r)) => r,
@@ -248,4 +263,35 @@ async fn execute_in_sandbox(code: &str, data_json: &str) -> Result<SandboxResult
         stderr: String::from_utf8_lossy(&output.stderr).to_string(),
         exit_code: output.status.code().unwrap_or(-1),
     })
+}
+
+/// Flatten tagged PropertyValue cells to plain JSON values.
+///
+/// QueryResult rows contain cells serialized as `{"type": "string", "value": "hello"}`.
+/// This function recursively walks the data and replaces such tagged objects with
+/// their plain `value` (or `null` for type-only objects like `{"type": "null"}`).
+/// Non-tagged objects and all other values are left as-is.
+fn flatten_tagged_cells(v: &serde_json::Value) -> serde_json::Value {
+    match v {
+        serde_json::Value::Object(map) => {
+            if map.contains_key("type") && map.len() <= 2 {
+                // Tagged PropertyValue: {"type": "...", "value": ...} or {"type": "null"}
+                match map.get("value") {
+                    Some(inner) => flatten_tagged_cells(inner),
+                    None => serde_json::Value::Null,
+                }
+            } else {
+                // Regular object — recurse into values
+                let flattened: serde_json::Map<String, serde_json::Value> = map
+                    .iter()
+                    .map(|(k, val)| (k.clone(), flatten_tagged_cells(val)))
+                    .collect();
+                serde_json::Value::Object(flattened)
+            }
+        }
+        serde_json::Value::Array(arr) => {
+            serde_json::Value::Array(arr.iter().map(flatten_tagged_cells).collect())
+        }
+        other => other.clone(),
+    }
 }

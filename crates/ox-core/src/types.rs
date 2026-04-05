@@ -113,6 +113,88 @@ impl PropertyType {
     pub fn is_temporal(&self) -> bool {
         matches!(self, Self::Date | Self::DateTime | Self::Duration)
     }
+
+    /// Infer the closest PropertyType from a raw database type string.
+    ///
+    /// Handles PostgreSQL, MySQL, MongoDB, and common SQL type names.
+    /// Returns `PropertyType::String` for unrecognised types (safe default).
+    pub fn infer_from_db_type(db_type: &str) -> Self {
+        let t = db_type.to_lowercase();
+        let t = t.trim();
+
+        // Strip precision/length suffix: "varchar(255)" → "varchar", "numeric(10,2)" → "numeric"
+        let base = t.split('(').next().unwrap_or(t).trim();
+
+        match base {
+            // Integer types
+            "int" | "int2" | "int4" | "int8" | "integer" | "bigint" | "smallint" | "tinyint"
+            | "serial" | "bigserial" | "mediumint" => Self::Int,
+
+            // Float types
+            "float" | "float4" | "float8" | "double" | "double precision" | "real" | "numeric"
+            | "decimal" | "money" | "number" => Self::Float,
+
+            // Boolean
+            "bool" | "boolean" | "bit" => Self::Bool,
+
+            // Date
+            "date" => Self::Date,
+
+            // DateTime
+            "timestamp"
+            | "timestamptz"
+            | "timestamp without time zone"
+            | "timestamp with time zone"
+            | "datetime"
+            | "datetime2"
+            | "smalldatetime" => Self::DateTime,
+
+            // Duration/Time
+            "interval" | "time" | "timetz" => Self::Duration,
+
+            // Binary
+            "bytea" | "blob" | "binary" | "varbinary" | "longblob" | "mediumblob" | "oid"
+            | "image" => Self::Bytes,
+
+            // JSON → Map
+            "json" | "jsonb" | "object" | "document" | "bson" => Self::Map,
+
+            // Array types → List
+            _ if t.ends_with("[]") => Self::List {
+                element: Box::new(Self::String),
+            },
+            "array" => Self::List {
+                element: Box::new(Self::String),
+            },
+
+            // Default: String (varchar, text, char, uuid, enum, citext, xml, etc.)
+            _ => Self::String,
+        }
+    }
+
+    /// Check type compatibility when a source DB type maps to this PropertyType.
+    ///
+    /// Returns how compatible the source DB type is with this ontology type:
+    /// - `None` → types are equivalent (no mismatch)
+    /// - `Some(true)` → safe widening (e.g., source int → ontology float)
+    /// - `Some(false)` → breaking change (e.g., source int → ontology bool)
+    pub fn check_compatibility_with(&self, source_db_type: &str) -> Option<bool> {
+        let inferred = Self::infer_from_db_type(source_db_type);
+        if inferred == *self {
+            return None; // Equivalent — no mismatch
+        }
+
+        // Safe widening conversions
+        let is_safe = matches!(
+            (&inferred, self),
+            (Self::Int, Self::Float)          // int → float (lossless)
+            | (Self::Date, Self::DateTime)    // date → datetime (adding time)
+            | (Self::Bool, Self::Int)         // bool → int (0/1)
+            | (_, Self::String) // anything → string (serialisation)
+        );
+
+        Some(is_safe)
+    }
 }
 
 impl std::fmt::Display for PropertyType {
@@ -299,6 +381,35 @@ impl PropertyValue {
 
     pub fn is_null(&self) -> bool {
         matches!(self, Self::Null)
+    }
+
+    /// Convert to a plain `serde_json::Value` without the tagged envelope.
+    ///
+    /// The default `Serialize` emits `{"type": "string", "value": "hello"}`.
+    /// This method produces just `"hello"` — suitable for passing data to
+    /// external tools (Python sandbox, exports) that don't know the envelope.
+    pub fn to_plain_json(&self) -> serde_json::Value {
+        match self {
+            Self::Null => serde_json::Value::Null,
+            Self::Bool(v) => serde_json::Value::Bool(*v),
+            Self::Int(v) => serde_json::json!(v),
+            Self::Float(v) => serde_json::json!(v),
+            Self::String(v) => serde_json::Value::String(v.clone()),
+            Self::Date(v) => serde_json::Value::String(v.to_string()),
+            Self::DateTime(v) => serde_json::Value::String(v.to_string()),
+            Self::Duration(v) => serde_json::Value::String(v.clone()),
+            Self::Bytes(v) => serde_json::json!(v),
+            Self::List(items) => {
+                serde_json::Value::Array(items.iter().map(|i| i.to_plain_json()).collect())
+            }
+            Self::Map(m) => {
+                let obj: serde_json::Map<std::string::String, serde_json::Value> = m
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.to_plain_json()))
+                    .collect();
+                serde_json::Value::Object(obj)
+            }
+        }
     }
 }
 
@@ -562,5 +673,132 @@ mod tests {
         // tagged → Some(Some(value))
         let w: Wrapper = serde_json::from_str(r#"{"val": {"type":"string","value":"x"}}"#).unwrap();
         assert_eq!(w.val, Some(Some(PropertyValue::String("x".into()))));
+    }
+
+    #[test]
+    fn infer_from_db_type_integers() {
+        assert_eq!(PropertyType::infer_from_db_type("int"), PropertyType::Int);
+        assert_eq!(PropertyType::infer_from_db_type("INT4"), PropertyType::Int);
+        assert_eq!(
+            PropertyType::infer_from_db_type("bigint"),
+            PropertyType::Int
+        );
+        assert_eq!(
+            PropertyType::infer_from_db_type("serial"),
+            PropertyType::Int
+        );
+    }
+
+    #[test]
+    fn infer_from_db_type_floats() {
+        assert_eq!(
+            PropertyType::infer_from_db_type("float8"),
+            PropertyType::Float
+        );
+        assert_eq!(
+            PropertyType::infer_from_db_type("numeric(10,2)"),
+            PropertyType::Float
+        );
+        assert_eq!(
+            PropertyType::infer_from_db_type("decimal"),
+            PropertyType::Float
+        );
+        assert_eq!(
+            PropertyType::infer_from_db_type("double precision"),
+            PropertyType::Float
+        );
+    }
+
+    #[test]
+    fn infer_from_db_type_strings() {
+        assert_eq!(
+            PropertyType::infer_from_db_type("varchar"),
+            PropertyType::String
+        );
+        assert_eq!(
+            PropertyType::infer_from_db_type("varchar(255)"),
+            PropertyType::String
+        );
+        assert_eq!(
+            PropertyType::infer_from_db_type("text"),
+            PropertyType::String
+        );
+        assert_eq!(
+            PropertyType::infer_from_db_type("uuid"),
+            PropertyType::String
+        );
+    }
+
+    #[test]
+    fn infer_from_db_type_temporal() {
+        assert_eq!(PropertyType::infer_from_db_type("date"), PropertyType::Date);
+        assert_eq!(
+            PropertyType::infer_from_db_type("timestamp"),
+            PropertyType::DateTime
+        );
+        assert_eq!(
+            PropertyType::infer_from_db_type("timestamptz"),
+            PropertyType::DateTime
+        );
+        assert_eq!(
+            PropertyType::infer_from_db_type("interval"),
+            PropertyType::Duration
+        );
+    }
+
+    #[test]
+    fn infer_from_db_type_json_and_binary() {
+        assert_eq!(PropertyType::infer_from_db_type("jsonb"), PropertyType::Map);
+        assert_eq!(
+            PropertyType::infer_from_db_type("bytea"),
+            PropertyType::Bytes
+        );
+    }
+
+    #[test]
+    fn infer_from_db_type_array() {
+        assert!(matches!(
+            PropertyType::infer_from_db_type("text[]"),
+            PropertyType::List { .. }
+        ));
+    }
+
+    #[test]
+    fn check_compatibility_exact_match() {
+        // int source, int ontology → no mismatch
+        assert_eq!(PropertyType::Int.check_compatibility_with("integer"), None);
+    }
+
+    #[test]
+    fn check_compatibility_safe_widening() {
+        // int source → float ontology → safe
+        assert_eq!(
+            PropertyType::Float.check_compatibility_with("integer"),
+            Some(true)
+        );
+        // date source → datetime ontology → safe
+        assert_eq!(
+            PropertyType::DateTime.check_compatibility_with("date"),
+            Some(true)
+        );
+        // anything → string → safe
+        assert_eq!(
+            PropertyType::String.check_compatibility_with("jsonb"),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn check_compatibility_breaking() {
+        // int source → bool ontology → breaking
+        assert_eq!(
+            PropertyType::Bool.check_compatibility_with("integer"),
+            Some(false)
+        );
+        // string source → int ontology → breaking
+        assert_eq!(
+            PropertyType::Int.check_compatibility_with("text"),
+            Some(false)
+        );
     }
 }

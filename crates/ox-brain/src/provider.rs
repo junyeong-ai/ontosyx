@@ -173,9 +173,53 @@ pub async fn structured_completion_with_thresholds<
     }
 
     let json_str = extract_json(&content);
-    serde_json::from_str(json_str).map_err(|e| OxError::Runtime {
-        message: format!("Failed to parse structured output: {e}\nRaw: {json_str}"),
-    })
+    serde_json::from_str(json_str)
+        .or_else(|first_err| {
+            // LLM self-correction: output contains multiple JSON objects
+            // (e.g., first attempt + "Wait, let me fix..." + corrected attempt).
+            // Try parsing the last complete JSON object.
+            if let Some(extracted) = extract_last_json(&content) {
+                serde_json::from_str(extracted).map_err(|_| first_err)
+            } else {
+                Err(first_err)
+            }
+        })
+        .map_err(|e| OxError::Runtime {
+            message: format!("Failed to parse structured output: {e}\nRaw: {json_str}"),
+        })
+}
+
+/// Extract the last complete JSON object from a multi-JSON response.
+///
+/// When the LLM self-corrects ("Wait, let me fix..."), it produces multiple JSON
+/// objects. This function finds the last balanced `{...}` block and returns it.
+/// Returns `None` if no balanced JSON object is found.
+fn extract_last_json(text: &str) -> Option<&str> {
+    let bytes = text.as_bytes();
+    let mut depth = 0i32;
+    let mut end = None;
+
+    // Scan from the end to find the last '}'
+    for i in (0..bytes.len()).rev() {
+        if bytes[i] == b'}' && end.is_none() {
+            end = Some(i);
+            depth = 1;
+        } else if bytes[i] == b'}' && end.is_some() {
+            depth += 1;
+        } else if bytes[i] == b'{' && end.is_some() {
+            depth -= 1;
+            if depth == 0 {
+                let candidate = &text[i..=end.unwrap()];
+                // Verify it's valid JSON
+                if serde_json::from_str::<serde_json::Value>(candidate).is_ok() {
+                    return Some(candidate);
+                }
+                // Not valid — keep scanning
+                end = None;
+            }
+        }
+    }
+    None
 }
 
 /// Extract JSON from a response that might contain reasoning text before the JSON.
@@ -213,16 +257,17 @@ fn extract_json(text: &str) -> &str {
     // LLM outputs "Looking at the ontology...\n\n{"operation": ...}"
     // Find a '{' that starts a line (after newline or start) — avoids
     // false matches on inline braces like "{Product}" in prose.
-    if !trimmed.starts_with('{') && !trimmed.starts_with('[') {
-        if let Some(last_brace) = trimmed.rfind('}') {
-            // Scan for a '{' that is either at line start or preceded by whitespace/newline
-            let bytes = trimmed.as_bytes();
-            for (i, &b) in bytes.iter().enumerate() {
-                if b == b'{' && i < last_brace {
-                    let at_line_start = i == 0 || bytes[i - 1] == b'\n' || bytes[i - 1] == b'\r';
-                    if at_line_start {
-                        return &trimmed[i..=last_brace];
-                    }
+    if !trimmed.starts_with('{')
+        && !trimmed.starts_with('[')
+        && let Some(last_brace) = trimmed.rfind('}')
+    {
+        // Scan for a '{' that is either at line start or preceded by whitespace/newline
+        let bytes = trimmed.as_bytes();
+        for (i, &b) in bytes.iter().enumerate() {
+            if b == b'{' && i < last_brace {
+                let at_line_start = i == 0 || bytes[i - 1] == b'\n' || bytes[i - 1] == b'\r';
+                if at_line_start {
+                    return &trimmed[i..=last_brace];
                 }
             }
         }
@@ -261,5 +306,34 @@ mod tests {
     fn test_extract_json_generic_code_block() {
         let input = "```\n{\"key\": 42}\n```";
         assert_eq!(extract_json(input), r#"{"key": 42}"#);
+    }
+
+    #[test]
+    fn test_extract_last_json_self_correction() {
+        // LLM outputs first JSON, then self-corrects with a second
+        let input = r#"{"op": "match", "bad": true}
+
+Wait, I need to fix the query.
+
+{"op": "chain", "steps": [{"pass_through": []}]}"#;
+        let result = extract_last_json(input);
+        assert!(result.is_some());
+        let parsed: serde_json::Value = serde_json::from_str(result.unwrap()).unwrap();
+        assert_eq!(parsed["op"], "chain");
+    }
+
+    #[test]
+    fn test_extract_last_json_single_object() {
+        // Single JSON — should still work
+        let input = r#"{"name": "test"}"#;
+        let result = extract_last_json(input);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), r#"{"name": "test"}"#);
+    }
+
+    #[test]
+    fn test_extract_last_json_no_json() {
+        let input = "No JSON here at all";
+        assert!(extract_last_json(input).is_none());
     }
 }

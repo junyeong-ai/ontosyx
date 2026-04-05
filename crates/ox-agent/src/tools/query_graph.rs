@@ -34,6 +34,9 @@ struct QueryGraphOutput {
     rows: serde_json::Value,
     #[serde(skip_serializing_if = "Option::is_none")]
     widget_hint: Option<WidgetHintOutput>,
+    /// Query cost estimation (risk level + warnings).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cost: Option<ox_compiler::cost::QueryCost>,
     /// Per-step timing breakdown.
     step_timings: Vec<StepTiming>,
     /// Guidance for the agent on how to proceed with results.
@@ -52,7 +55,6 @@ struct WidgetHintOutput {
     widget_type: String,
     title: String,
 }
-
 
 /// Translates natural language to a graph query, executes it, persists the result,
 /// and returns structured data.
@@ -79,7 +81,7 @@ impl SchemaTool for QueryGraphTool {
                 return ToolResult::error(
                     "No ontology loaded. Create a project from a data source first, \
                      or use introspect_source to connect to a database.",
-                )
+                );
             }
         };
 
@@ -89,18 +91,20 @@ impl SchemaTool for QueryGraphTool {
                 return ToolResult::error(
                     "Graph database not connected. The project needs a deployed schema \
                      with loaded data before queries can execute.",
-                )
+                );
             }
         };
 
         let start = std::time::Instant::now();
         let mut step_timings = Vec::with_capacity(3);
+        let cancel = ctx.cancel_token().cloned();
 
         let question = input.question.clone();
 
         // Step 1: Translate NL → QueryIR (timeout: 60s)
         // Brain emits sub-steps (schema_discovery, llm_primary, llm_fallback)
         // via ctx.emit_progress(), providing real-time visibility.
+        // Cancel is handled by branchforge ToolRegistry at the outer level.
         let t1 = std::time::Instant::now();
         let query_ir = match tokio::time::timeout(
             std::time::Duration::from_secs(60),
@@ -110,16 +114,32 @@ impl SchemaTool for QueryGraphTool {
         {
             Ok(Ok(ir)) => {
                 let ms = t1.elapsed().as_millis() as u64;
-                step_timings.push(StepTiming { step: "translating".into(), duration_ms: ms });
+                step_timings.push(StepTiming {
+                    step: "translating".into(),
+                    duration_ms: ms,
+                });
                 ir
             }
             Ok(Err(e)) => {
+                warn!(question = %question, error = %e, "Query translation failed");
                 return ToolResult::error(format!("Query translation failed: {e}"));
             }
             Err(_) => {
+                warn!(question = %question, "Query translation timed out after 60s");
                 return ToolResult::error("Query translation timed out after 60 seconds");
             }
         };
+
+        // Cost estimation: analyse QueryIR before compilation
+        let cost_estimate = ox_compiler::cost::estimate_cost(&query_ir, ontology);
+        if cost_estimate.risk_level == ox_compiler::cost::RiskLevel::High {
+            warn!(
+                risk = ?cost_estimate.risk_level,
+                cartesian = cost_estimate.has_cartesian,
+                var_depth = cost_estimate.max_var_length_depth,
+                "High-risk query detected"
+            );
+        }
 
         // Step 2: Compile QueryIR → target language
         ctx.progress("compiling").started();
@@ -127,43 +147,64 @@ impl SchemaTool for QueryGraphTool {
         let compiled = match self.domain.compiler.compile_query(&query_ir) {
             Ok(c) => {
                 let ms = t2.elapsed().as_millis() as u64;
-                step_timings.push(StepTiming { step: "compiling".into(), duration_ms: ms });
-                ctx.progress("compiling").completed_with(ms,
-                    serde_json::json!({ "cypher": truncate(&c.statement, 500) }));
+                step_timings.push(StepTiming {
+                    step: "compiling".into(),
+                    duration_ms: ms,
+                });
+                ctx.progress("compiling").completed_with(
+                    ms,
+                    serde_json::json!({ "cypher": truncate(&c.statement, 500) }),
+                );
                 c
             }
             Err(e) => {
-                ctx.progress("compiling").failed(t2.elapsed().as_millis() as u64);
+                warn!(question = %question, error = %e, "Query compilation failed");
+                ctx.progress("compiling")
+                    .failed(t2.elapsed().as_millis() as u64);
                 return ToolResult::error(format!("Query compilation failed: {e}"));
             }
         };
 
-        // Step 3: Execute (timeout: 60s)
+        // Step 3: Execute (timeout: 60s, cancel-aware)
         ctx.progress("executing").started();
         let t3 = std::time::Instant::now();
-        let results = match tokio::time::timeout(
-            std::time::Duration::from_secs(60),
-            runtime.execute_query(&compiled.statement, &compiled.params),
-        )
-        .await
-        {
-            Ok(Ok(r)) => {
-                let ms = t3.elapsed().as_millis() as u64;
-                step_timings.push(StepTiming { step: "executing".into(), duration_ms: ms });
-                ctx.progress("executing").completed_with(ms,
-                    serde_json::json!({ "row_count": r.metadata.rows_returned }));
-                r
+        let execute_fut = runtime.execute_query(&compiled.statement, &compiled.params);
+        let results = tokio::select! {
+            timeout_result = tokio::time::timeout(
+                std::time::Duration::from_secs(60),
+                execute_fut,
+            ) => {
+                match timeout_result {
+                    Ok(Ok(r)) => {
+                        let ms = t3.elapsed().as_millis() as u64;
+                        step_timings.push(StepTiming { step: "executing".into(), duration_ms: ms });
+                        ctx.progress("executing").completed_with(ms,
+                            serde_json::json!({ "row_count": r.metadata.rows_returned }));
+                        r
+                    }
+                    Ok(Err(e)) => {
+                        warn!(question = %question, error = %e, query = %truncate(&compiled.statement, 200), "Query execution failed");
+                        ctx.progress("executing").failed(t3.elapsed().as_millis() as u64);
+                        return ToolResult::error(format!(
+                            "Query execution failed: {e}\nCompiled query: {}",
+                            truncate(&compiled.statement, 500),
+                        ));
+                    }
+                    Err(_) => {
+                        ctx.progress("executing").failed(60_000);
+                        return ToolResult::error("Query execution timed out after 60 seconds");
+                    }
+                }
             }
-            Ok(Err(e)) => {
+            _ = async {
+                if let Some(ref token) = cancel {
+                    token.cancelled().await;
+                } else {
+                    std::future::pending::<()>().await;
+                }
+            } => {
                 ctx.progress("executing").failed(t3.elapsed().as_millis() as u64);
-                return ToolResult::error(format!(
-                    "Query execution failed: {e}\nCompiled query: {}",
-                    truncate(&compiled.statement, 500),
-                ));
-            }
-            Err(_) => {
-                ctx.progress("executing").failed(60_000);
-                return ToolResult::error("Query execution timed out after 60 seconds");
+                return ToolResult::error("Query execution cancelled");
             }
         };
 
@@ -238,17 +279,41 @@ impl SchemaTool for QueryGraphTool {
         };
 
         // Guidance: tell agent when data is sufficient to avoid unnecessary follow-up queries
-        let guidance = if results.metadata.rows_returned >= 2 {
+        let mut guidance = if results.metadata.rows_returned >= 2 {
             Some(format!(
-                "Got {} rows with columns: [{}]. Analyze these results directly and present findings. \
-                 Do NOT make additional queries unless the user asks a follow-up question. \
-                 If using execute_analysis, pass this data in the 'data' field and access columns by these exact names.",
+                "Got {} rows with columns: [{}]. \
+                 Present a complete analysis NOW — summaries, totals, key findings, and actionable insights. \
+                 Do NOT make additional queries unless the user asks a follow-up.",
                 results.metadata.rows_returned,
                 results.columns.join(", "),
             ))
         } else if results.metadata.rows_returned == 0 {
-            Some("No results found. Try broadening the search — use CONTAINS instead of exact match, \
-                  or check property names in the ontology schema.".to_string())
+            Some(
+                "No results. Broaden the search — use CONTAINS instead of exact match, \
+                  or check property names in the ontology schema."
+                    .to_string(),
+            )
+        } else {
+            None
+        };
+
+        // Append cost warnings to guidance if risk is elevated
+        if cost_estimate.risk_level != ox_compiler::cost::RiskLevel::Low
+            && !cost_estimate.warnings.is_empty()
+        {
+            let cost_note = format!(
+                " [Query cost: {:?} — {}]",
+                cost_estimate.risk_level,
+                cost_estimate.warnings.join("; "),
+            );
+            match &mut guidance {
+                Some(g) => g.push_str(&cost_note),
+                None => guidance = Some(cost_note),
+            }
+        }
+
+        let cost = if cost_estimate.risk_level != ox_compiler::cost::RiskLevel::Low {
+            Some(cost_estimate)
         } else {
             None
         };
@@ -261,6 +326,7 @@ impl SchemaTool for QueryGraphTool {
             row_count: results.metadata.rows_returned as usize,
             rows: serde_json::to_value(&results.rows).unwrap_or_default(),
             widget_hint,
+            cost,
             step_timings,
             guidance,
         };
