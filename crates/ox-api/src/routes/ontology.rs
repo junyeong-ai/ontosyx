@@ -640,11 +640,14 @@ pub async fn adopt_graph(
             .await
             .map_err(AppError::from)?;
 
-        // Re-index schema embeddings for the saved ontology
+        // Re-index schema embeddings for the saved ontology.
+        // Must use spawn_with_ws so the spawned task inherits the
+        // workspace-scoped task-locals for pgvector RLS.
         if let Some(memory) = &state.memory {
             let memory = std::sync::Arc::clone(memory);
             let ont = ontology.clone();
-            tokio::spawn(async move {
+            let ws_scope = crate::spawn_scoped::WsScope::capture();
+            crate::spawn_scoped::spawn_with_ws(ws_scope, async move {
                 ox_brain::schema_rag::index_ontology_schema(&memory, &ont, &saved_id.to_string())
                     .await;
             });
