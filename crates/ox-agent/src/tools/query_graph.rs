@@ -229,7 +229,7 @@ impl SchemaTool for QueryGraphTool {
             user_id: self.domain.user_id.clone(),
             question: input.question.clone(),
             ontology_id: ontology.id.clone(),
-            ontology_version: ontology.version as i32,
+            ontology_version: ontology.version.number as i32,
             saved_ontology_id: self.domain.saved_ontology_id,
             ontology_snapshot: if self.domain.saved_ontology_id.is_some() {
                 None

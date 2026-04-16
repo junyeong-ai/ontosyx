@@ -444,7 +444,7 @@ impl OntosyxMcpServer {
         let response = DescribeOntologyResponse {
             name: ontology.name,
             description: ontology.description,
-            version: ontology.version,
+            version: ontology.version.number,
             nodes,
             edges,
         };

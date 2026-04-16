@@ -193,7 +193,7 @@ pub fn to_exchange_format(
         id: Some(ontology.id.clone()),
         name: ontology.name.clone(),
         description: ontology.description.clone(),
-        version: ontology.version,
+        version: ontology.version.number,
         node_types,
         edge_types,
         indexes,

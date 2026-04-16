@@ -65,8 +65,8 @@ pub struct OntologyIR {
     pub name: String,
     /// Optional description
     pub description: Option<String>,
-    /// Monotonically increasing version number
-    pub version: u32,
+    /// Version metadata (number + temporal window + provenance).
+    pub version: OntologyVersion,
     /// All node types in this ontology
     pub node_types: Vec<NodeTypeDef>,
     /// All edge types (relationships) in this ontology
@@ -90,13 +90,29 @@ impl<'de> Deserialize<'de> for OntologyIR {
             id: String,
             name: String,
             description: Option<String>,
-            version: u32,
+            /// Accepts both `1` (legacy u32) and `{"number":1,...}` (OntologyVersion).
+            #[serde(deserialize_with = "deserialize_version")]
+            version: OntologyVersion,
             node_types: Vec<NodeTypeDef>,
             #[serde(default)]
             edge_types: Vec<EdgeTypeDef>,
             #[serde(default)]
             indexes: Vec<IndexDef>,
         }
+
+        fn deserialize_version<'de, D: serde::Deserializer<'de>>(
+            d: D,
+        ) -> Result<OntologyVersion, D::Error> {
+            let val = serde_json::Value::deserialize(d)?;
+            match val {
+                serde_json::Value::Number(n) => {
+                    let num = n.as_u64().unwrap_or(1) as u32;
+                    Ok(OntologyVersion::from(num))
+                }
+                other => serde_json::from_value(other).map_err(serde::de::Error::custom),
+            }
+        }
+
         let w = Wire::deserialize(deserializer)?;
         let mut ont = OntologyIR {
             id: w.id,
@@ -123,7 +139,7 @@ impl OntologyIR {
         id: String,
         name: String,
         description: Option<String>,
-        version: u32,
+        version: impl Into<OntologyVersion>,
         node_types: Vec<NodeTypeDef>,
         edge_types: Vec<EdgeTypeDef>,
         indexes: Vec<IndexDef>,
@@ -132,7 +148,7 @@ impl OntologyIR {
             id,
             name,
             description,
-            version,
+            version: version.into(),
             node_types,
             edge_types,
             indexes,
@@ -149,7 +165,7 @@ impl OntologyIR {
         id: String,
         name: String,
         description: Option<String>,
-        version: u32,
+        version: impl Into<OntologyVersion>,
         node_types: Vec<NodeTypeDef>,
         edge_types: Vec<EdgeTypeDef>,
         indexes: Vec<IndexDef>,

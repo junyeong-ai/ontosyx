@@ -184,7 +184,7 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
             builder = builder.tool(ConsultKnowledgeTool {
                 knowledge_store: Arc::clone(kb),
                 ontology_name: domain.ontology.as_ref().map(|o| o.name.clone()),
-                ontology_version: domain.ontology.as_ref().map(|o| o.version as i32),
+                ontology_version: domain.ontology.as_ref().map(|o| o.version.number as i32),
             });
         }
 
@@ -210,7 +210,7 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
                 memory.clone(),
                 domain.workspace_id,
                 ontology.name.clone(),
-                ontology.version as i32,
+                ontology.version.number as i32,
             ));
         }
 
@@ -354,7 +354,7 @@ async fn build_system_prompt(domain: &DomainContext, user_role: &str) -> String 
         match kb
             .list_active_knowledge(
                 &ontology.name,
-                ontology.version as i32,
+                ontology.version.number as i32,
                 &["correction", "hint"],
                 10,
             )

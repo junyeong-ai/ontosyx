@@ -9,7 +9,7 @@ pub fn generate_cypher_ddl(ontology: &OntologyIR) -> String {
     if let Some(desc) = &ontology.description {
         lines.push(format!("// {desc}"));
     }
-    lines.push(format!("// Version: {}", ontology.version));
+    lines.push(format!("// Version: {}", ontology.version.number));
     lines.push(String::new());
 
     // Node constraints

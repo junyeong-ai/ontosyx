@@ -80,6 +80,58 @@ entity_id!(
 );
 
 // ---------------------------------------------------------------------------
+// OntologyVersion — temporal version metadata
+// ---------------------------------------------------------------------------
+
+/// Version metadata for a point-in-time ontology snapshot.
+///
+/// `number` is monotonically increasing and is the primary comparator.
+/// The remaining fields provide temporal and provenance context:
+/// - `valid_from` / `valid_to`: the window during which this version
+///   was the active schema (used by `as_of` queries).
+/// - `committed_by` / `commit_message`: audit trail.
+///
+/// Implements `From<u32>` so that callers can pass a bare version
+/// number and get a zero-metadata instance — preserving compatibility
+/// with the original `version: u32` API surface.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct OntologyVersion {
+    pub number: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub valid_from: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub valid_to: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub committed_by: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub commit_message: Option<String>,
+}
+
+impl Default for OntologyVersion {
+    fn default() -> Self {
+        Self {
+            number: 1,
+            valid_from: None,
+            valid_to: None,
+            committed_by: None,
+            commit_message: None,
+        }
+    }
+}
+
+impl From<u32> for OntologyVersion {
+    fn from(n: u32) -> Self {
+        Self { number: n, ..Default::default() }
+    }
+}
+
+impl std::fmt::Display for OntologyVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "v{}", self.number)
+    }
+}
+
+// ---------------------------------------------------------------------------
 // NodeTypeDef
 // ---------------------------------------------------------------------------
 

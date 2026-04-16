@@ -637,7 +637,7 @@ impl QueryTranslator for DefaultBrain {
                 kb.as_ref(),
                 &label_refs,
                 self.ontology_id.as_deref().unwrap_or(&ontology.name),
-                ontology.version as i32,
+                ontology.version.number as i32,
                 8,
             )
             .await

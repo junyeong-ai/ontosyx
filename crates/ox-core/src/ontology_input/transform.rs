@@ -559,7 +559,7 @@ mod tests {
         assert!(Uuid::parse_str(&nr.ontology.id).is_ok());
 
         assert_eq!(nr.ontology.name, "Test Ontology");
-        assert_eq!(nr.ontology.version, 1);
+        assert_eq!(nr.ontology.version.number, 1);
         assert_eq!(nr.ontology.node_types.len(), 2);
         assert_eq!(nr.ontology.edge_types.len(), 1);
         assert_eq!(nr.ontology.indexes.len(), 1);
