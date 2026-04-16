@@ -197,45 +197,6 @@ pub static MEMGRAPH_RULES: LazyLock<Vec<CompiledRule>> = LazyLock::new(|| {
     ])
 });
 
-/// Neptune-specific transient-error rules. Kept for now alongside the
-/// rest of the backend; will retire when `neptune.rs` itself is removed.
-pub static NEPTUNE_RULES: LazyLock<Vec<CompiledRule>> = LazyLock::new(|| {
-    compile_rules(&[
-        // No word boundary on the right because the canonical AWS form
-        // is "ThrottlingException" (no separator between word chars).
-        (
-            r"(?i)\bthrottling",
-            TransienceKind::ServerBusy,
-            "AWS throttle",
-        ),
-        (
-            r"(?i)\btoo\s+many\s+requests\b",
-            TransienceKind::ServerBusy,
-            "throttle (429-like)",
-        ),
-        (
-            r"(?i)\bconnection\s+(?:reset|refused)(?:\s+by\s+peer)?\b",
-            TransienceKind::NetworkTransient,
-            "socket reset/refused",
-        ),
-        (
-            r"(?i)\b(?:request|operation)\s+(?:timed\s+out|timeout)\b",
-            TransienceKind::NetworkTransient,
-            "client timeout",
-        ),
-        (
-            r"(?i)\bservice\s+unavailable\b",
-            TransienceKind::ServerUnavailable,
-            "503-like",
-        ),
-        (
-            r"(?i)\binternal\s+server\s+error\b",
-            TransienceKind::ServerUnavailable,
-            "500-like",
-        ),
-    ])
-});
-
 // ---------------------------------------------------------------------------
 // Tests — pin the false-positive cases that motivated the rewrite
 // ---------------------------------------------------------------------------
@@ -344,15 +305,4 @@ mod tests {
         );
     }
 
-    #[test]
-    fn neptune_rules_classify_throttle_and_timeout() {
-        assert_eq!(
-            classify(&NEPTUNE_RULES, "ThrottlingException: Rate exceeded"),
-            TransienceKind::ServerBusy
-        );
-        assert!(classify(&NEPTUNE_RULES, "connection reset by peer").is_transient());
-        assert!(classify(&NEPTUNE_RULES, "Request timed out").is_transient());
-        assert!(!classify(&NEPTUNE_RULES, "SyntaxError: Invalid query").is_transient());
-        assert!(!classify(&NEPTUNE_RULES, "ConstraintViolation: duplicate").is_transient());
-    }
 }

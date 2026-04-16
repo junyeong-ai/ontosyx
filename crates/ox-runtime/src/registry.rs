@@ -258,31 +258,6 @@ impl Default for GraphBackendRegistry {
     }
 }
 
-/// Try to extract an AWS region from a Neptune endpoint URL.
-/// Expected format: `https://<cluster>.<region>.neptune.amazonaws.com:8182`
-fn extract_region_from_endpoint(endpoint: &str) -> Option<String> {
-    // Strip scheme
-    let host = endpoint
-        .strip_prefix("https://")
-        .or_else(|| endpoint.strip_prefix("http://"))
-        .unwrap_or(endpoint);
-    // Strip port and path
-    let host = host.split(':').next().unwrap_or(host);
-    let host = host.split('/').next().unwrap_or(host);
-
-    // Look for `.neptune.amazonaws.com` pattern
-    let parts: Vec<&str> = host.split('.').collect();
-    // cluster-id.region.neptune.amazonaws.com → parts[1] is the region
-    if parts.len() >= 4 && parts.contains(&"neptune") {
-        // Region is the part right before "neptune"
-        let neptune_idx = parts.iter().position(|&p| p == "neptune")?;
-        if neptune_idx > 0 {
-            return Some(parts[neptune_idx - 1].to_string());
-        }
-    }
-    None
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -311,26 +286,5 @@ mod tests {
     fn registry_rejects_unknown_backend() {
         let registry = GraphBackendRegistry::with_defaults();
         assert!(!registry.supports("arangodb"));
-    }
-
-    #[test]
-    fn extract_region_from_valid_endpoint() {
-        let region = super::extract_region_from_endpoint(
-            "https://my-cluster.us-east-1.neptune.amazonaws.com:8182/openCypher",
-        );
-        assert_eq!(region.as_deref(), Some("us-east-1"));
-    }
-
-    #[test]
-    fn extract_region_from_endpoint_without_port() {
-        let region =
-            super::extract_region_from_endpoint("https://cluster.eu-west-2.neptune.amazonaws.com");
-        assert_eq!(region.as_deref(), Some("eu-west-2"));
-    }
-
-    #[test]
-    fn extract_region_from_non_neptune_endpoint() {
-        let region = super::extract_region_from_endpoint("bolt://localhost:7687");
-        assert_eq!(region, None);
     }
 }
