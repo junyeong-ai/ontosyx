@@ -60,5 +60,6 @@ pub(crate) fn assess_quality_from_project_with_mapping(
         source_mapping,
         excluded_tables,
         column_clarifications,
+        &ox_core::quality::QualityConfig::default(),
     ))
 }

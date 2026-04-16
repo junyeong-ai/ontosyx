@@ -1,6 +1,28 @@
 use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------
+// Quality assessment configuration (thresholds)
+//
+// These used to be hardcoded inside `assessment.rs`. Surfacing them as a
+// typed struct lets each deployment tune "what counts as a small sample"
+// or "how sparse is sparse" without touching core logic. `Default` mirrors
+// the historical values so existing callers keep their behavior.
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct QualityConfig {
+    /// Below this many rows a table is flagged as `SmallSample`
+    /// (statistics may not represent production data). Default: 5.
+    pub small_sample_threshold: u64,
+}
+
+impl Default for QualityConfig {
+    fn default() -> Self {
+        Self { small_sample_threshold: 5 }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Quality report types
 // ---------------------------------------------------------------------------
 

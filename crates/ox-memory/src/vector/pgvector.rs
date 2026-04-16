@@ -7,11 +7,26 @@ use tokio::sync::Semaphore;
 
 use super::{MemoryFilter, VectorHit, VectorStore};
 
+/// Default permit count for fire-and-forget DB update tasks, used when
+/// [`init_bg_concurrency`] is not called before the first `bg_semaphore()`.
+const DEFAULT_BG_CONCURRENCY: usize = 8;
+
 /// Limit concurrent fire-and-forget DB updates to prevent pool exhaustion.
 static BG_TASK_SEMAPHORE: OnceLock<Semaphore> = OnceLock::new();
 
+/// Configure the background-task concurrency before the first use.
+///
+/// Safe to call before any `MemoryStore`/`PgVectorStore` operation runs;
+/// once the semaphore has been initialized (either explicitly via this
+/// function or lazily on first access) subsequent calls are no-ops.
+/// `permits` is clamped to at least 1 to avoid a deadlocked semaphore.
+pub fn init_bg_concurrency(permits: usize) {
+    let permits = permits.max(1);
+    let _ = BG_TASK_SEMAPHORE.set(Semaphore::new(permits));
+}
+
 fn bg_semaphore() -> &'static Semaphore {
-    BG_TASK_SEMAPHORE.get_or_init(|| Semaphore::new(8))
+    BG_TASK_SEMAPHORE.get_or_init(|| Semaphore::new(DEFAULT_BG_CONCURRENCY))
 }
 
 /// Vector store backed by PostgreSQL with the pgvector extension.

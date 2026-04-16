@@ -26,11 +26,19 @@ pub struct OxConfig {
     pub otel: OtelConfig,
     #[serde(default = "default_collaboration_config")]
     pub collaboration: CollaborationConfig,
+    #[serde(default = "default_memory_config")]
+    pub memory: MemoryConfig,
 }
 
 fn default_collaboration_config() -> CollaborationConfig {
     CollaborationConfig {
         broadcast_buffer: default_collaboration_broadcast_buffer(),
+    }
+}
+
+fn default_memory_config() -> MemoryConfig {
+    MemoryConfig {
+        bg_concurrency: default_memory_bg_concurrency(),
     }
 }
 
@@ -98,6 +106,20 @@ pub struct McpConfig {
     /// Whether the MCP (Model Context Protocol) endpoint is enabled (default: true).
     /// When enabled, an MCP server is mounted at `/mcp` for AI agent tool access.
     pub enabled: bool,
+}
+
+/// Semantic memory (pgvector / embedding) tuning.
+#[derive(Debug, Deserialize, Clone)]
+pub struct MemoryConfig {
+    /// Concurrent fire-and-forget DB updates allowed during memory
+    /// access-timestamp refresh (default: 8). Raise if the PG pool
+    /// keeps spare capacity; lower if you see `acquire` back-pressure.
+    #[serde(default = "default_memory_bg_concurrency")]
+    pub bg_concurrency: usize,
+}
+
+fn default_memory_bg_concurrency() -> usize {
+    8
 }
 
 /// Realtime collaboration (WebSocket + broadcast) tuning.
@@ -353,6 +375,7 @@ impl OxConfig {
             .set_default("otel.endpoint", "http://localhost:4317")?
             .set_default("otel.service_name", "ontosyx")?
             .set_default("collaboration.broadcast_buffer", 256_i64)?
+            .set_default("memory.bg_concurrency", 8_i64)?
             // TOML file (optional — missing file is not an error)
             .add_source(File::with_name(&config_file).required(false))
             // Environment overrides: OX_SERVER__PORT=8080

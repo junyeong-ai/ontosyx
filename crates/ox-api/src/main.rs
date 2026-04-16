@@ -58,6 +58,10 @@ async fn main() -> anyhow::Result<()> {
     let config = OxConfig::load()?;
     config.validate()?;
 
+    // Initialize tunables owned by non-api crates before any of their
+    // code paths can lazily default them.
+    ox_memory::vector::pgvector::init_bg_concurrency(config.memory.bg_concurrency);
+
     let env_filter =
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.logging.level));
 

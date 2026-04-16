@@ -254,6 +254,7 @@ pub(crate) async fn extend_project(
         &merged_mapping,
         &existing_opts.excluded_tables,
         &existing_opts.column_clarifications,
+        &ox_core::quality::QualityConfig::default(),
     );
 
     // 9. Build source history entry for the new source

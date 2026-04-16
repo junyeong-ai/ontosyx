@@ -6,8 +6,8 @@ use crate::source_mapping::SourceMapping;
 use crate::source_schema::{SourceProfile, SourceSchema};
 
 use super::types::{
-    OntologyQualityReport, QualityConfidence, QualityGap, QualityGapCategory, QualityGapRef,
-    QualityGapSeverity, is_cryptic_short, is_excluded,
+    OntologyQualityReport, QualityConfidence, QualityConfig, QualityGap, QualityGapCategory,
+    QualityGapRef, QualityGapSeverity, is_cryptic_short, is_excluded,
 };
 
 // ---------------------------------------------------------------------------
@@ -30,6 +30,7 @@ pub fn assess_quality(
     source_mapping: &SourceMapping,
     excluded_tables: &[String],
     column_clarifications: &[ColumnClarification],
+    config: &QualityConfig,
 ) -> OntologyQualityReport {
     let mut gaps = Vec::new();
     let excluded_tables = excluded_tables
@@ -54,7 +55,7 @@ pub fn assess_quality(
         }
 
         // Table-level check: too few rows for reliable statistics
-        if tp.row_count > 0 && tp.row_count < 5 {
+        if tp.row_count > 0 && tp.row_count < config.small_sample_threshold {
             gaps.push(QualityGap {
                 severity: QualityGapSeverity::Low,
                 category: QualityGapCategory::SmallSample,
