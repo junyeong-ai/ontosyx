@@ -188,6 +188,25 @@ impl std::fmt::Display for PropertyOwner {
     }
 }
 
+/// A suggested PII classification awaiting user confirmation.
+///
+/// Auto-detection (Phase 4.6) produces suggestions — never sets `pii_kind`
+/// directly on PropertyDef. The user confirms or rejects each suggestion
+/// via the UI before it becomes a committed classification.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct PiiSuggestion {
+    /// Property affected.
+    pub property_id: PropertyId,
+    /// Node or edge owning the property.
+    pub owner_label: String,
+    /// Suggested PII kind.
+    pub suggested_kind: PiiKind,
+    /// Confidence score (0.0 – 1.0).
+    pub confidence: f64,
+    /// Evidence that led to the suggestion (e.g., "column name contains 'email'").
+    pub evidence: String,
+}
+
 /// Tracks which external data source a node type was derived from.
 /// Richer than the legacy `source_table: Option<String>` — includes
 /// composite primary key and source system identifier for impact analysis.

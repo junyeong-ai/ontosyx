@@ -637,6 +637,9 @@ async fn main() -> anyhow::Result<()> {
         let task_store = Arc::clone(&state.store);
         let analysis_timeout = state.timeouts.analysis;
         let token = cancel_token.clone();
+        // Phase 4.11: prevent the same task from spawning twice when a
+        // long-running execution overlaps the next 60-second poll.
+        let in_flight: Arc<dashmap::DashSet<uuid::Uuid>> = Arc::new(dashmap::DashSet::new());
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
             loop {
@@ -654,6 +657,12 @@ async fn main() -> anyhow::Result<()> {
                         match tasks {
                             Ok(tasks) => {
                                 for task in tasks {
+                                    // Skip tasks already executing from a prior poll
+                                    if !in_flight.insert(task.id) {
+                                        tracing::debug!(task_id = %task.id, "Skipping in-flight scheduled task");
+                                        continue;
+                                    }
+                                    let flight = Arc::clone(&in_flight);
                                     let store = Arc::clone(&task_store);
                                     // Individual task runs are NOT cancelled on shutdown.
                                     // Each run is bounded by analysis_timeout, and completing
@@ -745,6 +754,8 @@ async fn main() -> anyhow::Result<()> {
                                             next_run = %next,
                                             "Scheduled task run finished"
                                         );
+                                        // Release in-flight guard so next poll can re-schedule.
+                                        flight.remove(&task.id);
                                     }));
                                 }
                             }
