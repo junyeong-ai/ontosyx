@@ -492,6 +492,7 @@ async fn main() -> anyhow::Result<()> {
         let maintenance_store = Arc::clone(&state.store);
         let maintenance_memory = state.memory.clone();
         let maintenance_channels = state.tool_review_channels.clone();
+        let maintenance_client_pool = Arc::clone(&state.client_pool);
         let memory_days = config.retention.memory_days;
         let session_days = config.retention.session_days;
         let wip_archive_days = config.retention.wip_archive_days;
@@ -554,6 +555,9 @@ async fn main() -> anyhow::Result<()> {
                                 _ => {}
                             }
                         }).await;
+
+                        // Evict LLM clients idle for over 1 hour (Phase 4.9).
+                        maintenance_client_pool.invalidate_idle(3600);
 
                         // Clean up stale tool review channels (abandoned sessions).
                         // Oneshot senders are removed on consumption; this handles
