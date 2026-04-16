@@ -38,11 +38,10 @@ pub struct IntrospectSourceTool {
 impl SchemaTool for IntrospectSourceTool {
     type Input = IntrospectSourceInput;
     const NAME: &'static str = super::INTROSPECT_SOURCE;
-    const DESCRIPTION: &'static str = "Inspect the source database schema. Use 'list_tables' to see all tables with their \
-         column counts and row counts. Use 'table_detail' with a table_name to see full column \
-         definitions, data types, constraints, and statistics for a specific table. Useful when \
-         exploring large schemas progressively or when you need to understand a table's structure \
-         before querying or designing.";
+    const DESCRIPTION: &'static str =
+        "Inspect the source database schema. \
+         'list_tables' returns tables with column/row counts; \
+         'table_detail' with a table_name returns column definitions, types, constraints, stats.";
     const READ_ONLY: bool = true;
 
     async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {

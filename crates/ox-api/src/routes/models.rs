@@ -123,11 +123,14 @@ pub(crate) async fn delete_model_config(
 ) -> Result<StatusCode, AppError> {
     principal.require_admin()?;
 
-    state
+    let deleted = state
         .store
         .delete_model_config(id)
         .await
         .map_err(AppError::from)?;
+    if !deleted {
+        return Err(AppError::not_found("Model config"));
+    }
 
     state.model_router.invalidate().await;
     state.client_pool.invalidate_all();
@@ -217,11 +220,14 @@ pub(crate) async fn delete_routing_rule(
 ) -> Result<StatusCode, AppError> {
     principal.require_admin()?;
 
-    state
+    let deleted = state
         .store
         .delete_routing_rule(id)
         .await
         .map_err(AppError::from)?;
+    if !deleted {
+        return Err(AppError::not_found("Routing rule"));
+    }
 
     state.model_router.invalidate().await;
     state.client_pool.invalidate_all();
@@ -260,14 +266,13 @@ pub(crate) async fn test_model_connection(
     // Try to create a client and send a minimal request
     match state.client_pool.get_or_create(&provider_config).await {
         Ok(client) => {
-            use branchforge::client::CreateMessageRequest;
-            use branchforge::types::Message;
+            use branchforge::{Message, ModelRequest};
 
             let request =
-                CreateMessageRequest::new(&provider_config.model, vec![Message::user("Say OK")])
-                    .max_tokens(16_u32);
+                ModelRequest::new(&provider_config.model, vec![Message::user("Say OK")])
+                    .with_max_tokens(16);
 
-            match client.send(request).await {
+            match client.send(&request).await {
                 Ok(_) => Ok(Json(TestModelResponse {
                     ok: true,
                     message: format!(

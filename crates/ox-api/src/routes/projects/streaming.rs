@@ -1,3 +1,9 @@
+// TODO(phase-2): resolve two residual unwraps as part of the streaming.rs
+// decomposition. The schema_and_profile unwrap is guarded by an earlier
+// branch predicate, and the sem.acquire unwrap is inside a tokio::spawn
+// closure where error propagation requires restructuring the yield loop.
+#![allow(clippy::unwrap_used)]
+
 use std::convert::Infallible;
 
 use axum::{

@@ -2353,15 +2353,15 @@ impl EmbeddingRetryStore for PostgresStore {
         Ok(())
     }
 
-    async fn delete_pending_embedding(&self, id: Uuid) -> OxResult<()> {
-        sqlx::query("DELETE FROM pending_embeddings WHERE id = $1")
+    async fn delete_pending_embedding(&self, id: Uuid) -> OxResult<bool> {
+        let result = sqlx::query("DELETE FROM pending_embeddings WHERE id = $1")
             .bind(id)
             .execute(&self.pool)
             .await
             .map_err(|e| OxError::Runtime {
                 message: format!("Database error: {e}"),
             })?;
-        Ok(())
+        Ok(result.rows_affected() > 0)
     }
 }
 
@@ -2456,15 +2456,15 @@ impl PromptTemplateStore for PostgresStore {
         Ok(())
     }
 
-    async fn delete_prompt_template(&self, id: Uuid) -> OxResult<()> {
-        sqlx::query("DELETE FROM prompt_templates WHERE id = $1")
+    async fn delete_prompt_template(&self, id: Uuid) -> OxResult<bool> {
+        let result = sqlx::query("DELETE FROM prompt_templates WHERE id = $1")
             .bind(id)
             .execute(&self.pool)
             .await
             .map_err(|e| OxError::Runtime {
                 message: format!("Database error: {e}"),
             })?;
-        Ok(())
+        Ok(result.rows_affected() > 0)
     }
 
     async fn deactivate_other_versions(&self, name: &str, exclude_id: Uuid) -> OxResult<()> {
@@ -3539,13 +3539,13 @@ impl crate::store::ModelConfigStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
-    async fn delete_model_config(&self, id: Uuid) -> OxResult<()> {
-        sqlx::query("DELETE FROM model_configs WHERE id = $1")
+    async fn delete_model_config(&self, id: Uuid) -> OxResult<bool> {
+        let result = sqlx::query("DELETE FROM model_configs WHERE id = $1")
             .bind(id)
             .execute(&self.pool)
             .await
             .map_err(to_ox_error)?;
-        Ok(())
+        Ok(result.rows_affected() > 0)
     }
 
     async fn list_routing_rules(
@@ -3616,13 +3616,13 @@ impl crate::store::ModelConfigStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
-    async fn delete_routing_rule(&self, id: Uuid) -> OxResult<()> {
-        sqlx::query("DELETE FROM model_routing_rules WHERE id = $1")
+    async fn delete_routing_rule(&self, id: Uuid) -> OxResult<bool> {
+        let result = sqlx::query("DELETE FROM model_routing_rules WHERE id = $1")
             .bind(id)
             .execute(&self.pool)
             .await
             .map_err(to_ox_error)?;
-        Ok(())
+        Ok(result.rows_affected() > 0)
     }
 
     async fn find_model_for_operation(
@@ -4047,12 +4047,12 @@ impl LoadCheckpointStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
-    async fn delete_checkpoint(&self, id: Uuid) -> OxResult<()> {
-        sqlx::query("DELETE FROM load_checkpoints WHERE id = $1")
+    async fn delete_checkpoint(&self, id: Uuid) -> OxResult<bool> {
+        let result = sqlx::query("DELETE FROM load_checkpoints WHERE id = $1")
             .bind(id)
             .execute(&self.pool)
             .await
             .map_err(to_ox_error)?;
-        Ok(())
+        Ok(result.rows_affected() > 0)
     }
 }

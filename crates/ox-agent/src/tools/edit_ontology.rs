@@ -37,9 +37,9 @@ pub struct EditOntologyTool {
 impl SchemaTool for EditOntologyTool {
     type Input = EditOntologyInput;
     const NAME: &'static str = super::EDIT_ONTOLOGY;
-    const DESCRIPTION: &'static str = "Generate atomic edit commands to modify the ontology structure. \
-         Supports adding/removing/renaming nodes, edges, properties, constraints, and indexes. \
-         Returns a preview of commands — the user must approve before applying.";
+    const DESCRIPTION: &'static str =
+        "Generate atomic edit commands (add/remove/rename nodes, edges, properties, constraints, indexes). \
+         Returns a preview; the user must approve before apply_ontology runs.";
 
     async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
         let ontology = match self.domain.ontology.as_ref() {

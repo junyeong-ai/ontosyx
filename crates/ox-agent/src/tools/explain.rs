@@ -30,33 +30,37 @@ pub struct ExplainOntologyTool {
 impl SchemaTool for ExplainOntologyTool {
     type Input = ExplainInput;
     const NAME: &'static str = super::EXPLAIN_ONTOLOGY;
-    const DESCRIPTION: &'static str = "Explain ontology concepts, relationships, data patterns, and quality insights. \
-         Includes actual graph data statistics (node counts, edge counts) when available. \
-         Use for 'what is', 'explain', 'describe', or 'help' questions about the knowledge graph.";
+    const DESCRIPTION: &'static str =
+        "Explain ontology concepts, relationships, and data patterns. \
+         Use for 'what is', 'explain', 'describe' questions — live graph stats when a runtime is available.";
     const READ_ONLY: bool = true;
 
     async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
         let mut context = String::new();
 
         if let Some(ontology) = &self.domain.ontology {
+            // Only user-meaningful signal goes to the LLM: labels and shape.
+            // Internal UUIDs, property counts, and the monotonic version
+            // number add tokens without helping the model reason.
+            let node_labels = ontology
+                .node_types
+                .iter()
+                .map(|n| n.label.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            let edge_labels = ontology
+                .edge_types
+                .iter()
+                .map(|e| {
+                    let src = ontology.node_label(&e.source_node_id).unwrap_or("?");
+                    let tgt = ontology.node_label(&e.target_node_id).unwrap_or("?");
+                    format!("{} ({src}→{tgt})", e.label)
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
             context.push_str(&format!(
-                "Ontology: {} (v{})\n\
-                 Node types: {}\n\
-                 Edge types: {}\n\n",
+                "Ontology: {}\nNode types: {node_labels}\nEdge types: {edge_labels}\n\n",
                 ontology.name,
-                ontology.version,
-                ontology
-                    .node_types
-                    .iter()
-                    .map(|n| format!("{} ({}p)", n.label, n.properties.len()))
-                    .collect::<Vec<_>>()
-                    .join(", "),
-                ontology
-                    .edge_types
-                    .iter()
-                    .map(|e| format!("{} ({}→{})", e.label, e.source_node_id, e.target_node_id))
-                    .collect::<Vec<_>>()
-                    .join(", "),
             ));
 
             // Fetch live graph statistics if runtime is available (timeout: 15s)

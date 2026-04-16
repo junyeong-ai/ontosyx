@@ -433,7 +433,7 @@ pub trait PromptTemplateStore: Send + Sync {
         variables: &serde_json::Value,
         is_active: bool,
     ) -> OxResult<()>;
-    async fn delete_prompt_template(&self, id: Uuid) -> OxResult<()>;
+    async fn delete_prompt_template(&self, id: Uuid) -> OxResult<bool>;
     /// Deactivate all versions of a prompt with the given name except `exclude_id`.
     async fn deactivate_other_versions(&self, name: &str, exclude_id: Uuid) -> OxResult<()>;
 }
@@ -500,7 +500,7 @@ pub trait EmbeddingRetryStore: Send + Sync {
     ) -> OxResult<()>;
     async fn list_pending_embeddings(&self, limit: i64) -> OxResult<Vec<PendingEmbedding>>;
     async fn mark_embedding_failed(&self, id: Uuid, error: &str) -> OxResult<()>;
-    async fn delete_pending_embedding(&self, id: Uuid) -> OxResult<()>;
+    async fn delete_pending_embedding(&self, id: Uuid) -> OxResult<bool>;
 }
 
 // ---------------------------------------------------------------------------
@@ -775,7 +775,7 @@ pub trait ModelConfigStore: Send + Sync {
         id: Uuid,
         update: &ModelConfigUpdate,
     ) -> OxResult<ModelConfig>;
-    async fn delete_model_config(&self, id: Uuid) -> OxResult<()>;
+    async fn delete_model_config(&self, id: Uuid) -> OxResult<bool>;
 
     async fn list_routing_rules(
         &self,
@@ -788,7 +788,7 @@ pub trait ModelConfigStore: Send + Sync {
         id: Uuid,
         update: &RoutingRuleUpdate,
     ) -> OxResult<ModelRoutingRule>;
-    async fn delete_routing_rule(&self, id: Uuid) -> OxResult<()>;
+    async fn delete_routing_rule(&self, id: Uuid) -> OxResult<bool>;
 
     /// Single optimized query: find the best model for an operation + workspace.
     /// Checks workspace-specific rules first, then global rules, then wildcard.
@@ -897,7 +897,7 @@ pub trait LoadCheckpointStore: Send + Sync {
     async fn list_checkpoints(&self, project_id: Uuid) -> OxResult<Vec<LoadCheckpoint>>;
 
     /// Delete a specific checkpoint (forces a full reload on next run).
-    async fn delete_checkpoint(&self, id: Uuid) -> OxResult<()>;
+    async fn delete_checkpoint(&self, id: Uuid) -> OxResult<bool>;
 }
 
 // ---------------------------------------------------------------------------

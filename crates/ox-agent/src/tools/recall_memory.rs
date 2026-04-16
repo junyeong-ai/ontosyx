@@ -70,9 +70,10 @@ pub struct RecallMemoryTool {
 impl SchemaTool for RecallMemoryTool {
     type Input = RecallMemoryInput;
     const NAME: &'static str = super::RECALL_MEMORY;
-    const DESCRIPTION: &'static str = "Search long-term memory for relevant past queries, analyses, edits, and sessions. \
-         Use 'semantic' mode for meaning-based search, or 'pattern' mode for exact keyword matching. \
-         Call this when the user references past work or when context from previous sessions would help.";
+    const DESCRIPTION: &'static str =
+        "Search long-term memory across past queries, analyses, edits, sessions. \
+         'semantic' mode for meaning-based match, 'pattern' for exact keyword. \
+         Call when prior session context would help.";
     const READ_ONLY: bool = true;
 
     async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {

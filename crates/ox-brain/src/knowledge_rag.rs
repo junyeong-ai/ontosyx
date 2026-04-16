@@ -50,19 +50,16 @@ pub async fn discover_knowledge(
     let ids: Vec<uuid::Uuid> = entries.iter().map(|e| e.id).collect();
     let _ = store.record_knowledge_usage(&ids).await;
 
-    // Format entries with version warnings
+    // Only the kind tag and content cross into the prompt. Confidence
+    // scores and ontology-version checks are retrieval-side bookkeeping —
+    // surfacing them adds tokens without changing the model's decision.
+    // Stale entries are deprioritized at retrieval, not by leaking version
+    // metadata into the LLM context.
     let mut output = String::from("\n--- Learned corrections for this ontology ---\n");
     for entry in &entries {
-        let prefix = if entry.version_checked < ontology_version {
-            format!("[Unverified since v{}] ", entry.version_checked)
-        } else {
-            String::new()
-        };
-        output.push_str(&format!(
-            "- {}[{}, {:.1}] {}\n",
-            prefix, entry.kind, entry.confidence, entry.content,
-        ));
+        output.push_str(&format!("- [{}] {}\n", entry.kind, entry.content));
     }
+    let _ = ontology_version; // currently used only for retrieval scoring
 
     output
 }

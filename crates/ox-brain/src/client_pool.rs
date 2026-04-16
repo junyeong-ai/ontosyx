@@ -4,31 +4,29 @@ use std::sync::Arc;
 use dashmap::DashMap;
 use tracing::info;
 
+use branchforge::{Credential, LlmCall, LlmClient};
 use ox_core::error::{OxError, OxResult};
 
 use crate::auth::LlmProviderConfig;
 
 // ---------------------------------------------------------------------------
-// ClientPool — shared branchforge Client pool keyed by provider identity
+// ClientPool — shared branchforge LlmCall pool keyed by provider identity
 // ---------------------------------------------------------------------------
 
-/// Pool of branchforge Clients keyed by provider identity.
+/// Pool of branchforge LlmCall clients keyed by provider identity.
 ///
-/// Clients are keyed by (provider, api_key, base_url, region) — the credential
-/// identity. Model is NOT part of the key because the same client can serve
-/// different models from the same provider.
-///
-/// For model-specific operations, callers pass the model name to
-/// `structured_completion` directly — the client just handles auth/transport.
+/// Uses [`LlmClient::from_auth`] which handles all provider-specific
+/// transport, codec, and credential configuration (API key, OAuth, SigV4)
+/// with automatic retry — zero provider-specific logic in this module.
 pub struct ClientPool {
-    /// Key: provider identity hash. Value: client.
+    /// Key: provider identity hash. Value: LlmCall client + metadata.
     clients: DashMap<u64, PoolEntry>,
     /// Cached credentials for Agent auth (Auth::Resolved).
-    credentials: DashMap<u64, branchforge::Credential>,
+    credentials: DashMap<u64, Credential>,
 }
 
 struct PoolEntry {
-    client: Arc<branchforge::Client>,
+    client: Arc<dyn LlmCall>,
     provider: String,
 }
 
@@ -46,15 +44,15 @@ impl ClientPool {
         }
     }
 
-    /// Get or create a Client for the given provider config.
+    /// Get or create an LlmCall client for the given provider config.
     ///
-    /// Clients are cached by provider identity (provider + api_key + base_url + region).
-    /// The `model` field determines the default model reported by the adapter,
-    /// but callers can override the model per-request via CreateMessageRequest.
+    /// Delegates to branchforge's [`LlmClient::from_auth`] which handles
+    /// all provider types (API key, OAuth/ClaudeCli, Bedrock SigV4, etc.)
+    /// with automatic retry.
     pub async fn get_or_create(
         &self,
         config: &LlmProviderConfig,
-    ) -> OxResult<Arc<branchforge::Client>> {
+    ) -> OxResult<Arc<dyn LlmCall>> {
         let key = provider_identity_hash(config);
 
         if let Some(entry) = self.clients.get(&key) {
@@ -63,26 +61,19 @@ impl ClientPool {
 
         let auth = config.resolve_auth()?;
 
-        // Resolve and cache credential
-        let credential = auth.resolve().await.map_err(|e| OxError::Runtime {
+        // Cache credential for agent auth (Auth::Resolved zero-cost path).
+        let credential = auth.clone().resolve().await.map_err(|e| OxError::Runtime {
             message: format!("Credential resolution failed: {e}"),
         })?;
         self.credentials.insert(key, credential);
 
-        let mut builder = branchforge::Client::builder()
-            .auth(auth)
+        // Build client via branchforge's LlmClient — handles all provider-specific
+        // transport/codec/credential logic with automatic retry.
+        let client = LlmClient::from_auth(auth)
             .await
             .map_err(|e| OxError::Runtime {
-                message: format!("Client auth failed: {e}"),
+                message: format!("LLM client build failed for '{}': {e}", config.provider),
             })?;
-
-        builder = builder
-            .models(branchforge::client::ModelConfig::default().primary(&config.model))
-            .retry(branchforge::RetryPolicy::default());
-
-        let client = builder.build().await.map_err(|e| OxError::Runtime {
-            message: format!("Client build failed: {e}"),
-        })?;
 
         info!(
             provider = %config.provider,
@@ -90,23 +81,18 @@ impl ClientPool {
             "LLM client created in pool"
         );
 
-        let arc = Arc::new(client);
         self.clients.insert(
             key,
             PoolEntry {
-                client: Arc::clone(&arc),
+                client: Arc::clone(&client),
                 provider: config.provider.clone(),
             },
         );
-        Ok(arc)
+        Ok(client)
     }
 
-    /// Get a cached Client by provider name.
-    ///
-    /// If multiple clients exist for the same provider (different credentials),
-    /// returns the first match. This is safe because `resolve_for_operation`
-    /// only needs transport-level access — the model is specified per-request.
-    pub fn get_by_provider(&self, provider: &str) -> Option<Arc<branchforge::Client>> {
+    /// Return a cached LlmCall client by provider name.
+    pub fn by_provider(&self, provider: &str) -> Option<Arc<dyn LlmCall>> {
         for entry in self.clients.iter() {
             if entry.value().provider == provider {
                 return Some(Arc::clone(&entry.value().client));
@@ -123,7 +109,6 @@ impl ClientPool {
             return Ok(branchforge::Auth::resolved(cred.clone()));
         }
 
-        // Ensure client is created (which caches the credential)
         self.get_or_create(config).await?;
 
         let cred = self.credentials.get(&key).ok_or_else(|| OxError::Runtime {
@@ -148,7 +133,6 @@ impl ClientPool {
 }
 
 /// Hash of provider identity fields — credentials that determine the connection.
-/// Model is NOT included because the same auth works for all models from one provider.
 fn provider_identity_hash(config: &LlmProviderConfig) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     config.provider.hash(&mut hasher);

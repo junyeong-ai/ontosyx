@@ -16,7 +16,11 @@ use crate::workspace::WorkspaceContext;
 // Shared reqwest client (created once, reused across all webhook calls)
 // ---------------------------------------------------------------------------
 
+#[allow(clippy::expect_used)]
 static WEBHOOK_CLIENT: std::sync::LazyLock<reqwest::Client> = std::sync::LazyLock::new(|| {
+    // Startup-only: the default reqwest client builder has no fallible
+    // configuration we care about (no TLS cert paths etc.), so a failure
+    // here is a runtime/platform bug that warrants aborting.
     reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
         .build()

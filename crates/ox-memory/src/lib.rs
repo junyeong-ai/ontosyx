@@ -1,3 +1,13 @@
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unreachable
+    )
+)]
+
 //! # ox-memory
 //!
 //! Semantic memory for the Ontosyx agent — embedding + vector search.

@@ -354,8 +354,12 @@ impl<'de> Deserialize<'de> for Expr {
         {
             // This is a PropertyValue, not an Expr variant.
             // Reconstruct as {"type": <tag>, "value": <value>} for PropertyValue deser.
-            let pv_type = map.remove("expr_type").unwrap();
-            map.insert("type".to_string(), pv_type);
+            // `map.get("expr_type")` just matched above, so `remove` yields Some;
+            // we still guard defensively because that guarantee lives in a
+            // pattern match, not in the types.
+            if let Some(pv_type) = map.remove("expr_type") {
+                map.insert("type".to_string(), pv_type);
+            }
             let pv_value = serde_json::Value::Object(map);
             let pv: PropertyValue =
                 serde_json::from_value(pv_value).map_err(serde::de::Error::custom)?;

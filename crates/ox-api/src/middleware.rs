@@ -185,16 +185,6 @@ pub async fn require_auth(
 // Helpers for extracting claims in handlers
 // ---------------------------------------------------------------------------
 
-/// Get the authenticated user's ID as a string from request extensions.
-/// Returns "system" for API key auth.
-#[allow(dead_code)]
-pub fn get_user_id_from_claims(req: &Request) -> String {
-    req.extensions()
-        .get::<AuthClaims>()
-        .map(|c| c.sub.clone())
-        .unwrap_or_else(|| "anonymous".to_string())
-}
-
 // ---------------------------------------------------------------------------
 // Request ID middleware
 //

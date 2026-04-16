@@ -46,10 +46,10 @@ pub struct SearchRecipesTool {
 impl SchemaTool for SearchRecipesTool {
     type Input = SearchRecipesInput;
     const NAME: &'static str = super::SEARCH_RECIPES;
-    const DESCRIPTION: &'static str = "Search for reusable analysis recipes (algorithms) before writing custom code. \
-         Recipes include pre-built templates for time series, segmentation, classification, \
-         regression, anomaly detection, and statistical analysis. \
-         Returns recipe details including required input columns and parameters.";
+    const DESCRIPTION: &'static str =
+        "Search reusable analysis recipes (time series, segmentation, classification, \
+         regression, anomaly detection, statistics) before writing custom code. \
+         Returns required input columns and parameters.";
     const READ_ONLY: bool = true;
 
     async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {

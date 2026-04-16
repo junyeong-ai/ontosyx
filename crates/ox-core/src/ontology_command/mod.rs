@@ -216,8 +216,11 @@ impl JsonSchema for OntologyCommand {
             },
             "additionalProperties": false
         });
-        let map: serde_json::Map<String, serde_json::Value> =
-            serde_json::from_value(value).expect("valid schema object");
+        let serde_json::Value::Object(map) = value else {
+            // `json!({...})` always produces an Object; this arm is unreachable
+            // at runtime but keeps the type system honest without panicking.
+            return schemars::Schema::default();
+        };
         schemars::Schema::from(map)
     }
 }

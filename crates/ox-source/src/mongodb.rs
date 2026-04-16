@@ -122,7 +122,9 @@ impl MongoIntrospector {
 
         // Store real collection names for later use in profiling
         {
-            let mut lock = self.real_collections.lock().unwrap();
+            let mut lock = self.real_collections.lock().map_err(|_| OxError::Runtime {
+                message: "mongodb real_collections mutex poisoned".to_string(),
+            })?;
             *lock = collection_names.iter().cloned().collect();
         }
 
@@ -435,7 +437,13 @@ impl MongoIntrospector {
     ) -> OxResult<(SourceProfile, Vec<AnalysisWarning>)> {
         // Only profile top-level collections (not child "tables" from nested docs).
         // Child tables were profiled from sampled data during introspection.
-        let real_colls = self.real_collections.lock().unwrap().clone();
+        let real_colls = self
+            .real_collections
+            .lock()
+            .map_err(|_| OxError::Runtime {
+                message: "mongodb real_collections mutex poisoned".to_string(),
+            })?
+            .clone();
 
         let mut futures = FuturesUnordered::new();
         for (idx, table) in schema.tables.iter().enumerate() {

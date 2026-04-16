@@ -311,10 +311,10 @@ impl<'de> Deserialize<'de> for InputIndexDef {
                         0 => Err(de::Error::custom(format!(
                             "InputIndexDef: empty properties array for '{type_str}'"
                         ))),
-                        1 => Ok(InputIndexDef::Single {
-                            id,
-                            label,
-                            property: properties.into_iter().next().expect("len checked"),
+                        1 => properties.into_iter().next().map(|property| {
+                            InputIndexDef::Single { id, label, property }
+                        }).ok_or_else(|| {
+                            de::Error::custom("internal: len==1 arm saw empty iterator")
                         }),
                         _ => Ok(InputIndexDef::Composite {
                             id,

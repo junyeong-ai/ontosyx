@@ -265,7 +265,7 @@ pub(crate) fn build_source_schema_summary(schema: &ox_core::source_schema::Sourc
         schema.source_type,
         schema.tables.len()
     )
-    .unwrap();
+    .ok();
 
     for table in &schema.tables {
         let cols: Vec<&str> = table.columns.iter().map(|c| c.name.as_str()).collect();
@@ -280,7 +280,7 @@ pub(crate) fn build_source_schema_summary(schema: &ox_core::source_schema::Sourc
                 "  {}.{} -> {}.{}",
                 fk.from_table, fk.from_column, fk.to_table, fk.to_column
             )
-            .unwrap();
+            .ok();
         }
     }
 

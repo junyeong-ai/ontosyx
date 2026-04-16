@@ -1,3 +1,13 @@
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unreachable
+    )
+)]
+
 pub mod auth;
 pub mod client_pool;
 pub mod knowledge_rag;
@@ -319,17 +329,17 @@ impl DefaultBrain {
 
     /// Resolve model and client for a given operation.
     ///
-    /// Uses `get_by_provider` to look up the already-authenticated client
+    /// Uses `by_provider` to look up the already-authenticated client
     /// from the pool — no credentials needed since the client was pre-warmed
     /// during server startup.
     async fn resolve_for_operation(
         &self,
         operation: &str,
-    ) -> OxResult<(Arc<branchforge::Client>, model_resolver::ResolvedModel)> {
+    ) -> OxResult<(Arc<dyn branchforge::LlmCall>, model_resolver::ResolvedModel)> {
         let resolved = self.model_resolver.resolve(operation).await?;
         let client = self
             .client_pool
-            .get_by_provider(&resolved.provider)
+            .by_provider(&resolved.provider)
             .ok_or_else(|| OxError::Runtime {
                 message: format!(
                     "No LLM client available for provider '{}'. \
@@ -351,7 +361,7 @@ impl DefaultBrain {
         log_message: &str,
     ) -> OxResult<T> {
         let tmpl = match min_version {
-            Some(v) => self.prompts.get_checked(prompt_name, v)?,
+            Some(v) => self.prompts.checked_for(prompt_name, v)?,
             None => self.prompts.get(prompt_name)?,
         };
         let user_prompt = tmpl.render_user(vars);
@@ -365,7 +375,7 @@ impl DefaultBrain {
         );
 
         structured_completion(
-            &client,
+            client.as_ref(),
             &resolved.model_id,
             &tmpl.system,
             &user_prompt,
@@ -436,7 +446,7 @@ impl OntologyDesigner for DefaultBrain {
         cross_fks: &str,
     ) -> OxResult<ox_core::ontology_input::OntologyInputIR> {
         let base_prompt = self.prompts.get("design_ontology")?;
-        let batch_tmpl = self.prompts.get_checked("design_ontology_batch", "1.0.0")?;
+        let batch_tmpl = self.prompts.checked_for("design_ontology_batch", "1.0.0")?;
 
         // Inject full base instructions — token budget is safe after profile compression
         let system = batch_tmpl
@@ -458,7 +468,7 @@ impl OntologyDesigner for DefaultBrain {
         );
 
         structured_completion(
-            &client,
+            client.as_ref(),
             &resolved.model_id,
             &system,
             &user_prompt,
@@ -588,11 +598,15 @@ impl QueryTranslator for DefaultBrain {
         ctx.progress("schema_discovery").started();
         let t_schema = std::time::Instant::now();
 
-        let use_rag = ontology.node_types.len() > schema_rag::FULL_SCHEMA_NODE_THRESHOLD
-            && self.memory.is_some();
+        // RAG is only used when (a) the ontology is large enough to need
+        // schema selection and (b) a vector memory backend is available.
+        // Binding `memory` here removes the redundant `.unwrap()`.
+        let rag_memory = self
+            .memory
+            .as_ref()
+            .filter(|_| ontology.node_types.len() > schema_rag::FULL_SCHEMA_NODE_THRESHOLD);
 
-        let (ontology_json, discovered_labels) = if use_rag {
-            let memory = self.memory.as_ref().unwrap();
+        let (ontology_json, discovered_labels) = if let Some(memory) = rag_memory {
             let oid = self.ontology_id.as_deref().unwrap_or(&ontology.id);
             schema_rag::discover_schema(memory, ontology, question, oid).await
         } else {
@@ -827,24 +841,22 @@ impl Explainer for DefaultBrain {
 
         let (client, resolved) = self.resolve_for_operation("explain").await?;
 
-        let cached_system = branchforge::types::SystemPrompt::Blocks(vec![
-            branchforge::types::SystemBlock::cached_with_ttl(
-                &system,
-                branchforge::types::CacheTtl::OneHour,
-            ),
-        ]);
-
-        let request = branchforge::client::CreateMessageRequest::new(
+        let request = branchforge::ModelRequest::new(
             &resolved.model_id,
-            vec![branchforge::types::Message::user(user_message)],
+            vec![branchforge::Message::user(user_message)],
         )
-        .max_tokens(2048)
-        .system(cached_system)
-        .temperature(0.3);
+        .with_max_tokens(2048)
+        .with_system(branchforge::SystemPrompt::Blocks(vec![
+            branchforge::SystemBlock::cached_with_ttl(&system, "1h"),
+        ]))
+        .with_temperature(0.3);
 
-        let resp = client.send(request).await.map_err(|e| OxError::Runtime {
-            message: format!("Explanation failed: {e}"),
-        })?;
+        let resp = client
+            .send(&request)
+            .await
+            .map_err(|e| OxError::Runtime {
+                message: format!("Explanation failed: {e}"),
+            })?;
 
         Ok(ExplanationOutput {
             content: resp.text(),
@@ -868,34 +880,30 @@ impl Explainer for DefaultBrain {
 
         let (client, resolved) = self.resolve_for_operation("explain").await?;
 
-        let cached_system = branchforge::types::SystemPrompt::Blocks(vec![
-            branchforge::types::SystemBlock::cached_with_ttl(
-                &system,
-                branchforge::types::CacheTtl::OneHour,
-            ),
-        ]);
-
-        let request = branchforge::client::CreateMessageRequest::new(
+        let request = branchforge::ModelRequest::new(
             &resolved.model_id,
-            vec![branchforge::types::Message::user(&user_message)],
+            vec![branchforge::Message::user(&user_message)],
         )
-        .max_tokens(2048)
-        .system(cached_system)
-        .temperature(0.3);
+        .with_max_tokens(2048)
+        .with_system(branchforge::SystemPrompt::Blocks(vec![
+            branchforge::SystemBlock::cached_with_ttl(&system, "1h"),
+        ]))
+        .with_temperature(0.3);
 
+        let cancel = branchforge::CancellationToken::new();
         let stream = client
-            .stream_request(request)
+            .send_stream(&request, cancel)
             .await
             .map_err(|e| OxError::Runtime {
                 message: format!("Explanation stream failed: {e}"),
             })?;
 
-        // Convert branchforge text stream to ox-brain StreamChunk stream
+        // Convert branchforge ModelStreamChunk stream to ox-brain StreamChunk stream
         let chunk_stream = async_stream::stream! {
             let mut stream = std::pin::pin!(stream);
             while let Some(item) = tokio_stream::StreamExt::next(&mut stream).await {
                 match item {
-                    Ok(branchforge::client::StreamItem::Text(text)) => {
+                    Ok(branchforge::ModelStreamChunk::TextDelta { text, .. }) => {
                         yield Ok(StreamChunk {
                             delta: text,
                             is_final: false,
@@ -903,7 +911,7 @@ impl Explainer for DefaultBrain {
                         });
                     }
                     Ok(_) => {
-                        // Ignore non-text stream items (Thinking, Citation, etc.)
+                        // Ignore non-text stream chunks (Reasoning, ToolCall, Usage, etc.)
                     }
                     Err(e) => {
                         yield Err(OxError::Runtime {
@@ -997,7 +1005,7 @@ impl Explainer for DefaultBrain {
         );
 
         match structured_completion::<Vec<ox_core::InsightSuggestion>>(
-            &client,
+            client.as_ref(),
             &resolved.model_id,
             system,
             &user_prompt,

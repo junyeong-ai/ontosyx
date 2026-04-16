@@ -142,8 +142,8 @@ impl PromptRegistry {
         })
     }
 
-    /// Get a prompt template by name, enforcing a minimum version requirement.
-    pub fn get_checked(&self, name: &str, min_version: &str) -> OxResult<&PromptTemplate> {
+    /// Return a prompt template by name, enforcing a minimum version requirement.
+    pub fn checked_for(&self, name: &str, min_version: &str) -> OxResult<&PromptTemplate> {
         let template = self.get(name)?;
 
         let required = PromptVersion::parse(min_version)?;
@@ -311,10 +311,6 @@ impl PromptRegistry {
             .collect()
     }
 
-    /// Get the parsed version for a specific prompt.
-    pub fn get_version(&self, name: &str) -> Option<&PromptVersion> {
-        self.versions.get(name)
-    }
 }
 
 /// Parse DB content format: "[system]\n...\n\n[user_template]\n..."

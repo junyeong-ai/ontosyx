@@ -30,10 +30,9 @@ pub struct ApplyOntologyTool {
 impl SchemaTool for ApplyOntologyTool {
     type Input = ApplyOntologyInput;
     const NAME: &'static str = super::APPLY_ONTOLOGY;
-    const DESCRIPTION: &'static str = "Apply ontology edits directly to the current project. \
-         Generates edit commands from the request, validates them, and saves the updated ontology. \
-         Use this when the user wants to actually modify the ontology (not just preview changes). \
-         Requires 'designer' role. Changes are saved to the project with a new revision.";
+    const DESCRIPTION: &'static str =
+        "Apply ontology edits directly to the current project (not a preview). \
+         Creates a new revision; requires designer role.";
 
     async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
         let ontology = match &self.domain.ontology {

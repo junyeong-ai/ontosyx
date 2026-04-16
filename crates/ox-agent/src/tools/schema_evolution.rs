@@ -99,10 +99,11 @@ pub struct SchemaEvolutionTool {
 impl SchemaTool for SchemaEvolutionTool {
     type Input = SchemaEvolutionInput;
     const NAME: &'static str = super::SCHEMA_EVOLUTION;
-    const DESCRIPTION: &'static str = "Detect schema drift between source database and current ontology. \
-         Use 'detect_drift' to compare source tables/columns against ontology nodes/properties. \
-         Use 'suggest_updates' to get recommended ontology changes based on detected drift. \
-         Call this when the user mentions schema changes, new tables, or data model evolution.";
+    const DESCRIPTION: &'static str =
+        "Detect schema drift between source database and ontology. \
+         'detect_drift' compares source tables/columns against nodes/properties; \
+         'suggest_updates' proposes ontology changes. \
+         Call on schema changes, new tables, or data model evolution.";
 
     async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
         let schema = match &self.domain.source_schema {

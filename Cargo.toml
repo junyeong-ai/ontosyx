@@ -22,6 +22,16 @@ license = "MIT"
 too_many_arguments = "allow"
 items_after_test_module = "allow"
 
+# Phase 1.7 — correctness gates.
+# `warn` for now so we can triage existing violations; promote to `deny`
+# after Phase 1.1 sweep. Test modules are exempted per-crate via
+# `#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]`.
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+unreachable = "warn"
+dbg_macro = "warn"
+
 [workspace.dependencies]
 # Internal crates
 ox-core = { path = "crates/ox-core" }
@@ -34,7 +44,7 @@ ox-agent = { path = "crates/ox-agent" }
 ox-memory = { path = "crates/ox-memory" }
 
 # LLM runtime
-branchforge = { version = "0.7.0", default-features = false }
+branchforge = { version = "0.9", default-features = false }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }

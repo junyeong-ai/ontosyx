@@ -308,11 +308,14 @@ pub async fn delete_checkpoint(
 ) -> Result<axum::http::StatusCode, AppError> {
     principal.require_designer()?;
 
-    state
+    let deleted = state
         .store
         .delete_checkpoint(id)
         .await
         .map_err(AppError::from)?;
+    if !deleted {
+        return Err(AppError::not_found("Load checkpoint"));
+    }
 
     Ok(axum::http::StatusCode::NO_CONTENT)
 }

@@ -509,21 +509,13 @@ impl MatchQueryIR {
 
 /// Convert flat conditions to a nested Expr tree (chained with AND).
 fn conditions_to_filter(conditions: &[Condition]) -> Option<Expr> {
-    let exprs: Vec<Expr> = conditions.iter().filter_map(condition_to_expr).collect();
-
-    match exprs.len() {
-        0 => None,
-        1 => Some(exprs.into_iter().next().unwrap()),
-        _ => {
-            let mut iter = exprs.into_iter();
-            let first = iter.next().unwrap();
-            Some(iter.fold(first, |acc, expr| Expr::Logical {
-                left: Box::new(acc),
-                op: LogicalOp::And,
-                right: Box::new(expr),
-            }))
-        }
-    }
+    let mut iter = conditions.iter().filter_map(condition_to_expr);
+    let first = iter.next()?;
+    Some(iter.fold(first, |acc, expr| Expr::Logical {
+        left: Box::new(acc),
+        op: LogicalOp::And,
+        right: Box::new(expr),
+    }))
 }
 
 fn condition_to_expr(c: &Condition) -> Option<Expr> {
@@ -607,8 +599,20 @@ fn condition_to_expr(c: &Condition) -> Option<Expr> {
             op: StringOp::EndsWith,
             right: Box::new(value),
         }),
-        // Already handled above
-        ConditionOp::InList | ConditionOp::IsNull | ConditionOp::IsNotNull => unreachable!(),
+        // These ops are dispatched on a separate path (list_values / IS NULL
+        // checks) before entering this binary-expr arm. If control reaches
+        // here the upstream routing is broken — drop the condition rather
+        // than panic so a single malformed LLM output cannot take the
+        // process down.
+        ConditionOp::InList | ConditionOp::IsNull | ConditionOp::IsNotNull => {
+            tracing::warn!(
+                op = ?c.op,
+                variable = %c.variable,
+                field = %c.field,
+                "ConditionOp routed to binary arm; upstream dispatch is wrong"
+            );
+            None
+        }
     }
 }
 

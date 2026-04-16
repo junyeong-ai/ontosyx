@@ -47,9 +47,9 @@ pub struct ConsultKnowledgeTool {
 impl SchemaTool for ConsultKnowledgeTool {
     type Input = ConsultKnowledgeInput;
     const NAME: &'static str = super::CONSULT_KNOWLEDGE;
-    const DESCRIPTION: &'static str = "Search the workspace knowledge base for learned corrections from past query failures \
-         and admin-created hints. Use before complex queries to check if there are known \
-         pitfalls or recommended approaches for this ontology.";
+    const DESCRIPTION: &'static str =
+        "Search the workspace knowledge base for learned corrections and admin hints. \
+         Call before complex queries to surface known pitfalls for this ontology.";
     const READ_ONLY: bool = true;
 
     async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {

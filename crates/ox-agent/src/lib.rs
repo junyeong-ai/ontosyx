@@ -1,3 +1,13 @@
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unreachable
+    )
+)]
+
 //! # ox-agent
 //!
 //! Ontosyx agent layer — branchforge-powered autonomous analysis agent.

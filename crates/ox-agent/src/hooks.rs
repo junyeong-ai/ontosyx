@@ -391,16 +391,21 @@ impl Hook for RecoveryDetectionHook {
                     // Extract labels and query from success output
                     let (success_query, labels, execution_id) = parse_success_output(&text);
 
-                    // Build correction content based on failure type
+                    // Build correction content based on failure type.
+                    // `prior_failure_data` is filtered to Error|Empty upstream,
+                    // but the match must stay exhaustive over OutcomeKind.
+                    // Returning Option lets us skip the Success arm safely —
+                    // no panic, and the upstream filter bug (if any) shows
+                    // up as a warning instead of a process crash.
                     let session_short = &session_id[..8.min(session_id.len())];
-                    let (title, content, extraction_method) = match failure_kind {
+                    let Some((title, content, extraction_method)) = (match failure_kind {
                         OutcomeKind::Error => {
                             let error_excerpt = if failure_text.len() > 200 {
                                 &failure_text[..failure_text.floor_char_boundary(200)]
                             } else {
                                 &failure_text
                             };
-                            (
+                            Some((
                                 format!(
                                     "Recovery: query_graph failed then succeeded in session {session_short}"
                                 ),
@@ -410,9 +415,9 @@ impl Hook for RecoveryDetectionHook {
                                     success_query.as_deref().unwrap_or("(successful query)"),
                                 ),
                                 "recovery_detection",
-                            )
+                            ))
                         }
-                        OutcomeKind::Empty => (
+                        OutcomeKind::Empty => Some((
                             format!(
                                 "Refinement: query_graph empty then succeeded in session {session_short}"
                             ),
@@ -422,8 +427,13 @@ impl Hook for RecoveryDetectionHook {
                                 success_query.as_deref().unwrap_or("(successful query)"),
                             ),
                             "zero_row_recovery",
-                        ),
-                        OutcomeKind::Success => unreachable!(),
+                        )),
+                        OutcomeKind::Success => None,
+                    }) else {
+                        tracing::warn!(
+                            "RecoveryDetectionHook: Success outcome reached recovery match arm"
+                        );
+                        return Ok(HookOutput::allow());
                     };
 
                     let hash =

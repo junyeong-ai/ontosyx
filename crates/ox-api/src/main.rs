@@ -1,3 +1,18 @@
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unreachable
+    )
+)]
+// Binary entrypoint: startup-time `expect` on infrastructure (OTLP,
+// Prometheus, signal handlers) is idiomatic — failing fast is the correct
+// behavior when the process cannot initialize. We scope this allow to the
+// binary crate so library code is still held to the stricter rule.
+#![allow(clippy::expect_used)]
+
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;

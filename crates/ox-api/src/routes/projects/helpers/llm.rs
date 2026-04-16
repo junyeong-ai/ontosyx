@@ -302,7 +302,7 @@ fn build_dropped_table_summary(
             rows,
             col_names.join(", ")
         )
-        .unwrap();
+        .ok();
 
         // _id reference columns (FK signals)
         let ref_cols: Vec<&str> = table
