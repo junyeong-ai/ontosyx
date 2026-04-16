@@ -1,5 +1,7 @@
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use dashmap::DashMap;
 use tracing::info;
@@ -8,6 +10,13 @@ use branchforge::{Credential, LlmCall, LlmClient};
 use ox_core::error::{OxError, OxResult};
 
 use crate::auth::LlmProviderConfig;
+
+fn now_epoch_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
 
 // ---------------------------------------------------------------------------
 // ClientPool — shared branchforge LlmCall pool keyed by provider identity
@@ -28,6 +37,7 @@ pub struct ClientPool {
 struct PoolEntry {
     client: Arc<dyn LlmCall>,
     provider: String,
+    last_used: AtomicU64,
 }
 
 impl Default for ClientPool {
@@ -56,6 +66,7 @@ impl ClientPool {
         let key = provider_identity_hash(config);
 
         if let Some(entry) = self.clients.get(&key) {
+            entry.last_used.store(now_epoch_secs(), Ordering::Relaxed);
             return Ok(Arc::clone(&entry.client));
         }
 
@@ -86,6 +97,7 @@ impl ClientPool {
             PoolEntry {
                 client: Arc::clone(&client),
                 provider: config.provider.clone(),
+                last_used: AtomicU64::new(now_epoch_secs()),
             },
         );
         Ok(client)
@@ -95,10 +107,34 @@ impl ClientPool {
     pub fn by_provider(&self, provider: &str) -> Option<Arc<dyn LlmCall>> {
         for entry in self.clients.iter() {
             if entry.value().provider == provider {
+                entry.value().last_used.store(now_epoch_secs(), Ordering::Relaxed);
                 return Some(Arc::clone(&entry.value().client));
             }
         }
         None
+    }
+
+    /// Evict clients that have not been used for `max_idle_secs`.
+    ///
+    /// Call periodically from a background task (e.g., every 15 minutes).
+    /// Prevents unbounded credential caching for regional or ephemeral
+    /// providers that are no longer in active use.
+    pub fn invalidate_idle(&self, max_idle_secs: u64) {
+        let cutoff = now_epoch_secs().saturating_sub(max_idle_secs);
+        let before = self.clients.len();
+        self.clients
+            .retain(|key, entry| {
+                let keep = entry.last_used.load(Ordering::Relaxed) > cutoff;
+                if !keep {
+                    self.credentials.remove(key);
+                    info!(provider = %entry.provider, "Evicted idle LLM client from pool");
+                }
+                keep
+            });
+        let evicted = before.saturating_sub(self.clients.len());
+        if evicted > 0 {
+            info!(evicted, remaining = self.clients.len(), "Client pool idle eviction complete");
+        }
     }
 
     /// Return a pre-resolved `Auth::Resolved` for zero-cost agent auth.
