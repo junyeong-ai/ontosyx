@@ -441,7 +441,7 @@ pub fn reconcile_refined(original: &OntologyIR, mut refined: OntologyIR) -> Reco
             });
             for prop in &ref_node.properties {
                 commands.push(OntologyCommand::AddProperty {
-                    owner_id: ref_node.id.to_string(),
+                    owner: PropertyOwner::Node(ref_node.id.clone()),
                     property: prop.clone(),
                 });
             }
@@ -491,7 +491,7 @@ pub fn reconcile_refined(original: &OntologyIR, mut refined: OntologyIR) -> Reco
             });
             for prop in &ref_edge.properties {
                 commands.push(OntologyCommand::AddProperty {
-                    owner_id: ref_edge.id.to_string(),
+                    owner: PropertyOwner::Edge(ref_edge.id.clone()),
                     property: prop.clone(),
                 });
             }
@@ -594,7 +594,7 @@ fn diff_properties(
     for orig_prop in orig_props {
         if !ref_prop_ids.contains(&*orig_prop.id) {
             commands.push(OntologyCommand::DeleteProperty {
-                owner_id: owner_id.to_string(),
+                owner: PropertyOwner::Node(owner_id.into()),
                 property_id: orig_prop.id.clone(),
             });
         }
@@ -636,14 +636,14 @@ fn diff_properties(
 
             if has_changes {
                 commands.push(OntologyCommand::UpdateProperty {
-                    owner_id: owner_id.to_string(),
+                    owner: PropertyOwner::Node(owner_id.into()),
                     property_id: ref_prop.id.clone(),
                     patch,
                 });
             }
         } else {
             commands.push(OntologyCommand::AddProperty {
-                owner_id: owner_id.to_string(),
+                owner: PropertyOwner::Node(owner_id.into()),
                 property: ref_prop.clone(),
             });
         }

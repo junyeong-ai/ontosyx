@@ -104,7 +104,7 @@ fn add_delete_property() {
         ..Default::default()
     };
     let add_cmd = OntologyCommand::AddProperty {
-        owner_id: "n2".to_string(),
+        owner: PropertyOwner::Node("n2".into()),
         property: new_prop,
     };
     let add_result = add_cmd.execute(&ontology).unwrap();
@@ -137,7 +137,7 @@ fn add_delete_property() {
         ..Default::default()
     };
     let add_edge_cmd = OntologyCommand::AddProperty {
-        owner_id: "e1".to_string(),
+        owner: PropertyOwner::Edge("e1".into()),
         property: edge_prop,
     };
     let edge_result = add_edge_cmd.execute(&ontology).unwrap();
@@ -204,7 +204,7 @@ fn update_property_roundtrip() {
         description: Some(Some("Full name of person".to_string())),
     };
     let cmd = OntologyCommand::UpdateProperty {
-        owner_id: "n1".to_string(),
+        owner: PropertyOwner::Node("n1".into()),
         property_id: "p1".into(),
         patch,
     };
@@ -297,7 +297,7 @@ fn error_on_invalid_references() {
 
     // Delete property from nonexistent owner
     let cmd = OntologyCommand::DeleteProperty {
-        owner_id: "nonexistent".to_string(),
+        owner: PropertyOwner::Node("nonexistent".into()),
         property_id: "p1".into(),
     };
     assert!(cmd.execute(&ontology).is_err());
@@ -318,7 +318,7 @@ fn delete_property_cascades_constraints_and_indexes() {
 
     // Delete p1 (which is referenced by constraint c1 and index idx1)
     let cmd = OntologyCommand::DeleteProperty {
-        owner_id: "n1".to_string(),
+        owner: PropertyOwner::Node("n1".into()),
         property_id: "p1".into(),
     };
     let result = cmd.execute(&ontology).unwrap();

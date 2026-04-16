@@ -64,18 +64,15 @@ pub enum OntologyCommand {
     },
 
     AddProperty {
-        /// Can be either a NodeTypeId or EdgeTypeId (owner is resolved at execution)
-        owner_id: String,
+        owner: PropertyOwner,
         property: PropertyDef,
     },
     DeleteProperty {
-        /// Can be either a NodeTypeId or EdgeTypeId (owner is resolved at execution)
-        owner_id: String,
+        owner: PropertyOwner,
         property_id: PropertyId,
     },
     UpdateProperty {
-        /// Can be either a NodeTypeId or EdgeTypeId (owner is resolved at execution)
-        owner_id: String,
+        owner: PropertyOwner,
         property_id: PropertyId,
         patch: PropertyPatch,
     },
@@ -285,10 +282,10 @@ impl OntologyCommand {
             | Self::UpdateEdgeDescription { edge_id: id, .. } => {
                 vec![id.0.clone()]
             }
-            Self::AddProperty { owner_id, .. }
-            | Self::DeleteProperty { owner_id, .. }
-            | Self::UpdateProperty { owner_id, .. } => {
-                vec![owner_id.clone()]
+            Self::AddProperty { owner, .. }
+            | Self::DeleteProperty { owner, .. }
+            | Self::UpdateProperty { owner, .. } => {
+                vec![owner.as_str().to_string()]
             }
             Self::AddConstraint { node_id, .. } | Self::RemoveConstraint { node_id, .. } => {
                 vec![node_id.0.clone()]

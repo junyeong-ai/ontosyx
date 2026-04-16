@@ -358,7 +358,7 @@ impl MatchQueryIR {
     }
 
     /// Validate and convert to QueryIR.
-    pub fn into_query_ir(mut self) -> Result<QueryIR, OxError> {
+    pub fn into_query_ir(self) -> Result<QueryIR, OxError> {
         self.validate()?;
 
         let mut patterns: Vec<GraphPattern> =

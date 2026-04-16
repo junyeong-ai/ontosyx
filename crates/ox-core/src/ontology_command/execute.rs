@@ -10,18 +10,22 @@ enum OwnerLocation {
     Edge(usize),
 }
 
-/// Find the index-based location of a property owner (node or edge).
-fn find_owner_location(ontology: &OntologyIR, owner_id: &str) -> Result<OwnerLocation, String> {
-    if let Some(idx) = ontology.node_types.iter().position(|n| n.id == owner_id) {
-        return Ok(OwnerLocation::Node(idx));
+/// Find the index-based location of a property owner.
+fn find_owner_location(ontology: &OntologyIR, owner: &PropertyOwner) -> Result<OwnerLocation, String> {
+    match owner {
+        PropertyOwner::Node(id) => ontology
+            .node_types
+            .iter()
+            .position(|n| n.id == *id)
+            .map(OwnerLocation::Node)
+            .ok_or_else(|| format!("node '{}' not found", id)),
+        PropertyOwner::Edge(id) => ontology
+            .edge_types
+            .iter()
+            .position(|e| e.id == *id)
+            .map(OwnerLocation::Edge)
+            .ok_or_else(|| format!("edge '{}' not found", id)),
     }
-    if let Some(idx) = ontology.edge_types.iter().position(|e| e.id == owner_id) {
-        return Ok(OwnerLocation::Edge(idx));
-    }
-    Err(format!(
-        "owner_id '{}' not found in nodes or edges",
-        owner_id
-    ))
 }
 
 /// Get mutable reference to the property list of an owner by location.
@@ -167,7 +171,7 @@ impl OntologyCommand {
                 // Re-add properties
                 for prop in &node.properties {
                     inverse_commands.push(OntologyCommand::AddProperty {
-                        owner_id: node.id.to_string(),
+                        owner: PropertyOwner::Node(node.id.clone()),
                         property: prop.clone(),
                     });
                 }
@@ -192,7 +196,7 @@ impl OntologyCommand {
                     // Re-add edge properties
                     for prop in &edge.properties {
                         inverse_commands.push(OntologyCommand::AddProperty {
-                            owner_id: edge.id.to_string(),
+                            owner: PropertyOwner::Edge(edge.id.clone()),
                             property: prop.clone(),
                         });
                     }
@@ -324,7 +328,7 @@ impl OntologyCommand {
                 }];
                 for prop in edge.properties {
                     inverse_cmds.push(OntologyCommand::AddProperty {
-                        owner_id: edge.id.to_string(),
+                        owner: PropertyOwner::Edge(edge.id.clone()),
                         property: prop,
                     });
                 }
@@ -407,20 +411,20 @@ impl OntologyCommand {
             }
 
             // ----- AddProperty -----
-            OntologyCommand::AddProperty { owner_id, property } => {
-                let loc = find_owner_location(&ont, owner_id)?;
+            OntologyCommand::AddProperty { owner, property } => {
+                let loc = find_owner_location(&ont, &owner)?;
                 let props = owner_properties_mut(&mut ont, &loc);
                 if props.iter().any(|p| p.id == property.id) {
                     return Err(format!(
                         "property '{}' already exists on owner '{}'",
-                        property.id, owner_id
+                        property.id, owner
                     ));
                 }
                 props.push(property.clone());
                 Ok(CommandResult {
                     new_ontology: ont,
                     inverse: OntologyCommand::DeleteProperty {
-                        owner_id: owner_id.clone(),
+                        owner: owner.clone(),
                         property_id: property.id.clone(),
                     },
                 })
@@ -428,10 +432,10 @@ impl OntologyCommand {
 
             // ----- DeleteProperty -----
             OntologyCommand::DeleteProperty {
-                owner_id,
+                owner,
                 property_id,
             } => {
-                let loc = find_owner_location(&ont, owner_id)?;
+                let loc = find_owner_location(&ont, &owner)?;
                 let removed_prop = {
                     let props = owner_properties_mut(&mut ont, &loc);
                     let prop_idx =
@@ -441,28 +445,28 @@ impl OntologyCommand {
                             .ok_or_else(|| {
                                 format!(
                                     "property '{}' not found on owner '{}'",
-                                    property_id, owner_id
+                                    property_id, owner
                                 )
                             })?;
                     props.remove(prop_idx)
                 };
 
                 // Remove constraints referencing this property (only on nodes)
-                if let Some(node) = ont.node_types.iter_mut().find(|n| n.id == *owner_id) {
+                if let Some(node) = ont.node_types.iter_mut().find(|n| n.id.as_ref() == owner.as_str()) {
                     node.constraints
                         .retain(|c| !constraint_property_ids(c).contains(&&**property_id));
                 }
 
                 // Remove indexes on this owner that reference this property
                 ont.indexes.retain(|idx| {
-                    !(index_node_id(idx) == owner_id.as_str()
+                    !(index_node_id(idx) == owner.as_str()
                         && index_property_ids(idx).contains(&&**property_id))
                 });
 
                 Ok(CommandResult {
                     new_ontology: ont,
                     inverse: OntologyCommand::AddProperty {
-                        owner_id: owner_id.clone(),
+                        owner: owner.clone(),
                         property: removed_prop,
                     },
                 })
@@ -470,11 +474,11 @@ impl OntologyCommand {
 
             // ----- UpdateProperty -----
             OntologyCommand::UpdateProperty {
-                owner_id,
+                owner,
                 property_id,
                 patch,
             } => {
-                let loc = find_owner_location(&ont, owner_id)?;
+                let loc = find_owner_location(&ont, &owner)?;
                 let props = owner_properties_mut(&mut ont, &loc);
                 let prop = props
                     .iter_mut()
@@ -482,7 +486,7 @@ impl OntologyCommand {
                     .ok_or_else(|| {
                         format!(
                             "property '{}' not found on owner '{}'",
-                            property_id, owner_id
+                            property_id, owner
                         )
                     })?;
 
@@ -521,7 +525,7 @@ impl OntologyCommand {
                 Ok(CommandResult {
                     new_ontology: ont,
                     inverse: OntologyCommand::UpdateProperty {
-                        owner_id: owner_id.clone(),
+                        owner: owner.clone(),
                         property_id: property_id.clone(),
                         patch: reverse_patch,
                     },
