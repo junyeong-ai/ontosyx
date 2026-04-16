@@ -3650,6 +3650,7 @@ dependencies = [
  "chrono",
  "dashmap",
  "futures-core",
+ "metrics",
  "ox-core",
  "ox-memory",
  "ox-store",

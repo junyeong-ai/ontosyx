@@ -199,10 +199,22 @@ fn parse_json_response<T: serde::de::DeserializeOwned>(response: &ModelResponse)
     let json_str = extract_json(&content);
     serde_json::from_str(json_str)
         .or_else(|first_err| {
-            // LLM self-correction: output contains multiple JSON objects
-            // (e.g., first attempt + "Wait, let me fix..." + corrected attempt).
-            // Try parsing the last complete JSON object.
+            // Phase 2.7 fallback path — only reached when the strict
+            // structured-output parse failed AND the response is not
+            // already cleanly JSON. We log every entry here so the
+            // operator can spot how often the heuristic actually saves
+            // a request vs. how often it just masks a real bug. When
+            // the count converges to zero we drop `extract_last_json`
+            // entirely and treat the parse failure as terminal.
+            tracing::warn!(
+                first_error = %first_err,
+                content_len = content.len(),
+                "structured output parse failed; falling back to last-JSON extraction"
+            );
+            metrics::counter!("ox_brain.json_fallback.attempt").increment(1);
+
             if let Some(extracted) = extract_last_json(&content) {
+                metrics::counter!("ox_brain.json_fallback.recovered").increment(1);
                 serde_json::from_str(extracted).map_err(|_| first_err)
             } else {
                 Err(first_err)
@@ -215,9 +227,24 @@ fn parse_json_response<T: serde::de::DeserializeOwned>(response: &ModelResponse)
 
 /// Extract the last complete JSON object from a multi-JSON response.
 ///
-/// When the LLM self-corrects ("Wait, let me fix..."), it produces multiple JSON
-/// objects. This function finds the last balanced `{...}` block and returns it.
-/// Returns `None` if no balanced JSON object is found.
+/// When the LLM self-corrects ("Wait, let me fix..."), it produces
+/// multiple JSON objects. This function finds the last balanced
+/// `{...}` block and returns it.
+///
+/// **Phase 2.7 (deprecating).** This is a fallback heuristic kept for
+/// JSON-only mode (when schema complexity exceeds the structured
+/// output limits). It is unsafe in two known ways:
+///
+/// 1. Prose like `Example output: {"foo": 1}` followed by an
+///    unrelated comment can be returned as the "last JSON".
+/// 2. A truncated trailing object that happens to balance braces
+///    parses successfully but represents partial data.
+///
+/// `parse_json_response` increments `ox_brain.json_fallback.attempt`
+/// every time this is called. When that counter is observed to be 0
+/// in production for a sustained window, this function and its
+/// caller fallback branch can be removed and parse failures treated
+/// as terminal.
 fn extract_last_json(text: &str) -> Option<&str> {
     let bytes = text.as_bytes();
     let mut depth = 0i32;
@@ -362,5 +389,20 @@ Wait, I need to fix the query.
     fn test_extract_last_json_no_json() {
         let input = "No JSON here at all";
         assert!(extract_last_json(input).is_none());
+    }
+
+    // Phase 2.7 — pin the known false-positive shape so anyone
+    // tightening or removing `extract_last_json` later sees what
+    // breaks. Today the heuristic returns the trailing object even
+    // when the surrounding prose makes the meaning ambiguous.
+    #[test]
+    fn extract_last_json_returns_inline_example_object() {
+        let input = "Earlier I considered {\"shape\": \"draft\"} \
+                     but the final answer is just text — no JSON to give.";
+        // The heuristic returns the inline example, not None. This is
+        // exactly the failure mode that warrants deprecation: a
+        // downstream caller may parse this as the structured response.
+        let extracted = extract_last_json(input).expect("inline {{...}} object found");
+        assert_eq!(extracted, "{\"shape\": \"draft\"}");
     }
 }
