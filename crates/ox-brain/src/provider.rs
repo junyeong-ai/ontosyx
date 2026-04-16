@@ -1,3 +1,5 @@
+use branchforge::ir::{JsonSchemaSpec, ResponseFormat};
+use branchforge::{FinishReason, LlmCall, Message, ModelRequest, ModelResponse, SystemBlock, SystemPrompt};
 use ox_core::error::{OxError, OxResult};
 use serde::{Deserialize, Serialize};
 
@@ -7,8 +9,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenUsage {
-    pub input_tokens: u32,
-    pub output_tokens: u32,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -19,15 +21,12 @@ pub struct StreamChunk {
 }
 
 // ---------------------------------------------------------------------------
-// structured_completion — uses branchforge Client for LLM calls
+// structured_completion — uses branchforge ProviderClient for LLM calls
 // ---------------------------------------------------------------------------
 
-/// Parse the LLM response as JSON into a typed struct.
-///
-/// Uses branchforge `Client.send()` with JSON Schema enforcement.
-/// Applies ox-brain schema transformations for Bedrock/Anthropic compatibility.
-/// Schema complexity thresholds for structured output.
-/// When a JSON Schema exceeds these limits, falls back to plain JSON mode.
+/// Schema complexity thresholds for structured output quality.
+/// When a JSON Schema exceeds these limits, falls back to plain JSON mode
+/// because LLMs struggle to produce valid output for very complex schemas.
 #[derive(Debug, Clone, Copy)]
 pub struct SchemaComplexityThresholds {
     pub max_optional_params: usize,
@@ -43,8 +42,13 @@ impl Default for SchemaComplexityThresholds {
     }
 }
 
+/// Parse the LLM response as JSON into a typed struct.
+///
+/// Uses branchforge `ProviderClient.send()` with native JSON Schema enforcement.
+/// branchforge 0.9 handles all provider-specific schema transformations internally
+/// (Anthropic, Bedrock, OpenAI, Gemini) — no manual pre-processing needed.
 pub async fn structured_completion<T: serde::de::DeserializeOwned + schemars::JsonSchema>(
-    client: &branchforge::Client,
+    client: &dyn LlmCall,
     model: &str,
     system: &str,
     user_prompt: &str,
@@ -66,7 +70,7 @@ pub async fn structured_completion<T: serde::de::DeserializeOwned + schemars::Js
 pub async fn structured_completion_with_thresholds<
     T: serde::de::DeserializeOwned + schemars::JsonSchema,
 >(
-    client: &branchforge::Client,
+    client: &dyn LlmCall,
     model: &str,
     system: &str,
     user_prompt: &str,
@@ -74,30 +78,25 @@ pub async fn structured_completion_with_thresholds<
     temperature: Option<f32>,
     thresholds: SchemaComplexityThresholds,
 ) -> OxResult<T> {
-    use branchforge::client::{CreateMessageRequest, OutputFormat};
-    use branchforge::types::{CacheTtl, Message, SystemBlock, SystemPrompt};
-
     let max_optional = thresholds.max_optional_params;
     let max_total = thresholds.max_total_properties;
 
-    // Generate JSON Schema from the Rust type
-    let schema = schemars::schema_for!(T);
-    let mut schema_value = schema.to_value();
+    // Generate JsonSchemaSpec from the Rust type.
+    // branchforge 0.9 handles all provider-specific schema transformations
+    // (inlining $ref, enforcing additionalProperties:false, stripping
+    // unsupported keywords) via the codec-level SchemaPolicy pipeline.
+    let spec = JsonSchemaSpec::from_type::<T>();
 
-    let type_name = schema_value
+    let type_name = spec
+        .schema
         .get("title")
         .and_then(|t| t.as_str())
         .unwrap_or("response")
         .to_string();
 
-    // Transform schema for provider compatibility (Bedrock/Anthropic don't support oneOf/$ref)
-    schema_value = crate::schema::transform_for_structured_output(&schema_value);
-    crate::schema::enforce_strict_object_schemas(&mut schema_value);
-    crate::schema::clean_nullable_flags(&mut schema_value);
-
     // Check complexity — fall back to JSON-only prompt if too complex
-    let optional_count = crate::schema::count_optional_params(&schema_value);
-    let total_props = crate::schema::count_total_properties(&schema_value);
+    let optional_count = crate::schema::count_optional_params(&spec.schema);
+    let total_props = crate::schema::count_total_properties(&spec.schema);
 
     let use_schema = optional_count <= max_optional && total_props <= max_total;
 
@@ -118,19 +117,19 @@ pub async fn structured_completion_with_thresholds<
     // Prompt caching: system prompt cached with 1-hour TTL.
     let cached_system = SystemPrompt::Blocks(vec![SystemBlock::cached_with_ttl(
         &effective_system,
-        CacheTtl::OneHour,
+        "1h",
     )]);
 
-    let mut request = CreateMessageRequest::new(model, vec![Message::user(user_prompt)])
-        .max_tokens(max_tokens)
-        .system(cached_system);
+    let mut request = ModelRequest::new(model, vec![Message::user(user_prompt)])
+        .with_max_tokens(max_tokens)
+        .with_system(cached_system);
 
     if let Some(temp) = temperature {
-        request = request.temperature(temp);
+        request = request.with_temperature(temp);
     }
 
     if use_schema {
-        request = request.output_format(OutputFormat::json_schema(schema_value));
+        request = request.with_response_format(ResponseFormat::JsonSchema(spec));
         tracing::debug!(schema_name = %type_name, "Using structured output with JSON Schema");
     } else {
         tracing::info!(
@@ -140,19 +139,30 @@ pub async fn structured_completion_with_thresholds<
         );
     }
 
-    // Branchforge Client handles retry/backoff/circuit-breaker internally.
-    let response = match client.send(request.clone()).await {
-        Ok(resp) => resp,
-        // Content filter with schema → mode switch (not a retry, different request)
+    // branchforge ProviderClient handles retry/backoff internally.
+    let (response, schema_enforced) = match client.send(&request).await {
+        Ok(resp) => (resp, use_schema),
+        // Content filter with schema → rebuild request in JSON-only mode.
+        // Must update BOTH response_format AND system prompt so the LLM
+        // receives the explicit JSON-only instruction.
         Err(e) if use_schema && is_content_filtered(&e) => {
             tracing::warn!(
                 "Content filtering blocked structured output, falling back to JSON mode"
             );
-            let mut fallback = request;
-            fallback.output_format = None;
-            client.send(fallback).await.map_err(|e| OxError::Runtime {
+            request.response_format = None;
+            request = request.with_system(SystemPrompt::Blocks(vec![SystemBlock::cached_with_ttl(
+                format!(
+                    "{system}\n\n\
+                     CRITICAL: You MUST output ONLY a valid JSON object. \
+                     Do NOT include any explanation, reasoning, or text before or after the JSON. \
+                     Start your response with {{ and end with }}."
+                ),
+                "1h",
+            )]));
+            let resp = client.send(&request).await.map_err(|e| OxError::Runtime {
                 message: format!("LLM request failed (JSON fallback): {e}"),
-            })?
+            })?;
+            (resp, false) // Schema no longer enforced by provider
         }
         Err(e) => {
             return Err(OxError::Runtime {
@@ -161,9 +171,23 @@ pub async fn structured_completion_with_thresholds<
         }
     };
 
+    // When provider-level schema enforcement was active, use branchforge's
+    // finish-reason-aware JSON parser (handles ContentFilter, Length, parse errors).
+    if schema_enforced {
+        return response.json::<T>().map_err(|e| OxError::Runtime {
+            message: format!("Failed to parse structured output: {e}"),
+        });
+    }
+
+    // JSON-only mode: manual extraction with fallback for LLM self-corrections.
+    parse_json_response::<T>(&response)
+}
+
+/// Parse a ModelResponse as JSON, handling common LLM output patterns.
+fn parse_json_response<T: serde::de::DeserializeOwned>(response: &ModelResponse) -> OxResult<T> {
     let content = response.text();
 
-    if response.stop_reason == Some(branchforge::types::StopReason::MaxTokens) {
+    if response.finish_reason == FinishReason::Length {
         return Err(OxError::Runtime {
             message: format!(
                 "LLM output truncated (max_tokens reached). Output length: {} chars",
@@ -209,7 +233,10 @@ fn extract_last_json(text: &str) -> Option<&str> {
         } else if bytes[i] == b'{' && end.is_some() {
             depth -= 1;
             if depth == 0 {
-                let candidate = &text[i..=end.unwrap()];
+                // end is Some here per the else-if guard; let-else silences
+                // clippy without adding a runtime panic path.
+                let Some(end_idx) = end else { continue };
+                let candidate = &text[i..=end_idx];
                 // Verify it's valid JSON
                 if serde_json::from_str::<serde_json::Value>(candidate).is_ok() {
                     return Some(candidate);
@@ -279,7 +306,7 @@ fn extract_json(text: &str) -> &str {
 
 fn is_content_filtered(err: &branchforge::Error) -> bool {
     match err {
-        branchforge::Error::Api { message, .. } => {
+        branchforge::Error::Provider { message, .. } => {
             message.contains("content filter") || message.contains("guardrail")
         }
         _ => false,
