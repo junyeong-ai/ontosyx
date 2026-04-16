@@ -24,6 +24,14 @@ pub struct OxConfig {
     pub retention: RetentionConfig,
     pub mcp: McpConfig,
     pub otel: OtelConfig,
+    #[serde(default = "default_collaboration_config")]
+    pub collaboration: CollaborationConfig,
+}
+
+fn default_collaboration_config() -> CollaborationConfig {
+    CollaborationConfig {
+        broadcast_buffer: default_collaboration_broadcast_buffer(),
+    }
 }
 
 /// Embedding model configuration for semantic memory.
@@ -90,6 +98,23 @@ pub struct McpConfig {
     /// Whether the MCP (Model Context Protocol) endpoint is enabled (default: true).
     /// When enabled, an MCP server is mounted at `/mcp` for AI agent tool access.
     pub enabled: bool,
+}
+
+/// Realtime collaboration (WebSocket + broadcast) tuning.
+#[derive(Debug, Deserialize, Clone)]
+pub struct CollaborationConfig {
+    /// Per-room broadcast channel capacity (default: 256).
+    ///
+    /// Each room keeps this many messages buffered for slow consumers;
+    /// once the buffer fills, the slowest receiver lags and is dropped.
+    /// Raise for high-frequency cursor updates with many concurrent
+    /// collaborators; lower to limit memory if rooms are long-lived.
+    #[serde(default = "default_collaboration_broadcast_buffer")]
+    pub broadcast_buffer: usize,
+}
+
+fn default_collaboration_broadcast_buffer() -> usize {
+    256
 }
 
 /// OpenTelemetry tracing export configuration.
@@ -161,7 +186,12 @@ pub struct RateLimitConfig {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct TimeoutsConfig {
-    /// Design/load LLM operation timeout in seconds (default: 300)
+    /// Design/load LLM operation timeout in seconds (default: 300).
+    ///
+    /// Long-running ontology design on a medium-sized source schema can
+    /// easily run 2–4 minutes end-to-end (introspection + LLM generation
+    /// + validation). The default is intentionally generous so the user
+    /// does not hit a spurious timeout on the first run.
     pub design_operation_secs: u64,
     /// Raw query execution timeout in seconds (default: 30)
     pub raw_query_secs: u64,
@@ -309,7 +339,7 @@ impl OxConfig {
             .set_default("rate_limit.enabled", true)?
             .set_default("rate_limit.requests_per_window", 120_i64)?
             .set_default("rate_limit.window_secs", 60_i64)?
-            .set_default("timeouts.design_operation_secs", 120_i64)?
+            .set_default("timeouts.design_operation_secs", 300_i64)?
             .set_default("timeouts.raw_query_secs", 30_i64)?
             .set_default("timeouts.health_check_secs", 3_i64)?
             .set_default("timeouts.analysis_secs", 120_i64)?
@@ -322,6 +352,7 @@ impl OxConfig {
             .set_default("otel.enabled", false)?
             .set_default("otel.endpoint", "http://localhost:4317")?
             .set_default("otel.service_name", "ontosyx")?
+            .set_default("collaboration.broadcast_buffer", 256_i64)?
             // TOML file (optional — missing file is not an error)
             .add_source(File::with_name(&config_file).required(false))
             // Environment overrides: OX_SERVER__PORT=8080
@@ -334,5 +365,63 @@ impl OxConfig {
 
         let ox: OxConfig = config.try_deserialize()?;
         Ok(ox)
+    }
+
+    /// Validate the loaded configuration and fail fast on misconfiguration
+    /// that would otherwise only surface at runtime.
+    ///
+    /// Errors cover missing required surfaces (at least one auth
+    /// mechanism, non-empty DB URLs). Warnings cover dangerous defaults
+    /// that should be changed before any non-local deployment.
+    pub fn validate(&self) -> anyhow::Result<()> {
+        fn is_blank(v: &Option<String>) -> bool {
+            v.as_deref().map(str::trim).unwrap_or("").is_empty()
+        }
+
+        if is_blank(&self.auth.jwt_secret) && is_blank(&self.auth.api_key) {
+            anyhow::bail!(
+                "auth.jwt_secret and auth.api_key are both unset — no authentication \
+                 entrypoint is available. Set at least one of OX_AUTH__JWT_SECRET or \
+                 OX_AUTH__API_KEY (or the corresponding fields in ontosyx.toml)."
+            );
+        }
+
+        if self.postgres.url.trim().is_empty() {
+            anyhow::bail!("postgres.url must not be empty");
+        }
+
+        if self.graph.uri.trim().is_empty() {
+            anyhow::bail!("graph.uri must not be empty");
+        }
+
+        if self.postgres.max_connections == 0 {
+            anyhow::bail!("postgres.max_connections must be > 0");
+        }
+
+        if self.graph.max_connections == 0 {
+            anyhow::bail!("graph.max_connections must be > 0");
+        }
+
+        // Warnings — these don't block startup but a production deploy
+        // with any of them is almost always a mistake.
+        if self.graph.password == "neo4j" || self.graph.password == "password" {
+            tracing::warn!(
+                "graph.password looks like a default credential — rotate it before any non-local deploy"
+            );
+        }
+        if let Some(secret) = &self.auth.jwt_secret
+            && (secret.trim().len() < 32 || secret == "change_me")
+        {
+            tracing::warn!(
+                "auth.jwt_secret is short (< 32 chars) or a placeholder — JWT signatures are weak"
+            );
+        }
+        if self.server.cors_origins.is_empty() {
+            tracing::warn!(
+                "server.cors_origins is empty — the HTTP API will reject cross-origin browser requests"
+            );
+        }
+
+        Ok(())
     }
 }

@@ -134,8 +134,8 @@ struct Room {
 
 #[allow(dead_code)]
 impl Room {
-    fn new() -> Self {
-        let (tx, _) = broadcast::channel(256);
+    fn new(broadcast_buffer: usize) -> Self {
+        let (tx, _) = broadcast::channel(broadcast_buffer);
         Self {
             members: HashMap::new(),
             locks: HashMap::new(),
@@ -163,13 +163,16 @@ impl Room {
 pub struct CollaborationHub {
     #[allow(dead_code)] // Used by all Hub methods; awaiting WebSocket route integration
     rooms: RwLock<HashMap<String, Room>>, // project_id → room
+    #[allow(dead_code)]
+    broadcast_buffer: usize,
 }
 
 #[allow(dead_code)] // All methods awaiting WebSocket route integration
 impl CollaborationHub {
-    pub fn new() -> Self {
+    pub fn new(broadcast_buffer: usize) -> Self {
         Self {
             rooms: RwLock::new(HashMap::new()),
+            broadcast_buffer,
         }
     }
 
@@ -181,9 +184,10 @@ impl CollaborationHub {
         user_name: &str,
     ) -> broadcast::Receiver<CollabMessage> {
         let mut rooms = self.rooms.write().await;
+        let buffer = self.broadcast_buffer;
         let room = rooms
             .entry(project_id.to_string())
-            .or_insert_with(Room::new);
+            .or_insert_with(|| Room::new(buffer));
 
         let member = RoomMember {
             user_id: user_id.to_string(),
@@ -356,8 +360,5 @@ impl CollaborationHub {
     }
 }
 
-impl Default for CollaborationHub {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+// `Default` is intentionally not implemented: the hub always needs an
+// explicit broadcast-buffer size (driven by OxConfig.collaboration).

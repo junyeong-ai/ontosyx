@@ -56,6 +56,7 @@ use state::{AppState, Timeouts};
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let config = OxConfig::load()?;
+    config.validate()?;
 
     let env_filter =
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.logging.level));
@@ -365,7 +366,9 @@ async fn main() -> anyhow::Result<()> {
         agent_auth,
         oidc_providers,
         tool_review_channels: Some(Arc::new(dashmap::DashMap::new())),
-        collaboration: Arc::new(collaboration::CollaborationHub::new()),
+        collaboration: Arc::new(collaboration::CollaborationHub::new(
+            config.collaboration.broadcast_buffer,
+        )),
     };
 
     // CORS policy: explicit origins required. No permissive fallback.
