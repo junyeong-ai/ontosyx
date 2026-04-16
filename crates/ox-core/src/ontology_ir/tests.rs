@@ -214,3 +214,55 @@ fn test_validate_self_referencing_edge() {
         errors
     );
 }
+
+// ---------------------------------------------------------------------------
+// SchemaView tiers (Phase 1.5)
+// ---------------------------------------------------------------------------
+
+#[cfg(feature = "test-fixtures")]
+fn korean_labels() -> Vec<&'static str> {
+    vec!["고객", "주문", "상품"]
+}
+
+#[test]
+#[cfg(feature = "test-fixtures")]
+fn schema_view_labels_returns_node_and_edge_lists() {
+    let ont = crate::test_fixtures::korean_ecommerce_ontology();
+    let view = ont.schema_view(SchemaView::Labels, &korean_labels());
+    let nodes = view["nodes"].as_array().expect("nodes array");
+    let edges = view["edges"].as_array().expect("edges array");
+    assert!(nodes.iter().any(|v| v == "고객"));
+    assert!(nodes.iter().any(|v| v == "주문"));
+    // 주문함, 포함 should appear because their endpoints are in the selection
+    assert!(edges.iter().any(|v| v == "주문함"));
+    assert!(edges.iter().any(|v| v == "포함"));
+    // No property/type metadata at this tier
+    assert!(view.get("properties").is_none());
+}
+
+#[test]
+#[cfg(feature = "test-fixtures")]
+fn schema_view_structural_includes_property_names_no_types() {
+    let ont = crate::test_fixtures::korean_ecommerce_ontology();
+    let view = ont.schema_view(SchemaView::Structural, &korean_labels());
+    let customer_props = view["nodes"]["고객"]["properties"]
+        .as_array()
+        .expect("customer properties array");
+    assert!(customer_props.iter().any(|v| v == "이름"));
+    assert!(customer_props.iter().any(|v| v == "이메일"));
+    // Structural tier does NOT include type info
+    let customer_obj = view["nodes"]["고객"].as_object().expect("object");
+    assert!(
+        !customer_obj.contains_key("description"),
+        "structural tier should be type-free"
+    );
+}
+
+#[test]
+#[cfg(feature = "test-fixtures")]
+fn schema_view_detailed_matches_compact_schema() {
+    let ont = crate::test_fixtures::korean_ecommerce_ontology();
+    let detailed = ont.schema_view(SchemaView::Detailed, &korean_labels());
+    let compact = ont.compact_schema(&korean_labels());
+    assert_eq!(detailed, compact);
+}

@@ -27,6 +27,22 @@ use serde::{Deserialize, Serialize};
 //   GQL     → CREATE NODE TYPE / CREATE EDGE TYPE (ISO 39075)
 // ---------------------------------------------------------------------------
 
+/// Tiered schema view. Each level trades fidelity for tokens; pick the
+/// smallest one that gives the consuming LLM enough signal.
+///
+/// See [`OntologyIR::schema_view`] for per-tier semantics.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SchemaView {
+    /// Node + edge label names only. Cheapest.
+    Labels,
+    /// Labels + per-node property names + 1-hop edge connectivity.
+    Structural,
+    /// Full property types, descriptions, edge cardinality (current
+    /// `compact_schema` output). Most expensive — use only for the
+    /// subset already known to be needed.
+    Detailed,
+}
+
 /// Precomputed lookup indices for O(1) resolver access.
 /// Rebuilt automatically on deserialization and after mutations.
 #[derive(Debug, Clone, Default)]
@@ -282,6 +298,91 @@ impl OntologyIR {
         }
 
         entries
+    }
+
+    /// Render a tiered schema view. Pick the smallest tier that gives
+    /// the LLM enough signal — every byte costs tokens.
+    ///
+    /// - `Labels` (~10 tokens/node): list of node and edge label names
+    ///   only. Use during label discovery / RAG selection.
+    /// - `Structural` (~40 tokens/node): per-node property names and
+    ///   1-hop edge connectivity. Use when the model needs to plan a
+    ///   query shape but does not yet need property types or
+    ///   descriptions.
+    /// - `Detailed` (~120 tokens/node): full property types, nullable,
+    ///   descriptions, edge cardinality, edge properties. Use only for
+    ///   the subset of labels actually needed in the final query.
+    pub fn schema_view(
+        &self,
+        view: SchemaView,
+        node_labels: &[&str],
+    ) -> serde_json::Value {
+        match view {
+            SchemaView::Labels => self.labels_view(node_labels),
+            SchemaView::Structural => self.structural_view(node_labels),
+            SchemaView::Detailed => self.compact_schema(node_labels),
+        }
+    }
+
+    /// Tier 1 — node and edge label lists only.
+    fn labels_view(&self, node_labels: &[&str]) -> serde_json::Value {
+        use std::collections::HashSet;
+        let selected: HashSet<&str> = node_labels.iter().copied().collect();
+
+        let nodes: Vec<&str> = self
+            .node_types
+            .iter()
+            .filter(|n| selected.contains(n.label.as_str()))
+            .map(|n| n.label.as_str())
+            .collect();
+
+        let edges: Vec<&str> = self
+            .edge_types
+            .iter()
+            .filter(|e| {
+                let src = self.node_label(e.source_node_id.as_ref()).unwrap_or("?");
+                let tgt = self.node_label(e.target_node_id.as_ref()).unwrap_or("?");
+                selected.contains(src) || selected.contains(tgt)
+            })
+            .map(|e| e.label.as_str())
+            .collect();
+
+        serde_json::json!({ "nodes": nodes, "edges": edges })
+    }
+
+    /// Tier 2 — per-node property names + 1-hop edge connectivity.
+    /// Drops type metadata, descriptions, cardinality.
+    fn structural_view(&self, node_labels: &[&str]) -> serde_json::Value {
+        use std::collections::HashSet;
+        let selected: HashSet<&str> = node_labels.iter().copied().collect();
+
+        let mut nodes = serde_json::Map::new();
+        for node in &self.node_types {
+            if !selected.contains(node.label.as_str()) {
+                continue;
+            }
+            let props: Vec<&str> =
+                node.properties.iter().map(|p| p.name.as_str()).collect();
+            nodes.insert(
+                node.label.clone(),
+                serde_json::json!({ "properties": props }),
+            );
+        }
+
+        let mut edges = serde_json::Map::new();
+        for edge in &self.edge_types {
+            let src = self.node_label(edge.source_node_id.as_ref()).unwrap_or("?");
+            let tgt = self.node_label(edge.target_node_id.as_ref()).unwrap_or("?");
+            if !selected.contains(src) && !selected.contains(tgt) {
+                continue;
+            }
+            edges.insert(
+                edge.label.clone(),
+                serde_json::json!({ "source": src, "target": tgt }),
+            );
+        }
+
+        serde_json::json!({ "nodes": nodes, "edges": edges })
     }
 
     /// Build a compact JSON schema for a subset of nodes (identified by labels).
