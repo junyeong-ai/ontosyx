@@ -102,17 +102,10 @@ pub struct Neo4jTransienceDetector;
 
 impl TransienceDetector for Neo4jTransienceDetector {
     fn is_transient(&self, err_msg: &str) -> bool {
-        let lower = err_msg.to_lowercase();
-        lower.contains("connection reset")
-            || lower.contains("broken pipe")
-            || lower.contains("connection refused")
-            || lower.contains("timed out")
-            || lower.contains("timeout")
-            || lower.contains("too many requests")
-            || lower.contains("service unavailable")
-            || lower.contains("leader switch")
-            || lower.contains("no longer available")
-            || lower.contains("database unavailable")
+        // Rules + regression cases live in `crate::transience`. Adding a
+        // new false-positive case is a one-line rule + test there.
+        crate::transience::classify(&crate::transience::NEO4J_RULES, err_msg)
+            .is_transient()
     }
 }
 

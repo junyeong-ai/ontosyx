@@ -36,14 +36,8 @@ pub struct NeptuneTransienceDetector;
 
 impl TransienceDetector for NeptuneTransienceDetector {
     fn is_transient(&self, err_msg: &str) -> bool {
-        let lower = err_msg.to_lowercase();
-        lower.contains("throttling")
-            || lower.contains("too many requests")
-            || lower.contains("service unavailable")
-            || lower.contains("connection reset")
-            || lower.contains("timed out")
-            || lower.contains("timeout")
-            || lower.contains("internal server error")
+        crate::transience::classify(&crate::transience::NEPTUNE_RULES, err_msg)
+            .is_transient()
     }
 }
 

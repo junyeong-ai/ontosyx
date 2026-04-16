@@ -336,17 +336,8 @@ pub struct MemGraphTransienceDetector;
 
 impl TransienceDetector for MemGraphTransienceDetector {
     fn is_transient(&self, err_msg: &str) -> bool {
-        let lower = err_msg.to_lowercase();
-        lower.contains("connection reset")
-            || lower.contains("broken pipe")
-            || lower.contains("connection refused")
-            || lower.contains("timed out")
-            || lower.contains("timeout")
-            || lower.contains("too many requests")
-            || lower.contains("service unavailable")
-            || lower.contains("couldn't connect")
-            || lower.contains("server is not available")
-            || lower.contains("cluster is not available")
+        crate::transience::classify(&crate::transience::MEMGRAPH_RULES, err_msg)
+            .is_transient()
     }
 }
 

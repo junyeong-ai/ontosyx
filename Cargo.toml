@@ -90,6 +90,9 @@ tempfile = "3"
 subtle = "2"
 jsonwebtoken = "9"
 
+# Pattern matching (used for transient-error classification, etc.)
+regex = "1"
+
 # MCP (Model Context Protocol)
 rmcp = { version = "1.2", features = ["server", "macros", "transport-streamable-http-server"] }
 
