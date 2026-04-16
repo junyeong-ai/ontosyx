@@ -16,6 +16,7 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 chrono = { workspace = true }
+ox-core = { workspace = true, features = ["test-fixtures"] }
 
 [lints]
 workspace = true

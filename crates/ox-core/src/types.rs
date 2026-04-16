@@ -39,8 +39,9 @@ impl JsonSchema for PropertyType {
             "type": "string",
             "description": "Property type: bool, int, float, string, date, datetime, duration, bytes, map"
         });
-        let map: serde_json::Map<std::string::String, serde_json::Value> =
-            serde_json::from_value(value).expect("valid schema object");
+        let serde_json::Value::Object(map) = value else {
+            return schemars::Schema::default();
+        };
         schemars::Schema::from(map)
     }
 }
@@ -349,8 +350,9 @@ impl JsonSchema for PropertyValue {
         let value = serde_json::json!({
             "description": "A typed property value, e.g. {\"type\": \"string\", \"value\": \"hello\"} or null"
         });
-        let map: serde_json::Map<std::string::String, serde_json::Value> =
-            serde_json::from_value(value).expect("valid schema object");
+        let serde_json::Value::Object(map) = value else {
+            return schemars::Schema::default();
+        };
         schemars::Schema::from(map)
     }
 }
@@ -559,6 +561,62 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // -----------------------------------------------------------------------
+    // Phase 0.2 — Korean identifier acceptance
+    //
+    // Korean characters are Unicode alphabetic/alphanumeric per Rust's
+    // char::is_alphabetic / is_alphanumeric. These tests freeze that
+    // guarantee so future tightening of identifier rules cannot silently
+    // break the Korean-first MVP.
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn korean_labels_are_valid_graph_identifiers() {
+        for label in [
+            "고객",
+            "주문",
+            "상품",
+            "카테고리",
+            "결제수단",
+            "고객 번호",
+            "상품_분류",
+        ] {
+            assert!(
+                is_valid_graph_identifier(label),
+                "Korean label should be a valid graph identifier: {label}"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_identifiers_with_injection_chars() {
+        for bad in ["label`drop", "a;b", "a{b}", "", "a.b"] {
+            assert!(
+                !is_valid_graph_identifier(bad),
+                "must reject identifier with unsafe chars: {bad:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn korean_variable_names_are_accepted() {
+        assert_eq!(sanitize_variable("고객"), Some("고객"));
+        assert_eq!(sanitize_variable("주문_1"), Some("주문_1"));
+        assert_eq!(sanitize_variable("_임시"), Some("_임시"));
+        // Must still reject obvious nonsense, even for Korean inputs
+        assert_eq!(sanitize_variable(""), None);
+        assert_eq!(sanitize_variable("null"), None);
+        assert_eq!(sanitize_variable("1고객"), None); // starts with digit
+    }
+
+    #[test]
+    fn korean_identifier_backtick_escape_is_stable() {
+        assert_eq!(escape_cypher_identifier("고객"), "`고객`");
+        assert_eq!(escape_cypher_identifier("결제 수단"), "`결제 수단`");
+        // Defense-in-depth: even if someone sneaks a backtick in, it's doubled
+        assert_eq!(escape_cypher_identifier("a`b"), "`a``b`");
+    }
 
     #[test]
     fn property_value_canonical_tagged() {

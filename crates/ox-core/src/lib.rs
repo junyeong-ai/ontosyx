@@ -1,5 +1,20 @@
-#[cfg(test)]
-pub(crate) mod test_fixtures;
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unreachable
+    )
+)]
+
+/// Shared test fixtures, including the Korean e-commerce golden ontology.
+///
+/// Always compiled in `cfg(test)` for intra-crate tests. Downstream crates
+/// must opt in via the `test-fixtures` feature to use these helpers in
+/// their own integration or unit tests.
+#[cfg(any(test, feature = "test-fixtures"))]
+pub mod test_fixtures;
 
 pub mod eval;
 

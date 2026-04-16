@@ -5,6 +5,12 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 
+[features]
+default = []
+## Expose `test_fixtures` module (Korean golden ontology, helpers) to
+## downstream crates for use in their tests. Not intended for production.
+test-fixtures = []
+
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }

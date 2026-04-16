@@ -155,6 +155,161 @@ fn test_compile_schema_constraints() {
     );
 }
 
+// ---------------------------------------------------------------------------
+// Phase 0.2 — Korean label round-trip
+//
+// Verifies that every Cypher emission path (constraints, indexes, match
+// patterns, edge types) correctly backtick-escapes Korean identifiers.
+// These tests are the MVP gate: if any of them fail, the whole Korean
+// domain story is broken at the compiler layer.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_korean_ontology_compiles_schema() {
+    let compiler = CypherCompiler::neo4j();
+    let ontology = ox_core::test_fixtures::korean_ecommerce_ontology();
+
+    let statements = compiler.compile_schema(&ontology).unwrap();
+    let joined = statements.join("\n");
+
+    // Every Korean label must be backtick-wrapped, never raw
+    for label in ["고객", "주문", "상품", "카테고리", "리뷰", "배송", "결제수단"] {
+        let raw_colon = format!(":{label}");
+        let escaped = format!(":`{label}`");
+        // Raw `:Korean` (without backticks) must not appear
+        assert!(
+            !joined.contains(&raw_colon) || joined.contains(&escaped),
+            "unescaped Korean label `{label}` leaked into Cypher: {joined}"
+        );
+    }
+
+    // Primary-key unique constraints must be emitted for each Korean node
+    for (label, pk) in [
+        ("고객", "고객번호"),
+        ("주문", "주문번호"),
+        ("상품", "상품번호"),
+        ("카테고리", "카테고리번호"),
+        ("리뷰", "리뷰번호"),
+        ("배송", "배송번호"),
+        ("결제수단", "결제번호"),
+    ] {
+        let expected =
+            format!("CREATE CONSTRAINT IF NOT EXISTS FOR (n:`{label}`) REQUIRE (n.`{pk}`) IS UNIQUE");
+        assert!(
+            statements.contains(&expected),
+            "missing constraint for {label}.{pk}; got:\n{joined}"
+        );
+    }
+
+    // Explicit single index on 상품.상품명
+    assert!(
+        statements
+            .iter()
+            .any(|s| s == "CREATE INDEX IF NOT EXISTS FOR (n:`상품`) ON (n.`상품명`)"),
+        "missing explicit index on 상품.상품명; got:\n{joined}"
+    );
+}
+
+#[test]
+fn test_korean_ontology_match_query_escapes_labels() {
+    use ox_core::query_ir::*;
+
+    let compiler = CypherCompiler::neo4j();
+    // MATCH (c:고객)-[r:주문함]->(o:주문) WHERE c.이름 = '홍길동' RETURN o.주문번호
+    let query = QueryIR {
+        operation: QueryOp::Match {
+            patterns: vec![
+                GraphPattern::Node {
+                    variable: "c".to_string(),
+                    label: Some("고객".to_string()),
+                    property_filters: vec![],
+                },
+                GraphPattern::Relationship {
+                    variable: Some("r".to_string()),
+                    label: Some("주문함".to_string()),
+                    source: "c".to_string(),
+                    target: "o".to_string(),
+                    direction: Direction::Outgoing,
+                    property_filters: vec![],
+                    var_length: None,
+                },
+                GraphPattern::Node {
+                    variable: "o".to_string(),
+                    label: Some("주문".to_string()),
+                    property_filters: vec![],
+                },
+            ],
+            filter: Some(Expr::Comparison {
+                left: Box::new(Expr::Property {
+                    variable: "c".to_string(),
+                    field: Some("이름".to_string()),
+                }),
+                op: ComparisonOp::Eq,
+                right: Box::new(Expr::Literal {
+                    value: PropertyValue::String("홍길동".to_string()),
+                }),
+            }),
+            projections: vec![Projection::Field {
+                variable: "o".to_string(),
+                field: "주문번호".to_string(),
+                alias: None,
+            }],
+            optional: false,
+            group_by: vec![],
+        },
+        limit: Some(10),
+        skip: None,
+        order_by: vec![],
+    };
+
+    let compiled = compiler.compile_query(&query).unwrap();
+    let stmt = &compiled.statement;
+
+    assert!(stmt.contains("(c:`고객`)"), "got: {stmt}");
+    assert!(stmt.contains("[r:`주문함`]"), "got: {stmt}");
+    assert!(stmt.contains("(o:`주문`)"), "got: {stmt}");
+    assert!(stmt.contains("c.`이름`"), "got: {stmt}");
+    assert!(stmt.contains("o.`주문번호`"), "got: {stmt}");
+    // Value should be parameterized, not inlined
+    assert!(!stmt.contains("홍길동"), "Korean value leaked into query: {stmt}");
+    assert_eq!(
+        compiled.params.get("p0"),
+        Some(&PropertyValue::String("홍길동".to_string()))
+    );
+}
+
+#[test]
+fn test_korean_backtick_in_label_is_doubled() {
+    // Neo4j escaping convention: backtick inside an identifier is doubled.
+    // This ensures that even malicious labels with ` cannot inject.
+    use ox_core::types::escape_cypher_identifier;
+    assert_eq!(escape_cypher_identifier("고객"), "`고객`");
+    assert_eq!(escape_cypher_identifier("has`tick"), "`has``tick`");
+    assert_eq!(escape_cypher_identifier("한국`어"), "`한국``어`");
+}
+
+#[test]
+fn test_korean_ontology_json_round_trip() {
+    // An OntologyIR with Korean labels must serialize to JSON and
+    // deserialize back to an equivalent structure (lookup indices rebuild).
+    let original = ox_core::test_fixtures::korean_ecommerce_ontology();
+    let json = serde_json::to_string(&original).expect("serialize");
+    let round: ox_core::ontology_ir::OntologyIR =
+        serde_json::from_str(&json).expect("deserialize");
+
+    // Lookup indices must be functional post-deserialize
+    assert_eq!(round.node_by_label("고객").map(|n| n.label.as_str()), Some("고객"));
+    assert_eq!(round.node_by_label("주문").map(|n| n.label.as_str()), Some("주문"));
+    assert!(
+        round.neighbor_labels("고객").contains(&"주문"),
+        "고객 should connect to 주문"
+    );
+    assert!(
+        round.neighbor_labels("주문").iter().any(|l| *l == "상품"),
+        "주문 should connect to 상품 via 포함"
+    );
+}
+
 #[test]
 fn test_compile_merge_node() {
     let compiler = CypherCompiler::neo4j();

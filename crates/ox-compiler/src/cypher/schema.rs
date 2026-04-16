@@ -7,9 +7,20 @@ use super::params::escape_identifier;
 /// Override via SystemConfig `cypher.max_auto_indices`.
 pub const DEFAULT_MAX_AUTO_INDICES: usize = 20;
 
-/// Default high-priority property names for indexing.
-/// Override via SystemConfig `cypher.high_priority_names`.
-pub const DEFAULT_HIGH_PRIORITY_NAMES: &[&str] = &["id", "code", "name", "email"];
+/// Default high-priority property names for auto-index generation.
+///
+/// Covers both English and Korean conventions so that domain-agnostic
+/// auto-indexing works on Korean-first ontologies (e.g., `고객번호`, `이름`,
+/// `이메일`) without per-workspace configuration. Match is case-insensitive
+/// and exact — property names are normalized to lowercase before comparison.
+///
+/// Override per-workspace via SystemConfig `cypher.high_priority_names`.
+pub const DEFAULT_HIGH_PRIORITY_NAMES: &[&str] = &[
+    // English
+    "id", "code", "name", "email",
+    // Korean
+    "번호", "이름", "이메일", "코드",
+];
 
 // ---------------------------------------------------------------------------
 // IndexStats — compilation statistics for auto-index generation
