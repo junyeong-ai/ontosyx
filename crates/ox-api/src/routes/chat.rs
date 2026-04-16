@@ -287,8 +287,8 @@ pub async fn chat_stream(
                                 let meter_store = Arc::clone(&store_for_events);
                                 let meter_user_id = principal_user_uuid;
                                 let meter_model = model_id_for_stream.clone();
-                                let in_tok = *input_tokens as i64;
-                                let out_tok = *output_tokens as i64;
+                                let in_tok = input_tokens.get() as i64;
+                                let out_tok = output_tokens.get() as i64;
                                 crate::spawn_scoped::spawn_with_ws(ws_scope.clone(), async move {
                                     let fut = meter_store.record_usage(
                                         meter_user_id,
@@ -507,6 +507,9 @@ fn agent_event_to_sse(event: &AgentEvent) -> Option<Event> {
                 "iterations": result.iterations,
             }),
         ),
+        // Ignore events that don't have a client-facing SSE representation
+        // (e.g. Init, new variants added in future branchforge versions).
+        _ => return None,
     };
 
     Some(Event::default().event(event_name).data(data.to_string()))

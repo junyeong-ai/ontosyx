@@ -228,9 +228,7 @@ impl OntosyxMcpServer {
             .translate_query(
                 &params.question,
                 &ontology,
-                &branchforge::ExecutionContext::try_permissive().map_err(|e| {
-                    McpError::internal_error(format!("Security context failed: {e}"), None)
-                })?,
+                &branchforge::ExecutionContext::empty(),
             )
             .await
             .map_err(|e| {

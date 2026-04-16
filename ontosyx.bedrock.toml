@@ -15,7 +15,7 @@ database = "neo4j"
 max_connections = 16
 
 [postgres]
-url = "postgres://ontosyx:ontosyx-dev@localhost:5433/ontosyx"
+url = "postgres://ontosyx:ontosyx-dev@localhost:5436/ontosyx"
 max_connections = 10
 
 [llm]

@@ -298,7 +298,7 @@ impl OxConfig {
             .set_default("graph.isolation_strategy", "property")?
             .set_default(
                 "postgres.url",
-                "postgres://ontosyx:ontosyx-dev@localhost:5433/ontosyx",
+                "postgres://ontosyx:ontosyx-dev@localhost:5436/ontosyx",
             )?
             .set_default("postgres.max_connections", 10_i64)?
             .set_default("llm.provider", "anthropic")?

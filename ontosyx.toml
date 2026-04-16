@@ -19,7 +19,7 @@ isolation_strategy = "property"   # property | database | none
 [postgres]
 # IMPORTANT: Use ontosyx_app (non-superuser) so PostgreSQL RLS is enforced.
 # The superuser 'ontosyx' bypasses RLS even with FORCE ROW LEVEL SECURITY.
-url = "postgres://ontosyx_app:ontosyx-dev@localhost:5433/ontosyx"
+url = "postgres://ontosyx_app:ontosyx-dev@localhost:5436/ontosyx"
 max_connections = 32
 min_connections = 5
 

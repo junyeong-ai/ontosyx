@@ -24,7 +24,7 @@ WEB_DIR="$ROOT_DIR/web"
 # ── Ports ───────────────────────────────────────────────────────
 BE_PORT="${OX_BE_PORT:-3101}"
 FE_PORT="${OX_FE_PORT:-3100}"
-PG_PORT=5433
+PG_PORT=5436
 NEO4J_BOLT=7687
 NEO4J_HTTP=7474
 
