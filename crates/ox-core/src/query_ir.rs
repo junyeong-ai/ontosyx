@@ -6,6 +6,116 @@ use serde::{Deserialize, Serialize};
 use crate::types::{Direction, PropertyValue};
 
 // ---------------------------------------------------------------------------
+// GraphFunction — typed function registry (Phase 3.8)
+//
+// Replaces `function: String` with a closed enum so the compiler can
+// check backend support at IR level rather than failing at Cypher emit.
+// ---------------------------------------------------------------------------
+
+/// Named graph functions. Each variant maps to a specific Cypher
+/// function via [`GraphFunction::cypher_name`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum GraphFunction {
+    // -- Aggregation --
+    Count,
+    Sum,
+    Avg,
+    Min,
+    Max,
+    Collect,
+    // -- String --
+    ToUpper,
+    ToLower,
+    Trim,
+    Replace,
+    Substring,
+    // -- Numeric --
+    Abs,
+    Ceil,
+    Floor,
+    Round,
+    Sign,
+    Rand,
+    // -- List / Collection --
+    Size,
+    Head,
+    Last,
+    Range,
+    Keys,
+    // -- Graph introspection --
+    Labels,
+    Type,
+    Id,
+    Nodes,
+    Relationships,
+    Length,
+    // -- Type conversion --
+    ToString,
+    ToInteger,
+    ToFloat,
+    ToBoolean,
+    // -- Null handling --
+    Coalesce,
+    // -- Date/Time --
+    Date,
+    #[serde(alias = "datetime")]
+    DateTime,
+    #[serde(alias = "duration")]
+    DurationFn,
+}
+
+impl GraphFunction {
+    /// The Cypher function name emitted by the compiler.
+    pub fn cypher_name(self) -> &'static str {
+        match self {
+            Self::Count => "count",
+            Self::Sum => "sum",
+            Self::Avg => "avg",
+            Self::Min => "min",
+            Self::Max => "max",
+            Self::Collect => "collect",
+            Self::ToUpper => "toUpper",
+            Self::ToLower => "toLower",
+            Self::Trim => "trim",
+            Self::Replace => "replace",
+            Self::Substring => "substring",
+            Self::Abs => "abs",
+            Self::Ceil => "ceil",
+            Self::Floor => "floor",
+            Self::Round => "round",
+            Self::Sign => "sign",
+            Self::Rand => "rand",
+            Self::Size => "size",
+            Self::Head => "head",
+            Self::Last => "last",
+            Self::Range => "range",
+            Self::Keys => "keys",
+            Self::Labels => "labels",
+            Self::Type => "type",
+            Self::Id => "id",
+            Self::Nodes => "nodes",
+            Self::Relationships => "relationships",
+            Self::Length => "length",
+            Self::ToString => "toString",
+            Self::ToInteger => "toInteger",
+            Self::ToFloat => "toFloat",
+            Self::ToBoolean => "toBoolean",
+            Self::Coalesce => "coalesce",
+            Self::Date => "date",
+            Self::DateTime => "datetime",
+            Self::DurationFn => "duration",
+        }
+    }
+}
+
+impl std::fmt::Display for GraphFunction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.cypher_name())
+    }
+}
+
+// ---------------------------------------------------------------------------
 // QueryIR — DB-agnostic graph query algebra
 //
 // Models the full range of graph query operations without binding to
@@ -292,7 +402,7 @@ pub enum Expr {
     #[serde(alias = "function")]
     FunctionCall {
         #[serde(alias = "name")]
-        function: String,
+        function: GraphFunction,
         #[serde(default)]
         args: Vec<Expr>,
     },
@@ -408,7 +518,7 @@ impl<'de> Deserialize<'de> for Expr {
             #[serde(alias = "function")]
             FunctionCall {
                 #[serde(alias = "name")]
-                function: String,
+                function: GraphFunction,
                 #[serde(default)]
                 args: Vec<Expr>,
             },

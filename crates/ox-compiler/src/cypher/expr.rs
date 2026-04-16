@@ -59,7 +59,7 @@ pub(super) fn compile_expr(expr: &Expr, pc: &mut ParamCollector) -> OxResult<Str
                 .iter()
                 .map(|a| compile_expr(a, pc))
                 .collect::<OxResult<Vec<_>>>()?;
-            format!("{function}({})", args_str.join(", "))
+            format!("{}({})", function.cypher_name(), args_str.join(", "))
         }
 
         Expr::Exists { pattern } => {
