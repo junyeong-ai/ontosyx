@@ -171,6 +171,14 @@ pub async fn structured_completion_with_thresholds<
         }
     };
 
+    // Phase 1.8: record token consumption for baseline tracking.
+    // Counters are aggregated by the Prometheus recorder installed in
+    // ox-api. A sustained increase in input_tokens per commit signals
+    // prompt bloat; output_tokens spikes often indicate schema size
+    // changes that cause longer LLM output.
+    metrics::counter!("ox_brain.tokens.input").increment(response.usage.input_tokens);
+    metrics::counter!("ox_brain.tokens.output").increment(response.usage.output_tokens);
+
     // When provider-level schema enforcement was active, use branchforge's
     // finish-reason-aware JSON parser (handles ContentFilter, Length, parse errors).
     if schema_enforced {

@@ -34,6 +34,7 @@ pub(crate) mod collaboration;
 mod config;
 mod error;
 mod mcp;
+pub(crate) mod response;
 pub(crate) mod metrics;
 mod middleware;
 pub(crate) mod model_router;
