@@ -1,10 +1,12 @@
+use std::sync::OnceLock;
+
 use ox_core::ontology_ir::{IndexDef, NodeConstraint, NodeTypeDef, OntologyIR, PropertyDef};
 use ox_core::types::PropertyType;
 
 use super::params::escape_identifier;
 
-/// Default maximum number of auto-generated range indices.
-/// Override via SystemConfig `cypher.max_auto_indices`.
+/// Default maximum number of auto-generated range indices when
+/// [`init_auto_index_config`] has not been called.
 pub const DEFAULT_MAX_AUTO_INDICES: usize = 20;
 
 /// Default high-priority property names for auto-index generation.
@@ -13,14 +15,51 @@ pub const DEFAULT_MAX_AUTO_INDICES: usize = 20;
 /// auto-indexing works on Korean-first ontologies (e.g., `고객번호`, `이름`,
 /// `이메일`) without per-workspace configuration. Match is case-insensitive
 /// and exact — property names are normalized to lowercase before comparison.
-///
-/// Override per-workspace via SystemConfig `cypher.high_priority_names`.
 pub const DEFAULT_HIGH_PRIORITY_NAMES: &[&str] = &[
     // English
     "id", "code", "name", "email",
     // Korean
     "번호", "이름", "이메일", "코드",
 ];
+
+/// Runtime-configurable auto-index policy.
+#[derive(Debug, Clone)]
+pub struct AutoIndexConfig {
+    /// Hard cap on the number of auto-generated range indices per
+    /// `compile_schema` call. Defaults to [`DEFAULT_MAX_AUTO_INDICES`].
+    pub max_indices: usize,
+    /// Property names that get the highest auto-index priority. Match is
+    /// case-insensitive and exact. Defaults to [`DEFAULT_HIGH_PRIORITY_NAMES`].
+    pub high_priority_names: Vec<String>,
+}
+
+impl Default for AutoIndexConfig {
+    fn default() -> Self {
+        Self {
+            max_indices: DEFAULT_MAX_AUTO_INDICES,
+            high_priority_names: DEFAULT_HIGH_PRIORITY_NAMES
+                .iter()
+                .map(|s| (*s).to_string())
+                .collect(),
+        }
+    }
+}
+
+static AUTO_INDEX_CONFIG: OnceLock<AutoIndexConfig> = OnceLock::new();
+
+/// Set the auto-index policy used by every `compile_schema` call.
+///
+/// First-write-wins: subsequent calls are silently ignored, mirroring
+/// the `ox-memory` initialization pattern. Call this once at startup
+/// from `ox-api::main` before the first ontology is compiled.
+pub fn init_auto_index_config(config: AutoIndexConfig) {
+    let _ = AUTO_INDEX_CONFIG.set(config);
+}
+
+/// Read the active auto-index policy, falling back to defaults.
+fn auto_index_config() -> &'static AutoIndexConfig {
+    AUTO_INDEX_CONFIG.get_or_init(AutoIndexConfig::default)
+}
 
 // ---------------------------------------------------------------------------
 // IndexStats — compilation statistics for auto-index generation
@@ -207,13 +246,16 @@ struct AutoIndexCandidate {
 /// Collect, prioritize, and cap auto-generated range indices for non-nullable
 /// properties not already covered by a constraint.
 ///
-/// Returns the index statements (truncated to `max_auto_indices`) and stats.
+/// Reads the active [`AutoIndexConfig`] (set via [`init_auto_index_config`])
+/// or falls back to defaults.
 pub(super) fn compile_auto_indices(ontology: &OntologyIR) -> (Vec<String>, IndexStats) {
-    compile_auto_indices_with(
-        ontology,
-        DEFAULT_MAX_AUTO_INDICES,
-        DEFAULT_HIGH_PRIORITY_NAMES,
-    )
+    let config = auto_index_config();
+    let names: Vec<&str> = config
+        .high_priority_names
+        .iter()
+        .map(String::as_str)
+        .collect();
+    compile_auto_indices_with(ontology, config.max_indices, &names)
 }
 
 /// Configurable version: allows runtime override of max indices and priority names.

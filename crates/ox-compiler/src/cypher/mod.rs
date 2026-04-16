@@ -5,7 +5,7 @@ mod mutate;
 mod params;
 mod pattern;
 mod query;
-mod schema;
+pub mod schema;
 pub use migration::DataMigrationStep;
 #[cfg(test)]
 mod tests;

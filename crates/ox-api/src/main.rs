@@ -61,6 +61,12 @@ async fn main() -> anyhow::Result<()> {
     // Initialize tunables owned by non-api crates before any of their
     // code paths can lazily default them.
     ox_memory::vector::pgvector::init_bg_concurrency(config.memory.bg_concurrency);
+    ox_compiler::cypher::schema::init_auto_index_config(
+        ox_compiler::cypher::schema::AutoIndexConfig {
+            max_indices: config.cypher.max_auto_indices,
+            high_priority_names: config.cypher.high_priority_names.clone(),
+        },
+    );
 
     let env_filter =
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.logging.level));

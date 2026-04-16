@@ -28,6 +28,15 @@ pub struct OxConfig {
     pub collaboration: CollaborationConfig,
     #[serde(default = "default_memory_config")]
     pub memory: MemoryConfig,
+    #[serde(default = "default_cypher_config")]
+    pub cypher: CypherConfig,
+}
+
+fn default_cypher_config() -> CypherConfig {
+    CypherConfig {
+        max_auto_indices: default_cypher_max_auto_indices(),
+        high_priority_names: default_cypher_high_priority_names(),
+    }
 }
 
 fn default_collaboration_config() -> CollaborationConfig {
@@ -106,6 +115,39 @@ pub struct McpConfig {
     /// Whether the MCP (Model Context Protocol) endpoint is enabled (default: true).
     /// When enabled, an MCP server is mounted at `/mcp` for AI agent tool access.
     pub enabled: bool,
+}
+
+/// Cypher compilation tuning.
+#[derive(Debug, Deserialize, Clone)]
+pub struct CypherConfig {
+    /// Hard cap on auto-generated range indices per `compile_schema`
+    /// call (default: 20). Raise for ontologies with many non-nullable
+    /// columns; lower to keep the schema DDL terse.
+    #[serde(default = "default_cypher_max_auto_indices")]
+    pub max_auto_indices: usize,
+    /// Property names that the auto-index priority sort treats as
+    /// highest-priority (case-insensitive exact match). Defaults to a
+    /// bilingual list covering English (`id`, `code`, `name`, `email`)
+    /// and Korean (`번호`, `이름`, `이메일`, `코드`) conventions.
+    #[serde(default = "default_cypher_high_priority_names")]
+    pub high_priority_names: Vec<String>,
+}
+
+fn default_cypher_max_auto_indices() -> usize {
+    20
+}
+
+fn default_cypher_high_priority_names() -> Vec<String> {
+    vec![
+        "id".into(),
+        "code".into(),
+        "name".into(),
+        "email".into(),
+        "번호".into(),
+        "이름".into(),
+        "이메일".into(),
+        "코드".into(),
+    ]
 }
 
 /// Semantic memory (pgvector / embedding) tuning.
@@ -376,6 +418,11 @@ impl OxConfig {
             .set_default("otel.service_name", "ontosyx")?
             .set_default("collaboration.broadcast_buffer", 256_i64)?
             .set_default("memory.bg_concurrency", 8_i64)?
+            .set_default("cypher.max_auto_indices", 20_i64)?
+            .set_default(
+                "cypher.high_priority_names",
+                vec!["id", "code", "name", "email", "번호", "이름", "이메일", "코드"],
+            )?
             // TOML file (optional — missing file is not an error)
             .add_source(File::with_name(&config_file).required(false))
             // Environment overrides: OX_SERVER__PORT=8080
