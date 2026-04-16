@@ -835,6 +835,7 @@ mod tests {
             source_table: None,
             properties: vec![property("p4", "product_name")],
             constraints: vec![],
+            ..Default::default()
         });
         // Remove the edge that referenced n2
         refined.edge_types.clear();

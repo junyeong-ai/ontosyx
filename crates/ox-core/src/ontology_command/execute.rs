@@ -116,6 +116,7 @@ impl OntologyCommand {
                     source_table: source_table.clone(),
                     properties: vec![],
                     constraints: vec![],
+                    ..Default::default()
                 });
                 Ok(CommandResult {
                     new_ontology: ont,
@@ -298,6 +299,7 @@ impl OntologyCommand {
                     target_node_id: target_node_id.clone(),
                     properties: vec![],
                     cardinality: *cardinality,
+                    ..Default::default()
                 });
                 Ok(CommandResult {
                     new_ontology: ont,

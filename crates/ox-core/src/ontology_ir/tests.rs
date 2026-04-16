@@ -42,6 +42,7 @@ fn base_ontology() -> OntologyIR {
                     },
                 },
             ],
+            ..Default::default()
         }],
         vec![EdgeTypeDef {
             id: "edge-owns".into(),
@@ -51,6 +52,7 @@ fn base_ontology() -> OntologyIR {
             target_node_id: "node-user".into(),
             properties: vec![],
             cardinality: Cardinality::OneToMany,
+            ..Default::default()
         }],
         vec![IndexDef::Single {
             id: "idx-user-email".to_string(),
@@ -113,6 +115,7 @@ fn has_unique_constraint_works_with_wrapper() {
                 property_id: "p1".into(),
             },
         }],
+        ..Default::default()
     };
     assert!(!node_no_unique.has_unique_constraint());
 }
@@ -129,6 +132,7 @@ fn test_validate_duplicate_edge_ids() {
         target_node_id: "node-user".into(),
         properties: vec![],
         cardinality: Cardinality::ManyToMany,
+        ..Default::default()
     });
 
     let _errors = ontology.validate();
@@ -147,6 +151,7 @@ fn test_validate_duplicate_edge_ids() {
             source_table: None,
             properties: vec![property("prop-id", "id", false)],
             constraints: vec![],
+            ..Default::default()
         }],
         vec![
             EdgeTypeDef {
@@ -157,6 +162,7 @@ fn test_validate_duplicate_edge_ids() {
                 target_node_id: "node-user".into(),
                 properties: vec![],
                 cardinality: Cardinality::ManyToMany,
+                ..Default::default()
             },
             EdgeTypeDef {
                 id: "edge-2".into(),
@@ -166,6 +172,7 @@ fn test_validate_duplicate_edge_ids() {
                 target_node_id: "node-user".into(),
                 properties: vec![],
                 cardinality: Cardinality::ManyToMany,
+                ..Default::default()
             },
         ],
         vec![],
@@ -194,6 +201,7 @@ fn test_validate_self_referencing_edge() {
             source_table: None,
             properties: vec![property("prop-name", "name", false)],
             constraints: vec![],
+            ..Default::default()
         }],
         vec![EdgeTypeDef {
             id: "edge-knows".into(),
@@ -203,6 +211,7 @@ fn test_validate_self_referencing_edge() {
             target_node_id: "node-person".into(), // self-loop
             properties: vec![],
             cardinality: Cardinality::ManyToMany,
+            ..Default::default()
         }],
         vec![],
     );

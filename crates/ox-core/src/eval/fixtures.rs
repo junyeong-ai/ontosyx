@@ -71,6 +71,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
                         property_ids: vec!["p-cust-email".into()],
                     },
                 }],
+                ..Default::default()
             },
             // Order
             NodeTypeDef {
@@ -84,6 +85,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
                     prop("p-ord-status", "status", PropertyType::String, Some("Order status: pending, confirmed, shipped, delivered, cancelled")),
                 ],
                 constraints: vec![],
+                ..Default::default()
             },
             // Product
             NodeTypeDef {
@@ -102,6 +104,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
                         property_ids: vec!["p-prod-sku".into()],
                     },
                 }],
+                ..Default::default()
             },
             // Category
             NodeTypeDef {
@@ -118,6 +121,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
                         property_ids: vec!["p-cat-name".into()],
                     },
                 }],
+                ..Default::default()
             },
             // Review
             NodeTypeDef {
@@ -131,6 +135,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
                     prop("p-rev-date", "date", PropertyType::Date, Some("Date the review was written")),
                 ],
                 constraints: vec![],
+                ..Default::default()
             },
         ],
         vec![
@@ -143,6 +148,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
                 target_node_id: "node-order".into(),
                 properties: vec![],
                 cardinality: Cardinality::OneToMany,
+                ..Default::default()
             },
             // CONTAINS: Order → Product
             EdgeTypeDef {
@@ -155,6 +161,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
                     prop("p-cont-quantity", "quantity", PropertyType::Int, Some("Number of units ordered")),
                 ],
                 cardinality: Cardinality::ManyToMany,
+                ..Default::default()
             },
             // BELONGS_TO: Product → Category
             EdgeTypeDef {
@@ -165,6 +172,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
                 target_node_id: "node-category".into(),
                 properties: vec![],
                 cardinality: Cardinality::ManyToOne,
+                ..Default::default()
             },
             // WROTE: Customer → Review
             EdgeTypeDef {
@@ -175,6 +183,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
                 target_node_id: "node-review".into(),
                 properties: vec![],
                 cardinality: Cardinality::OneToMany,
+                ..Default::default()
             },
             // ABOUT: Review → Product
             EdgeTypeDef {
@@ -185,6 +194,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
                 target_node_id: "node-product".into(),
                 properties: vec![],
                 cardinality: Cardinality::ManyToOne,
+                ..Default::default()
             },
         ],
         vec![

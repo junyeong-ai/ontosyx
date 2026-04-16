@@ -300,6 +300,7 @@ mod tests {
                             property_ids: vec!["p1".into()],
                         },
                     }],
+                    ..Default::default()
                 },
                 NodeTypeDef {
                     id: "n2".into(),
@@ -316,6 +317,7 @@ mod tests {
                         classification: None,
                     }],
                     constraints: vec![],
+                    ..Default::default()
                 },
             ],
             vec![EdgeTypeDef {
@@ -326,6 +328,7 @@ mod tests {
                 target_node_id: "n1".into(),
                 properties: vec![],
                 cardinality: Cardinality::ManyToOne,
+                ..Default::default()
             }],
             vec![],
         )

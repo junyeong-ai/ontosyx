@@ -407,6 +407,7 @@ mod tests {
                         },
                     },
                 ],
+                ..Default::default()
             }],
             vec![EdgeTypeDef {
                 id: "edge-owns".into(),
@@ -416,6 +417,7 @@ mod tests {
                 target_node_id: "node-user".into(),
                 properties: vec![],
                 cardinality: Cardinality::OneToMany,
+                ..Default::default()
             }],
             vec![IndexDef::Single {
                 id: "idx-user-email".to_string(),

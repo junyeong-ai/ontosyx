@@ -257,6 +257,7 @@ mod tests {
                         },
                     ],
                     constraints: vec![],
+                    ..Default::default()
                 },
                 NodeTypeDef {
                     id: NodeTypeId::new("n2"),
@@ -295,6 +296,7 @@ mod tests {
                         },
                     ],
                     constraints: vec![],
+                    ..Default::default()
                 },
             ],
             vec![EdgeTypeDef {
@@ -313,6 +315,7 @@ mod tests {
                     classification: None,
                 }],
                 cardinality: ox_core::ontology_ir::Cardinality::ManyToMany,
+                ..Default::default()
             }],
             vec![],
         )

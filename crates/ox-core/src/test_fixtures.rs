@@ -37,6 +37,7 @@ pub fn test_ontology() -> OntologyIR {
                         property_ids: vec!["p1".into()],
                     },
                 }],
+                ..Default::default()
             },
             NodeTypeDef {
                 id: "n2".into(),
@@ -45,6 +46,7 @@ pub fn test_ontology() -> OntologyIR {
                 source_table: None,
                 properties: vec![property("p3", "company_name")],
                 constraints: vec![],
+                ..Default::default()
             },
         ],
         vec![EdgeTypeDef {
@@ -55,6 +57,7 @@ pub fn test_ontology() -> OntologyIR {
             target_node_id: "n2".into(),
             properties: vec![property("ep1", "since")],
             cardinality: Cardinality::ManyToOne,
+            ..Default::default()
         }],
         vec![IndexDef::Single {
             id: "idx1".to_string(),
@@ -129,6 +132,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
                 prop("p-customer-joined", "가입일시", PropertyType::DateTime, false),
             ],
             constraints: vec![unique_on("c-customer-id", "p-customer-id")],
+            ..Default::default()
         },
         NodeTypeDef {
             id: "n-order".into(),
@@ -141,6 +145,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
                 prop("p-order-total", "총액", PropertyType::Int, false),
             ],
             constraints: vec![unique_on("c-order-id", "p-order-id")],
+            ..Default::default()
         },
         NodeTypeDef {
             id: "n-product".into(),
@@ -154,6 +159,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
                 prop("p-product-stock", "재고", PropertyType::Int, false),
             ],
             constraints: vec![unique_on("c-product-id", "p-product-id")],
+            ..Default::default()
         },
         NodeTypeDef {
             id: "n-category".into(),
@@ -165,6 +171,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
                 prop("p-category-name", "카테고리명", PropertyType::String, false),
             ],
             constraints: vec![unique_on("c-category-id", "p-category-id")],
+            ..Default::default()
         },
         NodeTypeDef {
             id: "n-review".into(),
@@ -178,6 +185,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
                 prop("p-review-written", "작성일시", PropertyType::DateTime, false),
             ],
             constraints: vec![unique_on("c-review-id", "p-review-id")],
+            ..Default::default()
         },
         NodeTypeDef {
             id: "n-shipment".into(),
@@ -190,6 +198,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
                 prop("p-shipment-date", "배송일시", PropertyType::DateTime, true),
             ],
             constraints: vec![unique_on("c-shipment-id", "p-shipment-id")],
+            ..Default::default()
         },
         NodeTypeDef {
             id: "n-payment".into(),
@@ -202,6 +211,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
                 prop("p-payment-amount", "결제금액", PropertyType::Int, false),
             ],
             constraints: vec![unique_on("c-payment-id", "p-payment-id")],
+            ..Default::default()
         },
     ];
 
@@ -214,6 +224,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
             target_node_id: "n-order".into(),
             properties: vec![],
             cardinality: Cardinality::OneToMany,
+            ..Default::default()
         },
         EdgeTypeDef {
             id: "e-contains".into(),
@@ -223,6 +234,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
             target_node_id: "n-product".into(),
             properties: vec![prop("p-contains-qty", "수량", PropertyType::Int, false)],
             cardinality: Cardinality::ManyToMany,
+            ..Default::default()
         },
         EdgeTypeDef {
             id: "e-belongs".into(),
@@ -232,6 +244,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
             target_node_id: "n-category".into(),
             properties: vec![],
             cardinality: Cardinality::ManyToOne,
+            ..Default::default()
         },
         EdgeTypeDef {
             id: "e-wrote".into(),
@@ -241,6 +254,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
             target_node_id: "n-review".into(),
             properties: vec![],
             cardinality: Cardinality::OneToMany,
+            ..Default::default()
         },
         EdgeTypeDef {
             id: "e-shipped".into(),
@@ -250,6 +264,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
             target_node_id: "n-shipment".into(),
             properties: vec![],
             cardinality: Cardinality::OneToOne,
+            ..Default::default()
         },
         EdgeTypeDef {
             id: "e-paid".into(),
@@ -259,6 +274,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
             target_node_id: "n-payment".into(),
             properties: vec![],
             cardinality: Cardinality::OneToOne,
+            ..Default::default()
         },
     ];
 

@@ -13,7 +13,7 @@ use crate::types::{PropertyType, PropertyValue, deserialize_optional_property_va
 macro_rules! entity_id {
     ($(#[$meta:meta])* $name:ident) => {
         $(#[$meta])*
-        #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+        #[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
         #[serde(transparent)]
         pub struct $name(pub String);
 
@@ -100,6 +100,22 @@ pub struct NodeTypeDef {
     /// Constraints on this node type
     #[serde(default)]
     pub constraints: Vec<ConstraintDef>,
+    /// Parent node type for inheritance (e.g., Employee is-a Person).
+    pub parent: Option<NodeTypeId>,
+}
+
+impl Default for NodeTypeDef {
+    fn default() -> Self {
+        Self {
+            id: NodeTypeId::default(),
+            label: String::new(),
+            description: None,
+            source_table: None,
+            properties: vec![],
+            constraints: vec![],
+            parent: None,
+        }
+    }
 }
 
 impl NodeTypeDef {
@@ -136,6 +152,23 @@ pub struct EdgeTypeDef {
     /// Cardinality constraint
     #[serde(default = "default_cardinality")]
     pub cardinality: Cardinality,
+    /// Logical inverse edge (e.g., PURCHASED ↔ PURCHASED_BY).
+    pub inverse_of: Option<EdgeTypeId>,
+}
+
+impl Default for EdgeTypeDef {
+    fn default() -> Self {
+        Self {
+            id: EdgeTypeId::default(),
+            label: String::new(),
+            description: None,
+            source_node_id: NodeTypeId::default(),
+            target_node_id: NodeTypeId::default(),
+            properties: vec![],
+            cardinality: Cardinality::ManyToMany,
+            inverse_of: None,
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

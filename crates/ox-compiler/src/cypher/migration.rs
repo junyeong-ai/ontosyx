@@ -517,6 +517,7 @@ mod tests {
                             property_ids: vec!["p1".into()],
                         },
                     }],
+                    ..Default::default()
                 },
                 NodeTypeDef {
                     id: "n2".into(),
@@ -525,6 +526,7 @@ mod tests {
                     source_table: None,
                     properties: vec![property("p3", "company_name")],
                     constraints: vec![],
+                    ..Default::default()
                 },
             ],
             vec![EdgeTypeDef {
@@ -535,6 +537,7 @@ mod tests {
                 target_node_id: "n2".into(),
                 properties: vec![property("ep1", "since")],
                 cardinality: Cardinality::ManyToOne,
+                ..Default::default()
             }],
             vec![IndexDef::Single {
                 id: "idx1".to_string(),
@@ -573,6 +576,7 @@ mod tests {
                     property_ids: vec!["p10".into()],
                 },
             }],
+            ..Default::default()
         });
         new.rebuild_indices();
 
@@ -705,6 +709,7 @@ mod tests {
             target_node_id: "n1".into(),
             properties: vec![],
             cardinality: Cardinality::ManyToMany,
+            ..Default::default()
         });
         new.rebuild_indices();
 
@@ -765,6 +770,7 @@ mod tests {
             source_table: None,
             properties: vec![property("p20", "order_id")],
             constraints: vec![],
+            ..Default::default()
         });
         new.rebuild_indices();
 

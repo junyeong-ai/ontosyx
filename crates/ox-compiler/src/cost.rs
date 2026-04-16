@@ -455,6 +455,7 @@ mod tests {
                         property_ids: vec!["p1".into()],
                     },
                 }],
+                ..Default::default()
             }],
             vec![EdgeTypeDef {
                 id: "et1".into(),
@@ -464,6 +465,7 @@ mod tests {
                 target_node_id: "nt1".into(),
                 properties: vec![],
                 cardinality: Cardinality::ManyToMany,
+                ..Default::default()
             }],
             vec![],
         )

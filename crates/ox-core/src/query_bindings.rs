@@ -827,6 +827,7 @@ mod tests {
                         classification: None,
                     }],
                     constraints: vec![],
+                    ..Default::default()
                 },
                 NodeTypeDef {
                     id: "n2".into(),
@@ -843,6 +844,7 @@ mod tests {
                         classification: None,
                     }],
                     constraints: vec![],
+                    ..Default::default()
                 },
             ],
             vec![EdgeTypeDef {
@@ -853,6 +855,7 @@ mod tests {
                 target_node_id: "n2".into(),
                 properties: vec![],
                 cardinality: Cardinality::ManyToOne,
+                ..Default::default()
             }],
             vec![],
         )

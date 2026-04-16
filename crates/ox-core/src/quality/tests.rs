@@ -47,6 +47,7 @@ fn flags_unmapped_tables_and_missing_edges() {
             source_table: None,
             properties: vec![property("id")],
             constraints: vec![],
+            ..Default::default()
         }],
         vec![],
         vec![],
@@ -128,6 +129,7 @@ fn flags_missing_fk_edge_when_both_tables_mapped() {
                 source_table: None,
                 properties: vec![property("id")],
                 constraints: vec![],
+                ..Default::default()
             },
             NodeTypeDef {
                 id: "node-order".into(),
@@ -136,6 +138,7 @@ fn flags_missing_fk_edge_when_both_tables_mapped() {
                 source_table: None,
                 properties: vec![property("id")],
                 constraints: vec![],
+                ..Default::default()
             },
         ],
         vec![], // No edge for the FK
@@ -200,6 +203,7 @@ fn skips_excluded_tables_from_coverage_checks() {
             source_table: None,
             properties: vec![property("id")],
             constraints: vec![],
+            ..Default::default()
         }],
         vec![EdgeTypeDef {
             id: "edge-belongs-to".into(),
@@ -209,6 +213,7 @@ fn skips_excluded_tables_from_coverage_checks() {
             target_node_id: "node-user".into(),
             properties: vec![],
             cardinality: Cardinality::ManyToOne,
+            ..Default::default()
         }],
         vec![],
     );
@@ -267,6 +272,7 @@ fn column_clarifications_suppress_data_observation_gaps() {
             source_table: None,
             properties: vec![property("id"), property("type_code"), property("status")],
             constraints: vec![],
+            ..Default::default()
         }],
         vec![],
         vec![],
@@ -391,6 +397,7 @@ fn junction_table_not_flagged_as_unmapped() {
                 source_table: None,
                 properties: vec![property("id")],
                 constraints: vec![],
+                ..Default::default()
             },
             NodeTypeDef {
                 id: "node-product".into(),
@@ -399,6 +406,7 @@ fn junction_table_not_flagged_as_unmapped() {
                 source_table: None,
                 properties: vec![property("id")],
                 constraints: vec![],
+                ..Default::default()
             },
         ],
         vec![EdgeTypeDef {
@@ -409,6 +417,7 @@ fn junction_table_not_flagged_as_unmapped() {
             target_node_id: "node-product".into(),
             properties: vec![],
             cardinality: Cardinality::ManyToMany,
+            ..Default::default()
         }],
         vec![],
     );
@@ -514,6 +523,7 @@ fn flags_orphan_node_with_no_edges() {
                 source_table: None,
                 properties: vec![property("id")],
                 constraints: vec![],
+                ..Default::default()
             },
             NodeTypeDef {
                 id: "node-product".into(),
@@ -522,6 +532,7 @@ fn flags_orphan_node_with_no_edges() {
                 source_table: None,
                 properties: vec![property("id")],
                 constraints: vec![],
+                ..Default::default()
             },
         ],
         // Only one edge connecting User, Product is orphaned
@@ -533,6 +544,7 @@ fn flags_orphan_node_with_no_edges() {
             target_node_id: "node-user".into(),
             properties: vec![],
             cardinality: Cardinality::ManyToMany,
+            ..Default::default()
         }],
         vec![],
     );
@@ -562,6 +574,7 @@ fn no_orphan_when_all_nodes_connected() {
                 source_table: None,
                 properties: vec![property("id")],
                 constraints: vec![],
+                ..Default::default()
             },
             NodeTypeDef {
                 id: "node-order".into(),
@@ -570,6 +583,7 @@ fn no_orphan_when_all_nodes_connected() {
                 source_table: None,
                 properties: vec![property("id")],
                 constraints: vec![],
+                ..Default::default()
             },
         ],
         vec![EdgeTypeDef {
@@ -580,6 +594,7 @@ fn no_orphan_when_all_nodes_connected() {
             target_node_id: "node-order".into(),
             properties: vec![],
             cardinality: Cardinality::OneToMany,
+            ..Default::default()
         }],
         vec![],
     );
@@ -608,6 +623,7 @@ fn no_orphan_when_single_node() {
             source_table: None,
             properties: vec![property("id")],
             constraints: vec![],
+            ..Default::default()
         }],
         vec![],
         vec![],
@@ -645,6 +661,7 @@ fn flags_property_type_inconsistency() {
                     property_typed("email", PropertyType::String),
                 ],
                 constraints: vec![],
+                ..Default::default()
             },
             NodeTypeDef {
                 id: "node-supplier".into(),
@@ -656,6 +673,7 @@ fn flags_property_type_inconsistency() {
                     property_typed("email", PropertyType::Int), // inconsistent type
                 ],
                 constraints: vec![],
+                ..Default::default()
             },
         ],
         vec![EdgeTypeDef {
@@ -666,6 +684,7 @@ fn flags_property_type_inconsistency() {
             target_node_id: "node-customer".into(),
             properties: vec![],
             cardinality: Cardinality::ManyToMany,
+            ..Default::default()
         }],
         vec![],
     );
@@ -698,6 +717,7 @@ fn no_property_type_inconsistency_when_same_type() {
                     property_typed("email", PropertyType::String),
                 ],
                 constraints: vec![],
+                ..Default::default()
             },
             NodeTypeDef {
                 id: "node-supplier".into(),
@@ -709,6 +729,7 @@ fn no_property_type_inconsistency_when_same_type() {
                     property_typed("email", PropertyType::String), // same type
                 ],
                 constraints: vec![],
+                ..Default::default()
             },
         ],
         vec![EdgeTypeDef {
@@ -719,6 +740,7 @@ fn no_property_type_inconsistency_when_same_type() {
             target_node_id: "node-customer".into(),
             properties: vec![],
             cardinality: Cardinality::ManyToMany,
+            ..Default::default()
         }],
         vec![],
     );
@@ -747,6 +769,7 @@ fn flags_hub_node_with_many_edges() {
         source_table: None,
         properties: vec![property("id")],
         constraints: vec![],
+        ..Default::default()
     }];
     let mut edges = Vec::new();
 
@@ -759,6 +782,7 @@ fn flags_hub_node_with_many_edges() {
             source_table: None,
             properties: vec![property("id")],
             constraints: vec![],
+            ..Default::default()
         });
         edges.push(EdgeTypeDef {
             id: format!("edge-{i}").into(),
@@ -768,6 +792,7 @@ fn flags_hub_node_with_many_edges() {
             target_node_id: node_id.into(),
             properties: vec![],
             cardinality: Cardinality::ManyToMany,
+            ..Default::default()
         });
     }
 
@@ -806,6 +831,7 @@ fn no_hub_node_under_threshold() {
                 source_table: None,
                 properties: vec![property("id")],
                 constraints: vec![],
+                ..Default::default()
             },
             NodeTypeDef {
                 id: "node-b".into(),
@@ -814,6 +840,7 @@ fn no_hub_node_under_threshold() {
                 source_table: None,
                 properties: vec![property("id")],
                 constraints: vec![],
+                ..Default::default()
             },
         ],
         vec![EdgeTypeDef {
@@ -824,6 +851,7 @@ fn no_hub_node_under_threshold() {
             target_node_id: "node-b".into(),
             properties: vec![],
             cardinality: Cardinality::ManyToMany,
+            ..Default::default()
         }],
         vec![],
     );
@@ -853,6 +881,7 @@ fn flags_overloaded_property_on_many_nodes() {
             source_table: None,
             properties: vec![property("id"), property("status")],
             constraints: vec![],
+            ..Default::default()
         })
         .collect();
 
@@ -866,6 +895,7 @@ fn flags_overloaded_property_on_many_nodes() {
             target_node_id: format!("node-{}", i + 1).into(),
             properties: vec![],
             cardinality: Cardinality::ManyToMany,
+            ..Default::default()
         })
         .collect();
 
@@ -900,6 +930,7 @@ fn no_overloaded_property_under_threshold() {
             source_table: None,
             properties: vec![property("id"), property("name")],
             constraints: vec![],
+            ..Default::default()
         })
         .collect();
 
@@ -912,6 +943,7 @@ fn no_overloaded_property_under_threshold() {
             target_node_id: format!("node-{}", i + 1).into(),
             properties: vec![],
             cardinality: Cardinality::ManyToMany,
+            ..Default::default()
         })
         .collect();
 
@@ -953,6 +985,7 @@ fn flags_self_referential_edge() {
             source_table: None,
             properties: vec![property("id")],
             constraints: vec![],
+            ..Default::default()
         }],
         vec![EdgeTypeDef {
             id: "edge-manages".into(),
@@ -962,6 +995,7 @@ fn flags_self_referential_edge() {
             target_node_id: "node-employee".into(),
             properties: vec![],
             cardinality: Cardinality::OneToMany,
+            ..Default::default()
         }],
         vec![],
     );
@@ -991,6 +1025,7 @@ fn no_self_referential_for_normal_edges() {
                 source_table: None,
                 properties: vec![property("id")],
                 constraints: vec![],
+                ..Default::default()
             },
             NodeTypeDef {
                 id: "node-b".into(),
@@ -999,6 +1034,7 @@ fn no_self_referential_for_normal_edges() {
                 source_table: None,
                 properties: vec![property("id")],
                 constraints: vec![],
+                ..Default::default()
             },
         ],
         vec![EdgeTypeDef {
@@ -1009,6 +1045,7 @@ fn no_self_referential_for_normal_edges() {
             target_node_id: "node-b".into(),
             properties: vec![],
             cardinality: Cardinality::ManyToMany,
+            ..Default::default()
         }],
         vec![],
     );
@@ -1042,6 +1079,7 @@ fn well_designed_ontology_has_no_structural_gaps() {
                 source_table: None,
                 properties: vec![property("id"), property("name"), property("email")],
                 constraints: vec![],
+                ..Default::default()
             },
             NodeTypeDef {
                 id: "node-order".into(),
@@ -1054,6 +1092,7 @@ fn well_designed_ontology_has_no_structural_gaps() {
                     property("created_at"),
                 ],
                 constraints: vec![],
+                ..Default::default()
             },
             NodeTypeDef {
                 id: "node-product".into(),
@@ -1066,6 +1105,7 @@ fn well_designed_ontology_has_no_structural_gaps() {
                     property_typed("price", PropertyType::Float),
                 ],
                 constraints: vec![],
+                ..Default::default()
             },
         ],
         vec![
@@ -1077,6 +1117,7 @@ fn well_designed_ontology_has_no_structural_gaps() {
                 target_node_id: "node-order".into(),
                 properties: vec![],
                 cardinality: Cardinality::OneToMany,
+                ..Default::default()
             },
             EdgeTypeDef {
                 id: "edge-contains".into(),
@@ -1086,6 +1127,7 @@ fn well_designed_ontology_has_no_structural_gaps() {
                 target_node_id: "node-product".into(),
                 properties: vec![property_typed("quantity", PropertyType::Int)],
                 cardinality: Cardinality::ManyToMany,
+                ..Default::default()
             },
         ],
         vec![],

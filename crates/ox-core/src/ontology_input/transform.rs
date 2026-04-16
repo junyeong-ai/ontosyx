@@ -252,6 +252,7 @@ pub fn normalize(input: OntologyInputIR) -> Result<NormalizeResult, Vec<String>>
             source_table: None,
             properties,
             constraints,
+            ..Default::default()
         });
     }
 
@@ -319,6 +320,7 @@ pub fn normalize(input: OntologyInputIR) -> Result<NormalizeResult, Vec<String>>
                 target_node_id,
                 properties,
                 cardinality: e.cardinality,
+                ..Default::default()
             })
         })
         .collect();

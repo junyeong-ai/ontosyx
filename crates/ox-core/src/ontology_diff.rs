@@ -655,6 +655,7 @@ mod tests {
             source_table: None,
             properties: vec![property("p10", "product_name")],
             constraints: vec![],
+            ..Default::default()
         });
         new.rebuild_indices();
 
@@ -783,6 +784,7 @@ mod tests {
             target_node_id: "n1".into(),
             properties: vec![],
             cardinality: Cardinality::ManyToMany,
+            ..Default::default()
         });
         new.rebuild_indices();
 
@@ -853,6 +855,7 @@ mod tests {
             source_table: None,
             properties: vec![property("p_prod", "product_name")],
             constraints: vec![],
+            ..Default::default()
         });
         // 5. Remove WORKS_AT edge
         new.edge_types.clear();
@@ -865,6 +868,7 @@ mod tests {
             target_node_id: "n3".into(),
             properties: vec![],
             cardinality: Cardinality::OneToMany,
+            ..Default::default()
         });
         new.rebuild_indices();
 
@@ -891,6 +895,7 @@ mod tests {
             source_table: None,
             properties: vec![property("p10", "product_name"), property("p11", "price")],
             constraints: vec![],
+            ..Default::default()
         });
         // Remove age property from Person
         new.node_types[0].properties.retain(|p| p.id != "p2");
@@ -935,6 +940,7 @@ mod tests {
             source_table: None,
             properties: vec![property("p10", "dept_name")],
             constraints: vec![],
+            ..Default::default()
         });
         new.edge_types[0].target_node_id = "n3".into();
         new.rebuild_indices();

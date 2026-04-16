@@ -142,6 +142,7 @@ fn test_compile_schema_constraints() {
                     property_ids: vec!["prop-sku".into()],
                 },
             }],
+            ..Default::default()
         }],
         vec![],
         vec![],

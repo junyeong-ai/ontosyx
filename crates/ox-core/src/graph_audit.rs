@@ -191,6 +191,7 @@ pub fn ontology_from_graph(overview: &GraphSchemaOverview, name: &str) -> Ontolo
             source_table: None,
             properties: build_props(&overview.node_properties, &label_stat.label),
             constraints: vec![],
+            ..Default::default()
         })
         .collect();
 
@@ -222,6 +223,7 @@ pub fn ontology_from_graph(overview: &GraphSchemaOverview, name: &str) -> Ontolo
                 target_node_id: target_id.into(),
                 properties: build_props(&overview.rel_properties, &rp.rel_type),
                 cardinality: Cardinality::ManyToMany,
+                ..Default::default()
             })
         })
         .collect();
@@ -258,6 +260,7 @@ mod tests {
                 source_table: None,
                 properties: vec![],
                 constraints: vec![],
+                ..Default::default()
             })
             .collect();
         let edge_types: Vec<EdgeTypeDef> = edges
@@ -273,6 +276,7 @@ mod tests {
                     .into(),
                 properties: vec![],
                 cardinality: Cardinality::ManyToMany,
+                ..Default::default()
             })
             .collect();
         OntologyIR::new(
