@@ -13,7 +13,6 @@ pub mod isolation;
 pub mod memgraph;
 pub mod transience;
 pub mod neo4j;
-pub mod neptune;
 pub mod profiler;
 pub mod registry;
 

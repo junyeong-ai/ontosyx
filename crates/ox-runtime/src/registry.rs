@@ -175,40 +175,8 @@ impl GraphBackendRegistry {
             Ok(GraphBackend { compiler, runtime })
         });
 
-        // ---- Neptune (openCypher over HTTPS) ----
-        registry.register("neptune", |config| async move {
-            let compiler = Arc::new(ox_compiler::cypher::CypherCompiler::open_cypher())
-                as Arc<dyn ox_compiler::GraphCompiler>;
-
-            let region = config.region.unwrap_or_else(|| {
-                // Try to infer region from endpoint URL
-                // e.g. https://cluster.us-east-1.neptune.amazonaws.com:8182
-                extract_region_from_endpoint(&config.uri).unwrap_or_else(|| "us-east-1".to_string())
-            });
-
-            let runtime = match crate::neptune::NeptuneRuntime::new(&config.uri, &region) {
-                Ok(rt) => {
-                    let rt = Arc::new(rt) as Arc<dyn GraphRuntime>;
-                    if rt.health_check().await {
-                        tracing::info!(endpoint = %config.uri, region = %region, "Connected to Neptune");
-                        Some(rt)
-                    } else {
-                        tracing::warn!(
-                            endpoint = %config.uri,
-                            region = %region,
-                            "Neptune not reachable — running without graph database (stub mode)"
-                        );
-                        Some(rt) // Keep the stub so compile-only mode works
-                    }
-                }
-                Err(e) => {
-                    tracing::warn!("Neptune configuration error: {e} — running without graph database");
-                    None
-                }
-            };
-
-            Ok(GraphBackend { compiler, runtime })
-        });
+        // Neptune support deferred — see project_neptune_deferred.md.
+        // Re-add when needed via a new dialect variant + runtime module.
 
         // ---- Memgraph (Bolt-compatible, neo4rs driver) ----
         registry.register("memgraph", |config| async move {
@@ -326,12 +294,6 @@ mod tests {
     }
 
     #[test]
-    fn registry_with_defaults_registers_neptune() {
-        let registry = GraphBackendRegistry::with_defaults();
-        assert!(registry.supports("neptune"));
-    }
-
-    #[test]
     fn registry_with_defaults_registers_memgraph() {
         let registry = GraphBackendRegistry::with_defaults();
         assert!(registry.supports("memgraph"));
@@ -342,7 +304,7 @@ mod tests {
         let registry = GraphBackendRegistry::with_defaults();
         let mut backends = registry.registered_backends();
         backends.sort();
-        assert_eq!(backends, vec!["memgraph", "neo4j", "neptune"]);
+        assert_eq!(backends, vec!["memgraph", "neo4j"]);
     }
 
     #[test]

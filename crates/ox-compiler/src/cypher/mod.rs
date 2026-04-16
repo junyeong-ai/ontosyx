@@ -40,9 +40,6 @@ pub enum CypherDialect {
     /// Full Neo4j Cypher (default). Supports all features.
     #[default]
     Neo4j,
-    /// openCypher subset (Neptune). No shortestPath, no APOC,
-    /// no CREATE INDEX, limited MERGE.
-    OpenCypher,
     /// Memgraph Cypher. DDL is generated in Neo4j 5.x format and rewritten
     /// by the MemGraphRuntime to Memgraph-compatible syntax at execution time.
     /// No full-text/vector indexes, no NODE KEY constraints, no APOC/GDS.
@@ -65,13 +62,6 @@ impl CypherCompiler {
         }
     }
 
-    /// Create a CypherCompiler targeting the openCypher subset (Neptune).
-    pub fn open_cypher() -> Self {
-        Self {
-            dialect: CypherDialect::OpenCypher,
-        }
-    }
-
     /// Create a CypherCompiler targeting Memgraph.
     /// Generates Neo4j 5.x-style DDL; the MemGraphRuntime rewrites it at execution.
     pub fn memgraph() -> Self {
@@ -85,22 +75,11 @@ impl GraphCompiler for CypherCompiler {
     fn target_name(&self) -> &str {
         match self.dialect {
             CypherDialect::Neo4j => "Cypher (Neo4j)",
-            CypherDialect::OpenCypher => "openCypher (Neptune)",
             CypherDialect::Memgraph => "Cypher (Memgraph)",
         }
     }
 
     fn compile_schema(&self, ontology: &OntologyIR) -> OxResult<Vec<String>> {
-        // openCypher backends (Neptune) handle indexes automatically and
-        // do not support CREATE CONSTRAINT / CREATE INDEX DDL.
-        if self.dialect == CypherDialect::OpenCypher {
-            tracing::info!(
-                dialect = ?self.dialect,
-                "openCypher dialect: skipping schema DDL (indexes are automatic)"
-            );
-            return Ok(Vec::new());
-        }
-
         let mut statements = Vec::new();
 
         for node in &ontology.node_types {
