@@ -58,7 +58,7 @@ pub trait TransienceDetector: Send + Sync {
 // ---------------------------------------------------------------------------
 // GraphRuntime trait — the execution boundary
 //
-// Each graph DB driver (Neo4j, Neptune, etc.) implements this trait.
+// Each graph DB driver (Neo4j, Memgraph) implements this trait.
 // Adding a new DB = implementing this trait + a GraphCompiler backend.
 // ---------------------------------------------------------------------------
 
