@@ -157,6 +157,24 @@ pub struct NodeTypeDef {
     /// Governance metadata (owner, steward, tags, retention policy).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub governance: Option<Governance>,
+    /// Detailed source lineage (richer than the legacy `source_table` field).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_lineage: Option<SourceLineage>,
+}
+
+/// Tracks which external data source a node type was derived from.
+/// Richer than the legacy `source_table: Option<String>` — includes
+/// composite primary key and source system identifier for impact analysis.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct SourceLineage {
+    /// Registered data source ID (matches `ox-source` registry key).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_id: Option<String>,
+    /// Source table or collection name.
+    pub table: String,
+    /// Primary key columns in the source table.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub primary_key: Vec<String>,
 }
 
 /// Governance metadata attached to a node type.
@@ -187,6 +205,7 @@ impl Default for NodeTypeDef {
             constraints: vec![],
             parent: None,
             governance: None,
+            source_lineage: None,
         }
     }
 }
@@ -300,6 +319,12 @@ pub struct PropertyDef {
     /// PII kind — user-declared, never auto-assigned. See Phase 4.6.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pii_kind: Option<PiiKind>,
+    /// Source column name this property was derived from.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_column: Option<String>,
+    /// Transformation expression applied to the source column (e.g., `UPPER(col)`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transform: Option<String>,
 }
 
 impl Default for PropertyDef {
@@ -315,6 +340,8 @@ impl Default for PropertyDef {
             semantic_type: None,
             unit: None,
             pii_kind: None,
+            source_column: None,
+            transform: None,
         }
     }
 }
