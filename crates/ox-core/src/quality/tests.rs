@@ -22,6 +22,7 @@ fn property_typed(name: &str, property_type: PropertyType) -> PropertyDef {
         default_value: None,
         description: Some("desc".to_string()),
         classification: None,
+    ..Default::default()
     }
 }
 

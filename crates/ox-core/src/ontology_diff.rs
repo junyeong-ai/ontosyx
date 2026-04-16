@@ -719,6 +719,7 @@ mod tests {
             default_value: None,
             description: Some("Email address".to_string()),
             classification: None,
+            ..Default::default()
         });
         new.rebuild_indices();
 
@@ -844,6 +845,7 @@ mod tests {
             default_value: None,
             description: None,
             classification: None,
+            ..Default::default()
         });
         // 3. Remove Company (n2)
         new.node_types.retain(|n| n.id != "n2");
@@ -988,6 +990,7 @@ mod tests {
             default_value: None,
             description: None,
             classification: None,
+            ..Default::default()
         });
         new.rebuild_indices();
 

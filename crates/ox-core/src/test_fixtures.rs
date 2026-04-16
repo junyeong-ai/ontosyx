@@ -14,6 +14,7 @@ pub fn property(id: &str, name: &str) -> PropertyDef {
         default_value: None,
         description: None,
         classification: None,
+    ..Default::default()
     }
 }
 
@@ -102,6 +103,7 @@ fn prop(id: &str, name: &str, property_type: PropertyType, nullable: bool) -> Pr
         default_value: None,
         description: None,
         classification: None,
+    ..Default::default()
     }
 }
 

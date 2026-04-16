@@ -448,6 +448,7 @@ mod tests {
                     default_value: None,
                     description: None,
                     classification: None,
+                    ..Default::default()
                 }],
                 constraints: vec![ConstraintDef {
                     id: "c1".into(),

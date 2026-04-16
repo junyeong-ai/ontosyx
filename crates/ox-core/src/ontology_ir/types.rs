@@ -154,6 +154,26 @@ pub struct NodeTypeDef {
     pub constraints: Vec<ConstraintDef>,
     /// Parent node type for inheritance (e.g., Employee is-a Person).
     pub parent: Option<NodeTypeId>,
+    /// Governance metadata (owner, steward, tags, retention policy).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub governance: Option<Governance>,
+}
+
+/// Governance metadata attached to a node type.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Governance {
+    /// Principal ID of the business owner responsible for this entity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner_principal: Option<String>,
+    /// Principal ID of the data steward (operational contact).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub steward: Option<String>,
+    /// Free-form tags for classification (e.g., "core", "legal", "deprecated").
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+    /// Data retention period in days. `None` = no automatic deletion.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retention_days: Option<u32>,
 }
 
 impl Default for NodeTypeDef {
@@ -166,6 +186,7 @@ impl Default for NodeTypeDef {
             properties: vec![],
             constraints: vec![],
             parent: None,
+            governance: None,
         }
     }
 }
@@ -270,6 +291,62 @@ pub struct PropertyDef {
     /// Data sensitivity classification (derived from PII detection)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub classification: Option<DataClassification>,
+    /// Semantic type hint (Email, Phone, Url, etc.) for richer LLM context.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub semantic_type: Option<SemanticType>,
+    /// Physical unit for numeric properties (e.g., "USD", "kg", "seconds").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unit: Option<String>,
+    /// PII kind — user-declared, never auto-assigned. See Phase 4.6.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pii_kind: Option<PiiKind>,
+}
+
+impl Default for PropertyDef {
+    fn default() -> Self {
+        Self {
+            id: PropertyId::default(),
+            name: String::new(),
+            property_type: PropertyType::String,
+            nullable: false,
+            default_value: None,
+            description: None,
+            classification: None,
+            semantic_type: None,
+            unit: None,
+            pii_kind: None,
+        }
+    }
+}
+
+/// Semantic type of a property value — higher-level than PropertyType.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum SemanticType {
+    Email,
+    Phone,
+    Url,
+    Address,
+    Coordinate,
+    Currency,
+    Percentage,
+    Iso8601,
+}
+
+/// PII (Personally Identifiable Information) classification.
+/// Set explicitly by the user via UI confirmation, never auto-assigned.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum PiiKind {
+    Name,
+    Email,
+    Phone,
+    Ssn,
+    CreditCard,
+    Address,
+    DateOfBirth,
+    IpAddress,
+    Other,
 }
 
 // ---------------------------------------------------------------------------

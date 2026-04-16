@@ -227,6 +227,7 @@ mod tests {
                             default_value: None,
                             description: None,
                             classification: None,
+                            ..Default::default()
                         },
                         PropertyDef {
                             id: PropertyId::new("p2"),
@@ -236,6 +237,7 @@ mod tests {
                             default_value: None,
                             description: None,
                             classification: None,
+                            ..Default::default()
                         },
                         PropertyDef {
                             id: PropertyId::new("p3"),
@@ -245,6 +247,7 @@ mod tests {
                             default_value: None,
                             description: None,
                             classification: None,
+                            ..Default::default()
                         },
                         PropertyDef {
                             id: PropertyId::new("p4"),
@@ -254,6 +257,7 @@ mod tests {
                             default_value: None,
                             description: None,
                             classification: None,
+                            ..Default::default()
                         },
                     ],
                     constraints: vec![],
@@ -273,6 +277,7 @@ mod tests {
                             default_value: None,
                             description: None,
                             classification: None,
+                            ..Default::default()
                         },
                         PropertyDef {
                             id: PropertyId::new("p6"),
@@ -282,6 +287,7 @@ mod tests {
                             default_value: None,
                             description: None,
                             classification: None,
+                            ..Default::default()
                         },
                         PropertyDef {
                             id: PropertyId::new("p7"),
@@ -293,6 +299,7 @@ mod tests {
                             default_value: None,
                             description: None,
                             classification: None,
+                            ..Default::default()
                         },
                     ],
                     constraints: vec![],
@@ -313,6 +320,7 @@ mod tests {
                     default_value: None,
                     description: None,
                     classification: None,
+                    ..Default::default()
                 }],
                 cardinality: ox_core::ontology_ir::Cardinality::ManyToMany,
                 ..Default::default()

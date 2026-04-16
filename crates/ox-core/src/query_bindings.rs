@@ -825,6 +825,7 @@ mod tests {
                         default_value: None,
                         description: None,
                         classification: None,
+                        ..Default::default()
                     }],
                     constraints: vec![],
                     ..Default::default()
@@ -842,6 +843,7 @@ mod tests {
                         default_value: None,
                         description: None,
                         classification: None,
+                        ..Default::default()
                     }],
                     constraints: vec![],
                     ..Default::default()

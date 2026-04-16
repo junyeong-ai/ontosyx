@@ -120,6 +120,7 @@ pub fn normalize(input: OntologyInputIR) -> Result<NormalizeResult, Vec<String>>
                     default_value: p.default_value.clone(),
                     description: p.description.clone(),
                     classification: None,
+                    ..Default::default()
                 }
             })
             .collect();
@@ -309,6 +310,7 @@ pub fn normalize(input: OntologyInputIR) -> Result<NormalizeResult, Vec<String>>
                     default_value: p.default_value,
                     description: p.description,
                     classification: None,
+                    ..Default::default()
                 })
                 .collect();
 

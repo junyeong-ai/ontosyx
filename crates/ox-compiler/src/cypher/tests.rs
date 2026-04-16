@@ -125,6 +125,7 @@ fn test_compile_schema_constraints() {
                     default_value: None,
                     description: None,
                     classification: None,
+                    ..Default::default()
                 },
                 PropertyDef {
                     id: "prop-name".into(),
@@ -134,6 +135,7 @@ fn test_compile_schema_constraints() {
                     default_value: None,
                     description: None,
                     classification: None,
+                    ..Default::default()
                 },
             ],
             constraints: vec![ConstraintDef {

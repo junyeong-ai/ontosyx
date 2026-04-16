@@ -10,6 +10,7 @@ fn property(id: &str, name: &str, nullable: bool) -> PropertyDef {
         default_value: None,
         description: None,
         classification: None,
+    ..Default::default()
     }
 }
 

@@ -495,6 +495,7 @@ mod tests {
             default_value: None,
             description: None,
             classification: None,
+        ..Default::default()
         }
     }
 
@@ -646,6 +647,7 @@ mod tests {
             default_value: None,
             description: None,
             classification: None,
+            ..Default::default()
         });
         new.rebuild_indices();
 
@@ -807,6 +809,7 @@ mod tests {
             default_value: None,
             description: None,
             classification: None,
+            ..Default::default()
         });
         new.node_types[0].properties.push(PropertyDef {
             id: "py".into(),
@@ -816,6 +819,7 @@ mod tests {
             default_value: None,
             description: None,
             classification: None,
+            ..Default::default()
         });
         new.rebuild_indices();
 
@@ -879,6 +883,7 @@ mod tests {
             default_value: Some(ox_core::types::PropertyValue::String("active".to_string())),
             description: None,
             classification: None,
+            ..Default::default()
         });
         new.rebuild_indices();
 
@@ -916,6 +921,7 @@ mod tests {
             default_value: None,
             description: None,
             classification: None,
+            ..Default::default()
         });
         new.rebuild_indices();
 
@@ -941,6 +947,7 @@ mod tests {
             default_value: None,
             description: None,
             classification: None,
+            ..Default::default()
         });
         new.rebuild_indices();
 

@@ -175,6 +175,7 @@ pub fn ontology_from_graph(overview: &GraphSchemaOverview, name: &str) -> Ontolo
                     default_value: None,
                     description: None,
                     classification: None,
+                    ..Default::default()
                 })
                 .collect()
         };

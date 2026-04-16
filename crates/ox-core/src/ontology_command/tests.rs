@@ -101,6 +101,7 @@ fn add_delete_property() {
         default_value: None,
         description: Some("Industry sector".to_string()),
         classification: None,
+        ..Default::default()
     };
     let add_cmd = OntologyCommand::AddProperty {
         owner_id: "n2".to_string(),
@@ -133,6 +134,7 @@ fn add_delete_property() {
         default_value: None,
         description: None,
         classification: None,
+        ..Default::default()
     };
     let add_edge_cmd = OntologyCommand::AddProperty {
         owner_id: "e1".to_string(),
