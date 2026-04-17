@@ -63,7 +63,20 @@ impl Modify for SecurityAddon {
     info(
         title = "Ontosyx API",
         version = "1.0.0",
-        description = "The Semantic Orchestrator — Knowledge Graph Lifecycle Platform",
+        description = "The Semantic Orchestrator — Knowledge Graph Lifecycle Platform.\n\n\
+            ## Response envelope\n\n\
+            Every successful 2xx response is wrapped in:\n\n\
+            ```json\n\
+            { \"data\": <T>, \"pagination\": {\"next_cursor\": \"...\"}?, \"meta\": {...}? }\n\
+            ```\n\n\
+            Each handler's `responses(... body = T)` documents the type of `data`, \
+            **not** the wire shape. Generated clients should either unwrap `data` \
+            in a post-processing step (the approach `web/src/lib/api/client.ts` \
+            takes — frontend callers receive `T` directly) or wrap every response \
+            type in the envelope shape when consuming the spec from a third-party \
+            codegen.\n\n\
+            Error responses use a separate envelope: `{ \"error\": { \"type\": \"...\", \"message\": \"...\" } }` \
+            (see the `ErrorResponse` schema).",
         license(name = "MIT"),
     ),
     tags(
@@ -143,6 +156,11 @@ impl Modify for SecurityAddon {
         schemas(
             ErrorResponse,
             ErrorBody,
+            // Universal envelope companion type. `ApiResponse` itself is
+            // generic over the per-handler payload `T`; we publish the
+            // pagination side-car here so list responses can reference it
+            // by name from the path docs.
+            crate::response::PageMeta,
             // Chat
             chat::ChatStreamRequest,
             // Query

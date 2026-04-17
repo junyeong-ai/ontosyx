@@ -27,11 +27,35 @@
 
 use axum::{Json, response::IntoResponse};
 use serde::Serialize;
+use utoipa::ToSchema;
 
 /// Structured response envelope for all successful API results.
 ///
-/// Clients can always expect `response.data` to carry the primary
-/// payload. `pagination` and `meta` appear only when present.
+/// Wire shape (from `Serialize`):
+/// ```json
+/// { "data": <T>, "pagination": {...}?, "meta": {...}? }
+/// ```
+///
+/// ### OpenAPI / generated-client contract (READ THIS)
+///
+/// **Every successful 2xx body from this server is wrapped in this
+/// envelope.** A handler's `#[utoipa::path(responses(... body = T))]`
+/// describes the type that lives at `data`, *not* the wire shape.
+///
+/// Generated clients (e.g. via `openapi-typescript`) should either:
+///   1. add a post-processing step that unwraps `data` — this is what
+///      `web/src/lib/api/client.ts` does, so frontend callers in this
+///      repo receive `T` directly; or
+///   2. wrap every response type in the
+///      [`crate::response::PageMeta`]-style envelope when consuming
+///      the raw OpenAPI spec from a third-party codegen.
+///
+/// We deliberately do *not* derive `ToSchema` on `ApiResponse<T>`:
+/// a generic `T: ToSchema` bound would cascade onto every handler's
+/// return type and force `ToSchema` on internal serde-only structs.
+/// Instead the envelope is documented here and via the OpenAPI root
+/// description; the per-handler `body = T` line stays accurate for
+/// the *payload* type.
 #[derive(Debug, Serialize)]
 pub struct ApiResponse<T: Serialize> {
     pub data: T,
@@ -42,8 +66,14 @@ pub struct ApiResponse<T: Serialize> {
 }
 
 /// Cursor-based pagination metadata.
-#[derive(Debug, Serialize)]
+///
+/// Carries the opaque cursor used to fetch the next page of a
+/// cursor-paginated list endpoint. Surfaces in OpenAPI under
+/// `components.schemas.PageMeta`; list-handler responses include this
+/// inside the universal `ApiResponse` envelope.
+#[derive(Debug, Serialize, ToSchema)]
 pub struct PageMeta {
+    /// Opaque cursor for the next page. `None` when this is the last page.
     pub next_cursor: Option<String>,
 }
 
