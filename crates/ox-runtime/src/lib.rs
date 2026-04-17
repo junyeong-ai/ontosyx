@@ -67,12 +67,59 @@ pub trait GraphRuntime: Send + Sync {
     /// Execute schema DDL statements (CREATE CONSTRAINT, CREATE INDEX, etc.)
     async fn execute_schema(&self, statements: &[String]) -> OxResult<()>;
 
-    /// Execute a read query and return results
-    async fn execute_query(
+    /// Backend-specific raw query execution. Receives the post-`pre_execute`
+    /// query (with isolation predicates already injected) and returns the raw
+    /// `QueryResult` before `post_execute` runs.
+    ///
+    /// Backends should override this. Callers should invoke
+    /// [`execute_query`](Self::execute_query) instead, which runs the full
+    /// pre → exec → post pipeline.
+    async fn execute_query_raw(
         &self,
         query: &str,
         params: &HashMap<String, PropertyValue>,
     ) -> OxResult<QueryResult>;
+
+    /// Execute a read query through the full pre → exec → post pipeline.
+    ///
+    /// Default impl: `pre_execute` → `execute_query_raw` → `post_execute`.
+    /// Backends should NOT override this; instead override the hook methods.
+    async fn execute_query(
+        &self,
+        query: &str,
+        params: &HashMap<String, PropertyValue>,
+    ) -> OxResult<QueryResult> {
+        let (scoped_query, scoped_params) = self.pre_execute(query, params);
+        let result = self
+            .execute_query_raw(&scoped_query, &scoped_params)
+            .await?;
+        self.post_execute(&scoped_query, result).await
+    }
+
+    /// Pre-process a query before execution (default: identity).
+    ///
+    /// Backends override this to inject workspace isolation predicates or
+    /// rewrite parameters. Returns the (possibly modified) query string and
+    /// merged parameter map.
+    fn pre_execute(
+        &self,
+        query: &str,
+        params: &HashMap<String, PropertyValue>,
+    ) -> (String, HashMap<String, PropertyValue>) {
+        (query.to_string(), params.clone())
+    }
+
+    /// Post-process a query result (default: identity).
+    ///
+    /// Backends override this for audit logging, result enrichment, or any
+    /// other after-the-fact transformation.
+    async fn post_execute(
+        &self,
+        _query: &str,
+        result: QueryResult,
+    ) -> OxResult<QueryResult> {
+        Ok(result)
+    }
 
     /// Execute a batch load with validated records
     async fn execute_load(&self, query: &str, batch: LoadBatch) -> OxResult<LoadResult>;

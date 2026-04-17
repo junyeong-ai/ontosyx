@@ -447,32 +447,15 @@ impl MemGraphRuntime {
         self
     }
 
-    /// Apply workspace scoping to a query if isolation is configured.
+    /// Bridge for `execute_load`, which still needs to scope the load query
+    /// outside the trait pipeline (the trait hooks fire on `execute_query`,
+    /// not bulk loads).
     fn scope_query(
         &self,
         cypher: &str,
         params: &HashMap<String, PropertyValue>,
     ) -> (String, HashMap<String, PropertyValue>) {
-        let strategy = match &self.isolation {
-            Some(s) => s,
-            None => return (cypher.to_string(), params.clone()),
-        };
-
-        if GRAPH_SYSTEM_BYPASS.try_with(|b| *b).unwrap_or(false) {
-            return (cypher.to_string(), params.clone());
-        }
-
-        match GRAPH_WORKSPACE_ID.try_with(|id| id.to_string()) {
-            Ok(ws_id) => {
-                let scoped = strategy.scope(cypher, &ws_id);
-                let mut merged = params.clone();
-                for (key, value) in scoped.params {
-                    merged.insert(key.to_string(), PropertyValue::String(value));
-                }
-                (scoped.query, merged)
-            }
-            Err(_) => (cypher.to_string(), params.clone()),
-        }
+        self.pre_execute(cypher, params)
     }
 }
 
@@ -529,16 +512,42 @@ impl GraphRuntime for MemGraphRuntime {
         Ok(())
     }
 
-    async fn execute_query(
+    fn pre_execute(
+        &self,
+        cypher: &str,
+        params: &HashMap<String, PropertyValue>,
+    ) -> (String, HashMap<String, PropertyValue>) {
+        let strategy = match &self.isolation {
+            Some(s) => s,
+            None => return (cypher.to_string(), params.clone()),
+        };
+
+        if GRAPH_SYSTEM_BYPASS.try_with(|b| *b).unwrap_or(false) {
+            return (cypher.to_string(), params.clone());
+        }
+
+        match GRAPH_WORKSPACE_ID.try_with(|id| id.to_string()) {
+            Ok(ws_id) => {
+                let scoped = strategy.scope(cypher, &ws_id);
+                let mut merged = params.clone();
+                for (key, value) in scoped.params {
+                    merged.insert(key.to_string(), PropertyValue::String(value));
+                }
+                (scoped.query, merged)
+            }
+            Err(_) => (cypher.to_string(), params.clone()),
+        }
+    }
+
+    async fn execute_query_raw(
         &self,
         cypher: &str,
         params: &HashMap<String, PropertyValue>,
     ) -> OxResult<QueryResult> {
-        let (scoped_cypher, scoped_params) = self.scope_query(cypher, params);
         let start = std::time::Instant::now();
 
         let mut result = with_retry(&self.retry, self.detector.as_ref(), || {
-            let q = bind_params(query(&scoped_cypher), &scoped_params);
+            let q = bind_params(query(cypher), params);
             self.graph.execute(q)
         })
         .await
