@@ -16,6 +16,8 @@ chrono = { workspace = true }
 uuid = { workspace = true }
 async-trait = { workspace = true }
 tokio = { workspace = true }
+sha2 = "0.10"
+rand = "0.8"
 
 [lints]
 workspace = true

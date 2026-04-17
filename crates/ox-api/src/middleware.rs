@@ -129,12 +129,14 @@ pub fn create_jwt(claims: &AuthClaims, secret: &str) -> Result<String, AppError>
 
 /// Authentication middleware for protected endpoints.
 ///
-/// Tries JWT authentication first (cookie or Authorization header), then falls
-/// back to API key authentication for programmatic/CI access.
+/// Tries auth methods in order:
+///   1. JWT (cookie or Authorization header)
+///   2. DB-backed API key (X-API-Key header → sha256 → `api_keys` table)
+///   3. Static config API key (legacy single-key mode)
 ///
 /// On successful JWT auth, injects `AuthClaims` into request extensions.
-/// On successful API key auth, injects a synthetic `AuthClaims` for the
-/// system principal.
+/// On successful API key auth, injects a synthetic `AuthClaims` whose
+/// `sub` is `apikey:<label>` (DB) or `system:api-key` (static config).
 pub async fn require_auth(
     State(state): State<AppState>,
     mut req: Request,
@@ -149,9 +151,50 @@ pub async fn require_auth(
         return Ok(next.run(req).await);
     }
 
-    // Fall back to API key auth
+    // Try DB-backed API key
+    if let Some(presented) = req
+        .headers()
+        .get("x-api-key")
+        .and_then(|v| v.to_str().ok())
+    {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(presented.as_bytes());
+        let hash = hasher.finalize().to_vec();
+
+        // SYSTEM_BYPASS so the lookup works without a workspace context;
+        // RLS would otherwise hide global keys (workspace_id IS NULL).
+        let store = state.store.clone();
+        let lookup = ox_store::SYSTEM_BYPASS
+            .scope(true, async move { store.find_api_key_by_hash(&hash).await })
+            .await;
+
+        match lookup {
+            Ok(Some(key)) => {
+                let label = key.label.clone();
+                let claims = AuthClaims {
+                    sub: format!("apikey:{label}"),
+                    email: format!("{label}@apikey.ontosyx.local"),
+                    name: Some(format!("API Key: {label}")),
+                    role: "admin".to_string(),
+                    iss: "ontosyx-api-key".to_string(),
+                    exp: usize::MAX,
+                    iat: 0,
+                };
+                req.extensions_mut().insert(claims);
+                return Ok(next.run(req).await);
+            }
+            Ok(None) => {
+                // Fall through — maybe it matches the static config key.
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "API key DB lookup failed; falling back to static config");
+            }
+        }
+    }
+
+    // Fall back to static config API key (legacy single-key mode)
     if try_api_key_auth(req.headers(), state.auth_config.api_key.as_deref()).is_ok() {
-        // Inject a synthetic claims object for API key access
         let claims = AuthClaims {
             sub: "system:api-key".to_string(),
             email: "system@ontosyx.local".to_string(),

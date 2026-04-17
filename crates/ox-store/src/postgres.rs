@@ -2888,6 +2888,100 @@ impl AuditStore for PostgresStore {
 }
 
 // ---------------------------------------------------------------------------
+// ApiKeyStore — DB-backed API keys (replaces the static `auth.api_key` config)
+// ---------------------------------------------------------------------------
+
+#[async_trait]
+impl crate::store::ApiKeyStore for PostgresStore {
+    async fn create_api_key(
+        &self,
+        label: &str,
+        workspace_id: Option<Uuid>,
+        created_by: &str,
+    ) -> OxResult<(crate::models::ApiKey, String)> {
+        // Generate 32 random bytes of secret material, hex-encoded.
+        // Plaintext is shown to the caller exactly once; only the hash
+        // is persisted, so a leaked DB row cannot be used to authenticate.
+        use rand::RngCore;
+        let mut bytes = [0u8; 32];
+        rand::rngs::OsRng.fill_bytes(&mut bytes);
+        let plaintext: String = bytes
+            .iter()
+            .fold(String::with_capacity(64), |mut acc, b| {
+                use std::fmt::Write;
+                let _ = write!(acc, "{b:02x}");
+                acc
+            });
+
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(plaintext.as_bytes());
+        let key_hash = hasher.finalize().to_vec();
+
+        let id = Uuid::new_v4();
+        let created_at = chrono::Utc::now();
+
+        sqlx::query(
+            "INSERT INTO api_keys (id, label, key_hash, created_by, workspace_id, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6)",
+        )
+        .bind(id)
+        .bind(label)
+        .bind(&key_hash)
+        .bind(created_by)
+        .bind(workspace_id)
+        .bind(created_at)
+        .execute(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+
+        let row = crate::models::ApiKey {
+            id,
+            label: label.to_string(),
+            key_hash,
+            created_by: created_by.to_string(),
+            workspace_id,
+            created_at,
+            revoked_at: None,
+        };
+        Ok((row, plaintext))
+    }
+
+    async fn find_api_key_by_hash(&self, hash: &[u8]) -> OxResult<Option<crate::models::ApiKey>> {
+        sqlx::query_as::<_, crate::models::ApiKey>(
+            "SELECT id, label, key_hash, created_by, workspace_id, created_at, revoked_at
+             FROM api_keys
+             WHERE key_hash = $1 AND revoked_at IS NULL",
+        )
+        .bind(hash)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(to_ox_error)
+    }
+
+    async fn list_api_keys(&self) -> OxResult<Vec<crate::models::ApiKey>> {
+        sqlx::query_as::<_, crate::models::ApiKey>(
+            "SELECT id, label, key_hash, created_by, workspace_id, created_at, revoked_at
+             FROM api_keys
+             WHERE revoked_at IS NULL
+             ORDER BY created_at DESC",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(to_ox_error)
+    }
+
+    async fn revoke_api_key(&self, id: Uuid) -> OxResult<bool> {
+        let res = sqlx::query("UPDATE api_keys SET revoked_at = NOW() WHERE id = $1 AND revoked_at IS NULL")
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .map_err(to_ox_error)?;
+        Ok(res.rows_affected() > 0)
+    }
+}
+
+// ---------------------------------------------------------------------------
 // MeteringStore — cost/usage tracking
 // ---------------------------------------------------------------------------
 

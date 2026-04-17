@@ -473,6 +473,30 @@ pub struct ToolApproval {
 // Audit Log — append-only event log for CRUD operations
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// API Key — DB-backed identity for programmatic access
+// ---------------------------------------------------------------------------
+
+/// A long-lived API key. The plaintext key is never stored — only the
+/// SHA-256 hash. The `label` is surfaced in audit logs (e.g.
+/// `Principal::id = "apikey:ci-deploy"`).
+///
+/// Workspace-scoped keys (`workspace_id = Some(...)`) obey RLS and can
+/// only see data in their workspace. Global keys (`workspace_id = None`)
+/// require the bearer to be a workspace admin to use them across
+/// workspaces — usually reserved for CI/admin scripts.
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct ApiKey {
+    pub id: Uuid,
+    pub label: String,
+    /// SHA-256 hash of the plaintext key.
+    pub key_hash: Vec<u8>,
+    pub created_by: String,
+    pub workspace_id: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+    pub revoked_at: Option<DateTime<Utc>>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct AuditEntry {
     pub id: Uuid,

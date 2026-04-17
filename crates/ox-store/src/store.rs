@@ -930,6 +930,33 @@ pub trait LoadCheckpointStore: Send + Sync {
 }
 
 // ---------------------------------------------------------------------------
+// ApiKeyStore — DB-backed API key management for programmatic access
+// ---------------------------------------------------------------------------
+
+#[async_trait]
+pub trait ApiKeyStore: Send + Sync {
+    /// Create a new API key. The plaintext key (returned alongside the
+    /// row) is shown to the caller exactly once — only the SHA-256 hash
+    /// is persisted.
+    async fn create_api_key(
+        &self,
+        label: &str,
+        workspace_id: Option<Uuid>,
+        created_by: &str,
+    ) -> OxResult<(ApiKey, String)>;
+
+    /// Look up an API key by SHA-256 hash. Returns `None` if the key is
+    /// unknown OR has been revoked.
+    async fn find_api_key_by_hash(&self, hash: &[u8]) -> OxResult<Option<ApiKey>>;
+
+    /// List all non-revoked API keys (admin view).
+    async fn list_api_keys(&self) -> OxResult<Vec<ApiKey>>;
+
+    /// Mark an API key as revoked. Returns `true` if a row was updated.
+    async fn revoke_api_key(&self, id: Uuid) -> OxResult<bool>;
+}
+
+// ---------------------------------------------------------------------------
 // NotificationStore — notification channels and delivery log
 // ---------------------------------------------------------------------------
 
@@ -990,6 +1017,7 @@ pub trait Store:
     + LoadCheckpointStore
     + HealthStore
     + NotificationStore
+    + ApiKeyStore
 {
 }
 
@@ -1023,5 +1051,6 @@ impl<T> Store for T where
         + LoadCheckpointStore
         + HealthStore
         + NotificationStore
+    + ApiKeyStore
 {
 }
