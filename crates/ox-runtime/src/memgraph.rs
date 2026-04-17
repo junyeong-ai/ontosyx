@@ -20,97 +20,20 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use neo4rs::{ConfigBuilder, Graph, query};
-use tokio::time::sleep;
 use tracing::{info, warn};
 
 use ox_core::error::{OxError, OxResult};
 use ox_core::query_ir::{QueryMetadata, QueryResult};
 use ox_core::types::PropertyValue;
 
-use crate::isolation::GraphIsolationStrategy;
-use crate::{
-    GRAPH_SYSTEM_BYPASS, GRAPH_WORKSPACE_ID, GraphRuntime, LoadBatch, LoadResult, SandboxHandle,
-    TransienceDetector,
+use crate::bolt::{
+    LoadContext, RetryConfig, bind_params, json_to_property_value, run_batched_load,
+    scope_with_task_locals, truncate_query, validate_identifier, with_retry,
 };
+use crate::isolation::GraphIsolationStrategy;
+use crate::{GraphRuntime, LoadBatch, LoadResult, SandboxHandle, TransienceDetector};
 
-// ---------------------------------------------------------------------------
-// Helpers (shared patterns with Neo4j — kept local to avoid coupling)
-// ---------------------------------------------------------------------------
-
-fn truncate_query(q: &str, max: usize) -> String {
-    if q.len() <= max {
-        q.to_string()
-    } else {
-        format!("{}...", &q[..max])
-    }
-}
-
-fn bind_params(q: neo4rs::Query, params: &HashMap<String, PropertyValue>) -> neo4rs::Query {
-    let mut q = q;
-    for (name, value) in params {
-        q = match value {
-            PropertyValue::Bool(b) => q.param(name, *b),
-            PropertyValue::Int(i) => q.param(name, *i),
-            PropertyValue::Float(f) => q.param(name, *f),
-            PropertyValue::String(s) => q.param(name, s.as_str()),
-            PropertyValue::List(items) => {
-                let json = serde_json::to_string(items).unwrap_or_default();
-                q.param(name, json)
-            }
-            PropertyValue::Map(map) => {
-                let json = serde_json::to_string(map).unwrap_or_default();
-                q.param(name, json)
-            }
-            _ => q,
-        };
-    }
-    q
-}
-
-fn bind_json_field(q: neo4rs::Query, name: &str, value: &serde_json::Value) -> neo4rs::Query {
-    match value {
-        serde_json::Value::String(s) => q.param(name, s.as_str()),
-        serde_json::Value::Number(n) => {
-            if let Some(i) = n.as_i64() {
-                q.param(name, i)
-            } else if let Some(f) = n.as_f64() {
-                q.param(name, f)
-            } else {
-                q.param(name, n.to_string())
-            }
-        }
-        serde_json::Value::Bool(b) => q.param(name, *b),
-        serde_json::Value::Null => q,
-        _ => q.param(name, value.to_string()),
-    }
-}
-
-fn json_to_property_value(value: Option<&serde_json::Value>) -> PropertyValue {
-    match value {
-        Some(serde_json::Value::String(s)) => PropertyValue::String(s.clone()),
-        Some(serde_json::Value::Number(n)) => {
-            if let Some(i) = n.as_i64() {
-                PropertyValue::Int(i)
-            } else if let Some(f) = n.as_f64() {
-                PropertyValue::Float(f)
-            } else {
-                PropertyValue::Null
-            }
-        }
-        Some(serde_json::Value::Bool(b)) => PropertyValue::Bool(*b),
-        Some(serde_json::Value::Array(arr)) => PropertyValue::List(
-            arr.iter()
-                .map(|v| json_to_property_value(Some(v)))
-                .collect(),
-        ),
-        Some(serde_json::Value::Object(obj)) => PropertyValue::Map(
-            obj.iter()
-                .map(|(k, v)| (k.clone(), json_to_property_value(Some(v))))
-                .collect(),
-        ),
-        Some(serde_json::Value::Null) | None => PropertyValue::Null,
-    }
-}
+const BACKEND_LABEL: &str = "Memgraph";
 
 // ---------------------------------------------------------------------------
 // Schema statement filtering for Memgraph compatibility
@@ -307,26 +230,6 @@ fn rewrite_range_index(stmt: &str) -> Option<String> {
 }
 
 // ---------------------------------------------------------------------------
-// Retry with exponential backoff
-// ---------------------------------------------------------------------------
-
-struct RetryConfig {
-    max_retries: u32,
-    initial_delay: Duration,
-    max_delay: Duration,
-}
-
-impl Default for RetryConfig {
-    fn default() -> Self {
-        Self {
-            max_retries: 3,
-            initial_delay: Duration::from_millis(100),
-            max_delay: Duration::from_secs(5),
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
 // Memgraph transient error detector
 // ---------------------------------------------------------------------------
 
@@ -338,40 +241,6 @@ impl TransienceDetector for MemGraphTransienceDetector {
     fn is_transient(&self, err_msg: &str) -> bool {
         crate::transience::classify(&crate::transience::MEMGRAPH_RULES, err_msg)
             .is_transient()
-    }
-}
-
-async fn with_retry<F, Fut, T>(
-    config: &RetryConfig,
-    detector: &dyn TransienceDetector,
-    operation: F,
-) -> Result<T, neo4rs::Error>
-where
-    F: Fn() -> Fut,
-    Fut: std::future::Future<Output = Result<T, neo4rs::Error>>,
-{
-    let mut attempt = 0;
-    loop {
-        match operation().await {
-            Ok(val) => return Ok(val),
-            Err(e) => {
-                let msg = e.to_string();
-                if attempt >= config.max_retries || !detector.is_transient(&msg) {
-                    return Err(e);
-                }
-                let delay =
-                    std::cmp::min(config.initial_delay * 2u32.pow(attempt), config.max_delay);
-                warn!(
-                    attempt = attempt + 1,
-                    max = config.max_retries,
-                    delay_ms = delay.as_millis() as u64,
-                    error = %msg,
-                    "Transient Memgraph error, retrying"
-                );
-                sleep(delay).await;
-                attempt += 1;
-            }
-        }
     }
 }
 
@@ -446,33 +315,6 @@ impl MemGraphRuntime {
         self.isolation = Some(strategy);
         self
     }
-
-    /// Bridge for `execute_load`, which still needs to scope the load query
-    /// outside the trait pipeline (the trait hooks fire on `execute_query`,
-    /// not bulk loads).
-    fn scope_query(
-        &self,
-        cypher: &str,
-        params: &HashMap<String, PropertyValue>,
-    ) -> (String, HashMap<String, PropertyValue>) {
-        self.pre_execute(cypher, params)
-    }
-}
-
-fn validate_identifier(name: &str) -> OxResult<()> {
-    if name.is_empty() || name.len() > 63 {
-        return Err(OxError::Validation {
-            field: "name".to_string(),
-            message: "Identifier must be 1-63 characters".to_string(),
-        });
-    }
-    if !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
-        return Err(OxError::Validation {
-            field: "name".to_string(),
-            message: "Identifier must be alphanumeric or underscore only".to_string(),
-        });
-    }
-    Ok(())
 }
 
 #[async_trait]
@@ -517,26 +359,7 @@ impl GraphRuntime for MemGraphRuntime {
         cypher: &str,
         params: &HashMap<String, PropertyValue>,
     ) -> (String, HashMap<String, PropertyValue>) {
-        let strategy = match &self.isolation {
-            Some(s) => s,
-            None => return (cypher.to_string(), params.clone()),
-        };
-
-        if GRAPH_SYSTEM_BYPASS.try_with(|b| *b).unwrap_or(false) {
-            return (cypher.to_string(), params.clone());
-        }
-
-        match GRAPH_WORKSPACE_ID.try_with(|id| id.to_string()) {
-            Ok(ws_id) => {
-                let scoped = strategy.scope(cypher, &ws_id);
-                let mut merged = params.clone();
-                for (key, value) in scoped.params {
-                    merged.insert(key.to_string(), PropertyValue::String(value));
-                }
-                (scoped.query, merged)
-            }
-            Err(_) => (cypher.to_string(), params.clone()),
-        }
+        scope_with_task_locals(self.isolation.as_deref(), cypher, params)
     }
 
     async fn execute_query_raw(
@@ -546,7 +369,7 @@ impl GraphRuntime for MemGraphRuntime {
     ) -> OxResult<QueryResult> {
         let start = std::time::Instant::now();
 
-        let mut result = with_retry(&self.retry, self.detector.as_ref(), || {
+        let mut result = with_retry(&self.retry, self.detector.as_ref(), BACKEND_LABEL, || {
             let q = bind_params(query(cypher), params);
             self.graph.execute(q)
         })
@@ -596,122 +419,23 @@ impl GraphRuntime for MemGraphRuntime {
         })
     }
 
-    async fn execute_load(&self, cypher: &str, batch: LoadBatch) -> OxResult<LoadResult> {
-        use futures::stream::{FuturesUnordered, StreamExt};
-
-        let (cypher, _scoped_params) = self.scope_query(cypher, &HashMap::new());
-        let cypher = &cypher;
-
-        let max_concurrent = self.load_concurrency;
-
-        let mut result = LoadResult {
-            nodes_created: 0,
-            nodes_updated: 0,
-            edges_created: 0,
-            edges_updated: 0,
-            batches_processed: 0,
-            batches_failed: 0,
-            errors: Vec::new(),
+    async fn execute_load_raw(
+        &self,
+        cypher: &str,
+        scope_params: &HashMap<String, PropertyValue>,
+        batch: LoadBatch,
+    ) -> OxResult<LoadResult> {
+        let scoped_params = crate::bolt::load::isolation_params_from(scope_params);
+        let ctx = LoadContext {
+            graph: self.graph.clone(),
+            cypher: cypher.to_string(),
+            scoped_params,
+            max_concurrent: self.load_concurrency,
+            retry: self.retry,
+            detector: Arc::clone(&self.detector),
+            backend_label: BACKEND_LABEL,
         };
-
-        type BatchFuture = std::pin::Pin<
-            Box<dyn std::future::Future<Output = (usize, Result<(), neo4rs::Error>)> + Send>,
-        >;
-        let mut futures: FuturesUnordered<BatchFuture> = FuturesUnordered::new();
-        let mut iter = batch.into_records().into_iter().enumerate();
-
-        let retry_max_retries = self.retry.max_retries;
-        let retry_initial_delay = self.retry.initial_delay;
-        let retry_max_delay = self.retry.max_delay;
-        let detector = Arc::clone(&self.detector);
-
-        let isolation_params: Vec<(String, String)> = _scoped_params
-            .iter()
-            .filter_map(|(k, v)| {
-                if let PropertyValue::String(s) = v {
-                    Some((k.clone(), s.clone()))
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        let spawn_batch = |futures: &mut FuturesUnordered<BatchFuture>,
-                           i: usize,
-                           record: serde_json::Map<String, serde_json::Value>,
-                           graph: Graph,
-                           cypher: String,
-                           detector: Arc<dyn TransienceDetector>,
-                           iso_params: Vec<(String, String)>| {
-            let field_pairs: Vec<(String, serde_json::Value)> = record.into_iter().collect();
-
-            futures.push(Box::pin(async move {
-                let retry = RetryConfig {
-                    max_retries: retry_max_retries,
-                    initial_delay: retry_initial_delay,
-                    max_delay: retry_max_delay,
-                };
-                let res = with_retry(&retry, detector.as_ref(), || {
-                    let mut q = query(&cypher);
-                    for (key, val) in &field_pairs {
-                        q = bind_json_field(q, &format!("row_{key}"), val);
-                    }
-                    for (key, val) in &iso_params {
-                        q = q.param(key.as_str(), val.as_str());
-                    }
-                    graph.run(q)
-                })
-                .await;
-                (i, res)
-            }));
-        };
-
-        for _ in 0..max_concurrent {
-            if let Some((i, record)) = iter.next() {
-                spawn_batch(
-                    &mut futures,
-                    i,
-                    record,
-                    self.graph.clone(),
-                    cypher.to_owned(),
-                    Arc::clone(&detector),
-                    isolation_params.clone(),
-                );
-            } else {
-                break;
-            }
-        }
-
-        while let Some((idx, res)) = futures.next().await {
-            match res {
-                Ok(()) => {
-                    result.batches_processed += 1;
-                }
-                Err(e) => {
-                    let msg = format!("Batch {idx} failed: {e}");
-                    warn!(%msg);
-                    result.batches_failed += 1;
-                    result.errors.push(crate::LoadError {
-                        batch_index: idx,
-                        message: msg,
-                    });
-                }
-            }
-
-            if let Some((i, record)) = iter.next() {
-                spawn_batch(
-                    &mut futures,
-                    i,
-                    record,
-                    self.graph.clone(),
-                    cypher.to_owned(),
-                    Arc::clone(&detector),
-                    isolation_params.clone(),
-                );
-            }
-        }
-
-        Ok(result)
+        run_batched_load(ctx, batch).await
     }
 
     async fn create_sandbox(&self, name: &str) -> OxResult<SandboxHandle> {

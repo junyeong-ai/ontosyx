@@ -332,6 +332,15 @@ impl RecoveryDetectionHook {
         self.processed_recoveries
             .retain(|sid, _| self.session_outcomes.contains_key(sid));
     }
+
+    /// Drop both per-session maps in lockstep. Use this everywhere a
+    /// session is "done" (recovery extracted, success without prior
+    /// failure, etc.) so `processed_recoveries` cannot accumulate
+    /// orphan entries after `session_outcomes` is wiped.
+    fn forget_session(&self, session_id: &str) {
+        self.session_outcomes.remove(session_id);
+        self.processed_recoveries.remove(session_id);
+    }
 }
 
 /// Extract `:Label` tokens from a Cypher query (case-insensitive on the colon).
@@ -388,23 +397,23 @@ fn jaccard(
 /// [`RECOVERY_JACCARD_THRESHOLD`]). Errors with no compiled query fall
 /// back to "match anything" because we have no labels to compare.
 fn is_structural_match(failed_query: Option<&str>, succeeded_query: Option<&str>) -> bool {
-    let succeeded = match succeeded_query {
-        Some(q) => q,
-        None => return false, // no signal — never pair
+    // No signal on either side — refuse to pair. Used to be `true` on
+    // missing-failed-query, but that admitted every "parse error
+    // followed by ANY later success" as a recovery, which is exactly
+    // the noise the Jaccard gate was meant to suppress.
+    let (Some(failed), Some(succeeded)) = (failed_query, succeeded_query) else {
+        return false;
     };
-    let succeeded_labels = extract_cypher_labels(succeeded);
 
-    let Some(failed) = failed_query else {
-        // Failure with no compiled query (parse error etc.) — labels
-        // are unavailable on the failed side. The presence of a
-        // successful query in the same session is enough.
-        return true;
-    };
     let failed_labels = extract_cypher_labels(failed);
+    let succeeded_labels = extract_cypher_labels(succeeded);
 
     match jaccard(&failed_labels, &succeeded_labels) {
         Some(score) => score >= RECOVERY_JACCARD_THRESHOLD,
-        None => true, // both empty (legacy queries without labels) — preserve old behavior
+        // Both sides extracted zero labels: the queries are too
+        // unstructured to compare. Refuse to pair (safer than the
+        // previous "preserve old behavior" leniency).
+        None => false,
     }
 }
 
@@ -487,7 +496,7 @@ impl Hook for RecoveryDetectionHook {
                     if !is_structural_match(failure_compiled.as_deref(), success_query.as_deref())
                     {
                         // Not a real recovery pair — discard outcomes and bail
-                        self.session_outcomes.remove(session_id);
+                        self.forget_session(session_id);
                         return Ok(HookOutput::allow());
                     }
 
@@ -504,7 +513,7 @@ impl Hook for RecoveryDetectionHook {
                             .or_default();
                         if !hashes.insert(key.clone()) {
                             // Already processed this recovery in this session.
-                            self.session_outcomes.remove(session_id);
+                            self.forget_session(session_id);
                             return Ok(HookOutput::allow());
                         }
                     }
@@ -640,10 +649,10 @@ impl Hook for RecoveryDetectionHook {
                     }
 
                     // Clear session outcomes after extraction
-                    self.session_outcomes.remove(session_id);
+                    self.forget_session(session_id);
                 } else {
                     // Success with no prior failure — clean up to prevent unbounded growth.
-                    self.session_outcomes.remove(session_id);
+                    self.forget_session(session_id);
                 }
             }
 
@@ -794,9 +803,10 @@ mod tests {
     }
 
     #[test]
-    fn structural_match_failure_with_no_compiled_query_passes() {
-        // No labels on the failed side — fall through to "anything goes".
-        assert!(is_structural_match(
+    fn structural_match_failure_with_no_compiled_query_rejected() {
+        // Tightened: missing failed query yields no signal — refuse
+        // to pair (previous behavior of returning true admitted noise).
+        assert!(!is_structural_match(
             None,
             Some("MATCH (n:Person) RETURN n"),
         ));

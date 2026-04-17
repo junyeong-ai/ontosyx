@@ -146,11 +146,49 @@ async function requestInternal<T>(
 }
 
 export async function request<T>(path: string, init?: RetryOptions): Promise<T> {
-  return requestInternal(path, init, (res) =>
-    res.status === 204 ? Promise.resolve(undefined as T) : res.json(),
-  );
+  return requestInternal(path, init, async (res) => {
+    if (res.status === 204) {
+      return undefined as T;
+    }
+    const body = await res.json();
+    return unwrapEnvelope<T>(body);
+  });
 }
 
 export async function requestText(path: string, init?: RetryOptions): Promise<string> {
   return requestInternal(path, init, (res) => res.text());
+}
+
+/**
+ * Unwrap the `ApiResponse<T>` envelope: `{ data, pagination?, meta? }`.
+ *
+ * Cursor-paginated payloads are flattened back to the legacy
+ * `{ items, next_cursor }` shape so existing list components keep
+ * working without per-component edits. Single-resource responses
+ * return `data` directly.
+ *
+ * Defensive fallback: if the body isn't an envelope (legacy bare JSON,
+ * mocked tests, or third-party endpoints), return it as-is.
+ */
+function unwrapEnvelope<T>(body: unknown): T {
+  if (
+    body === null ||
+    typeof body !== "object" ||
+    !Object.prototype.hasOwnProperty.call(body, "data")
+  ) {
+    return body as T;
+  }
+
+  const obj = body as { data: unknown; pagination?: { next_cursor?: string | null } };
+
+  // Cursor-paginated: backend `{ data: [...], pagination: { next_cursor } }`
+  // → frontend `{ items: [...], next_cursor }`.
+  if (Array.isArray(obj.data) && obj.pagination !== undefined) {
+    return {
+      items: obj.data,
+      next_cursor: obj.pagination.next_cursor ?? null,
+    } as T;
+  }
+
+  return obj.data as T;
 }

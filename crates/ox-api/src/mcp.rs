@@ -278,6 +278,108 @@ fn to_json_text(value: &impl Serialize) -> Result<String, McpError> {
         .map_err(|e| McpError::internal_error(format!("Serialization failed: {e}"), None))
 }
 
+/// Return the first Cypher write keyword found in `q`, or `None` if the
+/// query is read-only.
+///
+/// The match is whitespace-bounded and case-insensitive so common
+/// formatting quirks (`detach delete`, `\nMERGE\n`) all trip the gate
+/// while harmless substrings (`creator`, `setting`, comments) do not.
+/// This is a heuristic — a determined attacker could likely sneak past
+/// it — but the cost/benefit makes it the right gate for the MCP raw
+/// Cypher tool, which has no role-based authorization.
+fn forbidden_cypher_keyword(q: &str) -> Option<&'static str> {
+    const WRITE_KEYWORDS: &[&str] = &[
+        "CREATE", "MERGE", "DELETE", "SET", "REMOVE", "DROP", "FOREACH", "LOAD",
+    ];
+    let upper = q.to_uppercase();
+    let bytes = upper.as_bytes();
+    for &kw in WRITE_KEYWORDS {
+        let kw_bytes = kw.as_bytes();
+        let mut start = 0;
+        while let Some(pos) = upper[start..].find(kw) {
+            let abs = start + pos;
+            let before_ok = abs == 0 || !is_word_byte(bytes[abs - 1]);
+            let after_idx = abs + kw_bytes.len();
+            let after_ok = after_idx >= bytes.len() || !is_word_byte(bytes[after_idx]);
+            if before_ok && after_ok {
+                return Some(kw);
+            }
+            start = abs + 1;
+        }
+    }
+    None
+}
+
+fn is_word_byte(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || b == b'_'
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn forbidden_cypher_keyword_blocks_writes() {
+        assert_eq!(
+            forbidden_cypher_keyword("MATCH (n) DETACH DELETE n"),
+            Some("DELETE")
+        );
+        assert_eq!(forbidden_cypher_keyword("CREATE (a:Person)"), Some("CREATE"));
+        assert_eq!(
+            forbidden_cypher_keyword("MERGE (a:Person {name: 'x'})"),
+            Some("MERGE")
+        );
+        assert_eq!(
+            forbidden_cypher_keyword("MATCH (n) SET n.x = 1"),
+            Some("SET")
+        );
+        assert_eq!(
+            forbidden_cypher_keyword("MATCH (n) REMOVE n:Stale"),
+            Some("REMOVE")
+        );
+        assert_eq!(forbidden_cypher_keyword("DROP INDEX foo"), Some("DROP"));
+        assert_eq!(
+            forbidden_cypher_keyword("LOAD CSV FROM 'x' AS row"),
+            Some("LOAD")
+        );
+        // case-insensitive
+        assert_eq!(
+            forbidden_cypher_keyword("match (n) detach delete n"),
+            Some("DELETE")
+        );
+    }
+
+    #[test]
+    fn forbidden_cypher_keyword_allows_reads() {
+        assert_eq!(forbidden_cypher_keyword("MATCH (n) RETURN n"), None);
+        assert_eq!(
+            forbidden_cypher_keyword("MATCH (n) WHERE n.score > 0 RETURN n"),
+            None
+        );
+        assert_eq!(
+            forbidden_cypher_keyword("MATCH (a)-[r]->(b) RETURN a, r, b LIMIT 10"),
+            None
+        );
+    }
+
+    #[test]
+    fn forbidden_cypher_keyword_ignores_substrings() {
+        // "creator", "settings", etc. should NOT trip the gate.
+        assert_eq!(
+            forbidden_cypher_keyword("MATCH (u:User) WHERE u.creator = 'x' RETURN u"),
+            None
+        );
+        assert_eq!(
+            forbidden_cypher_keyword("MATCH (n) WHERE n.settings IS NOT NULL RETURN n"),
+            None
+        );
+        assert_eq!(
+            forbidden_cypher_keyword("MATCH (n {removed: false}) RETURN n"),
+            None
+        );
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Tool implementations
 // ---------------------------------------------------------------------------
@@ -633,6 +735,22 @@ impl OntosyxMcpServer {
         if params.query.trim().is_empty() {
             return Err(McpError::invalid_params(
                 "query must not be empty".to_string(),
+                None,
+            ));
+        }
+
+        // Read-only enforcement: MCP sessions don't carry user role,
+        // so a destructive Cypher (`DELETE`, `DETACH DELETE`, `CREATE`,
+        // `MERGE`, `SET`, `REMOVE`, `DROP`, `CALL` of write procs)
+        // would mutate data with no accountability. Block them at the
+        // tool boundary; mutations must go through the authenticated
+        // HTTP API (`/api/projects/.../ontology` etc.).
+        if let Some(forbidden) = forbidden_cypher_keyword(&params.query) {
+            return Err(McpError::invalid_request(
+                format!(
+                    "Cypher keyword `{forbidden}` is not permitted via MCP. \
+                     Use the authenticated HTTP API for graph mutations."
+                ),
                 None,
             ));
         }

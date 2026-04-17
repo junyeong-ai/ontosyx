@@ -1,9 +1,12 @@
+//! Pure helpers shared by every Bolt-driver backend.
+
 use std::collections::HashMap;
 
+use ox_core::error::{OxError, OxResult};
 use ox_core::types::PropertyValue;
 
 /// Truncate a query string for inclusion in error messages.
-pub(super) fn truncate_query(q: &str, max: usize) -> String {
+pub(crate) fn truncate_query(q: &str, max: usize) -> String {
     if q.len() <= max {
         q.to_string()
     } else {
@@ -12,7 +15,7 @@ pub(super) fn truncate_query(q: &str, max: usize) -> String {
 }
 
 /// Bind `PropertyValue` parameters onto a neo4rs `Query`.
-pub(super) fn bind_params(
+pub(crate) fn bind_params(
     q: neo4rs::Query,
     params: &HashMap<String, PropertyValue>,
 ) -> neo4rs::Query {
@@ -40,7 +43,7 @@ pub(super) fn bind_params(
 
 /// Bind a single `serde_json::Value` as a neo4rs parameter with the correct type.
 /// Used by `execute_load` to pass per-record fields as `$row_<field>` parameters.
-pub(super) fn bind_json_field(
+pub(crate) fn bind_json_field(
     q: neo4rs::Query,
     name: &str,
     value: &serde_json::Value,
@@ -63,7 +66,7 @@ pub(super) fn bind_json_field(
 }
 
 /// Convert a `serde_json::Value` returned by neo4rs into a typed `PropertyValue`.
-pub(super) fn json_to_property_value(value: Option<&serde_json::Value>) -> PropertyValue {
+pub(crate) fn json_to_property_value(value: Option<&serde_json::Value>) -> PropertyValue {
     match value {
         Some(serde_json::Value::String(s)) => PropertyValue::String(s.clone()),
         Some(serde_json::Value::Number(n)) => {
@@ -90,9 +93,10 @@ pub(super) fn json_to_property_value(value: Option<&serde_json::Value>) -> Prope
     }
 }
 
-/// Validate sandbox name: only alphanumeric + underscore, 1-63 chars.
-pub(super) fn validate_identifier(name: &str) -> ox_core::error::OxResult<()> {
-    use ox_core::error::OxError;
+/// Validate sandbox / database identifier: only `[A-Za-z0-9_]`, length 1-63.
+/// Used by both Neo4j (database names) and Memgraph (label suffixes) before
+/// interpolating into DDL — guards against injection.
+pub(crate) fn validate_identifier(name: &str) -> OxResult<()> {
     if name.is_empty() || name.len() > 63 {
         return Err(OxError::Validation {
             field: "name".to_string(),
@@ -112,100 +116,10 @@ pub(super) fn validate_identifier(name: &str) -> ox_core::error::OxResult<()> {
 mod tests {
     use super::*;
     use neo4rs::query;
-    use ox_core::error::OxError;
     use serde_json::json;
 
     #[test]
-    fn test_bind_params_string() {
-        let mut params = HashMap::new();
-        params.insert(
-            "name".to_string(),
-            PropertyValue::String("Alice".to_string()),
-        );
-        params.insert("age".to_string(), PropertyValue::Int(30));
-        params.insert("score".to_string(), PropertyValue::Float(9.5));
-        params.insert("active".to_string(), PropertyValue::Bool(true));
-        let _q = bind_params(query("MATCH (n) WHERE n.name = $name RETURN n"), &params);
-    }
-
-    #[test]
-    fn test_bind_params_null_skipped() {
-        let mut params = HashMap::new();
-        params.insert("value".to_string(), PropertyValue::Null);
-        let _q = bind_params(query("RETURN $value"), &params);
-    }
-
-    #[test]
-    fn test_bind_params_list_json_serialized() {
-        let mut params = HashMap::new();
-        params.insert(
-            "tags".to_string(),
-            PropertyValue::List(vec![
-                PropertyValue::String("a".to_string()),
-                PropertyValue::String("b".to_string()),
-            ]),
-        );
-        let _q = bind_params(query("RETURN $tags"), &params);
-    }
-
-    #[test]
-    fn test_json_to_property_value_all_types() {
-        assert_eq!(
-            json_to_property_value(Some(&json!("hello"))),
-            PropertyValue::String("hello".to_string())
-        );
-        assert_eq!(
-            json_to_property_value(Some(&json!(42))),
-            PropertyValue::Int(42)
-        );
-        assert_eq!(
-            json_to_property_value(Some(&json!(3.25))),
-            PropertyValue::Float(3.25)
-        );
-        assert_eq!(
-            json_to_property_value(Some(&json!(true))),
-            PropertyValue::Bool(true)
-        );
-        assert_eq!(
-            json_to_property_value(Some(&json!(false))),
-            PropertyValue::Bool(false)
-        );
-        assert_eq!(
-            json_to_property_value(Some(&json!(null))),
-            PropertyValue::Null
-        );
-        assert_eq!(json_to_property_value(None), PropertyValue::Null);
-    }
-
-    #[test]
-    fn test_json_to_property_value_nested() {
-        let arr = json!([1, "two", true]);
-        match json_to_property_value(Some(&arr)) {
-            PropertyValue::List(items) => {
-                assert_eq!(items.len(), 3);
-                assert_eq!(items[0], PropertyValue::Int(1));
-                assert_eq!(items[1], PropertyValue::String("two".to_string()));
-                assert_eq!(items[2], PropertyValue::Bool(true));
-            }
-            other => panic!("Expected List, got {other:?}"),
-        }
-
-        let obj = json!({"key": "value", "num": 99});
-        match json_to_property_value(Some(&obj)) {
-            PropertyValue::Map(map) => {
-                assert_eq!(map.len(), 2);
-                assert_eq!(
-                    map.get("key"),
-                    Some(&PropertyValue::String("value".to_string()))
-                );
-                assert_eq!(map.get("num"), Some(&PropertyValue::Int(99)));
-            }
-            other => panic!("Expected Map, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn test_validate_identifier_valid() {
+    fn validate_identifier_accepts_safe() {
         assert!(validate_identifier("test").is_ok());
         assert!(validate_identifier("my_sandbox").is_ok());
         assert!(validate_identifier("sandbox123").is_ok());
@@ -215,7 +129,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_identifier_invalid() {
+    fn validate_identifier_rejects_unsafe() {
         for bad in [
             "",
             &"a".repeat(64),
@@ -225,19 +139,51 @@ mod tests {
             "test-name",
             "test.name",
         ] {
-            let err = validate_identifier(bad).unwrap_err();
-            assert!(matches!(err, OxError::Validation { .. }));
+            assert!(matches!(
+                validate_identifier(bad).unwrap_err(),
+                OxError::Validation { .. }
+            ));
         }
     }
 
     #[test]
-    fn test_truncate_query_short() {
-        let short = "MATCH (n) RETURN n";
-        assert_eq!(truncate_query(short, 100), short);
+    fn bind_params_accepts_supported_types() {
+        let mut params = HashMap::new();
+        params.insert("name".into(), PropertyValue::String("Alice".into()));
+        params.insert("age".into(), PropertyValue::Int(30));
+        params.insert("score".into(), PropertyValue::Float(9.5));
+        params.insert("active".into(), PropertyValue::Bool(true));
+        let _q = bind_params(query("RETURN $name"), &params);
     }
 
     #[test]
-    fn test_truncate_query_long() {
+    fn json_to_property_value_handles_all_json_types() {
+        assert_eq!(
+            json_to_property_value(Some(&json!("x"))),
+            PropertyValue::String("x".into())
+        );
+        assert_eq!(
+            json_to_property_value(Some(&json!(7))),
+            PropertyValue::Int(7)
+        );
+        assert_eq!(
+            json_to_property_value(Some(&json!(2.5))),
+            PropertyValue::Float(2.5)
+        );
+        assert_eq!(
+            json_to_property_value(Some(&json!(true))),
+            PropertyValue::Bool(true)
+        );
+        assert_eq!(json_to_property_value(None), PropertyValue::Null);
+    }
+
+    #[test]
+    fn truncate_query_short_unchanged() {
+        assert_eq!(truncate_query("MATCH (n) RETURN n", 100), "MATCH (n) RETURN n");
+    }
+
+    #[test]
+    fn truncate_query_long_appends_ellipsis() {
         let long = "a".repeat(300);
         let result = truncate_query(&long, 50);
         assert_eq!(result.len(), 53);

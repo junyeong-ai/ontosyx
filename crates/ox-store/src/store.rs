@@ -961,7 +961,10 @@ pub trait ApiKeyStore: Send + Sync {
     async fn list_api_keys(&self) -> OxResult<Vec<ApiKey>>;
 
     /// Mark an API key as revoked. Returns `true` if a row was updated.
-    async fn revoke_api_key(&self, id: Uuid) -> OxResult<bool>;
+    /// Uses the `update_*` verb per the Store naming convention; the
+    /// "revoked" qualifier is in the suffix to keep the verb prefix
+    /// stable for `find`/`update`/`delete` greppability.
+    async fn update_api_key_revoked(&self, id: Uuid) -> OxResult<bool>;
 }
 
 // ---------------------------------------------------------------------------

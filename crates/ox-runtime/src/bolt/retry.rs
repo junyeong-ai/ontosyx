@@ -1,3 +1,5 @@
+//! Exponential-backoff retry shared by every Bolt-driver backend.
+
 use std::time::Duration;
 
 use tokio::time::sleep;
@@ -5,8 +7,8 @@ use tracing::warn;
 
 use crate::TransienceDetector;
 
-/// Retry configuration for transient failures.
-pub(super) struct RetryConfig {
+#[derive(Clone, Copy)]
+pub(crate) struct RetryConfig {
     pub max_retries: u32,
     pub initial_delay: Duration,
     pub max_delay: Duration,
@@ -23,9 +25,14 @@ impl Default for RetryConfig {
 }
 
 /// Execute an async operation with exponential backoff on transient failures.
-pub(super) async fn with_retry<F, Fut, T>(
+///
+/// `backend_label` only appears in the warning log, so the same helper can
+/// serve Neo4j ("Neo4j") and Memgraph ("Memgraph") without duplicating
+/// retry logic.
+pub(crate) async fn with_retry<F, Fut, T>(
     config: &RetryConfig,
     detector: &dyn TransienceDetector,
+    backend_label: &str,
     operation: F,
 ) -> Result<T, neo4rs::Error>
 where
@@ -44,11 +51,12 @@ where
                 let delay =
                     std::cmp::min(config.initial_delay * 2u32.pow(attempt), config.max_delay);
                 warn!(
+                    backend = backend_label,
                     attempt = attempt + 1,
                     max = config.max_retries,
                     delay_ms = delay.as_millis() as u64,
                     error = %msg,
-                    "Transient Neo4j error, retrying"
+                    "Transient Bolt error, retrying"
                 );
                 sleep(delay).await;
                 attempt += 1;

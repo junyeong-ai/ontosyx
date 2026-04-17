@@ -13,14 +13,14 @@
 //! Error responses are handled separately by [`crate::error::AppError`],
 //! which already emits `{ "error": { "type": "...", "message": "..." } }`.
 //!
-//! ## Migration guide (Phase 1.3)
+//! ## Migration guide
 //!
 //! | Before | After |
 //! |--------|-------|
 //! | `Ok(Json(item))` | `Ok(ApiResponse::of(item))` |
 //! | `Ok(Json(page))` where `page: CursorPage<T>` | `Ok(ApiResponse::page(page))` |
 //! | `Ok(StatusCode::NO_CONTENT)` | unchanged (no body) |
-//! | `Ok(Json(json!({ "status": "ok" })))` | `Ok(ApiResponse::ok())` |
+//! | `Ok(Json(json!({ "status": "ok" })))` | `Ok(StatusCode::NO_CONTENT)` (drop the empty body) |
 //!
 //! `ApiResponse<T>` implements `IntoResponse` so it can be returned
 //! directly from handler functions.
@@ -66,18 +66,6 @@ impl<T: Serialize> ApiResponse<Vec<T>> {
             pagination: Some(PageMeta {
                 next_cursor: page.next_cursor,
             }),
-            meta: None,
-        })
-    }
-}
-
-impl ApiResponse<serde_json::Value> {
-    /// Convenience for `{ "data": { "status": "ok" } }` — used by
-    /// handlers that previously returned bare `Json(json!({"status":"ok"}))`.
-    pub fn ok() -> Json<Self> {
-        Json(Self {
-            data: serde_json::json!({ "status": "ok" }),
-            pagination: None,
             meta: None,
         })
     }

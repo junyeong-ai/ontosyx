@@ -2417,10 +2417,12 @@ impl PromptTemplateStore for PostgresStore {
 
     async fn get_active_prompt(&self, name: &str) -> OxResult<Option<PromptTemplateRow>> {
         // Active global template (workspace_id IS NULL).
+        // Order by created_at since `version` is a free-form String and a
+        // lexicographic sort would mis-order `"v10"` before `"v9"`.
         sqlx::query_as(
             "SELECT * FROM prompt_templates
              WHERE name = $1 AND is_active = true AND workspace_id IS NULL
-             ORDER BY version DESC LIMIT 1",
+             ORDER BY created_at DESC LIMIT 1",
         )
         .bind(name)
         .fetch_optional(&self.pool)
@@ -2435,15 +2437,28 @@ impl PromptTemplateStore for PostgresStore {
         name: &str,
         workspace_id: Option<Uuid>,
     ) -> OxResult<Option<PromptTemplateRow>> {
-        // Single query: prefer ws-specific override (workspace_id = $2),
-        // fall back to global (workspace_id IS NULL). The ORDER BY puts
-        // ws-specific first when both exist.
+        // Visibility rule:
+        //   - workspace_id = Some(ws): see ws-specific override (workspace_id = ws)
+        //                              or the global template (workspace_id IS NULL)
+        //   - workspace_id = None:     see ONLY the global template
+        //
+        // This prevents the previous bug where `$2 IS NULL` widened the
+        // WHERE clause to match every workspace's overrides indiscriminately.
+        //
+        // Tie-breaker (when both ws-specific and global match):
+        //   1. ws-specific first (`workspace_id IS NULL` = FALSE sorts first)
+        //   2. most recently created (deterministic; `version` is a free-form
+        //      string and ordering it lexicographically is unsafe — `"v10"`
+        //      sorts before `"v9"`. Operators should bump `created_at` by
+        //      reseeding to promote a newer version.)
         sqlx::query_as(
             "SELECT * FROM prompt_templates
              WHERE name = $1
                AND is_active = true
-               AND ($2::uuid IS NULL OR workspace_id IS NULL OR workspace_id = $2)
-             ORDER BY (workspace_id IS NULL), version DESC
+               AND (workspace_id IS NULL
+                    OR ($2::uuid IS NOT NULL AND workspace_id = $2))
+             ORDER BY (workspace_id IS NULL),
+                      created_at DESC
              LIMIT 1",
         )
         .bind(name)
@@ -3000,7 +3015,7 @@ impl crate::store::ApiKeyStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
-    async fn revoke_api_key(&self, id: Uuid) -> OxResult<bool> {
+    async fn update_api_key_revoked(&self, id: Uuid) -> OxResult<bool> {
         let res = sqlx::query("UPDATE api_keys SET revoked_at = NOW() WHERE id = $1 AND revoked_at IS NULL")
             .bind(id)
             .execute(&self.pool)

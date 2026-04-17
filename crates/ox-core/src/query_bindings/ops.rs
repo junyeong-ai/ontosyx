@@ -158,12 +158,21 @@ impl ResolverCtx<'_> {
             }
 
             QueryOp::CallSubquery { inner, .. } => {
+                // Sub-queries get isolated scope. Bump `exists_depth`
+                // before pushing the segment so nested CallSubquery /
+                // EXISTS / Subquery layers stack as
+                //   { depth: 1 } / { depth: 2 } / …
+                // instead of all collapsing onto `depth: 1` (the prior
+                // bug where the counter was only incremented inside
+                // `Expr::Exists`).
                 let snapshot = self.snapshot_vars();
+                self.exists_depth += 1;
                 self.scope_path.push(ScopeSegment::ExistsSubquery {
-                    depth: self.exists_depth + 1,
+                    depth: self.exists_depth,
                 });
                 self.resolve_op(&inner.operation);
                 self.scope_path.pop();
+                self.exists_depth -= 1;
                 self.restore_vars(snapshot);
             }
 

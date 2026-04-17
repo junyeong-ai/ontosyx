@@ -509,10 +509,19 @@ async fn main() -> anyhow::Result<()> {
                         break;
                     }
                     _ = interval.tick() => {
+                        // Aggregate per-task counts so a single audit row
+                        // captures the whole maintenance cycle. Per-workspace
+                        // attribution would require each store method to
+                        // return Vec<(workspace_id, count)>; for now the
+                        // event is logged at the system level (affected_ws
+                        // = None means "applies to multiple workspaces").
+                        let mut totals: Vec<(&str, u64)> = Vec::new();
+
                         ox_store::SYSTEM_BYPASS.scope(true, async {
                             if let Some(ref mem) = maintenance_memory {
                                 match mem.cleanup_stale(memory_days).await {
                                     Ok(n) if n > 0 => {
+                                        totals.push(("memory_entries", n));
                                         tracing::info!(count = n, days = memory_days, "Cleaned stale memory entries")
                                     }
                                     Err(e) => tracing::warn!(error = %e, "Memory cleanup failed"),
@@ -521,6 +530,7 @@ async fn main() -> anyhow::Result<()> {
                             }
                             match maintenance_store.cleanup_old_sessions(session_days).await {
                                 Ok(n) if n > 0 => {
+                                    totals.push(("agent_sessions", n));
                                     tracing::info!(count = n, days = session_days, "Cleaned old agent sessions")
                                 }
                                 Err(e) => tracing::warn!(error = %e, "Session cleanup failed"),
@@ -528,6 +538,7 @@ async fn main() -> anyhow::Result<()> {
                             }
                             match maintenance_store.archive_stale_projects(wip_archive_days).await {
                                 Ok(n) if n > 0 => {
+                                    totals.push(("archived_projects", n));
                                     tracing::info!(count = n, days = wip_archive_days, "Archived stale WIP projects")
                                 }
                                 Err(e) => tracing::warn!(error = %e, "WIP project archival failed"),
@@ -535,26 +546,51 @@ async fn main() -> anyhow::Result<()> {
                             }
                             match maintenance_store.delete_archived_projects(wip_delete_days).await {
                                 Ok(n) if n > 0 => {
+                                    totals.push(("deleted_projects", n));
                                     tracing::info!(count = n, days = wip_delete_days, "Deleted archived projects")
                                 }
                                 Err(e) => tracing::warn!(error = %e, "Archived project deletion failed"),
                                 _ => {}
                             }
-                            // Evict stale analysis results (same retention as sessions)
                             match maintenance_store.cleanup_old_results(session_days).await {
                                 Ok(n) if n > 0 => {
+                                    totals.push(("analysis_results", n));
                                     tracing::info!(count = n, days = session_days, "Cleaned old analysis results")
                                 }
                                 Err(e) => tracing::warn!(error = %e, "Analysis result cleanup failed"),
                                 _ => {}
                             }
-                            // Expire pending approvals past their deadline
                             match maintenance_store.expire_old_approvals().await {
                                 Ok(n) if n > 0 => {
+                                    totals.push(("expired_approvals", n));
                                     tracing::info!(count = n, "Expired old pending approvals")
                                 }
                                 Err(e) => tracing::warn!(error = %e, "Approval expiry failed"),
                                 _ => {}
+                            }
+
+                            // Persist a single audit event for the run. This
+                            // makes `record_audit_for_workspace` live and
+                            // gives operators visibility into when system
+                            // maintenance touched data.
+                            if !totals.is_empty() {
+                                let summary: serde_json::Value = totals
+                                    .iter()
+                                    .map(|(k, v)| (k.to_string(), serde_json::json!(v)))
+                                    .collect();
+                                if let Err(e) = maintenance_store
+                                    .record_audit_for_workspace(
+                                        None,
+                                        None,
+                                        "system_maintenance",
+                                        "scheduled_task",
+                                        None,
+                                        summary,
+                                    )
+                                    .await
+                                {
+                                    tracing::warn!(error = %e, "Failed to record maintenance audit");
+                                }
                             }
                         }).await;
 

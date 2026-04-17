@@ -71,12 +71,17 @@ impl ResolverCtx<'_> {
             }
             Expr::Literal { .. } => {}
             Expr::Subquery { query, .. } => {
+                // Mirror `Expr::Exists` and `QueryOp::CallSubquery`:
+                // bump `exists_depth` so nested subqueries get
+                // distinct scope-path segments.
                 let snapshot = self.snapshot_vars();
+                self.exists_depth += 1;
                 self.scope_path.push(ScopeSegment::ExistsSubquery {
-                    depth: self.exists_depth + 1,
+                    depth: self.exists_depth,
                 });
                 self.resolve_op(&query.operation);
                 self.scope_path.pop();
+                self.exists_depth -= 1;
                 self.restore_vars(snapshot);
             }
         }

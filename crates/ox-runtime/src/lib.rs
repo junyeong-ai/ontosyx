@@ -8,6 +8,7 @@
     )
 )]
 
+mod bolt;
 pub mod enrichment;
 pub mod isolation;
 pub mod memgraph;
@@ -121,8 +122,36 @@ pub trait GraphRuntime: Send + Sync {
         Ok(result)
     }
 
-    /// Execute a batch load with validated records
-    async fn execute_load(&self, query: &str, batch: LoadBatch) -> OxResult<LoadResult>;
+    /// Backend-specific raw bulk load. Receives the post-`pre_execute`
+    /// query (with isolation predicates already injected) and the
+    /// scope parameter map (e.g. `$_ws_id`) that must be bound to every
+    /// per-record query.
+    ///
+    /// Backends should override this. Callers should invoke
+    /// [`execute_load`](Self::execute_load) instead, which runs the full
+    /// pre → exec pipeline so workspace isolation cannot be bypassed.
+    async fn execute_load_raw(
+        &self,
+        query: &str,
+        scope_params: &HashMap<String, PropertyValue>,
+        batch: LoadBatch,
+    ) -> OxResult<LoadResult>;
+
+    /// Execute a batch load through the workspace-isolation pipeline.
+    ///
+    /// Default impl: `pre_execute` rewrites the query and produces the
+    /// scope parameter map, then `execute_load_raw` does the work. A
+    /// new backend that implements only `execute_load_raw` automatically
+    /// gets workspace isolation — this is what closes the previous
+    /// "forgot to call scope_query" risk.
+    ///
+    /// Backends MUST NOT override this; override `execute_load_raw`
+    /// (and optionally `pre_execute`) instead.
+    async fn execute_load(&self, query: &str, batch: LoadBatch) -> OxResult<LoadResult> {
+        let (scoped_query, scope_params) = self.pre_execute(query, &HashMap::new());
+        self.execute_load_raw(&scoped_query, &scope_params, batch)
+            .await
+    }
 
     /// Create an isolated sandbox namespace for test data
     async fn create_sandbox(&self, name: &str) -> OxResult<SandboxHandle>;
@@ -252,4 +281,76 @@ pub struct LoadError {
 pub struct SandboxHandle {
     pub name: String,
     pub database: String,
+}
+
+#[cfg(test)]
+mod load_batch_tests {
+    use super::*;
+    use ox_core::error::OxError;
+    use serde_json::json;
+
+    #[test]
+    fn from_values_accepts_objects() {
+        let values = vec![
+            json!({"name": "Alice", "age": 30}),
+            json!({"name": "Bob", "age": 25}),
+        ];
+        let batch = LoadBatch::from_values(values).expect("valid objects should be accepted");
+        assert_eq!(batch.len(), 2);
+        assert!(!batch.is_empty());
+
+        let records = batch.records();
+        assert_eq!(records[0].get("name").unwrap(), "Alice");
+        assert_eq!(records[1].get("name").unwrap(), "Bob");
+    }
+
+    #[test]
+    fn from_values_rejects_non_objects() {
+        for (value, kind) in [
+            (json!([1, 2, 3]), "array"),
+            (json!("just a string"), "string"),
+            (json!(null), "null"),
+            (json!(42), "number"),
+            (json!(true), "boolean"),
+        ] {
+            let err = LoadBatch::from_values(vec![value]).unwrap_err();
+            match err {
+                OxError::Validation { field, message } => {
+                    assert_eq!(field, "batch[0]");
+                    assert!(
+                        message.contains(kind),
+                        "message should mention '{kind}': {message}"
+                    );
+                }
+                other => panic!("Expected Validation error, got {other:?}"),
+            }
+        }
+
+        let values = vec![json!({"valid": true}), json!("invalid")];
+        let err = LoadBatch::from_values(values).unwrap_err();
+        match err {
+            OxError::Validation { field, .. } => {
+                assert_eq!(field, "batch[1]");
+            }
+            other => panic!("Expected Validation error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn empty_vec_is_ok() {
+        let batch = LoadBatch::from_values(vec![]).expect("empty vec should be valid");
+        assert!(batch.is_empty());
+        assert_eq!(batch.len(), 0);
+        assert!(batch.records().is_empty());
+    }
+
+    #[test]
+    fn into_records_yields_inserted() {
+        let values = vec![json!({"x": 1}), json!({"y": 2})];
+        let batch = LoadBatch::from_values(values).unwrap();
+        let records = batch.into_records();
+        assert_eq!(records.len(), 2);
+        assert_eq!(records[0].get("x").unwrap(), 1);
+        assert_eq!(records[1].get("y").unwrap(), 2);
+    }
 }

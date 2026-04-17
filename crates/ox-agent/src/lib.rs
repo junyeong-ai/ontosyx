@@ -281,7 +281,14 @@ pub async fn system_prompt_text(domain: &DomainContext, user_role: &str) -> Stri
 /// Loads the base prompt from DB (prompt_templates, name="agent_system").
 /// Appends role and ontology context (deterministic, cacheable).
 async fn build_system_prompt(domain: &DomainContext, user_role: &str) -> String {
-    let base = match domain.store.get_active_prompt("agent_system").await {
+    // Workspace-scoped lookup: prefer this workspace's override, fall
+    // back to the global template. A workspace admin can override the
+    // base agent_system prompt without affecting other tenants.
+    let lookup = domain
+        .store
+        .get_active_prompt_for_workspace("agent_system", Some(domain.workspace_id))
+        .await;
+    let base = match lookup {
         Ok(Some(row)) => row.content,
         Ok(None) => {
             tracing::error!("agent_system prompt missing from DB — using minimal fallback");

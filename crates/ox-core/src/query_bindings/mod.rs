@@ -591,4 +591,69 @@ mod tests {
         );
         assert_eq!(bindings.edge_bindings[0].edge_id, "e1");
     }
+
+    /// Nested EXISTS regression test: a CallSubquery containing an EXISTS
+    /// must produce two distinct depths (1 and 2). The pre-fix bug
+    /// collapsed both onto `depth: 1` because CallSubquery did not bump
+    /// `exists_depth`.
+    #[test]
+    fn nested_subquery_scope_paths_have_distinct_depths() {
+        let ontology = test_ontology();
+        let inner = QueryIR {
+            operation: QueryOp::Match {
+                patterns: vec![GraphPattern::Node {
+                    variable: "p2".into(),
+                    label: Some("Person".into()),
+                    property_filters: vec![],
+                }],
+                filter: Some(Expr::Exists {
+                    pattern: Box::new(GraphPattern::Relationship {
+                        variable: Some("r".into()),
+                        label: Some("WORKS_AT".into()),
+                        source: "p2".into(),
+                        target: "c".into(),
+                        direction: Direction::Outgoing,
+                        property_filters: vec![],
+                        var_length: None,
+                    }),
+                }),
+                projections: vec![],
+                optional: false,
+                group_by: vec![],
+            },
+            limit: None,
+            skip: None,
+            order_by: vec![],
+        };
+        let outer = QueryIR {
+            operation: QueryOp::CallSubquery {
+                inner: Box::new(inner),
+                import_variables: vec![],
+            },
+            limit: None,
+            skip: None,
+            order_by: vec![],
+        };
+
+        let bindings = resolve_query_bindings(&outer, &ontology);
+
+        // p2 is bound inside the CallSubquery (depth 1).
+        let p2_bind = bindings
+            .node_bindings
+            .iter()
+            .find(|b| b.variable == "p2")
+            .unwrap();
+        assert!(p2_bind.scope_path.contains(&ScopeSegment::ExistsSubquery { depth: 1 }));
+
+        // The relationship is inside the EXISTS *inside* the CallSubquery.
+        // Its scope path must include depth 2 — proving the counter bumped.
+        assert_eq!(bindings.edge_bindings.len(), 1);
+        let edge = &bindings.edge_bindings[0];
+        assert!(
+            edge.scope_path
+                .contains(&ScopeSegment::ExistsSubquery { depth: 2 }),
+            "expected depth: 2 inside nested EXISTS, got {:?}",
+            edge.scope_path
+        );
+    }
 }

@@ -4,6 +4,7 @@ use std::sync::Arc;
 use axum::{
     Json,
     extract::{Path, Query, State},
+    http::StatusCode,
 };
 use serde::{Deserialize, Serialize};
 use tracing::{error, info};
@@ -310,7 +311,7 @@ pub async fn set_feedback(
     principal: Principal,
     Path(id): Path<Uuid>,
     Json(req): Json<QueryFeedbackRequest>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+) -> Result<StatusCode, AppError> {
     if let Some(ref fb) = req.feedback
         && !VALID_FEEDBACK.contains(&fb.as_str())
     {
@@ -329,7 +330,7 @@ pub async fn set_feedback(
         return Err(AppError::execution_not_found());
     }
 
-    Ok(ApiResponse::ok())
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // ---------------------------------------------------------------------------

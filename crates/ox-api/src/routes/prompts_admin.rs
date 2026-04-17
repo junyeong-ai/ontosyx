@@ -1,5 +1,6 @@
 use axum::Json;
 use axum::extract::{Path, State};
+use axum::http::StatusCode;
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -117,7 +118,7 @@ pub(crate) async fn update_prompt_template(
     principal: Principal,
     Path(id): Path<Uuid>,
     Json(req): Json<PromptUpdateRequest>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+) -> Result<StatusCode, AppError> {
     principal.require_admin()?;
 
     let existing = state
@@ -149,7 +150,7 @@ pub(crate) async fn update_prompt_template(
             .map_err(AppError::from)?;
     }
 
-    Ok(ApiResponse::ok())
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // ---------------------------------------------------------------------------
@@ -160,7 +161,7 @@ pub(crate) async fn delete_prompt_template(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+) -> Result<StatusCode, AppError> {
     principal.require_admin()?;
 
     // Verify the template exists
@@ -177,5 +178,5 @@ pub(crate) async fn delete_prompt_template(
         .await
         .map_err(AppError::from)?;
 
-    Ok(ApiResponse::ok())
+    Ok(StatusCode::NO_CONTENT)
 }

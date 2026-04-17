@@ -11,24 +11,29 @@ use ox_core::graph_exploration::{GraphSchemaOverview, NodeExpansion, SearchResul
 use ox_core::query_ir::{QueryMetadata, QueryResult};
 use ox_core::types::PropertyValue;
 
-use crate::isolation::GraphIsolationStrategy;
-use crate::{
-    GRAPH_SYSTEM_BYPASS, GRAPH_WORKSPACE_ID, GraphRuntime, LoadBatch, LoadResult, SandboxHandle,
-    TransienceDetector,
+use crate::bolt::{
+    LoadContext, RetryConfig, bind_params, json_to_property_value, run_batched_load,
+    scope_with_task_locals, truncate_query, validate_identifier, with_retry,
 };
+use crate::isolation::GraphIsolationStrategy;
+use crate::{GraphRuntime, LoadBatch, LoadResult, SandboxHandle, TransienceDetector};
 
-use super::helpers::{bind_params, json_to_property_value, truncate_query, validate_identifier};
-use super::retry::{RetryConfig, with_retry};
 use super::transience::Neo4jTransienceDetector;
 
-/// Neo4jRuntime — executes compiled Cypher against Neo4j via Bolt protocol.
+const BACKEND_LABEL: &str = "Neo4j";
+
+/// Neo4jRuntime — executes compiled Cypher against Neo4j via the Bolt protocol.
+///
+/// Backend-specific behavior lives here; everything generic (parameter
+/// binding, retry, batched loads, isolation rewriting) is delegated to
+/// [`crate::bolt`] so the same code is reused by [`crate::memgraph`].
 pub struct Neo4jRuntime {
     graph: Graph,
     load_concurrency: usize,
     retry: RetryConfig,
     detector: Arc<dyn TransienceDetector>,
     /// Workspace isolation strategy. When set, all queries are automatically
-    /// scoped by the current workspace (read from GRAPH_WORKSPACE_ID task-local).
+    /// scoped by the current workspace (read from `GRAPH_WORKSPACE_ID`).
     isolation: Option<Box<dyn GraphIsolationStrategy>>,
 }
 
@@ -52,7 +57,6 @@ impl Neo4jRuntime {
         if let Some(db) = database {
             builder = builder.db(db);
         }
-
         if let Some(max_conn) = max_connections {
             builder = builder.max_connections(max_conn as usize);
         }
@@ -60,7 +64,6 @@ impl Neo4jRuntime {
         let config = builder.build().map_err(|e| OxError::Runtime {
             message: format!("Neo4j config error: {e}"),
         })?;
-
         let graph = Graph::connect(config).await.map_err(|e| OxError::Runtime {
             message: format!("Neo4j connection error: {e}"),
         })?;
@@ -80,8 +83,6 @@ impl Neo4jRuntime {
     }
 
     /// Set the workspace isolation strategy.
-    /// When set, all queries are automatically scoped to the current workspace
-    /// via the GRAPH_WORKSPACE_ID task-local.
     pub fn with_isolation(mut self, strategy: Box<dyn GraphIsolationStrategy>) -> Self {
         info!(
             strategy = strategy.name(),
@@ -91,48 +92,12 @@ impl Neo4jRuntime {
         self
     }
 
-    /// Bridge for `load.rs`, which still needs to scope the load query
-    /// outside the trait pipeline (the trait hooks fire on `execute_query`,
-    /// not bulk loads).
-    pub(super) fn scope_query(
-        &self,
-        cypher: &str,
-        params: &HashMap<String, PropertyValue>,
-    ) -> (String, HashMap<String, PropertyValue>) {
-        self.pre_execute(cypher, params)
-    }
-
-    // -- Internal accessors used by the load/ and search/ submodules --
-
-    pub(super) fn graph_clone(&self) -> Graph {
-        self.graph.clone()
-    }
-
-    pub(super) fn load_concurrency(&self) -> usize {
-        self.load_concurrency
-    }
-
-    pub(super) fn retry_max_retries(&self) -> u32 {
-        self.retry.max_retries
-    }
-
-    pub(super) fn retry_initial_delay(&self) -> Duration {
-        self.retry.initial_delay
-    }
-
-    pub(super) fn retry_max_delay(&self) -> Duration {
-        self.retry.max_delay
-    }
-
-    pub(super) fn detector_arc(&self) -> Arc<dyn TransienceDetector> {
-        Arc::clone(&self.detector)
-    }
 }
 
 #[async_trait]
 impl GraphRuntime for Neo4jRuntime {
     fn runtime_name(&self) -> &str {
-        "Neo4j"
+        BACKEND_LABEL
     }
 
     async fn execute_schema(&self, statements: &[String]) -> OxResult<()> {
@@ -162,26 +127,7 @@ impl GraphRuntime for Neo4jRuntime {
         cypher: &str,
         params: &HashMap<String, PropertyValue>,
     ) -> (String, HashMap<String, PropertyValue>) {
-        let strategy = match &self.isolation {
-            Some(s) => s,
-            None => return (cypher.to_string(), params.clone()),
-        };
-
-        if GRAPH_SYSTEM_BYPASS.try_with(|b| *b).unwrap_or(false) {
-            return (cypher.to_string(), params.clone());
-        }
-
-        match GRAPH_WORKSPACE_ID.try_with(|id| id.to_string()) {
-            Ok(ws_id) => {
-                let scoped = strategy.scope(cypher, &ws_id);
-                let mut merged = params.clone();
-                for (key, value) in scoped.params {
-                    merged.insert(key.to_string(), PropertyValue::String(value));
-                }
-                (scoped.query, merged)
-            }
-            Err(_) => (cypher.to_string(), params.clone()),
-        }
+        scope_with_task_locals(self.isolation.as_deref(), cypher, params)
     }
 
     async fn execute_query_raw(
@@ -191,7 +137,7 @@ impl GraphRuntime for Neo4jRuntime {
     ) -> OxResult<QueryResult> {
         let start = std::time::Instant::now();
 
-        let mut result = with_retry(&self.retry, self.detector.as_ref(), || {
+        let mut result = with_retry(&self.retry, self.detector.as_ref(), BACKEND_LABEL, || {
             let q = bind_params(query(cypher), params);
             self.graph.execute(q)
         })
@@ -241,8 +187,23 @@ impl GraphRuntime for Neo4jRuntime {
         })
     }
 
-    async fn execute_load(&self, cypher: &str, batch: LoadBatch) -> OxResult<LoadResult> {
-        self.execute_load_impl(cypher, batch).await
+    async fn execute_load_raw(
+        &self,
+        cypher: &str,
+        scope_params: &HashMap<String, PropertyValue>,
+        batch: LoadBatch,
+    ) -> OxResult<LoadResult> {
+        let scoped_params = crate::bolt::load::isolation_params_from(scope_params);
+        let ctx = LoadContext {
+            graph: self.graph.clone(),
+            cypher: cypher.to_string(),
+            scoped_params,
+            max_concurrent: self.load_concurrency,
+            retry: self.retry,
+            detector: Arc::clone(&self.detector),
+            backend_label: BACKEND_LABEL,
+        };
+        run_batched_load(ctx, batch).await
     }
 
     async fn create_sandbox(&self, name: &str) -> OxResult<SandboxHandle> {

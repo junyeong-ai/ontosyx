@@ -20,6 +20,11 @@ use crate::state::AppState;
 /// Maximum time the client has to send the auth frame after the WS upgrade.
 const AUTH_TIMEOUT: Duration = Duration::from_secs(5);
 
+/// Hard upper bound on the auth frame size. A real auth payload is well
+/// under 4 KiB; anything larger is almost certainly an attacker trying to
+/// pin memory or stall serde_json. Reject before parsing.
+const AUTH_FRAME_MAX_BYTES: usize = 4 * 1024;
+
 /// WebSocket collaboration endpoint.
 ///
 /// Authentication: first-message protocol. The client must send
@@ -62,6 +67,13 @@ async fn authenticate_socket(
         Err(_) => return Err("auth timeout"),
     };
 
+    // Cap the size *before* feeding to serde_json so a 1 GiB junk
+    // payload cannot pin memory in the parser. JWTs are <2 KiB; the
+    // frame envelope is a handful of extra bytes.
+    if first.len() > AUTH_FRAME_MAX_BYTES {
+        return Err("auth frame too large");
+    }
+
     let frame: AuthFrame =
         serde_json::from_str(&first).map_err(|_| "auth frame must be valid JSON")?;
     if frame.msg_type != "auth" {
@@ -75,7 +87,14 @@ async fn handle_ws(mut socket: WebSocket, state: AppState) {
     let claims = match authenticate_socket(&state, &mut socket).await {
         Ok(c) => c,
         Err(reason) => {
-            warn!(reason, "WebSocket auth failed; closing");
+            // Mis-configuration is operationally fatal — emit `error!`
+            // so it surfaces in alerting; ordinary auth failures stay
+            // at `warn!` so they don't drown out signal.
+            if reason == "JWT not configured" {
+                tracing::error!("WebSocket auth rejected: JWT secret not configured");
+            } else {
+                warn!(reason, "WebSocket auth failed; closing");
+            }
             let _ = socket
                 .send(Message::Close(Some(CloseFrame {
                     code: close_code::POLICY,

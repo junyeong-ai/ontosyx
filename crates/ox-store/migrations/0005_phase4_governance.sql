@@ -7,6 +7,18 @@ CREATE INDEX IF NOT EXISTS idx_audit_affected_ws
     ON audit_log (affected_workspace_id)
     WHERE affected_workspace_id IS NOT NULL;
 
+-- Extend the audit_log RLS policy so workspace admins can also see rows
+-- where their workspace was *affected* by a system task — not just rows
+-- whose `workspace_id` is theirs. Without this, the new column is
+-- write-only from the workspace's point of view.
+DROP POLICY IF EXISTS ws_isolation ON audit_log;
+CREATE POLICY ws_isolation ON audit_log
+    USING (
+        workspace_id = current_setting('app.workspace_id', true)::uuid
+        OR affected_workspace_id = current_setting('app.workspace_id', true)::uuid
+    )
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true)::uuid);
+
 -- 4.8 Prompt templates: per-workspace override.
 ALTER TABLE prompt_templates ADD COLUMN IF NOT EXISTS workspace_id UUID;
 -- Unique: (name, version, workspace_id) — allows workspace-specific overrides
@@ -32,11 +44,17 @@ CREATE TABLE IF NOT EXISTS api_keys (
 );
 CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys (key_hash);
 
--- RLS for api_keys (workspace-scoped keys obey isolation; global keys bypass)
+-- RLS for api_keys.
+--
+-- Workspace-scoped keys obey isolation; global keys (workspace_id IS NULL)
+-- are reserved for platform-admin operations and are *not* visible to a
+-- normal workspace session. The auth middleware does its hash lookup
+-- under SYSTEM_BYPASS so login still works for global keys; the
+-- restriction here only governs admin UI listings.
 ALTER TABLE api_keys ENABLE ROW LEVEL SECURITY;
 ALTER TABLE api_keys FORCE ROW LEVEL SECURITY;
 CREATE POLICY ws_isolation ON api_keys
-    USING (workspace_id IS NULL OR workspace_id = current_setting('app.workspace_id', true)::uuid)
-    WITH CHECK (workspace_id IS NULL OR workspace_id = current_setting('app.workspace_id', true)::uuid);
+    USING (workspace_id = current_setting('app.workspace_id', true)::uuid)
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true)::uuid);
 CREATE POLICY system_bypass ON api_keys
     USING (current_setting('app.system_bypass', true) = 'true');

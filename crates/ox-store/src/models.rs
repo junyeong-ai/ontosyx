@@ -493,7 +493,10 @@ pub struct ToolApproval {
 pub struct ApiKey {
     pub id: Uuid,
     pub label: String,
-    /// SHA-256 hash of the plaintext key.
+    /// SHA-256 hash of the plaintext key. Excluded from serialization
+    /// so this struct can be safely returned through HTTP/JSON without
+    /// leaking the offline-attackable hash.
+    #[serde(skip_serializing)]
     pub key_hash: Vec<u8>,
     pub created_by: String,
     pub workspace_id: Option<Uuid>,
