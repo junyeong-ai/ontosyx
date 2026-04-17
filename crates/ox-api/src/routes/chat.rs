@@ -73,7 +73,7 @@ fn validate_chat_stream_request(req: &ChatStreamRequest) -> Result<(), AppError>
     tag = "Chat",
 )]
 #[tracing::instrument(skip(state, principal, req), fields(session_id))]
-pub async fn chat_stream(
+pub(crate) async fn chat_stream(
     State(state): State<AppState>,
     principal: Principal,
     ws: crate::workspace::WorkspaceContext,
@@ -155,6 +155,7 @@ pub async fn chat_stream(
         memory: state.memory.clone(),
         session_id: requested_session_id.clone(),
         user_role: principal.role.as_str().to_string(),
+        recovery: state.recovery_hook_config(),
     })
     .await
     .map_err(|e| AppError::internal(format!("Agent initialization failed: {e}")))?;

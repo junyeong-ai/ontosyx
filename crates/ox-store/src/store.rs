@@ -215,11 +215,11 @@ pub trait ProjectStore: Send + Sync {
     async fn delete_design_project(&self, id: Uuid) -> OxResult<bool>;
 
     /// Archive WIP projects that haven't been updated within `max_age_days`.
-    /// Returns the number of projects archived.
+    /// Returns the total row count. (Per-workspace attribution is tracked
+    /// separately as a follow-up — see `docs/NEXT_SESSION_PLAN.md`.)
     async fn archive_stale_projects(&self, max_age_days: i64) -> OxResult<u64>;
 
     /// Permanently delete projects that have been archived for longer than `max_archive_days`.
-    /// Returns the number of projects deleted.
     async fn delete_archived_projects(&self, max_archive_days: i64) -> OxResult<u64>;
 
     // --- Ontology Snapshots ---
@@ -452,7 +452,7 @@ pub trait PromptTemplateStore: Send + Sync {
     ) -> OxResult<()>;
     async fn delete_prompt_template(&self, id: Uuid) -> OxResult<bool>;
     /// Deactivate all versions of a prompt with the given name except `exclude_id`.
-    async fn deactivate_other_versions(&self, name: &str, exclude_id: Uuid) -> OxResult<()>;
+    async fn update_prompt_template_active_only(&self, name: &str, exclude_id: Uuid) -> OxResult<()>;
 }
 
 // ---------------------------------------------------------------------------

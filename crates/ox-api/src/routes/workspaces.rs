@@ -134,7 +134,7 @@ async fn resolve_user_id(principal: &Principal, state: &AppState) -> Result<Uuid
 }
 
 /// POST /workspaces — create a new workspace.
-pub async fn create_workspace(
+pub(crate) async fn create_workspace(
     State(state): State<AppState>,
     principal: Principal,
     Json(req): Json<CreateWorkspaceRequest>,
@@ -189,7 +189,7 @@ pub async fn create_workspace(
 }
 
 /// GET /workspaces — list workspaces the current user belongs to.
-pub async fn list_workspaces(
+pub(crate) async fn list_workspaces(
     State(state): State<AppState>,
     principal: Principal,
 ) -> Result<Json<ApiResponse<Vec<WorkspaceSummaryResponse>>>, AppError> {
@@ -207,7 +207,7 @@ pub async fn list_workspaces(
 }
 
 /// GET /workspaces/:id — get workspace details.
-pub async fn get_workspace(
+pub(crate) async fn get_workspace(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ApiResponse<WorkspaceResponse>>, AppError> {
@@ -222,7 +222,7 @@ pub async fn get_workspace(
 }
 
 /// PATCH /workspaces/:id — update workspace name/settings.
-pub async fn update_workspace(
+pub(crate) async fn update_workspace(
     State(state): State<AppState>,
     ws_ctx: WorkspaceContext,
     Path(id): Path<Uuid>,
@@ -253,7 +253,7 @@ pub async fn update_workspace(
 }
 
 /// DELETE /workspaces/:id — delete a workspace (owner only).
-pub async fn delete_workspace(
+pub(crate) async fn delete_workspace(
     State(state): State<AppState>,
     ws_ctx: WorkspaceContext,
     Path(id): Path<Uuid>,
@@ -291,7 +291,7 @@ pub async fn delete_workspace(
 // ---------------------------------------------------------------------------
 
 /// POST /workspaces/:id/members — add a member.
-pub async fn add_member(
+pub(crate) async fn add_member(
     State(state): State<AppState>,
     ws_ctx: WorkspaceContext,
     Path(id): Path<Uuid>,
@@ -322,7 +322,7 @@ pub async fn add_member(
 }
 
 /// DELETE /workspaces/:id/members/:uid — remove a member.
-pub async fn remove_member(
+pub(crate) async fn remove_member(
     State(state): State<AppState>,
     ws_ctx: WorkspaceContext,
     Path((id, uid)): Path<(Uuid, Uuid)>,
@@ -364,7 +364,7 @@ pub async fn remove_member(
 }
 
 /// PATCH /workspaces/:id/members/:uid — update member role.
-pub async fn update_member_role(
+pub(crate) async fn update_member_role(
     State(state): State<AppState>,
     ws_ctx: WorkspaceContext,
     Path((id, uid)): Path<(Uuid, Uuid)>,
@@ -414,7 +414,7 @@ pub async fn update_member_role(
 }
 
 /// GET /workspaces/:id/members — list workspace members.
-pub async fn list_members(
+pub(crate) async fn list_members(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ApiResponse<Vec<MemberResponse>>>, AppError> {

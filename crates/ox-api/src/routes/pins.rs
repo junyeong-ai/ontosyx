@@ -35,7 +35,7 @@ pub struct PinCreateRequest {
     ),
     tag = "Pins",
 )]
-pub async fn create_pin(
+pub(crate) async fn create_pin(
     State(state): State<AppState>,
     principal: Principal,
     Json(req): Json<PinCreateRequest>,
@@ -69,7 +69,7 @@ pub async fn create_pin(
     ),
     tag = "Pins",
 )]
-pub async fn list_pins(
+pub(crate) async fn list_pins(
     State(state): State<AppState>,
     principal: Principal,
     Query(params): Query<CursorParams>,
@@ -94,7 +94,7 @@ pub async fn list_pins(
     ),
     tag = "Pins",
 )]
-pub async fn delete_pin(
+pub(crate) async fn delete_pin(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,

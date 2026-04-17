@@ -15,7 +15,7 @@ use ox_store::{Store, ToolApproval};
 use crate::model_router::DbModelRouter;
 
 use crate::collaboration::CollaborationHub;
-use crate::config::{AuthConfig, TimeoutsConfig};
+use crate::config::{AuthConfig, DashboardsConfig, RecoveryConfig, TimeoutsConfig};
 use crate::middleware::RateLimiter;
 use crate::sso::OidcProviderRegistry;
 use crate::system_config::SystemConfig;
@@ -33,6 +33,11 @@ pub struct AppState {
     pub brain: Arc<dyn Brain>,
     pub compiler: Arc<dyn GraphCompiler>,
     pub runtime: Option<Arc<dyn GraphRuntime>>,
+    /// Optional read-only graph runtime used by the MCP `execute_cypher`
+    /// tool. When configured, MCP raw Cypher executes under credentials
+    /// that physically cannot mutate the graph (defense-in-depth on top
+    /// of the keyword heuristic in `mcp::forbidden_cypher_keyword`).
+    pub readonly_runtime: Option<Arc<dyn GraphRuntime>>,
     pub store: Arc<dyn Store>,
     pub timeouts: Timeouts,
     pub auth_config: AuthConfig,
@@ -52,6 +57,21 @@ pub struct AppState {
     /// Real-time collaboration hub (presence, cursors, locks)
     #[allow(dead_code)] // Awaiting WebSocket route integration
     pub collaboration: Arc<CollaborationHub>,
+    /// Dashboard share-token configuration (default + max expiry).
+    pub dashboards: DashboardsConfig,
+    /// Recovery-detection hook tuning.
+    pub recovery: RecoveryConfig,
+}
+
+impl AppState {
+    /// Pluck the recovery thresholds in the form the agent crate
+    /// expects, without making ox-agent depend on ox-api's `OxConfig`.
+    pub fn recovery_hook_config(&self) -> ox_agent::hooks::RecoveryHookConfig {
+        ox_agent::hooks::RecoveryHookConfig {
+            jaccard_threshold: self.recovery.jaccard_threshold,
+            session_window_minutes: self.recovery.session_window_minutes,
+        }
+    }
 }
 
 /// Pre-computed Duration values from config.

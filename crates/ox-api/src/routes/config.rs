@@ -30,7 +30,7 @@ pub struct ConfigEntry {
     security(("api_key" = [])),
     tag = "Config",
 )]
-pub async fn get_config(
+pub(crate) async fn get_config(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<BTreeMap<String, Vec<ConfigEntry>>>>, AppError> {
     let rows = state.store.get_all_config().await.map_err(AppError::from)?;
@@ -69,7 +69,7 @@ pub struct UiConfig {
     ),
     tag = "Config",
 )]
-pub async fn get_ui_config(
+pub(crate) async fn get_ui_config(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<UiConfig>>, AppError> {
     let config = state.system_config.read().await;
@@ -109,7 +109,7 @@ pub struct ConfigUpdateRequest {
     security(("api_key" = [])),
     tag = "Config",
 )]
-pub async fn update_config(
+pub(crate) async fn update_config(
     State(state): State<AppState>,
     principal: Principal,
     Json(req): Json<ConfigUpdateRequest>,

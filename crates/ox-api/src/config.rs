@@ -30,6 +30,10 @@ pub struct OxConfig {
     pub memory: MemoryConfig,
     #[serde(default = "default_cypher_config")]
     pub cypher: CypherConfig,
+    #[serde(default)]
+    pub dashboards: DashboardsConfig,
+    #[serde(default)]
+    pub recovery: RecoveryConfig,
 }
 
 fn default_cypher_config() -> CypherConfig {
@@ -115,6 +119,112 @@ pub struct McpConfig {
     /// Whether the MCP (Model Context Protocol) endpoint is enabled (default: true).
     /// When enabled, an MCP server is mounted at `/mcp` for AI agent tool access.
     pub enabled: bool,
+    /// Per-session sliding-window rate limit applied to MCP tool calls.
+    #[serde(default)]
+    pub rate_limit: McpRateLimitConfig,
+}
+
+/// Per-session rate-limit for MCP tool calls.
+///
+/// A sliding window of `window_seconds` seconds holds the timestamps of
+/// the last `max_calls` accepted calls; a call arriving once the budget
+/// is full is rejected with an `invalid_request` error.
+#[derive(Debug, Deserialize, Clone)]
+pub struct McpRateLimitConfig {
+    /// Sliding-window length in seconds (default: 60).
+    #[serde(default = "default_mcp_window_seconds")]
+    pub window_seconds: u64,
+    /// Maximum accepted calls per sliding window (default: 100).
+    #[serde(default = "default_mcp_max_calls")]
+    pub max_calls: u32,
+}
+
+impl Default for McpRateLimitConfig {
+    fn default() -> Self {
+        Self {
+            window_seconds: default_mcp_window_seconds(),
+            max_calls: default_mcp_max_calls(),
+        }
+    }
+}
+
+fn default_mcp_window_seconds() -> u64 {
+    60
+}
+fn default_mcp_max_calls() -> u32 {
+    100
+}
+
+/// Dashboard share-token defaults.
+///
+/// `share_expires_at` on a shared dashboard is computed from
+/// `default_share_expiry_days`, capped by `max_share_expiry_days`.
+#[derive(Debug, Deserialize, Clone)]
+pub struct DashboardsConfig {
+    /// Default days-until-expiry for freshly-minted share tokens
+    /// (default: 30).
+    #[serde(default = "default_dashboard_share_default_days")]
+    pub default_share_expiry_days: u32,
+    /// Hard upper bound on share-token lifetime (default: 365).
+    ///
+    /// Prevents the API from being used to mint effectively permanent
+    /// share links by accident.
+    #[serde(default = "default_dashboard_share_max_days")]
+    pub max_share_expiry_days: u32,
+}
+
+impl Default for DashboardsConfig {
+    fn default() -> Self {
+        Self {
+            default_share_expiry_days: default_dashboard_share_default_days(),
+            max_share_expiry_days: default_dashboard_share_max_days(),
+        }
+    }
+}
+
+fn default_dashboard_share_default_days() -> u32 {
+    30
+}
+fn default_dashboard_share_max_days() -> u32 {
+    365
+}
+
+/// Recovery-detection hook tuning.
+///
+/// `jaccard_threshold` controls when a failed + successful query pair
+/// is treated as a real recovery (based on schema overlap between the
+/// two queries). `session_window_minutes` controls how long per-session
+/// outcome tracking is kept before stale entries are evicted.
+#[derive(Debug, Deserialize, Clone)]
+pub struct RecoveryConfig {
+    /// Minimum Jaccard similarity between failed and successful query
+    /// label sets required to treat them as a recovery pair
+    /// (default: 0.5).
+    #[serde(default = "default_recovery_jaccard_threshold")]
+    pub jaccard_threshold: f64,
+    /// Per-session outcome-tracking window in minutes (default: 10).
+    ///
+    /// Entries older than this are purged during periodic cleanup so
+    /// the in-memory tracker cannot grow unbounded for long-running
+    /// agents.
+    #[serde(default = "default_recovery_session_window_minutes")]
+    pub session_window_minutes: i64,
+}
+
+impl Default for RecoveryConfig {
+    fn default() -> Self {
+        Self {
+            jaccard_threshold: default_recovery_jaccard_threshold(),
+            session_window_minutes: default_recovery_session_window_minutes(),
+        }
+    }
+}
+
+fn default_recovery_jaccard_threshold() -> f64 {
+    0.5
+}
+fn default_recovery_session_window_minutes() -> i64 {
+    10
 }
 
 /// Cypher compilation tuning.
@@ -306,6 +416,14 @@ pub struct GraphConfig {
     /// AWS region for cloud-native backends (Neptune). Ignored by Neo4j.
     /// If omitted, inferred from the endpoint URL.
     pub region: Option<String>,
+    /// Read-only DB user for MCP `execute_cypher`. When set together with
+    /// `readonly_password`, a second runtime connects with these
+    /// credentials and the MCP raw-Cypher tool routes through it so
+    /// even a bypass of the keyword heuristic cannot mutate data. When
+    /// unset, `execute_cypher` falls back to the primary runtime and
+    /// the server logs a startup warning.
+    pub readonly_user: Option<String>,
+    pub readonly_password: Option<String>,
 }
 
 fn default_isolation_strategy() -> String {
@@ -327,6 +445,11 @@ impl fmt::Debug for GraphConfig {
             .field("retry_max_delay_ms", &self.retry_max_delay_ms)
             .field("isolation_strategy", &self.isolation_strategy)
             .field("region", &self.region)
+            .field("readonly_user", &self.readonly_user)
+            .field(
+                "readonly_password",
+                &self.readonly_password.as_ref().map(|_| "[REDACTED]"),
+            )
             .finish()
     }
 }
@@ -413,6 +536,12 @@ impl OxConfig {
             .set_default("retention.wip_archive_days", 30_i64)?
             .set_default("retention.wip_delete_days", 90_i64)?
             .set_default("mcp.enabled", true)?
+            .set_default("mcp.rate_limit.window_seconds", 60_i64)?
+            .set_default("mcp.rate_limit.max_calls", 100_i64)?
+            .set_default("dashboards.default_share_expiry_days", 30_i64)?
+            .set_default("dashboards.max_share_expiry_days", 365_i64)?
+            .set_default("recovery.jaccard_threshold", 0.5)?
+            .set_default("recovery.session_window_minutes", 10_i64)?
             .set_default("otel.enabled", false)?
             .set_default("otel.endpoint", "http://localhost:4317")?
             .set_default("otel.service_name", "ontosyx")?
@@ -448,11 +577,15 @@ impl OxConfig {
             v.as_deref().map(str::trim).unwrap_or("").is_empty()
         }
 
-        if is_blank(&self.auth.jwt_secret) && is_blank(&self.auth.api_key) {
-            anyhow::bail!(
-                "auth.jwt_secret and auth.api_key are both unset — no authentication \
-                 entrypoint is available. Set at least one of OX_AUTH__JWT_SECRET or \
-                 OX_AUTH__API_KEY (or the corresponding fields in ontosyx.toml)."
+        // API-key authentication is now DB-only (`api_keys` table), so the
+        // only config knob that can gate the protected surface is
+        // `auth.jwt_secret`. A server with JWT disabled still accepts
+        // DB-backed API keys via the `X-API-Key` header; we just warn so
+        // the operator knows SSO login is off.
+        if is_blank(&self.auth.jwt_secret) {
+            tracing::warn!(
+                "auth.jwt_secret is unset — SSO/JWT login is disabled. The server will \
+                 still accept DB-backed API keys via the X-API-Key header."
             );
         }
 
@@ -493,5 +626,94 @@ impl OxConfig {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod config_section_tests {
+    use super::*;
+    use config::Config;
+
+    fn load_section<T: for<'de> Deserialize<'de>>(
+        section: &str,
+        env: &[(&str, &str)],
+    ) -> anyhow::Result<T> {
+        // Build an isolated Config with only the requested env-var subset
+        // active, so tests don't leak host-env state into one another.
+        let mut builder = Config::builder();
+        for (k, v) in env {
+            // SAFETY: tests run single-threaded (per test) and only mutate
+            // keys scoped with the OX_ prefix used by this crate.
+            unsafe { std::env::set_var(k, v) };
+        }
+        builder = builder.add_source(
+            Environment::with_prefix("OX")
+                .separator("__")
+                .try_parsing(true),
+        );
+        let cfg = builder.build()?;
+        // Look at the fully-merged tree under the section name.
+        let val: T = cfg.get(section)?;
+        for (k, _) in env {
+            unsafe { std::env::remove_var(k) };
+        }
+        Ok(val)
+    }
+
+    #[test]
+    fn dashboards_defaults_via_derive_default() {
+        let d = DashboardsConfig::default();
+        assert_eq!(d.default_share_expiry_days, 30);
+        assert_eq!(d.max_share_expiry_days, 365);
+    }
+
+    #[test]
+    fn recovery_defaults_via_derive_default() {
+        let r = RecoveryConfig::default();
+        assert!((r.jaccard_threshold - 0.5).abs() < f64::EPSILON);
+        assert_eq!(r.session_window_minutes, 10);
+    }
+
+    #[test]
+    fn mcp_rate_limit_defaults_via_derive_default() {
+        let m = McpRateLimitConfig::default();
+        assert_eq!(m.window_seconds, 60);
+        assert_eq!(m.max_calls, 100);
+    }
+
+    #[test]
+    fn dashboards_from_env_vars() {
+        let env = [
+            ("OX_DASHBOARDS__DEFAULT_SHARE_EXPIRY_DAYS", "7"),
+            ("OX_DASHBOARDS__MAX_SHARE_EXPIRY_DAYS", "90"),
+        ];
+        let d: DashboardsConfig =
+            load_section("dashboards", &env).expect("env-only dashboards config");
+        assert_eq!(d.default_share_expiry_days, 7);
+        assert_eq!(d.max_share_expiry_days, 90);
+    }
+
+    #[test]
+    fn recovery_from_env_vars() {
+        let env = [
+            ("OX_RECOVERY__JACCARD_THRESHOLD", "0.75"),
+            ("OX_RECOVERY__SESSION_WINDOW_MINUTES", "30"),
+        ];
+        let r: RecoveryConfig =
+            load_section("recovery", &env).expect("env-only recovery config");
+        assert!((r.jaccard_threshold - 0.75).abs() < f64::EPSILON);
+        assert_eq!(r.session_window_minutes, 30);
+    }
+
+    #[test]
+    fn mcp_rate_limit_from_env_vars() {
+        let env = [
+            ("OX_MCP__RATE_LIMIT__WINDOW_SECONDS", "45"),
+            ("OX_MCP__RATE_LIMIT__MAX_CALLS", "250"),
+        ];
+        let m: McpRateLimitConfig =
+            load_section("mcp.rate_limit", &env).expect("env-only mcp rate-limit config");
+        assert_eq!(m.window_seconds, 45);
+        assert_eq!(m.max_calls, 250);
     }
 }

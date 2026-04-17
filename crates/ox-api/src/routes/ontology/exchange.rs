@@ -25,7 +25,7 @@ use crate::response::ApiResponse;
     security(("api_key" = [])),
     tag = "Ontologies",
 )]
-pub async fn normalize_ontology(
+pub(crate) async fn normalize_ontology(
     Json(input): Json<OntologyInputIR>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let result = normalize(input).map_err(|errors| AppError::bad_request(errors.join("; ")))?;
@@ -49,7 +49,7 @@ pub async fn normalize_ontology(
     security(("api_key" = [])),
     tag = "Ontologies",
 )]
-pub async fn export_ontology(
+pub(crate) async fn export_ontology(
     Json(ontology): Json<OntologyIR>,
 ) -> Result<Json<ApiResponse<OntologyInputIR>>, AppError> {
     let exchange = to_exchange_format(&ontology, &SourceMapping::new());
@@ -70,7 +70,7 @@ pub async fn export_ontology(
     security(("api_key" = [])),
     tag = "Ontologies",
 )]
-pub async fn export_cypher(Json(ontology): Json<OntologyIR>) -> Result<String, AppError> {
+pub(crate) async fn export_cypher(Json(ontology): Json<OntologyIR>) -> Result<String, AppError> {
     Ok(export::generate_cypher_ddl(&ontology))
 }
 
@@ -84,7 +84,7 @@ pub async fn export_cypher(Json(ontology): Json<OntologyIR>) -> Result<String, A
     security(("api_key" = [])),
     tag = "Ontologies",
 )]
-pub async fn export_mermaid(Json(ontology): Json<OntologyIR>) -> Result<String, AppError> {
+pub(crate) async fn export_mermaid(Json(ontology): Json<OntologyIR>) -> Result<String, AppError> {
     Ok(export::generate_mermaid(&ontology))
 }
 
@@ -98,7 +98,7 @@ pub async fn export_mermaid(Json(ontology): Json<OntologyIR>) -> Result<String, 
     security(("api_key" = [])),
     tag = "Ontologies",
 )]
-pub async fn export_graphql(Json(ontology): Json<OntologyIR>) -> Result<String, AppError> {
+pub(crate) async fn export_graphql(Json(ontology): Json<OntologyIR>) -> Result<String, AppError> {
     Ok(export::generate_graphql(&ontology))
 }
 
@@ -112,7 +112,7 @@ pub async fn export_graphql(Json(ontology): Json<OntologyIR>) -> Result<String, 
     security(("api_key" = [])),
     tag = "Ontologies",
 )]
-pub async fn export_owl(Json(ontology): Json<OntologyIR>) -> Result<String, AppError> {
+pub(crate) async fn export_owl(Json(ontology): Json<OntologyIR>) -> Result<String, AppError> {
     Ok(export::generate_owl_turtle(&ontology))
 }
 
@@ -126,7 +126,7 @@ pub async fn export_owl(Json(ontology): Json<OntologyIR>) -> Result<String, AppE
     security(("api_key" = [])),
     tag = "Ontologies",
 )]
-pub async fn export_shacl(Json(ontology): Json<OntologyIR>) -> Result<String, AppError> {
+pub(crate) async fn export_shacl(Json(ontology): Json<OntologyIR>) -> Result<String, AppError> {
     Ok(export::generate_shacl(&ontology))
 }
 
@@ -140,7 +140,7 @@ pub async fn export_shacl(Json(ontology): Json<OntologyIR>) -> Result<String, Ap
     security(("api_key" = [])),
     tag = "Ontologies",
 )]
-pub async fn export_typescript(Json(ontology): Json<OntologyIR>) -> Result<String, AppError> {
+pub(crate) async fn export_typescript(Json(ontology): Json<OntologyIR>) -> Result<String, AppError> {
     Ok(export::generate_typescript(&ontology))
 }
 
@@ -154,7 +154,7 @@ pub async fn export_typescript(Json(ontology): Json<OntologyIR>) -> Result<Strin
     security(("api_key" = [])),
     tag = "Ontologies",
 )]
-pub async fn export_python(Json(ontology): Json<OntologyIR>) -> Result<String, AppError> {
+pub(crate) async fn export_python(Json(ontology): Json<OntologyIR>) -> Result<String, AppError> {
     Ok(export::generate_python(&ontology))
 }
 
@@ -179,7 +179,7 @@ pub struct OntologyImportRequest {
     security(("api_key" = [])),
     tag = "Ontologies",
 )]
-pub async fn import_owl(
+pub(crate) async fn import_owl(
     Json(req): Json<OntologyImportRequest>,
 ) -> Result<Json<ApiResponse<OntologyIR>>, AppError> {
     if req.content.trim().is_empty() {

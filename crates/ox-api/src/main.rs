@@ -364,6 +364,7 @@ async fn main() -> anyhow::Result<()> {
         brain,
         compiler,
         runtime,
+        readonly_runtime: None,
         store,
         timeouts,
         auth_config: config.auth.clone(),
@@ -380,6 +381,8 @@ async fn main() -> anyhow::Result<()> {
         collaboration: Arc::new(collaboration::CollaborationHub::new(
             config.collaboration.broadcast_buffer,
         )),
+        dashboards: config.dashboards.clone(),
+        recovery: config.recovery.clone(),
     };
 
     // CORS policy: explicit origins required. No permissive fallback.
@@ -435,8 +438,10 @@ async fn main() -> anyhow::Result<()> {
         let mcp_brain = Arc::clone(&state.brain);
         let mcp_compiler = Arc::clone(&state.compiler);
         let mcp_runtime = state.runtime.clone();
+        let mcp_readonly_runtime = state.readonly_runtime.clone();
         let mcp_store = Arc::clone(&state.store);
         let mcp_call_timeout = state.timeouts.raw_query;
+        let mcp_rate_limit = config.mcp.rate_limit.clone();
 
         let mcp_service = StreamableHttpService::new(
             move || {
@@ -444,8 +449,10 @@ async fn main() -> anyhow::Result<()> {
                     Arc::clone(&mcp_brain),
                     Arc::clone(&mcp_compiler),
                     mcp_runtime.clone(),
+                    mcp_readonly_runtime.clone(),
                     Arc::clone(&mcp_store),
                     mcp_call_timeout,
+                    &mcp_rate_limit,
                 ))
             },
             LocalSessionManager::default().into(),

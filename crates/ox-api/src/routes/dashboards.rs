@@ -351,14 +351,10 @@ pub(crate) async fn delete_widget(
 // POST /api/dashboards/:id/share — generate a share token
 // ---------------------------------------------------------------------------
 
-const DEFAULT_SHARE_EXPIRY_DAYS: u32 = 30;
-/// Hard upper bound (1 year) so the API can't be used to mint effectively
-/// permanent shares by accident.
-const MAX_SHARE_EXPIRY_DAYS: u32 = 365;
-
 #[derive(serde::Deserialize, utoipa::ToSchema, Default)]
 pub struct ShareDashboardRequest {
-    /// Days until the token expires. Defaults to 30; capped at 365.
+    /// Days until the token expires. Defaults to `dashboards.default_share_expiry_days`
+    /// (30 unless overridden); capped at `dashboards.max_share_expiry_days` (365).
     #[serde(default)]
     pub expires_in_days: Option<u32>,
 }
@@ -380,10 +376,11 @@ pub(crate) async fn share_dashboard(
     principal.require_owner(&dash.user_id, "dashboard")?;
 
     let req = body.map(|Json(b)| b).unwrap_or_default();
+    let dashboards_cfg = &state.dashboards;
     let days = req
         .expires_in_days
-        .unwrap_or(DEFAULT_SHARE_EXPIRY_DAYS)
-        .min(MAX_SHARE_EXPIRY_DAYS)
+        .unwrap_or(dashboards_cfg.default_share_expiry_days)
+        .min(dashboards_cfg.max_share_expiry_days)
         .max(1);
     let expires_at = Utc::now() + chrono::Duration::days(days as i64);
 

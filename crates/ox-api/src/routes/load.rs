@@ -49,7 +49,7 @@ pub struct LoadPlanResponse {
     security(("api_key" = [])),
     tag = "Load",
 )]
-pub async fn plan_load(
+pub(crate) async fn plan_load(
     State(state): State<AppState>,
     principal: Principal,
     Json(req): Json<LoadPlanRequest>,
@@ -138,7 +138,7 @@ pub struct LoadExecuteResponse {
     security(("api_key" = [])),
     tag = "Load",
 )]
-pub async fn execute_load(
+pub(crate) async fn execute_load(
     State(state): State<AppState>,
     principal: Principal,
     Json(req): Json<LoadExecuteRequest>,
@@ -271,7 +271,7 @@ pub struct CheckpointListQuery {
     security(("api_key" = [])),
     tag = "Load",
 )]
-pub async fn list_checkpoints(
+pub(crate) async fn list_checkpoints(
     State(state): State<AppState>,
     principal: Principal,
     axum::extract::Query(query): axum::extract::Query<CheckpointListQuery>,
@@ -302,7 +302,7 @@ pub async fn list_checkpoints(
     security(("api_key" = [])),
     tag = "Load",
 )]
-pub async fn delete_checkpoint(
+pub(crate) async fn delete_checkpoint(
     State(state): State<AppState>,
     principal: Principal,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
@@ -340,7 +340,7 @@ pub struct PromptInfo {
     security(("api_key" = [])),
     tag = "System",
 )]
-pub async fn list_prompts(State(state): State<AppState>) -> Json<ApiResponse<Vec<PromptInfo>>> {
+pub(crate) async fn list_prompts(State(state): State<AppState>) -> Json<ApiResponse<Vec<PromptInfo>>> {
     let prompts = state
         .brain
         .list_prompts()

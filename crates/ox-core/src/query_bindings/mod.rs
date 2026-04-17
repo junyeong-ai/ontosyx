@@ -12,12 +12,14 @@
 //! Module layout:
 //! - [`ctx`]      — `ResolverCtx` mutable scope state + low-level binders
 //! - [`ops`]      — top-level `QueryOp` dispatch
-//! - [`patterns`] — graph patterns (Node/Relationship/Path) and mutations
+//! - [`patterns`]  — graph patterns (Node/Relationship/Path)
+//! - [`mutations`] — write-side operations (CREATE/MERGE/SET/REMOVE/DELETE)
 //! - [`exprs`]    — expressions (WHERE) and projections (RETURN)
 
 mod ctx;
 mod exprs;
 mod ops;
+mod mutations;
 mod patterns;
 
 use serde::{Deserialize, Serialize};

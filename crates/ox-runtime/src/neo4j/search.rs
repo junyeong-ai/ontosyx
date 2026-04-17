@@ -12,7 +12,7 @@ use crate::GraphRuntime;
 use super::runtime::Neo4jRuntime;
 
 impl Neo4jRuntime {
-    pub(super) async fn search_nodes_impl(
+    pub(super) async fn do_search_nodes(
         &self,
         search_query: &str,
         limit: usize,
@@ -109,7 +109,7 @@ impl Neo4jRuntime {
         Ok(nodes)
     }
 
-    pub(super) async fn expand_node_impl(
+    pub(super) async fn do_expand_node(
         &self,
         element_id: &str,
         limit: usize,
@@ -191,7 +191,7 @@ impl Neo4jRuntime {
         })
     }
 
-    pub(super) async fn graph_overview_impl(&self) -> OxResult<GraphSchemaOverview> {
+    pub(super) async fn do_graph_overview(&self) -> OxResult<GraphSchemaOverview> {
         let empty_params = HashMap::new();
 
         // Label statistics

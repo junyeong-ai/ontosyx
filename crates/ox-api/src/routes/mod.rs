@@ -267,7 +267,7 @@ pub fn router(state: AppState) -> Router {
         )
         // Ontology schema re-indexing + audit
         .route("/ontology/{id}/reindex", post(ontology::reindex_schema))
-        .route("/ontology/{id}/audit", post(ontology::audit_graph))
+        .route("/ontology/{id}/audit", post(ontology::graph_audit_report))
         .route("/ontology/adopt-graph", post(ontology::adopt_graph))
         // Agent sessions (audit)
         .route("/sessions", get(sessions::list_sessions))

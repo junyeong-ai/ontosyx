@@ -18,9 +18,20 @@ use crate::bolt::{
 use crate::isolation::GraphIsolationStrategy;
 use crate::{GraphRuntime, LoadBatch, LoadResult, SandboxHandle, TransienceDetector};
 
-use super::transience::Neo4jTransienceDetector;
-
 const BACKEND_LABEL: &str = "Neo4j";
+
+/// Neo4j-specific transient error detection.
+///
+/// Thin adapter over [`crate::transience::NEO4J_RULES`]. All matching
+/// logic lives in the shared classifier — adding a new false-positive
+/// case is a one-line rule + regression test there.
+pub struct Neo4jTransienceDetector;
+
+impl TransienceDetector for Neo4jTransienceDetector {
+    fn is_transient(&self, err_msg: &str) -> bool {
+        crate::transience::classify(&crate::transience::NEO4J_RULES, err_msg).is_transient()
+    }
+}
 
 /// Neo4jRuntime — executes compiled Cypher against Neo4j via the Bolt protocol.
 ///
@@ -254,14 +265,44 @@ impl GraphRuntime for Neo4jRuntime {
         limit: usize,
         labels: Option<&[String]>,
     ) -> OxResult<Vec<SearchResultNode>> {
-        self.search_nodes_impl(search_query, limit, labels).await
+        self.do_search_nodes(search_query, limit, labels).await
     }
 
     async fn expand_node(&self, element_id: &str, limit: usize) -> OxResult<NodeExpansion> {
-        self.expand_node_impl(element_id, limit).await
+        self.do_expand_node(element_id, limit).await
     }
 
     async fn graph_overview(&self) -> OxResult<GraphSchemaOverview> {
-        self.graph_overview_impl().await
+        self.do_graph_overview().await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_neo4j_transience_detector_various_messages() {
+        let detector = Neo4jTransienceDetector;
+
+        assert!(detector.is_transient("Connection reset by peer"));
+        assert!(detector.is_transient("broken pipe"));
+        assert!(detector.is_transient("Connection refused"));
+        assert!(detector.is_transient("request timed out"));
+        assert!(detector.is_transient("operation timeout"));
+        assert!(detector.is_transient("Too many requests"));
+        assert!(detector.is_transient("Service unavailable"));
+        assert!(detector.is_transient("Leader switch in progress"));
+        assert!(detector.is_transient("Database no longer available"));
+        assert!(detector.is_transient("database unavailable"));
+
+        assert!(detector.is_transient("CONNECTION RESET"));
+        assert!(detector.is_transient("BROKEN PIPE"));
+
+        assert!(!detector.is_transient("Syntax error in Cypher"));
+        assert!(!detector.is_transient("Node not found"));
+        assert!(!detector.is_transient("Permission denied"));
+        assert!(!detector.is_transient("Invalid query"));
+        assert!(!detector.is_transient(""));
     }
 }

@@ -290,7 +290,7 @@ fn validate_webhook_config(config: &serde_json::Value) -> Result<(), AppError> {
 /// and sends to each configured webhook. Failures are logged but not
 /// propagated (fire-and-forget). Caller must ensure workspace context is set
 /// via `spawn_scoped` so RLS queries succeed.
-pub async fn dispatch_quality_notification(
+pub(crate) async fn dispatch_quality_notification(
     store: &dyn ox_store::store::Store,
     workspace_id: Uuid,
     rule_name: &str,

@@ -261,7 +261,8 @@ impl Hook for EmbeddingHook {
 /// in the same session, creates a verified `correction` knowledge entry.
 ///
 /// - Non-blocking (fail-open): extraction failures never delay agent execution.
-/// - In-memory tracking per session (DashMap, cleaned up after 10 minutes).
+/// - In-memory tracking per session (DashMap, cleaned up after the configured
+///   `session_window_minutes`).
 /// - Zero LLM cost: corrections are extracted mechanically from tool outputs.
 pub struct RecoveryDetectionHook {
     knowledge_store: Arc<dyn KnowledgeStore>,
@@ -269,6 +270,8 @@ pub struct RecoveryDetectionHook {
     workspace_id: Uuid,
     ontology_name: String,
     ontology_version: i32,
+    /// Runtime-tunable thresholds — see [`RecoveryHookConfig`].
+    config: RecoveryHookConfig,
     /// Per-session tool outcome tracking: session_id → list of outcomes.
     session_outcomes: DashMap<String, Vec<ToolOutcome>>,
     /// Dedup guard: (session_id, query_hash) tuples already turned into
@@ -277,15 +280,34 @@ pub struct RecoveryDetectionHook {
     processed_recoveries: DashMap<String, std::collections::HashSet<String>>,
 }
 
-/// Minimum Jaccard similarity between failed and successful query label
-/// sets required to treat them as a recovery pair. Below this threshold
-/// the queries probably target unrelated parts of the schema and the
-/// failure→success sequence is coincidental.
-const RECOVERY_JACCARD_THRESHOLD: f64 = 0.5;
+/// Runtime knobs for `RecoveryDetectionHook`.
+///
+/// The defaults preserve the previous hard-coded behavior
+/// (0.5 Jaccard, 10-minute session window).
+#[derive(Debug, Clone, Copy)]
+pub struct RecoveryHookConfig {
+    /// Minimum Jaccard similarity between failed and successful query
+    /// label sets required to treat them as a recovery pair. Below
+    /// this threshold the queries probably target unrelated parts of
+    /// the schema and the failure→success sequence is coincidental.
+    pub jaccard_threshold: f64,
+    /// Per-session tracker retention, in minutes. Entries older than
+    /// this are purged during periodic cleanup.
+    pub session_window_minutes: i64,
+}
+
+impl Default for RecoveryHookConfig {
+    fn default() -> Self {
+        Self {
+            jaccard_threshold: 0.5,
+            session_window_minutes: 10,
+        }
+    }
+}
 
 /// Distinguishes three outcome states for recovery detection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum OutcomeKind {
+pub(crate) enum OutcomeKind {
     /// Tool returned an error.
     Error,
     /// Tool succeeded but query returned 0 rows.
@@ -303,6 +325,25 @@ struct ToolOutcome {
     timestamp: chrono::DateTime<Utc>,
 }
 
+/// Confidence score to attach to a recovery correction, based on the
+/// failure kind that preceded the successful query.
+///
+/// - `Error → Success`: the model actually hit an exception and then
+///   produced a working query — strong evidence for the correction
+///   (0.85).
+/// - `Empty → Success`: the initial query parsed and ran but returned
+///   0 rows; the "correction" might simply be a broader filter. Weaker
+///   signal (0.70).
+/// - `Success → Success`: not a recovery pair, not intended to be
+///   called for this path; neutral fallback (0.0).
+pub(crate) fn recovery_confidence_for(failure_kind: OutcomeKind) -> f64 {
+    match failure_kind {
+        OutcomeKind::Error => 0.85,
+        OutcomeKind::Empty => 0.70,
+        OutcomeKind::Success => 0.0,
+    }
+}
+
 impl RecoveryDetectionHook {
     pub fn new(
         knowledge_store: Arc<dyn KnowledgeStore>,
@@ -310,6 +351,7 @@ impl RecoveryDetectionHook {
         workspace_id: Uuid,
         ontology_name: String,
         ontology_version: i32,
+        config: RecoveryHookConfig,
     ) -> Self {
         Self {
             knowledge_store,
@@ -317,14 +359,17 @@ impl RecoveryDetectionHook {
             workspace_id,
             ontology_name,
             ontology_version,
+            config,
             session_outcomes: DashMap::new(),
             processed_recoveries: DashMap::new(),
         }
     }
 
-    /// Periodic cleanup: remove entries older than 10 minutes.
+    /// Periodic cleanup: remove entries older than the configured
+    /// `session_window_minutes`.
     fn cleanup_stale_sessions(&self) {
-        let cutoff = Utc::now() - chrono::Duration::minutes(10);
+        let cutoff =
+            Utc::now() - chrono::Duration::minutes(self.config.session_window_minutes);
         self.session_outcomes
             .retain(|_, outcomes| outcomes.last().is_some_and(|o| o.timestamp > cutoff));
         // Dedup tracker shadows session_outcomes — drop entries for
@@ -343,37 +388,59 @@ impl RecoveryDetectionHook {
     }
 }
 
-/// Extract `:Label` tokens from a Cypher query (case-insensitive on the colon).
+/// Extract `:Label` tokens from a Cypher query.
 /// Used by [`is_structural_match`] to compare failed vs. successful queries.
+///
+/// Rules:
+/// - A `:` followed by an identifier (alphanumerics, `_`, or non-ASCII Unicode)
+///   is treated as a label only when the scanner is *not* inside a map
+///   literal (tracked via brace depth). This rules out false positives
+///   like `{name: "x"}` where `name:` is a property key, not a label.
+/// - Identifier first char may be a letter, `_`, or non-ASCII char.
+///   (A leading `_` is valid in internal/system labels such as
+///   `_internal` or `_migration_tag`.)
+/// - Labels inside map literals are suppressed; property keys in map
+///   literals must start with a letter or `_` in Cypher anyway, so
+///   this never drops a real label.
 fn extract_cypher_labels(query: &str) -> std::collections::HashSet<String> {
     let mut labels = std::collections::HashSet::new();
     let bytes = query.as_bytes();
     let mut i = 0;
+    // Track depth of `{ ... }` so property keys like `{name: "x"}` don't
+    // leak into the label set.
+    let mut brace_depth: usize = 0;
     while i < bytes.len() {
-        if bytes[i] == b':' {
-            let start = i + 1;
-            let mut end = start;
-            while end < bytes.len() {
-                let c = bytes[end];
-                if c.is_ascii_alphanumeric() || c == b'_' || !c.is_ascii() {
-                    end += 1;
-                } else {
-                    break;
-                }
+        match bytes[i] {
+            b'{' => {
+                brace_depth += 1;
+                i += 1;
             }
-            if end > start {
-                if let Ok(label) = std::str::from_utf8(&bytes[start..end])
-                    && label
-                        .chars()
-                        .next()
-                        .is_some_and(|c| c.is_alphabetic() || !c.is_ascii())
+            b'}' => {
+                brace_depth = brace_depth.saturating_sub(1);
+                i += 1;
+            }
+            b':' if brace_depth == 0 => {
+                let start = i + 1;
+                let mut end = start;
+                while end < bytes.len() {
+                    let c = bytes[end];
+                    if c.is_ascii_alphanumeric() || c == b'_' || !c.is_ascii() {
+                        end += 1;
+                    } else {
+                        break;
+                    }
+                }
+                if end > start
+                    && let Ok(label) = std::str::from_utf8(&bytes[start..end])
+                    && label.chars().next().is_some_and(|c| {
+                        c.is_alphabetic() || c == '_' || !c.is_ascii()
+                    })
                 {
                     labels.insert(label.to_string());
                 }
+                i = end;
             }
-            i = end;
-        } else {
-            i += 1;
+            _ => i += 1,
         }
     }
     labels
@@ -394,9 +461,13 @@ fn jaccard(
 
 /// Returns true when `failed` and `succeeded` look structurally similar
 /// enough to be considered a recovery pair (Jaccard label similarity ≥
-/// [`RECOVERY_JACCARD_THRESHOLD`]). Errors with no compiled query fall
-/// back to "match anything" because we have no labels to compare.
-fn is_structural_match(failed_query: Option<&str>, succeeded_query: Option<&str>) -> bool {
+/// `threshold`). Missing queries or empty label sets fall through to
+/// `false` because we have no signal on which to base a match.
+fn is_structural_match(
+    failed_query: Option<&str>,
+    succeeded_query: Option<&str>,
+    threshold: f64,
+) -> bool {
     // No signal on either side — refuse to pair. Used to be `true` on
     // missing-failed-query, but that admitted every "parse error
     // followed by ANY later success" as a recovery, which is exactly
@@ -409,7 +480,7 @@ fn is_structural_match(failed_query: Option<&str>, succeeded_query: Option<&str>
     let succeeded_labels = extract_cypher_labels(succeeded);
 
     match jaccard(&failed_labels, &succeeded_labels) {
-        Some(score) => score >= RECOVERY_JACCARD_THRESHOLD,
+        Some(score) => score >= threshold,
         // Both sides extracted zero labels: the queries are too
         // unstructured to compare. Refuse to pair (safer than the
         // previous "preserve old behavior" leniency).
@@ -493,8 +564,11 @@ impl Hook for RecoveryDetectionHook {
                     // the failed and successful queries touch overlapping
                     // schema (Jaccard ≥ threshold). Otherwise the pairing
                     // is coincidental and would pollute the knowledge base.
-                    if !is_structural_match(failure_compiled.as_deref(), success_query.as_deref())
-                    {
+                    if !is_structural_match(
+                        failure_compiled.as_deref(),
+                        success_query.as_deref(),
+                        self.config.jaccard_threshold,
+                    ) {
                         // Not a real recovery pair — discard outcomes and bail
                         self.forget_session(session_id);
                         return Ok(HookOutput::allow());
@@ -574,7 +648,7 @@ impl Hook for RecoveryDetectionHook {
                         ontology_version_max: None,
                         kind: "correction".to_string(),
                         status: "approved".to_string(),
-                        confidence: 0.8,
+                        confidence: recovery_confidence_for(failure_kind),
                         title,
                         content,
                         structured_data: serde_json::json!({
@@ -754,6 +828,36 @@ mod tests {
     }
 
     #[test]
+    fn extract_cypher_labels_ignores_map_literal_keys() {
+        // `{name: "x"}` is a map literal — `name` must not be treated as a label.
+        let labels = extract_cypher_labels(r#"MATCH (n {name: "x"}) RETURN n"#);
+        assert!(labels.is_empty(), "no labels expected, got {labels:?}");
+    }
+
+    #[test]
+    fn extract_cypher_labels_ignores_map_keys_with_label() {
+        // Real label + map literal — only the real label must be emitted.
+        let labels = extract_cypher_labels(r#"MATCH (n:Person {name: "x", age: 30}) RETURN n"#);
+        assert_eq!(labels, std::collections::HashSet::from(["Person".into()]));
+    }
+
+    #[test]
+    fn extract_cypher_labels_allows_leading_underscore() {
+        // `_internal`, `_migration_tag`, etc. are valid internal label
+        // conventions that the previous extractor refused to accept.
+        let labels = extract_cypher_labels("MATCH (n:_internal) RETURN n");
+        assert_eq!(labels, std::collections::HashSet::from(["_internal".into()]));
+    }
+
+    #[test]
+    fn extract_cypher_labels_nested_map_literal() {
+        // Nested map — the inner `:` should stay suppressed too.
+        let labels =
+            extract_cypher_labels(r#"MATCH (n:Person {meta: {k: "v"}}) RETURN n"#);
+        assert_eq!(labels, std::collections::HashSet::from(["Person".into()]));
+    }
+
+    #[test]
     fn jaccard_basic() {
         let a: std::collections::HashSet<String> =
             ["A", "B", "C"].iter().map(|s| s.to_string()).collect();
@@ -777,11 +881,16 @@ mod tests {
         assert_eq!(jaccard(&a, &b), None);
     }
 
+    /// Default Jaccard threshold used by the hook (kept separate here
+    /// so tests document the value they're anchoring).
+    const DEFAULT_THRESHOLD: f64 = 0.5;
+
     #[test]
     fn structural_match_at_threshold() {
         assert!(is_structural_match(
             Some("MATCH (n:Person) RETURN n"),
             Some("MATCH (p:Person {name: 'x'}) RETURN p"),
+            DEFAULT_THRESHOLD,
         ));
     }
 
@@ -790,6 +899,7 @@ mod tests {
         assert!(!is_structural_match(
             Some("MATCH (a:Order) RETURN a"),
             Some("MATCH (b:Customer) RETURN b"),
+            DEFAULT_THRESHOLD,
         ));
     }
 
@@ -799,6 +909,7 @@ mod tests {
         assert!(!is_structural_match(
             Some("MATCH (p:Person)-[:BOUGHT]->(o:Order) RETURN p"),
             Some("MATCH (p:Person)-[:VIEWED]->(pd:Product) RETURN p"),
+            DEFAULT_THRESHOLD,
         ));
     }
 
@@ -809,6 +920,7 @@ mod tests {
         assert!(!is_structural_match(
             None,
             Some("MATCH (n:Person) RETURN n"),
+            DEFAULT_THRESHOLD,
         ));
     }
 
@@ -817,6 +929,44 @@ mod tests {
         assert!(!is_structural_match(
             Some("MATCH (n:Person) RETURN n"),
             None,
+            DEFAULT_THRESHOLD,
         ));
+    }
+
+    #[test]
+    fn structural_match_threshold_is_respected() {
+        // Two queries with partial overlap (Jaccard = 0.20) — passes
+        // with threshold 0.2, fails with threshold 0.5.
+        let a = Some("MATCH (p:Person)-[:BOUGHT]->(o:Order) RETURN p");
+        let b = Some("MATCH (p:Person)-[:VIEWED]->(pd:Product) RETURN p");
+        assert!(is_structural_match(a, b, 0.2));
+        assert!(!is_structural_match(a, b, 0.5));
+    }
+
+    #[test]
+    fn recovery_confidence_scales_with_failure_kind() {
+        // Hard error → confident correction.
+        assert!((recovery_confidence_for(OutcomeKind::Error) - 0.85).abs() < f64::EPSILON);
+        // 0-row refinement → weaker signal.
+        assert!((recovery_confidence_for(OutcomeKind::Empty) - 0.70).abs() < f64::EPSILON);
+        // Success arm is unreachable in practice; the helper still
+        // returns a safe neutral fallback.
+        assert_eq!(recovery_confidence_for(OutcomeKind::Success), 0.0);
+
+        // Ordering contract: hard-error confidence must strictly exceed
+        // empty-refinement confidence.
+        assert!(
+            recovery_confidence_for(OutcomeKind::Error)
+                > recovery_confidence_for(OutcomeKind::Empty)
+        );
+    }
+
+    #[test]
+    fn recovery_hook_config_defaults_match_legacy_constants() {
+        // Preserves the previous hard-coded thresholds, so routes
+        // that omit `[recovery]` get the same behavior as before.
+        let c = RecoveryHookConfig::default();
+        assert!((c.jaccard_threshold - 0.5).abs() < f64::EPSILON);
+        assert_eq!(c.session_window_minutes, 10);
     }
 }

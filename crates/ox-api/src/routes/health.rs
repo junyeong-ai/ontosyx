@@ -12,7 +12,7 @@ use crate::state::AppState;
     ),
     tag = "Health",
 )]
-pub async fn health_check(State(state): State<AppState>) -> Json<ApiResponse<Value>> {
+pub(crate) async fn health_check(State(state): State<AppState>) -> Json<ApiResponse<Value>> {
     let health_timeout = state.timeouts.health_check;
 
     let db_ok = match tokio::time::timeout(health_timeout, state.store.health_check()).await {

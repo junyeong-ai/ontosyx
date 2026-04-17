@@ -49,7 +49,7 @@ pub struct UserInfo {
     ),
     tag = "Auth",
 )]
-pub async fn create_token(
+pub(crate) async fn create_token(
     State(state): State<AppState>,
     Json(req): Json<AuthTokenCreateRequest>,
 ) -> Result<Json<ApiResponse<AuthTokenResponse>>, AppError> {
@@ -187,7 +187,7 @@ pub struct AuthMeResponse {
     security(("bearer" = [])),
     tag = "Auth",
 )]
-pub async fn me(
+pub(crate) async fn me(
     State(state): State<AppState>,
     principal: Principal,
 ) -> Result<Json<ApiResponse<AuthMeResponse>>, AppError> {

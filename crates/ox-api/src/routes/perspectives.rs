@@ -49,7 +49,7 @@ pub struct PerspectiveUpsertRequest {
     ),
     tag = "Perspectives",
 )]
-pub async fn save_perspective(
+pub(crate) async fn save_perspective(
     State(state): State<AppState>,
     principal: Principal,
     ws: WorkspaceContext,
@@ -103,7 +103,7 @@ pub async fn save_perspective(
     ),
     tag = "Perspectives",
 )]
-pub async fn list_perspectives(
+pub(crate) async fn list_perspectives(
     State(state): State<AppState>,
     principal: Principal,
     Path(lineage_id): Path<String>,
@@ -132,7 +132,7 @@ pub async fn list_perspectives(
     ),
     tag = "Perspectives",
 )]
-pub async fn get_default_perspective(
+pub(crate) async fn get_default_perspective(
     State(state): State<AppState>,
     principal: Principal,
     Path(lineage_id): Path<String>,
@@ -163,7 +163,7 @@ pub async fn get_default_perspective(
     ),
     tag = "Perspectives",
 )]
-pub async fn get_best_perspective(
+pub(crate) async fn get_best_perspective(
     State(state): State<AppState>,
     principal: Principal,
     Path(lineage_id): Path<String>,
@@ -198,7 +198,7 @@ pub struct PerspectiveFindParams {
     ),
     tag = "Perspectives",
 )]
-pub async fn delete_perspective(
+pub(crate) async fn delete_perspective(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,

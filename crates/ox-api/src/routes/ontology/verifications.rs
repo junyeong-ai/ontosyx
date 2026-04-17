@@ -19,7 +19,7 @@ pub struct VerifyElementRequest {
 }
 
 /// POST /api/ontology/{id}/verifications — mark an element as verified
-pub async fn verify_element(
+pub(crate) async fn verify_element(
     State(state): State<AppState>,
     principal: Principal,
     Path(ontology_id): Path<String>,
@@ -61,7 +61,7 @@ pub async fn verify_element(
 }
 
 /// GET /api/ontology/{id}/verifications — list active verifications
-pub async fn list_verifications(
+pub(crate) async fn list_verifications(
     State(state): State<AppState>,
     _principal: Principal,
     Path(ontology_id): Path<String>,
@@ -75,7 +75,7 @@ pub async fn list_verifications(
 }
 
 /// DELETE /api/ontology/{id}/verifications/{element_id} — revoke verification
-pub async fn delete_verification(
+pub(crate) async fn delete_verification(
     State(state): State<AppState>,
     principal: Principal,
     Path((ontology_id, element_id)): Path<(String, String)>,

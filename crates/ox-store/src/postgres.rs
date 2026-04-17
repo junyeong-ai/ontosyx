@@ -2527,7 +2527,7 @@ impl PromptTemplateStore for PostgresStore {
         Ok(result.rows_affected() > 0)
     }
 
-    async fn deactivate_other_versions(&self, name: &str, exclude_id: Uuid) -> OxResult<()> {
+    async fn update_prompt_template_active_only(&self, name: &str, exclude_id: Uuid) -> OxResult<()> {
         sqlx::query(
             "UPDATE prompt_templates SET is_active = false WHERE name = $1 AND id != $2 AND is_active = true",
         )

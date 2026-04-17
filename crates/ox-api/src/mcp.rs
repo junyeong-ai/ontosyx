@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -20,75 +20,120 @@ use rmcp::{
     tool, tool_handler, tool_router,
 };
 
+use crate::config::McpRateLimitConfig;
+
 // ---------------------------------------------------------------------------
-// Rate limiter — tumbling 60s window per MCP session
+// Rate limiter — sliding window per MCP session
 //
 // `StreamableHttpService` constructs one `OntosyxMcpServer` per session via
 // its factory closure, so the limiter is naturally per-session: every clone
 // of this server shares the same `Arc<Mutex<...>>` state.
+//
+// Sliding window (timestamps of past calls) instead of a tumbling counter
+// closes the burst hole — a tumbling window would allow 2× the budget
+// (one full bucket at the tail of bucket N, another at the head of N+1).
 // ---------------------------------------------------------------------------
 
-const RATE_LIMIT_WINDOW: Duration = Duration::from_secs(60);
-const RATE_LIMIT_MAX_CALLS: u32 = 100;
-
-#[derive(Default)]
 struct SessionLimiter {
-    state: Mutex<Option<(Instant, u32)>>,
+    window: Duration,
+    max_calls: u32,
+    state: Mutex<VecDeque<Instant>>,
 }
 
 impl SessionLimiter {
+    fn new(window: Duration, max_calls: u32) -> Self {
+        Self {
+            window,
+            max_calls,
+            state: Mutex::new(VecDeque::new()),
+        }
+    }
+
     fn check(&self) -> Result<(), McpError> {
-        let mut guard = self
+        let mut q = self
             .state
             .lock()
             .map_err(|e| McpError::internal_error(format!("Limiter poisoned: {e}"), None))?;
 
-        match guard.as_mut() {
-            None => {
-                *guard = Some((Instant::now(), 1));
-                Ok(())
-            }
-            Some((start, count)) if start.elapsed() > RATE_LIMIT_WINDOW => {
-                *start = Instant::now();
-                *count = 1;
-                Ok(())
-            }
-            Some((_, count)) if *count < RATE_LIMIT_MAX_CALLS => {
-                *count += 1;
-                Ok(())
-            }
-            _ => {
-                warn!(
-                    max = RATE_LIMIT_MAX_CALLS,
-                    window_secs = RATE_LIMIT_WINDOW.as_secs(),
-                    "MCP rate limit exceeded"
-                );
-                Err(McpError::invalid_request(
-                    format!(
-                        "Rate limit exceeded: max {RATE_LIMIT_MAX_CALLS} tool calls per {} seconds per session",
-                        RATE_LIMIT_WINDOW.as_secs()
-                    ),
-                    None,
-                ))
-            }
+        let now = Instant::now();
+        let cutoff = now.checked_sub(self.window).unwrap_or(now);
+        while q.front().is_some_and(|t| *t < cutoff) {
+            q.pop_front();
         }
+
+        if q.len() >= self.max_calls as usize {
+            metrics::counter!("mcp_rate_limit_rejections_total").increment(1);
+            warn!(
+                max = self.max_calls,
+                window_secs = self.window.as_secs(),
+                "MCP rate limit exceeded"
+            );
+            return Err(McpError::invalid_request(
+                format!(
+                    "Rate limit exceeded: max {} tool calls per {} seconds per session",
+                    self.max_calls,
+                    self.window.as_secs()
+                ),
+                None,
+            ));
+        }
+
+        q.push_back(now);
+        // Defensive memory cap: refuse to let the deque grow beyond
+        // 2× the call budget, even if somehow the cutoff logic drifts.
+        let cap = (self.max_calls as usize).saturating_mul(2);
+        while q.len() > cap {
+            q.pop_front();
+        }
+        Ok(())
     }
 }
 
 /// Wrap a tool's future with the configured per-call timeout.
-async fn with_call_timeout<F, T>(timeout: Duration, fut: F) -> Result<T, McpError>
+///
+/// `tool` is the tool name (e.g. `"ontosyx_query"`) used as the label
+/// for the `mcp_tool_timeouts_total` counter when the timeout fires.
+async fn with_call_timeout<F, T>(
+    tool: &'static str,
+    timeout: Duration,
+    fut: F,
+) -> Result<T, McpError>
 where
     F: std::future::Future<Output = Result<T, McpError>>,
 {
     match tokio::time::timeout(timeout, fut).await {
         Ok(res) => res,
-        Err(_) => Err(McpError::internal_error(
-            format!(
-                "Tool execution timed out after {} seconds",
-                timeout.as_secs()
-            ),
-            None,
-        )),
+        Err(_) => {
+            metrics::counter!("mcp_tool_timeouts_total", "tool" => tool).increment(1);
+            Err(McpError::internal_error(
+                format!(
+                    "Tool execution timed out after {} seconds",
+                    timeout.as_secs()
+                ),
+                None,
+            ))
+        }
+    }
+}
+
+/// RAII guard that records `mcp_tool_duration_seconds{tool}` when dropped.
+/// Ensures every exit path — success, error, or early return — emits the
+/// histogram sample exactly once.
+struct DurationGuard {
+    tool: &'static str,
+    started: Instant,
+}
+
+impl DurationGuard {
+    fn new(tool: &'static str, started: Instant) -> Self {
+        Self { tool, started }
+    }
+}
+
+impl Drop for DurationGuard {
+    fn drop(&mut self) {
+        metrics::histogram!("mcp_tool_duration_seconds", "tool" => self.tool)
+            .record(self.started.elapsed().as_secs_f64());
     }
 }
 
@@ -101,6 +146,10 @@ pub struct OntosyxMcpServer {
     brain: Arc<dyn Brain>,
     compiler: Arc<dyn GraphCompiler>,
     runtime: Option<Arc<dyn GraphRuntime>>,
+    /// Optional read-only runtime used by `execute_cypher` when the
+    /// operator has configured a dedicated R/O DB role. Falls back to
+    /// `runtime` (the R/W handle) when `None` (with a logged warning).
+    readonly_runtime: Option<Arc<dyn GraphRuntime>>,
     store: Arc<dyn Store>,
     limiter: Arc<SessionLimiter>,
     call_timeout: Duration,
@@ -115,15 +164,28 @@ impl OntosyxMcpServer {
         brain: Arc<dyn Brain>,
         compiler: Arc<dyn GraphCompiler>,
         runtime: Option<Arc<dyn GraphRuntime>>,
+        readonly_runtime: Option<Arc<dyn GraphRuntime>>,
         store: Arc<dyn Store>,
         call_timeout: Duration,
+        rate_limit: &McpRateLimitConfig,
     ) -> Self {
+        if readonly_runtime.is_none() {
+            warn!(
+                "MCP execute_cypher will run with R/W credentials; configure \
+                 graph.readonly_user / graph.readonly_password for defense-in-depth"
+            );
+        }
+        let limiter = Arc::new(SessionLimiter::new(
+            Duration::from_secs(rate_limit.window_seconds),
+            rate_limit.max_calls,
+        ));
         Self {
             brain,
             compiler,
             runtime,
+            readonly_runtime,
             store,
-            limiter: Arc::new(SessionLimiter::default()),
+            limiter,
             call_timeout,
             tool_router: Self::tool_router(),
         }
@@ -395,7 +457,7 @@ impl OntosyxMcpServer {
         Parameters(params): Parameters<QueryParams>,
     ) -> Result<CallToolResult, McpError> {
         self.limiter.check()?;
-        with_call_timeout(self.call_timeout, self.do_query(params)).await
+        with_call_timeout("ontosyx_query", self.call_timeout, self.do_query(params)).await
     }
 
     #[tool(
@@ -407,7 +469,12 @@ impl OntosyxMcpServer {
         Parameters(params): Parameters<ListOntologiesParams>,
     ) -> Result<CallToolResult, McpError> {
         self.limiter.check()?;
-        with_call_timeout(self.call_timeout, self.do_list_ontologies(params)).await
+        with_call_timeout(
+            "ontosyx_list_ontologies",
+            self.call_timeout,
+            self.do_list_ontologies(params),
+        )
+        .await
     }
 
     #[tool(
@@ -419,7 +486,12 @@ impl OntosyxMcpServer {
         Parameters(params): Parameters<DescribeOntologyParams>,
     ) -> Result<CallToolResult, McpError> {
         self.limiter.check()?;
-        with_call_timeout(self.call_timeout, self.do_describe_ontology(params)).await
+        with_call_timeout(
+            "ontosyx_describe_ontology",
+            self.call_timeout,
+            self.do_describe_ontology(params),
+        )
+        .await
     }
 
     #[tool(
@@ -431,7 +503,12 @@ impl OntosyxMcpServer {
         Parameters(params): Parameters<ExportParams>,
     ) -> Result<CallToolResult, McpError> {
         self.limiter.check()?;
-        with_call_timeout(self.call_timeout, self.do_export(params)).await
+        with_call_timeout(
+            "ontosyx_export",
+            self.call_timeout,
+            self.do_export(params),
+        )
+        .await
     }
 
     #[tool(
@@ -443,13 +520,20 @@ impl OntosyxMcpServer {
         Parameters(params): Parameters<ExecuteCypherParams>,
     ) -> Result<CallToolResult, McpError> {
         self.limiter.check()?;
-        with_call_timeout(self.call_timeout, self.do_execute_cypher(params)).await
+        with_call_timeout(
+            "ontosyx_execute_cypher",
+            self.call_timeout,
+            self.do_execute_cypher(params),
+        )
+        .await
     }
 }
 
 impl OntosyxMcpServer {
     async fn do_query(&self, params: QueryParams) -> Result<CallToolResult, McpError> {
+        metrics::counter!("mcp_tool_invocations_total", "tool" => "ontosyx_query").increment(1);
         let start = Instant::now();
+        let _duration_guard = DurationGuard::new("ontosyx_query", start);
         info!(
             ontology = %params.ontology_name,
             question = %params.question,
@@ -542,6 +626,12 @@ impl OntosyxMcpServer {
         &self,
         params: ListOntologiesParams,
     ) -> Result<CallToolResult, McpError> {
+        metrics::counter!(
+            "mcp_tool_invocations_total",
+            "tool" => "ontosyx_list_ontologies",
+        )
+        .increment(1);
+        let _duration_guard = DurationGuard::new("ontosyx_list_ontologies", Instant::now());
         info!("MCP: ontosyx_list_ontologies invoked");
 
         let pagination = CursorParams {
@@ -603,6 +693,12 @@ impl OntosyxMcpServer {
         &self,
         params: DescribeOntologyParams,
     ) -> Result<CallToolResult, McpError> {
+        metrics::counter!(
+            "mcp_tool_invocations_total",
+            "tool" => "ontosyx_describe_ontology",
+        )
+        .increment(1);
+        let _duration_guard = DurationGuard::new("ontosyx_describe_ontology", Instant::now());
         info!(
             ontology = %params.ontology_name,
             "MCP: ontosyx_describe_ontology invoked"
@@ -684,6 +780,8 @@ impl OntosyxMcpServer {
     }
 
     async fn do_export(&self, params: ExportParams) -> Result<CallToolResult, McpError> {
+        metrics::counter!("mcp_tool_invocations_total", "tool" => "ontosyx_export").increment(1);
+        let _duration_guard = DurationGuard::new("ontosyx_export", Instant::now());
         let format_name = match &params.format {
             ExportFormat::Cypher => "cypher",
             ExportFormat::Graphql => "graphql",
@@ -727,6 +825,12 @@ impl OntosyxMcpServer {
         &self,
         params: ExecuteCypherParams,
     ) -> Result<CallToolResult, McpError> {
+        metrics::counter!(
+            "mcp_tool_invocations_total",
+            "tool" => "ontosyx_execute_cypher",
+        )
+        .increment(1);
+        let _duration_guard = DurationGuard::new("ontosyx_execute_cypher", Instant::now());
         info!(
             query_len = params.query.len(),
             "MCP: ontosyx_execute_cypher invoked"
@@ -742,9 +846,11 @@ impl OntosyxMcpServer {
         // Read-only enforcement: MCP sessions don't carry user role,
         // so a destructive Cypher (`DELETE`, `DETACH DELETE`, `CREATE`,
         // `MERGE`, `SET`, `REMOVE`, `DROP`, `CALL` of write procs)
-        // would mutate data with no accountability. Block them at the
-        // tool boundary; mutations must go through the authenticated
-        // HTTP API (`/api/projects/.../ontology` etc.).
+        // would mutate data with no accountability. The keyword
+        // heuristic runs first as cheap defense-in-depth; the real
+        // guard is the read-only DB role (`readonly_runtime`) so even
+        // a bypass of the heuristic (comment tricks, exotic whitespace)
+        // fails at the DB level.
         if let Some(forbidden) = forbidden_cypher_keyword(&params.query) {
             return Err(McpError::invalid_request(
                 format!(
@@ -755,9 +861,15 @@ impl OntosyxMcpServer {
             ));
         }
 
-        let runtime = self.runtime.as_ref().ok_or_else(|| {
-            McpError::internal_error("Graph database not connected".to_string(), None)
-        })?;
+        // Prefer the read-only runtime when configured; fall back to the
+        // primary R/W handle (and rely solely on the heuristic gate).
+        let runtime = self
+            .readonly_runtime
+            .as_ref()
+            .or(self.runtime.as_ref())
+            .ok_or_else(|| {
+                McpError::internal_error("Graph database not connected".to_string(), None)
+            })?;
 
         let empty_params: HashMap<String, PropertyValue> = HashMap::new();
         let results = runtime

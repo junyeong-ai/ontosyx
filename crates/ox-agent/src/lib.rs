@@ -23,7 +23,7 @@ pub mod tools;
 use std::sync::Arc;
 
 use branchforge::{Agent, Auth, CacheConfig, ExecutionMode, ToolSurface};
-use hooks::{EmbeddingHook, RecoveryDetectionHook};
+use hooks::{EmbeddingHook, RecoveryDetectionHook, RecoveryHookConfig};
 use ox_compiler::GraphCompiler;
 use ox_core::error::OxResult;
 use ox_core::ontology_ir::OntologyIR;
@@ -82,6 +82,9 @@ pub struct OntosyxAgentConfig {
     pub session_id: Option<String>,
     /// User role for tool access control: "admin", "designer", "viewer".
     pub user_role: String,
+    /// Runtime thresholds for the `RecoveryDetectionHook`. Pass
+    /// `RecoveryHookConfig::default()` for the previous behavior.
+    pub recovery: RecoveryHookConfig,
 }
 
 // ---------------------------------------------------------------------------
@@ -114,6 +117,7 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
         domain: &Arc<DomainContext>,
         brain: &Arc<dyn ox_brain::Brain>,
         memory: &Option<Arc<MemoryStore>>,
+        recovery_cfg: RecoveryHookConfig,
     ) -> OxResult<branchforge::AgentBuilder> {
         let mut builder = Agent::builder()
             .auth(auth)
@@ -211,6 +215,7 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
                 domain.workspace_id,
                 ontology.name.clone(),
                 ontology.version.number as i32,
+                recovery_cfg,
             ));
         }
 
@@ -226,6 +231,7 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
         &domain,
         &brain,
         &config.memory,
+        config.recovery,
     )
     .await?;
 
@@ -251,6 +257,7 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
                     &domain,
                     &brain,
                     &config.memory,
+                    config.recovery,
                 )
                 .await?;
             }

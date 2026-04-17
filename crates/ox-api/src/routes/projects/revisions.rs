@@ -28,7 +28,7 @@ use crate::state::AppState;
     security(("api_key" = [])),
     tag = "Projects",
 )]
-pub async fn list_revisions(
+pub(crate) async fn list_revisions(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ApiResponse<Vec<OntologySnapshotSummary>>>, AppError> {
@@ -67,7 +67,7 @@ pub async fn list_revisions(
     security(("api_key" = [])),
     tag = "Projects",
 )]
-pub async fn get_revision(
+pub(crate) async fn get_revision(
     State(state): State<AppState>,
     Path((id, rev)): Path<(Uuid, i32)>,
 ) -> Result<Json<ApiResponse<OntologySnapshot>>, AppError> {
@@ -105,7 +105,7 @@ pub struct ProjectRestoreResponse {
     security(("api_key" = [])),
     tag = "Projects",
 )]
-pub async fn restore_revision(
+pub(crate) async fn restore_revision(
     State(state): State<AppState>,
     principal: Principal,
     Path((id, rev)): Path<(Uuid, i32)>,
@@ -172,7 +172,7 @@ pub async fn restore_revision(
     security(("api_key" = [])),
     tag = "Projects",
 )]
-pub async fn diff_revisions(
+pub(crate) async fn diff_revisions(
     State(state): State<AppState>,
     Path((id, rev1, rev2)): Path<(Uuid, i32, i32)>,
 ) -> Result<Json<ApiResponse<OntologyDiff>>, AppError> {
@@ -216,7 +216,7 @@ pub async fn diff_revisions(
     security(("api_key" = [])),
     tag = "Projects",
 )]
-pub async fn diff_current(
+pub(crate) async fn diff_current(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ApiResponse<OntologyDiff>>, AppError> {
@@ -296,7 +296,7 @@ pub struct ProjectMigrateResponse {
     security(("api_key" = [])),
     tag = "Projects",
 )]
-pub async fn migrate_schema(
+pub(crate) async fn migrate_schema(
     State(state): State<AppState>,
     principal: Principal,
     Path((id, rev)): Path<(Uuid, i32)>,

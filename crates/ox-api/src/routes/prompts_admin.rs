@@ -95,7 +95,7 @@ pub(crate) async fn create_prompt_template(
     // Auto-deactivate other versions of the same prompt
     state
         .store
-        .deactivate_other_versions(&row.name, row.id)
+        .update_prompt_template_active_only(&row.name, row.id)
         .await
         .map_err(AppError::from)?;
 
@@ -145,7 +145,7 @@ pub(crate) async fn update_prompt_template(
     if new_active {
         state
             .store
-            .deactivate_other_versions(&existing.name, id)
+            .update_prompt_template_active_only(&existing.name, id)
             .await
             .map_err(AppError::from)?;
     }

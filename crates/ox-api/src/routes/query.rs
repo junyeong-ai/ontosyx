@@ -52,7 +52,7 @@ pub struct GraphSearchRequest {
     security(("api_key" = [])),
     tag = "Query",
 )]
-pub async fn search_graph(
+pub(crate) async fn search_graph(
     State(state): State<AppState>,
     principal: Principal,
     ws: WorkspaceContext,
@@ -137,7 +137,7 @@ pub struct QueryRawResponse {
     tag = "Query",
 )]
 #[tracing::instrument(skip(state, principal, req))]
-pub async fn raw_query(
+pub(crate) async fn raw_query(
     State(state): State<AppState>,
     principal: Principal,
     ws: WorkspaceContext,
@@ -240,7 +240,7 @@ pub async fn raw_query(
     ),
     tag = "Query",
 )]
-pub async fn list_executions(
+pub(crate) async fn list_executions(
     State(state): State<AppState>,
     principal: Principal,
     Query(params): Query<CursorParams>,
@@ -268,7 +268,7 @@ pub async fn list_executions(
     ),
     tag = "Query",
 )]
-pub async fn get_execution(
+pub(crate) async fn get_execution(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
@@ -306,7 +306,7 @@ const VALID_FEEDBACK: &[&str] = &["positive", "negative"];
     security(("bearer" = [])),
     tag = "Query",
 )]
-pub async fn set_feedback(
+pub(crate) async fn set_feedback(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
@@ -379,7 +379,7 @@ pub struct ExecuteFromIrResponse {
     tag = "Query",
 )]
 #[tracing::instrument(skip(state, principal, req))]
-pub async fn execute_from_ir(
+pub(crate) async fn execute_from_ir(
     State(state): State<AppState>,
     principal: Principal,
     ws: WorkspaceContext,
@@ -496,7 +496,7 @@ use ox_core::graph_exploration::GraphSchemaOverview;
     security(("api_key" = [])),
     tag = "Query",
 )]
-pub async fn graph_overview(
+pub(crate) async fn graph_overview(
     State(state): State<AppState>,
     _principal: Principal,
     _ws: WorkspaceContext,
@@ -547,7 +547,7 @@ pub struct GraphExpandRequest {
     security(("api_key" = [])),
     tag = "Query",
 )]
-pub async fn expand_node(
+pub(crate) async fn expand_node(
     State(state): State<AppState>,
     principal: Principal,
     ws: WorkspaceContext,
