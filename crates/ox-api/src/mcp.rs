@@ -1,9 +1,9 @@
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::Instant;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
-use tracing::info;
+use tracing::{info, warn};
 
 use ox_brain::Brain;
 use ox_compiler::GraphCompiler;
@@ -21,6 +21,78 @@ use rmcp::{
 };
 
 // ---------------------------------------------------------------------------
+// Rate limiter — tumbling 60s window per MCP session
+//
+// `StreamableHttpService` constructs one `OntosyxMcpServer` per session via
+// its factory closure, so the limiter is naturally per-session: every clone
+// of this server shares the same `Arc<Mutex<...>>` state.
+// ---------------------------------------------------------------------------
+
+const RATE_LIMIT_WINDOW: Duration = Duration::from_secs(60);
+const RATE_LIMIT_MAX_CALLS: u32 = 100;
+
+#[derive(Default)]
+struct SessionLimiter {
+    state: Mutex<Option<(Instant, u32)>>,
+}
+
+impl SessionLimiter {
+    fn check(&self) -> Result<(), McpError> {
+        let mut guard = self
+            .state
+            .lock()
+            .map_err(|e| McpError::internal_error(format!("Limiter poisoned: {e}"), None))?;
+
+        match guard.as_mut() {
+            None => {
+                *guard = Some((Instant::now(), 1));
+                Ok(())
+            }
+            Some((start, count)) if start.elapsed() > RATE_LIMIT_WINDOW => {
+                *start = Instant::now();
+                *count = 1;
+                Ok(())
+            }
+            Some((_, count)) if *count < RATE_LIMIT_MAX_CALLS => {
+                *count += 1;
+                Ok(())
+            }
+            _ => {
+                warn!(
+                    max = RATE_LIMIT_MAX_CALLS,
+                    window_secs = RATE_LIMIT_WINDOW.as_secs(),
+                    "MCP rate limit exceeded"
+                );
+                Err(McpError::invalid_request(
+                    format!(
+                        "Rate limit exceeded: max {RATE_LIMIT_MAX_CALLS} tool calls per {} seconds per session",
+                        RATE_LIMIT_WINDOW.as_secs()
+                    ),
+                    None,
+                ))
+            }
+        }
+    }
+}
+
+/// Wrap a tool's future with the configured per-call timeout.
+async fn with_call_timeout<F, T>(timeout: Duration, fut: F) -> Result<T, McpError>
+where
+    F: std::future::Future<Output = Result<T, McpError>>,
+{
+    match tokio::time::timeout(timeout, fut).await {
+        Ok(res) => res,
+        Err(_) => Err(McpError::internal_error(
+            format!(
+                "Tool execution timed out after {} seconds",
+                timeout.as_secs()
+            ),
+            None,
+        )),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // MCP Server struct — holds references to AppState components
 // ---------------------------------------------------------------------------
 
@@ -30,6 +102,8 @@ pub struct OntosyxMcpServer {
     compiler: Arc<dyn GraphCompiler>,
     runtime: Option<Arc<dyn GraphRuntime>>,
     store: Arc<dyn Store>,
+    limiter: Arc<SessionLimiter>,
+    call_timeout: Duration,
     tool_router: ToolRouter<Self>,
 }
 
@@ -39,12 +113,15 @@ impl OntosyxMcpServer {
         compiler: Arc<dyn GraphCompiler>,
         runtime: Option<Arc<dyn GraphRuntime>>,
         store: Arc<dyn Store>,
+        call_timeout: Duration,
     ) -> Self {
         Self {
             brain,
             compiler,
             runtime,
             store,
+            limiter: Arc::new(SessionLimiter::default()),
+            call_timeout,
             tool_router: Self::tool_router(),
         }
     }
@@ -212,6 +289,61 @@ impl OntosyxMcpServer {
         &self,
         Parameters(params): Parameters<QueryParams>,
     ) -> Result<CallToolResult, McpError> {
+        self.limiter.check()?;
+        with_call_timeout(self.call_timeout, self.do_query(params)).await
+    }
+
+    #[tool(
+        name = "ontosyx_list_ontologies",
+        description = "List all saved ontologies available for querying. Returns names, versions, descriptions, and node/edge counts. Use this to discover which ontologies are available before using ontosyx_query or ontosyx_describe_ontology."
+    )]
+    async fn list_ontologies(
+        &self,
+        Parameters(params): Parameters<ListOntologiesParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.limiter.check()?;
+        with_call_timeout(self.call_timeout, self.do_list_ontologies(params)).await
+    }
+
+    #[tool(
+        name = "ontosyx_describe_ontology",
+        description = "Get the detailed structure of a specific ontology, including all node types with their properties and constraints, and all edge types with their source/target connections. Useful for understanding the graph schema before writing queries."
+    )]
+    async fn describe_ontology(
+        &self,
+        Parameters(params): Parameters<DescribeOntologyParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.limiter.check()?;
+        with_call_timeout(self.call_timeout, self.do_describe_ontology(params)).await
+    }
+
+    #[tool(
+        name = "ontosyx_export",
+        description = "Export an ontology in a specific format. Available formats: 'cypher' (Neo4j DDL statements), 'graphql' (GraphQL schema), 'owl' (OWL/Turtle ontology), 'mermaid' (Mermaid ER diagram for visualization)."
+    )]
+    async fn export(
+        &self,
+        Parameters(params): Parameters<ExportParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.limiter.check()?;
+        with_call_timeout(self.call_timeout, self.do_export(params)).await
+    }
+
+    #[tool(
+        name = "ontosyx_execute_cypher",
+        description = "Execute a raw Cypher query directly against the Neo4j graph database. For power users who want to run specific Cypher statements. Use ontosyx_query for natural language queries instead."
+    )]
+    async fn execute_cypher(
+        &self,
+        Parameters(params): Parameters<ExecuteCypherParams>,
+    ) -> Result<CallToolResult, McpError> {
+        self.limiter.check()?;
+        with_call_timeout(self.call_timeout, self.do_execute_cypher(params)).await
+    }
+}
+
+impl OntosyxMcpServer {
+    async fn do_query(&self, params: QueryParams) -> Result<CallToolResult, McpError> {
         let start = Instant::now();
         info!(
             ontology = %params.ontology_name,
@@ -301,13 +433,9 @@ impl OntosyxMcpServer {
         )?)]))
     }
 
-    #[tool(
-        name = "ontosyx_list_ontologies",
-        description = "List all saved ontologies available for querying. Returns names, versions, descriptions, and node/edge counts. Use this to discover which ontologies are available before using ontosyx_query or ontosyx_describe_ontology."
-    )]
-    async fn list_ontologies(
+    async fn do_list_ontologies(
         &self,
-        Parameters(params): Parameters<ListOntologiesParams>,
+        params: ListOntologiesParams,
     ) -> Result<CallToolResult, McpError> {
         info!("MCP: ontosyx_list_ontologies invoked");
 
@@ -366,13 +494,9 @@ impl OntosyxMcpServer {
         )?)]))
     }
 
-    #[tool(
-        name = "ontosyx_describe_ontology",
-        description = "Get the detailed structure of a specific ontology, including all node types with their properties and constraints, and all edge types with their source/target connections. Useful for understanding the graph schema before writing queries."
-    )]
-    async fn describe_ontology(
+    async fn do_describe_ontology(
         &self,
-        Parameters(params): Parameters<DescribeOntologyParams>,
+        params: DescribeOntologyParams,
     ) -> Result<CallToolResult, McpError> {
         info!(
             ontology = %params.ontology_name,
@@ -454,14 +578,7 @@ impl OntosyxMcpServer {
         )?)]))
     }
 
-    #[tool(
-        name = "ontosyx_export",
-        description = "Export an ontology in a specific format. Available formats: 'cypher' (Neo4j DDL statements), 'graphql' (GraphQL schema), 'owl' (OWL/Turtle ontology), 'mermaid' (Mermaid ER diagram for visualization)."
-    )]
-    async fn export(
-        &self,
-        Parameters(params): Parameters<ExportParams>,
-    ) -> Result<CallToolResult, McpError> {
+    async fn do_export(&self, params: ExportParams) -> Result<CallToolResult, McpError> {
         let format_name = match &params.format {
             ExportFormat::Cypher => "cypher",
             ExportFormat::Graphql => "graphql",
@@ -501,13 +618,9 @@ impl OntosyxMcpServer {
         )?)]))
     }
 
-    #[tool(
-        name = "ontosyx_execute_cypher",
-        description = "Execute a raw Cypher query directly against the Neo4j graph database. For power users who want to run specific Cypher statements. Use ontosyx_query for natural language queries instead."
-    )]
-    async fn execute_cypher(
+    async fn do_execute_cypher(
         &self,
-        Parameters(params): Parameters<ExecuteCypherParams>,
+        params: ExecuteCypherParams,
     ) -> Result<CallToolResult, McpError> {
         info!(
             query_len = params.query.len(),

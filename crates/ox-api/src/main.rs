@@ -436,6 +436,7 @@ async fn main() -> anyhow::Result<()> {
         let mcp_compiler = Arc::clone(&state.compiler);
         let mcp_runtime = state.runtime.clone();
         let mcp_store = Arc::clone(&state.store);
+        let mcp_call_timeout = state.timeouts.raw_query;
 
         let mcp_service = StreamableHttpService::new(
             move || {
@@ -444,6 +445,7 @@ async fn main() -> anyhow::Result<()> {
                     Arc::clone(&mcp_compiler),
                     mcp_runtime.clone(),
                     Arc::clone(&mcp_store),
+                    mcp_call_timeout,
                 ))
             },
             LocalSessionManager::default().into(),

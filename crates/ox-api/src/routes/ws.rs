@@ -1,58 +1,97 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use axum::{
     extract::{
         State, WebSocketUpgrade,
-        ws::{Message, WebSocket},
+        ws::{CloseFrame, Message, WebSocket, close_code},
     },
     response::Response,
 };
 use futures::{SinkExt, StreamExt};
 use tokio::sync::Mutex;
+use tracing::warn;
 
 use crate::collaboration::CollabMessage;
 use crate::error::AppError;
 use crate::middleware::{AuthClaims, validate_jwt};
 use crate::state::AppState;
 
+/// Maximum time the client has to send the auth frame after the WS upgrade.
+const AUTH_TIMEOUT: Duration = Duration::from_secs(5);
+
 /// WebSocket collaboration endpoint.
 ///
-/// Authentication: JWT via query parameter `?token=...`.
+/// Authentication: first-message protocol. The client must send
+/// `{"type":"auth","token":"<jwt>"}` within 5 seconds of opening the
+/// connection. The server closes the socket on timeout, parse failure,
+/// or invalid token.
 ///
-/// NOTE: In production, prefer first-message authentication pattern:
-///
-///   1. Accept WebSocket without auth
-///   2. Require first message to be `{ type: "auth", token: "..." }`
-///   3. Close connection if first message is not auth within 5 seconds
-///
-/// This avoids JWT exposure in server access logs and proxy caches.
+/// JWT is no longer accepted in the URL — that pattern leaks the token to
+/// browser history, server access logs, and proxy caches.
 pub(crate) async fn collab_ws(
     State(state): State<AppState>,
-    axum::extract::Query(params): axum::extract::Query<WsAuthParams>,
     ws: WebSocketUpgrade,
 ) -> Result<Response, AppError> {
-    let claims = validate_ws_token(&state, &params.token)?;
-    let user_id = claims.sub.clone();
-    let user_name = claims.name.clone().unwrap_or_else(|| claims.email.clone());
-
-    Ok(ws.on_upgrade(move |socket| handle_ws(socket, state, user_id, user_name)))
+    Ok(ws.on_upgrade(move |socket| handle_ws(socket, state)))
 }
 
 #[derive(serde::Deserialize)]
-pub struct WsAuthParams {
-    pub token: String,
+struct AuthFrame {
+    #[serde(rename = "type")]
+    msg_type: String,
+    token: String,
 }
 
-fn validate_ws_token(state: &AppState, token: &str) -> Result<AuthClaims, AppError> {
+async fn authenticate_socket(
+    state: &AppState,
+    socket: &mut WebSocket,
+) -> Result<AuthClaims, &'static str> {
     let secret = state
         .auth_config
         .jwt_secret
         .as_ref()
-        .ok_or_else(|| AppError::unauthorized("JWT not configured"))?;
-    validate_jwt(token, secret)
+        .ok_or("JWT not configured")?;
+
+    let first = match tokio::time::timeout(AUTH_TIMEOUT, socket.next()).await {
+        Ok(Some(Ok(Message::Text(text)))) => text,
+        Ok(Some(Ok(Message::Close(_)))) => return Err("client closed before auth"),
+        Ok(Some(Ok(_))) => return Err("first message must be text auth frame"),
+        Ok(Some(Err(_))) => return Err("transport error"),
+        Ok(None) => return Err("client disconnected before auth"),
+        Err(_) => return Err("auth timeout"),
+    };
+
+    let frame: AuthFrame =
+        serde_json::from_str(&first).map_err(|_| "auth frame must be valid JSON")?;
+    if frame.msg_type != "auth" {
+        return Err("first message type must be \"auth\"");
+    }
+
+    validate_jwt(&frame.token, secret).map_err(|_| "invalid token")
 }
 
-async fn handle_ws(socket: WebSocket, state: AppState, user_id: String, user_name: String) {
+async fn handle_ws(mut socket: WebSocket, state: AppState) {
+    let claims = match authenticate_socket(&state, &mut socket).await {
+        Ok(c) => c,
+        Err(reason) => {
+            warn!(reason, "WebSocket auth failed; closing");
+            let _ = socket
+                .send(Message::Close(Some(CloseFrame {
+                    code: close_code::POLICY,
+                    reason: reason.into(),
+                })))
+                .await;
+            return;
+        }
+    };
+    let user_id = claims.sub.clone();
+    let user_name = claims.name.clone().unwrap_or_else(|| claims.email.clone());
+
+    serve_collab(socket, state, user_id, user_name).await;
+}
+
+async fn serve_collab(socket: WebSocket, state: AppState, user_id: String, user_name: String) {
     let (ws_sender, mut ws_receiver) = socket.split();
     let ws_sender = Arc::new(Mutex::new(ws_sender));
 
