@@ -2943,25 +2943,22 @@ impl crate::store::ApiKeyStore for PostgresStore {
         workspace_id: Option<Uuid>,
         created_by: &str,
     ) -> OxResult<(crate::models::ApiKey, String)> {
-        // Generate 32 random bytes of secret material, hex-encoded.
-        // Plaintext is shown to the caller exactly once; only the hash
-        // is persisted, so a leaked DB row cannot be used to authenticate.
-        use rand::RngCore;
-        let mut bytes = [0u8; 32];
-        rand::rngs::OsRng.fill_bytes(&mut bytes);
-        let plaintext: String = bytes
-            .iter()
-            .fold(String::with_capacity(64), |mut acc, b| {
-                use std::fmt::Write;
-                let _ = write!(acc, "{b:02x}");
-                acc
-            });
+        // 256 bits of CSPRNG entropy. Plaintext is shown to the caller
+        // exactly once; only the SHA-256 hash is persisted, so a leaked
+        // DB row cannot be used to authenticate.
+        let plaintext = crate::secret_token::generate_hex(32);
+        let key_hash = crate::secret_token::secret_hash_sha256(plaintext.as_bytes());
+        let row = self.insert_api_key(label, workspace_id, created_by, &key_hash).await?;
+        Ok((row, plaintext))
+    }
 
-        use sha2::{Digest, Sha256};
-        let mut hasher = Sha256::new();
-        hasher.update(plaintext.as_bytes());
-        let key_hash = hasher.finalize().to_vec();
-
+    async fn insert_api_key(
+        &self,
+        label: &str,
+        workspace_id: Option<Uuid>,
+        created_by: &str,
+        key_hash: &[u8],
+    ) -> OxResult<crate::models::ApiKey> {
         let id = Uuid::new_v4();
         let created_at = chrono::Utc::now();
 
@@ -2971,7 +2968,7 @@ impl crate::store::ApiKeyStore for PostgresStore {
         )
         .bind(id)
         .bind(label)
-        .bind(&key_hash)
+        .bind(key_hash)
         .bind(created_by)
         .bind(workspace_id)
         .bind(created_at)
@@ -2979,16 +2976,15 @@ impl crate::store::ApiKeyStore for PostgresStore {
         .await
         .map_err(to_ox_error)?;
 
-        let row = crate::models::ApiKey {
+        Ok(crate::models::ApiKey {
             id,
             label: label.to_string(),
-            key_hash,
+            key_hash: key_hash.to_vec(),
             created_by: created_by.to_string(),
             workspace_id,
             created_at,
             revoked_at: None,
-        };
-        Ok((row, plaintext))
+        })
     }
 
     async fn find_api_key_by_hash(&self, hash: &[u8]) -> OxResult<Option<crate::models::ApiKey>> {
@@ -3262,10 +3258,13 @@ impl ApprovalStore for PostgresStore {
     }
 
     async fn expire_old_approvals(&self) -> OxResult<u64> {
+        // Strict `<` so a request whose `expires_at == NOW()` is still
+        // valid for its last clock tick — matches the share-token
+        // semantics in `get_dashboard_by_share_token`.
         let result = sqlx::query(
             "UPDATE approval_requests
              SET status = 'expired'
-             WHERE status = 'pending' AND expires_at <= NOW()",
+             WHERE status = 'pending' AND expires_at < NOW()",
         )
         .execute(&self.pool)
         .await

@@ -2,14 +2,13 @@ use std::time::{Duration, Instant};
 
 use axum::{
     extract::{Request, State},
-    http::{HeaderMap, HeaderValue},
+    http::HeaderValue,
     middleware::Next,
     response::Response,
 };
 use dashmap::DashMap;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
-use subtle::ConstantTimeEq;
 use uuid::Uuid;
 
 use crate::config::RateLimitConfig;
@@ -43,27 +42,6 @@ impl AuthClaims {
     #[allow(dead_code)]
     pub fn user_id(&self) -> Result<Uuid, AppError> {
         Uuid::parse_str(&self.sub).map_err(|_| AppError::unauthorized("Invalid user ID in token"))
-    }
-}
-
-// ---------------------------------------------------------------------------
-// API key authentication (kept for programmatic/CI access)
-// ---------------------------------------------------------------------------
-
-/// Try API key authentication from `X-API-Key` header.
-/// Returns `Ok(())` if valid, `Err` otherwise.
-fn try_api_key_auth(headers: &HeaderMap, expected_key: Option<&str>) -> Result<(), AppError> {
-    let expected = expected_key.ok_or_else(|| AppError::unauthorized("API key not configured"))?;
-
-    let provided = headers
-        .get("x-api-key")
-        .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| AppError::unauthorized("Missing API key"))?;
-
-    if provided.as_bytes().ct_eq(expected.as_bytes()).into() {
-        Ok(())
-    } else {
-        Err(AppError::unauthorized("Invalid API key"))
     }
 }
 
@@ -132,11 +110,11 @@ pub fn create_jwt(claims: &AuthClaims, secret: &str) -> Result<String, AppError>
 /// Tries auth methods in order:
 ///   1. JWT (cookie or Authorization header)
 ///   2. DB-backed API key (X-API-Key header → sha256 → `api_keys` table)
-///   3. Static config API key (legacy single-key mode)
 ///
 /// On successful JWT auth, injects `AuthClaims` into request extensions.
 /// On successful API key auth, injects a synthetic `AuthClaims` whose
-/// `sub` is `apikey:<label>` (DB) or `system:api-key` (static config).
+/// `sub` is `apikey:<label>` and whose `exp` is short (1h) so a downstream
+/// claim cache cannot bypass DB revocation for long.
 pub async fn require_auth(
     State(state): State<AppState>,
     mut req: Request,
@@ -172,56 +150,46 @@ pub async fn require_auth(
         match lookup {
             Ok(Some(key)) => {
                 let label = key.label.clone();
+                // Short TTL: every request re-hits `find_api_key_by_hash`
+                // so the long-`exp` claim doesn't matter today, but a
+                // 1h cap means any future caller that caches `AuthClaims`
+                // still respects DB revocation within an hour.
+                let now = chrono::Utc::now().timestamp() as usize;
                 let claims = AuthClaims {
                     sub: format!("apikey:{label}"),
                     email: format!("{label}@apikey.ontosyx.local"),
                     name: Some(format!("API Key: {label}")),
                     role: "admin".to_string(),
                     iss: "ontosyx-api-key".to_string(),
-                    exp: usize::MAX,
-                    iat: 0,
+                    iat: now,
+                    exp: now + 3600,
                 };
                 req.extensions_mut().insert(claims);
                 return Ok(next.run(req).await);
             }
             Ok(None) => {
-                // Fall through — maybe it matches the static config key.
+                // Unknown key — fall through to the rejection branch
+                // below so the caller sees a uniform 401.
             }
             Err(e) => {
-                tracing::warn!(error = %e, "API key DB lookup failed; falling back to static config");
+                tracing::warn!(error = %e, "API key DB lookup failed");
             }
         }
     }
 
-    // Fall back to static config API key (legacy single-key mode)
-    if try_api_key_auth(req.headers(), state.auth_config.api_key.as_deref()).is_ok() {
-        let claims = AuthClaims {
-            sub: "system:api-key".to_string(),
-            email: "system@ontosyx.local".to_string(),
-            name: Some("API Key".to_string()),
-            role: "admin".to_string(),
-            iss: "ontosyx-api-key".to_string(),
-            exp: usize::MAX,
-            iat: 0,
-        };
-        req.extensions_mut().insert(claims);
-        return Ok(next.run(req).await);
+    // No auth method succeeded.
+    if state.auth_config.jwt_secret.is_none() {
+        tracing::error!(
+            "Auth request rejected and JWT is disabled — server has no usable auth method. \
+             Set OX_AUTH__JWT_SECRET, or seed an API key (OX_AUTH__BOOTSTRAP_KEY for first boot)."
+        );
+        return Err(AppError::service_unavailable(
+            "Authentication not configured.",
+        ));
     }
-
-    // Neither auth method succeeded
-    let has_jwt_secret = state.auth_config.jwt_secret.is_some();
-    let has_api_key = state.auth_config.api_key.is_some();
-
-    if !has_jwt_secret && !has_api_key {
-        tracing::warn!("Auth request rejected: neither JWT secret nor API key configured");
-        Err(AppError::service_unavailable(
-            "Authentication not configured. Set OX_AUTH__JWT_SECRET or OX_AUTH__API_KEY.",
-        ))
-    } else {
-        Err(AppError::unauthorized(
-            "Invalid or missing authentication. Provide a valid JWT or API key.",
-        ))
-    }
+    Err(AppError::unauthorized(
+        "Invalid or missing authentication. Provide a valid JWT or API key.",
+    ))
 }
 
 // ---------------------------------------------------------------------------

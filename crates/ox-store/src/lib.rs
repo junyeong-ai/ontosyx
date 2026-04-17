@@ -10,6 +10,7 @@
 
 pub mod models;
 pub mod postgres;
+pub mod secret_token;
 pub mod store;
 
 pub use models::*;

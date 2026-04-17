@@ -188,6 +188,43 @@ async fn main() -> anyhow::Result<()> {
     let compiler = graph_backend.compiler;
     let runtime = graph_backend.runtime;
 
+    // Optional read-only runtime — used by MCP `execute_cypher` so a
+    // bypass of the keyword heuristic still cannot mutate data. The
+    // operator must create the DB user with SELECT-only privileges
+    // (Neo4j: `CREATE USER readonly SET PASSWORD '…'; GRANT MATCH {*} ON GRAPH * TO readonly;`).
+    let readonly_runtime = match (
+        config.graph.readonly_user.as_deref(),
+        config.graph.readonly_password.as_deref(),
+    ) {
+        (Some(user), Some(password)) if !user.is_empty() && !password.is_empty() => {
+            let backend = graph_registry
+                .create(
+                    &config.graph.backend,
+                    GraphBackendConfig {
+                        uri: config.graph.uri.clone(),
+                        username: user.to_string(),
+                        password: password.to_string(),
+                        database: config.graph.database.clone(),
+                        max_connections: config.graph.max_connections,
+                        load_concurrency: config.graph.load_concurrency,
+                        retry_max: config.graph.retry_max,
+                        retry_initial_delay_ms: config.graph.retry_initial_delay_ms,
+                        retry_max_delay_ms: config.graph.retry_max_delay_ms,
+                        isolation_strategy: config.graph.isolation_strategy.clone(),
+                        region: config.graph.region.clone(),
+                    },
+                )
+                .await?;
+            tracing::info!(
+                user,
+                "Read-only graph runtime initialized — MCP execute_cypher will use it"
+            );
+            Some(backend.runtime)
+        }
+        _ => None,
+    };
+    let readonly_runtime = readonly_runtime.flatten();
+
     // Connect to PostgreSQL (required — fail if unavailable)
     let pg_store = ox_store::PostgresStore::connect_with_min(
         &config.postgres.url,
@@ -221,21 +258,55 @@ async fn main() -> anyhow::Result<()> {
 
     // Initialize authentication
     let jwt_enabled = config.auth.jwt_secret.is_some();
-    let api_key_enabled = config.auth.api_key.is_some();
     if jwt_enabled {
         tracing::info!(
             session_hours = config.auth.session_hours,
             "JWT authentication enabled"
         );
-    }
-    if api_key_enabled {
-        tracing::info!("API key authentication enabled");
-    }
-    if !jwt_enabled && !api_key_enabled {
+    } else {
         tracing::warn!(
-            "No authentication configured — protected endpoints will reject all requests. \
-             Set OX_AUTH__JWT_SECRET and/or OX_AUTH__API_KEY."
+            "JWT authentication disabled — only DB-backed API keys (X-API-Key) will work. \
+             Set OX_AUTH__JWT_SECRET to enable SSO/JWT login."
         );
+    }
+    // First-boot bootstrap: if `api_keys` is empty AND OX_AUTH__BOOTSTRAP_KEY
+    // is set, seed one row so a fresh deployment is reachable. Operators
+    // should rotate the bootstrap key immediately.
+    if let Some(plaintext) = config.auth.bootstrap_key.as_deref() {
+        ox_store::SYSTEM_BYPASS
+            .scope(true, async {
+                match store.list_api_keys().await {
+                    Ok(keys) if keys.is_empty() => {
+                        let hash = ox_store::secret_token::secret_hash_sha256(plaintext.as_bytes());
+                        if let Err(e) = store
+                            .insert_api_key(
+                                "bootstrap",
+                                None,
+                                "system:bootstrap",
+                                &hash,
+                            )
+                            .await
+                        {
+                            tracing::error!(error = %e, "Bootstrap api_key seed failed");
+                        } else {
+                            tracing::warn!(
+                                "Seeded `bootstrap` api_key from OX_AUTH__BOOTSTRAP_KEY — \
+                                 rotate this key immediately via the admin API"
+                            );
+                        }
+                    }
+                    Ok(_) => {
+                        // Table is non-empty; ignore the bootstrap value.
+                        tracing::info!(
+                            "OX_AUTH__BOOTSTRAP_KEY ignored — api_keys already seeded"
+                        );
+                    }
+                    Err(e) => {
+                        tracing::warn!(error = %e, "Could not check api_keys for bootstrap seed");
+                    }
+                }
+            })
+            .await;
     }
 
     let timeouts = Timeouts::from(&config.timeouts);
@@ -364,7 +435,7 @@ async fn main() -> anyhow::Result<()> {
         brain,
         compiler,
         runtime,
-        readonly_runtime: None,
+        readonly_runtime,
         store,
         timeouts,
         auth_config: config.auth.clone(),

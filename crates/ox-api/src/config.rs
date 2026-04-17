@@ -82,12 +82,16 @@ fn default_embedding_dimensions() -> usize {
 #[derive(Deserialize, Clone)]
 pub struct AuthConfig {
     /// JWT secret for signing/verifying platform tokens.
-    /// Required in production; when unset, JWT auth is disabled (API key only).
+    /// Required in production; when unset, JWT auth is disabled.
     pub jwt_secret: Option<String>,
     /// Session duration in hours (default: 24).
     pub session_hours: u64,
-    /// API key for programmatic/CI access.
-    pub api_key: Option<String>,
+    /// First-boot bootstrap API key. When the `api_keys` table is
+    /// empty AND this is set, one row is seeded with `label = "bootstrap"`
+    /// using this plaintext. Operators should rotate it immediately
+    /// after first login. Programmatic / CI clients otherwise mint
+    /// keys via the admin API.
+    pub bootstrap_key: Option<String>,
     /// Email of the first user to be auto-promoted to admin.
     pub first_admin_email: Option<String>,
     /// OIDC providers. Each entry is auto-discovered from issuer_url.
@@ -104,7 +108,10 @@ impl fmt::Debug for AuthConfig {
                 &self.jwt_secret.as_ref().map(|_| "[REDACTED]"),
             )
             .field("session_hours", &self.session_hours)
-            .field("api_key", &self.api_key.as_ref().map(|_| "[REDACTED]"))
+            .field(
+                "bootstrap_key",
+                &self.bootstrap_key.as_ref().map(|_| "[REDACTED]"),
+            )
             .field("first_admin_email", &self.first_admin_email)
             .field(
                 "providers",

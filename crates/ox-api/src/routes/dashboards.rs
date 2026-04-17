@@ -384,16 +384,9 @@ pub(crate) async fn share_dashboard(
         .max(1);
     let expires_at = Utc::now() + chrono::Duration::days(days as i64);
 
-    // Generate a cryptographically random 32-byte token (64 hex chars)
-    use std::fmt::Write;
-    let mut token = String::with_capacity(64);
-    for b in Uuid::new_v4()
-        .into_bytes()
-        .iter()
-        .chain(Uuid::new_v4().into_bytes().iter())
-    {
-        let _ = write!(token, "{b:02x}");
-    }
+    // 256 bits of CSPRNG entropy (same helper as `create_api_key`),
+    // not UUID-concatenation — UUIDs reserve 6 bits for version/variant.
+    let token = ox_store::secret_token::generate_hex(32);
 
     state
         .store
@@ -459,7 +452,7 @@ pub(crate) async fn get_shared_dashboard(
             // a generic 404 (which would mask the difference between
             // "never existed" and "no longer valid").
             if let Some(expires_at) = dashboard.share_expires_at
-                && expires_at <= Utc::now()
+                && expires_at < Utc::now()
             {
                 return Err(AppError::gone("Shared dashboard link has expired"));
             }

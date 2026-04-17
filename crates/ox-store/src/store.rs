@@ -943,15 +943,27 @@ pub trait LoadCheckpointStore: Send + Sync {
 
 #[async_trait]
 pub trait ApiKeyStore: Send + Sync {
-    /// Create a new API key. The plaintext key (returned alongside the
-    /// row) is shown to the caller exactly once — only the SHA-256 hash
-    /// is persisted.
+    /// Create a new API key with a server-generated plaintext. The
+    /// plaintext is returned to the caller exactly once; only the
+    /// SHA-256 hash is persisted.
     async fn create_api_key(
         &self,
         label: &str,
         workspace_id: Option<Uuid>,
         created_by: &str,
     ) -> OxResult<(ApiKey, String)>;
+
+    /// Insert an API key whose hash is already computed by the caller.
+    /// Used by first-boot bootstrap (operator supplies the plaintext via
+    /// `OX_AUTH__BOOTSTRAP_KEY`) — the operator must already know the
+    /// plaintext so the server cannot return a generated one.
+    async fn insert_api_key(
+        &self,
+        label: &str,
+        workspace_id: Option<Uuid>,
+        created_by: &str,
+        key_hash: &[u8],
+    ) -> OxResult<ApiKey>;
 
     /// Look up an API key by SHA-256 hash. Returns `None` if the key is
     /// unknown OR has been revoked.
