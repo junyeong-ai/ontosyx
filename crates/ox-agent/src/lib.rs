@@ -325,7 +325,7 @@ async fn build_system_prompt(domain: &DomainContext, user_role: &str) -> String 
              Node types: {}\n\
              Edge types: {}\n",
             ontology.name,
-            ontology.version,
+            ontology.version.number,
             ontology
                 .node_types
                 .iter()
