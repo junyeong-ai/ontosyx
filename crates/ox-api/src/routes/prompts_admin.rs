@@ -59,6 +59,10 @@ pub struct PromptCreateRequest {
     pub variables: serde_json::Value,
     #[serde(default)]
     pub metadata: serde_json::Value,
+    /// When set, the prompt is a workspace-scoped override of the
+    /// global template. When `None`, it's a new global version.
+    #[serde(default)]
+    pub workspace_id: Option<Uuid>,
 }
 
 pub(crate) async fn create_prompt_template(
@@ -78,6 +82,7 @@ pub(crate) async fn create_prompt_template(
         created_by: principal.id.clone(),
         created_at: chrono::Utc::now(),
         is_active: true,
+        workspace_id: req.workspace_id,
     };
 
     state

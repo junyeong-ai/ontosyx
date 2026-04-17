@@ -236,6 +236,7 @@ impl PromptRegistry {
                 created_by: "system".to_string(),
                 created_at: chrono::Utc::now(),
                 is_active: true,
+                workspace_id: None,
             };
 
             if let Err(e) = store.create_prompt_template(&row).await {

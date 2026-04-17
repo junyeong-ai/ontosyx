@@ -434,6 +434,14 @@ pub trait PromptTemplateStore: Send + Sync {
     async fn list_prompt_templates(&self, active_only: bool) -> OxResult<Vec<PromptTemplateRow>>;
     async fn get_prompt_template(&self, id: Uuid) -> OxResult<Option<PromptTemplateRow>>;
     async fn get_active_prompt(&self, name: &str) -> OxResult<Option<PromptTemplateRow>>;
+    /// Resolve a prompt with workspace-specific override fallback.
+    /// Returns the workspace's override if one exists, otherwise the
+    /// global active prompt with the same name.
+    async fn get_active_prompt_for_workspace(
+        &self,
+        name: &str,
+        workspace_id: Option<Uuid>,
+    ) -> OxResult<Option<PromptTemplateRow>>;
     async fn create_prompt_template(&self, row: &PromptTemplateRow) -> OxResult<()>;
     async fn update_prompt_template(
         &self,

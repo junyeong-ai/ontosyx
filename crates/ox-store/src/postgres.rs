@@ -2416,8 +2416,11 @@ impl PromptTemplateStore for PostgresStore {
     }
 
     async fn get_active_prompt(&self, name: &str) -> OxResult<Option<PromptTemplateRow>> {
+        // Active global template (workspace_id IS NULL).
         sqlx::query_as(
-            "SELECT * FROM prompt_templates WHERE name = $1 AND is_active = true ORDER BY version DESC LIMIT 1",
+            "SELECT * FROM prompt_templates
+             WHERE name = $1 AND is_active = true AND workspace_id IS NULL
+             ORDER BY version DESC LIMIT 1",
         )
         .bind(name)
         .fetch_optional(&self.pool)
@@ -2427,10 +2430,35 @@ impl PromptTemplateStore for PostgresStore {
         })
     }
 
+    async fn get_active_prompt_for_workspace(
+        &self,
+        name: &str,
+        workspace_id: Option<Uuid>,
+    ) -> OxResult<Option<PromptTemplateRow>> {
+        // Single query: prefer ws-specific override (workspace_id = $2),
+        // fall back to global (workspace_id IS NULL). The ORDER BY puts
+        // ws-specific first when both exist.
+        sqlx::query_as(
+            "SELECT * FROM prompt_templates
+             WHERE name = $1
+               AND is_active = true
+               AND ($2::uuid IS NULL OR workspace_id IS NULL OR workspace_id = $2)
+             ORDER BY (workspace_id IS NULL), version DESC
+             LIMIT 1",
+        )
+        .bind(name)
+        .bind(workspace_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| OxError::Runtime {
+            message: format!("Database error: {e}"),
+        })
+    }
+
     async fn create_prompt_template(&self, r: &PromptTemplateRow) -> OxResult<()> {
         sqlx::query(
-            "INSERT INTO prompt_templates (id, name, version, content, variables, metadata, created_by, created_at, is_active)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            "INSERT INTO prompt_templates (id, name, version, content, variables, metadata, created_by, created_at, is_active, workspace_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
              ON CONFLICT (name, version) DO NOTHING",
         )
         .bind(r.id)
@@ -2442,6 +2470,7 @@ impl PromptTemplateStore for PostgresStore {
         .bind(&r.created_by)
         .bind(r.created_at)
         .bind(r.is_active)
+        .bind(r.workspace_id)
         .execute(&self.pool)
         .await
         .map_err(|e| OxError::Runtime {

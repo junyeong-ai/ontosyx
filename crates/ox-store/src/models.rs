@@ -430,6 +430,10 @@ pub struct PromptTemplateRow {
     pub created_by: String,
     pub created_at: DateTime<Utc>,
     pub is_active: bool,
+    /// Workspace this override belongs to. `None` = global template
+    /// (visible to every workspace as the fallback).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace_id: Option<Uuid>,
 }
 
 // ---------------------------------------------------------------------------
