@@ -1,15 +1,15 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { toast } from "sonner";
 import type { NodeMouseHandler, EdgeMouseHandler } from "@xyflow/react";
 
 import { useAppStore } from "@/lib/store";
-import type { ContextMenuState, ContextMenuItem } from "./context-menu";
-import { toast } from "sonner";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { usePrompt } from "@/components/ui/prompt-dialog";
-import type { OntologyIR, OntologyCommand } from "@/types/api";
 import { editProject } from "@/lib/api";
+import type { ContextMenuState, ContextMenuItem } from "@/components/workbench/canvas/context-menu";
+import type { OntologyIR, OntologyCommand } from "@/types/api";
 
 async function improveWithAi(
   entityType: "node" | "edge",
@@ -46,6 +46,10 @@ async function improveWithAi(
 
 /**
  * Context menu state, items, and event handlers for nodes and edges.
+ *
+ * Holds the open/close position state and computes the correct item list
+ * based on the selection kind. Actions trigger ontology commands, confirm
+ * dialogs, and prompt dialogs.
  */
 export function useCanvasContextMenu(ontology: OntologyIR | null) {
   const select = useAppStore((s) => s.select);

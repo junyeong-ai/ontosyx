@@ -125,11 +125,18 @@ export function PatternCanvas({
                         key={edge.id}
                         role="button"
                         tabIndex={0}
+                        aria-pressed={selectedId === edge.id}
+                        aria-label={`Edge ${edge.relType}`}
                         onClick={(e) => {
                           e.stopPropagation();
                           onSelectEdge(edge.id);
                         }}
-                        onKeyDown={(e) => { if (e.key === 'Enter') onSelectEdge(edge.id); }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            onSelectEdge(edge.id);
+                          }
+                        }}
                         className={`group/edge relative flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors ${
                           selectedId === edge.id
                             ? "border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-600 dark:bg-amber-950/30 dark:text-amber-400"
@@ -139,10 +146,12 @@ export function PatternCanvas({
                         <span>&rarr;</span>
                         <span>{edge.relType}</span>
                         <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             onRemoveEdge(edge.id);
                           }}
+                          aria-label={`Remove edge ${edge.relType}`}
                           className="ml-0.5 hidden text-zinc-400 hover:text-red-500 group-hover/edge:inline dark:hover:text-red-400"
                           title="Remove edge"
                         >
@@ -153,15 +162,24 @@ export function PatternCanvas({
                 </div>
               )}
 
-              {/* Node card */}
+              {/* Node card — a div with role=button (not a <button>) because
+                  it nests a real <button> for removal; a real button would be
+                  invalid HTML. Keyboard support via onKeyDown. */}
               <div
                 role="button"
                 tabIndex={0}
+                aria-pressed={isSelected}
+                aria-label={`Node ${node.label} (${node.alias})`}
                 onClick={(e) => {
                   e.stopPropagation();
                   onSelectNode(isSelected ? null : node.id);
                 }}
-                onKeyDown={(e) => { if (e.key === 'Enter') onSelectNode(isSelected ? null : node.id); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelectNode(isSelected ? null : node.id);
+                  }
+                }}
                 className={`group/node relative cursor-pointer rounded-xl border-2 px-4 py-3 text-left transition-all ${
                   isSelected
                     ? "border-emerald-500 bg-emerald-50 shadow-sm dark:border-emerald-600 dark:bg-emerald-950/30"
@@ -170,10 +188,12 @@ export function PatternCanvas({
               >
                 {/* Remove button */}
                 <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     onRemoveNode(node.id);
                   }}
+                  aria-label={`Remove node ${node.label}`}
                   className="absolute -right-1.5 -top-1.5 hidden h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] text-white shadow-sm group-hover/node:flex"
                   title="Remove node"
                 >

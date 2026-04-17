@@ -54,6 +54,13 @@ url = "2.5.8"
 sha2 = "0.10.9"
 reqwest = { workspace = true }
 
+[dev-dependencies]
+criterion = { version = "0.7", features = ["html_reports"] }
+
+[[bench]]
+name = "query_compile"
+harness = false
+
 
 [lints]
 workspace = true

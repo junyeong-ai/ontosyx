@@ -4,8 +4,10 @@ import { useAppStore } from "@/lib/store";
 /**
  * Consolidated canvas state selector.
  *
- * Replaces ~13 individual `useAppStore()` calls in `ontology-canvas.tsx`
- * with a single shallow-compared subscription, reducing unnecessary re-renders.
+ * Returns a shallow-compared snapshot of the store slices the main
+ * canvas component still needs directly (ontology + selection + highlight +
+ * neighborhood setter). Other slices (viewport, selection effects, commands,
+ * keyboard, context menu) consume the store themselves via dedicated hooks.
  */
 export function useCanvasState() {
   return useAppStore(
@@ -13,17 +15,8 @@ export function useCanvasState() {
       ontology: s.ontology,
       select: s.select,
       clearSelection: s.clearSelection,
-      highlightedBindings: s.highlightedBindings,
       setHighlightedBindings: s.setHighlightedBindings,
-      lastReconcileReport: s.lastReconcileReport,
-      activeDiffOverlay: s.activeDiffOverlay,
-      nodeGroups: s.nodeGroups,
-      restoreNodeGroups: s.restoreNodeGroups,
-      neighborhoodFocus: s.neighborhoodFocus,
       setNeighborhoodFocus: s.setNeighborhoodFocus,
-      applyCommand: s.applyCommand,
-      setActiveProject: s.setActiveProject,
-      setOntology: s.setOntology,
     })),
   );
 }

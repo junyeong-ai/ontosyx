@@ -7,6 +7,7 @@ import { searchGraph } from "@/lib/api";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/cn";
 import { useAppStore } from "@/lib/store";
+import { useImeAwareInput } from "@/lib/use-ime-aware-input";
 import type { NodeTypeDef, EdgeTypeDef } from "@/types/api";
 import {
   type SearchResultNode,
@@ -79,7 +80,12 @@ function searchSchema(query: string, ontology: { node_types: NodeTypeDef[]; edge
 
 export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [query, setQuery] = useState("");
+  // IME-aware input: Hangul composition is only propagated as `query` once
+  // the user finishes composing a syllable (so searches don't fire on
+  // intermediate jamo like "ㅎ").
+  const searchInput = useImeAwareInput("");
+  const query = searchInput.committedValue;
+  const setQuery = searchInput.setValue;
   const [dataHits, setDataHits] = useState<SearchResultNode[]>([]);
   const [loading, setLoading] = useState(false);
   const [dataSearched, setDataSearched] = useState(false);
@@ -173,21 +179,38 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
   const hasDataResults = dataHits.length > 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/20 dark:bg-black/40" />
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Search"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]"
+    >
+      {/* Backdrop as a real <button> gives mouse + keyboard close behavior
+          without relying on global keyDown handlers at the document level. */}
+      <button
+        type="button"
+        aria-label="Close search"
+        className="absolute inset-0 cursor-default bg-black/20 dark:bg-black/40"
+        onClick={onClose}
+      />
       <div
         className="relative w-full max-w-lg rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
-        onClick={(e) => e.stopPropagation()}
       >
         {/* Search input */}
         <div className="flex items-center gap-2 border-b border-zinc-200 px-3 py-2.5 dark:border-zinc-700">
           <HugeiconsIcon icon={Search01Icon} className="h-4 w-4 text-zinc-400" size="100%" />
           <input
             ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            type="search"
+            value={searchInput.value}
+            onChange={searchInput.bind.onChange}
+            onCompositionStart={searchInput.bind.onCompositionStart}
+            onCompositionEnd={searchInput.bind.onCompositionEnd}
             onKeyDown={(e) => {
+              // Ignore key events while the IME is composing — the browser
+              // fires `Enter`/keyCode 229 during Hangul commit which would
+              // otherwise double-trigger a search.
+              if (e.nativeEvent.isComposing) return;
               if (e.key === "Escape") {
                 onClose();
               } else if (e.key === "ArrowDown") {

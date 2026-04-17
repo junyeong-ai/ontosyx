@@ -47,6 +47,10 @@ export function BarChartWidget({ spec, data }: BarChartWidgetProps) {
   const rotated = chartData.length > CATEGORY_THRESHOLD;
   const tick = axisTickStyle(isDark);
 
+  const ariaLabel = spec.title
+    ? `Bar chart: ${spec.title} (${chartData.length} items)`
+    : `Bar chart (${chartData.length} items)`;
+
   return (
     <div className="space-y-2">
       {spec.title && (
@@ -54,9 +58,17 @@ export function BarChartWidget({ spec, data }: BarChartWidgetProps) {
           {spec.title}
         </h4>
       )}
-      <div className="h-64 w-full overflow-hidden">
+      <div
+        className="h-64 w-full overflow-hidden"
+        role="img"
+        aria-label={ariaLabel}
+      >
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+          <BarChart
+            data={chartData}
+            margin={{ top: 4, right: 8, left: 0, bottom: 4 }}
+            accessibilityLayer
+          >
             <CartesianGrid strokeDasharray="3 3" stroke={gridStroke(isDark)} />
             <XAxis
               dataKey="name"

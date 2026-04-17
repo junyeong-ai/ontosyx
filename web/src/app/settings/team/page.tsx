@@ -129,13 +129,13 @@ export default function TeamPage() {
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-zinc-100 dark:border-zinc-800">
-                  <th className="py-3 pr-6 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                  <th scope="col" className="py-3 pr-6 text-xs font-medium text-zinc-500 dark:text-zinc-400">
                     User
                   </th>
-                  <th className="py-3 pr-6 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                  <th scope="col" className="py-3 pr-6 text-xs font-medium text-zinc-500 dark:text-zinc-400">
                     Email
                   </th>
-                  <th className="py-3 pr-6 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                  <th scope="col" className="py-3 pr-6 text-xs font-medium text-zinc-500 dark:text-zinc-400">
                     Role
                   </th>
                 </tr>

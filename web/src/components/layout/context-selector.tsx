@@ -16,15 +16,11 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useGuardPendingEdits } from "@/lib/guard-pending-edits";
-import type { OntologyIR, DesignProjectSummary, Dashboard } from "@/types/api";
-import {
-  listProjects,
-  getProject,
-  createProject,
-  listDashboards,
-  createDashboard,
-  listOntologies,
-} from "@/lib/api";
+import type { OntologyIR } from "@/types/api";
+import { getProject, createProject } from "@/lib/api";
+import { useProjects } from "@/hooks/api/use-projects";
+import { useCreateDashboard, useDashboards } from "@/hooks/api/use-dashboards";
+import { useOntologies } from "@/hooks/api/use-ontologies";
 
 // ---------------------------------------------------------------------------
 // Shared trigger styling — all selectors use this exact visual wrapper
@@ -72,17 +68,15 @@ function DesignSelector() {
   const guardPendingEdits = useGuardPendingEdits();
 
   const [open, setOpen] = useState(false);
-  const [projects, setProjects] = useState<DesignProjectSummary[]>([]);
-  const [loading, setLoading] = useState(false);
+
+  // Why: only fetch projects while the popover is open — `enabled` gates the
+  // query so closed selectors don't consume bandwidth.
+  const { data, isFetching, isError } = useProjects(undefined, { enabled: open });
+  const projects = data?.items ?? [];
 
   useEffect(() => {
-    if (!open) return;
-    setLoading(true);
-    listProjects()
-      .then((page) => setProjects(page.items))
-      .catch(() => toast.error("Failed to load projects"))
-      .finally(() => setLoading(false));
-  }, [open]);
+    if (isError) toast.error("Failed to load projects");
+  }, [isError]);
 
   const handleSelect = async (id: string) => {
     if (!(await guardPendingEdits("Switch Project"))) return;
@@ -128,7 +122,7 @@ function DesignSelector() {
             New Project
           </button>
           <div className="my-1 h-px bg-zinc-200 dark:bg-zinc-700" />
-          {loading ? (
+          {isFetching ? (
             <div className="flex items-center justify-center py-4">
               <Spinner size="sm" className="text-zinc-400" />
             </div>
@@ -194,33 +188,23 @@ function DesignSelector() {
 function AnalyzeSelector() {
   const ontology = useAppStore((s) => s.ontology);
   const workspaceReady = useAppStore((s) => s.workspaceReady);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
 
   // Auto-load latest saved ontology when entering Analyze mode (after workspace init)
+  const { data, isFetching, isError } = useOntologies(
+    { limit: 1 },
+    { enabled: workspaceReady },
+  );
+
   useEffect(() => {
-    if (!workspaceReady) return;
-    let cancelled = false;
-    setLoading(true);
-    setError(false);
-    listOntologies({ limit: 1 })
-      .then((page) => {
-        if (cancelled) return;
-        if (page.items.length > 0) {
-          const saved = page.items[0];
-          const store = useAppStore.getState();
-          store.loadSavedOntology(saved.ontology_ir as OntologyIR);
-          store.setSavedOntologyId(saved.id);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setError(true);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, [workspaceReady]);  
+    if (!data || data.items.length === 0) return;
+    const saved = data.items[0];
+    const store = useAppStore.getState();
+    store.loadSavedOntology(saved.ontology_ir as OntologyIR);
+    store.setSavedOntologyId(saved.id);
+  }, [data]);
+
+  const loading = isFetching;
+  const error = isError;
 
   if (loading) {
     return (
@@ -268,31 +252,22 @@ function AnalyzeSelector() {
 function ExploreSelector() {
   const ontology = useAppStore((s) => s.ontology);
   const workspaceReady = useAppStore((s) => s.workspaceReady);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
 
-  // Auto-load latest saved ontology when entering Explore mode (after workspace init)
+  const { data, isFetching, isError } = useOntologies(
+    { limit: 1 },
+    { enabled: workspaceReady },
+  );
+
   useEffect(() => {
-    if (!workspaceReady) return;
-    let cancelled = false;
-    setLoading(true);
-    setError(false);
-    listOntologies({ limit: 1 })
-      .then((page) => {
-        if (cancelled) return;
-        if (page.items.length > 0) {
-          const saved = page.items[0];
-          const store = useAppStore.getState();
-          store.loadSavedOntology(saved.ontology_ir as OntologyIR);
-          store.setSavedOntologyId(saved.id);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setError(true);
-      })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [workspaceReady]);  
+    if (!data || data.items.length === 0) return;
+    const saved = data.items[0];
+    const store = useAppStore.getState();
+    store.loadSavedOntology(saved.ontology_ir as OntologyIR);
+    store.setSavedOntologyId(saved.id);
+  }, [data]);
+
+  const loading = isFetching;
+  const error = isError;
 
   if (loading) {
     return (
@@ -322,46 +297,43 @@ function DashboardSelector() {
   const setActiveDashboardId = useAppStore((s) => s.setActiveDashboardId);
 
   const [open, setOpen] = useState(false);
-  const [dashboards, setDashboards] = useState<Dashboard[]>([]);
-  const [loading, setLoading] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
 
-  // Load dashboards on mount (for label display) and when popover opens (for fresh data)
-  useEffect(() => {
-    listDashboards({ limit: 50 })
-      .then((page) => setDashboards(page.items))
-      .catch(() => {});
-  }, []);
+  // Why: TanStack shares one cache across mounts — this query covers both the
+  // always-rendered label (needs the full list to resolve `activeDashboardId`)
+  // and the popover. `isFetching` reflects any active refetch.
+  const { data, isFetching, isError } = useDashboards({ limit: 50 });
+  const dashboards = data?.items ?? [];
 
   useEffect(() => {
-    if (!open) return;
-    setLoading(true);
-    listDashboards({ limit: 50 })
-      .then((page) => setDashboards(page.items))
-      .catch(() => toast.error("Failed to load dashboards"))
-      .finally(() => setLoading(false));
-  }, [open]);
+    if (open && isError) toast.error("Failed to load dashboards");
+  }, [open, isError]);
+
+  const createMutation = useCreateDashboard();
+  const loading = isFetching;
 
   const handleSelect = (id: string) => {
     setActiveDashboardId(id);
     setOpen(false);
   };
 
-  const handleCreate = async () => {
+  const handleCreate = () => {
     const name = newName.trim();
     if (!name) return;
-    try {
-      const dash = await createDashboard({ name });
-      setDashboards((prev) => [dash, ...prev]);
-      setActiveDashboardId(dash.id);
-      setIsCreateOpen(false);
-      setNewName("");
-      setOpen(false);
-      toast.success("Dashboard created");
-    } catch {
-      toast.error("Failed to create dashboard");
-    }
+    createMutation.mutate(
+      { name },
+      {
+        onSuccess: (dash) => {
+          setActiveDashboardId(dash.id);
+          setIsCreateOpen(false);
+          setNewName("");
+          setOpen(false);
+          toast.success("Dashboard created");
+        },
+        onError: () => toast.error("Failed to create dashboard"),
+      },
+    );
   };
 
   const activeDashboard = dashboards.find((d) => d.id === activeDashboardId);

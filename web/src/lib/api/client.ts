@@ -1,5 +1,12 @@
 import { getPrincipalId } from "@/lib/principal";
 import { getWorkspaceId } from "@/lib/workspace";
+import type { components } from "@/types/api.generated";
+
+// Sample type-only import from the generated OpenAPI types. Proves that the
+// code-gen pipeline (scripts/gen-openapi-types.sh) wires the backend spec
+// into the frontend type system. Reference this from real call sites as we
+// migrate handcrafted types (src/types/api.ts etc.) to generated ones.
+export type GeneratedErrorResponse = components["schemas"]["ErrorResponse"];
 
 // ---------------------------------------------------------------------------
 // Constants

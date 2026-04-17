@@ -1,0 +1,21 @@
+{
+  "_meta": {
+    "description": "Criterion bench baseline — median ns per iteration (Phase 6.5).",
+    "placeholder": true,
+    "note": "Numbers below are MEASURED on a local macOS machine (Darwin 25.4.0, Apple Silicon). CI runners (ubuntu-latest) may differ by 2-3x. Re-record on the canonical CI runner before enabling the gate and flip `placeholder` to false.",
+    "tolerance_pct": 3,
+    "last_updated": "2026-04-17"
+  },
+  "simple_match": {
+    "median_ns": 1330,
+    "placeholder": true
+  },
+  "relationship_traversal": {
+    "median_ns": 1684,
+    "placeholder": true
+  },
+  "aggregation_group_by": {
+    "median_ns": 1707,
+    "placeholder": true
+  }
+}

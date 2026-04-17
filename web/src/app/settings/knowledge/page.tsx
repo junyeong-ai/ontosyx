@@ -1,20 +1,22 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { Spinner } from "@/components/ui/spinner";
 import { SettingsSelect } from "@/components/ui/form-input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import type { KnowledgeEntry, KnowledgeStatus, KnowledgeKind } from "@/types/api";
-import {
-  listKnowledge,
-  deleteKnowledge,
-  updateKnowledgeStatus,
-  bulkReviewKnowledge,
-} from "@/lib/api/knowledge";
+import type { KnowledgeEntry, KnowledgeStatus } from "@/types/api";
+import { bulkReviewKnowledge } from "@/lib/api/knowledge";
 import { useAuth } from "@/lib/use-auth";
 import { cn } from "@/lib/cn";
+import {
+  knowledgeKeys,
+  useDeleteKnowledge,
+  useKnowledgeInfinite,
+  useUpdateKnowledgeStatus,
+} from "@/hooks/api/use-knowledge";
+import { useQueryClient } from "@tanstack/react-query";
 
 const KIND: Record<string, { cls: string; label: string }> = {
   correction: { cls: "text-blue-700 bg-blue-50 ring-blue-600/20 dark:text-blue-400 dark:bg-blue-950/40 dark:ring-blue-400/20", label: "Correction" },
@@ -31,56 +33,47 @@ const STATUS: Record<string, { dot: string; label: string }> = {
 const KB_PAGE_LIMIT = 100;
 
 export default function KnowledgePage() {
-  const [entries, setEntries] = useState<KnowledgeEntry[]>([]);
-  const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("");
   const [kindFilter, setKindFilter] = useState("");
-  const [nextCursor, setNextCursor] = useState<string | undefined>();
-  const [hasMore, setHasMore] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const { isAdmin } = useAuth();
   const confirm = useConfirm();
+  const qc = useQueryClient();
 
-  const load = useCallback(async () => {
-    try {
-      const page = await listKnowledge({ status: statusFilter || undefined, kind: kindFilter || undefined, limit: KB_PAGE_LIMIT });
-      setEntries(page.items);
-      setNextCursor(page.next_cursor);
-      setHasMore(page.items.length === KB_PAGE_LIMIT);
-    } catch { toast.error("Failed to load knowledge entries"); }
-    finally { setLoading(false); }
-  }, [statusFilter, kindFilter]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const handleLoadMore = async () => {
-    if (!hasMore || loadingMore) return;
-    setLoadingMore(true);
-    try {
-      const page = await listKnowledge({
-        status: statusFilter || undefined,
-        kind: kindFilter || undefined,
-        limit: KB_PAGE_LIMIT,
-        cursor: nextCursor,
-      });
-      setEntries((prev) => [...prev, ...page.items]);
-      setNextCursor(page.next_cursor);
-      setHasMore(page.items.length === KB_PAGE_LIMIT);
-    } catch {
-      toast.error("Failed to load more entries");
-    } finally {
-      setLoadingMore(false);
-    }
+  const filters = {
+    status: statusFilter || undefined,
+    kind: kindFilter || undefined,
+    limit: KB_PAGE_LIMIT,
   };
 
-  const handleStatus = useCallback(async (id: string, status: KnowledgeStatus) => {
-    try {
-      await updateKnowledgeStatus(id, status);
-      setEntries((p) => p.map((e) => (e.id === id ? { ...e, status } : e)));
-      toast.success(`Status changed to ${status}`);
-    } catch { toast.error("Failed to update status"); }
-  }, []);
+  // Why: infinite query — UI accumulates entries across "Load more" clicks.
+  const {
+    data,
+    isLoading,
+    isError,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useKnowledgeInfinite(filters);
+
+  useEffect(() => {
+    if (isError) toast.error("Failed to load knowledge entries");
+  }, [isError]);
+
+  const entries = data?.pages.flatMap((p) => p.items) ?? [];
+
+  const updateStatus = useUpdateKnowledgeStatus(filters);
+  const deleteEntry = useDeleteKnowledge(filters);
+
+  const handleStatus = (id: string, status: KnowledgeStatus) => {
+    updateStatus.mutate(
+      { id, status },
+      {
+        onSuccess: () => toast.success(`Status changed to ${status}`),
+        onError: () => toast.error("Failed to update status"),
+      },
+    );
+  };
 
   const handleDelete = async (id: string) => {
     const entry = entries.find((e) => e.id === id);
@@ -90,12 +83,13 @@ export default function KnowledgePage() {
       variant: "danger",
     });
     if (!ok) return;
-    try {
-      await deleteKnowledge(id);
-      setEntries((p) => p.filter((e) => e.id !== id));
-      if (expandedId === id) setExpandedId(null);
-      toast.success("Deleted");
-    } catch { toast.error("Delete failed"); }
+    deleteEntry.mutate(id, {
+      onSuccess: () => {
+        if (expandedId === id) setExpandedId(null);
+        toast.success("Deleted");
+      },
+      onError: () => toast.error("Delete failed"),
+    });
   };
 
   const staleCount = entries.filter((e) => e.status === "stale").length;
@@ -120,8 +114,13 @@ export default function KnowledgePage() {
               <button
                 onClick={async () => {
                   const ids = entries.filter((e) => e.status === "stale").map((e) => e.id);
-                  try { await bulkReviewKnowledge(ids, "deprecated"); toast.success(`${ids.length} deprecated`); load(); }
-                  catch { toast.error("Failed"); }
+                  try {
+                    await bulkReviewKnowledge(ids, "deprecated");
+                    toast.success(`${ids.length} deprecated`);
+                    qc.invalidateQueries({ queryKey: knowledgeKeys.lists() });
+                  } catch {
+                    toast.error("Failed");
+                  }
                 }}
                 className="rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600 transition"
               >
@@ -150,7 +149,7 @@ export default function KnowledgePage() {
 
         {/* Content */}
         <div className="mt-5">
-          {loading ? (
+          {isLoading ? (
             <div className="flex justify-center py-16"><Spinner /></div>
           ) : entries.length === 0 ? (
             <div className="rounded-xl border border-dashed border-zinc-300 px-6 py-16 text-center dark:border-zinc-700">
@@ -175,10 +174,15 @@ export default function KnowledgePage() {
             </div>
           )}
 
-          {hasMore && !loading && entries.length > 0 && (
+          {hasNextPage && !isLoading && entries.length > 0 && (
             <div className="mt-4 flex justify-center">
-              <Button variant="outline" size="sm" onClick={handleLoadMore} disabled={loadingMore}>
-                {loadingMore ? "Loading..." : `Load more (showing ${entries.length})`}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+              >
+                {isFetchingNextPage ? "Loading..." : `Load more (showing ${entries.length})`}
               </Button>
             </div>
           )}

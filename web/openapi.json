@@ -1,0 +1,4457 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Ontosyx API",
+    "description": "The Semantic Orchestrator — Knowledge Graph Lifecycle Platform.\n\n## Response envelope\n\nEvery successful 2xx response is wrapped in:\n\n```json\n{ \"data\": <T>, \"pagination\": {\"next_cursor\": \"...\"}?, \"meta\": {...}? }\n```\n\nEach handler's `responses(... body = T)` documents the type of `data`, **not** the wire shape. Generated clients should either unwrap `data` in a post-processing step (the approach `web/src/lib/api/client.ts` takes — frontend callers receive `T` directly) or wrap every response type in the envelope shape when consuming the spec from a third-party codegen.\n\nError responses use a separate envelope: `{ \"error\": { \"type\": \"...\", \"message\": \"...\" } }` (see the `ErrorResponse` schema).",
+    "license": {
+      "name": "MIT"
+    },
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/chat/stream": {
+      "post": {
+        "tags": [
+          "Chat"
+        ],
+        "operationId": "chat_stream",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatStreamRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "SSE stream: Agent events",
+            "content": {
+              "text/event-stream": {}
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config": {
+      "get": {
+        "tags": [
+          "Config"
+        ],
+        "operationId": "get_config",
+        "responses": {
+          "200": {
+            "description": "Configuration grouped by category",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Config"
+        ],
+        "operationId": "update_config",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Config updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No updates provided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/config/ui": {
+      "get": {
+        "tags": [
+          "Config"
+        ],
+        "operationId": "get_ui_config",
+        "responses": {
+          "200": {
+            "description": "Frontend-relevant configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiConfig"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "operationId": "health_check",
+        "responses": {
+          "200": {
+            "description": "Service health status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/load": {
+      "post": {
+        "tags": [
+          "Load"
+        ],
+        "operationId": "plan_load",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoadPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Load plan generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoadPlanResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/load/execute": {
+      "post": {
+        "tags": [
+          "Load"
+        ],
+        "operationId": "execute_load",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoadExecuteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Load executed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoadExecuteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Graph database not connected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontologies": {
+      "get": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "list_ontologies",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Max items to return (default 50, max 100)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque cursor from a previous response",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of saved ontologies",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology/export": {
+      "post": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "export_ontology",
+        "requestBody": {
+          "description": "OntologyIR to export",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OntologyInputIR exchange format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology/export/cypher": {
+      "post": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "export_cypher",
+        "requestBody": {
+          "description": "OntologyIR",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Cypher DDL statements",
+            "content": {
+              "text/plain": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology/export/graphql": {
+      "post": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "export_graphql",
+        "requestBody": {
+          "description": "OntologyIR",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "GraphQL schema",
+            "content": {
+              "text/plain": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology/export/mermaid": {
+      "post": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "export_mermaid",
+        "requestBody": {
+          "description": "OntologyIR",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Mermaid ER diagram",
+            "content": {
+              "text/plain": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology/export/owl": {
+      "post": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "export_owl",
+        "requestBody": {
+          "description": "OntologyIR",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OWL/Turtle ontology",
+            "content": {
+              "text/plain": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology/export/python": {
+      "post": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "export_python",
+        "requestBody": {
+          "description": "OntologyIR",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Python dataclass definitions",
+            "content": {
+              "text/plain": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology/export/shacl": {
+      "post": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "export_shacl",
+        "requestBody": {
+          "description": "OntologyIR",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "SHACL shapes in Turtle format",
+            "content": {
+              "text/plain": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology/export/typescript": {
+      "post": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "export_typescript",
+        "requestBody": {
+          "description": "OntologyIR",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "TypeScript interface definitions",
+            "content": {
+              "text/plain": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology/import/owl": {
+      "post": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "import_owl",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OntologyImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Parsed OntologyIR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parse or validation errors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontology/normalize": {
+      "post": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "normalize_ontology",
+        "requestBody": {
+          "description": "OntologyInputIR to normalize",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized OntologyIR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation errors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/perspectives": {
+      "put": {
+        "tags": [
+          "Perspectives"
+        ],
+        "operationId": "save_perspective",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PerspectiveUpsertRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Perspective saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/perspectives/by-lineage/{lineage_id}": {
+      "get": {
+        "tags": [
+          "Perspectives"
+        ],
+        "operationId": "list_perspectives",
+        "parameters": [
+          {
+            "name": "lineage_id",
+            "in": "path",
+            "description": "Lineage ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of perspectives for this lineage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/perspectives/by-lineage/{lineage_id}/best": {
+      "get": {
+        "tags": [
+          "Perspectives"
+        ],
+        "summary": "2-tier perspective lookup: exact lineage match, then topology match.",
+        "operationId": "get_best_perspective",
+        "parameters": [
+          {
+            "name": "lineage_id",
+            "in": "path",
+            "description": "Lineage ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "topology_signature",
+            "in": "query",
+            "description": "Topology hash for fallback matching",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Best matching perspective (null if none)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/perspectives/by-lineage/{lineage_id}/default": {
+      "get": {
+        "tags": [
+          "Perspectives"
+        ],
+        "operationId": "get_default_perspective",
+        "parameters": [
+          {
+            "name": "lineage_id",
+            "in": "path",
+            "description": "Lineage ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default perspective (null if none set)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/perspectives/{id}": {
+      "delete": {
+        "tags": [
+          "Perspectives"
+        ],
+        "operationId": "delete_perspective",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Perspective ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Perspective deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Perspective not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pins": {
+      "get": {
+        "tags": [
+          "Pins"
+        ],
+        "operationId": "list_pins",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Max items to return (default 50, max 100)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque cursor from a previous response",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated pin list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Pins"
+        ],
+        "operationId": "create_pin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PinCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Pin created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pins/{id}": {
+      "delete": {
+        "tags": [
+          "Pins"
+        ],
+        "operationId": "delete_pin",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Pin ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Pin deleted"
+          },
+          "404": {
+            "description": "Pin not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "list_projects",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Max items to return (default 50, max 100)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque cursor from a previous response",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated project list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "create_project",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProjectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Project created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Base ontology not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "get_project",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "delete_project",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Project deleted"
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}/apply-reconcile": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "apply_reconcile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectReconcileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Reconcile decisions applied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectRefineResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid decisions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Reconciled ontology invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}/complete": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "complete_project",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectCompleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Project completed, ontology saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Project has no ontology",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Quality gate failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}/decisions": {
+      "patch": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "update_decisions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDecisionsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Decisions updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}/design": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "design_project",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectDesignRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Ontology designed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDesignResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or large schema gate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "LLM timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}/design/stream": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "design_project_stream",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectDesignRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "SSE stream: phase* -> result events",
+            "content": {
+              "text/event-stream": {}
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}/edit": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "edit_project",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectEditRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Edit commands generated and optionally applied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectEditResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty request or no ontology",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Command validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "LLM timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}/extend": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "extend_project",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectExtendRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Ontology extended with new source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectExtendResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No ontology or empty source data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "LLM timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}/ontology": {
+      "patch": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "apply_ontology_commands",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Design project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OntologyCommandsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Commands applied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OntologyCommandsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty commands or invalid ontology",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Command execution or validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}/reanalyze": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "reanalyze_project",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectReanalyzeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Source re-analyzed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectReanalyzeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Source type mismatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}/refine": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "refine_project",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectRefineRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Ontology refined",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectRefineResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No runtime or additional context",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Uncertain reconcile matches",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "LLM timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}/refine/stream": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "refine_project_stream",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectRefineRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "SSE stream: phase* -> result/uncertain_reconcile events",
+            "content": {
+              "text/event-stream": {}
+            }
+          },
+          "400": {
+            "description": "No runtime or context",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}/revisions": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "list_revisions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of ontology revision snapshots",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}/revisions/{rev}": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "get_revision",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "rev",
+            "in": "path",
+            "description": "Revision number",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ontology revision snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Revision not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}/revisions/{rev}/restore": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "restore_revision",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "rev",
+            "in": "path",
+            "description": "Revision number to restore",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Revision restored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectRestoreResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project or revision not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/prompts": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "operationId": "list_prompts",
+        "responses": {
+          "200": {
+            "description": "List of loaded prompt templates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PromptInfo"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/query/from-ir": {
+      "post": {
+        "tags": [
+          "Query"
+        ],
+        "operationId": "execute_from_ir",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecuteFromIrRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Compiled and executed query result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecuteFromIrResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid QueryIR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Compilation or execution failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Graph database not connected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Query timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/query/history": {
+      "get": {
+        "tags": [
+          "Query"
+        ],
+        "operationId": "list_executions",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Max items to return (default 50, max 100)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque cursor from a previous response",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated query execution history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/query/history/{id}": {
+      "get": {
+        "tags": [
+          "Query"
+        ],
+        "operationId": "get_execution",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Query execution ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Query execution details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Execution not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/query/raw": {
+      "post": {
+        "tags": [
+          "Query"
+        ],
+        "operationId": "raw_query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryRawRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Raw query result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryRawResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Query execution failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Graph database not connected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Query timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ChatStreamRequest": {
+        "type": "object",
+        "required": [
+          "message",
+          "ontology"
+        ],
+        "properties": {
+          "execution_mode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "model_override": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Override the LLM model for this request (e.g., \"claude-opus-4-6\")."
+          },
+          "ontology": {
+            "type": "object"
+          },
+          "project_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "project_revision": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "saved_ontology_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "session_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ConfigEntry": {
+        "type": "object",
+        "required": [
+          "key",
+          "value",
+          "data_type",
+          "description"
+        ],
+        "properties": {
+          "data_type": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        }
+      },
+      "ConfigUpdate": {
+        "type": "object",
+        "required": [
+          "category",
+          "key",
+          "value"
+        ],
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        }
+      },
+      "ConfigUpdateRequest": {
+        "type": "object",
+        "required": [
+          "updates"
+        ],
+        "properties": {
+          "updates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConfigUpdate"
+            }
+          }
+        }
+      },
+      "CreateProjectRequest": {
+        "allOf": [
+          {
+            "type": "object",
+            "description": "Project origin: source analysis or base ontology."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "CursorParams": {
+        "type": "object",
+        "description": "Cursor-based pagination parameters.",
+        "properties": {
+          "cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Opaque cursor from a previous response's `next_cursor`"
+          },
+          "limit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Max items to return (default 50, max 100)",
+            "minimum": 0
+          }
+        }
+      },
+      "DesignProject": {
+        "type": "object",
+        "description": "Design project — ontology design lifecycle.",
+        "required": [
+          "id",
+          "status",
+          "revision",
+          "user_id",
+          "source_config",
+          "design_options",
+          "source_history",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "analysis_report": {},
+          "analyzed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "design_options": {},
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ontology": {},
+          "quality_report": {},
+          "revision": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "saved_ontology_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "source_config": {},
+          "source_data": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_history": {},
+          "source_mapping": {},
+          "source_profile": {},
+          "source_schema": {},
+          "status": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        }
+      },
+      "DesignProjectSummary": {
+        "type": "object",
+        "description": "Design project summary (lightweight, for list endpoints).",
+        "required": [
+          "id",
+          "status",
+          "revision",
+          "user_id",
+          "source_config",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "analyzed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "saved_ontology_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "source_config": {},
+          "status": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ErrorBody": {
+        "type": "object",
+        "required": [
+          "type",
+          "message"
+        ],
+        "properties": {
+          "details": {
+            "description": "Optional additional details"
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable error message"
+          },
+          "type": {
+            "type": "string",
+            "description": "Machine-readable error type (e.g., \"not_found\", \"bad_request\")"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorBody"
+          }
+        }
+      },
+      "ExecuteFromIrRequest": {
+        "type": "object",
+        "required": [
+          "query_ir"
+        ],
+        "properties": {
+          "ontology_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional ontology ID for context (used during deserialization)."
+          },
+          "query_ir": {
+            "type": "object",
+            "description": "The QueryIR to compile and execute."
+          }
+        }
+      },
+      "ExecuteFromIrResponse": {
+        "type": "object",
+        "required": [
+          "compiled_query",
+          "compiled_target",
+          "result"
+        ],
+        "properties": {
+          "compiled_query": {
+            "type": "string",
+            "description": "The compiled query statement in the target language."
+          },
+          "compiled_target": {
+            "type": "string",
+            "description": "The compilation target (e.g. \"cypher\")."
+          },
+          "result": {
+            "type": "object",
+            "description": "Query result rows and metadata."
+          },
+          "widget_hint": {
+            "description": "Widget hint for optimal result visualization."
+          }
+        }
+      },
+      "LoadExecuteRequest": {
+        "type": "object",
+        "required": [
+          "ontology",
+          "source_description",
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {},
+            "description": "Data batches to load. Each element is a JSON object representing one record."
+          },
+          "ontology": {
+            "type": "object",
+            "description": "OntologyIR for the target graph schema."
+          },
+          "plan": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Optional pre-computed load plan. If omitted, the plan is generated via LLM."
+          },
+          "source_description": {
+            "type": "string",
+            "description": "Description of the data source."
+          }
+        }
+      },
+      "LoadExecuteResponse": {
+        "type": "object",
+        "required": [
+          "plan",
+          "compiled_statements",
+          "target",
+          "result"
+        ],
+        "properties": {
+          "compiled_statements": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Compiled statements executed."
+          },
+          "plan": {
+            "type": "object",
+            "description": "Load plan used."
+          },
+          "result": {
+            "type": "object",
+            "description": "Execution results."
+          },
+          "target": {
+            "type": "string",
+            "description": "Compiler target language."
+          }
+        }
+      },
+      "LoadPlanRequest": {
+        "type": "object",
+        "required": [
+          "ontology",
+          "source_description"
+        ],
+        "properties": {
+          "ontology": {
+            "type": "object",
+            "description": "OntologyIR for the target graph schema."
+          },
+          "source_description": {
+            "type": "string",
+            "description": "Description of the data source for the LLM."
+          }
+        }
+      },
+      "LoadPlanResponse": {
+        "type": "object",
+        "required": [
+          "plan",
+          "compiled_statements",
+          "target"
+        ],
+        "properties": {
+          "compiled_statements": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Compiled statements in the target language."
+          },
+          "plan": {
+            "type": "object",
+            "description": "Generated load plan."
+          },
+          "target": {
+            "type": "string",
+            "description": "Compiler target language (e.g., \"cypher\")."
+          }
+        }
+      },
+      "OntologyCommandsRequest": {
+        "type": "object",
+        "required": [
+          "revision",
+          "commands"
+        ],
+        "properties": {
+          "commands": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "List of ontology mutation commands."
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "OntologyCommandsResponse": {
+        "type": "object",
+        "required": [
+          "project"
+        ],
+        "properties": {
+          "project": {
+            "type": "object"
+          }
+        }
+      },
+      "OntologyImportRequest": {
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "OWL ontology in Turtle format."
+          }
+        }
+      },
+      "OntologySnapshot": {
+        "type": "object",
+        "description": "Ontology revision snapshot.",
+        "required": [
+          "id",
+          "project_id",
+          "revision",
+          "ontology",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ontology": {},
+          "project_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quality_report": {},
+          "revision": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "source_mapping": {}
+        }
+      },
+      "OntologySnapshotSummary": {
+        "type": "object",
+        "description": "Ontology revision snapshot summary (lightweight).",
+        "required": [
+          "id",
+          "revision",
+          "created_at",
+          "node_count",
+          "edge_count"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "edge_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "node_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "PageMeta": {
+        "type": "object",
+        "description": "Cursor-based pagination metadata.\n\nCarries the opaque cursor used to fetch the next page of a\ncursor-paginated list endpoint. Surfaces in OpenAPI under\n`components.schemas.PageMeta`; list-handler responses include this\ninside the universal `ApiResponse` envelope.",
+        "properties": {
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Opaque cursor for the next page. `None` when this is the last page."
+          }
+        }
+      },
+      "PerspectiveFindParams": {
+        "type": "object",
+        "required": [
+          "topology_signature"
+        ],
+        "properties": {
+          "topology_signature": {
+            "type": "string"
+          }
+        }
+      },
+      "PerspectiveUpsertRequest": {
+        "type": "object",
+        "required": [
+          "lineage_id",
+          "topology_signature",
+          "name",
+          "positions",
+          "viewport"
+        ],
+        "properties": {
+          "collapsed_groups": {
+            "description": "Collapsed group settings JSON."
+          },
+          "filters": {
+            "description": "Filter settings JSON."
+          },
+          "is_default": {
+            "type": "boolean"
+          },
+          "lineage_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "positions": {
+            "description": "Node positions JSON."
+          },
+          "project_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "topology_signature": {
+            "type": "string"
+          },
+          "viewport": {
+            "description": "Viewport state JSON."
+          }
+        }
+      },
+      "PinCreateRequest": {
+        "type": "object",
+        "required": [
+          "query_execution_id",
+          "widget_spec"
+        ],
+        "properties": {
+          "query_execution_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "widget_spec": {
+            "description": "Widget specification JSON."
+          }
+        }
+      },
+      "PinboardItem": {
+        "type": "object",
+        "description": "Pinboard item — a saved query result.",
+        "required": [
+          "id",
+          "query_execution_id",
+          "user_id",
+          "widget_spec",
+          "pinned_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "pinned_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "query_execution_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "widget_spec": {}
+        }
+      },
+      "ProjectCompleteRequest": {
+        "type": "object",
+        "required": [
+          "revision",
+          "name"
+        ],
+        "properties": {
+          "acknowledge_quality_risks": {
+            "type": "boolean",
+            "description": "Must be set to true if the quality report has low confidence or high-severity gaps.\nPrevents accidental promotion of low-quality ontologies."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "description": "Name for the saved ontology."
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ProjectDesignRequest": {
+        "type": "object",
+        "required": [
+          "revision"
+        ],
+        "properties": {
+          "acknowledge_large_schema": {
+            "type": "boolean",
+            "description": "Must be set to true if the schema has >100 tables and the user wants to proceed anyway."
+          },
+          "context": {
+            "type": "string",
+            "description": "Domain hints for the LLM."
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ProjectDesignResponse": {
+        "type": "object",
+        "required": [
+          "project"
+        ],
+        "properties": {
+          "project": {
+            "type": "object"
+          }
+        }
+      },
+      "ProjectEditRequest": {
+        "type": "object",
+        "required": [
+          "revision",
+          "user_request"
+        ],
+        "properties": {
+          "dry_run": {
+            "type": "boolean",
+            "description": "If true, returns generated commands without applying them."
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "user_request": {
+            "type": "string",
+            "description": "Natural language description of the desired ontology change."
+          }
+        }
+      },
+      "ProjectEditResponse": {
+        "type": "object",
+        "required": [
+          "commands",
+          "explanation"
+        ],
+        "properties": {
+          "commands": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Generated ontology mutation commands."
+          },
+          "explanation": {
+            "type": "string",
+            "description": "LLM explanation of what was changed and why."
+          },
+          "project": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Updated project (null in dry_run mode)."
+          }
+        }
+      },
+      "ProjectExtendRequest": {
+        "type": "object",
+        "required": [
+          "revision",
+          "source"
+        ],
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "source": {
+            "$ref": "#/components/schemas/ProjectSource",
+            "description": "New data source to merge into the project."
+          }
+        }
+      },
+      "ProjectExtendResponse": {
+        "type": "object",
+        "required": [
+          "project",
+          "reconcile_report"
+        ],
+        "properties": {
+          "project": {
+            "type": "object"
+          },
+          "reconcile_report": {
+            "type": "object",
+            "description": "Report on ID reconciliation between existing and new ontology entities."
+          }
+        }
+      },
+      "ProjectOrigin": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "source",
+              "origin_type"
+            ],
+            "properties": {
+              "origin_type": {
+                "type": "string",
+                "enum": [
+                  "source"
+                ]
+              },
+              "repo_source": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "source": {
+                "$ref": "#/components/schemas/ProjectSource"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "base_ontology_id",
+              "origin_type"
+            ],
+            "properties": {
+              "base_ontology_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "origin_type": {
+                "type": "string",
+                "enum": [
+                  "base_ontology"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "ProjectReanalyzeRequest": {
+        "type": "object",
+        "required": [
+          "source",
+          "revision"
+        ],
+        "properties": {
+          "repo_source": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Optional repository source for enrichment."
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "source": {
+            "$ref": "#/components/schemas/ProjectSource",
+            "description": "Data source to re-analyze (must match original source type)."
+          }
+        }
+      },
+      "ProjectReanalyzeResponse": {
+        "type": "object",
+        "required": [
+          "project"
+        ],
+        "properties": {
+          "invalidated_decisions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Design decisions that were invalidated by the schema change."
+          },
+          "project": {
+            "type": "object"
+          }
+        }
+      },
+      "ProjectReconcileRequest": {
+        "type": "object",
+        "required": [
+          "revision",
+          "reconciled_ontology",
+          "decisions",
+          "uncertain_matches"
+        ],
+        "properties": {
+          "decisions": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "User accept/reject decisions for uncertain matches."
+          },
+          "reconciled_ontology": {
+            "type": "object",
+            "description": "Reconciled ontology with user decisions applied."
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "uncertain_matches": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "The uncertain matches being decided upon."
+          }
+        }
+      },
+      "ProjectRefineRequest": {
+        "type": "object",
+        "required": [
+          "revision"
+        ],
+        "properties": {
+          "additional_context": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Additional context for the LLM refinement."
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ProjectRefineResponse": {
+        "type": "object",
+        "required": [
+          "project",
+          "profile_summary",
+          "reconcile_report"
+        ],
+        "properties": {
+          "profile_summary": {
+            "type": "string",
+            "description": "Summary of graph profiling results."
+          },
+          "project": {
+            "type": "object"
+          },
+          "reconcile_report": {
+            "type": "object",
+            "description": "Report on ID reconciliation between original and refined ontology."
+          }
+        }
+      },
+      "ProjectRestoreResponse": {
+        "type": "object",
+        "required": [
+          "project"
+        ],
+        "properties": {
+          "project": {
+            "type": "object"
+          }
+        }
+      },
+      "ProjectSource": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "type"
+            ],
+            "properties": {
+              "data": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "text"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "type"
+            ],
+            "properties": {
+              "data": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "csv"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "type"
+            ],
+            "properties": {
+              "data": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "json"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "connection_string",
+              "type"
+            ],
+            "properties": {
+              "connection_string": {
+                "type": "string"
+              },
+              "schema": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "postgresql"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "connection_string",
+              "schema",
+              "type"
+            ],
+            "properties": {
+              "connection_string": {
+                "type": "string"
+              },
+              "schema": {
+                "type": "string",
+                "description": "MySQL \"schema\" is the database name"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "mysql"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "connection_string",
+              "database",
+              "type"
+            ],
+            "properties": {
+              "connection_string": {
+                "type": "string"
+              },
+              "database": {
+                "type": "string",
+                "description": "MongoDB database name"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "mongodb"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "account",
+              "user",
+              "password",
+              "database",
+              "type"
+            ],
+            "properties": {
+              "account": {
+                "type": "string",
+                "description": "Snowflake account identifier (e.g., `xy12345.us-east-1`)"
+              },
+              "database": {
+                "type": "string",
+                "description": "Target database"
+              },
+              "password": {
+                "type": "string",
+                "description": "Login password"
+              },
+              "schema": {
+                "type": "string",
+                "description": "Target schema within the database"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "snowflake"
+                ]
+              },
+              "user": {
+                "type": "string",
+                "description": "Login username"
+              },
+              "warehouse": {
+                "type": "string",
+                "description": "Compute warehouse name"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "project_id",
+              "dataset",
+              "type"
+            ],
+            "properties": {
+              "credentials_path": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Optional path to service account credentials JSON file.\nFalls back to GOOGLE_APPLICATION_CREDENTIALS env var if omitted."
+              },
+              "dataset": {
+                "type": "string",
+                "description": "BigQuery dataset name"
+              },
+              "project_id": {
+                "type": "string",
+                "description": "GCP project ID"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "bigquery"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "DuckDB in-process file analysis (Parquet, CSV, JSON).\nThe `file_path` must be an absolute path to a local file.",
+            "required": [
+              "file_path",
+              "type"
+            ],
+            "properties": {
+              "file_path": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "duckdb"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "url",
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "code_repository"
+                ]
+              },
+              "url": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "PromptInfo": {
+        "type": "object",
+        "required": [
+          "name",
+          "version"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
+      "QueryExecution": {
+        "type": "object",
+        "description": "Query execution record.",
+        "required": [
+          "id",
+          "user_id",
+          "question",
+          "ontology_id",
+          "ontology_version",
+          "query_ir",
+          "compiled_target",
+          "compiled_query",
+          "results",
+          "explanation",
+          "model",
+          "execution_time_ms",
+          "created_at"
+        ],
+        "properties": {
+          "compiled_query": {
+            "type": "string"
+          },
+          "compiled_target": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "execution_time_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "explanation": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "model": {
+            "type": "string"
+          },
+          "ontology_id": {
+            "type": "string"
+          },
+          "ontology_snapshot": {},
+          "ontology_version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "query_bindings": {},
+          "query_ir": {},
+          "question": {
+            "type": "string"
+          },
+          "results": {},
+          "saved_ontology_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "widget": {}
+        }
+      },
+      "QueryExecutionSummary": {
+        "type": "object",
+        "description": "Query execution summary (lightweight, for list endpoints).",
+        "required": [
+          "id",
+          "question",
+          "ontology_id",
+          "ontology_version",
+          "compiled_target",
+          "model",
+          "execution_time_ms",
+          "row_count",
+          "has_widget",
+          "created_at"
+        ],
+        "properties": {
+          "compiled_target": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "execution_time_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "has_widget": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "model": {
+            "type": "string"
+          },
+          "ontology_id": {
+            "type": "string"
+          },
+          "ontology_version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "question": {
+            "type": "string"
+          },
+          "row_count": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "QueryRawRequest": {
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Raw query statement in the target language (e.g., Cypher)."
+          }
+        }
+      },
+      "QueryRawResponse": {
+        "type": "object",
+        "required": [
+          "query",
+          "target"
+        ],
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The query that was executed."
+          },
+          "results": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Query result rows and metadata."
+          },
+          "target": {
+            "type": "string",
+            "description": "Compiler target language (e.g., \"cypher\")."
+          }
+        }
+      },
+      "SavedOntology": {
+        "type": "object",
+        "description": "Saved ontology — a completed, frozen ontology.",
+        "required": [
+          "id",
+          "name",
+          "version",
+          "ontology_ir",
+          "created_by",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "ontology_ir": {},
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "UiConfig": {
+        "type": "object",
+        "required": [
+          "elk_direction",
+          "elk_node_spacing",
+          "elk_layer_spacing",
+          "elk_edge_routing",
+          "worker_timeout_ms"
+        ],
+        "properties": {
+          "elk_direction": {
+            "type": "string"
+          },
+          "elk_edge_routing": {
+            "type": "string"
+          },
+          "elk_layer_spacing": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "elk_node_spacing": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "worker_timeout_ms": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "UpdateDecisionsRequest": {
+        "type": "object",
+        "required": [
+          "design_options",
+          "revision"
+        ],
+        "properties": {
+          "design_options": {
+            "type": "object",
+            "description": "User design decisions."
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "WorkbenchPerspective": {
+        "type": "object",
+        "description": "Workbench perspective — saved canvas state.",
+        "required": [
+          "id",
+          "user_id",
+          "lineage_id",
+          "topology_signature",
+          "name",
+          "positions",
+          "viewport",
+          "filters",
+          "collapsed_groups",
+          "is_default",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "collapsed_groups": {},
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "filters": {},
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_default": {
+            "type": "boolean"
+          },
+          "lineage_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "positions": {},
+          "project_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "topology_signature": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "viewport": {}
+        }
+      }
+    },
+    "securitySchemes": {
+      "api_key": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Health",
+      "description": "Service health check"
+    },
+    {
+      "name": "Chat",
+      "description": "Natural language query pipeline"
+    },
+    {
+      "name": "Query",
+      "description": "Raw query execution and history"
+    },
+    {
+      "name": "Projects",
+      "description": "Design project lifecycle management"
+    },
+    {
+      "name": "Ontologies",
+      "description": "Ontology management and export"
+    },
+    {
+      "name": "Pins",
+      "description": "Pinboard — saved query results"
+    },
+    {
+      "name": "Perspectives",
+      "description": "Workbench canvas perspectives"
+    },
+    {
+      "name": "Config",
+      "description": "System configuration"
+    },
+    {
+      "name": "Load",
+      "description": "Data loading into graph database"
+    },
+    {
+      "name": "System",
+      "description": "System administration"
+    }
+  ]
+}

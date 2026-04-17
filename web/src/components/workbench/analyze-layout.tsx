@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { z } from "zod";
 import { useAppStore } from "@/lib/store";
 import type { AnalyzeRightTab } from "@/lib/store";
+import { useQueryState } from "@/hooks/use-query-state";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { HistoryPanel } from "@/components/chat/history-panel";
 import { QueryPanel } from "@/components/chat/query-panel";
@@ -40,7 +41,13 @@ const ANALYZE_TABS: Array<{ id: AnalyzeRightTab; label: string; icon: import("@h
 export function AnalyzeLayout() {
   const rightTab = useAppStore((s) => s.analyzeRightTab);
   const setRightTab = useAppStore((s) => s.setAnalyzeRightTab);
-  const [analyzeMode, setAnalyzeMode] = useState<AnalyzeMode>("chat");
+  // URL-backed so "Chat vs Query Builder" + a specific result pane survive
+  // reloads and can be shared (`?analyze=builder`).
+  const [analyzeMode, setAnalyzeMode] = useQueryState<AnalyzeMode>("analyze", {
+    default: "chat",
+    parser: z.enum(["chat", "builder"]),
+    debounceMs: 0,
+  });
 
   return (
     <ErrorBoundary name="Analyze">

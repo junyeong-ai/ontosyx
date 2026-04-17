@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { z } from "zod";
 import { Spinner } from "@/components/ui/spinner";
 import { SettingsSelect } from "@/components/ui/form-input";
 import { toast } from "sonner";
@@ -22,24 +23,38 @@ import {
   listOntologies,
 } from "@/lib/api";
 import { WIDGET_TYPES } from "@/components/widgets/widget-types";
+import { useQueryState } from "@/hooks/use-query-state";
 
 export default function ReportsPage() {
   const [reports, setReports] = useState<SavedReport[]>([]);
   const [ontologies, setOntologies] = useState<SavedOntology[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [ontologyFilter, setOntologyFilter] = useState<string>("");
+
+  // URL-backed filter + selection. Sharing a URL with `?ontology=X&report=Y`
+  // restores the exact view — useful when pointing teammates at a saved
+  // query. Zero debounce on filter changes (select inputs fire one event).
+  const [ontologyFilter, setOntologyFilter] = useQueryState("ontology", {
+    default: "",
+    parser: z.string(),
+    debounceMs: 0,
+  });
+  const [selectedId, setSelectedId] = useQueryState<string | null>("report", {
+    default: null,
+    parser: z.union([z.string(), z.null()]),
+    debounceMs: 0,
+  });
 
   useEffect(() => {
     listOntologies({ limit: 100 })
       .then((page) => {
         setOntologies(page.items);
-        if (page.items.length > 0) {
+        if (page.items.length > 0 && !ontologyFilter) {
           setOntologyFilter(page.items[0].id);
         }
       })
       .catch(() => toast.error("Failed to load ontologies"))
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -303,20 +318,22 @@ function ReportDetail({
       {editing ? (
         <div className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50/30 p-4 dark:border-emerald-800 dark:bg-emerald-950/10">
           <div>
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+            <label htmlFor="edit-report-title" className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
               Title
             </label>
             <input
+              id="edit-report-title"
               value={editTitle}
               onChange={(e) => setEditTitle(e.target.value)}
               className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
             />
           </div>
           <div>
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+            <label htmlFor="edit-report-description" className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
               Description
             </label>
             <textarea
+              id="edit-report-description"
               value={editDescription}
               onChange={(e) => setEditDescription(e.target.value)}
               rows={2}
@@ -617,10 +634,11 @@ function ReportCreateForm({
 
       <div className="space-y-3">
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label htmlFor="new-report-title" className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
             Title
           </label>
           <input
+            id="new-report-title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Report title"
@@ -630,10 +648,11 @@ function ReportCreateForm({
         </div>
 
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label htmlFor="new-report-description" className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
             Description
           </label>
           <textarea
+            id="new-report-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="What this report shows..."

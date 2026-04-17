@@ -1,0 +1,80 @@
+# cargo-deny configuration — Phase 6.1 CI gate.
+# Checks advisories (vulnerabilities), licenses, and banned crates.
+# Run locally: `cargo deny check`.
+
+[graph]
+# Follow only normal/build deps; skip dev deps from the license check surface
+# to avoid false positives from test-only tooling.
+all-features = false
+no-default-features = false
+
+# ---------------------------------------------------------------------------
+# Advisories — RustSec vulnerability database.
+# ---------------------------------------------------------------------------
+[advisories]
+version = 2
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+yanked = "warn"
+ignore = []
+
+# ---------------------------------------------------------------------------
+# Licenses — allow permissive licenses; deny strong copyleft.
+#
+# Allowed: MIT / Apache / BSD / ISC / Zlib / Unicode — standard in the Rust
+# ecosystem. MPL-2.0 is the one weak-copyleft carve-out (file-level copyleft,
+# safe for linking).
+# Denied by omission: GPL, AGPL, LGPL, SSPL, CC-BY-SA, etc.
+# ---------------------------------------------------------------------------
+[licenses]
+version = 2
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "MPL-2.0",
+    "CC0-1.0",
+    "OpenSSL",
+    "BSL-1.0",
+]
+# Confidence threshold for license detection (1.0 = strict).
+confidence-threshold = 0.8
+exceptions = []
+
+# ring uses an OpenSSL-like license; accept via exception if necessary
+[[licenses.clarify]]
+crate = "ring"
+expression = "MIT AND ISC AND OpenSSL"
+license-files = [
+    { path = "LICENSE", hash = 0xbd0eed23 },
+]
+
+# ---------------------------------------------------------------------------
+# Bans — duplicate versions, wildcard deps, denied crates.
+# Duplicates are "warn" to avoid gate flakiness until the tree is clean.
+# ---------------------------------------------------------------------------
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+highlight = "all"
+workspace-default-features = "allow"
+external-default-features = "allow"
+allow = []
+deny = []
+skip = []
+skip-tree = []
+
+# ---------------------------------------------------------------------------
+# Sources — registries and git allow-lists.
+# ---------------------------------------------------------------------------
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

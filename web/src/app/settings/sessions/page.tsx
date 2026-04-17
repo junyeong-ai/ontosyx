@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { z } from "zod";
 import { Spinner } from "@/components/ui/spinner";
 import { FormInput, SettingsSelect } from "@/components/ui/form-input";
+import { useQueryState } from "@/hooks/use-query-state";
+import { useImeAwareInput } from "@/lib/use-ime-aware-input";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
@@ -39,8 +42,26 @@ export default function SessionsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [events, setEvents] = useState<AgentEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
-  const [search, setSearch] = useState("");
-  const [modelFilter, setModelFilter] = useState("");
+  // URL-backed search + model filter. ?q= is debounced (text) while
+  // ?model= is sync (select). IME-aware input prevents mid-jamo updates
+  // from polluting the URL with intermediate jamo.
+  const [search, setSearch] = useQueryState("q", {
+    default: "",
+    parser: z.string(),
+  });
+  const searchInput = useImeAwareInput(search);
+  useEffect(() => {
+    if (searchInput.committedValue !== search) {
+      setSearch(searchInput.committedValue);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchInput.committedValue]);
+
+  const [modelFilter, setModelFilter] = useQueryState("model", {
+    default: "",
+    parser: z.string(),
+    debounceMs: 0,
+  });
   const [nextCursor, setNextCursor] = useState<string | undefined>();
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -178,9 +199,12 @@ export default function SessionsPage() {
       {/* Search + Model filter */}
       <div className="mt-4 mb-4 flex items-end gap-3">
         <FormInput
+          type="search"
           placeholder="Search by message..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={searchInput.value}
+          onChange={searchInput.bind.onChange}
+          onCompositionStart={searchInput.bind.onCompositionStart}
+          onCompositionEnd={searchInput.bind.onCompositionEnd}
           className="max-w-xs"
         />
         <SettingsSelect

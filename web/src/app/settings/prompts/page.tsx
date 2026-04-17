@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/use-auth";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { SettingsSwitch, SettingsSelect, SettingsInput } from "@/components/ui/form-input";
+import { useImeAwareInput } from "@/lib/use-ime-aware-input";
 import { CodeEditor } from "@/components/ui/code-editor";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
@@ -23,6 +24,15 @@ export default function PromptsPage() {
   const [loading, setLoading] = useState(true);
   const [expandedName, setExpandedName] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const searchInput = useImeAwareInput("");
+  // Commit IME-composed value into the filter so mid-jamo keystrokes
+  // ("ㅎ" → "하" → "한") don't trigger intermediate filter passes.
+  useEffect(() => {
+    if (searchInput.committedValue !== search) {
+      setSearch(searchInput.committedValue);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchInput.committedValue]);
   const [statusFilter, setStatusFilter] = useState<"" | "active" | "inactive">("");
 
   const reload = useCallback(async () => {
@@ -97,9 +107,12 @@ export default function PromptsPage() {
         {/* Search + Filter */}
         <div className="mt-4 flex items-center gap-3">
           <SettingsInput
+            type="search"
             placeholder="Search prompts..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchInput.value}
+            onChange={searchInput.bind.onChange}
+            onCompositionStart={searchInput.bind.onCompositionStart}
+            onCompositionEnd={searchInput.bind.onCompositionEnd}
             className="max-w-xs"
           />
           <SettingsSelect

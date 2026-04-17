@@ -1,75 +1,58 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/use-auth";
-import {
-  createDashboard,
-  deleteDashboard,
-  listDashboards,
-} from "@/lib/api";
 import { Spinner } from "@/components/ui/spinner";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Add01Icon, Delete01Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import type { Dashboard } from "@/types/api";
+import {
+  useCreateDashboard,
+  useDashboards,
+  useDeleteDashboard,
+} from "@/hooks/api/use-dashboards";
 
 export function DashboardPanel() {
   const { canWrite } = useAuth();
   const confirmDialog = useConfirm();
-  const [dashboards, setDashboards] = useState<Dashboard[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
 
-  const fetchDashboards = useCallback(async () => {
-    try {
-      const page = await listDashboards({ limit: 50 });
-      setDashboards(page.items);
-    } catch {
-      toast.error("Failed to load dashboards");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { data, isLoading, isError } = useDashboards({ limit: 50 });
+  const dashboards = data?.items ?? [];
 
-  useEffect(() => {
-    fetchDashboards();
-  }, [fetchDashboards]);
+  const createMutation = useCreateDashboard();
+  const deleteMutation = useDeleteDashboard();
 
-  const handleCreate = async () => {
-    setCreating(true);
-    try {
-      const dashboard = await createDashboard({
-        name: `Dashboard ${dashboards.length + 1}`,
-      });
-      setDashboards((prev) => [dashboard, ...prev]);
-      toast.success("Dashboard created");
-    } catch {
-      toast.error("Failed to create dashboard");
-    } finally {
-      setCreating(false);
-    }
+  if (isError) {
+    toast.error("Failed to load dashboards");
+  }
+
+  const handleCreate = () => {
+    createMutation.mutate(
+      { name: `Dashboard ${dashboards.length + 1}` },
+      {
+        onSuccess: () => toast.success("Dashboard created"),
+        onError: () => toast.error("Failed to create dashboard"),
+      },
+    );
   };
 
   const handleDelete = async (id: string) => {
     const confirmed = await confirmDialog({
       title: "Delete dashboard",
-      description: "This will permanently delete the dashboard and all its widgets.",
+      description:
+        "This will permanently delete the dashboard and all its widgets.",
       confirmLabel: "Delete",
       variant: "danger",
     });
     if (!confirmed) return;
 
-    try {
-      await deleteDashboard(id);
-      setDashboards((prev) => prev.filter((d) => d.id !== id));
-      toast.success("Dashboard deleted");
-    } catch {
-      toast.error("Failed to delete dashboard");
-    }
+    deleteMutation.mutate(id, {
+      onSuccess: () => toast.success("Dashboard deleted"),
+      onError: () => toast.error("Failed to delete dashboard"),
+    });
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
         <Spinner size="lg" className="text-emerald-500" />
@@ -89,7 +72,7 @@ export function DashboardPanel() {
         {canWrite && (
           <button
             onClick={handleCreate}
-            disabled={creating}
+            disabled={createMutation.isPending}
             className="flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
           >
             <HugeiconsIcon icon={Add01Icon} className="h-3 w-3" size="100%" />

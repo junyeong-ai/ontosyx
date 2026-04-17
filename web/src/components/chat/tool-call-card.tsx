@@ -52,76 +52,81 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
             : "border-zinc-200/80 bg-zinc-50/50 dark:border-zinc-700/50 dark:bg-zinc-800/30"
       }`}
     >
-      {/* Header */}
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => !isRunning && setIsExpanded(!isExpanded)}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); !isRunning && setIsExpanded(!isExpanded); } }}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs cursor-pointer"
-      >
-        {isRunning ? (
-          <Spinner size="sm" className="text-emerald-500" />
-        ) : (
-          <HugeiconsIcon
-            icon={meta.icon}
-            className={`h-3.5 w-3.5 ${isError ? "text-red-500" : "text-zinc-500 dark:text-zinc-400"}`}
-            size="100%"
-          />
-        )}
+      {/* Header row — the expand/collapse area is a real <button>; the
+          "jump to Results" affordance is a sibling <button> (nesting buttons
+          is invalid HTML, so they live side-by-side). */}
+      <div className="flex w-full items-center gap-2 px-3 py-2 text-xs">
+        <button
+          type="button"
+          disabled={isRunning}
+          aria-expanded={isExpanded}
+          onClick={() => !isRunning && setIsExpanded(!isExpanded)}
+          className="flex flex-1 items-center gap-2 text-left cursor-pointer disabled:cursor-default"
+        >
+          {isRunning ? (
+            <Spinner size="sm" className="text-emerald-500" />
+          ) : (
+            <HugeiconsIcon
+              icon={meta.icon}
+              className={`h-3.5 w-3.5 ${isError ? "text-red-500" : "text-zinc-500 dark:text-zinc-400"}`}
+              size="100%"
+            />
+          )}
 
-        <span className={`font-medium ${isRunning ? "text-emerald-700 dark:text-emerald-400" : isError ? "text-red-600 dark:text-red-400" : "text-zinc-700 dark:text-zinc-300"}`}>
-          {isRunning ? `${meta.verb}...` : meta.label}
-        </span>
-
-        {/* Duration badge — show total time */}
-        {(isDone || isError) && toolCall.durationMs != null && toolCall.durationMs > 0 && (
-          <span className="rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] tabular-nums text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400">
-            {toolCall.durationMs < 100 ? "<0.1s" : `${(toolCall.durationMs / 1000).toFixed(1)}s`}
+          <span className={`font-medium ${isRunning ? "text-emerald-700 dark:text-emerald-400" : isError ? "text-red-600 dark:text-red-400" : "text-zinc-700 dark:text-zinc-300"}`}>
+            {isRunning ? `${meta.verb}...` : meta.label}
           </span>
-        )}
 
-        {/* Result summary */}
-        {parsedResult?.summary && (
-          <span className="ml-1 text-[10px] text-zinc-400 dark:text-zinc-500">
-            {parsedResult.summary}
-          </span>
-        )}
+          {/* Duration badge — show total time */}
+          {(isDone || isError) && toolCall.durationMs != null && toolCall.durationMs > 0 && (
+            <span className="rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] tabular-nums text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400">
+              {toolCall.durationMs < 100 ? "<0.1s" : `${(toolCall.durationMs / 1000).toFixed(1)}s`}
+            </span>
+          )}
+
+          {/* Result summary */}
+          {parsedResult?.summary && (
+            <span className="ml-1 text-[10px] text-zinc-400 dark:text-zinc-500">
+              {parsedResult.summary}
+            </span>
+          )}
+
+          {isError && (
+            <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] text-red-600 dark:bg-red-900/30 dark:text-red-400">
+              failed
+            </span>
+          )}
+
+          {toolCall.status === "review" && (
+            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+              review required
+            </span>
+          )}
+
+          {!isRunning && toolCall.output && (isAdmin || isError) && (
+            <HugeiconsIcon
+              icon={isExpanded ? ArrowUp01Icon : ArrowDown01Icon}
+              className="ml-auto h-3 w-3 text-zinc-400"
+              size="100%"
+            />
+          )}
+        </button>
 
         {/* Jump to Results panel */}
         {isDone && !isError && toolCall.output && (
           <button
-            onClick={(e) => {
-              e.stopPropagation();
+            type="button"
+            aria-label="View in Results panel"
+            onClick={() => {
               const store = useAppStore.getState();
               store.setAnalyzeRightTab("results");
               store.setFocusResultId(toolCall.id);
             }}
-            className="ml-1 rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-emerald-600 dark:hover:bg-zinc-700 dark:hover:text-emerald-400"
+            className="rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-emerald-600 dark:hover:bg-zinc-700 dark:hover:text-emerald-400"
             title="View in Results panel"
           >
             <span className="text-[10px]">→</span>
           </button>
-        )}
-
-        {isError && (
-          <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] text-red-600 dark:bg-red-900/30 dark:text-red-400">
-            failed
-          </span>
-        )}
-
-        {toolCall.status === "review" && (
-          <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-            review required
-          </span>
-        )}
-
-        {!isRunning && toolCall.output && (isAdmin || isError) && (
-          <HugeiconsIcon
-            icon={isExpanded ? ArrowUp01Icon : ArrowDown01Icon}
-            className="ml-auto h-3 w-3 text-zinc-400"
-            size="100%"
-          />
         )}
       </div>
 

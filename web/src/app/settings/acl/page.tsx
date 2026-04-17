@@ -379,10 +379,11 @@ function PolicyForm({
       <div className="grid grid-cols-2 gap-3">
         {/* Name */}
         <div className="col-span-2">
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label htmlFor="acl-rule-name" className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
             Name
           </label>
           <input
+            id="acl-rule-name"
             value={form.name}
             onChange={(e) => update("name", { name: e.target.value })}
             placeholder="e.g. Mask PII for viewers"
@@ -411,10 +412,11 @@ function PolicyForm({
 
         {/* Subject value */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label htmlFor="acl-rule-subject-value" className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
             Subject Value
           </label>
           <input
+            id="acl-rule-subject-value"
             value={form.subject_value}
             onChange={(e) => update("subject_value", { subject_value: e.target.value })}
             placeholder="e.g. viewer, admin"

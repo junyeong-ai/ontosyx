@@ -1,0 +1,86 @@
+{
+  "_meta": {
+    "description": "Token usage baseline for representative chat/agent queries (Phase 6.3).",
+    "placeholder": true,
+    "note": "PLACEHOLDER NUMBERS — replace with real observed tokens before enabling CI gate. Tolerance is per-query %. Prompt tokens include system + user + tool definitions + any tool results injected by the agent. Completion tokens include final assistant output + tool call arguments.",
+    "collection_method": "Run `scripts/check-token-regression.sh --record` with a live LLM configured to observe actual usage per query, then commit the refreshed numbers.",
+    "last_updated": "2026-04-17"
+  },
+  "q_count_nodes": {
+    "prompt":     "How many total nodes are in the graph?",
+    "prompt_tokens":     3200,
+    "completion_tokens":  180,
+    "tolerance_pct":       5,
+    "placeholder": true
+  },
+  "q_list_types": {
+    "prompt":     "List all node types with their counts.",
+    "prompt_tokens":     3400,
+    "completion_tokens":  260,
+    "tolerance_pct":       5,
+    "placeholder": true
+  },
+  "q_top_k_products": {
+    "prompt":     "Top 5 products by revenue.",
+    "prompt_tokens":     3500,
+    "completion_tokens":  320,
+    "tolerance_pct":       7,
+    "placeholder": true
+  },
+  "q_customer_orders": {
+    "prompt":     "Show orders for customer id U001 with totals.",
+    "prompt_tokens":     3600,
+    "completion_tokens":  300,
+    "tolerance_pct":       7,
+    "placeholder": true
+  },
+  "q_category_revenue": {
+    "prompt":     "Revenue per category, descending.",
+    "prompt_tokens":     3500,
+    "completion_tokens":  280,
+    "tolerance_pct":       5,
+    "placeholder": true
+  },
+  "q_temporal_trend": {
+    "prompt":     "Monthly order count for the last 6 months.",
+    "prompt_tokens":     3700,
+    "completion_tokens":  340,
+    "tolerance_pct":       7,
+    "placeholder": true
+  },
+  "q_anomaly_detection": {
+    "prompt":     "Find customers whose order total is 3x their average.",
+    "prompt_tokens":     3800,
+    "completion_tokens":  420,
+    "tolerance_pct":      10,
+    "placeholder": true
+  },
+  "q_graph_neighborhood": {
+    "prompt":     "Show the 2-hop neighborhood of product P201.",
+    "prompt_tokens":     3900,
+    "completion_tokens":  380,
+    "tolerance_pct":      10,
+    "placeholder": true
+  },
+  "q_korean_top_product": {
+    "prompt":     "가장 많이 팔린 상품 상위 5개를 알려줘",
+    "prompt_tokens":     3600,
+    "completion_tokens":  300,
+    "tolerance_pct":       7,
+    "placeholder": true
+  },
+  "q_korean_category_sales": {
+    "prompt":     "카테고리별 총 매출을 구해줘",
+    "prompt_tokens":     3500,
+    "completion_tokens":  280,
+    "tolerance_pct":       7,
+    "placeholder": true
+  },
+  "q_multihop_join": {
+    "prompt":     "Which brands are most frequently co-purchased with electronics?",
+    "prompt_tokens":     4000,
+    "completion_tokens":  460,
+    "tolerance_pct":      10,
+    "placeholder": true
+  }
+}

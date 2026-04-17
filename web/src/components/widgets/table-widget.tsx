@@ -6,6 +6,7 @@ import { useAppStore } from "@/lib/store";
 import { Tooltip } from "@/components/ui/tooltip";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 import { formatValue } from "./chart-utils";
+import { compareKorean } from "@/lib/locale/sort";
 
 /** Maximum rows rendered in the table to prevent DOM overload */
 const MAX_VISIBLE_ROWS = 200;
@@ -61,7 +62,10 @@ export function TableWidget({ spec, data }: TableWidgetProps) {
       if (typeof av === "number" && typeof bv === "number") {
         cmp = av - bv;
       } else {
-        cmp = String(av).localeCompare(String(bv));
+        // Korean-aware comparison: table cells commonly contain Hangul
+        // labels, so use the ko-KR collator rather than native
+        // localeCompare (which varies by engine/host locale).
+        cmp = compareKorean(String(av), String(bv));
       }
       return sortDir === "ASC" ? cmp : -cmp;
     });
@@ -81,6 +85,14 @@ export function TableWidget({ spec, data }: TableWidgetProps) {
               {columns.map(({ key, label }) => (
                 <th
                   key={key}
+                  scope="col"
+                  aria-sort={
+                    sortCol === key
+                      ? sortDir === "ASC"
+                        ? "ascending"
+                        : "descending"
+                      : "none"
+                  }
                   onClick={() => handleSort(key)}
                   className={cn(
                     "cursor-pointer select-none whitespace-nowrap px-3 py-2 font-semibold",

@@ -1,0 +1,24 @@
+# Korean e-commerce fixture (Phase 6.2)
+# Columns: 사용자ID, 사용자명, 이메일, 주문ID, 주문일자, 상품ID, 상품명, 카테고리, 가격, 수량
+# Domain: B2C 쇼핑몰 주문 로그. ~20 rows spanning 10 users, 10 products, 5 categories.
+사용자ID,사용자명,이메일,주문ID,주문일자,상품ID,상품명,카테고리,가격,수량
+U001,김민준,minjun.kim@example.com,O10001,2026-03-01,P201,스마트폰 프로,전자기기,1299000,1
+U002,이서연,seoyeon.lee@example.com,O10002,2026-03-02,P202,무선 이어폰,전자기기,189000,2
+U003,박지호,jiho.park@example.com,O10003,2026-03-03,P203,러닝화,패션,129000,1
+U004,최수아,sua.choi@example.com,O10004,2026-03-03,P204,에코 가방,패션,45000,3
+U005,정예린,yerin.jung@example.com,O10005,2026-03-05,P205,유기농 쌀,식품,35000,2
+U001,김민준,minjun.kim@example.com,O10006,2026-03-06,P206,프리미엄 커피,식품,25000,4
+U006,강도윤,doyoon.kang@example.com,O10007,2026-03-07,P207,캠핑 텐트,스포츠,389000,1
+U007,윤하은,haeun.yoon@example.com,O10008,2026-03-08,P208,요가 매트,스포츠,55000,2
+U008,임태민,taemin.im@example.com,O10009,2026-03-09,P209,게이밍 노트북,전자기기,2490000,1
+U002,이서연,seoyeon.lee@example.com,O10010,2026-03-10,P210,핸드크림,뷰티,18000,5
+U009,한소율,soyul.han@example.com,O10011,2026-03-11,P201,스마트폰 프로,전자기기,1299000,1
+U010,조아인,ain.cho@example.com,O10012,2026-03-12,P203,러닝화,패션,129000,2
+U003,박지호,jiho.park@example.com,O10013,2026-03-13,P205,유기농 쌀,식품,35000,3
+U004,최수아,sua.choi@example.com,O10014,2026-03-14,P208,요가 매트,스포츠,55000,1
+U005,정예린,yerin.jung@example.com,O10015,2026-03-15,P210,핸드크림,뷰티,18000,3
+U006,강도윤,doyoon.kang@example.com,O10016,2026-03-16,P202,무선 이어폰,전자기기,189000,1
+U007,윤하은,haeun.yoon@example.com,O10017,2026-03-17,P204,에코 가방,패션,45000,2
+U008,임태민,taemin.im@example.com,O10018,2026-03-18,P206,프리미엄 커피,식품,25000,6
+U009,한소율,soyul.han@example.com,O10019,2026-03-19,P207,캠핑 텐트,스포츠,389000,1
+U010,조아인,ain.cho@example.com,O10020,2026-03-20,P209,게이밍 노트북,전자기기,2490000,1

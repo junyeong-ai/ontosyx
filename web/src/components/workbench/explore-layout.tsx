@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Search01Icon,
@@ -8,12 +8,16 @@ import {
   Search02Icon,
   DatabaseIcon,
 } from "@hugeicons/core-free-icons";
+import { z } from "zod";
 import { useAppStore } from "@/lib/store";
 import { searchGraph, expandNode, fetchGraphOverview } from "@/lib/api";
 import type { ExpandNeighbor, GraphOverview } from "@/lib/api/queries";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/cn";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { useQueryState } from "@/hooks/use-query-state";
+import { useImeAwareInput } from "@/lib/use-ime-aware-input";
+import { sortKorean } from "@/lib/locale/sort";
 import {
   ExploreGraphView,
   type FocusedNode,
@@ -46,8 +50,25 @@ export function ExploreLayout() {
   const [overview, setOverview] = useState<GraphOverview | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(false);
 
-  // Search state
-  const [query, setQuery] = useState("");
+  // Search state — persisted to ?q= so reloads / shares survive.
+  // Debounced by the hook; `q` updates immediately for the input,
+  // URL writes coalesce after 200ms of idle.
+  const [query, setQuery] = useQueryState("q", {
+    default: "",
+    parser: z.string(),
+  });
+  // IME-aware input: Hangul composition should not trigger mid-jamo state
+  // updates (e.g. "한" composing as "ㅎ" → "하" → "한"). The committed value
+  // is what we persist to the URL.
+  const searchInput = useImeAwareInput(query);
+  // Propagate committed (non-composing) values to the URL-state setter.
+  useEffect(() => {
+    if (searchInput.committedValue !== query) {
+      setQuery(searchInput.committedValue);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchInput.committedValue]);
+
   const [results, setResults] = useState<SearchResultNode[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -98,6 +119,18 @@ export function ExploreLayout() {
     }
   }, [query]);
 
+  // Rehydrate from URL: if someone opens a deep link with `?q=...`, kick
+  // off the search once on mount. Only runs once per mount even if `query`
+  // changes later — subsequent keystroke-driven searches go through
+  // `runSearch` via Enter.
+  const initialQueryRef = useRef(query);
+  useEffect(() => {
+    if (initialQueryRef.current && initialQueryRef.current.trim()) {
+      runSearch();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ---- Expand a node ----
 
   const expandAndNavigate = useCallback(
@@ -147,6 +180,7 @@ export function ExploreLayout() {
     async (label: string) => {
       setLoading(true);
       setSearched(true);
+      searchInput.setValue("");
       setQuery("");
       try {
         // Wildcard "*" + label filter = match all nodes of this label type
@@ -247,9 +281,9 @@ export function ExploreLayout() {
       group.items.push(n);
     }
 
-    return Array.from(groups.values()).sort((a, b) =>
-      a.type.localeCompare(b.type),
-    );
+    // Korean-aware ordering — relationship types may contain Hangul labels
+    // so we use the shared collator instead of raw localeCompare.
+    return sortKorean(Array.from(groups.values()), (g) => g.type);
   }, [focusedNode, neighbors]);
 
   return (
@@ -266,11 +300,16 @@ export function ExploreLayout() {
               size="100%"
             />
             <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              type="search"
+              value={searchInput.value}
+              onChange={searchInput.bind.onChange}
+              onCompositionStart={searchInput.bind.onCompositionStart}
+              onCompositionEnd={searchInput.bind.onCompositionEnd}
               onKeyDown={(e) => {
-                if (e.key === "Enter") runSearch();
+                // Enter should only fire when NOT mid-composition. Browsers
+                // fire `Enter` at 229 keyCode during IME commit — checking
+                // `isComposing` avoids an errant search.
+                if (e.key === "Enter" && !e.nativeEvent.isComposing) runSearch();
               }}
               placeholder="Search nodes..."
               className="w-full bg-transparent text-xs text-zinc-700 outline-none placeholder:text-zinc-500 dark:text-zinc-300"
@@ -426,6 +465,7 @@ export function ExploreLayout() {
               onClick={() => {
                 setSearched(false);
                 setResults([]);
+                searchInput.setValue("");
                 setQuery("");
                 setFocusedNode(null);
                 setNeighbors([]);

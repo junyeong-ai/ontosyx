@@ -5,7 +5,7 @@ import { useReactFlow } from "@xyflow/react";
 
 import { useAppStore } from "@/lib/store";
 import { usePrompt } from "@/components/ui/prompt-dialog";
-import type { PaletteCommand } from "./command-palette";
+import type { PaletteCommand } from "@/components/workbench/canvas/command-palette";
 
 interface KeyboardActions {
   handleSave: () => void;
@@ -20,6 +20,10 @@ interface KeyboardActions {
 
 /**
  * Global keyboard shortcuts and command palette command list.
+ *
+ * Binds Cmd+Z / Cmd+Y / Cmd+S / Cmd+A / Cmd+K / Esc / Delete / arrow zoom
+ * while ignoring inputs. Exposes a memoizable palette command factory that
+ * the CommandPalette consumes.
  */
 export function useCanvasKeyboard(actions: KeyboardActions) {
   const undoFn = useAppStore((s) => s.undo);

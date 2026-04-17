@@ -11,6 +11,9 @@ const eslintConfig = defineConfig([
       "react-hooks/set-state-in-effect": "warn",
       // Allow explicit any in component props spreading and API response handling
       "@typescript-eslint/no-explicit-any": "warn",
+      // Block ad-hoc debug logs; use `lib/logger.ts` instead. `warn`/`error`
+      // stay permitted for exceptional paths (error boundaries, validation).
+      "no-console": ["error", { allow: ["warn", "error"] }],
     },
   },
   // Override default ignores of eslint-config-next.
