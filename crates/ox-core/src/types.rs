@@ -115,86 +115,132 @@ impl PropertyType {
         matches!(self, Self::Date | Self::DateTime | Self::Duration)
     }
 
-    /// Infer the closest PropertyType from a raw database type string.
+    /// Infer the closest PropertyType from a raw database type string using
+    /// the [`DefaultTyper`] dialect-agnostic mapping.
     ///
-    /// Handles PostgreSQL, MySQL, MongoDB, and common SQL type names.
-    /// Returns `PropertyType::String` for unrecognised types (safe default).
+    /// Connectors should pass their own [`PropertyTyper`] to
+    /// [`check_compatibility_with`] when they need dialect-specific overrides
+    /// (Oracle `varchar2`, SQL Server `nvarchar`, custom `decimal[]`, etc.).
     pub fn infer_from_db_type(db_type: &str) -> Self {
-        let t = db_type.to_lowercase();
-        let t = t.trim();
-
-        // Strip precision/length suffix: "varchar(255)" → "varchar", "numeric(10,2)" → "numeric"
-        let base = t.split('(').next().unwrap_or(t).trim();
-
-        match base {
-            // Integer types
-            "int" | "int2" | "int4" | "int8" | "integer" | "bigint" | "smallint" | "tinyint"
-            | "serial" | "bigserial" | "mediumint" => Self::Int,
-
-            // Float types
-            "float" | "float4" | "float8" | "double" | "double precision" | "real" | "numeric"
-            | "decimal" | "money" | "number" => Self::Float,
-
-            // Boolean
-            "bool" | "boolean" | "bit" => Self::Bool,
-
-            // Date
-            "date" => Self::Date,
-
-            // DateTime
-            "timestamp"
-            | "timestamptz"
-            | "timestamp without time zone"
-            | "timestamp with time zone"
-            | "datetime"
-            | "datetime2"
-            | "smalldatetime" => Self::DateTime,
-
-            // Duration/Time
-            "interval" | "time" | "timetz" => Self::Duration,
-
-            // Binary
-            "bytea" | "blob" | "binary" | "varbinary" | "longblob" | "mediumblob" | "oid"
-            | "image" => Self::Bytes,
-
-            // JSON → Map
-            "json" | "jsonb" | "object" | "document" | "bson" => Self::Map,
-
-            // Array types → List
-            _ if t.ends_with("[]") => Self::List {
-                element: Box::new(Self::String),
-            },
-            "array" => Self::List {
-                element: Box::new(Self::String),
-            },
-
-            // Default: String (varchar, text, char, uuid, enum, citext, xml, etc.)
-            _ => Self::String,
-        }
+        DefaultTyper.map_type(db_type).unwrap_or(Self::String)
     }
 
     /// Check type compatibility when a source DB type maps to this PropertyType.
+    ///
+    /// Uses the [`DefaultTyper`] mapping. Use [`check_compatibility_via`] to
+    /// supply a dialect-specific [`PropertyTyper`].
     ///
     /// Returns how compatible the source DB type is with this ontology type:
     /// - `None` → types are equivalent (no mismatch)
     /// - `Some(true)` → safe widening (e.g., source int → ontology float)
     /// - `Some(false)` → breaking change (e.g., source int → ontology bool)
     pub fn check_compatibility_with(&self, source_db_type: &str) -> Option<bool> {
-        let inferred = Self::infer_from_db_type(source_db_type);
+        self.check_compatibility_via(&DefaultTyper, source_db_type)
+    }
+
+    /// Check type compatibility using a caller-supplied [`PropertyTyper`].
+    ///
+    /// Connector-specific typers (`PostgresTyper`, `OracleTyper`, …) can
+    /// resolve dialect names that the default mapping doesn't recognise.
+    pub fn check_compatibility_via<T: PropertyTyper + ?Sized>(
+        &self,
+        typer: &T,
+        source_db_type: &str,
+    ) -> Option<bool> {
+        let inferred = typer.map_type(source_db_type).unwrap_or(Self::String);
         if inferred == *self {
             return None; // Equivalent — no mismatch
         }
 
-        // Safe widening conversions
         let is_safe = matches!(
             (&inferred, self),
-            (Self::Int, Self::Float)          // int → float (lossless)
-            | (Self::Date, Self::DateTime)    // date → datetime (adding time)
-            | (Self::Bool, Self::Int)         // bool → int (0/1)
-            | (_, Self::String) // anything → string (serialisation)
+            (Self::Int, Self::Float)
+            | (Self::Date, Self::DateTime)
+            | (Self::Bool, Self::Int)
+            | (_, Self::String)
         );
 
         Some(is_safe)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// PropertyTyper — pluggable raw-DB-type → PropertyType resolution
+// ---------------------------------------------------------------------------
+
+/// Maps raw database type strings (`varchar2`, `nvarchar`, `decimal[]`, …)
+/// to ontology [`PropertyType`]s. Implementations live alongside the
+/// connector that produces those raw type names.
+///
+/// `map_type` returns `None` when the raw type isn't recognised, so the
+/// caller can decide on a fallback (typically [`PropertyType::String`]).
+pub trait PropertyTyper: Send + Sync {
+    /// Resolve a raw DB type string. Implementations should be
+    /// case-insensitive and tolerate precision suffixes such as
+    /// `varchar(255)` or `numeric(10,2)`.
+    fn map_type(&self, raw_db_type: &str) -> Option<PropertyType>;
+
+    /// Optional alternative interpretations for ambiguous types, used to
+    /// surface design suggestions in the UI. Default: empty.
+    fn ambiguous_suggestions(&self, _raw_db_type: &str) -> Vec<PropertyType> {
+        Vec::new()
+    }
+}
+
+/// Default dialect-agnostic typer. Recognises common SQL/PG/MySQL/Mongo
+/// type names and falls back to `None` for anything unfamiliar (callers
+/// then choose their own fallback — usually `PropertyType::String`).
+pub struct DefaultTyper;
+
+impl PropertyTyper for DefaultTyper {
+    fn map_type(&self, raw_db_type: &str) -> Option<PropertyType> {
+        let t = raw_db_type.to_lowercase();
+        let t = t.trim();
+
+        // Strip precision/length suffix: "varchar(255)" → "varchar", "numeric(10,2)" → "numeric"
+        let base = t.split('(').next().unwrap_or(t).trim();
+
+        let mapped = match base {
+            "int" | "int2" | "int4" | "int8" | "integer" | "bigint" | "smallint" | "tinyint"
+            | "serial" | "bigserial" | "mediumint" => PropertyType::Int,
+
+            "float" | "float4" | "float8" | "double" | "double precision" | "real" | "numeric"
+            | "decimal" | "money" | "number" => PropertyType::Float,
+
+            "bool" | "boolean" | "bit" => PropertyType::Bool,
+
+            "date" => PropertyType::Date,
+
+            "timestamp"
+            | "timestamptz"
+            | "timestamp without time zone"
+            | "timestamp with time zone"
+            | "datetime"
+            | "datetime2"
+            | "smalldatetime" => PropertyType::DateTime,
+
+            "interval" | "time" | "timetz" => PropertyType::Duration,
+
+            "bytea" | "blob" | "binary" | "varbinary" | "longblob" | "mediumblob" | "oid"
+            | "image" => PropertyType::Bytes,
+
+            "json" | "jsonb" | "object" | "document" | "bson" => PropertyType::Map,
+
+            _ if t.ends_with("[]") => PropertyType::List {
+                element: Box::new(PropertyType::String),
+            },
+            "array" => PropertyType::List {
+                element: Box::new(PropertyType::String),
+            },
+
+            // varchar/text/char/uuid/enum/citext/xml etc. — string-like
+            "varchar" | "text" | "char" | "character" | "character varying" | "uuid" | "enum"
+            | "citext" | "xml" | "string" | "clob" | "longtext" | "mediumtext" | "tinytext"
+            | "name" | "inet" | "cidr" => PropertyType::String,
+
+            _ => return None,
+        };
+        Some(mapped)
     }
 }
 
@@ -857,6 +903,51 @@ mod tests {
         assert_eq!(
             PropertyType::Int.check_compatibility_with("text"),
             Some(false)
+        );
+    }
+
+    #[test]
+    fn default_typer_returns_none_for_unknown() {
+        assert_eq!(DefaultTyper.map_type("unobtanium"), None);
+    }
+
+    #[test]
+    fn check_compatibility_via_custom_typer() {
+        // A custom typer that maps Oracle's "varchar2" to String — the
+        // default typer doesn't know it (returns None → falls back to String).
+        struct OracleTyper;
+        impl PropertyTyper for OracleTyper {
+            fn map_type(&self, raw: &str) -> Option<PropertyType> {
+                let base = raw
+                    .to_lowercase()
+                    .split('(')
+                    .next()
+                    .unwrap_or("")
+                    .trim()
+                    .to_string();
+                match base.as_str() {
+                    "varchar2" | "nvarchar2" | "clob" => Some(PropertyType::String),
+                    "number" => Some(PropertyType::Float),
+                    other => DefaultTyper.map_type(other),
+                }
+            }
+        }
+
+        // Source "varchar2(255)" → string; ontology String → equivalent
+        assert_eq!(
+            PropertyType::String.check_compatibility_via(&OracleTyper, "varchar2(255)"),
+            None
+        );
+        // Source "number" → float; ontology Int → breaking
+        assert_eq!(
+            PropertyType::Int.check_compatibility_via(&OracleTyper, "number"),
+            Some(false)
+        );
+        // Default typer doesn't know "varchar2" — falls back to String, so
+        // ontology String shows no mismatch via DefaultTyper too.
+        assert_eq!(
+            PropertyType::String.check_compatibility_with("varchar2(255)"),
+            None
         );
     }
 }
