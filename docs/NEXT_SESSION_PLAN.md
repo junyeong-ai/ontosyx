@@ -1,8 +1,8 @@
 # 다음 세션 작업 계획
 
-> 작성일: 2026-04-17 (업데이트)
-> 이전 세션 진행: 13 commits — Bug #1, Phase 1.3b, 2.1~2.4, 3.6, 4.1~4.10 완료
-> 남은 작업: Phase 5 (프론트엔드 모던화), Phase 6 (CI + Korean E2E)
+> 작성일: 2026-04-17 (감사 후 업데이트)
+> 이전 세션 진행: 15 commits — Bug #1, Phase 1.3b, 2.1~2.4, 3.6, 4.1~4.10 완료 + 5-agent 심층 감사 후 10 critical / 17 major 결함 수정
+> 남은 작업: Phase 5 (프론트엔드 모던화), Phase 6 (CI + Korean E2E), 그리고 감사에서 남은 minor 개선
 
 ## 2026-04-17 세션 완료 항목
 
@@ -23,7 +23,36 @@
 | 4.8    | 프롬프트 워크스페이스 override 지원 | `4d02db0` |
 | (정리) | 미사용 ApiResponse 헬퍼 제거 → 워크스페이스 빌드 0 warnings | `1e94e3e` |
 
-검증: `cargo build --workspace` 0 warnings, `cargo test --workspace --lib` 408 passed.
+검증: `cargo build --workspace` 0 warnings, `cargo test --workspace --lib` 553 passed (감사 후 회귀 테스트 +145).
+
+## 감사 결과 (5-agent 병렬 심층 분석)
+
+**수정 완료 (commit `b4a7cfb`)**:
+- C1~C2: 프론트엔드 envelope unwrap, `ApiResponse::ok()` → 204
+- C3~C5: 프롬프트 fallback SQL 누수 + 사용처 wire (Brain + maintenance audit)
+- C6: ox-core nested subquery `exists_depth` 버그 (CallSubquery / Expr::Subquery)
+- C7: Recovery `is_structural_match(None, _)` 우회 차단
+- C8: MCP `execute_cypher` 쓰기 키워드 차단 (CREATE/MERGE/DELETE/SET/REMOVE/DROP/FOREACH/LOAD)
+- C9~C10: `audit_log` RLS가 `affected_workspace_id` 포함, `api_keys` 글로벌 키 cross-workspace 노출 차단
+- M-runtime: Neo4j↔Memgraph ~400 line 중복 제거 (`crates/ox-runtime/src/bolt/`), `execute_load_raw` trait method 도입으로 격리 우회 구조적 차단
+- M-recovery: `processed_recoveries` orphan 누적 차단 (`forget_session` helper)
+- M-WS: 첫 프레임 4 KiB 캡, JWT 미설정시 `error!` 격상
+- M-naming: `revoke_api_key` → `update_api_key_revoked` (Store 동사 규칙)
+- M-secret: `ApiKey.key_hash` 직렬화 제외
+
+**감사에서 남은 minor 개선 (다음 세션 또는 follow-up)**:
+1. **OpenAPI body 어노테이션** — handlers가 `ApiResponse<T>` 반환하는데 `body = T`로 표기. utoipa generic schema 필요.
+2. **MCP rate limit sliding window** — 현재 tumbling (200/2s burst 가능). 계획은 sliding이었음.
+3. **WS/MCP metrics** — rate limit reject, timeout 카운터 미수집.
+4. **Cypher label extraction false positives** — map literals (`{name: "x"}`)에서 `name`을 라벨로 추출.
+5. **`_leadingUnderscore` Cypher 라벨** — `extract_cypher_labels`이 거부.
+6. **DEFAULT_SHARE_EXPIRY_DAYS 30 / MAX 365 하드코딩** — config로 이전 권장.
+7. **`PropertyTyper` 사용처 없음** — `PostgresTyper` / `OracleTyper` 미구현 → trait이 half-wired.
+8. **Handler visibility 비일관** — `pub` vs `pub(crate)` 혼재. routes/mod.rs는 `pub` 불필요.
+9. **Module `patterns.rs`에 `resolve_mutation` 포함** — 이름이 내용과 불일치.
+10. **`enrich_ontology` / `suggest_insights`가 ontology/crud.rs에** — 의미상 schema_ops.rs로.
+11. **API key timing oracle** — DB lookup miss → static config fallback으로 latency 차이 노출.
+12. **MCP execute_cypher 쓰기 차단의 우회 가능성** — heuristic gate. 진짜 안전성 원하면 read-only DB user 또는 Cypher parser 통합 필요.
 
 ---
 
