@@ -1354,8 +1354,8 @@ impl RecipeStore for PostgresStore {
 impl DashboardStore for PostgresStore {
     async fn create_dashboard(&self, d: &Dashboard) -> OxResult<()> {
         sqlx::query(
-            "INSERT INTO dashboards (id, workspace_id, user_id, name, description, layout, is_public, share_token, shared_at, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+            "INSERT INTO dashboards (id, workspace_id, user_id, name, description, layout, is_public, share_token, shared_at, share_expires_at, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
         )
         .bind(d.id)
         .bind(d.workspace_id)
@@ -1366,6 +1366,7 @@ impl DashboardStore for PostgresStore {
         .bind(d.is_public)
         .bind(&d.share_token)
         .bind(d.shared_at)
+        .bind(d.share_expires_at)
         .bind(d.created_at)
         .bind(d.updated_at)
         .execute(&self.pool)
@@ -1480,19 +1481,31 @@ impl DashboardStore for PostgresStore {
         Ok(result.rows_affected() > 0)
     }
 
-    async fn update_dashboard_share_token(&self, id: Uuid, token: Option<&str>) -> OxResult<()> {
+    async fn update_dashboard_share_token(
+        &self,
+        id: Uuid,
+        token: Option<&str>,
+        expires_at: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> OxResult<()> {
         if let Some(token) = token {
             sqlx::query(
-                "UPDATE dashboards SET share_token = $1, shared_at = NOW(), updated_at = NOW() WHERE id = $2",
+                "UPDATE dashboards
+                 SET share_token = $1, shared_at = NOW(),
+                     share_expires_at = $2, updated_at = NOW()
+                 WHERE id = $3",
             )
             .bind(token)
+            .bind(expires_at)
             .bind(id)
             .execute(&self.pool)
             .await
             .map_err(to_ox_error)?;
         } else {
             sqlx::query(
-                "UPDATE dashboards SET share_token = NULL, shared_at = NULL, updated_at = NOW() WHERE id = $1",
+                "UPDATE dashboards
+                 SET share_token = NULL, shared_at = NULL,
+                     share_expires_at = NULL, updated_at = NOW()
+                 WHERE id = $1",
             )
             .bind(id)
             .execute(&self.pool)
@@ -1503,6 +1516,9 @@ impl DashboardStore for PostgresStore {
     }
 
     async fn get_dashboard_by_share_token(&self, token: &str) -> OxResult<Option<Dashboard>> {
+        // Returns the row even if `share_expires_at` is in the past so the
+        // caller can render a 410 Gone instead of a generic 404. The route
+        // is responsible for the expiry check.
         sqlx::query_as::<_, Dashboard>("SELECT * FROM dashboards WHERE share_token = $1")
             .bind(token)
             .fetch_optional(&self.pool)

@@ -46,6 +46,20 @@ impl AppError {
         }
     }
 
+    /// 410 Gone — resource existed but is no longer available (e.g., a
+    /// share token whose `expires_at` is in the past). Distinct from
+    /// `not_found` so clients can render a "this link expired" message
+    /// instead of a generic 404.
+    pub fn gone(message: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::GONE,
+            error_type: "gone",
+            message: message.into(),
+            details: None,
+            headers: None,
+        }
+    }
+
     pub fn unprocessable(message: impl Into<String>) -> Self {
         Self {
             status: StatusCode::UNPROCESSABLE_ENTITY,

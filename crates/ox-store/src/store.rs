@@ -356,7 +356,16 @@ pub trait DashboardStore: Send + Sync {
         is_public: bool,
     ) -> OxResult<()>;
     async fn delete_dashboard(&self, id: Uuid) -> OxResult<bool>;
-    async fn update_dashboard_share_token(&self, id: Uuid, token: Option<&str>) -> OxResult<()>;
+    /// Set or clear the share token. When `token` is `Some`, the caller
+    /// must also pass `expires_at` so the token has a definite TTL.
+    async fn update_dashboard_share_token(
+        &self,
+        id: Uuid,
+        token: Option<&str>,
+        expires_at: Option<DateTime<Utc>>,
+    ) -> OxResult<()>;
+    /// Resolve a share token to its dashboard. Returns `Ok(None)` if the
+    /// token is unknown OR if the token has expired.
     async fn get_dashboard_by_share_token(&self, token: &str) -> OxResult<Option<Dashboard>>;
 
     async fn create_widget(&self, widget: &DashboardWidget) -> OxResult<()>;

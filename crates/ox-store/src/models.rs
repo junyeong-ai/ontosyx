@@ -265,6 +265,9 @@ pub struct Dashboard {
     pub is_public: bool,
     pub share_token: Option<String>,
     pub shared_at: Option<DateTime<Utc>>,
+    /// When the share token expires. `None` means never (legacy rows);
+    /// new shares always set this via `update_dashboard_share_token`.
+    pub share_expires_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

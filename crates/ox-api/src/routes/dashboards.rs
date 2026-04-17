@@ -41,6 +41,7 @@ pub(crate) async fn create_dashboard(
         is_public: false,
         share_token: None,
         shared_at: None,
+        share_expires_at: None,
         layout: serde_json::json!([]),
         created_at: Utc::now(),
         updated_at: Utc::now(),
@@ -350,10 +351,23 @@ pub(crate) async fn delete_widget(
 // POST /api/dashboards/:id/share — generate a share token
 // ---------------------------------------------------------------------------
 
+const DEFAULT_SHARE_EXPIRY_DAYS: u32 = 30;
+/// Hard upper bound (1 year) so the API can't be used to mint effectively
+/// permanent shares by accident.
+const MAX_SHARE_EXPIRY_DAYS: u32 = 365;
+
+#[derive(serde::Deserialize, utoipa::ToSchema, Default)]
+pub struct ShareDashboardRequest {
+    /// Days until the token expires. Defaults to 30; capped at 365.
+    #[serde(default)]
+    pub expires_in_days: Option<u32>,
+}
+
 pub(crate) async fn share_dashboard(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
+    body: Option<Json<ShareDashboardRequest>>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     principal.require_designer()?;
 
@@ -364,6 +378,14 @@ pub(crate) async fn share_dashboard(
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("Dashboard"))?;
     principal.require_owner(&dash.user_id, "dashboard")?;
+
+    let req = body.map(|Json(b)| b).unwrap_or_default();
+    let days = req
+        .expires_in_days
+        .unwrap_or(DEFAULT_SHARE_EXPIRY_DAYS)
+        .min(MAX_SHARE_EXPIRY_DAYS)
+        .max(1);
+    let expires_at = Utc::now() + chrono::Duration::days(days as i64);
 
     // Generate a cryptographically random 32-byte token (64 hex chars)
     use std::fmt::Write;
@@ -378,13 +400,14 @@ pub(crate) async fn share_dashboard(
 
     state
         .store
-        .update_dashboard_share_token(id, Some(&token))
+        .update_dashboard_share_token(id, Some(&token), Some(expires_at))
         .await
         .map_err(AppError::from)?;
 
-    Ok(ApiResponse::of(
-        serde_json::json!({ "share_token": token }),
-    ))
+    Ok(ApiResponse::of(serde_json::json!({
+        "share_token": token,
+        "expires_at": expires_at,
+    })))
 }
 
 // ---------------------------------------------------------------------------
@@ -408,7 +431,7 @@ pub(crate) async fn unshare_dashboard(
 
     state
         .store
-        .update_dashboard_share_token(id, None)
+        .update_dashboard_share_token(id, None, None)
         .await
         .map_err(AppError::from)?;
 
@@ -433,6 +456,16 @@ pub(crate) async fn get_shared_dashboard(
                 .await
                 .map_err(AppError::from)?
                 .ok_or_else(|| AppError::not_found("Shared dashboard"))?;
+
+            // 410 Gone for expired tokens so the client can render a
+            // distinct "this share link has expired" message rather than
+            // a generic 404 (which would mask the difference between
+            // "never existed" and "no longer valid").
+            if let Some(expires_at) = dashboard.share_expires_at
+                && expires_at <= Utc::now()
+            {
+                return Err(AppError::gone("Shared dashboard link has expired"));
+            }
 
             let widgets = store
                 .list_widgets(dashboard.id)
