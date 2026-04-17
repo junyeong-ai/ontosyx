@@ -587,72 +587,87 @@ async fn main() -> anyhow::Result<()> {
                         break;
                     }
                     _ = interval.tick() => {
-                        // Aggregate per-task counts so a single audit row
-                        // captures the whole maintenance cycle. Per-workspace
-                        // attribution would require each store method to
-                        // return Vec<(workspace_id, count)>; for now the
-                        // event is logged at the system level (affected_ws
-                        // = None means "applies to multiple workspaces").
-                        let mut totals: Vec<(&str, u64)> = Vec::new();
+                        // Per-workspace breakdown across the whole cycle.
+                        // Each maintenance method returns Vec<(workspace_id,
+                        // count)>; we fold them into a per-(workspace, task)
+                        // table and emit one audit row per affected workspace
+                        // so workspace admins can answer "which system
+                        // actions touched my data".
+                        use std::collections::BTreeMap;
+                        type PerWsCounts = BTreeMap<&'static str, u64>;
+                        let mut per_ws: BTreeMap<uuid::Uuid, PerWsCounts> = BTreeMap::new();
+                        // Memory entries are not workspace-keyed; track them
+                        // alongside the per-workspace map under a `None` key.
+                        let mut system_only: PerWsCounts = BTreeMap::new();
+
+                        // Inline helper instead of a closure: a closure
+                        // would mutably borrow `per_ws` for the entire async
+                        // block, blocking the per-workspace iteration below.
+                        async fn run_step(
+                            store: &Arc<dyn ox_store::Store>,
+                            per_ws: &mut std::collections::BTreeMap<uuid::Uuid, std::collections::BTreeMap<&'static str, u64>>,
+                            task: &'static str,
+                            future: impl std::future::Future<Output = ox_core::error::OxResult<Vec<(uuid::Uuid, u64)>>>,
+                        ) {
+                            let _ = store; // silence unused warning if all paths skip
+                            match future.await {
+                                Ok(rows) if !rows.is_empty() => {
+                                    let total: u64 = rows.iter().map(|(_, n)| n).sum();
+                                    for (ws, n) in rows {
+                                        *per_ws.entry(ws).or_default().entry(task).or_insert(0) += n;
+                                    }
+                                    tracing::info!(task, count = total, "maintenance step");
+                                }
+                                Err(e) => tracing::warn!(task, error = %e, "maintenance step failed"),
+                                _ => {}
+                            }
+                        }
 
                         ox_store::SYSTEM_BYPASS.scope(true, async {
                             if let Some(ref mem) = maintenance_memory {
                                 match mem.cleanup_stale(memory_days).await {
                                     Ok(n) if n > 0 => {
-                                        totals.push(("memory_entries", n));
-                                        tracing::info!(count = n, days = memory_days, "Cleaned stale memory entries")
+                                        *system_only.entry("memory_entries").or_insert(0) += n;
+                                        tracing::info!(count = n, days = memory_days, "Cleaned stale memory entries");
                                     }
                                     Err(e) => tracing::warn!(error = %e, "Memory cleanup failed"),
                                     _ => {}
                                 }
                             }
-                            match maintenance_store.cleanup_old_sessions(session_days).await {
-                                Ok(n) if n > 0 => {
-                                    totals.push(("agent_sessions", n));
-                                    tracing::info!(count = n, days = session_days, "Cleaned old agent sessions")
-                                }
-                                Err(e) => tracing::warn!(error = %e, "Session cleanup failed"),
-                                _ => {}
-                            }
-                            match maintenance_store.archive_stale_projects(wip_archive_days).await {
-                                Ok(n) if n > 0 => {
-                                    totals.push(("archived_projects", n));
-                                    tracing::info!(count = n, days = wip_archive_days, "Archived stale WIP projects")
-                                }
-                                Err(e) => tracing::warn!(error = %e, "WIP project archival failed"),
-                                _ => {}
-                            }
-                            match maintenance_store.delete_archived_projects(wip_delete_days).await {
-                                Ok(n) if n > 0 => {
-                                    totals.push(("deleted_projects", n));
-                                    tracing::info!(count = n, days = wip_delete_days, "Deleted archived projects")
-                                }
-                                Err(e) => tracing::warn!(error = %e, "Archived project deletion failed"),
-                                _ => {}
-                            }
-                            match maintenance_store.cleanup_old_results(session_days).await {
-                                Ok(n) if n > 0 => {
-                                    totals.push(("analysis_results", n));
-                                    tracing::info!(count = n, days = session_days, "Cleaned old analysis results")
-                                }
-                                Err(e) => tracing::warn!(error = %e, "Analysis result cleanup failed"),
-                                _ => {}
-                            }
-                            match maintenance_store.expire_old_approvals().await {
-                                Ok(n) if n > 0 => {
-                                    totals.push(("expired_approvals", n));
-                                    tracing::info!(count = n, "Expired old pending approvals")
-                                }
-                                Err(e) => tracing::warn!(error = %e, "Approval expiry failed"),
-                                _ => {}
-                            }
+                            run_step(&maintenance_store, &mut per_ws, "agent_sessions",
+                                maintenance_store.cleanup_old_sessions(session_days)).await;
+                            run_step(&maintenance_store, &mut per_ws, "archived_projects",
+                                maintenance_store.archive_stale_projects(wip_archive_days)).await;
+                            run_step(&maintenance_store, &mut per_ws, "deleted_projects",
+                                maintenance_store.delete_archived_projects(wip_delete_days)).await;
+                            run_step(&maintenance_store, &mut per_ws, "analysis_results",
+                                maintenance_store.cleanup_old_results(session_days)).await;
+                            run_step(&maintenance_store, &mut per_ws, "expired_approvals",
+                                maintenance_store.expire_old_approvals()).await;
 
-                            // Persist a single audit event for the run. This
-                            // makes `record_audit_for_workspace` live and
-                            // gives operators visibility into when system
-                            // maintenance touched data.
-                            if !totals.is_empty() {
-                                let summary: serde_json::Value = totals
+                            // One audit row per affected workspace, plus one
+                            // system-only row for memory cleanup if present.
+                            for (ws_id, counts) in per_ws.iter() {
+                                let summary: serde_json::Value = counts
+                                    .iter()
+                                    .map(|(k, v)| (k.to_string(), serde_json::json!(v)))
+                                    .collect();
+                                if let Err(e) = maintenance_store
+                                    .record_audit_for_workspace(
+                                        None,
+                                        Some(*ws_id),
+                                        "system_maintenance",
+                                        "scheduled_task",
+                                        None,
+                                        summary,
+                                    )
+                                    .await
+                                {
+                                    tracing::warn!(error = %e, workspace_id = %ws_id, "Failed to record per-workspace maintenance audit");
+                                }
+                            }
+                            if !system_only.is_empty() {
+                                let summary: serde_json::Value = system_only
                                     .iter()
                                     .map(|(k, v)| (k.to_string(), serde_json::json!(v)))
                                     .collect();
@@ -667,7 +682,7 @@ async fn main() -> anyhow::Result<()> {
                                     )
                                     .await
                                 {
-                                    tracing::warn!(error = %e, "Failed to record maintenance audit");
+                                    tracing::warn!(error = %e, "Failed to record system-only maintenance audit");
                                 }
                             }
                         }).await;

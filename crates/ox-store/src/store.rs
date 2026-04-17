@@ -215,12 +215,14 @@ pub trait ProjectStore: Send + Sync {
     async fn delete_design_project(&self, id: Uuid) -> OxResult<bool>;
 
     /// Archive WIP projects that haven't been updated within `max_age_days`.
-    /// Returns the total row count. (Per-workspace attribution is tracked
-    /// separately as a follow-up — see `docs/NEXT_SESSION_PLAN.md`.)
-    async fn archive_stale_projects(&self, max_age_days: i64) -> OxResult<u64>;
+    /// Returns per-workspace counts so the maintenance loop can record one
+    /// audit row per affected workspace.
+    async fn archive_stale_projects(&self, max_age_days: i64) -> OxResult<Vec<(Uuid, u64)>>;
 
     /// Permanently delete projects that have been archived for longer than `max_archive_days`.
-    async fn delete_archived_projects(&self, max_archive_days: i64) -> OxResult<u64>;
+    /// Returns per-workspace counts so the maintenance loop can record one
+    /// audit row per affected workspace.
+    async fn delete_archived_projects(&self, max_archive_days: i64) -> OxResult<Vec<(Uuid, u64)>>;
 
     // --- Ontology Snapshots ---
 
@@ -416,8 +418,10 @@ pub trait AnalysisResultStore: Send + Sync {
         recipe_id: Uuid,
         limit: i64,
     ) -> OxResult<Vec<AnalysisResult>>;
-    /// Delete analysis results older than `max_age_days`. Returns count deleted.
-    async fn cleanup_old_results(&self, max_age_days: i64) -> OxResult<u64>;
+    /// Delete analysis results older than `max_age_days`. Returns
+    /// per-workspace counts so the maintenance loop can record one
+    /// audit row per affected workspace.
+    async fn cleanup_old_results(&self, max_age_days: i64) -> OxResult<Vec<(Uuid, u64)>>;
 }
 
 #[async_trait]
@@ -472,7 +476,9 @@ pub trait AgentSessionStore: Send + Sync {
     async fn create_agent_event(&self, event: &AgentEvent) -> OxResult<()>;
     async fn list_agent_events(&self, session_id: Uuid) -> OxResult<Vec<AgentEvent>>;
     async fn delete_agent_session(&self, id: Uuid) -> OxResult<bool>;
-    async fn cleanup_old_sessions(&self, retention_days: i64) -> OxResult<u64>;
+    /// Returns per-workspace counts so the maintenance loop can record one
+    /// audit row per affected workspace.
+    async fn cleanup_old_sessions(&self, retention_days: i64) -> OxResult<Vec<(Uuid, u64)>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -723,8 +729,10 @@ pub trait ApprovalStore: Send + Sync {
         notes: Option<&str>,
     ) -> OxResult<()>;
 
-    /// Expire old pending approvals past their `expires_at`. Returns count expired.
-    async fn expire_old_approvals(&self) -> OxResult<u64>;
+    /// Expire old pending approvals past their `expires_at`.
+    /// Returns per-workspace counts so the maintenance loop can record
+    /// one audit row per affected workspace.
+    async fn expire_old_approvals(&self) -> OxResult<Vec<(Uuid, u64)>>;
 }
 
 // ---------------------------------------------------------------------------

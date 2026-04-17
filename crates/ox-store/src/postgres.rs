@@ -732,32 +732,47 @@ impl ProjectStore for PostgresStore {
         Ok(result.rows_affected() > 0)
     }
 
-    async fn archive_stale_projects(&self, max_age_days: i64) -> OxResult<u64> {
-        let result = sqlx::query(
-            "UPDATE design_projects
-             SET archived_at = NOW()
-             WHERE status IN ('analyzed', 'designed')
-               AND updated_at < NOW() - ($1 || ' days')::interval
-               AND archived_at IS NULL",
+    async fn archive_stale_projects(&self, max_age_days: i64) -> OxResult<Vec<(Uuid, u64)>> {
+        // RETURNING the workspace_id of each affected row, then GROUP
+        // BY in SQL — keeps the per-workspace breakdown server-side
+        // instead of round-tripping every row to Rust.
+        let rows: Vec<(Uuid, i64)> = sqlx::query_as(
+            "WITH affected AS (
+                 UPDATE design_projects
+                 SET archived_at = NOW()
+                 WHERE status IN ('analyzed', 'designed')
+                   AND updated_at < NOW() - ($1 || ' days')::interval
+                   AND archived_at IS NULL
+                 RETURNING workspace_id
+             )
+             SELECT workspace_id, COUNT(*)::bigint
+             FROM affected
+             GROUP BY workspace_id",
         )
         .bind(max_age_days)
-        .execute(&self.pool)
+        .fetch_all(&self.pool)
         .await
         .map_err(to_ox_error)?;
-        Ok(result.rows_affected())
+        Ok(rows.into_iter().map(|(ws, n)| (ws, n as u64)).collect())
     }
 
-    async fn delete_archived_projects(&self, max_archive_days: i64) -> OxResult<u64> {
-        let result = sqlx::query(
-            "DELETE FROM design_projects
-             WHERE archived_at IS NOT NULL
-               AND archived_at < NOW() - ($1 || ' days')::interval",
+    async fn delete_archived_projects(&self, max_archive_days: i64) -> OxResult<Vec<(Uuid, u64)>> {
+        let rows: Vec<(Uuid, i64)> = sqlx::query_as(
+            "WITH affected AS (
+                 DELETE FROM design_projects
+                 WHERE archived_at IS NOT NULL
+                   AND archived_at < NOW() - ($1 || ' days')::interval
+                 RETURNING workspace_id
+             )
+             SELECT workspace_id, COUNT(*)::bigint
+             FROM affected
+             GROUP BY workspace_id",
         )
         .bind(max_archive_days)
-        .execute(&self.pool)
+        .fetch_all(&self.pool)
         .await
         .map_err(to_ox_error)?;
-        Ok(result.rows_affected())
+        Ok(rows.into_iter().map(|(ws, n)| (ws, n as u64)).collect())
     }
 
     // --- Ontology Snapshots ---
@@ -1836,16 +1851,22 @@ impl AnalysisResultStore for PostgresStore {
         })
     }
 
-    async fn cleanup_old_results(&self, max_age_days: i64) -> OxResult<u64> {
-        let result = sqlx::query(
-            "DELETE FROM analysis_results
-             WHERE created_at < NOW() - make_interval(days => $1)",
+    async fn cleanup_old_results(&self, max_age_days: i64) -> OxResult<Vec<(Uuid, u64)>> {
+        let rows: Vec<(Uuid, i64)> = sqlx::query_as(
+            "WITH affected AS (
+                 DELETE FROM analysis_results
+                 WHERE created_at < NOW() - make_interval(days => $1)
+                 RETURNING workspace_id
+             )
+             SELECT workspace_id, COUNT(*)::bigint
+             FROM affected
+             GROUP BY workspace_id",
         )
         .bind(max_age_days as i32)
-        .execute(&self.pool)
+        .fetch_all(&self.pool)
         .await
         .map_err(to_ox_error)?;
-        Ok(result.rows_affected())
+        Ok(rows.into_iter().map(|(ws, n)| (ws, n as u64)).collect())
     }
 }
 
@@ -2293,7 +2314,7 @@ impl AgentSessionStore for PostgresStore {
         Ok(result.rows_affected() > 0)
     }
 
-    async fn cleanup_old_sessions(&self, retention_days: i64) -> OxResult<u64> {
+    async fn cleanup_old_sessions(&self, retention_days: i64) -> OxResult<Vec<(Uuid, u64)>> {
         // Delete events first (CASCADE would handle this but be explicit)
         sqlx::query(
             "DELETE FROM agent_events WHERE session_id IN (
@@ -2307,17 +2328,24 @@ impl AgentSessionStore for PostgresStore {
             message: format!("Database error: {e}"),
         })?;
 
-        let result = sqlx::query(
-            "DELETE FROM agent_sessions WHERE created_at < NOW() - ($1 || ' days')::interval",
+        let rows: Vec<(Uuid, i64)> = sqlx::query_as(
+            "WITH affected AS (
+                 DELETE FROM agent_sessions
+                 WHERE created_at < NOW() - ($1 || ' days')::interval
+                 RETURNING workspace_id
+             )
+             SELECT workspace_id, COUNT(*)::bigint
+             FROM affected
+             GROUP BY workspace_id",
         )
         .bind(retention_days)
-        .execute(&self.pool)
+        .fetch_all(&self.pool)
         .await
         .map_err(|e| OxError::Runtime {
             message: format!("Database error: {e}"),
         })?;
 
-        Ok(result.rows_affected())
+        Ok(rows.into_iter().map(|(ws, n)| (ws, n as u64)).collect())
     }
 }
 
@@ -3257,19 +3285,25 @@ impl ApprovalStore for PostgresStore {
         Ok(())
     }
 
-    async fn expire_old_approvals(&self) -> OxResult<u64> {
+    async fn expire_old_approvals(&self) -> OxResult<Vec<(Uuid, u64)>> {
         // Strict `<` so a request whose `expires_at == NOW()` is still
         // valid for its last clock tick — matches the share-token
         // semantics in `get_dashboard_by_share_token`.
-        let result = sqlx::query(
-            "UPDATE approval_requests
-             SET status = 'expired'
-             WHERE status = 'pending' AND expires_at < NOW()",
+        let rows: Vec<(Uuid, i64)> = sqlx::query_as(
+            "WITH affected AS (
+                 UPDATE approval_requests
+                 SET status = 'expired'
+                 WHERE status = 'pending' AND expires_at < NOW()
+                 RETURNING workspace_id
+             )
+             SELECT workspace_id, COUNT(*)::bigint
+             FROM affected
+             GROUP BY workspace_id",
         )
-        .execute(&self.pool)
+        .fetch_all(&self.pool)
         .await
         .map_err(to_ox_error)?;
-        Ok(result.rows_affected())
+        Ok(rows.into_iter().map(|(ws, n)| (ws, n as u64)).collect())
     }
 }
 
