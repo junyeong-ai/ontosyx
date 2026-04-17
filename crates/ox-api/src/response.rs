@@ -45,8 +45,6 @@ pub struct ApiResponse<T: Serialize> {
 #[derive(Debug, Serialize)]
 pub struct PageMeta {
     pub next_cursor: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub total: Option<u64>,
 }
 
 impl<T: Serialize> ApiResponse<T> {
@@ -58,12 +56,6 @@ impl<T: Serialize> ApiResponse<T> {
             meta: None,
         })
     }
-
-    /// Attach optional metadata (e.g., model name, execution id).
-    pub fn with_meta(mut self, meta: serde_json::Value) -> Self {
-        self.meta = Some(meta);
-        self
-    }
 }
 
 impl<T: Serialize> ApiResponse<Vec<T>> {
@@ -73,19 +65,6 @@ impl<T: Serialize> ApiResponse<Vec<T>> {
             data: page.items,
             pagination: Some(PageMeta {
                 next_cursor: page.next_cursor,
-                total: None,
-            }),
-            meta: None,
-        })
-    }
-
-    /// Flatten a `CursorPage<T>` and include a total count.
-    pub fn page_with_total(page: ox_store::CursorPage<T>, total: u64) -> Json<Self> {
-        Json(Self {
-            data: page.items,
-            pagination: Some(PageMeta {
-                next_cursor: page.next_cursor,
-                total: Some(total),
             }),
             meta: None,
         })

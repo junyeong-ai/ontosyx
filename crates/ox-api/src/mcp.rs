@@ -104,6 +104,9 @@ pub struct OntosyxMcpServer {
     store: Arc<dyn Store>,
     limiter: Arc<SessionLimiter>,
     call_timeout: Duration,
+    /// Touched only via the `#[tool_handler]` macro expansion — looks
+    /// dead to the compiler but is required for the rmcp dispatch table.
+    #[allow(dead_code)]
     tool_router: ToolRouter<Self>,
 }
 
