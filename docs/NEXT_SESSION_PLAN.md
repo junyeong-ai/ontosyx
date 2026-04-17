@@ -1,8 +1,43 @@
 # 다음 세션 작업 계획
 
-> 작성일: 2026-04-17 (감사 후 업데이트)
-> 이전 세션 진행: 15 commits — Bug #1, Phase 1.3b, 2.1~2.4, 3.6, 4.1~4.10 완료 + 5-agent 심층 감사 후 10 critical / 17 major 결함 수정
-> 남은 작업: Phase 5 (프론트엔드 모던화), Phase 6 (CI + Korean E2E), 그리고 감사에서 남은 minor 개선
+> 작성일: 2026-04-17 (post-audit-fix Round 2 업데이트)
+> 이번 세션 진행: 16 commits — Bug #1, Phase 1.3b, 2.1~2.4, 3.6, 4.1~4.10 완료 + 5-agent 심층 감사 후 10 critical / 17 major 결함 수정 + Phase A3/B/D/E/F/G 부분 추가 (5 parallel agents — 3개 limit hit으로 partial)
+> 남은 작업: Phase 5 (프론트엔드), Phase 6 (CI + Korean E2E), Phase A1/A2/C 미완 + Phase D3/E1/E2 미완
+
+## Round 2 추가 항목 (commit b961718)
+
+| Phase | 항목 | 상태 |
+|-------|------|------|
+| A3 | `PostgresTyper`/`MySqlTyper`/`MongoTyper`/`OracleTyper`/`SqlServerTyper` + `typer_for_source_type` dispatch + `schema_evolution.rs` 사용 | ✅ 완료 |
+| B1/B3/B4/B7 | 핸들러 visibility, `enrich/suggest_insights → schema_ops`, `audit_graph → graph_audit_report`, ontology mod.rs 명시적 re-export | ✅ 완료 |
+| D1/D2 | MCP rate limit/timeout/duration metrics 도입 | ✅ 완료 |
+| E3 | `recovery_confidence_for(failure_kind)` (Error→0.85, Empty→0.70) | ✅ 완료 |
+| F1/F2/F3 | `DashboardsConfig`/`RecoveryConfig`/`McpRateLimitConfig` config 외부화 | ✅ 완료 |
+| G1 | `neo4j/transience.rs` 삭제 → `runtime.rs`에 inline | ✅ 완료 |
+
+## Round 2 미완 (다음 세션 우선)
+
+### Phase C — 보안 강화 (전부 미완 — agent 전부 limit hit + auto-revert)
+
+- **C1**: 정적 `OX_AUTH__API_KEY` 폐기, DB-only + `OX_AUTH__BOOTSTRAP_KEY` env로 first-boot seed
+- **C2**: `readonly_runtime` 필드는 wire-up 됐으나 실제 R/O DB 사용자 생성/연결 미연결. `[graph]` config에 `readonly_user`/`readonly_password` 추가 + registry에서 두 번째 runtime 빌드
+- **C3**: Share token CSPRNG 전환 (현재 `Uuid::new_v4()` 2개 = 244bits → `rand::OsRng.fill_bytes(&mut [u8; 32])` = 256bits). `ox-store/src/secret_token.rs`로 helper 만들기
+- **C4**: API key 합성 JWT `exp: usize::MAX` → `iat + 3600`
+- **C5**: `expires_at <=` → `<` (boundary는 valid)
+
+### Phase A — 타입 (A1/A2 미완)
+
+- **A1**: `PromptTemplateRow.version: String` → `PromptVersion` semver 타입. sqlx Encode/Decode + 마이그레이션 0006으로 CHECK 제약. `ox-brain::prompts::PromptVersion` (이미 존재)과 충돌 회피 — 통합하거나 명확히 분리.
+- **A2**: `ApiResponse<T>: utoipa::ToSchema` 도입 + 모든 핸들러 `body = ApiResponse<T>` 일괄 변경 → OpenAPI 스펙이 실제 envelope 반영
+
+### Phase D — Audit per-workspace (미완)
+
+- **D3**: maintenance store 메서드들 → `Vec<(workspace_id, u64)>` 반환. SQL `DELETE ... RETURNING workspace_id` + GROUP BY. main.rs maintenance loop가 워크스페이스별 audit 행 작성
+
+### Phase E — Heuristic (E1/E2 미완)
+
+- **E1**: MCP rate limit `Mutex<Option<(Instant, u32)>>` (tumbling) → `VecDeque<Instant>` (sliding 100/60s)
+- **E2**: `extract_cypher_labels` map literal `{name: "x"}` false positive 제거 + `_leadingUnderscore` 라벨 허용
 
 ## 2026-04-17 세션 완료 항목
 
