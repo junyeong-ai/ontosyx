@@ -423,7 +423,12 @@ pub struct AgentEvent {
 pub struct PromptTemplateRow {
     pub id: Uuid,
     pub name: String,
-    pub version: String,
+    /// Semantic version. Stored as TEXT in Postgres (with a CHECK constraint
+    /// in migration 0006) and decoded via `TryFrom<String>` so the row
+    /// always carries a parsed `PromptVersion` rather than a free-form
+    /// string. Prevents the `"v10" < "v9"` lexicographic-sort surprise.
+    #[sqlx(try_from = "String")]
+    pub version: ox_core::PromptVersion,
     pub content: String,
     pub variables: serde_json::Value,
     pub metadata: serde_json::Value,

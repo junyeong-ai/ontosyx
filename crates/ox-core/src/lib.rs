@@ -28,6 +28,7 @@ pub mod ontology_command;
 pub mod ontology_diff;
 pub mod ontology_input;
 pub mod ontology_ir;
+pub mod prompt_version;
 pub mod quality;
 pub mod query_bindings;
 pub mod query_ir;
@@ -57,6 +58,7 @@ pub use ontology_input::{
 };
 pub use ontology_ir::DataClassification;
 pub use ontology_ir::OntologyIR;
+pub use prompt_version::PromptVersion;
 pub use quality::{
     OntologyQualityReport, QualityConfidence, QualityGap, QualityGapCategory, QualityGapRef,
     QualityGapSeverity, is_cryptic_short,

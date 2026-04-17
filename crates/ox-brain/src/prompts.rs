@@ -56,56 +56,11 @@ impl PromptTemplate {
     }
 }
 
-// ---------------------------------------------------------------------------
-// PromptVersion — parsed semantic version for enforcement
-// ---------------------------------------------------------------------------
-
-/// Parsed semantic version (major.minor.patch).
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PromptVersion {
-    pub major: u32,
-    pub minor: u32,
-    pub patch: u32,
-}
-
-impl PromptVersion {
-    /// Parse a "major.minor.patch" version string.
-    pub fn parse(version: &str) -> OxResult<Self> {
-        let parts: Vec<&str> = version.split('.').collect();
-        if parts.len() != 3 {
-            return Err(OxError::Validation {
-                field: "version".to_string(),
-                message: format!(
-                    "Invalid prompt version '{}': expected major.minor.patch",
-                    version
-                ),
-            });
-        }
-        let major = parts[0].parse::<u32>().map_err(|_| OxError::Validation {
-            field: "version".to_string(),
-            message: format!("Invalid major version in '{version}'"),
-        })?;
-        let minor = parts[1].parse::<u32>().map_err(|_| OxError::Validation {
-            field: "version".to_string(),
-            message: format!("Invalid minor version in '{version}'"),
-        })?;
-        let patch = parts[2].parse::<u32>().map_err(|_| OxError::Validation {
-            field: "version".to_string(),
-            message: format!("Invalid patch version in '{version}'"),
-        })?;
-        Ok(Self {
-            major,
-            minor,
-            patch,
-        })
-    }
-}
-
-impl std::fmt::Display for PromptVersion {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
-    }
-}
+// `PromptVersion` lives in `ox-core` so the column type on
+// `PromptTemplateRow.version` (in `ox-store`) and the registry-level
+// enforcement here agree on a single parsed value. Re-exported below
+// for callers that already imported `ox_brain::prompts::PromptVersion`.
+pub use ox_core::PromptVersion;
 
 // ---------------------------------------------------------------------------
 // PromptVersionInfo — prompt name + parsed version for external queries
@@ -116,6 +71,8 @@ impl std::fmt::Display for PromptVersion {
 pub struct PromptVersionInfo {
     pub name: String,
     pub version: PromptVersion,
+    /// The exact string written in the DB (canonical
+    /// `"major.minor.patch"` form via `PromptVersion::Display`).
     pub raw_version: String,
 }
 
@@ -222,10 +179,26 @@ impl PromptRegistry {
                 file.prompt.system, file.prompt.user_template
             );
 
+            // Parse the TOML-supplied string into the canonical
+            // `PromptVersion` so the seed row matches the column's
+            // `try_from = "String"` decode contract.
+            let parsed_version = match PromptVersion::parse(&file.prompt.version) {
+                Ok(v) => v,
+                Err(e) => {
+                    warn!(
+                        name = %name,
+                        version = %file.prompt.version,
+                        error = %e,
+                        "Skipping seed: prompt TOML version isn't valid semver"
+                    );
+                    continue;
+                }
+            };
+
             let row = ox_store::PromptTemplateRow {
                 id: uuid::Uuid::new_v4(),
                 name: name.clone(),
-                version: file.prompt.version.clone(),
+                version: parsed_version,
                 content: combined,
                 variables: serde_json::json!([]),
                 metadata: serde_json::json!({
@@ -268,7 +241,11 @@ impl PromptRegistry {
                 .map(|v| v as f32);
 
             let template = PromptTemplate {
-                version: row.version.clone(),
+                // `PromptTemplate.version` is the human-displayable
+                // "x.y.z" string used in logs; the typed `PromptVersion`
+                // lives separately in the registry's `versions` map for
+                // semantic comparison.
+                version: row.version.to_string(),
                 description: row
                     .metadata
                     .get("description")
@@ -281,9 +258,9 @@ impl PromptRegistry {
                 temperature,
             };
 
-            if let Ok(parsed) = PromptVersion::parse(&row.version) {
-                versions.insert(row.name.clone(), parsed);
-            }
+            // Already parsed during decode (`#[sqlx(try_from = "String")]`),
+            // so we can insert the typed version directly.
+            versions.insert(row.name.clone(), row.version);
             prompts.insert(row.name, template);
         }
 

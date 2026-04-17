@@ -2444,13 +2444,16 @@ impl PromptTemplateStore for PostgresStore {
     }
 
     async fn get_active_prompt(&self, name: &str) -> OxResult<Option<PromptTemplateRow>> {
-        // Active global template (workspace_id IS NULL).
-        // Order by created_at since `version` is a free-form String and a
-        // lexicographic sort would mis-order `"v10"` before `"v9"`.
+        // Active global template (workspace_id IS NULL). Sort by parsed
+        // semver components (CHECK constraint guarantees `<int>.<int>.<int>`)
+        // then `created_at` as the tie-breaker for the rare case of two
+        // active rows at the same version.
         sqlx::query_as(
             "SELECT * FROM prompt_templates
              WHERE name = $1 AND is_active = true AND workspace_id IS NULL
-             ORDER BY created_at DESC LIMIT 1",
+             ORDER BY string_to_array(version, '.')::int[] DESC,
+                      created_at DESC
+             LIMIT 1",
         )
         .bind(name)
         .fetch_optional(&self.pool)
@@ -2475,10 +2478,9 @@ impl PromptTemplateStore for PostgresStore {
         //
         // Tie-breaker (when both ws-specific and global match):
         //   1. ws-specific first (`workspace_id IS NULL` = FALSE sorts first)
-        //   2. most recently created (deterministic; `version` is a free-form
-        //      string and ordering it lexicographically is unsafe — `"v10"`
-        //      sorts before `"v9"`. Operators should bump `created_at` by
-        //      reseeding to promote a newer version.)
+        //   2. highest semver (CHECK constraint in migration 0006
+        //      guarantees `<int>.<int>.<int>` so the array cast is safe)
+        //   3. most recently created (deterministic for cosmetic ties)
         sqlx::query_as(
             "SELECT * FROM prompt_templates
              WHERE name = $1
@@ -2486,6 +2488,7 @@ impl PromptTemplateStore for PostgresStore {
                AND (workspace_id IS NULL
                     OR ($2::uuid IS NOT NULL AND workspace_id = $2))
              ORDER BY (workspace_id IS NULL),
+                      string_to_array(version, '.')::int[] DESC,
                       created_at DESC
              LIMIT 1",
         )
@@ -2506,7 +2509,10 @@ impl PromptTemplateStore for PostgresStore {
         )
         .bind(r.id)
         .bind(&r.name)
-        .bind(&r.version)
+        // PromptVersion: serialize to its canonical "x.y.z" form for the
+        // TEXT column. The CHECK constraint in migration 0006 enforces
+        // the same format on the DB side.
+        .bind(r.version.to_string())
         .bind(&r.content)
         .bind(&r.variables)
         .bind(&r.metadata)

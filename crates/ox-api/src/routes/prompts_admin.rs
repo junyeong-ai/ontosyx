@@ -73,10 +73,15 @@ pub(crate) async fn create_prompt_template(
 ) -> Result<Json<ApiResponse<PromptTemplateRow>>, AppError> {
     principal.require_admin()?;
 
+    // Reject malformed semver up-front so the operator sees a 400 rather
+    // than a 500 from the eventual DB CHECK constraint.
+    let parsed_version = ox_core::PromptVersion::parse(&req.version)
+        .map_err(|e| AppError::bad_request(format!("Invalid version: {e}")))?;
+
     let row = PromptTemplateRow {
         id: Uuid::new_v4(),
         name: req.name,
-        version: req.version,
+        version: parsed_version,
         content: req.content,
         variables: req.variables,
         metadata: req.metadata,
