@@ -9,3 +9,17 @@ pub fn content_hash(ontology_name: &str, content: &str) -> String {
     hasher.update(content.trim().to_lowercase().as_bytes());
     format!("{:x}", hasher.finalize())
 }
+
+/// Compute a stable hash of a query string used for in-session dedup.
+/// Whitespace-insensitive: collapses runs of whitespace to a single space
+/// so cosmetic reformatting doesn't defeat the dedup.
+pub fn content_hash_query(query: &str) -> String {
+    let normalized: String = query
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase();
+    let mut hasher = Sha256::new();
+    hasher.update(normalized.as_bytes());
+    format!("{:x}", hasher.finalize())
+}

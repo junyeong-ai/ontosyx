@@ -271,7 +271,17 @@ pub struct RecoveryDetectionHook {
     ontology_version: i32,
     /// Per-session tool outcome tracking: session_id → list of outcomes.
     session_outcomes: DashMap<String, Vec<ToolOutcome>>,
+    /// Dedup guard: (session_id, query_hash) tuples already turned into
+    /// a knowledge entry. Prevents the same recovery from being recorded
+    /// twice when the same successful query appears multiple times.
+    processed_recoveries: DashMap<String, std::collections::HashSet<String>>,
 }
+
+/// Minimum Jaccard similarity between failed and successful query label
+/// sets required to treat them as a recovery pair. Below this threshold
+/// the queries probably target unrelated parts of the schema and the
+/// failure→success sequence is coincidental.
+const RECOVERY_JACCARD_THRESHOLD: f64 = 0.5;
 
 /// Distinguishes three outcome states for recovery detection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -308,6 +318,7 @@ impl RecoveryDetectionHook {
             ontology_name,
             ontology_version,
             session_outcomes: DashMap::new(),
+            processed_recoveries: DashMap::new(),
         }
     }
 
@@ -316,6 +327,84 @@ impl RecoveryDetectionHook {
         let cutoff = Utc::now() - chrono::Duration::minutes(10);
         self.session_outcomes
             .retain(|_, outcomes| outcomes.last().is_some_and(|o| o.timestamp > cutoff));
+        // Dedup tracker shadows session_outcomes — drop entries for
+        // sessions that no longer have any outcomes recorded.
+        self.processed_recoveries
+            .retain(|sid, _| self.session_outcomes.contains_key(sid));
+    }
+}
+
+/// Extract `:Label` tokens from a Cypher query (case-insensitive on the colon).
+/// Used by [`is_structural_match`] to compare failed vs. successful queries.
+fn extract_cypher_labels(query: &str) -> std::collections::HashSet<String> {
+    let mut labels = std::collections::HashSet::new();
+    let bytes = query.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b':' {
+            let start = i + 1;
+            let mut end = start;
+            while end < bytes.len() {
+                let c = bytes[end];
+                if c.is_ascii_alphanumeric() || c == b'_' || !c.is_ascii() {
+                    end += 1;
+                } else {
+                    break;
+                }
+            }
+            if end > start {
+                if let Ok(label) = std::str::from_utf8(&bytes[start..end])
+                    && label
+                        .chars()
+                        .next()
+                        .is_some_and(|c| c.is_alphabetic() || !c.is_ascii())
+                {
+                    labels.insert(label.to_string());
+                }
+            }
+            i = end;
+        } else {
+            i += 1;
+        }
+    }
+    labels
+}
+
+/// Jaccard similarity between two label sets (`|A ∩ B| / |A ∪ B|`).
+fn jaccard(
+    a: &std::collections::HashSet<String>,
+    b: &std::collections::HashSet<String>,
+) -> Option<f64> {
+    let union = a.union(b).count();
+    if union == 0 {
+        return None;
+    }
+    let intersection = a.intersection(b).count();
+    Some(intersection as f64 / union as f64)
+}
+
+/// Returns true when `failed` and `succeeded` look structurally similar
+/// enough to be considered a recovery pair (Jaccard label similarity ≥
+/// [`RECOVERY_JACCARD_THRESHOLD`]). Errors with no compiled query fall
+/// back to "match anything" because we have no labels to compare.
+fn is_structural_match(failed_query: Option<&str>, succeeded_query: Option<&str>) -> bool {
+    let succeeded = match succeeded_query {
+        Some(q) => q,
+        None => return false, // no signal — never pair
+    };
+    let succeeded_labels = extract_cypher_labels(succeeded);
+
+    let Some(failed) = failed_query else {
+        // Failure with no compiled query (parse error etc.) — labels
+        // are unavailable on the failed side. The presence of a
+        // successful query in the same session is enough.
+        return true;
+    };
+    let failed_labels = extract_cypher_labels(failed);
+
+    match jaccard(&failed_labels, &succeeded_labels) {
+        Some(score) => score >= RECOVERY_JACCARD_THRESHOLD,
+        None => true, // both empty (legacy queries without labels) — preserve old behavior
     }
 }
 
@@ -390,6 +479,35 @@ impl Hook for RecoveryDetectionHook {
                 if let Some((failure_kind, failure_text, failure_compiled)) = prior_failure_data {
                     // Extract labels and query from success output
                     let (success_query, labels, execution_id) = parse_success_output(&text);
+
+                    // Structural similarity gate: only treat as recovery if
+                    // the failed and successful queries touch overlapping
+                    // schema (Jaccard ≥ threshold). Otherwise the pairing
+                    // is coincidental and would pollute the knowledge base.
+                    if !is_structural_match(failure_compiled.as_deref(), success_query.as_deref())
+                    {
+                        // Not a real recovery pair — discard outcomes and bail
+                        self.session_outcomes.remove(session_id);
+                        return Ok(HookOutput::allow());
+                    }
+
+                    // Dedup by query hash within session: prevent duplicate
+                    // knowledge entries when the same successful query
+                    // recovers from the same failure repeatedly.
+                    let dedup_key = success_query
+                        .as_deref()
+                        .map(ox_brain::knowledge_util::content_hash_query);
+                    if let Some(ref key) = dedup_key {
+                        let mut hashes = self
+                            .processed_recoveries
+                            .entry(session_id.clone())
+                            .or_default();
+                        if !hashes.insert(key.clone()) {
+                            // Already processed this recovery in this session.
+                            self.session_outcomes.remove(session_id);
+                            return Ok(HookOutput::allow());
+                        }
+                    }
 
                     // Build correction content based on failure type.
                     // `prior_failure_data` is filtered to Error|Empty upstream,
@@ -591,4 +709,104 @@ fn parse_success_output(output: &str) -> (Option<String>, Vec<String>, Option<St
         .unwrap_or_default();
 
     (compiled_query, labels, execution_id)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extract_cypher_labels_basic() {
+        let labels = extract_cypher_labels("MATCH (p:Person)-[:KNOWS]->(c:Company)");
+        assert!(labels.contains("Person"));
+        assert!(labels.contains("KNOWS"));
+        assert!(labels.contains("Company"));
+        assert_eq!(labels.len(), 3);
+    }
+
+    #[test]
+    fn extract_cypher_labels_korean() {
+        let labels = extract_cypher_labels("MATCH (n:사용자)-[:속함]->(t:팀)");
+        assert!(labels.contains("사용자"));
+        assert!(labels.contains("속함"));
+        assert!(labels.contains("팀"));
+    }
+
+    #[test]
+    fn extract_cypher_labels_skips_property_access() {
+        let labels = extract_cypher_labels("MATCH (n:Person) WHERE n.name = 'x'");
+        assert_eq!(labels, std::collections::HashSet::from(["Person".into()]));
+    }
+
+    #[test]
+    fn extract_cypher_labels_ignores_numeric_starts() {
+        let labels = extract_cypher_labels("RETURN $param, :123, :Foo");
+        assert_eq!(labels, std::collections::HashSet::from(["Foo".into()]));
+    }
+
+    #[test]
+    fn jaccard_basic() {
+        let a: std::collections::HashSet<String> =
+            ["A", "B", "C"].iter().map(|s| s.to_string()).collect();
+        let b: std::collections::HashSet<String> =
+            ["B", "C", "D"].iter().map(|s| s.to_string()).collect();
+        // |A∩B|=2, |A∪B|=4 → 0.5
+        assert_eq!(jaccard(&a, &b), Some(0.5));
+    }
+
+    #[test]
+    fn jaccard_disjoint_is_zero() {
+        let a: std::collections::HashSet<String> = ["A"].iter().map(|s| s.to_string()).collect();
+        let b: std::collections::HashSet<String> = ["B"].iter().map(|s| s.to_string()).collect();
+        assert_eq!(jaccard(&a, &b), Some(0.0));
+    }
+
+    #[test]
+    fn jaccard_both_empty_returns_none() {
+        let a = std::collections::HashSet::new();
+        let b = std::collections::HashSet::new();
+        assert_eq!(jaccard(&a, &b), None);
+    }
+
+    #[test]
+    fn structural_match_at_threshold() {
+        assert!(is_structural_match(
+            Some("MATCH (n:Person) RETURN n"),
+            Some("MATCH (p:Person {name: 'x'}) RETURN p"),
+        ));
+    }
+
+    #[test]
+    fn structural_match_no_overlap_rejected() {
+        assert!(!is_structural_match(
+            Some("MATCH (a:Order) RETURN a"),
+            Some("MATCH (b:Customer) RETURN b"),
+        ));
+    }
+
+    #[test]
+    fn structural_match_partial_overlap() {
+        // {Person, BOUGHT, Order} vs {Person, VIEWED, Product} → |∩|=1, |∪|=5 → 0.20 < 0.5
+        assert!(!is_structural_match(
+            Some("MATCH (p:Person)-[:BOUGHT]->(o:Order) RETURN p"),
+            Some("MATCH (p:Person)-[:VIEWED]->(pd:Product) RETURN p"),
+        ));
+    }
+
+    #[test]
+    fn structural_match_failure_with_no_compiled_query_passes() {
+        // No labels on the failed side — fall through to "anything goes".
+        assert!(is_structural_match(
+            None,
+            Some("MATCH (n:Person) RETURN n"),
+        ));
+    }
+
+    #[test]
+    fn structural_match_no_success_query_rejected() {
+        assert!(!is_structural_match(
+            Some("MATCH (n:Person) RETURN n"),
+            None,
+        ));
+    }
 }
