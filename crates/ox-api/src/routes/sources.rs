@@ -9,6 +9,7 @@ use ox_source::registry::SourceInput;
 
 use crate::error::AppError;
 use crate::principal::Principal;
+use crate::response::ApiResponse;
 use crate::state::AppState;
 
 // ---------------------------------------------------------------------------
@@ -66,7 +67,7 @@ pub(crate) async fn test_source_connection(
     State(state): State<AppState>,
     principal: Principal,
     Json(req): Json<TestConnectionRequest>,
-) -> Result<Json<TestConnectionResponse>, AppError> {
+) -> Result<Json<ApiResponse<TestConnectionResponse>>, AppError> {
     principal.require_designer()?;
 
     let registry = &state.introspector_registry;
@@ -100,7 +101,7 @@ pub(crate) async fn test_source_connection(
         Some(Err(e)) => {
             let msg = e.to_string();
             warn!(source_type = %req.source_type, error = %msg, "Connection test: factory failed");
-            return Ok(Json(TestConnectionResponse {
+            return Ok(ApiResponse::of(TestConnectionResponse {
                 success: false,
                 table_count: None,
                 tables: None,
@@ -118,7 +119,7 @@ pub(crate) async fn test_source_connection(
     match schema_result {
         Err(_elapsed) => {
             warn!(source_type = %req.source_type, "Connection test: schema introspection timed out");
-            Ok(Json(TestConnectionResponse {
+            Ok(ApiResponse::of(TestConnectionResponse {
                 success: false,
                 table_count: None,
                 tables: None,
@@ -129,7 +130,7 @@ pub(crate) async fn test_source_connection(
         Ok(Err(e)) => {
             let msg = e.to_string();
             warn!(source_type = %req.source_type, error = %msg, "Connection test: introspection failed");
-            Ok(Json(TestConnectionResponse {
+            Ok(ApiResponse::of(TestConnectionResponse {
                 success: false,
                 table_count: None,
                 tables: None,
@@ -145,7 +146,7 @@ pub(crate) async fn test_source_connection(
                 table_count = count,
                 "Connection test: success"
             );
-            Ok(Json(TestConnectionResponse {
+            Ok(ApiResponse::of(TestConnectionResponse {
                 success: true,
                 table_count: Some(count),
                 tables: Some(table_names),

@@ -12,6 +12,7 @@ use ox_source::analyzer::build_design_context;
 
 use crate::error::AppError;
 use crate::principal::Principal;
+use crate::response::ApiResponse;
 use crate::state::AppState;
 
 use super::helpers::{
@@ -43,7 +44,7 @@ pub(crate) async fn extend_project(
     principal: Principal,
     Path(id): Path<Uuid>,
     Json(req): Json<ProjectExtendRequest>,
-) -> Result<Json<ProjectExtendResponse>, AppError> {
+) -> Result<Json<ApiResponse<ProjectExtendResponse>>, AppError> {
     principal.require_designer()?;
     let project = load_project_in_status(&state, id, DesignProjectStatus::Designed).await?;
 
@@ -293,7 +294,7 @@ pub(crate) async fn extend_project(
         "Extend completed"
     );
 
-    Ok(Json(ProjectExtendResponse {
+    Ok(ApiResponse::of(ProjectExtendResponse {
         project: updated,
         reconcile_report: reconciled.report,
     }))

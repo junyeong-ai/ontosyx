@@ -7,6 +7,7 @@ use ox_store::PromptTemplateRow;
 
 use crate::error::AppError;
 use crate::principal::Principal;
+use crate::response::ApiResponse;
 use crate::state::AppState;
 
 // ---------------------------------------------------------------------------
@@ -16,14 +17,14 @@ use crate::state::AppState;
 pub(crate) async fn list_prompt_templates(
     State(state): State<AppState>,
     principal: Principal,
-) -> Result<Json<Vec<PromptTemplateRow>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<PromptTemplateRow>>>, AppError> {
     principal.require_admin()?;
     let rows = state
         .store
         .list_prompt_templates(false)
         .await
         .map_err(AppError::from)?;
-    Ok(Json(rows))
+    Ok(ApiResponse::of(rows))
 }
 
 // ---------------------------------------------------------------------------
@@ -34,7 +35,7 @@ pub(crate) async fn get_prompt_template(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-) -> Result<Json<PromptTemplateRow>, AppError> {
+) -> Result<Json<ApiResponse<PromptTemplateRow>>, AppError> {
     principal.require_admin()?;
     let row = state
         .store
@@ -42,7 +43,7 @@ pub(crate) async fn get_prompt_template(
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("Prompt template"))?;
-    Ok(Json(row))
+    Ok(ApiResponse::of(row))
 }
 
 // ---------------------------------------------------------------------------
@@ -64,7 +65,7 @@ pub(crate) async fn create_prompt_template(
     State(state): State<AppState>,
     principal: Principal,
     Json(req): Json<PromptCreateRequest>,
-) -> Result<Json<PromptTemplateRow>, AppError> {
+) -> Result<Json<ApiResponse<PromptTemplateRow>>, AppError> {
     principal.require_admin()?;
 
     let row = PromptTemplateRow {
@@ -92,7 +93,7 @@ pub(crate) async fn create_prompt_template(
         .await
         .map_err(AppError::from)?;
 
-    Ok(Json(row))
+    Ok(ApiResponse::of(row))
 }
 
 // ---------------------------------------------------------------------------
@@ -111,7 +112,7 @@ pub(crate) async fn update_prompt_template(
     principal: Principal,
     Path(id): Path<Uuid>,
     Json(req): Json<PromptUpdateRequest>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     principal.require_admin()?;
 
     let existing = state
@@ -143,7 +144,7 @@ pub(crate) async fn update_prompt_template(
             .map_err(AppError::from)?;
     }
 
-    Ok(Json(serde_json::json!({ "status": "ok" })))
+    Ok(ApiResponse::ok())
 }
 
 // ---------------------------------------------------------------------------
@@ -154,7 +155,7 @@ pub(crate) async fn delete_prompt_template(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     principal.require_admin()?;
 
     // Verify the template exists
@@ -171,5 +172,5 @@ pub(crate) async fn delete_prompt_template(
         .await
         .map_err(AppError::from)?;
 
-    Ok(Json(serde_json::json!({ "status": "ok" })))
+    Ok(ApiResponse::ok())
 }

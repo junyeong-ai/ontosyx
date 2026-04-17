@@ -6,6 +6,7 @@ use ox_core::source_schema::SourceSchema;
 
 use crate::error::AppError;
 use crate::principal::Principal;
+use crate::response::ApiResponse;
 use crate::state::AppState;
 
 use super::helpers::validate_decisions;
@@ -34,7 +35,7 @@ pub(crate) async fn update_decisions(
     principal: Principal,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateDecisionsRequest>,
-) -> Result<Json<DesignProject>, AppError> {
+) -> Result<Json<ApiResponse<DesignProject>>, AppError> {
     principal.require_designer()?;
     let project = state
         .store
@@ -66,5 +67,5 @@ pub(crate) async fn update_decisions(
         .map_err(AppError::from)?
         .ok_or_else(AppError::project_not_found)?;
 
-    Ok(Json(project))
+    Ok(ApiResponse::of(project))
 }

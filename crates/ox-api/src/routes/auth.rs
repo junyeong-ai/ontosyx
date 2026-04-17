@@ -9,6 +9,7 @@ use ox_store::User;
 use crate::error::AppError;
 use crate::middleware::{AuthClaims, create_jwt};
 use crate::principal::Principal;
+use crate::response::ApiResponse;
 use crate::state::AppState;
 
 // ---------------------------------------------------------------------------
@@ -51,7 +52,7 @@ pub struct UserInfo {
 pub async fn create_token(
     State(state): State<AppState>,
     Json(req): Json<AuthTokenCreateRequest>,
-) -> Result<Json<AuthTokenResponse>, AppError> {
+) -> Result<Json<ApiResponse<AuthTokenResponse>>, AppError> {
     let jwt_secret = state
         .auth_config
         .jwt_secret
@@ -155,7 +156,7 @@ pub async fn create_token(
         "User authenticated via OIDC"
     );
 
-    Ok(Json(AuthTokenResponse {
+    Ok(ApiResponse::of(AuthTokenResponse {
         token,
         user: UserInfo {
             id: user.id,
@@ -189,10 +190,10 @@ pub struct AuthMeResponse {
 pub async fn me(
     State(state): State<AppState>,
     principal: Principal,
-) -> Result<Json<AuthMeResponse>, AppError> {
+) -> Result<Json<ApiResponse<AuthMeResponse>>, AppError> {
     // For API key access, return the synthetic system principal
     if principal.id.starts_with("system:") {
-        return Ok(Json(AuthMeResponse {
+        return Ok(ApiResponse::of(AuthMeResponse {
             user: UserInfo {
                 id: Uuid::nil(),
                 email: principal.email,
@@ -213,7 +214,7 @@ pub async fn me(
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("User"))?;
 
-    Ok(Json(AuthMeResponse {
+    Ok(ApiResponse::of(AuthMeResponse {
         user: UserInfo {
             id: user.id,
             email: user.email,

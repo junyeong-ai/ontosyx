@@ -9,6 +9,7 @@ use ox_store::AclPolicy;
 
 use crate::error::AppError;
 use crate::principal::Principal;
+use crate::response::ApiResponse;
 use crate::state::AppState;
 use crate::workspace::WorkspaceContext;
 
@@ -55,7 +56,7 @@ pub(crate) async fn create_policy(
     principal: Principal,
     ws: WorkspaceContext,
     Json(req): Json<CreatePolicyRequest>,
-) -> Result<(StatusCode, Json<AclPolicy>), AppError> {
+) -> Result<(StatusCode, Json<ApiResponse<AclPolicy>>), AppError> {
     ws.require_admin()?;
 
     let policy = AclPolicy {
@@ -83,7 +84,7 @@ pub(crate) async fn create_policy(
         .await
         .map_err(AppError::from)?;
 
-    Ok((StatusCode::CREATED, Json(policy)))
+    Ok((StatusCode::CREATED, ApiResponse::of(policy)))
 }
 
 // ---------------------------------------------------------------------------
@@ -95,7 +96,7 @@ pub(crate) async fn list_policies(
     _principal: Principal,
     ws: WorkspaceContext,
     Query(params): Query<ListPoliciesParams>,
-) -> Result<Json<Vec<AclPolicy>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<AclPolicy>>>, AppError> {
     ws.require_admin()?;
     let policies = state
         .store
@@ -106,7 +107,7 @@ pub(crate) async fn list_policies(
         .await
         .map_err(AppError::from)?;
 
-    Ok(Json(policies))
+    Ok(ApiResponse::of(policies))
 }
 
 // ---------------------------------------------------------------------------
@@ -118,7 +119,7 @@ pub(crate) async fn get_policy(
     _principal: Principal,
     ws: WorkspaceContext,
     Path(id): Path<Uuid>,
-) -> Result<Json<AclPolicy>, AppError> {
+) -> Result<Json<ApiResponse<AclPolicy>>, AppError> {
     ws.require_admin()?;
     let policy = state
         .store
@@ -127,7 +128,7 @@ pub(crate) async fn get_policy(
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("ACL policy"))?;
 
-    Ok(Json(policy))
+    Ok(ApiResponse::of(policy))
 }
 
 // ---------------------------------------------------------------------------
@@ -139,7 +140,7 @@ pub(crate) async fn update_policy(
     ws: WorkspaceContext,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdatePolicyRequest>,
-) -> Result<Json<AclPolicy>, AppError> {
+) -> Result<Json<ApiResponse<AclPolicy>>, AppError> {
     ws.require_admin()?;
 
     let existing = state
@@ -189,7 +190,7 @@ pub(crate) async fn update_policy(
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("ACL policy"))?;
 
-    Ok(Json(updated))
+    Ok(ApiResponse::of(updated))
 }
 
 // ---------------------------------------------------------------------------
@@ -224,7 +225,7 @@ pub(crate) async fn effective_policies(
     State(state): State<AppState>,
     principal: Principal,
     ws: WorkspaceContext,
-) -> Result<Json<Vec<AclPolicy>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<AclPolicy>>>, AppError> {
     let user_id = principal.user_uuid().ok();
 
     let policies = state
@@ -233,5 +234,5 @@ pub(crate) async fn effective_policies(
         .await
         .map_err(AppError::from)?;
 
-    Ok(Json(policies))
+    Ok(ApiResponse::of(policies))
 }

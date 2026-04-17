@@ -11,10 +11,11 @@ use uuid::Uuid;
 
 use ox_core::query_ir::{QueryIR, QueryResult};
 use ox_core::types::PropertyValue;
-use ox_store::{CursorPage, CursorParams, QueryExecution, QueryExecutionSummary};
+use ox_store::{CursorParams, QueryExecution, QueryExecutionSummary};
 
 use crate::error::AppError;
 use crate::principal::Principal;
+use crate::response::ApiResponse;
 use crate::state::AppState;
 use crate::workspace::WorkspaceContext;
 
@@ -55,7 +56,7 @@ pub async fn search_graph(
     principal: Principal,
     ws: WorkspaceContext,
     Json(req): Json<GraphSearchRequest>,
-) -> Result<Json<Vec<ox_core::graph_exploration::SearchResultNode>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<ox_core::graph_exploration::SearchResultNode>>>, AppError> {
     let search_term = req.query.trim().to_string();
     if search_term.is_empty() {
         return Err(AppError::bad_request("query must not be empty"));
@@ -92,7 +93,7 @@ pub async fn search_graph(
         crate::acl_enforcement::apply_acl_to_search_results(&mut results, &policies);
     }
 
-    Ok(Json(results))
+    Ok(ApiResponse::of(results))
 }
 
 // ---------------------------------------------------------------------------
@@ -140,7 +141,7 @@ pub async fn raw_query(
     principal: Principal,
     ws: WorkspaceContext,
     Json(req): Json<QueryRawRequest>,
-) -> Result<Json<QueryRawResponse>, AppError> {
+) -> Result<Json<ApiResponse<QueryRawResponse>>, AppError> {
     if req.query.trim().is_empty() {
         return Err(AppError::bad_request("query must not be empty"));
     }
@@ -215,7 +216,7 @@ pub async fn raw_query(
         });
     }
 
-    Ok(Json(QueryRawResponse {
+    Ok(ApiResponse::of(QueryRawResponse {
         query: req.query,
         target,
         results: Some(results),
@@ -242,12 +243,12 @@ pub async fn list_executions(
     State(state): State<AppState>,
     principal: Principal,
     Query(params): Query<CursorParams>,
-) -> Result<Json<CursorPage<QueryExecutionSummary>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<QueryExecutionSummary>>>, AppError> {
     let page = state
         .store
         .list_query_executions(&principal.id, &params)
         .await?;
-    Ok(Json(page))
+    Ok(ApiResponse::page(page))
 }
 
 // ---------------------------------------------------------------------------
@@ -270,13 +271,13 @@ pub async fn get_execution(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-) -> Result<Json<QueryExecution>, AppError> {
+) -> Result<Json<ApiResponse<QueryExecution>>, AppError> {
     let execution = state
         .store
         .get_query_execution(&principal.id, id)
         .await?
         .ok_or_else(AppError::execution_not_found)?;
-    Ok(Json(execution))
+    Ok(ApiResponse::of(execution))
 }
 
 // ---------------------------------------------------------------------------
@@ -309,7 +310,7 @@ pub async fn set_feedback(
     principal: Principal,
     Path(id): Path<Uuid>,
     Json(req): Json<QueryFeedbackRequest>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     if let Some(ref fb) = req.feedback
         && !VALID_FEEDBACK.contains(&fb.as_str())
     {
@@ -328,7 +329,7 @@ pub async fn set_feedback(
         return Err(AppError::execution_not_found());
     }
 
-    Ok(Json(serde_json::json!({ "status": "ok" })))
+    Ok(ApiResponse::ok())
 }
 
 // ---------------------------------------------------------------------------
@@ -382,7 +383,7 @@ pub async fn execute_from_ir(
     principal: Principal,
     ws: WorkspaceContext,
     Json(req): Json<ExecuteFromIrRequest>,
-) -> Result<Json<ExecuteFromIrResponse>, AppError> {
+) -> Result<Json<ApiResponse<ExecuteFromIrResponse>>, AppError> {
     let target = state.compiler.target_name().to_string();
     info!(user_id = %principal.id, target = %target, "QueryIR execution submitted");
 
@@ -469,7 +470,7 @@ pub async fn execute_from_ir(
         });
     }
 
-    Ok(Json(ExecuteFromIrResponse {
+    Ok(ApiResponse::of(ExecuteFromIrResponse {
         compiled_query: compiled.statement,
         compiled_target: target,
         result: results,
@@ -498,7 +499,7 @@ pub async fn graph_overview(
     State(state): State<AppState>,
     _principal: Principal,
     _ws: WorkspaceContext,
-) -> Result<Json<GraphSchemaOverview>, AppError> {
+) -> Result<Json<ApiResponse<GraphSchemaOverview>>, AppError> {
     let runtime = state.runtime.as_ref().ok_or_else(AppError::no_runtime)?;
     let timeout = state.timeouts.raw_query;
 
@@ -510,7 +511,7 @@ pub async fn graph_overview(
             AppError::unprocessable(format!("Overview failed: {e}"))
         })?;
 
-    Ok(Json(overview))
+    Ok(ApiResponse::of(overview))
 }
 
 // ---------------------------------------------------------------------------
@@ -550,7 +551,7 @@ pub async fn expand_node(
     principal: Principal,
     ws: WorkspaceContext,
     Json(req): Json<GraphExpandRequest>,
-) -> Result<Json<NodeExpansion>, AppError> {
+) -> Result<Json<ApiResponse<NodeExpansion>>, AppError> {
     if req.element_id.trim().is_empty() {
         return Err(AppError::bad_request("element_id must not be empty"));
     }
@@ -582,5 +583,5 @@ pub async fn expand_node(
         crate::acl_enforcement::apply_acl_to_node_expansion(&mut expansion, &policies);
     }
 
-    Ok(Json(expansion))
+    Ok(ApiResponse::of(expansion))
 }

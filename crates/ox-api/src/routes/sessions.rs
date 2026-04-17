@@ -5,10 +5,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use uuid::Uuid;
 
-use ox_store::{AgentEvent, AgentSession, CursorPage, CursorParams, ToolApproval};
+use ox_store::{AgentEvent, AgentSession, CursorParams, ToolApproval};
 
 use crate::error::AppError;
 use crate::principal::Principal;
+use crate::response::ApiResponse;
 use crate::state::AppState;
 use crate::workspace::WorkspaceContext;
 
@@ -20,13 +21,13 @@ pub(crate) async fn list_sessions(
     State(state): State<AppState>,
     principal: Principal,
     Query(params): Query<CursorParams>,
-) -> Result<Json<CursorPage<AgentSession>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<AgentSession>>>, AppError> {
     let page = state
         .store
         .list_agent_sessions(&principal.id, &params)
         .await
         .map_err(AppError::from)?;
-    Ok(Json(page))
+    Ok(ApiResponse::page(page))
 }
 
 // ---------------------------------------------------------------------------
@@ -60,9 +61,9 @@ pub(crate) async fn get_session(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-) -> Result<Json<AgentSession>, AppError> {
+) -> Result<Json<ApiResponse<AgentSession>>, AppError> {
     let session = load_owned_session(&state, &principal, id).await?;
-    Ok(Json(session))
+    Ok(ApiResponse::of(session))
 }
 
 // ---------------------------------------------------------------------------
@@ -73,14 +74,14 @@ pub(crate) async fn list_session_events(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-) -> Result<Json<Vec<AgentEvent>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<AgentEvent>>>, AppError> {
     load_owned_session(&state, &principal, id).await?;
     let events = state
         .store
         .list_agent_events(id)
         .await
         .map_err(AppError::from)?;
-    Ok(Json(events))
+    Ok(ApiResponse::of(events))
 }
 
 // ---------------------------------------------------------------------------
@@ -91,7 +92,7 @@ pub(crate) async fn get_session_messages(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let session = load_owned_session(&state, &principal, id).await?;
 
     let events = state
@@ -101,7 +102,7 @@ pub(crate) async fn get_session_messages(
         .map_err(AppError::from)?;
 
     let messages = events_to_messages(&session, &events);
-    Ok(Json(json!({ "messages": messages })))
+    Ok(ApiResponse::of(json!({ "messages": messages })))
 }
 
 // ---------------------------------------------------------------------------
@@ -272,7 +273,7 @@ pub(crate) async fn respond_tool_review(
     ws: WorkspaceContext,
     Path((session_id, tool_id)): Path<(Uuid, String)>,
     Json(req): Json<ToolRespondRequest>,
-) -> Result<(StatusCode, Json<ToolRespondResponse>), AppError> {
+) -> Result<(StatusCode, Json<ApiResponse<ToolRespondResponse>>), AppError> {
     // Verify session exists and belongs to user
     let session = state
         .store
@@ -323,7 +324,7 @@ pub(crate) async fn respond_tool_review(
 
     Ok((
         StatusCode::OK,
-        Json(ToolRespondResponse {
+        ApiResponse::of(ToolRespondResponse {
             status: if req.approved { "approved" } else { "rejected" }.to_string(),
         }),
     ))

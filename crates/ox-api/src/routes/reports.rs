@@ -14,6 +14,7 @@ use ox_store::store::CursorParams;
 
 use crate::error::AppError;
 use crate::principal::Principal;
+use crate::response::ApiResponse;
 use crate::state::AppState;
 
 // ---------------------------------------------------------------------------
@@ -41,7 +42,7 @@ pub(crate) async fn create_report(
     State(state): State<AppState>,
     principal: Principal,
     Json(req): Json<ReportCreateRequest>,
-) -> Result<Json<SavedReport>, AppError> {
+) -> Result<Json<ApiResponse<SavedReport>>, AppError> {
     if req.title.trim().is_empty() {
         return Err(AppError::bad_request("Report title must not be empty"));
     }
@@ -70,7 +71,7 @@ pub(crate) async fn create_report(
         .await
         .map_err(AppError::from)?;
 
-    Ok(Json(report))
+    Ok(ApiResponse::of(report))
 }
 
 // ---------------------------------------------------------------------------
@@ -89,7 +90,7 @@ pub(crate) async fn list_reports(
     State(state): State<AppState>,
     principal: Principal,
     axum::extract::Query(query): axum::extract::Query<ReportListParams>,
-) -> Result<Json<ox_store::store::CursorPage<SavedReport>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<SavedReport>>>, AppError> {
     let pagination = CursorParams {
         limit: query.limit.unwrap_or(50),
         cursor: query.cursor,
@@ -99,7 +100,7 @@ pub(crate) async fn list_reports(
         .list_reports(&principal.id, &query.ontology_id, &pagination)
         .await
         .map_err(AppError::from)?;
-    Ok(Json(page))
+    Ok(ApiResponse::page(page))
 }
 
 // ---------------------------------------------------------------------------
@@ -110,14 +111,14 @@ pub(crate) async fn get_report(
     State(state): State<AppState>,
     _principal: Principal,
     Path(id): Path<Uuid>,
-) -> Result<Json<SavedReport>, AppError> {
+) -> Result<Json<ApiResponse<SavedReport>>, AppError> {
     let report = state
         .store
         .get_report(id)
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("Report"))?;
-    Ok(Json(report))
+    Ok(ApiResponse::of(report))
 }
 
 // ---------------------------------------------------------------------------
@@ -139,7 +140,7 @@ pub(crate) async fn update_report(
     principal: Principal,
     Path(id): Path<Uuid>,
     Json(req): Json<ReportUpdateRequest>,
-) -> Result<Json<SavedReport>, AppError> {
+) -> Result<Json<ApiResponse<SavedReport>>, AppError> {
     let existing = state
         .store
         .get_report(id)
@@ -186,7 +187,7 @@ pub(crate) async fn update_report(
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("Report"))?;
 
-    Ok(Json(updated))
+    Ok(ApiResponse::of(updated))
 }
 
 // ---------------------------------------------------------------------------
@@ -228,7 +229,7 @@ pub(crate) async fn execute_report(
     principal: Principal,
     Path(id): Path<Uuid>,
     Json(params): Json<HashMap<String, serde_json::Value>>,
-) -> Result<Json<QueryResult>, AppError> {
+) -> Result<Json<ApiResponse<QueryResult>>, AppError> {
     let report = state
         .store
         .get_report(id)
@@ -270,5 +271,5 @@ pub(crate) async fn execute_report(
             AppError::unprocessable(format!("Report execution failed: {e}"))
         })?;
 
-    Ok(Json(result))
+    Ok(ApiResponse::of(result))
 }

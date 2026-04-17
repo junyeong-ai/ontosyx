@@ -2,9 +2,10 @@ use axum::Json;
 use axum::extract::{Query, State};
 
 use ox_store::AuditEntry;
-use ox_store::store::{CursorPage, CursorParams};
+use ox_store::store::CursorParams;
 
 use crate::error::AppError;
+use crate::response::ApiResponse;
 use crate::state::AppState;
 
 // ---------------------------------------------------------------------------
@@ -14,11 +15,11 @@ use crate::state::AppState;
 pub(crate) async fn list_audit_events(
     State(state): State<AppState>,
     Query(params): Query<CursorParams>,
-) -> Result<Json<CursorPage<AuditEntry>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<AuditEntry>>>, AppError> {
     let events = state
         .store
         .list_audit_events(params)
         .await
         .map_err(AppError::from)?;
-    Ok(Json(events))
+    Ok(ApiResponse::page(events))
 }

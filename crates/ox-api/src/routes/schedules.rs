@@ -9,6 +9,7 @@ use ox_store::ScheduledTask;
 
 use crate::error::AppError;
 use crate::principal::Principal;
+use crate::response::ApiResponse;
 use crate::schedule;
 use crate::state::AppState;
 
@@ -29,7 +30,7 @@ pub(crate) async fn create_schedule(
     principal: Principal,
     Path(recipe_id): Path<Uuid>,
     Json(req): Json<ScheduleCreateRequest>,
-) -> Result<(StatusCode, Json<ScheduledTask>), AppError> {
+) -> Result<(StatusCode, Json<ApiResponse<ScheduledTask>>), AppError> {
     principal.require_designer()?;
 
     // Verify recipe exists
@@ -70,7 +71,7 @@ pub(crate) async fn create_schedule(
         .await
         .map_err(AppError::from)?;
 
-    Ok((StatusCode::CREATED, Json(task)))
+    Ok((StatusCode::CREATED, ApiResponse::of(task)))
 }
 
 // ---------------------------------------------------------------------------
@@ -86,13 +87,13 @@ pub(crate) async fn list_schedules(
     State(state): State<AppState>,
     _principal: Principal,
     Query(query): Query<ScheduleListParams>,
-) -> Result<Json<Vec<ScheduledTask>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<ScheduledTask>>>, AppError> {
     let tasks = state
         .store
         .list_scheduled_tasks(query.recipe_id)
         .await
         .map_err(AppError::from)?;
-    Ok(Json(tasks))
+    Ok(ApiResponse::of(tasks))
 }
 
 // ---------------------------------------------------------------------------
@@ -103,14 +104,14 @@ pub(crate) async fn get_schedule(
     State(state): State<AppState>,
     _principal: Principal,
     Path(id): Path<Uuid>,
-) -> Result<Json<ScheduledTask>, AppError> {
+) -> Result<Json<ApiResponse<ScheduledTask>>, AppError> {
     let task = state
         .store
         .get_scheduled_task(id)
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("Scheduled task"))?;
-    Ok(Json(task))
+    Ok(ApiResponse::of(task))
 }
 
 // ---------------------------------------------------------------------------

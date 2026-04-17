@@ -13,6 +13,7 @@ use ox_store::{QualityDashboardEntry, QualityResult, QualityRule};
 
 use crate::error::AppError;
 use crate::principal::Principal;
+use crate::response::ApiResponse;
 use crate::state::AppState;
 use crate::workspace::WorkspaceContext;
 
@@ -57,7 +58,7 @@ pub(crate) async fn create_rule(
     principal: Principal,
     ws: WorkspaceContext,
     Json(req): Json<CreateRuleRequest>,
-) -> Result<(StatusCode, Json<QualityRule>), AppError> {
+) -> Result<(StatusCode, Json<ApiResponse<QualityRule>>), AppError> {
     principal.require_designer()?;
 
     let rule = QualityRule {
@@ -83,7 +84,7 @@ pub(crate) async fn create_rule(
         .await
         .map_err(AppError::from)?;
 
-    Ok((StatusCode::CREATED, Json(rule)))
+    Ok((StatusCode::CREATED, ApiResponse::of(rule)))
 }
 
 // ---------------------------------------------------------------------------
@@ -93,14 +94,14 @@ pub(crate) async fn create_rule(
 pub(crate) async fn list_rules(
     State(state): State<AppState>,
     Query(params): Query<ListRulesParams>,
-) -> Result<Json<Vec<QualityRule>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<QualityRule>>>, AppError> {
     let rules = state
         .store
         .list_quality_rules(params.target_label.as_deref())
         .await
         .map_err(AppError::from)?;
 
-    Ok(Json(rules))
+    Ok(ApiResponse::of(rules))
 }
 
 // ---------------------------------------------------------------------------
@@ -110,7 +111,7 @@ pub(crate) async fn list_rules(
 pub(crate) async fn get_rule(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-) -> Result<Json<QualityRule>, AppError> {
+) -> Result<Json<ApiResponse<QualityRule>>, AppError> {
     let rule = state
         .store
         .get_quality_rule(id)
@@ -118,7 +119,7 @@ pub(crate) async fn get_rule(
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("Quality rule"))?;
 
-    Ok(Json(rule))
+    Ok(ApiResponse::of(rule))
 }
 
 // ---------------------------------------------------------------------------
@@ -130,7 +131,7 @@ pub(crate) async fn update_rule(
     principal: Principal,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateRuleRequest>,
-) -> Result<Json<QualityRule>, AppError> {
+) -> Result<Json<ApiResponse<QualityRule>>, AppError> {
     principal.require_designer()?;
 
     // Fetch existing rule to merge partial updates
@@ -159,7 +160,7 @@ pub(crate) async fn update_rule(
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("Quality rule"))?;
 
-    Ok(Json(updated))
+    Ok(ApiResponse::of(updated))
 }
 
 // ---------------------------------------------------------------------------
@@ -192,14 +193,14 @@ pub(crate) async fn delete_rule(
 
 pub(crate) async fn quality_dashboard(
     State(state): State<AppState>,
-) -> Result<Json<Vec<QualityDashboardEntry>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<QualityDashboardEntry>>>, AppError> {
     let entries = state
         .store
         .get_quality_dashboard()
         .await
         .map_err(AppError::from)?;
 
-    Ok(Json(entries))
+    Ok(ApiResponse::of(entries))
 }
 
 // ---------------------------------------------------------------------------
@@ -210,7 +211,7 @@ pub(crate) async fn rule_results(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
     Query(params): Query<LimitParam>,
-) -> Result<Json<Vec<QualityResult>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<QualityResult>>>, AppError> {
     let limit = params.limit.unwrap_or(20);
 
     let results = state
@@ -219,7 +220,7 @@ pub(crate) async fn rule_results(
         .await
         .map_err(AppError::from)?;
 
-    Ok(Json(results))
+    Ok(ApiResponse::of(results))
 }
 
 // ---------------------------------------------------------------------------
@@ -231,7 +232,7 @@ pub(crate) async fn execute_rule(
     principal: Principal,
     ws: WorkspaceContext,
     Path(id): Path<Uuid>,
-) -> Result<Json<QualityResult>, AppError> {
+) -> Result<Json<ApiResponse<QualityResult>>, AppError> {
     principal.require_designer()?;
 
     let rule = state
@@ -275,7 +276,7 @@ pub(crate) async fn execute_rule(
         "Quality rule executed"
     );
 
-    Ok(Json(result))
+    Ok(ApiResponse::of(result))
 }
 
 // ---------------------------------------------------------------------------
@@ -286,7 +287,7 @@ pub(crate) async fn execute_all_rules(
     State(state): State<AppState>,
     principal: Principal,
     ws: WorkspaceContext,
-) -> Result<Json<Vec<QualityResult>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<QualityResult>>>, AppError> {
     principal.require_designer()?;
 
     let runtime = state.runtime.as_ref().ok_or_else(AppError::no_runtime)?;
@@ -349,7 +350,7 @@ pub(crate) async fn execute_all_rules(
         "Executed all quality rules"
     );
 
-    Ok(Json(results))
+    Ok(ApiResponse::of(results))
 }
 
 // ---------------------------------------------------------------------------

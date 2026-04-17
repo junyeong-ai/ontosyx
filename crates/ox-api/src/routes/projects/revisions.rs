@@ -9,6 +9,7 @@ use ox_store::{DesignProject, OntologySnapshot, OntologySnapshotSummary};
 
 use crate::error::AppError;
 use crate::principal::Principal;
+use crate::response::ApiResponse;
 use crate::routes::projects::helpers::{load_mutable_project, reload_project};
 use crate::state::AppState;
 
@@ -30,7 +31,7 @@ use crate::state::AppState;
 pub async fn list_revisions(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-) -> Result<Json<Vec<OntologySnapshotSummary>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<OntologySnapshotSummary>>>, AppError> {
     // Verify project exists
     let _ = state
         .store
@@ -45,7 +46,7 @@ pub async fn list_revisions(
         .await
         .map_err(AppError::from)?;
 
-    Ok(Json(snapshots))
+    Ok(ApiResponse::of(snapshots))
 }
 
 // ---------------------------------------------------------------------------
@@ -69,7 +70,7 @@ pub async fn list_revisions(
 pub async fn get_revision(
     State(state): State<AppState>,
     Path((id, rev)): Path<(Uuid, i32)>,
-) -> Result<Json<OntologySnapshot>, AppError> {
+) -> Result<Json<ApiResponse<OntologySnapshot>>, AppError> {
     let snapshot = state
         .store
         .get_ontology_snapshot(id, rev)
@@ -77,7 +78,7 @@ pub async fn get_revision(
         .map_err(AppError::from)?
         .ok_or_else(AppError::revision_not_found)?;
 
-    Ok(Json(snapshot))
+    Ok(ApiResponse::of(snapshot))
 }
 
 // ---------------------------------------------------------------------------
@@ -108,7 +109,7 @@ pub async fn restore_revision(
     State(state): State<AppState>,
     principal: Principal,
     Path((id, rev)): Path<(Uuid, i32)>,
-) -> Result<Json<ProjectRestoreResponse>, AppError> {
+) -> Result<Json<ApiResponse<ProjectRestoreResponse>>, AppError> {
     principal.require_designer()?;
     let project = load_mutable_project(&state, id).await?;
 
@@ -149,7 +150,7 @@ pub async fn restore_revision(
 
     let updated = reload_project(&state, id).await?;
 
-    Ok(Json(ProjectRestoreResponse { project: updated }))
+    Ok(ApiResponse::of(ProjectRestoreResponse { project: updated }))
 }
 
 // ---------------------------------------------------------------------------
@@ -174,7 +175,7 @@ pub async fn restore_revision(
 pub async fn diff_revisions(
     State(state): State<AppState>,
     Path((id, rev1, rev2)): Path<(Uuid, i32, i32)>,
-) -> Result<Json<OntologyDiff>, AppError> {
+) -> Result<Json<ApiResponse<OntologyDiff>>, AppError> {
     let snap1 = state
         .store
         .get_ontology_snapshot(id, rev1)
@@ -196,7 +197,7 @@ pub async fn diff_revisions(
         AppError::internal(format!("Failed to parse revision {rev2} ontology: {e}"))
     })?;
 
-    Ok(Json(compute_diff(&old, &new)))
+    Ok(ApiResponse::of(compute_diff(&old, &new)))
 }
 
 // ---------------------------------------------------------------------------
@@ -218,7 +219,7 @@ pub async fn diff_revisions(
 pub async fn diff_current(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-) -> Result<Json<OntologyDiff>, AppError> {
+) -> Result<Json<ApiResponse<OntologyDiff>>, AppError> {
     let project = state
         .store
         .get_design_project(id)
@@ -250,7 +251,7 @@ pub async fn diff_current(
     let old: OntologyIR = serde_json::from_value(snapshot.ontology)
         .map_err(|e| AppError::internal(format!("Failed to parse snapshot ontology: {e}")))?;
 
-    Ok(Json(compute_diff(&old, &current)))
+    Ok(ApiResponse::of(compute_diff(&old, &current)))
 }
 
 // ---------------------------------------------------------------------------
@@ -300,7 +301,7 @@ pub async fn migrate_schema(
     principal: Principal,
     Path((id, rev)): Path<(Uuid, i32)>,
     Json(req): Json<ProjectMigrateRequest>,
-) -> Result<Json<ProjectMigrateResponse>, AppError> {
+) -> Result<Json<ApiResponse<ProjectMigrateResponse>>, AppError> {
     principal.require_designer()?;
 
     // Load current project ontology
@@ -330,7 +331,7 @@ pub async fn migrate_schema(
     let diff = compute_diff(&old, &current);
 
     if diff.is_empty() {
-        return Ok(Json(ProjectMigrateResponse {
+        return Ok(ApiResponse::of(ProjectMigrateResponse {
             up: vec![],
             down: vec![],
             warnings: vec![],
@@ -343,7 +344,7 @@ pub async fn migrate_schema(
     let plan = ox_compiler::cypher::migration::compile_migration(&diff, &old, &current);
 
     if req.dry_run || !plan.breaking_changes.is_empty() {
-        return Ok(Json(ProjectMigrateResponse {
+        return Ok(ApiResponse::of(ProjectMigrateResponse {
             up: plan.up,
             down: plan.down,
             warnings: plan.warnings,
@@ -354,7 +355,7 @@ pub async fn migrate_schema(
 
     // Nothing to execute if up is empty (diff only produced warnings)
     if plan.up.is_empty() {
-        return Ok(Json(ProjectMigrateResponse {
+        return Ok(ApiResponse::of(ProjectMigrateResponse {
             up: plan.up,
             down: plan.down,
             warnings: plan.warnings,
@@ -377,7 +378,7 @@ pub async fn migrate_schema(
         "Schema migration executed"
     );
 
-    Ok(Json(ProjectMigrateResponse {
+    Ok(ApiResponse::of(ProjectMigrateResponse {
         up: plan.up,
         down: plan.down,
         warnings: plan.warnings,

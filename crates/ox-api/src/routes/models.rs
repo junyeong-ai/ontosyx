@@ -11,6 +11,7 @@ use ox_store::{
 
 use crate::error::AppError;
 use crate::principal::Principal;
+use crate::response::ApiResponse;
 use crate::state::AppState;
 
 // ---------------------------------------------------------------------------
@@ -50,14 +51,14 @@ pub(crate) async fn list_model_configs(
     State(state): State<AppState>,
     _principal: Principal,
     Query(params): Query<ListConfigsParams>,
-) -> Result<Json<Vec<ModelConfig>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<ModelConfig>>>, AppError> {
     let configs = state
         .store
         .list_model_configs(params.workspace_id)
         .await
         .map_err(AppError::from)?;
 
-    Ok(Json(configs))
+    Ok(ApiResponse::of(configs))
 }
 
 // ---------------------------------------------------------------------------
@@ -68,7 +69,7 @@ pub(crate) async fn create_model_config(
     State(state): State<AppState>,
     principal: Principal,
     Json(req): Json<NewModelConfig>,
-) -> Result<(StatusCode, Json<ModelConfig>), AppError> {
+) -> Result<(StatusCode, Json<ApiResponse<ModelConfig>>), AppError> {
     principal.require_admin()?;
 
     let config = state
@@ -83,7 +84,7 @@ pub(crate) async fn create_model_config(
 
     tracing::info!(config_id = %config.id, name = %config.name, "Model config created");
 
-    Ok((StatusCode::CREATED, Json(config)))
+    Ok((StatusCode::CREATED, ApiResponse::of(config)))
 }
 
 // ---------------------------------------------------------------------------
@@ -95,7 +96,7 @@ pub(crate) async fn update_model_config(
     principal: Principal,
     Path(id): Path<Uuid>,
     Json(req): Json<ModelConfigUpdate>,
-) -> Result<Json<ModelConfig>, AppError> {
+) -> Result<Json<ApiResponse<ModelConfig>>, AppError> {
     principal.require_admin()?;
 
     let config = state
@@ -109,7 +110,7 @@ pub(crate) async fn update_model_config(
 
     tracing::info!(config_id = %id, "Model config updated");
 
-    Ok(Json(config))
+    Ok(ApiResponse::of(config))
 }
 
 // ---------------------------------------------------------------------------
@@ -148,14 +149,14 @@ pub(crate) async fn list_routing_rules(
     State(state): State<AppState>,
     _principal: Principal,
     Query(params): Query<ListRulesParams>,
-) -> Result<Json<Vec<ModelRoutingRule>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<ModelRoutingRule>>>, AppError> {
     let rules = state
         .store
         .list_routing_rules(params.workspace_id)
         .await
         .map_err(AppError::from)?;
 
-    Ok(Json(rules))
+    Ok(ApiResponse::of(rules))
 }
 
 // ---------------------------------------------------------------------------
@@ -166,7 +167,7 @@ pub(crate) async fn create_routing_rule(
     State(state): State<AppState>,
     principal: Principal,
     Json(req): Json<NewRoutingRule>,
-) -> Result<(StatusCode, Json<ModelRoutingRule>), AppError> {
+) -> Result<(StatusCode, Json<ApiResponse<ModelRoutingRule>>), AppError> {
     principal.require_admin()?;
 
     let rule = state
@@ -180,7 +181,7 @@ pub(crate) async fn create_routing_rule(
 
     tracing::info!(rule_id = %rule.id, operation = %rule.operation, "Routing rule created");
 
-    Ok((StatusCode::CREATED, Json(rule)))
+    Ok((StatusCode::CREATED, ApiResponse::of(rule)))
 }
 
 // ---------------------------------------------------------------------------
@@ -192,7 +193,7 @@ pub(crate) async fn update_routing_rule(
     principal: Principal,
     Path(id): Path<Uuid>,
     Json(req): Json<RoutingRuleUpdate>,
-) -> Result<Json<ModelRoutingRule>, AppError> {
+) -> Result<Json<ApiResponse<ModelRoutingRule>>, AppError> {
     principal.require_admin()?;
 
     let rule = state
@@ -206,7 +207,7 @@ pub(crate) async fn update_routing_rule(
 
     tracing::info!(rule_id = %id, "Routing rule updated");
 
-    Ok(Json(rule))
+    Ok(ApiResponse::of(rule))
 }
 
 // ---------------------------------------------------------------------------
@@ -245,7 +246,7 @@ pub(crate) async fn test_model_connection(
     State(state): State<AppState>,
     principal: Principal,
     Json(req): Json<TestModelRequest>,
-) -> Result<Json<TestModelResponse>, AppError> {
+) -> Result<Json<ApiResponse<TestModelResponse>>, AppError> {
     principal.require_admin()?;
 
     // Resolve the API key from the environment variable
@@ -273,20 +274,20 @@ pub(crate) async fn test_model_connection(
                     .with_max_tokens(16);
 
             match client.send(&request).await {
-                Ok(_) => Ok(Json(TestModelResponse {
+                Ok(_) => Ok(ApiResponse::of(TestModelResponse {
                     ok: true,
                     message: format!(
                         "Successfully connected to {} / {}",
                         req.provider, req.model_id
                     ),
                 })),
-                Err(e) => Ok(Json(TestModelResponse {
+                Err(e) => Ok(ApiResponse::of(TestModelResponse {
                     ok: false,
                     message: format!("Client created but request failed: {e}"),
                 })),
             }
         }
-        Err(e) => Ok(Json(TestModelResponse {
+        Err(e) => Ok(ApiResponse::of(TestModelResponse {
             ok: false,
             message: format!("Failed to create client: {e}"),
         })),

@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use crate::error::AppError;
 use crate::principal::Principal;
+use crate::response::ApiResponse;
 use crate::state::AppState;
 use crate::validation::validate_ontology_input;
 use ox_core::design_project::{DesignProjectStatus, SourceConfig};
@@ -49,7 +50,7 @@ pub(crate) async fn design_project(
     principal: Principal,
     Path(id): Path<Uuid>,
     Json(req): Json<ProjectDesignRequest>,
-) -> Result<Json<ProjectDesignResponse>, AppError> {
+) -> Result<Json<ApiResponse<ProjectDesignResponse>>, AppError> {
     principal.require_designer()?;
     let project = load_mutable_project(&state, id).await?;
 
@@ -189,7 +190,7 @@ pub(crate) async fn design_project(
 
     let updated = reload_project(&state, id).await?;
 
-    Ok(Json(ProjectDesignResponse { project: updated }))
+    Ok(ApiResponse::of(ProjectDesignResponse { project: updated }))
 }
 
 // ---------------------------------------------------------------------------
@@ -216,7 +217,7 @@ pub(crate) async fn refine_project(
     principal: Principal,
     Path(id): Path<Uuid>,
     Json(req): Json<ProjectRefineRequest>,
-) -> Result<Json<ProjectRefineResponse>, AppError> {
+) -> Result<Json<ApiResponse<ProjectRefineResponse>>, AppError> {
     principal.require_designer()?;
     let project = load_project_in_status(&state, id, DesignProjectStatus::Designed).await?;
 
@@ -489,7 +490,7 @@ pub(crate) async fn refine_project(
         "Refine completed"
     );
 
-    Ok(Json(ProjectRefineResponse {
+    Ok(ApiResponse::of(ProjectRefineResponse {
         project: updated,
         profile_summary,
         reconcile_report: reconciled.report,
@@ -519,7 +520,7 @@ pub(crate) async fn apply_reconcile(
     principal: Principal,
     Path(id): Path<Uuid>,
     Json(req): Json<ProjectReconcileRequest>,
-) -> Result<Json<ProjectRefineResponse>, AppError> {
+) -> Result<Json<ApiResponse<ProjectRefineResponse>>, AppError> {
     principal.require_designer()?;
     let project = load_project_in_status(&state, id, DesignProjectStatus::Designed).await?;
 
@@ -578,7 +579,7 @@ pub(crate) async fn apply_reconcile(
 
     let updated = reload_project(&state, id).await?;
 
-    Ok(Json(ProjectRefineResponse {
+    Ok(ApiResponse::of(ProjectRefineResponse {
         project: updated,
         profile_summary: "Applied reconcile decisions".to_string(),
         reconcile_report: ox_core::ReconcileReport {

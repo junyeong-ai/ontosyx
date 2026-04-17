@@ -10,6 +10,7 @@ use ox_store::{AnalysisRecipe, AnalysisResult};
 
 use crate::error::AppError;
 use crate::principal::Principal;
+use crate::response::ApiResponse;
 use crate::state::AppState;
 use crate::validation;
 use crate::workspace::WorkspaceContext;
@@ -37,7 +38,7 @@ pub(crate) async fn create_recipe(
     principal: Principal,
     ws: WorkspaceContext,
     Json(req): Json<RecipeCreateRequest>,
-) -> Result<Json<AnalysisRecipe>, AppError> {
+) -> Result<Json<ApiResponse<AnalysisRecipe>>, AppError> {
     principal.require_designer()?;
     validation::validate_name("name", &req.name)?;
     validation::validate_description("description", &req.description)?;
@@ -66,7 +67,7 @@ pub(crate) async fn create_recipe(
         .await
         .map_err(AppError::from)?;
 
-    Ok(Json(recipe))
+    Ok(ApiResponse::of(recipe))
 }
 
 // ---------------------------------------------------------------------------
@@ -77,13 +78,13 @@ pub(crate) async fn list_recipes(
     State(state): State<AppState>,
     _principal: Principal,
     axum::extract::Query(pagination): axum::extract::Query<CursorParams>,
-) -> Result<Json<ox_store::store::CursorPage<AnalysisRecipe>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<AnalysisRecipe>>>, AppError> {
     let page = state
         .store
         .list_recipes(&pagination)
         .await
         .map_err(AppError::from)?;
-    Ok(Json(page))
+    Ok(ApiResponse::page(page))
 }
 
 // ---------------------------------------------------------------------------
@@ -94,14 +95,14 @@ pub(crate) async fn get_recipe(
     State(state): State<AppState>,
     _principal: Principal,
     Path(id): Path<Uuid>,
-) -> Result<Json<AnalysisRecipe>, AppError> {
+) -> Result<Json<ApiResponse<AnalysisRecipe>>, AppError> {
     let recipe = state
         .store
         .get_recipe(id)
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("Analysis recipe"))?;
-    Ok(Json(recipe))
+    Ok(ApiResponse::of(recipe))
 }
 
 // ---------------------------------------------------------------------------
@@ -144,13 +145,13 @@ pub(crate) async fn list_recipe_results(
     State(state): State<AppState>,
     _principal: Principal,
     Path(id): Path<Uuid>,
-) -> Result<Json<Vec<AnalysisResult>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<AnalysisResult>>>, AppError> {
     let results = state
         .store
         .list_analysis_results(id, 20)
         .await
         .map_err(AppError::from)?;
-    Ok(Json(results))
+    Ok(ApiResponse::of(results))
 }
 
 // ---------------------------------------------------------------------------
@@ -205,7 +206,7 @@ pub(crate) async fn create_recipe_version(
     ws: WorkspaceContext,
     Path(parent_id): Path<Uuid>,
     Json(req): Json<RecipeCreateRequest>,
-) -> Result<Json<AnalysisRecipe>, AppError> {
+) -> Result<Json<ApiResponse<AnalysisRecipe>>, AppError> {
     principal.require_designer()?;
     validation::validate_name("name", &req.name)?;
     validation::validate_description("description", &req.description)?;
@@ -242,7 +243,7 @@ pub(crate) async fn create_recipe_version(
         .await
         .map_err(AppError::from)?;
 
-    Ok(Json(recipe))
+    Ok(ApiResponse::of(recipe))
 }
 
 // ---------------------------------------------------------------------------
@@ -253,11 +254,11 @@ pub(crate) async fn list_recipe_versions(
     State(state): State<AppState>,
     _principal: Principal,
     Path(id): Path<Uuid>,
-) -> Result<Json<Vec<AnalysisRecipe>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<AnalysisRecipe>>>, AppError> {
     let versions = state
         .store
         .list_recipe_versions(id)
         .await
         .map_err(AppError::from)?;
-    Ok(Json(versions))
+    Ok(ApiResponse::of(versions))
 }

@@ -20,6 +20,7 @@ use ox_source::fetcher::DataSourceFetcher;
 
 use crate::error::AppError;
 use crate::principal::Principal;
+use crate::response::ApiResponse;
 use crate::state::AppState;
 use crate::workspace::WorkspaceContext;
 
@@ -49,7 +50,7 @@ pub(crate) async fn create_project(
     State(state): State<AppState>,
     principal: Principal,
     Json(req): Json<CreateProjectRequest>,
-) -> Result<(StatusCode, Json<DesignProject>), AppError> {
+) -> Result<(StatusCode, Json<ApiResponse<DesignProject>>), AppError> {
     principal.require_designer()?;
     let audit_user_id = principal.user_uuid().ok();
     let now = Utc::now();
@@ -170,7 +171,7 @@ pub(crate) async fn create_project(
                     });
                 }
 
-                return Ok((StatusCode::CREATED, Json(project)));
+                return Ok((StatusCode::CREATED, ApiResponse::of(project)));
             }
 
             let (source_config, source_data, source_schema, source_profile, analysis_report) =
@@ -265,7 +266,7 @@ pub(crate) async fn create_project(
         });
     }
 
-    Ok((StatusCode::CREATED, Json(project)))
+    Ok((StatusCode::CREATED, ApiResponse::of(project)))
 }
 
 // ---------------------------------------------------------------------------
@@ -288,13 +289,13 @@ pub(crate) async fn create_project(
 pub(crate) async fn list_projects(
     State(state): State<AppState>,
     axum::extract::Query(pagination): axum::extract::Query<CursorParams>,
-) -> Result<Json<ox_store::store::CursorPage<DesignProjectSummary>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<DesignProjectSummary>>>, AppError> {
     let page = state
         .store
         .list_design_projects(&pagination)
         .await
         .map_err(AppError::from)?;
-    Ok(Json(page))
+    Ok(ApiResponse::page(page))
 }
 
 // ---------------------------------------------------------------------------
@@ -315,9 +316,9 @@ pub(crate) async fn list_projects(
 pub(crate) async fn get_project(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-) -> Result<Json<DesignProject>, AppError> {
+) -> Result<Json<ApiResponse<DesignProject>>, AppError> {
     let project = reload_project(&state, id).await?;
-    Ok(Json(project))
+    Ok(ApiResponse::of(project))
 }
 
 // ---------------------------------------------------------------------------
@@ -422,7 +423,7 @@ pub(crate) async fn complete_project(
     ws: crate::workspace::WorkspaceContext,
     Path(id): Path<Uuid>,
     Json(req): Json<ProjectCompleteRequest>,
-) -> Result<Json<DesignProject>, AppError> {
+) -> Result<Json<ApiResponse<DesignProject>>, AppError> {
     principal.require_designer()?;
     let project = load_project_in_status(&state, id, DesignProjectStatus::Designed).await?;
 
@@ -538,7 +539,7 @@ pub(crate) async fn complete_project(
         });
     }
 
-    Ok(Json(updated))
+    Ok(ApiResponse::of(updated))
 }
 
 // ---------------------------------------------------------------------------
@@ -580,7 +581,7 @@ pub(crate) async fn deploy_schema(
     ws: WorkspaceContext,
     Path(id): Path<Uuid>,
     Json(req): Json<ProjectDeployRequest>,
-) -> Result<Json<ProjectDeployResponse>, AppError> {
+) -> Result<Json<ApiResponse<ProjectDeployResponse>>, AppError> {
     principal.require_designer()?;
 
     // Check if workspace has pending approval blocking this deployment
@@ -620,7 +621,7 @@ pub(crate) async fn deploy_schema(
         .map_err(AppError::from)?;
 
     if req.dry_run {
-        return Ok(Json(ProjectDeployResponse {
+        return Ok(ApiResponse::of(ProjectDeployResponse {
             statements,
             executed: false,
         }));
@@ -657,7 +658,7 @@ pub(crate) async fn deploy_schema(
         });
     }
 
-    Ok(Json(ProjectDeployResponse {
+    Ok(ApiResponse::of(ProjectDeployResponse {
         statements,
         executed: true,
     }))
@@ -690,7 +691,7 @@ pub(crate) async fn generate_load_plan(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-) -> Result<Json<ProjectLoadPlanResponse>, AppError> {
+) -> Result<Json<ApiResponse<ProjectLoadPlanResponse>>, AppError> {
     principal.require_designer()?;
 
     let project = state
@@ -734,7 +735,7 @@ pub(crate) async fn generate_load_plan(
         "Load plan generated"
     );
 
-    Ok(Json(ProjectLoadPlanResponse { plan }))
+    Ok(ApiResponse::of(ProjectLoadPlanResponse { plan }))
 }
 
 // ---------------------------------------------------------------------------
@@ -776,7 +777,7 @@ pub(crate) async fn compile_load(
     principal: Principal,
     Path(id): Path<Uuid>,
     Json(req): Json<ProjectLoadCompileRequest>,
-) -> Result<Json<ProjectLoadCompileResponse>, AppError> {
+) -> Result<Json<ApiResponse<ProjectLoadCompileResponse>>, AppError> {
     principal.require_designer()?;
 
     // Verify project exists
@@ -798,7 +799,7 @@ pub(crate) async fn compile_load(
         "Load plan compiled"
     );
 
-    Ok(Json(ProjectLoadCompileResponse { statements }))
+    Ok(ApiResponse::of(ProjectLoadCompileResponse { statements }))
 }
 
 // ---------------------------------------------------------------------------
@@ -855,7 +856,7 @@ pub(crate) async fn execute_load_from_source(
     ws: WorkspaceContext,
     Path(id): Path<Uuid>,
     Json(req): Json<ProjectLoadExecuteRequest>,
-) -> Result<Json<ProjectLoadExecuteResponse>, AppError> {
+) -> Result<Json<ApiResponse<ProjectLoadExecuteResponse>>, AppError> {
     principal.require_designer()?;
 
     let runtime = state.runtime.as_ref().ok_or_else(AppError::no_runtime)?;
@@ -1229,7 +1230,7 @@ pub(crate) async fn execute_load_from_source(
         });
     }
 
-    Ok(Json(ProjectLoadExecuteResponse {
+    Ok(ApiResponse::of(ProjectLoadExecuteResponse {
         rows_fetched: total_rows_fetched,
         result: combined_result,
         steps_executed: req.plan.steps.len(),

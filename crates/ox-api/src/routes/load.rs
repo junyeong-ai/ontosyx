@@ -9,6 +9,7 @@ use ox_runtime::{LoadBatch, LoadResult};
 
 use crate::error::AppError;
 use crate::principal::Principal;
+use crate::response::ApiResponse;
 use crate::state::AppState;
 use crate::validation::validate_ontology_input;
 
@@ -52,7 +53,7 @@ pub async fn plan_load(
     State(state): State<AppState>,
     principal: Principal,
     Json(req): Json<LoadPlanRequest>,
-) -> Result<Json<LoadPlanResponse>, AppError> {
+) -> Result<Json<ApiResponse<LoadPlanResponse>>, AppError> {
     principal.require_designer()?;
     validate_ontology_input(&req.ontology)?;
 
@@ -85,7 +86,7 @@ pub async fn plan_load(
         AppError::from(e)
     })?;
 
-    Ok(Json(LoadPlanResponse {
+    Ok(ApiResponse::of(LoadPlanResponse {
         plan,
         compiled_statements,
         target: state.compiler.target_name().to_string(),
@@ -141,7 +142,7 @@ pub async fn execute_load(
     State(state): State<AppState>,
     principal: Principal,
     Json(req): Json<LoadExecuteRequest>,
-) -> Result<Json<LoadExecuteResponse>, AppError> {
+) -> Result<Json<ApiResponse<LoadExecuteResponse>>, AppError> {
     principal.require_designer()?;
     validate_ontology_input(&req.ontology)?;
 
@@ -242,7 +243,7 @@ pub async fn execute_load(
         "Load execution completed"
     );
 
-    Ok(Json(LoadExecuteResponse {
+    Ok(ApiResponse::of(LoadExecuteResponse {
         plan,
         compiled_statements,
         target: state.compiler.target_name().to_string(),
@@ -274,7 +275,7 @@ pub async fn list_checkpoints(
     State(state): State<AppState>,
     principal: Principal,
     axum::extract::Query(query): axum::extract::Query<CheckpointListQuery>,
-) -> Result<Json<Vec<ox_store::LoadCheckpoint>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<ox_store::LoadCheckpoint>>>, AppError> {
     principal.require_designer()?;
 
     let checkpoints = state
@@ -283,7 +284,7 @@ pub async fn list_checkpoints(
         .await
         .map_err(AppError::from)?;
 
-    Ok(Json(checkpoints))
+    Ok(ApiResponse::of(checkpoints))
 }
 
 // ---------------------------------------------------------------------------
@@ -339,13 +340,13 @@ pub struct PromptInfo {
     security(("api_key" = [])),
     tag = "System",
 )]
-pub async fn list_prompts(State(state): State<AppState>) -> Json<Vec<PromptInfo>> {
+pub async fn list_prompts(State(state): State<AppState>) -> Json<ApiResponse<Vec<PromptInfo>>> {
     let prompts = state
         .brain
         .list_prompts()
         .into_iter()
         .map(|(name, version)| PromptInfo { name, version })
-        .collect();
+        .collect::<Vec<_>>();
 
-    Json(prompts)
+    ApiResponse::of(prompts)
 }

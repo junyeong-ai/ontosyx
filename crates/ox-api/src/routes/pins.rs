@@ -7,10 +7,11 @@ use chrono::Utc;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use ox_store::{CursorPage, CursorParams, PinboardItem};
+use ox_store::{CursorParams, PinboardItem};
 
 use crate::error::AppError;
 use crate::principal::Principal;
+use crate::response::ApiResponse;
 use crate::state::AppState;
 
 // ---------------------------------------------------------------------------
@@ -38,7 +39,7 @@ pub async fn create_pin(
     State(state): State<AppState>,
     principal: Principal,
     Json(req): Json<PinCreateRequest>,
-) -> Result<(StatusCode, Json<PinboardItem>), AppError> {
+) -> Result<(StatusCode, Json<ApiResponse<PinboardItem>>), AppError> {
     let item = PinboardItem {
         id: Uuid::new_v4(),
         query_execution_id: req.query_execution_id,
@@ -49,7 +50,7 @@ pub async fn create_pin(
     };
 
     state.store.create_pin(&principal.id, &item).await?;
-    Ok((StatusCode::CREATED, Json(item)))
+    Ok((StatusCode::CREATED, ApiResponse::of(item)))
 }
 
 // ---------------------------------------------------------------------------
@@ -72,9 +73,9 @@ pub async fn list_pins(
     State(state): State<AppState>,
     principal: Principal,
     Query(params): Query<CursorParams>,
-) -> Result<Json<CursorPage<PinboardItem>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<PinboardItem>>>, AppError> {
     let page = state.store.list_pins(&principal.id, &params).await?;
-    Ok(Json(page))
+    Ok(ApiResponse::page(page))
 }
 
 // ---------------------------------------------------------------------------

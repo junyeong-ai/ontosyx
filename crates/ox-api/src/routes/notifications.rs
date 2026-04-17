@@ -9,6 +9,7 @@ use ox_store::{NotificationChannel, NotificationLog};
 
 use crate::error::AppError;
 use crate::principal::Principal;
+use crate::response::ApiResponse;
 use crate::state::AppState;
 use crate::workspace::WorkspaceContext;
 
@@ -45,7 +46,7 @@ pub(crate) async fn create_channel(
     principal: Principal,
     ws: WorkspaceContext,
     Json(req): Json<CreateChannelRequest>,
-) -> Result<Json<NotificationChannel>, AppError> {
+) -> Result<Json<ApiResponse<NotificationChannel>>, AppError> {
     principal.require_admin()?;
 
     validate_channel_type(&req.channel_type)?;
@@ -69,7 +70,7 @@ pub(crate) async fn create_channel(
         .await
         .map_err(AppError::from)?;
 
-    Ok(Json(channel))
+    Ok(ApiResponse::of(channel))
 }
 
 // ---------------------------------------------------------------------------
@@ -79,7 +80,7 @@ pub(crate) async fn create_channel(
 pub(crate) async fn list_channels(
     State(state): State<AppState>,
     principal: Principal,
-) -> Result<Json<Vec<NotificationChannel>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<NotificationChannel>>>, AppError> {
     principal.require_admin()?;
 
     let channels = state
@@ -87,7 +88,7 @@ pub(crate) async fn list_channels(
         .list_notification_channels()
         .await
         .map_err(AppError::from)?;
-    Ok(Json(channels))
+    Ok(ApiResponse::of(channels))
 }
 
 // ---------------------------------------------------------------------------
@@ -162,7 +163,7 @@ pub(crate) async fn test_channel(
     principal: Principal,
     ws: WorkspaceContext,
     Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     principal.require_admin()?;
 
     let channel = state
@@ -197,8 +198,10 @@ pub(crate) async fn test_channel(
     }
 
     match result {
-        Ok(()) => Ok(Json(serde_json::json!({ "success": true }))),
-        Err(e) => Ok(Json(serde_json::json!({ "success": false, "error": e }))),
+        Ok(()) => Ok(ApiResponse::of(serde_json::json!({ "success": true }))),
+        Err(e) => Ok(ApiResponse::of(
+            serde_json::json!({ "success": false, "error": e }),
+        )),
     }
 }
 
@@ -220,7 +223,7 @@ pub(crate) async fn list_logs(
     State(state): State<AppState>,
     principal: Principal,
     Query(q): Query<LogQuery>,
-) -> Result<Json<Vec<NotificationLog>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<NotificationLog>>>, AppError> {
     principal.require_admin()?;
 
     let logs = state
@@ -228,7 +231,7 @@ pub(crate) async fn list_logs(
         .list_notification_logs(q.limit.clamp(1, 200))
         .await
         .map_err(AppError::from)?;
-    Ok(Json(logs))
+    Ok(ApiResponse::of(logs))
 }
 
 // ---------------------------------------------------------------------------

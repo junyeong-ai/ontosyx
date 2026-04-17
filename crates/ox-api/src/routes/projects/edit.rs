@@ -10,6 +10,7 @@ use ox_core::ontology_ir::OntologyIR;
 
 use crate::error::AppError;
 use crate::principal::Principal;
+use crate::response::ApiResponse;
 use crate::state::AppState;
 
 use super::helpers::{
@@ -41,7 +42,7 @@ pub(crate) async fn edit_project(
     principal: Principal,
     Path(id): Path<Uuid>,
     Json(req): Json<ProjectEditRequest>,
-) -> Result<Json<ProjectEditResponse>, AppError> {
+) -> Result<Json<ApiResponse<ProjectEditResponse>>, AppError> {
     principal.require_designer()?;
     // Validate input
     if req.user_request.trim().is_empty() {
@@ -115,7 +116,7 @@ pub(crate) async fn edit_project(
     }
 
     if edit_output.commands.is_empty() {
-        return Ok(Json(ProjectEditResponse {
+        return Ok(ApiResponse::of(ProjectEditResponse {
             project: Some(project),
             commands: vec![],
             explanation: edit_output.explanation,
@@ -137,7 +138,7 @@ pub(crate) async fn edit_project(
     }
 
     if req.dry_run {
-        return Ok(Json(ProjectEditResponse {
+        return Ok(ApiResponse::of(ProjectEditResponse {
             project: None,
             commands: edit_output.commands,
             explanation: edit_output.explanation,
@@ -192,7 +193,7 @@ pub(crate) async fn edit_project(
         "Edit completed"
     );
 
-    Ok(Json(ProjectEditResponse {
+    Ok(ApiResponse::of(ProjectEditResponse {
         project: Some(updated),
         commands: edit_output.commands,
         explanation: edit_output.explanation,

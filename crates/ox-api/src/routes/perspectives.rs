@@ -8,6 +8,7 @@ use ox_store::WorkbenchPerspective;
 
 use crate::error::AppError;
 use crate::principal::Principal;
+use crate::response::ApiResponse;
 use crate::state::AppState;
 use crate::workspace::WorkspaceContext;
 
@@ -53,7 +54,7 @@ pub async fn save_perspective(
     principal: Principal,
     ws: WorkspaceContext,
     Json(req): Json<PerspectiveUpsertRequest>,
-) -> Result<Json<WorkbenchPerspective>, AppError> {
+) -> Result<Json<ApiResponse<WorkbenchPerspective>>, AppError> {
     let perspective = WorkbenchPerspective {
         id: Uuid::new_v4(),
         user_id: principal.id.clone(),
@@ -84,7 +85,7 @@ pub async fn save_perspective(
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::internal("Failed to retrieve saved perspective"))?;
 
-    Ok(Json(saved))
+    Ok(ApiResponse::of(saved))
 }
 
 // ---------------------------------------------------------------------------
@@ -106,14 +107,14 @@ pub async fn list_perspectives(
     State(state): State<AppState>,
     principal: Principal,
     Path(lineage_id): Path<String>,
-) -> Result<Json<Vec<WorkbenchPerspective>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<WorkbenchPerspective>>>, AppError> {
     let perspectives = state
         .store
         .list_perspectives(&principal.id, &lineage_id)
         .await
         .map_err(AppError::from)?;
 
-    Ok(Json(perspectives))
+    Ok(ApiResponse::of(perspectives))
 }
 
 // ---------------------------------------------------------------------------
@@ -135,14 +136,14 @@ pub async fn get_default_perspective(
     State(state): State<AppState>,
     principal: Principal,
     Path(lineage_id): Path<String>,
-) -> Result<Json<Option<WorkbenchPerspective>>, AppError> {
+) -> Result<Json<ApiResponse<Option<WorkbenchPerspective>>>, AppError> {
     let perspective = state
         .store
         .get_default_perspective(&principal.id, &lineage_id)
         .await
         .map_err(AppError::from)?;
 
-    Ok(Json(perspective))
+    Ok(ApiResponse::of(perspective))
 }
 
 // ---------------------------------------------------------------------------
@@ -167,13 +168,13 @@ pub async fn get_best_perspective(
     principal: Principal,
     Path(lineage_id): Path<String>,
     Query(params): Query<PerspectiveFindParams>,
-) -> Result<Json<Option<WorkbenchPerspective>>, AppError> {
+) -> Result<Json<ApiResponse<Option<WorkbenchPerspective>>>, AppError> {
     let perspective = state
         .store
         .get_best_perspective(&principal.id, &lineage_id, &params.topology_signature)
         .await
         .map_err(AppError::from)?;
-    Ok(Json(perspective))
+    Ok(ApiResponse::of(perspective))
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -201,7 +202,7 @@ pub async fn delete_perspective(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let deleted = state
         .store
         .delete_perspective(&principal.id, id)
@@ -212,5 +213,5 @@ pub async fn delete_perspective(
         return Err(AppError::perspective_not_found());
     }
 
-    Ok(Json(serde_json::json!({ "deleted": true })))
+    Ok(ApiResponse::of(serde_json::json!({ "deleted": true })))
 }

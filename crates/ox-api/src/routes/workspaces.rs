@@ -7,6 +7,7 @@ use ox_store::{Workspace, WorkspaceMember, WorkspaceSummary};
 
 use crate::error::AppError;
 use crate::principal::Principal;
+use crate::response::ApiResponse;
 use crate::state::AppState;
 use crate::workspace::{
     ASSIGNABLE_WORKSPACE_ROLES, DEFAULT_WORKSPACE_SLUG, WorkspaceContext, WorkspaceRole,
@@ -137,7 +138,7 @@ pub async fn create_workspace(
     State(state): State<AppState>,
     principal: Principal,
     Json(req): Json<CreateWorkspaceRequest>,
-) -> Result<Json<WorkspaceResponse>, AppError> {
+) -> Result<Json<ApiResponse<WorkspaceResponse>>, AppError> {
     principal.require_designer()?;
 
     let user_id = resolve_user_id(&principal, &state).await?;
@@ -184,14 +185,14 @@ pub async fn create_workspace(
         "Workspace created"
     );
 
-    Ok(Json(workspace.into()))
+    Ok(ApiResponse::of(workspace.into()))
 }
 
 /// GET /workspaces — list workspaces the current user belongs to.
 pub async fn list_workspaces(
     State(state): State<AppState>,
     principal: Principal,
-) -> Result<Json<Vec<WorkspaceSummaryResponse>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<WorkspaceSummaryResponse>>>, AppError> {
     let user_id = resolve_user_id(&principal, &state).await?;
 
     let workspaces = state
@@ -200,14 +201,16 @@ pub async fn list_workspaces(
         .await
         .map_err(AppError::from)?;
 
-    Ok(Json(workspaces.into_iter().map(Into::into).collect()))
+    Ok(ApiResponse::of(
+        workspaces.into_iter().map(Into::into).collect(),
+    ))
 }
 
 /// GET /workspaces/:id — get workspace details.
 pub async fn get_workspace(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-) -> Result<Json<WorkspaceResponse>, AppError> {
+) -> Result<Json<ApiResponse<WorkspaceResponse>>, AppError> {
     let workspace = state
         .store
         .get_workspace(id)
@@ -215,7 +218,7 @@ pub async fn get_workspace(
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("Workspace"))?;
 
-    Ok(Json(workspace.into()))
+    Ok(ApiResponse::of(workspace.into()))
 }
 
 /// PATCH /workspaces/:id — update workspace name/settings.
@@ -224,7 +227,7 @@ pub async fn update_workspace(
     ws_ctx: WorkspaceContext,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateWorkspaceRequest>,
-) -> Result<Json<WorkspaceResponse>, AppError> {
+) -> Result<Json<ApiResponse<WorkspaceResponse>>, AppError> {
     ws_ctx.require_admin()?;
 
     let settings = if req.settings.is_null() {
@@ -246,7 +249,7 @@ pub async fn update_workspace(
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("Workspace"))?;
 
-    Ok(Json(workspace.into()))
+    Ok(ApiResponse::of(workspace.into()))
 }
 
 /// DELETE /workspaces/:id — delete a workspace (owner only).
@@ -254,7 +257,7 @@ pub async fn delete_workspace(
     State(state): State<AppState>,
     ws_ctx: WorkspaceContext,
     Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     if ws_ctx.workspace_role != WorkspaceRole::Owner {
         return Err(AppError::forbidden(
             "Only the workspace owner can delete it",
@@ -280,7 +283,7 @@ pub async fn delete_workspace(
         .map_err(AppError::from)?;
 
     tracing::info!(workspace_id = %id, "Workspace deleted");
-    Ok(Json(serde_json::json!({"deleted": true})))
+    Ok(ApiResponse::of(serde_json::json!({"deleted": true})))
 }
 
 // ---------------------------------------------------------------------------
@@ -293,7 +296,7 @@ pub async fn add_member(
     ws_ctx: WorkspaceContext,
     Path(id): Path<Uuid>,
     Json(req): Json<AddMemberRequest>,
-) -> Result<Json<MemberResponse>, AppError> {
+) -> Result<Json<ApiResponse<MemberResponse>>, AppError> {
     ws_ctx.require_admin()?;
 
     // Validate role
@@ -310,7 +313,7 @@ pub async fn add_member(
         .await
         .map_err(AppError::from)?;
 
-    Ok(Json(MemberResponse {
+    Ok(ApiResponse::of(MemberResponse {
         workspace_id: id,
         user_id: req.user_id,
         role: req.role,
@@ -324,7 +327,7 @@ pub async fn remove_member(
     ws_ctx: WorkspaceContext,
     Path((id, uid)): Path<(Uuid, Uuid)>,
     principal: Principal,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let caller_id =
         Uuid::parse_str(&principal.id).map_err(|_| AppError::unauthorized("Invalid user ID"))?;
 
@@ -357,7 +360,7 @@ pub async fn remove_member(
         return Err(AppError::not_found("Member"));
     }
 
-    Ok(Json(serde_json::json!({"removed": true})))
+    Ok(ApiResponse::of(serde_json::json!({"removed": true})))
 }
 
 /// PATCH /workspaces/:id/members/:uid — update member role.
@@ -366,7 +369,7 @@ pub async fn update_member_role(
     ws_ctx: WorkspaceContext,
     Path((id, uid)): Path<(Uuid, Uuid)>,
     Json(req): Json<UpdateMemberRoleRequest>,
-) -> Result<Json<MemberResponse>, AppError> {
+) -> Result<Json<ApiResponse<MemberResponse>>, AppError> {
     ws_ctx.require_admin()?;
 
     if !ASSIGNABLE_WORKSPACE_ROLES.contains(&req.role.as_str()) {
@@ -407,19 +410,21 @@ pub async fn update_member_role(
         .find(|m| m.user_id == uid)
         .ok_or_else(|| AppError::not_found("Member"))?;
 
-    Ok(Json(member.into()))
+    Ok(ApiResponse::of(member.into()))
 }
 
 /// GET /workspaces/:id/members — list workspace members.
 pub async fn list_members(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-) -> Result<Json<Vec<MemberResponse>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<MemberResponse>>>, AppError> {
     let members = state
         .store
         .list_workspace_members(id)
         .await
         .map_err(AppError::from)?;
 
-    Ok(Json(members.into_iter().map(Into::into).collect()))
+    Ok(ApiResponse::of(
+        members.into_iter().map(Into::into).collect(),
+    ))
 }

@@ -5,6 +5,7 @@ use uuid::Uuid;
 use ox_store::{LineageEntry, LineageSummary};
 
 use crate::error::AppError;
+use crate::response::ApiResponse;
 use crate::state::AppState;
 
 // ---------------------------------------------------------------------------
@@ -13,13 +14,13 @@ use crate::state::AppState;
 
 pub(crate) async fn get_lineage_summary(
     State(state): State<AppState>,
-) -> Result<Json<Vec<LineageSummary>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<LineageSummary>>>, AppError> {
     let summary = state
         .store
         .lineage_summary()
         .await
         .map_err(AppError::from)?;
-    Ok(Json(summary))
+    Ok(ApiResponse::of(summary))
 }
 
 // ---------------------------------------------------------------------------
@@ -29,13 +30,13 @@ pub(crate) async fn get_lineage_summary(
 pub(crate) async fn get_lineage_for_label(
     State(state): State<AppState>,
     Path(label): Path<String>,
-) -> Result<Json<Vec<LineageEntry>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<LineageEntry>>>, AppError> {
     let entries = state
         .store
         .get_lineage_for_label(&label)
         .await
         .map_err(AppError::from)?;
-    Ok(Json(entries))
+    Ok(ApiResponse::of(entries))
 }
 
 // ---------------------------------------------------------------------------
@@ -45,11 +46,11 @@ pub(crate) async fn get_lineage_for_label(
 pub(crate) async fn get_lineage_for_project(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-) -> Result<Json<Vec<LineageEntry>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<LineageEntry>>>, AppError> {
     let entries = state
         .store
         .get_lineage_for_project(id)
         .await
         .map_err(AppError::from)?;
-    Ok(Json(entries))
+    Ok(ApiResponse::of(entries))
 }

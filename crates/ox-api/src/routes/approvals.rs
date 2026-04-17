@@ -9,17 +9,13 @@ use ox_store::ApprovalRequest;
 
 use crate::error::AppError;
 use crate::principal::Principal;
+use crate::response::ApiResponse;
 use crate::state::AppState;
 use crate::workspace::WorkspaceContext;
 
 // ---------------------------------------------------------------------------
 // Request / Response types
 // ---------------------------------------------------------------------------
-
-#[derive(Serialize)]
-pub struct ApprovalListResponse {
-    pub approvals: Vec<ApprovalRequest>,
-}
 
 #[derive(Deserialize)]
 pub struct ReviewRequest {
@@ -41,14 +37,14 @@ pub(crate) async fn list_approvals(
     State(state): State<AppState>,
     _principal: Principal,
     ws: WorkspaceContext,
-) -> Result<Json<ApprovalListResponse>, AppError> {
+) -> Result<Json<ApiResponse<Vec<ApprovalRequest>>>, AppError> {
     let approvals = state
         .store
         .list_pending_approvals(ws.workspace_id)
         .await
         .map_err(AppError::from)?;
 
-    Ok(Json(ApprovalListResponse { approvals }))
+    Ok(ApiResponse::of(approvals))
 }
 
 // ---------------------------------------------------------------------------
@@ -59,7 +55,7 @@ pub(crate) async fn get_approval(
     State(state): State<AppState>,
     _principal: Principal,
     Path(id): Path<Uuid>,
-) -> Result<Json<ApprovalRequest>, AppError> {
+) -> Result<Json<ApiResponse<ApprovalRequest>>, AppError> {
     let approval = state
         .store
         .get_approval_request(id)
@@ -67,7 +63,7 @@ pub(crate) async fn get_approval(
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("Approval request"))?;
 
-    Ok(Json(approval))
+    Ok(ApiResponse::of(approval))
 }
 
 // ---------------------------------------------------------------------------
@@ -80,7 +76,7 @@ pub(crate) async fn review_approval(
     ws: WorkspaceContext,
     Path(id): Path<Uuid>,
     Json(req): Json<ReviewRequest>,
-) -> Result<(StatusCode, Json<ReviewResponse>), AppError> {
+) -> Result<(StatusCode, Json<ApiResponse<ReviewResponse>>), AppError> {
     // Only workspace admins can review approvals
     ws.require_admin()?;
 
@@ -103,7 +99,7 @@ pub(crate) async fn review_approval(
 
     Ok((
         StatusCode::OK,
-        Json(ReviewResponse {
+        ApiResponse::of(ReviewResponse {
             status: status.to_string(),
         }),
     ))

@@ -5,6 +5,7 @@ use serde::Deserialize;
 use ox_store::UsageSummary;
 
 use crate::error::AppError;
+use crate::response::ApiResponse;
 use crate::state::AppState;
 
 // ---------------------------------------------------------------------------
@@ -22,7 +23,7 @@ pub struct UsageQuery {
 pub(crate) async fn get_usage_summary(
     State(state): State<AppState>,
     Query(params): Query<UsageQuery>,
-) -> Result<Json<Vec<UsageSummary>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<UsageSummary>>>, AppError> {
     let from = params
         .from
         .and_then(|s| s.parse().ok())
@@ -36,5 +37,5 @@ pub(crate) async fn get_usage_summary(
         .usage_summary(from, to)
         .await
         .map_err(AppError::from)?;
-    Ok(Json(summary))
+    Ok(ApiResponse::of(summary))
 }

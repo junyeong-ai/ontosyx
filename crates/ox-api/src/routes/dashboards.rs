@@ -9,6 +9,7 @@ use ox_store::store::CursorParams;
 
 use crate::error::AppError;
 use crate::principal::Principal;
+use crate::response::ApiResponse;
 use crate::state::AppState;
 use crate::validation;
 use crate::workspace::WorkspaceContext;
@@ -28,7 +29,7 @@ pub(crate) async fn create_dashboard(
     principal: Principal,
     ws: WorkspaceContext,
     Json(req): Json<DashboardCreateRequest>,
-) -> Result<Json<Dashboard>, AppError> {
+) -> Result<Json<ApiResponse<Dashboard>>, AppError> {
     validation::validate_name("name", &req.name)?;
 
     let dashboard = Dashboard {
@@ -51,7 +52,7 @@ pub(crate) async fn create_dashboard(
         .await
         .map_err(AppError::from)?;
 
-    Ok(Json(dashboard))
+    Ok(ApiResponse::of(dashboard))
 }
 
 // ---------------------------------------------------------------------------
@@ -62,14 +63,14 @@ pub(crate) async fn list_dashboards(
     State(state): State<AppState>,
     principal: Principal,
     axum::extract::Query(pagination): axum::extract::Query<CursorParams>,
-) -> Result<Json<ox_store::store::CursorPage<Dashboard>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<Dashboard>>>, AppError> {
     let is_admin = principal.role.is_admin();
     let page = state
         .store
         .list_dashboards(&principal.id, is_admin, &pagination)
         .await
         .map_err(AppError::from)?;
-    Ok(Json(page))
+    Ok(ApiResponse::page(page))
 }
 
 // ---------------------------------------------------------------------------
@@ -80,7 +81,7 @@ pub(crate) async fn get_dashboard(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-) -> Result<Json<Dashboard>, AppError> {
+) -> Result<Json<ApiResponse<Dashboard>>, AppError> {
     let dashboard = state
         .store
         .get_dashboard(id)
@@ -93,7 +94,7 @@ pub(crate) async fn get_dashboard(
         return Err(AppError::not_found("Dashboard"));
     }
 
-    Ok(Json(dashboard))
+    Ok(ApiResponse::of(dashboard))
 }
 
 // ---------------------------------------------------------------------------
@@ -114,7 +115,7 @@ pub(crate) async fn update_dashboard(
     principal: Principal,
     Path(id): Path<Uuid>,
     Json(req): Json<DashboardUpdateRequest>,
-) -> Result<Json<Dashboard>, AppError> {
+) -> Result<Json<ApiResponse<Dashboard>>, AppError> {
     principal.require_designer()?;
 
     let mut dashboard = state
@@ -152,7 +153,7 @@ pub(crate) async fn update_dashboard(
         .await
         .map_err(AppError::from)?;
 
-    Ok(Json(dashboard))
+    Ok(ApiResponse::of(dashboard))
 }
 
 // ---------------------------------------------------------------------------
@@ -215,7 +216,7 @@ pub(crate) async fn add_widget(
     ws: WorkspaceContext,
     Path(dashboard_id): Path<Uuid>,
     Json(req): Json<WidgetCreateRequest>,
-) -> Result<Json<ox_store::DashboardWidget>, AppError> {
+) -> Result<Json<ApiResponse<ox_store::DashboardWidget>>, AppError> {
     principal.require_designer()?;
 
     let dash = state
@@ -248,7 +249,7 @@ pub(crate) async fn add_widget(
         .await
         .map_err(AppError::from)?;
 
-    Ok(Json(widget))
+    Ok(ApiResponse::of(widget))
 }
 
 // ---------------------------------------------------------------------------
@@ -259,13 +260,13 @@ pub(crate) async fn list_widgets(
     State(state): State<AppState>,
     _principal: Principal,
     Path(dashboard_id): Path<Uuid>,
-) -> Result<Json<Vec<ox_store::DashboardWidget>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<ox_store::DashboardWidget>>>, AppError> {
     let widgets = state
         .store
         .list_widgets(dashboard_id)
         .await
         .map_err(AppError::from)?;
-    Ok(Json(widgets))
+    Ok(ApiResponse::of(widgets))
 }
 
 // ---------------------------------------------------------------------------
@@ -353,7 +354,7 @@ pub(crate) async fn share_dashboard(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     principal.require_designer()?;
 
     let dash = state
@@ -381,7 +382,9 @@ pub(crate) async fn share_dashboard(
         .await
         .map_err(AppError::from)?;
 
-    Ok(Json(serde_json::json!({ "share_token": token })))
+    Ok(ApiResponse::of(
+        serde_json::json!({ "share_token": token }),
+    ))
 }
 
 // ---------------------------------------------------------------------------
@@ -419,7 +422,7 @@ pub(crate) async fn unshare_dashboard(
 pub(crate) async fn get_shared_dashboard(
     State(state): State<AppState>,
     Path(token): Path<String>,
-) -> Result<Json<SharedDashboardResponse>, AppError> {
+) -> Result<Json<ApiResponse<SharedDashboardResponse>>, AppError> {
     // Public endpoint — no auth, no workspace context.
     // Use SYSTEM_BYPASS to read through RLS; the share token itself is authorization.
     let store = state.store.clone();
@@ -454,7 +457,7 @@ pub(crate) async fn get_shared_dashboard(
         })
         .collect();
 
-    Ok(Json(SharedDashboardResponse {
+    Ok(ApiResponse::of(SharedDashboardResponse {
         id: dashboard.id,
         name: dashboard.name,
         description: dashboard.description,

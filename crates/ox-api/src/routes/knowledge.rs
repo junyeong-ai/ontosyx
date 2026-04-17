@@ -4,11 +4,12 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use ox_store::KnowledgeEntry;
 use ox_store::store::CursorParams;
-use ox_store::{CursorPage, KnowledgeEntry};
 
 use crate::error::AppError;
 use crate::principal::Principal;
+use crate::response::ApiResponse;
 use crate::state::AppState;
 
 // ---------------------------------------------------------------------------
@@ -35,7 +36,7 @@ pub(crate) async fn create_knowledge(
     State(state): State<AppState>,
     principal: Principal,
     Json(req): Json<KnowledgeCreateRequest>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     principal.require_designer()?;
     if !VALID_KINDS.contains(&req.kind.as_str()) {
         return Err(AppError::bad_request(format!(
@@ -87,7 +88,7 @@ pub(crate) async fn create_knowledge(
     };
 
     state.store.create_knowledge_entry(&entry).await?;
-    Ok(Json(serde_json::json!({ "id": entry.id })))
+    Ok(ApiResponse::of(serde_json::json!({ "id": entry.id })))
 }
 
 // ---------------------------------------------------------------------------
@@ -107,7 +108,7 @@ pub(crate) async fn list_knowledge(
     State(state): State<AppState>,
     _principal: Principal,
     Query(q): Query<KnowledgeListQuery>,
-) -> Result<Json<CursorPage<KnowledgeEntry>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<KnowledgeEntry>>>, AppError> {
     let pagination = CursorParams {
         limit: q.limit.unwrap_or(50),
         cursor: q.cursor,
@@ -121,7 +122,7 @@ pub(crate) async fn list_knowledge(
             &pagination,
         )
         .await?;
-    Ok(Json(page))
+    Ok(ApiResponse::page(page))
 }
 
 // ---------------------------------------------------------------------------
@@ -132,13 +133,13 @@ pub(crate) async fn get_knowledge(
     State(state): State<AppState>,
     _principal: Principal,
     Path(id): Path<Uuid>,
-) -> Result<Json<KnowledgeEntry>, AppError> {
+) -> Result<Json<ApiResponse<KnowledgeEntry>>, AppError> {
     let entry = state
         .store
         .get_knowledge_entry(id)
         .await?
         .ok_or_else(|| AppError::not_found("Knowledge entry not found"))?;
-    Ok(Json(entry))
+    Ok(ApiResponse::of(entry))
 }
 
 // ---------------------------------------------------------------------------
@@ -162,7 +163,7 @@ pub(crate) async fn update_knowledge(
     principal: Principal,
     Path(id): Path<Uuid>,
     Json(req): Json<KnowledgeUpdateRequest>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     principal.require_designer()?;
     state
         .store
@@ -175,7 +176,7 @@ pub(crate) async fn update_knowledge(
             &req.affected_properties.unwrap_or_default(),
         )
         .await?;
-    Ok(Json(serde_json::json!({ "ok": true })))
+    Ok(ApiResponse::of(serde_json::json!({ "ok": true })))
 }
 
 // ---------------------------------------------------------------------------
@@ -186,10 +187,10 @@ pub(crate) async fn delete_knowledge(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     principal.require_admin()?;
     let deleted = state.store.delete_knowledge_entry(id).await?;
-    Ok(Json(serde_json::json!({ "deleted": deleted })))
+    Ok(ApiResponse::of(serde_json::json!({ "deleted": deleted })))
 }
 
 // ---------------------------------------------------------------------------
@@ -207,7 +208,7 @@ pub(crate) async fn update_status(
     principal: Principal,
     Path(id): Path<Uuid>,
     Json(req): Json<KnowledgeStatusRequest>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     principal.require_admin()?;
     if !VALID_STATUSES.contains(&req.status.as_str()) {
         return Err(AppError::bad_request(format!(
@@ -225,7 +226,7 @@ pub(crate) async fn update_status(
             req.review_notes.as_deref(),
         )
         .await?;
-    Ok(Json(serde_json::json!({ "ok": true })))
+    Ok(ApiResponse::of(serde_json::json!({ "ok": true })))
 }
 
 // ---------------------------------------------------------------------------
@@ -235,7 +236,7 @@ pub(crate) async fn update_status(
 pub(crate) async fn list_stale(
     State(state): State<AppState>,
     principal: Principal,
-) -> Result<Json<CursorPage<KnowledgeEntry>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<KnowledgeEntry>>>, AppError> {
     principal.require_admin()?;
     let page = state
         .store
@@ -249,7 +250,7 @@ pub(crate) async fn list_stale(
             },
         )
         .await?;
-    Ok(Json(page))
+    Ok(ApiResponse::page(page))
 }
 
 // ---------------------------------------------------------------------------
@@ -266,7 +267,7 @@ pub struct KnowledgeStats {
 pub(crate) async fn knowledge_stats(
     State(state): State<AppState>,
     principal: Principal,
-) -> Result<Json<KnowledgeStats>, AppError> {
+) -> Result<Json<ApiResponse<KnowledgeStats>>, AppError> {
     principal.require_admin()?;
     let rows = state.store.count_knowledge_by_status_kind().await?;
 
@@ -279,7 +280,7 @@ pub(crate) async fn knowledge_stats(
         *by_kind.entry(kind.clone()).or_default() += cnt;
     }
 
-    Ok(Json(KnowledgeStats {
+    Ok(ApiResponse::of(KnowledgeStats {
         total,
         by_status: serde_json::to_value(by_status).unwrap_or_default(),
         by_kind: serde_json::to_value(by_kind).unwrap_or_default(),
@@ -301,7 +302,7 @@ pub(crate) async fn bulk_review(
     State(state): State<AppState>,
     principal: Principal,
     Json(req): Json<BulkReviewRequest>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     principal.require_admin()?;
     if !VALID_STATUSES.contains(&req.status.as_str()) {
         return Err(AppError::bad_request(format!(
@@ -325,5 +326,5 @@ pub(crate) async fn bulk_review(
             count += 1;
         }
     }
-    Ok(Json(serde_json::json!({ "reviewed": count })))
+    Ok(ApiResponse::of(serde_json::json!({ "reviewed": count })))
 }

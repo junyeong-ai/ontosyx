@@ -3,10 +3,11 @@ use axum::extract::{Path, State};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use ox_store::store::{CursorPage, CursorParams};
+use ox_store::store::CursorParams;
 
 use crate::error::AppError;
 use crate::principal::{Principal, VALID_PLATFORM_ROLES};
+use crate::response::ApiResponse;
 use crate::state::AppState;
 
 use super::auth::UserInfo;
@@ -33,7 +34,7 @@ pub(crate) async fn list_users(
     State(state): State<AppState>,
     _principal: Principal, // auth required; no role restriction
     axum::extract::Query(pagination): axum::extract::Query<CursorParams>,
-) -> Result<Json<CursorPage<UserInfo>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<UserInfo>>>, AppError> {
     let page = state
         .store
         .list_users(&pagination)
@@ -52,7 +53,7 @@ pub(crate) async fn list_users(
         })
         .collect();
 
-    Ok(Json(CursorPage {
+    Ok(ApiResponse::page(ox_store::CursorPage {
         items,
         next_cursor: page.next_cursor,
     }))
@@ -91,7 +92,7 @@ pub(crate) async fn update_user_role(
     principal: Principal,
     Path(id): Path<Uuid>,
     Json(req): Json<UserRoleUpdateRequest>,
-) -> Result<Json<UserRoleUpdateResponse>, AppError> {
+) -> Result<Json<ApiResponse<UserRoleUpdateResponse>>, AppError> {
     principal.require_admin()?;
 
     if principal.id == id.to_string() {
@@ -135,7 +136,7 @@ pub(crate) async fn update_user_role(
         "User role updated"
     );
 
-    Ok(Json(UserRoleUpdateResponse {
+    Ok(ApiResponse::of(UserRoleUpdateResponse {
         user: UserInfo {
             id: user.id,
             email: user.email,

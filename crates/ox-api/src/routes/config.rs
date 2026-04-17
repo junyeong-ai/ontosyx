@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
 use crate::principal::Principal;
+use crate::response::ApiResponse;
 use crate::state::AppState;
 
 // ---------------------------------------------------------------------------
@@ -31,7 +32,7 @@ pub struct ConfigEntry {
 )]
 pub async fn get_config(
     State(state): State<AppState>,
-) -> Result<Json<BTreeMap<String, Vec<ConfigEntry>>>, AppError> {
+) -> Result<Json<ApiResponse<BTreeMap<String, Vec<ConfigEntry>>>>, AppError> {
     let rows = state.store.get_all_config().await.map_err(AppError::from)?;
 
     let mut grouped: BTreeMap<String, Vec<ConfigEntry>> = BTreeMap::new();
@@ -44,7 +45,7 @@ pub async fn get_config(
         });
     }
 
-    Ok(Json(grouped))
+    Ok(ApiResponse::of(grouped))
 }
 
 // ---------------------------------------------------------------------------
@@ -68,9 +69,11 @@ pub struct UiConfig {
     ),
     tag = "Config",
 )]
-pub async fn get_ui_config(State(state): State<AppState>) -> Result<Json<UiConfig>, AppError> {
+pub async fn get_ui_config(
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<UiConfig>>, AppError> {
     let config = state.system_config.read().await;
-    Ok(Json(UiConfig {
+    Ok(ApiResponse::of(UiConfig {
         elk_direction: config.elk_direction(),
         elk_node_spacing: config.elk_node_spacing(),
         elk_layer_spacing: config.elk_layer_spacing(),
@@ -110,7 +113,7 @@ pub async fn update_config(
     State(state): State<AppState>,
     principal: Principal,
     Json(req): Json<ConfigUpdateRequest>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     principal.require_admin()?;
     if req.updates.is_empty() {
         return Err(AppError::bad_request("No updates provided"));
@@ -131,5 +134,7 @@ pub async fn update_config(
     let new_config = crate::system_config::load_system_config(state.store.as_ref()).await;
     *state.system_config.write().await = new_config;
 
-    Ok(Json(serde_json::json!({ "updated": req.updates.len() })))
+    Ok(ApiResponse::of(
+        serde_json::json!({ "updated": req.updates.len() }),
+    ))
 }

@@ -1,6 +1,7 @@
 use axum::{Json, extract::State};
 use serde_json::{Value, json};
 
+use crate::response::ApiResponse;
 use crate::state::AppState;
 
 #[utoipa::path(
@@ -11,7 +12,7 @@ use crate::state::AppState;
     ),
     tag = "Health",
 )]
-pub async fn health_check(State(state): State<AppState>) -> Json<Value> {
+pub async fn health_check(State(state): State<AppState>) -> Json<ApiResponse<Value>> {
     let health_timeout = state.timeouts.health_check;
 
     let db_ok = match tokio::time::timeout(health_timeout, state.store.health_check()).await {
@@ -59,7 +60,7 @@ pub async fn health_check(State(state): State<AppState>) -> Json<Value> {
 
     let provider = state.brain.default_model_info();
 
-    Json(json!({
+    ApiResponse::of(json!({
         "status": status,
         "service": "ontosyx",
         "version": env!("CARGO_PKG_VERSION"),

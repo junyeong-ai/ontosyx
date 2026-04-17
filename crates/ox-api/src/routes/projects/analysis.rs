@@ -8,6 +8,7 @@ use ox_store::store::AnalysisSnapshot;
 
 use crate::error::AppError;
 use crate::principal::Principal;
+use crate::response::ApiResponse;
 use crate::state::AppState;
 
 use super::helpers::{
@@ -38,7 +39,7 @@ pub(crate) async fn reanalyze_project(
     principal: Principal,
     Path(id): Path<Uuid>,
     Json(req): Json<ProjectReanalyzeRequest>,
-) -> Result<Json<ProjectReanalyzeResponse>, AppError> {
+) -> Result<Json<ApiResponse<ProjectReanalyzeResponse>>, AppError> {
     principal.require_designer()?;
     let project = load_mutable_project(&state, id).await?;
 
@@ -138,7 +139,7 @@ pub(crate) async fn reanalyze_project(
 
     let updated = reload_project(&state, id).await?;
 
-    Ok(Json(ProjectReanalyzeResponse {
+    Ok(ApiResponse::of(ProjectReanalyzeResponse {
         project: updated,
         invalidated_decisions: invalidated,
     }))
