@@ -15,29 +15,34 @@
 | F1/F2/F3 | `DashboardsConfig`/`RecoveryConfig`/`McpRateLimitConfig` config 외부화 | ✅ 완료 |
 | G1 | `neo4j/transience.rs` 삭제 → `runtime.rs`에 inline | ✅ 완료 |
 
-## Round 2 미완 (다음 세션 우선)
+## Round 3 추가 완료 (commit d4f4d50, aefb8c2)
 
-### Phase C — 보안 강화 (전부 미완 — agent 전부 limit hit + auto-revert)
+| Phase | 항목 | 상태 |
+|-------|------|------|
+| C1 | 정적 `OX_AUTH__API_KEY` 폐기, `OX_AUTH__BOOTSTRAP_KEY` env로 first-boot seed (`api_keys` 비었을 때만) | ✅ 완료 |
+| C2 | `[graph]` `readonly_user`/`readonly_password` config 추가, main.rs에서 두 번째 runtime 빌드, MCP `execute_cypher`이 R/O runtime 사용 (없으면 startup `warn!` + R/W fallback) | ✅ 완료 |
+| C3 | `crates/ox-store/src/secret_token.rs` 신규 — `generate_hex(bytes)` (OsRng) + `secret_hash_sha256`. `create_api_key` + `share_dashboard` 모두 사용. UUID-concat 제거 | ✅ 완료 |
+| C4 | API-key 합성 claims `exp: usize::MAX` → `iat = now; exp = iat + 3600` | ✅ 완료 |
+| C5 | `share_expires_at <= NOW()` → `<` (dashboards.rs + expire_old_approvals.sql) | ✅ 완료 |
+| D3 | maintenance store 메서드 5개 → `Vec<(Uuid, u64)>` 반환 (SQL `WITH affected AS (... RETURNING workspace_id) GROUP BY`). main.rs loop가 워크스페이스별 audit 행 + 시스템 행 분리 작성 | ✅ 완료 |
+| E1 | MCP rate limit `Mutex<VecDeque<Instant>>` 슬라이딩 윈도우 (100/60s 정확) | ✅ 완료 |
+| E2 | `extract_cypher_labels` brace-depth 추적으로 map literal `{name: "x"}` false positive 제거 + `_leadingUnderscore` 라벨 허용 | ✅ 완료 |
 
-- **C1**: 정적 `OX_AUTH__API_KEY` 폐기, DB-only + `OX_AUTH__BOOTSTRAP_KEY` env로 first-boot seed
-- **C2**: `readonly_runtime` 필드는 wire-up 됐으나 실제 R/O DB 사용자 생성/연결 미연결. `[graph]` config에 `readonly_user`/`readonly_password` 추가 + registry에서 두 번째 runtime 빌드
-- **C3**: Share token CSPRNG 전환 (현재 `Uuid::new_v4()` 2개 = 244bits → `rand::OsRng.fill_bytes(&mut [u8; 32])` = 256bits). `ox-store/src/secret_token.rs`로 helper 만들기
-- **C4**: API key 합성 JWT `exp: usize::MAX` → `iat + 3600`
-- **C5**: `expires_at <=` → `<` (boundary는 valid)
+총 19+ commits, 417 tests pass, 0 build warnings.
 
-### Phase A — 타입 (A1/A2 미완)
+## 진짜 남은 작업 (낮은 우선순위 — blocker 아님)
 
-- **A1**: `PromptTemplateRow.version: String` → `PromptVersion` semver 타입. sqlx Encode/Decode + 마이그레이션 0006으로 CHECK 제약. `ox-brain::prompts::PromptVersion` (이미 존재)과 충돌 회피 — 통합하거나 명확히 분리.
-- **A2**: `ApiResponse<T>: utoipa::ToSchema` 도입 + 모든 핸들러 `body = ApiResponse<T>` 일괄 변경 → OpenAPI 스펙이 실제 envelope 반영
+### Phase A — 타입 안정성 (A1/A2)
 
-### Phase D — Audit per-workspace (미완)
+- **A1** `PromptTemplateRow.version: String` → `PromptVersion` 구조체.
+  - 현재 lexicographic sort 버그는 Round 1에서 `ORDER BY created_at DESC`로 우회됨 → 즉시 critical 아님
+  - 작업: ox-core/types.rs로 PromptVersion 이동, sqlx `try_from = "String"` 사용, 마이그레이션 0006 CHECK 제약
+- **A2** `ApiResponse<T>: utoipa::ToSchema` 도입.
+  - 현재 frontend는 envelope unwrap 처리 중 → 즉시 critical 아님
+  - 작업: utoipa generic `aliases` 또는 별도 codegen 단계
+  - 145개 핸들러의 `body = T` → `body = inline(ApiResponse<T>)` 일괄 변경 필요
 
-- **D3**: maintenance store 메서드들 → `Vec<(workspace_id, u64)>` 반환. SQL `DELETE ... RETURNING workspace_id` + GROUP BY. main.rs maintenance loop가 워크스페이스별 audit 행 작성
-
-### Phase E — Heuristic (E1/E2 미완)
-
-- **E1**: MCP rate limit `Mutex<Option<(Instant, u32)>>` (tumbling) → `VecDeque<Instant>` (sliding 100/60s)
-- **E2**: `extract_cypher_labels` map literal `{name: "x"}` false positive 제거 + `_leadingUnderscore` 라벨 허용
+이 두 항목은 "compile-time safety" / "OpenAPI spec accuracy" 개선이지만 런타임 동작에는 영향 없음. 차후 Phase 5 (프론트엔드 codegen) 작업과 함께 처리 권장.
 
 ## 2026-04-17 세션 완료 항목
 
