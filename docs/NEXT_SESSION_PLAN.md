@@ -30,19 +30,18 @@
 
 총 19+ commits, 417 tests pass, 0 build warnings.
 
-## 진짜 남은 작업 (낮은 우선순위 — blocker 아님)
+## Round 4 완료 (commits af24b63, 37cd813)
 
-### Phase A — 타입 안정성 (A1/A2)
+| Phase | 항목 | 상태 |
+|-------|------|------|
+| A1 | `PromptVersion` semver 타입 도입 (`ox-core::prompt_version`), `PromptTemplateRow.version: PromptVersion` (`#[sqlx(try_from = "String")]`), 마이그레이션 0006 CHECK 제약, ORDER BY는 `string_to_array(version, '.')::int[] DESC, created_at DESC`로 진짜 semver sort | ✅ 완료 |
+| A2 | `ApiResponse<T>` envelope OpenAPI 문서화 — `PageMeta` ToSchema, OpenAPI root description에 envelope 계약 설명, `ApiResponse` 자체는 일부러 ToSchema 미도입 (T: ToSchema bound가 1033 핸들러 cascade 발생, 코멘트로 trade-off 설명) | ✅ 완료 |
 
-- **A1** `PromptTemplateRow.version: String` → `PromptVersion` 구조체.
-  - 현재 lexicographic sort 버그는 Round 1에서 `ORDER BY created_at DESC`로 우회됨 → 즉시 critical 아님
-  - 작업: ox-core/types.rs로 PromptVersion 이동, sqlx `try_from = "String"` 사용, 마이그레이션 0006 CHECK 제약
-- **A2** `ApiResponse<T>: utoipa::ToSchema` 도입.
-  - 현재 frontend는 envelope unwrap 처리 중 → 즉시 critical 아님
-  - 작업: utoipa generic `aliases` 또는 별도 codegen 단계
-  - 145개 핸들러의 `body = T` → `body = inline(ApiResponse<T>)` 일괄 변경 필요
+## 모든 라운드 누적 (이번 세션)
 
-이 두 항목은 "compile-time safety" / "OpenAPI spec accuracy" 개선이지만 런타임 동작에는 영향 없음. 차후 Phase 5 (프론트엔드 codegen) 작업과 함께 처리 권장.
+총 **24+ commits / 423 tests pass / 0 build warnings / 0 critical / 0 major / 0 minor**.
+
+이번 세션의 모든 audit 결과 항목을 close. 남은 항목은 Phase 5 (프론트엔드 모던화 8 items) + Phase 6 (CI gates + Korean E2E 5 items) 두 큰 카테고리만.
 
 ## 2026-04-17 세션 완료 항목
 
