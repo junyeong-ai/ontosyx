@@ -478,6 +478,12 @@ pub struct AuditEntry {
     pub id: Uuid,
     pub user_id: Option<Uuid>,
     pub workspace_id: Uuid,
+    /// Workspace impacted by the action. Differs from `workspace_id`
+    /// only for SYSTEM_BYPASS maintenance tasks that operate across
+    /// workspaces. When `None`, the affected workspace equals
+    /// `workspace_id` (the common case).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub affected_workspace_id: Option<Uuid>,
     pub action: String,
     pub resource_type: String,
     pub resource_id: Option<String>,

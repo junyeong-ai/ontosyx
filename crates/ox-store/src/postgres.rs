@@ -2822,15 +2822,29 @@ impl AuditStore for PostgresStore {
         resource_id: Option<&str>,
         details: serde_json::Value,
     ) -> OxResult<()> {
+        self.record_audit_for_workspace(user_id, None, action, resource_type, resource_id, details)
+            .await
+    }
+
+    async fn record_audit_for_workspace(
+        &self,
+        user_id: Option<Uuid>,
+        affected_workspace_id: Option<Uuid>,
+        action: &str,
+        resource_type: &str,
+        resource_id: Option<&str>,
+        details: serde_json::Value,
+    ) -> OxResult<()> {
         sqlx::query(
-            "INSERT INTO audit_log (user_id, action, resource_type, resource_id, details)
-             VALUES ($1, $2, $3, $4, $5)",
+            "INSERT INTO audit_log (user_id, action, resource_type, resource_id, details, affected_workspace_id)
+             VALUES ($1, $2, $3, $4, $5, $6)",
         )
         .bind(user_id)
         .bind(action)
         .bind(resource_type)
         .bind(resource_id)
         .bind(&details)
+        .bind(affected_workspace_id)
         .execute(&self.pool)
         .await
         .map_err(to_ox_error)?;
@@ -2842,7 +2856,7 @@ impl AuditStore for PostgresStore {
 
         let rows: Vec<AuditEntry> = if let Some((cursor_ts, cursor_id)) = params.cursor_parts() {
             sqlx::query_as(
-                "SELECT id, user_id, workspace_id, action, resource_type, resource_id, details, created_at
+                "SELECT id, user_id, workspace_id, affected_workspace_id, action, resource_type, resource_id, details, created_at
                  FROM audit_log
                  WHERE (created_at, id) < ($1, $2)
                  ORDER BY created_at DESC, id DESC
@@ -2856,7 +2870,7 @@ impl AuditStore for PostgresStore {
             .map_err(to_ox_error)?
         } else {
             sqlx::query_as(
-                "SELECT id, user_id, workspace_id, action, resource_type, resource_id, details, created_at
+                "SELECT id, user_id, workspace_id, affected_workspace_id, action, resource_type, resource_id, details, created_at
                  FROM audit_log
                  ORDER BY created_at DESC, id DESC
                  LIMIT $1",
