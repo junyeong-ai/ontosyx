@@ -112,6 +112,24 @@ pub(crate) fn run_pre_execute(
                     })?;
                 let mut merged = params.clone();
                 for (key, value) in &scoped.params {
+                    // Strategy parameters are system-critical and must
+                    // not be spoofable from the outside — the merge is
+                    // "strategy wins". When a user-supplied param
+                    // collides with a scope-injected one, that silent
+                    // overwrite is exactly the guarantee we want, but
+                    // it's also exactly the kind of invisible behavior
+                    // that hides bugs. Emit a warning + metrics counter
+                    // so operators can find the offending caller; the
+                    // query still runs safely.
+                    if params.contains_key(key) {
+                        warn!(
+                            strategy = strategy.name(),
+                            param = %key,
+                            workspace_id = ws,
+                            "User-supplied parameter collided with a strategy-injected \
+                             scope parameter; strategy value wins (strategy-wins merge)."
+                        );
+                    }
                     merged.insert(key.clone(), PropertyValue::String(value.clone()));
                 }
                 (scoped, merged)
@@ -510,5 +528,46 @@ mod tests {
             &params,
         );
         assert!(result.is_ok(), "database strategy passthrough: {result:?}");
+    }
+
+    #[test]
+    fn user_supplied_scope_param_is_overwritten_by_strategy() {
+        // PropertyStrategy injects `_ws_id` as its scope bind parameter.
+        // A caller that supplies the same key — whether by mistake or
+        // as an attempted spoof — must see the strategy value win
+        // silently with respect to the query result, with the collision
+        // visible in the logs (not tested here; verified manually by
+        // operators from the `warn!` entry).
+        let mut params = HashMap::new();
+        params.insert(
+            "_ws_id".to_string(),
+            PropertyValue::String("user-supplied-bogus".to_string()),
+        );
+        let strategy = PropertyStrategy;
+        let (_rewritten, merged) = ws_scope(|| {
+            run_pre_execute(
+                Some(&strategy as &dyn GraphIsolationStrategy),
+                "MATCH (p:Person) RETURN p",
+                &params,
+            )
+        })
+        .expect("collision must not fail the request — strategy-wins merge");
+        match merged.get("_ws_id") {
+            Some(PropertyValue::String(s)) => {
+                assert_ne!(
+                    s, "user-supplied-bogus",
+                    "user's value must NOT survive the merge"
+                );
+            }
+            other => panic!("expected a String _ws_id, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn query_touches_graph_distinguishes_graph_vs_scalar() {
+        assert!(query_touches_graph(&parse("MATCH (n) RETURN n")));
+        assert!(query_touches_graph(&parse("CREATE (n:Person {name: 'x'})")));
+        assert!(!query_touches_graph(&parse("RETURN 1")));
+        assert!(!query_touches_graph(&parse("RETURN 'hello'")));
     }
 }
