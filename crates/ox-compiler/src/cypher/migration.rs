@@ -1,6 +1,7 @@
 use ox_core::ontology_diff::*;
 use ox_core::ontology_ir::OntologyIR;
 
+use super::CypherDialect;
 use super::params::escape_identifier;
 use super::schema::compile_node_constraints;
 
@@ -37,9 +38,16 @@ pub struct MigrationPlan {
 
 /// Compile a migration plan from an OntologyDiff.
 ///
-/// Uses the existing `compile_node_constraints` for constraint generation
-/// and produces DROP/CREATE statements for schema evolution.
-pub fn compile_migration(diff: &OntologyDiff, old: &OntologyIR, new: &OntologyIR) -> MigrationPlan {
+/// Uses `compile_node_constraints` for constraint generation and produces
+/// DROP/CREATE statements for schema evolution. `dialect` selects the
+/// target DDL flavor — Neo4j 5.x vs Memgraph 4.x — so callers targeting
+/// different backends never have to post-process the output.
+pub fn compile_migration(
+    diff: &OntologyDiff,
+    old: &OntologyIR,
+    new: &OntologyIR,
+    dialect: CypherDialect,
+) -> MigrationPlan {
     let mut up = Vec::new();
     let mut down = Vec::new();
     let mut warnings = Vec::new();
@@ -47,7 +55,7 @@ pub fn compile_migration(diff: &OntologyDiff, old: &OntologyIR, new: &OntologyIR
 
     // --- Added nodes: create constraints + indexes ---
     for node in &diff.added_nodes {
-        let constraint_stmts = compile_node_constraints(node);
+        let constraint_stmts = compile_node_constraints(node, dialect);
         up.extend(constraint_stmts.clone());
         // Rollback: drop the constraints
         for stmt in &constraint_stmts {
@@ -78,7 +86,7 @@ pub fn compile_migration(diff: &OntologyDiff, old: &OntologyIR, new: &OntologyIR
             "Node type '{}' will be removed — all existing nodes of this type should be migrated or deleted first",
             node.label
         ));
-        let constraint_stmts = compile_node_constraints(node);
+        let constraint_stmts = compile_node_constraints(node, dialect);
         // Forward: drop the constraints
         for stmt in &constraint_stmts {
             if let Some(drop_stmt) = reverse_index_stmt(stmt) {
@@ -109,12 +117,12 @@ pub fn compile_migration(diff: &OntologyDiff, old: &OntologyIR, new: &OntologyIR
                     ));
                     // Recreate constraints under new label
                     if let Some(node) = new_node {
-                        let stmts = compile_node_constraints(node);
+                        let stmts = compile_node_constraints(node, dialect);
                         up.extend(stmts);
                     }
                     // Drop old label constraints
                     if let Some(node) = old_node {
-                        let stmts = compile_node_constraints(node);
+                        let stmts = compile_node_constraints(node, dialect);
                         for stmt in &stmts {
                             if let Some(drop_stmt) = reverse_index_stmt(stmt) {
                                 up.push(drop_stmt);
@@ -160,7 +168,7 @@ pub fn compile_migration(diff: &OntologyDiff, old: &OntologyIR, new: &OntologyIR
                 NodeChange::ConstraintAdded { constraint } => {
                     // Find the new node to compile its constraints
                     if let Some(node) = new_node {
-                        let stmts = compile_node_constraints(node);
+                        let stmts = compile_node_constraints(node, dialect);
                         up.extend(stmts);
                     } else {
                         warnings.push(format!(
@@ -175,7 +183,7 @@ pub fn compile_migration(diff: &OntologyDiff, old: &OntologyIR, new: &OntologyIR
                         node_diff.label, constraint
                     ));
                     if let Some(node) = old_node {
-                        let stmts = compile_node_constraints(node);
+                        let stmts = compile_node_constraints(node, dialect);
                         for stmt in &stmts {
                             if let Some(drop_stmt) = reverse_index_stmt(stmt) {
                                 up.push(drop_stmt);
@@ -551,7 +559,7 @@ mod tests {
     fn no_changes_produces_empty_plan() {
         let ont = test_ontology();
         let diff = compute_diff(&ont, &ont);
-        let plan = compile_migration(&diff, &ont, &ont);
+        let plan = compile_migration(&diff, &ont, &ont, CypherDialect::Neo4j);
 
         assert!(plan.up.is_empty());
         assert!(plan.down.is_empty());
@@ -581,7 +589,7 @@ mod tests {
         new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
-        let plan = compile_migration(&diff, &old, &new);
+        let plan = compile_migration(&diff, &old, &new, CypherDialect::Neo4j);
 
         // Should have CREATE CONSTRAINT + CREATE INDEX statements
         assert!(!plan.up.is_empty(), "up should have DDL statements");
@@ -605,7 +613,7 @@ mod tests {
         new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
-        let plan = compile_migration(&diff, &old, &new);
+        let plan = compile_migration(&diff, &old, &new, CypherDialect::Neo4j);
 
         assert!(
             plan.breaking_changes.iter().any(|s| s.contains("Company")),
@@ -621,7 +629,7 @@ mod tests {
         new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
-        let plan = compile_migration(&diff, &old, &new);
+        let plan = compile_migration(&diff, &old, &new, CypherDialect::Neo4j);
 
         assert!(
             plan.warnings
@@ -653,7 +661,7 @@ mod tests {
         new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
-        let plan = compile_migration(&diff, &old, &new);
+        let plan = compile_migration(&diff, &old, &new, CypherDialect::Neo4j);
 
         assert!(
             plan.breaking_changes.iter().any(|s| s.contains("email")),
@@ -676,7 +684,7 @@ mod tests {
         new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
-        let plan = compile_migration(&diff, &old, &new);
+        let plan = compile_migration(&diff, &old, &new, CypherDialect::Neo4j);
 
         assert!(
             plan.warnings.iter().any(|w| w.contains("age")),
@@ -692,7 +700,7 @@ mod tests {
         new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
-        let plan = compile_migration(&diff, &old, &new);
+        let plan = compile_migration(&diff, &old, &new, CypherDialect::Neo4j);
 
         assert!(
             plan.breaking_changes
@@ -720,7 +728,7 @@ mod tests {
         new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
-        let plan = compile_migration(&diff, &old, &new);
+        let plan = compile_migration(&diff, &old, &new, CypherDialect::Neo4j);
 
         assert!(
             plan.warnings.iter().any(|w| w.contains("MANAGES")),
@@ -737,7 +745,7 @@ mod tests {
         new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
-        let plan = compile_migration(&diff, &old, &new);
+        let plan = compile_migration(&diff, &old, &new, CypherDialect::Neo4j);
 
         assert!(
             plan.breaking_changes.iter().any(|s| s.contains("WORKS_AT")),
@@ -758,7 +766,7 @@ mod tests {
         new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
-        let plan = compile_migration(&diff, &old, &new);
+        let plan = compile_migration(&diff, &old, &new, CypherDialect::Neo4j);
 
         assert!(
             plan.up.iter().any(|s| s.contains("Company")),
@@ -782,7 +790,7 @@ mod tests {
         new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
-        let plan = compile_migration(&diff, &old, &new);
+        let plan = compile_migration(&diff, &old, &new, CypherDialect::Neo4j);
 
         // Forward creates indexes, rollback drops them
         let create_count = plan
@@ -829,7 +837,7 @@ mod tests {
         new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
-        let plan = compile_migration(&diff, &old, &new);
+        let plan = compile_migration(&diff, &old, &new, CypherDialect::Neo4j);
 
         // Verify no duplicate statements
         let mut sorted = plan.up.clone();
@@ -1133,7 +1141,7 @@ mod tests {
         new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
-        let plan = compile_migration(&diff, &old, &new);
+        let plan = compile_migration(&diff, &old, &new, CypherDialect::Neo4j);
 
         assert!(
             !plan.data_migrations.is_empty(),

@@ -1445,3 +1445,203 @@ fn test_compile_case_expression() {
     // Values should be parameterized
     assert!(!compiled.params.is_empty());
 }
+
+// ---------------------------------------------------------------------------
+// Memgraph dialect — compile-time DDL shape
+//
+// The MemGraphRuntime no longer post-processes schema statements; the
+// compiler emits Memgraph-native DDL directly. These tests lock the
+// shape of that output in so a regression in the compiler shows up
+// here instead of as a silent Memgraph syntax error at runtime.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn memgraph_dialect_emits_4x_unique_constraint() {
+    let compiler = CypherCompiler::memgraph();
+    let ontology = OntologyIR::new(
+        "test".into(),
+        "Test".into(),
+        LocalizedText::default(),
+        1,
+        vec![NodeTypeDef {
+            id: "node-user".into(),
+            label: "User".into(),
+            description: LocalizedText::default(),
+            properties: vec![PropertyDef {
+                id: "prop-email".into(),
+                name: "email".into(),
+                property_type: PropertyType::String,
+                nullable: false,
+                default_value: None,
+                description: LocalizedText::default(),
+                classification: None,
+                ..Default::default()
+            }],
+            constraints: vec![ConstraintDef {
+                id: "cst-email".into(),
+                constraint: NodeConstraint::Unique {
+                    property_ids: vec!["prop-email".into()],
+                },
+            }],
+            ..Default::default()
+        }],
+        vec![],
+        vec![],
+    );
+
+    let stmts = compiler.compile_schema(&ontology).unwrap();
+    // Memgraph 4.x: `CREATE CONSTRAINT ON (n:Label) ASSERT n.prop IS UNIQUE`
+    assert!(
+        stmts.iter().any(|s| s.contains("ASSERT n.`email` IS UNIQUE")
+            && s.contains("CREATE CONSTRAINT ON")),
+        "expected Memgraph 4.x unique constraint, got: {stmts:?}"
+    );
+    // Must NOT contain the Neo4j 5.x `REQUIRE` form — that's what the
+    // old runtime rewriter existed to fix.
+    assert!(
+        stmts.iter().all(|s| !s.contains("REQUIRE")),
+        "Memgraph dialect must not emit Neo4j 5.x REQUIRE syntax: {stmts:?}"
+    );
+}
+
+#[test]
+fn memgraph_dialect_emits_4x_exists_constraint() {
+    let compiler = CypherCompiler::memgraph();
+    let ontology = OntologyIR::new(
+        "test".into(),
+        "Test".into(),
+        LocalizedText::default(),
+        1,
+        vec![NodeTypeDef {
+            id: "node-user".into(),
+            label: "User".into(),
+            description: LocalizedText::default(),
+            properties: vec![PropertyDef {
+                id: "prop-name".into(),
+                name: "name".into(),
+                property_type: PropertyType::String,
+                nullable: false,
+                default_value: None,
+                description: LocalizedText::default(),
+                classification: None,
+                ..Default::default()
+            }],
+            constraints: vec![ConstraintDef {
+                id: "cst-exists".into(),
+                constraint: NodeConstraint::Exists {
+                    property_id: "prop-name".into(),
+                },
+            }],
+            ..Default::default()
+        }],
+        vec![],
+        vec![],
+    );
+
+    let stmts = compiler.compile_schema(&ontology).unwrap();
+    assert!(
+        stmts
+            .iter()
+            .any(|s| s.contains("ASSERT EXISTS (n.`name`)")),
+        "expected Memgraph 4.x EXISTS, got: {stmts:?}"
+    );
+}
+
+#[test]
+fn memgraph_dialect_skips_node_key_constraint() {
+    let compiler = CypherCompiler::memgraph();
+    let ontology = OntologyIR::new(
+        "test".into(),
+        "Test".into(),
+        LocalizedText::default(),
+        1,
+        vec![NodeTypeDef {
+            id: "node-user".into(),
+            label: "User".into(),
+            description: LocalizedText::default(),
+            properties: vec![
+                PropertyDef {
+                    id: "prop-first".into(),
+                    name: "first".into(),
+                    property_type: PropertyType::String,
+                    nullable: false,
+                    default_value: None,
+                    description: LocalizedText::default(),
+                    classification: None,
+                    ..Default::default()
+                },
+                PropertyDef {
+                    id: "prop-last".into(),
+                    name: "last".into(),
+                    property_type: PropertyType::String,
+                    nullable: false,
+                    default_value: None,
+                    description: LocalizedText::default(),
+                    classification: None,
+                    ..Default::default()
+                },
+            ],
+            constraints: vec![ConstraintDef {
+                id: "cst-nk".into(),
+                constraint: NodeConstraint::NodeKey {
+                    property_ids: vec!["prop-first".into(), "prop-last".into()],
+                },
+            }],
+            ..Default::default()
+        }],
+        vec![],
+        vec![],
+    );
+
+    let stmts = compiler.compile_schema(&ontology).unwrap();
+    assert!(
+        stmts.iter().all(|s| !s.contains("NODE KEY")),
+        "Memgraph dialect has no NODE KEY; compiler must skip it: {stmts:?}"
+    );
+}
+
+#[test]
+fn memgraph_dialect_uses_short_index_syntax() {
+    // Auto-generated index for a non-nullable property must use
+    // Memgraph's short form: `CREATE INDEX ON :Label(prop)`.
+    let compiler = CypherCompiler::memgraph();
+    let ontology = OntologyIR::new(
+        "test".into(),
+        "Test".into(),
+        LocalizedText::default(),
+        1,
+        vec![NodeTypeDef {
+            id: "node-user".into(),
+            label: "User".into(),
+            description: LocalizedText::default(),
+            properties: vec![PropertyDef {
+                id: "prop-name".into(),
+                name: "name".into(),
+                property_type: PropertyType::String,
+                nullable: false,
+                default_value: None,
+                description: LocalizedText::default(),
+                classification: None,
+                ..Default::default()
+            }],
+            constraints: vec![],
+            ..Default::default()
+        }],
+        vec![],
+        vec![],
+    );
+
+    let stmts = compiler.compile_schema(&ontology).unwrap();
+    assert!(
+        stmts
+            .iter()
+            .any(|s| s == "CREATE INDEX ON :`User`(`name`)"),
+        "expected Memgraph short index syntax, got: {stmts:?}"
+    );
+    // Neo4j 5.x `CREATE INDEX IF NOT EXISTS FOR (n:...) ON (n.x)`
+    // syntax must not appear.
+    assert!(
+        stmts.iter().all(|s| !s.contains("IF NOT EXISTS FOR")),
+        "Memgraph dialect must not emit Neo4j 5.x index form: {stmts:?}"
+    );
+}

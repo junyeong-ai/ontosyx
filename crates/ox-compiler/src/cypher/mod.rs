@@ -33,16 +33,17 @@ use schema::{compile_auto_indices, compile_index, compile_node_constraints};
 /// - `Neo4j`: Full Cypher with APOC, shortestPath, MERGE ON CREATE/ON MATCH, CREATE INDEX.
 /// - `OpenCypher`: Subset supported by Neptune. No shortestPath, no APOC,
 ///   no CREATE INDEX/CONSTRAINT DDL.
-/// - `Memgraph`: Bolt-compatible subset. Generates Neo4j 5.x DDL (constraints + indexes);
-///   the runtime rewrites statements to Memgraph syntax and filters unsupported types.
+/// - `Memgraph`: Bolt-compatible subset. Generates native Memgraph DDL
+///   directly (constraints in 4.x `ASSERT` form, indexes in `CREATE INDEX
+///   ON :Label(prop)` form). No full-text/vector indexes, no NODE KEY
+///   constraints, no APOC/GDS. The runtime is now a straight pass-through.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CypherDialect {
     /// Full Neo4j Cypher (default). Supports all features.
     #[default]
     Neo4j,
-    /// Memgraph Cypher. DDL is generated in Neo4j 5.x format and rewritten
-    /// by the MemGraphRuntime to Memgraph-compatible syntax at execution time.
-    /// No full-text/vector indexes, no NODE KEY constraints, no APOC/GDS.
+    /// Memgraph Cypher. The compiler emits Memgraph-native DDL in
+    /// `compile_schema` — no runtime string rewriting.
     Memgraph,
 }
 
@@ -83,16 +84,22 @@ impl GraphCompiler for CypherCompiler {
         let mut statements = Vec::new();
 
         for node in ontology.node_types() {
-            statements.extend(compile_node_constraints(node));
+            statements.extend(compile_node_constraints(node, self.dialect));
         }
 
-        // Explicit indices from ontology.indexes (never capped)
+        // Explicit indices from ontology.indexes (never capped). Some
+        // index kinds are unrepresentable in certain dialects (e.g.
+        // FULLTEXT / VECTOR on Memgraph); `compile_index` returns None
+        // for those so the compiler drops them cleanly instead of
+        // handing a bogus statement to the runtime.
         for index in ontology.indexes() {
-            statements.push(compile_index(ontology, index));
+            if let Some(stmt) = compile_index(ontology, index, self.dialect) {
+                statements.push(stmt);
+            }
         }
 
         // Auto-generated range indices (priority-sorted, capped)
-        let (auto_indices, stats) = compile_auto_indices(ontology);
+        let (auto_indices, stats) = compile_auto_indices(ontology, self.dialect);
         statements.extend(auto_indices);
 
         tracing::info!(

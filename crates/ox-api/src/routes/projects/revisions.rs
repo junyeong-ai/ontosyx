@@ -340,8 +340,15 @@ pub(crate) async fn migrate_schema(
         }));
     }
 
-    // Compile migration plan
-    let plan = ox_compiler::cypher::migration::compile_migration(&diff, &old, &current);
+    // Compile migration plan. The migration endpoint was built for Neo4j;
+    // a Memgraph-aware variant needs its own review once the revisions
+    // flow supports per-project backend routing.
+    let plan = ox_compiler::cypher::migration::compile_migration(
+        &diff,
+        &old,
+        &current,
+        ox_compiler::cypher::CypherDialect::Neo4j,
+    );
 
     if req.dry_run || !plan.breaking_changes.is_empty() {
         return Ok(ApiResponse::of(ProjectMigrateResponse {

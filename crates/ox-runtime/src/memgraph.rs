@@ -2,11 +2,14 @@
 // MemGraphRuntime — executes Cypher against Memgraph via Bolt protocol
 //
 // Memgraph is Bolt-compatible with Neo4j, so the neo4rs driver works directly.
-// Key differences from Neo4j:
-//   - Constraints use Neo4j 4.x syntax (ASSERT ... IS UNIQUE)
-//   - No full-text indexes (db.index.fulltext.*)
-//   - No vector indexes
-//   - No GDS library (graph algorithms are built-in: mg.pagerank, etc.)
+// DDL differences from Neo4j (constraints in 4.x `ASSERT` form, no
+// FULLTEXT / VECTOR / NODE KEY, `CREATE INDEX ON :Label(prop)` index
+// syntax) are handled at compile time by `CypherCompiler::memgraph()`;
+// the runtime trusts the compiler's output and executes statements
+// verbatim.
+//
+// Other behavioral differences handled elsewhere:
+//   - No GDS library (graph algorithms via mg.pagerank, etc.)
 //   - No APOC procedures
 //   - No separate databases — sandboxing uses label-prefix isolation
 //   - Memory-first engine: smaller batch sizes recommended (100-500)
@@ -20,7 +23,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use neo4rs::{ConfigBuilder, Graph, query};
-use tracing::{info, warn};
+use tracing::info;
 
 use ox_core::error::{OxError, OxResult};
 use ox_core::query_ir::{QueryMetadata, QueryResult};
@@ -34,200 +37,6 @@ use crate::isolation::GraphIsolationStrategy;
 use crate::{GraphRuntime, LoadBatch, LoadResult, SandboxHandle, TransienceDetector};
 
 const BACKEND_LABEL: &str = "Memgraph";
-
-// ---------------------------------------------------------------------------
-// Schema statement filtering for Memgraph compatibility
-// ---------------------------------------------------------------------------
-
-/// Filter schema DDL statements for Memgraph compatibility.
-///
-/// Memgraph does not support:
-/// - Full-text indexes (`CREATE FULLTEXT INDEX ...`)
-/// - Vector indexes (`CREATE VECTOR INDEX ...`)
-/// - Neo4j 5.x constraint syntax (`FOR (n:Label) REQUIRE ...`)
-///
-/// Memgraph uses the older Neo4j 4.x constraint syntax:
-///   `CREATE CONSTRAINT ON (n:Label) ASSERT n.prop IS UNIQUE`
-///
-/// This function:
-/// 1. Skips unsupported statements entirely (full-text, vector)
-/// 2. Rewrites Neo4j 5.x constraints to 4.x syntax
-/// 3. Passes through range indexes unchanged
-fn filter_schema_for_memgraph(statements: &[String]) -> Vec<String> {
-    let mut result = Vec::with_capacity(statements.len());
-
-    for stmt in statements {
-        let upper = stmt.to_uppercase();
-
-        // Skip full-text indexes — Memgraph has no equivalent
-        if upper.contains("FULLTEXT INDEX") {
-            info!(
-                statement = %truncate_query(stmt, 100),
-                "Skipping full-text index (unsupported by Memgraph)"
-            );
-            continue;
-        }
-
-        // Skip vector indexes — Memgraph has no equivalent
-        if upper.contains("VECTOR INDEX") {
-            info!(
-                statement = %truncate_query(stmt, 100),
-                "Skipping vector index (unsupported by Memgraph)"
-            );
-            continue;
-        }
-
-        // Rewrite Neo4j 5.x UNIQUE constraints to Memgraph syntax
-        // From: CREATE CONSTRAINT IF NOT EXISTS FOR (n:Label) REQUIRE (n.prop) IS UNIQUE
-        // To:   CREATE CONSTRAINT ON (n:Label) ASSERT n.prop IS UNIQUE
-        if upper.contains("IS UNIQUE")
-            && upper.contains("REQUIRE")
-            && let Some(rewritten) = rewrite_unique_constraint(stmt)
-        {
-            result.push(rewritten);
-            continue;
-        }
-
-        // Rewrite Neo4j 5.x EXISTS constraints to Memgraph syntax
-        // From: CREATE CONSTRAINT IF NOT EXISTS FOR (n:Label) REQUIRE n.prop IS NOT NULL
-        // To:   CREATE CONSTRAINT ON (n:Label) ASSERT EXISTS (n.prop)
-        if upper.contains("IS NOT NULL")
-            && upper.contains("REQUIRE")
-            && let Some(rewritten) = rewrite_exists_constraint(stmt)
-        {
-            result.push(rewritten);
-            continue;
-        }
-
-        // Rewrite Neo4j 5.x NODE KEY constraints to Memgraph syntax
-        // From: CREATE CONSTRAINT IF NOT EXISTS FOR (n:Label) REQUIRE (n.a, n.b) IS NODE KEY
-        // Memgraph does not support NODE KEY — skip with warning
-        if upper.contains("IS NODE KEY") {
-            info!(
-                statement = %truncate_query(stmt, 100),
-                "Skipping NODE KEY constraint (unsupported by Memgraph)"
-            );
-            continue;
-        }
-
-        // Rewrite indexes: strip IF NOT EXISTS (Memgraph may not support it)
-        // From: CREATE INDEX IF NOT EXISTS FOR (n:Label) ON (n.prop)
-        // To:   CREATE INDEX ON :Label(prop)
-        if upper.starts_with("CREATE INDEX")
-            && upper.contains("FOR (")
-            && let Some(rewritten) = rewrite_range_index(stmt)
-        {
-            result.push(rewritten);
-            continue;
-        }
-
-        // Pass through unchanged
-        result.push(stmt.clone());
-    }
-
-    result
-}
-
-/// Rewrite a Neo4j 5.x UNIQUE constraint to Memgraph syntax.
-///
-/// Input:  `CREATE CONSTRAINT IF NOT EXISTS FOR (n:Label) REQUIRE (n.prop) IS UNIQUE`
-/// Output: `CREATE CONSTRAINT ON (n:Label) ASSERT n.prop IS UNIQUE`
-fn rewrite_unique_constraint(stmt: &str) -> Option<String> {
-    let upper = stmt.to_uppercase();
-
-    // Extract the (n:Label) pattern
-    let for_pos = upper.find("FOR ")?;
-    let after_for = &stmt[for_pos + 4..];
-    let paren_open = after_for.find('(')?;
-    let paren_close = after_for.find(')')?;
-    let node_pattern = after_for[paren_open..=paren_close].trim();
-
-    // Extract the property expression after REQUIRE
-    let require_pos = upper.find("REQUIRE ")?;
-    let after_require = &stmt[require_pos + 8..];
-    let is_unique_pos = after_require.to_uppercase().find("IS UNIQUE")?;
-    let prop_expr = after_require[..is_unique_pos]
-        .trim()
-        .trim_start_matches('(')
-        .trim_end_matches(')');
-
-    Some(format!(
-        "CREATE CONSTRAINT ON {node_pattern} ASSERT {prop_expr} IS UNIQUE"
-    ))
-}
-
-/// Rewrite a Neo4j 5.x EXISTS constraint to Memgraph syntax.
-///
-/// Input:  `CREATE CONSTRAINT IF NOT EXISTS FOR (n:Label) REQUIRE n.prop IS NOT NULL`
-/// Output: `CREATE CONSTRAINT ON (n:Label) ASSERT EXISTS (n.prop)`
-fn rewrite_exists_constraint(stmt: &str) -> Option<String> {
-    let upper = stmt.to_uppercase();
-
-    let for_pos = upper.find("FOR ")?;
-    let after_for = &stmt[for_pos + 4..];
-    let paren_open = after_for.find('(')?;
-    let paren_close = after_for.find(')')?;
-    let node_pattern = after_for[paren_open..=paren_close].trim();
-
-    let require_pos = upper.find("REQUIRE ")?;
-    let after_require = &stmt[require_pos + 8..];
-    let is_not_null_pos = after_require.to_uppercase().find("IS NOT NULL")?;
-    let prop_expr = after_require[..is_not_null_pos].trim();
-
-    Some(format!(
-        "CREATE CONSTRAINT ON {node_pattern} ASSERT EXISTS ({prop_expr})"
-    ))
-}
-
-/// Rewrite a Neo4j 5.x range index to Memgraph syntax.
-///
-/// Input:  `CREATE INDEX IF NOT EXISTS FOR (n:Label) ON (n.prop)`
-/// Output: `CREATE INDEX ON :Label(prop)`
-fn rewrite_range_index(stmt: &str) -> Option<String> {
-    let upper = stmt.to_uppercase();
-
-    // Extract label from FOR (n:Label)
-    let for_pos = upper.find("FOR (")?;
-    let after_for = &stmt[for_pos + 5..];
-    let paren_close = after_for.find(')')?;
-    let node_def = &after_for[..paren_close]; // e.g., "n:Label" or "n:`My Label`"
-    let colon_pos = node_def.find(':')?;
-    let label = node_def[colon_pos + 1..].trim();
-
-    // Extract property from ON (n.prop) or ON (n.prop, n.prop2)
-    let on_pos = upper.find(" ON (")?;
-    let after_on = &stmt[on_pos + 5..];
-    let on_close = after_on.find(')')?;
-    let props_str = &after_on[..on_close];
-
-    // For single property: extract just the property name
-    let props: Vec<&str> = props_str
-        .split(',')
-        .map(|p| {
-            let p = p.trim();
-            // n.prop -> prop (strip variable prefix)
-            if let Some(dot_pos) = p.find('.') {
-                p[dot_pos + 1..].trim()
-            } else {
-                p
-            }
-        })
-        .collect();
-
-    if props.len() == 1 {
-        Some(format!("CREATE INDEX ON :{label}({});", props[0]))
-    } else {
-        // Memgraph supports composite label-property indexes via multiple CREATE INDEX
-        // statements. Emit one per property.
-        // However, for simplicity, just create a single statement for the first property
-        // and log a warning.
-        warn!(
-            "Memgraph does not support composite indexes natively; \
-             creating single-property index for first property only"
-        );
-        Some(format!("CREATE INDEX ON :{label}({});", props[0]))
-    }
-}
 
 // ---------------------------------------------------------------------------
 // Memgraph transient error detector
@@ -323,21 +132,12 @@ impl GraphRuntime for MemGraphRuntime {
     }
 
     async fn execute_schema(&self, statements: &[String]) -> OxResult<()> {
-        // Filter and rewrite statements for Memgraph compatibility
-        let filtered = filter_schema_for_memgraph(statements);
-
-        if filtered.len() < statements.len() {
-            info!(
-                original = statements.len(),
-                filtered = filtered.len(),
-                skipped = statements.len() - filtered.len(),
-                "Filtered unsupported schema statements for Memgraph"
-            );
-        }
-
         // Memgraph does not support multi-statement transactions for DDL.
-        // Execute each statement individually.
-        for stmt in &filtered {
+        // Execute each statement individually. The compiler has already
+        // emitted Memgraph-native syntax when called via
+        // `CypherCompiler::memgraph()`, so nothing here needs to rewrite
+        // the input.
+        for stmt in statements {
             info!(statement = %stmt, "Executing schema statement (Memgraph)");
             self.graph
                 .run(query(stmt))
@@ -771,82 +571,6 @@ impl GraphRuntime for MemGraphRuntime {
 mod tests {
     use super::*;
 
-    // --- Schema filtering tests ---
-
-    #[test]
-    fn filter_skips_fulltext_indexes() {
-        let stmts = vec![
-            "CREATE FULLTEXT INDEX ft_name IF NOT EXISTS FOR (n:Person) ON EACH [n.name]"
-                .to_string(),
-            "CREATE INDEX IF NOT EXISTS FOR (n:Person) ON (n.age)".to_string(),
-        ];
-        let filtered = filter_schema_for_memgraph(&stmts);
-        assert_eq!(filtered.len(), 1);
-        assert!(!filtered[0].contains("FULLTEXT"));
-    }
-
-    #[test]
-    fn filter_skips_vector_indexes() {
-        let stmts = vec![
-            "CREATE VECTOR INDEX IF NOT EXISTS FOR (n:Doc) ON (n.embedding) OPTIONS {indexConfig: {`vector.dimensions`: 1536, `vector.similarity_function`: 'cosine'}}".to_string(),
-        ];
-        let filtered = filter_schema_for_memgraph(&stmts);
-        assert!(filtered.is_empty());
-    }
-
-    #[test]
-    fn filter_rewrites_unique_constraint() {
-        let stmts = vec![
-            "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Person) REQUIRE (n.email) IS UNIQUE"
-                .to_string(),
-        ];
-        let filtered = filter_schema_for_memgraph(&stmts);
-        assert_eq!(filtered.len(), 1);
-        assert_eq!(
-            filtered[0],
-            "CREATE CONSTRAINT ON (n:Person) ASSERT n.email IS UNIQUE"
-        );
-    }
-
-    #[test]
-    fn filter_rewrites_exists_constraint() {
-        let stmts = vec![
-            "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Person) REQUIRE n.name IS NOT NULL".to_string(),
-        ];
-        let filtered = filter_schema_for_memgraph(&stmts);
-        assert_eq!(filtered.len(), 1);
-        assert_eq!(
-            filtered[0],
-            "CREATE CONSTRAINT ON (n:Person) ASSERT EXISTS (n.name)"
-        );
-    }
-
-    #[test]
-    fn filter_skips_node_key_constraint() {
-        let stmts = vec![
-            "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Person) REQUIRE (n.first, n.last) IS NODE KEY"
-                .to_string(),
-        ];
-        let filtered = filter_schema_for_memgraph(&stmts);
-        assert!(filtered.is_empty());
-    }
-
-    #[test]
-    fn filter_rewrites_range_index() {
-        let stmts = vec!["CREATE INDEX IF NOT EXISTS FOR (n:Person) ON (n.age)".to_string()];
-        let filtered = filter_schema_for_memgraph(&stmts);
-        assert_eq!(filtered.len(), 1);
-        assert_eq!(filtered[0], "CREATE INDEX ON :Person(age);");
-    }
-
-    #[test]
-    fn filter_passthrough_plain_statements() {
-        let stmts = vec!["MATCH (n) DETACH DELETE n".to_string()];
-        let filtered = filter_schema_for_memgraph(&stmts);
-        assert_eq!(filtered.len(), 1);
-        assert_eq!(filtered[0], "MATCH (n) DETACH DELETE n");
-    }
-
     // --- Transience detector tests ---
 
     #[test]
@@ -867,34 +591,5 @@ mod tests {
         assert!(!detector.is_transient("Node not found"));
         assert!(!detector.is_transient("Permission denied"));
         assert!(!detector.is_transient(""));
-    }
-
-    // --- Constraint rewriting tests ---
-
-    #[test]
-    fn rewrite_unique_simple() {
-        let stmt = "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Person) REQUIRE (n.email) IS UNIQUE";
-        let result = rewrite_unique_constraint(stmt).unwrap();
-        assert_eq!(
-            result,
-            "CREATE CONSTRAINT ON (n:Person) ASSERT n.email IS UNIQUE"
-        );
-    }
-
-    #[test]
-    fn rewrite_exists_simple() {
-        let stmt = "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Person) REQUIRE n.name IS NOT NULL";
-        let result = rewrite_exists_constraint(stmt).unwrap();
-        assert_eq!(
-            result,
-            "CREATE CONSTRAINT ON (n:Person) ASSERT EXISTS (n.name)"
-        );
-    }
-
-    #[test]
-    fn rewrite_range_index_simple() {
-        let stmt = "CREATE INDEX IF NOT EXISTS FOR (n:Person) ON (n.age)";
-        let result = rewrite_range_index(stmt).unwrap();
-        assert_eq!(result, "CREATE INDEX ON :Person(age);");
     }
 }

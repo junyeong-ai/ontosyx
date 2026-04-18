@@ -3,6 +3,7 @@ use std::sync::OnceLock;
 use ox_core::ontology_ir::{IndexDef, NodeConstraint, NodeTypeDef, OntologyIR, PropertyDef};
 use ox_core::types::PropertyType;
 
+use super::CypherDialect;
 use super::params::escape_identifier;
 
 /// Default maximum number of auto-generated range indices when
@@ -80,52 +81,101 @@ pub struct IndexStats {
     pub truncated: usize,
 }
 
-pub(crate) fn compile_node_constraints(node: &NodeTypeDef) -> Vec<String> {
+pub(crate) fn compile_node_constraints(
+    node: &NodeTypeDef,
+    dialect: CypherDialect,
+) -> Vec<String> {
     let mut stmts = Vec::new();
     let label = &node.label;
+    let escaped_label = escape_identifier(label);
 
     for constraint_def in &node.constraints {
         match &constraint_def.constraint {
             NodeConstraint::Unique { property_ids } => {
-                let props = property_ids
+                let prop_paths: Vec<String> = property_ids
                     .iter()
                     .filter_map(|pid| node.properties.iter().find(|p| p.id == *pid))
                     .map(|p| format!("n.{}", escape_identifier(&p.name)))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                let escaped_label = escape_identifier(label);
-                stmts.push(format!(
-                    "CREATE CONSTRAINT IF NOT EXISTS FOR (n:{escaped_label}) REQUIRE ({props}) IS UNIQUE"
-                ));
-            }
-            NodeConstraint::Exists { property_id } => {
-                if let Some(prop) = node.properties.iter().find(|p| p.id == *property_id) {
-                    let escaped_label = escape_identifier(label);
-                    stmts.push(format!(
-                        "CREATE CONSTRAINT IF NOT EXISTS FOR (n:{escaped_label}) REQUIRE n.{} IS NOT NULL",
-                        escape_identifier(&prop.name)
-                    ));
+                    .collect();
+                if prop_paths.is_empty() {
+                    continue;
+                }
+                match dialect {
+                    CypherDialect::Neo4j => {
+                        let props = prop_paths.join(", ");
+                        stmts.push(format!(
+                            "CREATE CONSTRAINT IF NOT EXISTS FOR (n:{escaped_label}) REQUIRE ({props}) IS UNIQUE"
+                        ));
+                    }
+                    CypherDialect::Memgraph => {
+                        // Memgraph 4.x syntax: one ASSERT per statement.
+                        // The dialect has no composite-unique; emit one
+                        // UNIQUE constraint per property. Same total guarantee
+                        // as Neo4j's composite form when the caller intent is
+                        // "each value in isolation is unique".
+                        for path in &prop_paths {
+                            stmts.push(format!(
+                                "CREATE CONSTRAINT ON (n:{escaped_label}) ASSERT {path} IS UNIQUE"
+                            ));
+                        }
+                    }
                 }
             }
-            NodeConstraint::NodeKey { property_ids } => {
-                let props = property_ids
-                    .iter()
-                    .filter_map(|pid| node.properties.iter().find(|p| p.id == *pid))
-                    .map(|p| format!("n.{}", escape_identifier(&p.name)))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                let escaped_label = escape_identifier(label);
-                stmts.push(format!(
-                    "CREATE CONSTRAINT IF NOT EXISTS FOR (n:{escaped_label}) REQUIRE ({props}) IS NODE KEY"
-                ));
+            NodeConstraint::Exists { property_id } => {
+                let Some(prop) = node.properties.iter().find(|p| p.id == *property_id) else {
+                    continue;
+                };
+                let prop_path = format!("n.{}", escape_identifier(&prop.name));
+                match dialect {
+                    CypherDialect::Neo4j => {
+                        stmts.push(format!(
+                            "CREATE CONSTRAINT IF NOT EXISTS FOR (n:{escaped_label}) REQUIRE {prop_path} IS NOT NULL"
+                        ));
+                    }
+                    CypherDialect::Memgraph => {
+                        stmts.push(format!(
+                            "CREATE CONSTRAINT ON (n:{escaped_label}) ASSERT EXISTS ({prop_path})"
+                        ));
+                    }
+                }
             }
+            NodeConstraint::NodeKey { property_ids } => match dialect {
+                CypherDialect::Neo4j => {
+                    let props = property_ids
+                        .iter()
+                        .filter_map(|pid| node.properties.iter().find(|p| p.id == *pid))
+                        .map(|p| format!("n.{}", escape_identifier(&p.name)))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    stmts.push(format!(
+                        "CREATE CONSTRAINT IF NOT EXISTS FOR (n:{escaped_label}) REQUIRE ({props}) IS NODE KEY"
+                    ));
+                }
+                CypherDialect::Memgraph => {
+                    // Memgraph has no equivalent to Neo4j's NODE KEY
+                    // (composite uniqueness + non-null). Skipping is the
+                    // safe no-op; logging surfaces the loss of guarantee
+                    // for operators to decide whether to back-fill the
+                    // missing invariant with explicit UNIQUE + EXISTS
+                    // constraints on the same columns.
+                    tracing::info!(
+                        label = %label,
+                        property_count = property_ids.len(),
+                        "Memgraph dialect: NODE KEY constraint skipped (unsupported)",
+                    );
+                }
+            },
         }
     }
 
     stmts
 }
 
-pub(super) fn compile_index(ontology: &OntologyIR, index: &IndexDef) -> String {
+pub(super) fn compile_index(
+    ontology: &OntologyIR,
+    index: &IndexDef,
+    dialect: CypherDialect,
+) -> Option<String> {
     match index {
         IndexDef::Single {
             id: _,
@@ -140,7 +190,14 @@ pub(super) fn compile_index(ontology: &OntologyIR, index: &IndexDef) -> String {
                     .map(|p| p.name.as_str())
                     .unwrap_or("UNKNOWN"),
             );
-            format!("CREATE INDEX IF NOT EXISTS FOR (n:{label}) ON (n.{prop_name})")
+            Some(match dialect {
+                CypherDialect::Neo4j => {
+                    format!("CREATE INDEX IF NOT EXISTS FOR (n:{label}) ON (n.{prop_name})")
+                }
+                CypherDialect::Memgraph => {
+                    format!("CREATE INDEX ON :{label}({prop_name})")
+                }
+            })
         }
         IndexDef::Composite {
             id: _,
@@ -149,16 +206,42 @@ pub(super) fn compile_index(ontology: &OntologyIR, index: &IndexDef) -> String {
         } => {
             let label = escape_identifier(ontology.node_label(node_id).unwrap_or("UNKNOWN"));
             let node = ontology.node_by_id(node_id);
-            let props = property_ids
+            let prop_names: Vec<String> = property_ids
                 .iter()
                 .map(|pid| {
                     node.and_then(|n| n.properties.iter().find(|p| p.id == *pid))
-                        .map(|p| format!("n.{}", escape_identifier(&p.name)))
-                        .unwrap_or_else(|| format!("n.{}", escape_identifier("UNKNOWN")))
+                        .map(|p| escape_identifier(&p.name))
+                        .unwrap_or_else(|| escape_identifier("UNKNOWN"))
                 })
-                .collect::<Vec<_>>()
-                .join(", ");
-            format!("CREATE INDEX IF NOT EXISTS FOR (n:{label}) ON ({props})")
+                .collect();
+            if prop_names.is_empty() {
+                return None;
+            }
+            Some(match dialect {
+                CypherDialect::Neo4j => {
+                    let props = prop_names
+                        .iter()
+                        .map(|n| format!("n.{n}"))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    format!("CREATE INDEX IF NOT EXISTS FOR (n:{label}) ON ({props})")
+                }
+                CypherDialect::Memgraph => {
+                    // Memgraph does not support composite label-property
+                    // indexes natively; only the first property is indexed.
+                    // Log so operators can split into single-prop indexes
+                    // explicitly if the remaining columns are load-bearing
+                    // for their query pattern.
+                    tracing::warn!(
+                        label = %label,
+                        prop_count = prop_names.len(),
+                        first_prop = %prop_names[0],
+                        "Memgraph dialect: composite index compiled as single-prop \
+                         (first property only); remaining properties will not be indexed"
+                    );
+                    format!("CREATE INDEX ON :{label}({})", prop_names[0])
+                }
+            })
         }
         IndexDef::FullText {
             id: _,
@@ -166,6 +249,13 @@ pub(super) fn compile_index(ontology: &OntologyIR, index: &IndexDef) -> String {
             node_id,
             property_ids,
         } => {
+            if dialect == CypherDialect::Memgraph {
+                tracing::info!(
+                    name = %name,
+                    "Memgraph dialect: FULLTEXT index skipped (unsupported)",
+                );
+                return None;
+            }
             let label = escape_identifier(ontology.node_label(node_id).unwrap_or("UNKNOWN"));
             let escaped_name = escape_identifier(name);
             let node = ontology.node_by_id(node_id);
@@ -178,9 +268,9 @@ pub(super) fn compile_index(ontology: &OntologyIR, index: &IndexDef) -> String {
                 })
                 .collect::<Vec<_>>()
                 .join(", ");
-            format!(
+            Some(format!(
                 "CREATE FULLTEXT INDEX {escaped_name} IF NOT EXISTS FOR (n:{label}) ON EACH [{props}]"
-            )
+            ))
         }
         IndexDef::Vector {
             id: _,
@@ -189,6 +279,12 @@ pub(super) fn compile_index(ontology: &OntologyIR, index: &IndexDef) -> String {
             dimensions,
             similarity,
         } => {
+            if dialect == CypherDialect::Memgraph {
+                tracing::info!(
+                    "Memgraph dialect: VECTOR index skipped (unsupported)",
+                );
+                return None;
+            }
             let label = escape_identifier(ontology.node_label(node_id).unwrap_or("UNKNOWN"));
             let prop_name = escape_identifier(
                 ontology
@@ -201,10 +297,10 @@ pub(super) fn compile_index(ontology: &OntologyIR, index: &IndexDef) -> String {
                 ox_core::ontology_ir::VectorSimilarity::Cosine => "cosine",
                 ox_core::ontology_ir::VectorSimilarity::Euclidean => "euclidean",
             };
-            format!(
+            Some(format!(
                 "CREATE VECTOR INDEX IF NOT EXISTS FOR (n:{label}) ON (n.{prop_name}) \
                  OPTIONS {{indexConfig: {{`vector.dimensions`: {dimensions}, `vector.similarity_function`: '{sim}'}}}}"
-            )
+            ))
         }
     }
 }
@@ -254,14 +350,17 @@ struct AutoIndexCandidate {
 ///
 /// Reads the active [`AutoIndexConfig`] (set via [`init_auto_index_config`])
 /// or falls back to defaults.
-pub(super) fn compile_auto_indices(ontology: &OntologyIR) -> (Vec<String>, IndexStats) {
+pub(super) fn compile_auto_indices(
+    ontology: &OntologyIR,
+    dialect: CypherDialect,
+) -> (Vec<String>, IndexStats) {
     let config = auto_index_config();
     let names: Vec<&str> = config
         .high_priority_names
         .iter()
         .map(String::as_str)
         .collect();
-    compile_auto_indices_with(ontology, config.max_indices, &names)
+    compile_auto_indices_with(ontology, config.max_indices, &names, dialect)
 }
 
 /// Configurable version: allows runtime override of max indices and priority names.
@@ -269,6 +368,7 @@ pub(super) fn compile_auto_indices_with(
     ontology: &OntologyIR,
     max_auto_indices: usize,
     high_priority_names: &[&str],
+    dialect: CypherDialect,
 ) -> (Vec<String>, IndexStats) {
     let mut candidates: Vec<AutoIndexCandidate> = Vec::new();
 
@@ -284,12 +384,18 @@ pub(super) fn compile_auto_indices_with(
             if covered {
                 continue;
             }
-            candidates.push(AutoIndexCandidate {
-                statement: format!(
-                    "CREATE INDEX IF NOT EXISTS FOR (n:{}) ON (n.{})",
-                    escape_identifier(&node.label),
-                    escape_identifier(&prop.name),
+            let escaped_label = escape_identifier(&node.label);
+            let escaped_prop = escape_identifier(&prop.name);
+            let statement = match dialect {
+                CypherDialect::Neo4j => format!(
+                    "CREATE INDEX IF NOT EXISTS FOR (n:{escaped_label}) ON (n.{escaped_prop})"
                 ),
+                CypherDialect::Memgraph => {
+                    format!("CREATE INDEX ON :{escaped_label}({escaped_prop})")
+                }
+            };
+            candidates.push(AutoIndexCandidate {
+                statement,
                 priority: auto_index_priority(prop, high_priority_names),
             });
         }
