@@ -89,7 +89,7 @@ pub(crate) async fn plan_load(
     Ok(ApiResponse::of(LoadPlanResponse {
         plan,
         compiled_statements,
-        target: state.compiler.target_name().to_string(),
+        target: state.compiler.name().to_string(),
     }))
 }
 
@@ -246,7 +246,7 @@ pub(crate) async fn execute_load(
     Ok(ApiResponse::of(LoadExecuteResponse {
         plan,
         compiled_statements,
-        target: state.compiler.target_name().to_string(),
+        target: state.compiler.name().to_string(),
         result: combined_result,
     }))
 }

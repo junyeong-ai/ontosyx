@@ -255,7 +255,7 @@ impl MemoryStore {
         self.embedder.provider_name()
     }
 
-    pub fn store_name(&self) -> &str {
-        self.vectors.store_name()
+    pub fn name(&self) -> &str {
+        self.vectors.name()
     }
 }

@@ -72,7 +72,7 @@ impl CypherCompiler {
 }
 
 impl GraphCompiler for CypherCompiler {
-    fn target_name(&self) -> &str {
+    fn name(&self) -> &str {
         match self.dialect {
             CypherDialect::Neo4j => "Cypher (Neo4j)",
             CypherDialect::Memgraph => "Cypher (Memgraph)",

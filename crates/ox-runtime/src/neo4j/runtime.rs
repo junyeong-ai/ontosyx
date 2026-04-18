@@ -107,7 +107,7 @@ impl Neo4jRuntime {
 
 #[async_trait]
 impl GraphRuntime for Neo4jRuntime {
-    fn runtime_name(&self) -> &str {
+    fn name(&self) -> &str {
         BACKEND_LABEL
     }
 

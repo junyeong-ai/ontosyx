@@ -51,5 +51,5 @@ pub trait GraphCompiler: Send + Sync {
     fn compile_load(&self, plan: &LoadPlan) -> OxResult<Vec<String>>;
 
     /// Return the name of this compilation target (for error messages)
-    fn target_name(&self) -> &str;
+    fn name(&self) -> &str;
 }

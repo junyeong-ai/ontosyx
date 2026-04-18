@@ -227,7 +227,7 @@ impl SchemaTool for QueryGraphTool {
         info!(
             execution_id = %execution_id,
             question = %input.question,
-            target = self.domain.compiler.target_name(),
+            target = self.domain.compiler.name(),
             rows = results.metadata.rows_returned,
             execution_time_ms,
             "Graph query executed"
@@ -251,7 +251,7 @@ impl SchemaTool for QueryGraphTool {
                 serde_json::to_value(&*ontology).ok()
             },
             query_ir: serde_json::to_value(&query_ir).unwrap_or_default(),
-            compiled_target: self.domain.compiler.target_name().to_string(),
+            compiled_target: self.domain.compiler.name().to_string(),
             compiled_query: compiled.statement.clone(),
             results: serde_json::to_value(&results).unwrap_or_default(),
             widget: None,
@@ -334,7 +334,7 @@ impl SchemaTool for QueryGraphTool {
         let output = QueryGraphOutput {
             execution_id: execution_id.to_string(),
             compiled_query: compiled.statement,
-            compiled_target: self.domain.compiler.target_name().to_string(),
+            compiled_target: self.domain.compiler.name().to_string(),
             columns: results.columns.clone(),
             row_count: results.metadata.rows_returned as usize,
             rows: serde_json::to_value(&results.rows).unwrap_or_default(),

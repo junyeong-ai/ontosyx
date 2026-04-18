@@ -174,7 +174,7 @@ pub trait GraphRuntime: Send + Sync {
     async fn drop_sandbox(&self, handle: &SandboxHandle) -> OxResult<()>;
 
     /// Return the runtime name (for error messages and logging)
-    fn runtime_name(&self) -> &str;
+    fn name(&self) -> &str;
 
     /// Check if the runtime is reachable (with timeout)
     async fn health_check(&self) -> bool;
@@ -190,7 +190,7 @@ pub trait GraphRuntime: Send + Sync {
         _labels: Option<&[String]>,
     ) -> OxResult<Vec<SearchResultNode>> {
         Err(OxError::UnsupportedOperation {
-            target: self.runtime_name().to_string(),
+            target: self.name().to_string(),
             operation: "search_nodes".to_string(),
         })
     }
@@ -198,7 +198,7 @@ pub trait GraphRuntime: Send + Sync {
     /// Expand a node's 1-hop neighborhood.
     async fn expand_node(&self, _element_id: &str, _limit: usize) -> OxResult<NodeExpansion> {
         Err(OxError::UnsupportedOperation {
-            target: self.runtime_name().to_string(),
+            target: self.name().to_string(),
             operation: "expand_node".to_string(),
         })
     }
@@ -206,7 +206,7 @@ pub trait GraphRuntime: Send + Sync {
     /// Get graph schema overview (label counts + relationship patterns).
     async fn graph_overview(&self) -> OxResult<GraphSchemaOverview> {
         Err(OxError::UnsupportedOperation {
-            target: self.runtime_name().to_string(),
+            target: self.name().to_string(),
             operation: "graph_overview".to_string(),
         })
     }

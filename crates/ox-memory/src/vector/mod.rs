@@ -93,5 +93,5 @@ pub trait VectorStore: Send + Sync {
     }
 
     /// Store name for logging and diagnostics.
-    fn store_name(&self) -> &str;
+    fn name(&self) -> &str;
 }

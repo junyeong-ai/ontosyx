@@ -319,7 +319,7 @@ impl MemGraphRuntime {
 
 #[async_trait]
 impl GraphRuntime for MemGraphRuntime {
-    fn runtime_name(&self) -> &str {
+    fn name(&self) -> &str {
         "Memgraph"
     }
 

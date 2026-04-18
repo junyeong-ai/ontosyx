@@ -45,7 +45,7 @@ pub(crate) async fn health_check(State(state): State<AppState>) -> Json<ApiRespo
     let graph_runtime_name = state
         .runtime
         .as_ref()
-        .map(|r| r.runtime_name().to_string())
+        .map(|r| r.name().to_string())
         .unwrap_or_else(|| "none".to_string());
 
     // PostgreSQL is critical — without it the service cannot function.

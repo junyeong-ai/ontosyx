@@ -206,7 +206,7 @@ pub(crate) async fn raw_query(
         principal.require_designer()?;
     }
 
-    let target = state.compiler.target_name().to_string();
+    let target = state.compiler.name().to_string();
     info!(user_id = %principal.id, target = %target, "Raw query submitted");
 
     let runtime = state.runtime.as_ref().ok_or_else(AppError::no_runtime)?;
@@ -449,7 +449,7 @@ pub(crate) async fn execute_from_ir(
     ws: WorkspaceContext,
     Json(req): Json<ExecuteFromIrRequest>,
 ) -> Result<Json<ApiResponse<ExecuteFromIrResponse>>, AppError> {
-    let target = state.compiler.target_name().to_string();
+    let target = state.compiler.name().to_string();
     info!(user_id = %principal.id, target = %target, "QueryIR execution submitted");
 
     // Step 1: Compile QueryIR → target language

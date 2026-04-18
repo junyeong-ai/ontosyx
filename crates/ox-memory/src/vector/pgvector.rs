@@ -353,7 +353,7 @@ impl VectorStore for PgVectorStore {
         Ok(result.rows_affected())
     }
 
-    fn store_name(&self) -> &str {
+    fn name(&self) -> &str {
         "pgvector"
     }
 }
