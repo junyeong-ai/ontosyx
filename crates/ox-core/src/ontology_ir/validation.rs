@@ -1,3 +1,4 @@
+use crate::graph_label::GraphLabel;
 use crate::types::is_valid_graph_identifier;
 
 use super::{
@@ -191,7 +192,13 @@ impl OntologyIR {
                 continue;
             }
 
-            if !is_valid_graph_identifier(label) {
+            // Delegate to `GraphLabel::is_valid` so the validation rule
+            // lives on the newtype that will eventually own the field
+            // (see TODO on `NodeTypeDef.label`). The rule is unchanged;
+            // the indirection means a future tightening of
+            // `GraphLabel` automatically propagates here without a
+            // second edit site.
+            if !GraphLabel::is_valid(label) {
                 errors.push(format!(
                     "Invalid node label '{label}': must contain only alphanumeric characters, underscores, or spaces"
                 ));
@@ -252,9 +259,14 @@ impl OntologyIR {
             }
 
             let label = edge.label.trim();
+            // Same delegation as node labels above — `GraphLabel::
+            // is_valid` already rejects the empty string, but we keep
+            // the explicit branch so the diagnostic distinguishes
+            // "missing label" from "malformed label" for an operator
+            // reading the error.
             if label.is_empty() {
                 errors.push("Edge type label must not be empty".to_string());
-            } else if !is_valid_graph_identifier(label) {
+            } else if !GraphLabel::is_valid(label) {
                 errors.push(format!(
                     "Invalid edge label '{label}': must contain only alphanumeric characters, underscores, or spaces"
                 ));

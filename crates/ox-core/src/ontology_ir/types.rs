@@ -145,6 +145,15 @@ pub struct NodeTypeDef {
     pub id: NodeTypeId,
     /// Canonical, language-neutral label used as the Neo4j node label and in
     /// query identifiers. Must satisfy [`crate::types::is_valid_graph_identifier`].
+    ///
+    /// TODO(phase-3-1b): migrate to [`crate::graph_label::GraphLabel`] —
+    /// that newtype already encodes the validation invariant; the
+    /// migration is deferred because roughly 350 struct-literal call
+    /// sites across the workspace need to switch from `.to_string()` /
+    /// `"foo".to_string()` to a fallible constructor path. The
+    /// `GraphLabel` type exists and is serde-transparent, so the
+    /// migration is additive (no wire-format change) — it just takes
+    /// its own sweep.
     pub label: String,
     /// Localized display name shown in the UI. Defaults to empty; consumers
     /// typically fall back to `label` when the display name is empty.
