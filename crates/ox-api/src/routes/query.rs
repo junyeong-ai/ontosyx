@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{error, info};
 use uuid::Uuid;
 
+use ox_core::ontology_ir::OntologyIR;
 use ox_core::pattern_ir::PatternIR;
 use ox_core::query_ir::{QueryIR, QueryResult};
 use ox_core::types::PropertyValue;
@@ -20,6 +21,48 @@ use crate::principal::Principal;
 use crate::response::ApiResponse;
 use crate::state::AppState;
 use crate::workspace::WorkspaceContext;
+
+// ---------------------------------------------------------------------------
+// Shared helpers — ontology injection for raw / IR paths
+//
+// `GRAPH_ONTOLOGY` drives the runtime's OntologyValidator. The agent path
+// sets it from `DomainContext.ontology` automatically; raw HTTP paths
+// opt in with a `saved_ontology_id` so a power user who submits raw
+// Cypher against a known ontology gets label-conformance checking for
+// free. When no id is supplied, validation falls back to safety +
+// workspace-scope only.
+// ---------------------------------------------------------------------------
+
+async fn load_ontology_for_raw(
+    state: &AppState,
+    saved_ontology_id: Option<Uuid>,
+) -> Result<Option<Arc<OntologyIR>>, AppError> {
+    let Some(id) = saved_ontology_id else {
+        return Ok(None);
+    };
+    let saved = state
+        .store
+        .get_saved_ontology(id)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::not_found("Saved ontology"))?;
+    let ontology: OntologyIR = serde_json::from_value(saved.ontology_ir)
+        .map_err(|e| AppError::unprocessable(format!("Stored ontology is malformed: {e}")))?;
+    Ok(Some(Arc::new(ontology)))
+}
+
+/// Run `fut` with `GRAPH_ONTOLOGY` bound to `ontology`, or unchanged if
+/// none was supplied. Keeps call-sites free of `Option<Arc<_>>`-aware
+/// branching.
+async fn scope_with_ontology<F>(ontology: Option<Arc<OntologyIR>>, fut: F) -> F::Output
+where
+    F: std::future::Future,
+{
+    match ontology {
+        Some(o) => ox_runtime::GRAPH_ONTOLOGY.scope(o, fut).await,
+        None => fut.await,
+    }
+}
 
 // ---------------------------------------------------------------------------
 // POST /api/search — full-text search across Neo4j graph nodes
@@ -109,6 +152,13 @@ pub(crate) async fn search_graph(
 pub struct QueryRawRequest {
     /// Raw query statement in the target language (e.g., Cypher).
     pub query: String,
+    /// Optional saved-ontology id. When present, the runtime's
+    /// OntologyValidator gates the query against this ontology (rejects
+    /// unknown labels / relationship types / property keys). When
+    /// omitted, the raw path stays ontology-free and only the safety
+    /// + workspace-scope gates apply.
+    #[serde(default)]
+    pub saved_ontology_id: Option<Uuid>,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
@@ -161,23 +211,33 @@ pub(crate) async fn raw_query(
 
     let runtime = state.runtime.as_ref().ok_or_else(AppError::no_runtime)?;
 
+    // If the caller supplied an ontology id, load it so the runtime's
+    // OntologyValidator can reject unknown labels before they hit the
+    // driver. Raw path is opt-in: no id → ontology gate is skipped
+    // (safety + workspace-scope still apply).
+    let ontology = load_ontology_for_raw(&state, req.saved_ontology_id).await?;
+
     let timeout = state.timeouts.raw_query;
     let empty_params: HashMap<String, PropertyValue> = HashMap::new();
     let start = std::time::Instant::now();
-    let results = tokio::time::timeout(timeout, runtime.execute_query(&req.query, &empty_params))
-        .await
-        .map_err(|_| {
-            crate::metrics::record_query("timeout", start.elapsed());
-            AppError::timeout(format!(
-                "Query execution timed out after {}s",
-                timeout.as_secs()
-            ))
-        })?
-        .map_err(|e| {
-            crate::metrics::record_query("error", start.elapsed());
-            error!("Raw query execution failed: {e}");
-            AppError::unprocessable(format!("Query execution failed: {e}"))
-        })?;
+    let exec_fut = runtime.execute_query(&req.query, &empty_params);
+    let results = tokio::time::timeout(
+        timeout,
+        scope_with_ontology(ontology.clone(), exec_fut),
+    )
+    .await
+    .map_err(|_| {
+        crate::metrics::record_query("timeout", start.elapsed());
+        AppError::timeout(format!(
+            "Query execution timed out after {}s",
+            timeout.as_secs()
+        ))
+    })?
+    .map_err(|e| {
+        crate::metrics::record_query("error", start.elapsed());
+        error!("Raw query execution failed: {e}");
+        AppError::unprocessable(format!("Query execution failed: {e}"))
+    })?;
     crate::metrics::record_query("ok", start.elapsed());
 
     // Apply ACL enforcement
@@ -346,9 +406,12 @@ pub struct ExecuteFromIrRequest {
     /// The QueryIR to compile and execute.
     #[schema(value_type = Object)]
     pub query_ir: QueryIR,
-    /// Optional ontology ID for context (used during deserialization).
-    #[allow(dead_code)]
-    pub ontology_id: Option<String>,
+    /// Optional saved-ontology id. When present, the OntologyValidator
+    /// gates the compiled Cypher against this ontology so a canvas built
+    /// on a stale schema gets rejected with a precise "unknown label"
+    /// error instead of a generic driver failure.
+    #[serde(default)]
+    pub saved_ontology_id: Option<Uuid>,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
@@ -398,11 +461,14 @@ pub(crate) async fn execute_from_ir(
     // Step 2: Execute the compiled query
     let runtime = state.runtime.as_ref().ok_or_else(AppError::no_runtime)?;
 
+    let ontology = load_ontology_for_raw(&state, req.saved_ontology_id).await?;
+
     let timeout = state.timeouts.raw_query;
     let start = std::time::Instant::now();
+    let exec_fut = runtime.execute_query(&compiled.statement, &compiled.params);
     let results = tokio::time::timeout(
         timeout,
-        runtime.execute_query(&compiled.statement, &compiled.params),
+        scope_with_ontology(ontology, exec_fut),
     )
     .await
     .map_err(|_| {

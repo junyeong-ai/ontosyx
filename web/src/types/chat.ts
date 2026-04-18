@@ -58,6 +58,10 @@ export interface PinCreateRequest {
 
 export interface QueryRawRequest {
   query: string;
+  /** Optional saved-ontology id. When provided the backend's OntologyValidator
+   *  rejects unknown labels / relationship types / properties before the
+   *  query hits the driver. Omit to run with safety + workspace-scope only. */
+  saved_ontology_id?: string;
 }
 
 // --- Query Execution (returned by GET /api/query/history/:id) ---

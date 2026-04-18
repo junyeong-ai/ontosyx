@@ -243,6 +243,12 @@ enum ExportFormat {
 struct ExecuteCypherParams {
     /// Cypher query statement to execute
     query: String,
+    /// Optional ontology name. When present, the runtime's
+    /// OntologyValidator rejects unknown labels / relationship types /
+    /// properties before the query hits the driver. Same contract as
+    /// `ontosyx_query`.
+    #[serde(default)]
+    ontology_name: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -875,11 +881,24 @@ impl OntosyxMcpServer {
                 McpError::internal_error("Graph database not connected".to_string(), None)
             })?;
 
+        // Optional ontology gate — mirrors `ontosyx_query`: if the caller
+        // supplied `ontology_name`, load it and thread the task-local so
+        // the OntologyValidator runs. No name → raw path (safety +
+        // workspace-scope only).
+        let ontology = match &params.ontology_name {
+            Some(name) => Some(Arc::new(
+                load_ontology(self.store.as_ref(), name).await?,
+            )),
+            None => None,
+        };
+
         let empty_params: HashMap<String, PropertyValue> = HashMap::new();
-        let results = runtime
-            .execute_query(&params.query, &empty_params)
-            .await
-            .map_err(|e| McpError::internal_error(format!("Query execution failed: {e}"), None))?;
+        let exec_fut = runtime.execute_query(&params.query, &empty_params);
+        let results = match ontology {
+            Some(o) => ox_runtime::GRAPH_ONTOLOGY.scope(o, exec_fut).await,
+            None => exec_fut.await,
+        }
+        .map_err(|e| McpError::internal_error(format!("Query execution failed: {e}"), None))?;
 
         let row_count = results.metadata.rows_returned;
         let execution_time_ms = results.metadata.execution_time_ms;
