@@ -1000,17 +1000,58 @@ async fn evaluate_quality_rules(
         }
     };
 
+    // Cache the resolved ontology per lineage so a sweep that evaluates
+    // many rules against the same ontology only loads + deserialises
+    // once.
+    let mut ontology_cache: std::collections::HashMap<
+        String,
+        Option<Arc<ox_core::ontology_ir::OntologyIR>>,
+    > = std::collections::HashMap::new();
+
     for rule in rules {
         if !rule.is_active {
             continue;
         }
 
-        let (passed, actual_value) = match rule.rule_type.as_str() {
-            "completeness" => evaluate_completeness(runtime, &rule).await,
-            "uniqueness" => evaluate_uniqueness(runtime, &rule).await,
-            "custom" => evaluate_custom(runtime, &rule).await,
-            _ => continue, // Skip unsupported types
+        // Resolve the rule's lineage to an OntologyIR snapshot so
+        // `GRAPH_ONTOLOGY` is bound for the OntologyValidator. Cache
+        // hits share the same Arc; misses skip lineage-specific
+        // validation but still run safety + workspace-scope.
+        let ontology = match ontology_cache.get(&rule.ontology_lineage_id) {
+            Some(cached) => cached.clone(),
+            None => {
+                let fetched = match store
+                    .get_latest_ontology_by_lineage(&rule.ontology_lineage_id)
+                    .await
+                {
+                    Ok(Some(saved)) => serde_json::from_value::<ox_core::ontology_ir::OntologyIR>(
+                        saved.ontology_ir,
+                    )
+                    .ok()
+                    .map(Arc::new),
+                    Ok(None) | Err(_) => None,
+                };
+                ontology_cache.insert(rule.ontology_lineage_id.clone(), fetched.clone());
+                fetched
+            }
         };
+
+        let eval_fut = async {
+            match rule.rule_type.as_str() {
+                "completeness" => evaluate_completeness(runtime, &rule).await,
+                "uniqueness" => evaluate_uniqueness(runtime, &rule).await,
+                "custom" => evaluate_custom(runtime, &rule).await,
+                _ => (true, None), // Unsupported types pass silently
+            }
+        };
+        let (passed, actual_value) = match ontology {
+            Some(onto) => ox_runtime::GRAPH_ONTOLOGY.scope(onto, eval_fut).await,
+            None => eval_fut.await,
+        };
+
+        if !matches!(rule.rule_type.as_str(), "completeness" | "uniqueness" | "custom") {
+            continue;
+        }
 
         let result = ox_store::QualityResult {
             id: uuid::Uuid::new_v4(),

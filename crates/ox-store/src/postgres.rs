@@ -372,6 +372,22 @@ impl OntologyStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
+    async fn get_latest_ontology_by_lineage(
+        &self,
+        lineage_id: &str,
+    ) -> OxResult<Option<SavedOntology>> {
+        sqlx::query_as::<_, SavedOntology>(
+            "SELECT * FROM saved_ontologies
+             WHERE ontology_ir->>'id' = $1
+             ORDER BY version DESC
+             LIMIT 1",
+        )
+        .bind(lineage_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(to_ox_error)
+    }
+
     async fn create_standalone_ontology(
         &self,
         name: &str,

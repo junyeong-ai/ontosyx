@@ -132,6 +132,17 @@ pub trait OntologyStore: Send + Sync {
 
     async fn get_latest_ontology(&self, name: &str) -> OxResult<Option<SavedOntology>>;
 
+    /// Fetch the newest `saved_ontologies` row whose embedded
+    /// `ontology_ir.id` matches `lineage_id`. This is the lineage-keyed
+    /// sibling of [`Self::get_latest_ontology`] (which keys by display
+    /// name). Used by the quality / report evaluators to resolve a
+    /// `QualityRule.ontology_lineage_id` into a loadable ontology
+    /// snapshot.
+    async fn get_latest_ontology_by_lineage(
+        &self,
+        lineage_id: &str,
+    ) -> OxResult<Option<SavedOntology>>;
+
     /// Save a standalone ontology (not tied to a design project).
     /// Used by Graph Adopt flow to persist adopted ontologies.
     async fn create_standalone_ontology(

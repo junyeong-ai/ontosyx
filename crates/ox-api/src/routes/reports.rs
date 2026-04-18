@@ -256,9 +256,31 @@ pub(crate) async fn execute_report(
 
     let runtime = state.runtime.as_ref().ok_or_else(AppError::no_runtime)?;
 
+    // Resolve the report's lineage so `GRAPH_ONTOLOGY` is bound for the
+    // OntologyValidator. A report whose lineage no longer resolves runs
+    // with safety + workspace-scope only (unchanged behaviour); no
+    // hard error here — orphan reports are a storage-lifetime concern.
+    let ontology = state
+        .store
+        .get_latest_ontology_by_lineage(&report.ontology_lineage_id)
+        .await
+        .map_err(AppError::from)?
+        .and_then(|saved| {
+            serde_json::from_value::<ox_core::ontology_ir::OntologyIR>(saved.ontology_ir)
+                .ok()
+                .map(std::sync::Arc::new)
+        });
+
     let timeout = state.timeouts.raw_query;
     let empty_params: HashMap<String, PropertyValue> = HashMap::new();
-    let result = tokio::time::timeout(timeout, runtime.execute_query(&query, &empty_params))
+    let exec_fut = runtime.execute_query(&query, &empty_params);
+    let wrapped_fut = async {
+        match ontology {
+            Some(onto) => ox_runtime::GRAPH_ONTOLOGY.scope(onto, exec_fut).await,
+            None => exec_fut.await,
+        }
+    };
+    let result = tokio::time::timeout(timeout, wrapped_fut)
         .await
         .map_err(|_| {
             AppError::timeout(format!(
