@@ -19,9 +19,9 @@ import { useQueryState } from "@/hooks/use-query-state";
 import { useImeAwareInput } from "@/lib/use-ime-aware-input";
 import { sortKorean } from "@/lib/locale/sort";
 import {
-  ExploreGraphView,
+  ExploreCanvas,
   type FocusedNode,
-} from "./explore/graph-view";
+} from "./explore/explore-canvas";
 import {
   type SearchResultNode,
   toSearchResultNodes,
@@ -520,7 +520,7 @@ export function ExploreLayout() {
               <Spinner size="md" className="text-emerald-500" />
             </div>
           )}
-          <ExploreGraphView
+          <ExploreCanvas
             focusedNode={focusedNode}
             neighbors={neighbors}
             schemaOverview={overview}

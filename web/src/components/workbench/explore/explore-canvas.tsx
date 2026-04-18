@@ -24,7 +24,7 @@ import type { ExpandNeighbor, GraphOverview } from "@/lib/api/queries";
 import { resolveDisplayName, resolveNodeColor } from "./graph-utils";
 
 // ---------------------------------------------------------------------------
-// ExploreCanvas — XyFlow-based successor to the NVL `ExploreGraphView`
+// ExploreCanvas — XyFlow-based explore graph surface
 // ---------------------------------------------------------------------------
 //
 // Two render modes, same component:
@@ -41,13 +41,9 @@ import { resolveDisplayName, resolveNodeColor } from "./graph-utils";
 // reference changes, so the worker path isn't worth the ceremony here.
 // The result is post-processed by centering the focused node at (0, 0)
 // so neighborhood views feel stable across pivots.
-//
-// Replaces `graph-view.tsx` (NVL-based). Props match that file's
-// `ExploreGraphViewProps` so the explore page swaps with no call-site
-// changes.
 
 // ---------------------------------------------------------------------------
-// Public types — mirror `graph-view.tsx` so callers swap without churn
+// Public types
 // ---------------------------------------------------------------------------
 
 export interface FocusedNode {
