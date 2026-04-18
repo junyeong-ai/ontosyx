@@ -12,7 +12,7 @@ pub(super) fn compile_expr(expr: &Expr, pc: &mut ParamCollector) -> OxResult<Str
 
         Expr::Property { variable, field } => match field {
             Some(f) => format!("{variable}.{}", escape_identifier(f)),
-            None => variable.clone(),
+            None => variable.to_string(),
         },
 
         Expr::Comparison { left, op, right } => {
@@ -152,7 +152,7 @@ pub(super) fn compile_projection(proj: &Projection, pc: &mut ParamCollector) -> 
         Projection::Variable { variable, alias } => alias
             .as_ref()
             .map(|a| format!("{variable} AS {a}"))
-            .unwrap_or_else(|| variable.clone()),
+            .unwrap_or_else(|| variable.to_string()),
         Projection::Expression { expr, alias } => {
             format!("{} AS {alias}", compile_expr(expr, pc)?)
         }
@@ -162,7 +162,10 @@ pub(super) fn compile_projection(proj: &Projection, pc: &mut ParamCollector) -> 
             alias,
             distinct,
         } => {
-            let target = compile_projection(argument, pc)?;
+            let target = match argument {
+                Some(arg) => compile_projection(arg, pc)?,
+                None => "*".to_string(),
+            };
             let func_str = compile_agg_function(function, &target, *distinct);
             format!("{func_str} AS {alias}")
         }

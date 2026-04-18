@@ -503,7 +503,7 @@ mod tests {
             schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns: vec![GraphPattern::Node {
-                    variable: "c".into(),
+                    variable: crate::variable_name::VariableName::new("c").expect("valid"),
                     label: Some("Customer".into()),
                     property_filters: vec![],
                 }],
@@ -526,21 +526,23 @@ mod tests {
             operation: QueryOp::Match {
                 patterns: vec![
                     GraphPattern::Node {
-                        variable: "c".into(),
+                        variable: crate::variable_name::VariableName::new("c").expect("valid"),
                         label: Some("Customer".into()),
                         property_filters: vec![],
                     },
                     GraphPattern::Relationship {
-                        variable: Some("r".into()),
+                        variable: Some(
+                            crate::variable_name::VariableName::new("r").expect("valid"),
+                        ),
                         label: Some("PLACED".into()),
-                        source: "c".into(),
-                        target: "o".into(),
+                        source: crate::variable_name::VariableName::new("c").expect("valid"),
+                        target: crate::variable_name::VariableName::new("o").expect("valid"),
                         direction: Direction::Outgoing,
                         property_filters: vec![],
                         var_length: None,
                     },
                     GraphPattern::Node {
-                        variable: "o".into(),
+                        variable: crate::variable_name::VariableName::new("o").expect("valid"),
                         label: Some("Order".into()),
                         property_filters: vec![],
                     },

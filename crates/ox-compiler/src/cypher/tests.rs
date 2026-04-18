@@ -14,6 +14,10 @@ fn gl(s: &'static str) -> GraphLabel {
     GraphLabel::new(s).expect("test label literal must be valid")
 }
 
+fn vn(s: &'static str) -> ox_core::VariableName {
+    ox_core::VariableName::new(s).expect("test variable name literal must be valid")
+}
+
 fn pk(s: &'static str) -> PropertyKey {
     PropertyKey::new(s).expect("test property name literal must be valid")
 }
@@ -24,13 +28,13 @@ fn test_compile_simple_match() {
         schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
-                variable: "n".to_string(),
+                variable: vn("n"),
                 label: Some("Product".to_string()),
                 property_filters: vec![],
             }],
             filter: Some(Expr::Comparison {
                 left: Box::new(Expr::Property {
-                    variable: "n".to_string(),
+                    variable: vn("n"),
                     field: Some("price".to_string()),
                 }),
                 op: ComparisonOp::Gt,
@@ -40,12 +44,12 @@ fn test_compile_simple_match() {
             }),
             projections: vec![
                 Projection::Field {
-                    variable: "n".to_string(),
+                    variable: vn("n"),
                     field: "name".to_string(),
                     alias: None,
                 },
                 Projection::Field {
-                    variable: "n".to_string(),
+                    variable: vn("n"),
                     field: "price".to_string(),
                     alias: None,
                 },
@@ -57,7 +61,7 @@ fn test_compile_simple_match() {
         skip: None,
         order_by: vec![OrderClause {
             projection: Projection::Field {
-                variable: "n".to_string(),
+                variable: vn("n"),
                 field: "price".to_string(),
                 alias: None,
             },
@@ -83,10 +87,10 @@ fn test_compile_relationship_pattern() {
         schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Relationship {
-                variable: Some("r".to_string()),
+                variable: Some(vn("r")),
                 label: Some("PURCHASED".to_string()),
-                source: "c".to_string(),
-                target: "p".to_string(),
+                source: vn("c"),
+                target: vn("p"),
                 direction: Direction::Outgoing,
                 property_filters: vec![],
                 var_length: None,
@@ -94,11 +98,11 @@ fn test_compile_relationship_pattern() {
             filter: None,
             projections: vec![
                 Projection::Variable {
-                    variable: "c".to_string(),
+                    variable: vn("c"),
                     alias: None,
                 },
                 Projection::Variable {
-                    variable: "p".to_string(),
+                    variable: vn("p"),
                     alias: None,
                 },
             ],
@@ -244,28 +248,28 @@ fn test_korean_ontology_match_query_escapes_labels() {
         operation: QueryOp::Match {
             patterns: vec![
                 GraphPattern::Node {
-                    variable: "c".to_string(),
+                    variable: vn("c"),
                     label: Some("고객".to_string()),
                     property_filters: vec![],
                 },
                 GraphPattern::Relationship {
-                    variable: Some("r".to_string()),
+                    variable: Some(vn("r")),
                     label: Some("주문함".to_string()),
-                    source: "c".to_string(),
-                    target: "o".to_string(),
+                    source: vn("c"),
+                    target: vn("o"),
                     direction: Direction::Outgoing,
                     property_filters: vec![],
                     var_length: None,
                 },
                 GraphPattern::Node {
-                    variable: "o".to_string(),
+                    variable: vn("o"),
                     label: Some("주문".to_string()),
                     property_filters: vec![],
                 },
             ],
             filter: Some(Expr::Comparison {
                 left: Box::new(Expr::Property {
-                    variable: "c".to_string(),
+                    variable: vn("c"),
                     field: Some("이름".to_string()),
                 }),
                 op: ComparisonOp::Eq,
@@ -274,7 +278,7 @@ fn test_korean_ontology_match_query_escapes_labels() {
                 }),
             }),
             projections: vec![Projection::Field {
-                variable: "o".to_string(),
+                variable: vn("o"),
                 field: "주문번호".to_string(),
                 alias: None,
             }],
@@ -350,7 +354,7 @@ fn test_compile_merge_node() {
         operation: QueryOp::Mutate {
             context: None,
             operations: vec![MutateOp::MergeNode {
-                variable: "p".to_string(),
+                variable: vn("p"),
                 label: "Product".to_string(),
                 match_properties: vec![PropertyAssignment {
                     property: "sku".to_string(),
@@ -367,7 +371,7 @@ fn test_compile_merge_node() {
                 on_match: vec![],
             }],
             returning: vec![Projection::Variable {
-                variable: "p".to_string(),
+                variable: vn("p"),
                 alias: None,
             }],
         },
@@ -454,7 +458,7 @@ fn test_parameterization_string_values() {
         schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
-                variable: "n".to_string(),
+                variable: vn("n"),
                 label: Some("Person".to_string()),
                 property_filters: vec![PropertyFilter {
                     property: "name".to_string(),
@@ -465,7 +469,7 @@ fn test_parameterization_string_values() {
             }],
             filter: Some(Expr::Comparison {
                 left: Box::new(Expr::Property {
-                    variable: "n".to_string(),
+                    variable: vn("n"),
                     field: Some("city".to_string()),
                 }),
                 op: ox_core::query_ir::ComparisonOp::Eq,
@@ -474,7 +478,7 @@ fn test_parameterization_string_values() {
                 }),
             }),
             projections: vec![Projection::Variable {
-                variable: "n".to_string(),
+                variable: vn("n"),
                 alias: None,
             }],
             optional: false,
@@ -519,13 +523,13 @@ fn test_parameterization_in_clause() {
         schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
-                variable: "n".to_string(),
+                variable: vn("n"),
                 label: Some("Product".to_string()),
                 property_filters: vec![],
             }],
             filter: Some(Expr::In {
                 expr: Box::new(Expr::Property {
-                    variable: "n".to_string(),
+                    variable: vn("n"),
                     field: Some("status".to_string()),
                 }),
                 values: vec![
@@ -535,7 +539,7 @@ fn test_parameterization_in_clause() {
                 ],
             }),
             projections: vec![Projection::Variable {
-                variable: "n".to_string(),
+                variable: vn("n"),
                 alias: None,
             }],
             optional: false,
@@ -587,13 +591,13 @@ fn test_parameterization_null_stays_inline() {
         schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
-                variable: "n".to_string(),
+                variable: vn("n"),
                 label: Some("Product".to_string()),
                 property_filters: vec![],
             }],
             filter: Some(Expr::Comparison {
                 left: Box::new(Expr::Property {
-                    variable: "n".to_string(),
+                    variable: vn("n"),
                     field: Some("status".to_string()),
                 }),
                 op: ox_core::query_ir::ComparisonOp::Eq,
@@ -602,7 +606,7 @@ fn test_parameterization_null_stays_inline() {
                 }),
             }),
             projections: vec![Projection::Variable {
-                variable: "n".to_string(),
+                variable: vn("n"),
                 alias: None,
             }],
             optional: false,
@@ -631,13 +635,13 @@ fn test_parameterization_date_values() {
         schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
-                variable: "n".to_string(),
+                variable: vn("n"),
                 label: Some("Event".to_string()),
                 property_filters: vec![],
             }],
             filter: Some(Expr::Comparison {
                 left: Box::new(Expr::Property {
-                    variable: "n".to_string(),
+                    variable: vn("n"),
                     field: Some("date".to_string()),
                 }),
                 op: ox_core::query_ir::ComparisonOp::Gte,
@@ -646,7 +650,7 @@ fn test_parameterization_date_values() {
                 }),
             }),
             projections: vec![Projection::Variable {
-                variable: "n".to_string(),
+                variable: vn("n"),
                 alias: None,
             }],
             optional: false,
@@ -674,40 +678,40 @@ fn test_compile_aggregate_query() {
         schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
-                variable: "o".to_string(),
+                variable: vn("o"),
                 label: Some("Order".to_string()),
                 property_filters: vec![],
             }],
             filter: None,
             projections: vec![
                 Projection::Field {
-                    variable: "o".to_string(),
+                    variable: vn("o"),
                     field: "status".to_string(),
                     alias: Some("status".to_string()),
                 },
                 Projection::Aggregation {
                     function: AggFunction::Count,
-                    argument: Box::new(Projection::Variable {
-                        variable: "o".to_string(),
+                    argument: Some(Box::new(Projection::Variable {
+                        variable: vn("o"),
                         alias: None,
-                    }),
+                    })),
                     alias: "total".to_string(),
                     distinct: false,
                 },
                 Projection::Aggregation {
                     function: AggFunction::Sum,
-                    argument: Box::new(Projection::Field {
-                        variable: "o".to_string(),
+                    argument: Some(Box::new(Projection::Field {
+                        variable: vn("o"),
                         field: "amount".to_string(),
                         alias: None,
-                    }),
+                    })),
                     alias: "total_amount".to_string(),
                     distinct: false,
                 },
             ],
             optional: false,
             group_by: vec![Projection::Field {
-                variable: "o".to_string(),
+                variable: vn("o"),
                 field: "status".to_string(),
                 alias: None,
             }],
@@ -734,13 +738,13 @@ fn test_compile_union_query() {
         schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
-                variable: "n".to_string(),
+                variable: vn("n"),
                 label: Some("Person".to_string()),
                 property_filters: vec![],
             }],
             filter: None,
             projections: vec![Projection::Field {
-                variable: "n".to_string(),
+                variable: vn("n"),
                 field: "name".to_string(),
                 alias: Some("name".to_string()),
             }],
@@ -755,13 +759,13 @@ fn test_compile_union_query() {
         schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
-                variable: "n".to_string(),
+                variable: vn("n"),
                 label: Some("Company".to_string()),
                 property_filters: vec![],
             }],
             filter: None,
             projections: vec![Projection::Field {
-                variable: "n".to_string(),
+                variable: vn("n"),
                 field: "name".to_string(),
                 alias: Some("name".to_string()),
             }],
@@ -802,13 +806,13 @@ fn test_compile_chain_with_pass_through() {
                     pass_through: vec![],
                     operation: QueryOp::Match {
                         patterns: vec![GraphPattern::Node {
-                            variable: "c".to_string(),
+                            variable: vn("c"),
                             label: Some("Customer".to_string()),
                             property_filters: vec![],
                         }],
                         filter: None,
                         projections: vec![Projection::Variable {
-                            variable: "c".to_string(),
+                            variable: vn("c"),
                             alias: None,
                         }],
                         optional: false,
@@ -817,15 +821,15 @@ fn test_compile_chain_with_pass_through() {
                 },
                 ChainStep {
                     pass_through: vec![Projection::Variable {
-                        variable: "c".to_string(),
+                        variable: vn("c"),
                         alias: None,
                     }],
                     operation: QueryOp::Match {
                         patterns: vec![GraphPattern::Relationship {
-                            variable: Some("r".to_string()),
+                            variable: Some(vn("r")),
                             label: Some("PURCHASED".to_string()),
-                            source: "c".to_string(),
-                            target: "p".to_string(),
+                            source: vn("c"),
+                            target: vn("p"),
                             direction: Direction::Outgoing,
                             property_filters: vec![],
                             var_length: None,
@@ -833,11 +837,11 @@ fn test_compile_chain_with_pass_through() {
                         filter: None,
                         projections: vec![
                             Projection::Variable {
-                                variable: "c".to_string(),
+                                variable: vn("c"),
                                 alias: None,
                             },
                             Projection::Variable {
-                                variable: "p".to_string(),
+                                variable: vn("p"),
                                 alias: None,
                             },
                         ],
@@ -1003,13 +1007,13 @@ fn test_call_subquery_compilation() {
                     pass_through: vec![],
                     operation: QueryOp::Match {
                         patterns: vec![GraphPattern::Node {
-                            variable: "n".to_string(),
+                            variable: vn("n"),
                             label: Some("Person".to_string()),
                             property_filters: vec![],
                         }],
                         filter: None,
                         projections: vec![Projection::Variable {
-                            variable: "n".to_string(),
+                            variable: vn("n"),
                             alias: None,
                         }],
                         optional: false,
@@ -1018,7 +1022,7 @@ fn test_call_subquery_compilation() {
                 },
                 ChainStep {
                     pass_through: vec![Projection::Variable {
-                        variable: "n".to_string(),
+                        variable: vn("n"),
                         alias: None,
                     }],
                     operation: QueryOp::CallSubquery {
@@ -1028,8 +1032,8 @@ fn test_call_subquery_compilation() {
                                 patterns: vec![GraphPattern::Relationship {
                                     variable: None,
                                     label: None,
-                                    source: "n".to_string(),
-                                    target: "m".to_string(),
+                                    source: vn("n"),
+                                    target: vn("m"),
                                     direction: Direction::Outgoing,
                                     property_filters: vec![],
                                     var_length: None,
@@ -1037,10 +1041,10 @@ fn test_call_subquery_compilation() {
                                 filter: None,
                                 projections: vec![Projection::Aggregation {
                                     function: AggFunction::Count,
-                                    argument: Box::new(Projection::Variable {
-                                        variable: "m".to_string(),
+                                    argument: Some(Box::new(Projection::Variable {
+                                        variable: vn("m"),
                                         alias: None,
-                                    }),
+                                    })),
                                     alias: "neighbor_count".to_string(),
                                     distinct: false,
                                 }],
@@ -1082,14 +1086,14 @@ fn test_subquery_expr_count() {
         schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
-                variable: "n".to_string(),
+                variable: vn("n"),
                 label: Some("Person".to_string()),
                 property_filters: vec![],
             }],
             filter: None,
             projections: vec![
                 Projection::Variable {
-                    variable: "n".to_string(),
+                    variable: vn("n"),
                     alias: None,
                 },
                 Projection::Expression {
@@ -1100,15 +1104,15 @@ fn test_subquery_expr_count() {
                                 patterns: vec![GraphPattern::Relationship {
                                     variable: None,
                                     label: Some("KNOWS".to_string()),
-                                    source: "n".to_string(),
-                                    target: "friend".to_string(),
+                                    source: vn("n"),
+                                    target: vn("friend"),
                                     direction: Direction::Outgoing,
                                     property_filters: vec![],
                                     var_length: None,
                                 }],
                                 filter: None,
                                 projections: vec![Projection::Variable {
-                                    variable: "friend".to_string(),
+                                    variable: vn("friend"),
                                     alias: None,
                                 }],
                                 optional: false,
@@ -1155,17 +1159,17 @@ fn test_call_subquery_standalone() {
                 schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
                 operation: QueryOp::Match {
                     patterns: vec![GraphPattern::Node {
-                        variable: "x".to_string(),
+                        variable: vn("x"),
                         label: Some("Task".to_string()),
                         property_filters: vec![],
                     }],
                     filter: None,
                     projections: vec![Projection::Aggregation {
                         function: AggFunction::Count,
-                        argument: Box::new(Projection::Variable {
-                            variable: "x".to_string(),
+                        argument: Some(Box::new(Projection::Variable {
+                            variable: vn("x"),
                             alias: None,
-                        }),
+                        })),
                         alias: "task_count".to_string(),
                         distinct: false,
                     }],
@@ -1210,8 +1214,8 @@ fn test_collect_list_aggregation() {
             patterns: vec![GraphPattern::Relationship {
                 variable: None,
                 label: Some("TAGGED".to_string()),
-                source: "p".to_string(),
-                target: "t".to_string(),
+                source: vn("p"),
+                target: vn("t"),
                 direction: Direction::Outgoing,
                 property_filters: vec![],
                 var_length: None,
@@ -1219,16 +1223,16 @@ fn test_collect_list_aggregation() {
             filter: None,
             projections: vec![
                 Projection::Variable {
-                    variable: "p".to_string(),
+                    variable: vn("p"),
                     alias: None,
                 },
                 Projection::Aggregation {
                     function: AggFunction::CollectList,
-                    argument: Box::new(Projection::Field {
-                        variable: "t".to_string(),
+                    argument: Some(Box::new(Projection::Field {
+                        variable: vn("t"),
                         field: "name".to_string(),
                         alias: None,
-                    }),
+                    })),
                     alias: "tags".to_string(),
                     distinct: false,
                 },
@@ -1260,7 +1264,7 @@ fn test_compile_shortest_path() {
         schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::PathFind {
             start: NodeRef {
-                variable: "a".to_string(),
+                variable: vn("a"),
                 label: Some("Person".to_string()),
                 property_filters: vec![PropertyFilter {
                     property: "name".to_string(),
@@ -1270,7 +1274,7 @@ fn test_compile_shortest_path() {
                 }],
             },
             end: NodeRef {
-                variable: "b".to_string(),
+                variable: vn("b"),
                 label: Some("Person".to_string()),
                 property_filters: vec![PropertyFilter {
                     property: "name".to_string(),
@@ -1311,12 +1315,12 @@ fn test_compile_all_shortest_paths() {
         schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::PathFind {
             start: NodeRef {
-                variable: "a".to_string(),
+                variable: vn("a"),
                 label: Some("City".to_string()),
                 property_filters: vec![],
             },
             end: NodeRef {
-                variable: "b".to_string(),
+                variable: vn("b"),
                 label: Some("City".to_string()),
                 property_filters: vec![],
             },
@@ -1355,12 +1359,12 @@ fn test_compile_all_paths_variable_length() {
         schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::PathFind {
             start: NodeRef {
-                variable: "a".to_string(),
+                variable: vn("a"),
                 label: Some("Node".to_string()),
                 property_filters: vec![],
             },
             end: NodeRef {
-                variable: "b".to_string(),
+                variable: vn("b"),
                 label: Some("Node".to_string()),
                 property_filters: vec![],
             },
@@ -1407,7 +1411,7 @@ fn test_compile_case_expression() {
         schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
-                variable: "n".to_string(),
+                variable: vn("n"),
                 label: Some("Product".to_string()),
                 property_filters: vec![],
             }],
@@ -1418,7 +1422,7 @@ fn test_compile_case_expression() {
                     when_clauses: vec![WhenClause {
                         condition: Expr::Comparison {
                             left: Box::new(Expr::Property {
-                                variable: "n".to_string(),
+                                variable: vn("n"),
                                 field: Some("price".to_string()),
                             }),
                             op: ComparisonOp::Gt,

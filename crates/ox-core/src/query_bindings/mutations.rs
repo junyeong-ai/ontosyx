@@ -17,7 +17,7 @@ impl ResolverCtx<'_> {
             | MutateOp::MergeNode {
                 variable, label, ..
             } => {
-                self.bind_node_variable(variable, label);
+                self.bind_node_variable(variable.as_str(), label);
             }
             MutateOp::CreateEdge {
                 label,
@@ -70,11 +70,11 @@ impl ResolverCtx<'_> {
                 property,
                 value,
             } => {
-                self.resolve_variable_property(variable, property);
+                self.resolve_variable_property(variable.as_str(), property);
                 self.resolve_expr(value);
             }
             MutateOp::RemoveProperty { variable, property } => {
-                self.resolve_variable_property(variable, property);
+                self.resolve_variable_property(variable.as_str(), property);
             }
             MutateOp::Delete { .. } | MutateOp::RemoveLabel { .. } => {}
         }

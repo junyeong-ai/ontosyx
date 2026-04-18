@@ -146,6 +146,11 @@ mod tests {
     use crate::property_key::PropertyKey;
     use crate::query_ir::*;
     use crate::types::{Direction, PropertyType, PropertyValue};
+    use crate::variable_name::VariableName;
+
+    fn vn(s: &'static str) -> VariableName {
+        VariableName::new(s).expect("test variable name literal must be valid")
+    }
 
     fn test_ontology() -> OntologyIR {
         OntologyIR::new(
@@ -211,28 +216,28 @@ mod tests {
             operation: QueryOp::Match {
                 patterns: vec![
                     GraphPattern::Node {
-                        variable: "p".into(),
+                        variable: vn("p"),
                         label: Some("Person".into()),
                         property_filters: vec![],
                     },
                     GraphPattern::Relationship {
-                        variable: Some("r".into()),
+                        variable: Some(vn("r")),
                         label: Some("WORKS_AT".into()),
-                        source: "p".into(),
-                        target: "c".into(),
+                        source: vn("p"),
+                        target: vn("c"),
                         direction: Direction::Outgoing,
                         property_filters: vec![],
                         var_length: None,
                     },
                     GraphPattern::Node {
-                        variable: "c".into(),
+                        variable: vn("c"),
                         label: Some("Company".into()),
                         property_filters: vec![],
                     },
                 ],
                 filter: None,
                 projections: vec![Projection::Field {
-                    variable: "p".into(),
+                    variable: vn("p"),
                     field: "name".into(),
                     alias: None,
                 }],
@@ -293,13 +298,13 @@ mod tests {
             schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns: vec![GraphPattern::Node {
-                    variable: "p".into(),
+                    variable: vn("p"),
                     label: Some("Person".into()),
                     property_filters: vec![],
                 }],
                 filter: Some(Expr::Comparison {
                     left: Box::new(Expr::Property {
-                        variable: "p".into(),
+                        variable: vn("p"),
                         field: Some("name".into()),
                     }),
                     op: ComparisonOp::Eq,
@@ -332,7 +337,7 @@ mod tests {
             schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns: vec![GraphPattern::Node {
-                    variable: "x".into(),
+                    variable: vn("x"),
                     label: Some("UnknownType".into()),
                     property_filters: vec![],
                 }],
@@ -357,16 +362,16 @@ mod tests {
             schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns: vec![GraphPattern::Node {
-                    variable: "p".into(),
+                    variable: vn("p"),
                     label: Some("Person".into()),
                     property_filters: vec![],
                 }],
                 filter: Some(Expr::Exists {
                     pattern: Box::new(GraphPattern::Relationship {
-                        variable: Some("r".into()),
+                        variable: Some(vn("r")),
                         label: Some("WORKS_AT".into()),
-                        source: "p".into(),
-                        target: "c".into(),
+                        source: vn("p"),
+                        target: vn("c"),
                         direction: Direction::Outgoing,
                         property_filters: vec![],
                         var_length: None,
@@ -416,13 +421,13 @@ mod tests {
                         schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
                         operation: QueryOp::Match {
                             patterns: vec![GraphPattern::Node {
-                                variable: "x".into(),
+                                variable: vn("x"),
                                 label: Some("Person".into()),
                                 property_filters: vec![],
                             }],
                             filter: None,
                             projections: vec![Projection::Field {
-                                variable: "x".into(),
+                                variable: vn("x"),
                                 field: "name".into(),
                                 alias: None,
                             }],
@@ -437,13 +442,13 @@ mod tests {
                         schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
                         operation: QueryOp::Match {
                             patterns: vec![GraphPattern::Node {
-                                variable: "x".into(),
+                                variable: vn("x"),
                                 label: Some("Company".into()),
                                 property_filters: vec![],
                             }],
                             filter: None,
                             projections: vec![Projection::Field {
-                                variable: "x".into(),
+                                variable: vn("x"),
                                 field: "title".into(),
                                 alias: None,
                             }],
@@ -524,13 +529,13 @@ mod tests {
             schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns: vec![GraphPattern::Node {
-                    variable: "p".into(),
+                    variable: vn("p"),
                     label: Some("Person".into()),
                     property_filters: vec![],
                 }],
                 filter: Some(Expr::Comparison {
                     left: Box::new(Expr::Property {
-                        variable: "p".into(),
+                        variable: vn("p"),
                         field: Some("name".into()),
                     }),
                     op: ComparisonOp::Eq,
@@ -539,7 +544,7 @@ mod tests {
                     }),
                 }),
                 projections: vec![Projection::Field {
-                    variable: "p".into(),
+                    variable: vn("p"),
                     field: "name".into(),
                     alias: None,
                 }],
@@ -570,12 +575,12 @@ mod tests {
             schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::PathFind {
                 start: NodeRef {
-                    variable: "s".into(),
+                    variable: vn("s"),
                     label: Some("Person".into()),
                     property_filters: vec![],
                 },
                 end: NodeRef {
-                    variable: "e".into(),
+                    variable: vn("e"),
                     label: Some("Company".into()),
                     property_filters: vec![],
                 },
@@ -615,16 +620,16 @@ mod tests {
             schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns: vec![GraphPattern::Node {
-                    variable: "p2".into(),
+                    variable: vn("p2"),
                     label: Some("Person".into()),
                     property_filters: vec![],
                 }],
                 filter: Some(Expr::Exists {
                     pattern: Box::new(GraphPattern::Relationship {
-                        variable: Some("r".into()),
+                        variable: Some(vn("r")),
                         label: Some("WORKS_AT".into()),
-                        source: "p2".into(),
-                        target: "c".into(),
+                        source: vn("p2"),
+                        target: vn("c"),
                         direction: Direction::Outgoing,
                         property_filters: vec![],
                         var_length: None,

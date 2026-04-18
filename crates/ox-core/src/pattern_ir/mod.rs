@@ -39,6 +39,7 @@ use crate::query_ir::{
     VarLength,
 };
 use crate::types::Direction;
+use crate::variable_name::VariableName;
 
 // ---------------------------------------------------------------------------
 // Core PatternIR types
@@ -260,7 +261,13 @@ impl PatternIR {
     /// endpoints resolved via the `id → variable` map. Filter rows are
     /// combined through `AND` into a single `Expr`. Layout data is
     /// dropped — QueryIR has no place for it.
-    pub fn compile(&self) -> QueryIR {
+    ///
+    /// Fails with [`crate::error::OxError::Validation`] when any node
+    /// or edge carries a variable name that doesn't satisfy
+    /// [`VariableName`]'s invariants — the canvas-to-IR boundary is
+    /// where the newtype check lives, mirroring the label / property
+    /// key input-DTO conversion pattern.
+    pub fn compile(&self) -> crate::error::OxResult<QueryIR> {
         let id_to_variable: HashMap<&str, &str> = self
             .nodes
             .iter()
@@ -272,7 +279,7 @@ impl PatternIR {
 
         for node in &self.nodes {
             patterns.push(GraphPattern::Node {
-                variable: node.variable.clone(),
+                variable: VariableName::new(node.variable.clone())?,
                 label: node.label.clone(),
                 property_filters: node.property_filters.clone(),
             });
@@ -280,20 +287,24 @@ impl PatternIR {
 
         for edge in &self.edges {
             // An edge whose endpoint id no longer resolves is a canvas
-            // inconsistency — propagate the bound variable verbatim
-            // (empty string if missing) so validation downstream can
-            // surface the failure rather than silently dropping the
-            // edge.
-            let source = id_to_variable
-                .get(edge.source_node_id.as_str())
-                .map(|s| (*s).to_string())
-                .unwrap_or_default();
-            let target = id_to_variable
-                .get(edge.target_node_id.as_str())
-                .map(|s| (*s).to_string())
-                .unwrap_or_default();
+            // inconsistency — propagate a placeholder so validation
+            // downstream surfaces the failure rather than silently
+            // dropping the edge.
+            let source = match id_to_variable.get(edge.source_node_id.as_str()) {
+                Some(s) => VariableName::new(*s)?,
+                None => VariableName::new(format!("__missing_{}__", edge.source_node_id))?,
+            };
+            let target = match id_to_variable.get(edge.target_node_id.as_str()) {
+                Some(s) => VariableName::new(*s)?,
+                None => VariableName::new(format!("__missing_{}__", edge.target_node_id))?,
+            };
+            let variable = edge
+                .variable
+                .as_ref()
+                .map(|v| VariableName::new(v.clone()))
+                .transpose()?;
             patterns.push(GraphPattern::Relationship {
-                variable: edge.variable.clone(),
+                variable,
                 label: edge.label.clone(),
                 source,
                 target,
@@ -310,7 +321,7 @@ impl PatternIR {
             .map(|p| p.projection.clone())
             .collect();
 
-        QueryIR {
+        Ok(QueryIR {
             schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns,
@@ -322,7 +333,7 @@ impl PatternIR {
             limit: self.limit,
             skip: self.skip,
             order_by: self.order_by.clone(),
-        }
+        })
     }
 }
 
@@ -393,10 +404,10 @@ impl PatternIR {
                     property_filters,
                 } => {
                     let id = format!("n{idx}");
-                    var_to_id.insert(variable.clone(), id.clone());
+                    var_to_id.insert(variable.to_string(), id.clone());
                     nodes.push(PatternNode {
                         id,
-                        variable: variable.clone(),
+                        variable: variable.to_string(),
                         label: label.clone(),
                         property_filters: property_filters.clone(),
                         position: None,
@@ -416,16 +427,16 @@ impl PatternIR {
                     // synthetic dangling node id the frontend can
                     // highlight as broken.
                     let source_node_id = var_to_id
-                        .get(source)
+                        .get(source.as_str())
                         .cloned()
                         .unwrap_or_else(|| format!("missing_{source}"));
                     let target_node_id = var_to_id
-                        .get(target)
+                        .get(target.as_str())
                         .cloned()
                         .unwrap_or_else(|| format!("missing_{target}"));
                     edges.push(PatternEdge {
                         id: format!("e{idx}"),
-                        variable: variable.clone(),
+                        variable: variable.as_ref().map(|v| v.to_string()),
                         label: label.clone(),
                         source_node_id,
                         target_node_id,
@@ -514,6 +525,10 @@ mod tests {
     use crate::query_ir::{ComparisonOp, LogicalOp};
     use crate::types::PropertyValue;
 
+    fn vn(s: &str) -> VariableName {
+        VariableName::new(s).expect("test variable literal must be valid")
+    }
+
     fn lit_int(n: i64) -> Expr {
         Expr::Literal {
             value: PropertyValue::Int(n),
@@ -522,7 +537,7 @@ mod tests {
 
     fn prop(variable: &str, field: &str) -> Expr {
         Expr::Property {
-            variable: variable.to_string(),
+            variable: vn(variable),
             field: Some(field.to_string()),
         }
     }
@@ -539,7 +554,7 @@ mod tests {
 
     #[test]
     fn compile_empty_pattern_yields_empty_match() {
-        let query = PatternIR::default().compile();
+        let query = PatternIR::default().compile().expect("compile ok");
         match query.operation {
             QueryOp::Match {
                 patterns,
@@ -562,14 +577,14 @@ mod tests {
         let pattern = PatternIR {
             nodes: vec![PatternNode {
                 id: "n1".into(),
-                variable: "p".into(),
+                variable: "p".to_string(),
                 label: Some("Person".into()),
                 property_filters: Vec::new(),
                 position: Some(Position { x: 10.0, y: 20.0 }),
             }],
             ..Default::default()
         };
-        let query = pattern.compile();
+        let query = pattern.compile().expect("compile ok");
         match query.operation {
             QueryOp::Match { patterns, .. } => {
                 assert_eq!(patterns.len(), 1);
@@ -589,14 +604,14 @@ mod tests {
             nodes: vec![
                 PatternNode {
                     id: "n1".into(),
-                    variable: "a".into(),
+                    variable: "a".to_string(),
                     label: Some("A".into()),
                     property_filters: Vec::new(),
                     position: None,
                 },
                 PatternNode {
                     id: "n2".into(),
-                    variable: "b".into(),
+                    variable: "b".to_string(),
                     label: Some("B".into()),
                     property_filters: Vec::new(),
                     position: None,
@@ -604,7 +619,7 @@ mod tests {
             ],
             edges: vec![PatternEdge {
                 id: "e1".into(),
-                variable: Some("r".into()),
+                variable: Some("r".to_string()),
                 label: Some("KNOWS".into()),
                 source_node_id: "n1".into(),
                 target_node_id: "n2".into(),
@@ -614,7 +629,7 @@ mod tests {
             }],
             ..Default::default()
         };
-        let query = pattern.compile();
+        let query = pattern.compile().expect("compile ok");
         match query.operation {
             QueryOp::Match { patterns, .. } => {
                 assert_eq!(patterns.len(), 3);
@@ -638,7 +653,7 @@ mod tests {
         let pattern = PatternIR {
             nodes: vec![PatternNode {
                 id: "n1".into(),
-                variable: "a".into(),
+                variable: "a".to_string(),
                 label: None,
                 property_filters: Vec::new(),
                 position: None,
@@ -655,12 +670,16 @@ mod tests {
             }],
             ..Default::default()
         };
-        let query = pattern.compile();
+        let query = pattern.compile().expect("compile ok");
         match query.operation {
             QueryOp::Match { patterns, .. } => match &patterns[1] {
                 GraphPattern::Relationship { source, target, .. } => {
                     assert_eq!(source, "a");
-                    assert_eq!(target, "", "missing endpoint must not silently map");
+                    assert_eq!(
+                        target.as_str(),
+                        "__missing_deleted__",
+                        "missing endpoint must surface as a named placeholder"
+                    );
                 }
                 _ => panic!("expected Relationship"),
             },
@@ -673,7 +692,7 @@ mod tests {
         let pattern = PatternIR {
             nodes: vec![PatternNode {
                 id: "n1".into(),
-                variable: "p".into(),
+                variable: "p".to_string(),
                 label: Some("Person".into()),
                 property_filters: Vec::new(),
                 position: None,
@@ -690,7 +709,7 @@ mod tests {
             ],
             ..Default::default()
         };
-        let query = pattern.compile();
+        let query = pattern.compile().expect("compile ok");
         match query.operation {
             QueryOp::Match { filter, .. } => match filter {
                 Some(Expr::Logical {
@@ -707,7 +726,7 @@ mod tests {
         let pattern = PatternIR {
             nodes: vec![PatternNode {
                 id: "n1".into(),
-                variable: "p".into(),
+                variable: "p".to_string(),
                 label: None,
                 property_filters: Vec::new(),
                 position: Some(Position { x: 5.0, y: 5.0 }),
@@ -719,7 +738,7 @@ mod tests {
             },
             ..Default::default()
         };
-        let query = pattern.compile();
+        let query = pattern.compile().expect("compile ok");
         let json = serde_json::to_string(&query).expect("serializable");
         assert!(
             !json.contains("position"),
@@ -733,7 +752,7 @@ mod tests {
         let pattern = PatternIR {
             nodes: vec![PatternNode {
                 id: "n1".into(),
-                variable: "p".into(),
+                variable: "p".to_string(),
                 label: None,
                 property_filters: Vec::new(),
                 position: None,
@@ -742,7 +761,7 @@ mod tests {
             skip: Some(5),
             ..Default::default()
         };
-        let query = pattern.compile();
+        let query = pattern.compile().expect("compile ok");
         assert_eq!(query.limit, Some(25));
         assert_eq!(query.skip, Some(5));
     }
@@ -753,7 +772,7 @@ mod tests {
 
         let order = OrderClause {
             projection: Projection::Field {
-                variable: "p".into(),
+                variable: vn("p"),
                 field: "age".into(),
                 alias: None,
             },
@@ -762,7 +781,7 @@ mod tests {
         let pattern = PatternIR {
             nodes: vec![PatternNode {
                 id: "n1".into(),
-                variable: "p".into(),
+                variable: "p".to_string(),
                 label: Some("Person".into()),
                 property_filters: Vec::new(),
                 position: None,
@@ -772,7 +791,7 @@ mod tests {
         };
 
         // compile keeps the sort spec on the QueryIR.
-        let query = pattern.compile();
+        let query = pattern.compile().expect("compile ok");
         assert_eq!(query.order_by.len(), 1);
         matches!(query.order_by[0].direction, SortDirection::Desc);
 
@@ -799,7 +818,7 @@ mod tests {
             schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns: vec![GraphPattern::Node {
-                    variable: "p".into(),
+                    variable: vn("p"),
                     label: Some("Person".into()),
                     property_filters: Vec::new(),
                 }],
@@ -829,20 +848,20 @@ mod tests {
             operation: QueryOp::Match {
                 patterns: vec![
                     GraphPattern::Node {
-                        variable: "a".into(),
+                        variable: vn("a"),
                         label: Some("A".into()),
                         property_filters: Vec::new(),
                     },
                     GraphPattern::Node {
-                        variable: "b".into(),
+                        variable: vn("b"),
                         label: Some("B".into()),
                         property_filters: Vec::new(),
                     },
                     GraphPattern::Relationship {
-                        variable: Some("r".into()),
+                        variable: Some(vn("r")),
                         label: Some("R".into()),
-                        source: "a".into(),
-                        target: "b".into(),
+                        source: vn("a"),
+                        target: vn("b"),
                         direction: Direction::Outgoing,
                         property_filters: Vec::new(),
                         var_length: None,
@@ -877,15 +896,15 @@ mod tests {
             operation: QueryOp::Match {
                 patterns: vec![
                     GraphPattern::Node {
-                        variable: "a".into(),
+                        variable: vn("a"),
                         label: None,
                         property_filters: Vec::new(),
                     },
                     GraphPattern::Relationship {
                         variable: None,
                         label: None,
-                        source: "a".into(),
-                        target: "gone".into(),
+                        source: vn("a"),
+                        target: vn("gone"),
                         direction: Direction::Outgoing,
                         property_filters: Vec::new(),
                         var_length: None,
@@ -920,7 +939,7 @@ mod tests {
             schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns: vec![GraphPattern::Node {
-                    variable: "p".into(),
+                    variable: vn("p"),
                     label: None,
                     property_filters: Vec::new(),
                 }],
@@ -952,7 +971,7 @@ mod tests {
             schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns: vec![GraphPattern::Node {
-                    variable: "p".into(),
+                    variable: vn("p"),
                     label: None,
                     property_filters: Vec::new(),
                 }],
@@ -977,12 +996,12 @@ mod tests {
             schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::PathFind {
                 start: NodeRef {
-                    variable: "s".into(),
+                    variable: vn("s"),
                     label: None,
                     property_filters: Vec::new(),
                 },
                 end: NodeRef {
-                    variable: "e".into(),
+                    variable: vn("e"),
                     label: None,
                     property_filters: Vec::new(),
                 },
@@ -1022,7 +1041,7 @@ mod tests {
             schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns: vec![GraphPattern::Node {
-                    variable: "n".into(),
+                    variable: vn("n"),
                     label: Some("Person".into()),
                     property_filters: Vec::new(),
                 }],
@@ -1065,12 +1084,12 @@ mod tests {
 
         let path = QueryOp::PathFind {
             start: NodeRef {
-                variable: "s".into(),
+                variable: vn("s"),
                 label: None,
                 property_filters: Vec::new(),
             },
             end: NodeRef {
-                variable: "e".into(),
+                variable: vn("e"),
                 label: None,
                 property_filters: Vec::new(),
             },
@@ -1091,14 +1110,14 @@ mod tests {
             nodes: vec![
                 PatternNode {
                     id: "n1".into(),
-                    variable: "a".into(),
+                    variable: "a".to_string(),
                     label: Some("A".into()),
                     property_filters: Vec::new(),
                     position: Some(Position { x: 0.0, y: 0.0 }),
                 },
                 PatternNode {
                     id: "n2".into(),
-                    variable: "b".into(),
+                    variable: "b".to_string(),
                     label: Some("B".into()),
                     property_filters: Vec::new(),
                     position: Some(Position { x: 100.0, y: 0.0 }),
@@ -1106,7 +1125,7 @@ mod tests {
             ],
             edges: vec![PatternEdge {
                 id: "e1".into(),
-                variable: Some("r".into()),
+                variable: Some("r".to_string()),
                 label: Some("R".into()),
                 source_node_id: "n1".into(),
                 target_node_id: "n2".into(),
@@ -1127,7 +1146,7 @@ mod tests {
             read_only_reason: None,
         };
 
-        let query = original.compile();
+        let query = original.compile().expect("compile ok");
         let roundtripped = PatternIR::decompile(&query);
 
         // Structural equality modulo ids (which regenerate as n0/n1/e2
@@ -1153,7 +1172,7 @@ mod tests {
         let original = PatternIR {
             nodes: vec![PatternNode {
                 id: "n1".into(),
-                variable: "p".into(),
+                variable: "p".to_string(),
                 label: Some("Person".into()),
                 property_filters: Vec::new(),
                 position: None,
@@ -1170,7 +1189,7 @@ mod tests {
             ],
             ..Default::default()
         };
-        let query = original.compile();
+        let query = original.compile().expect("compile ok");
         let rt = PatternIR::decompile(&query);
         assert_eq!(
             rt.filters.len(),
@@ -1186,7 +1205,7 @@ mod tests {
         let pattern = PatternIR {
             nodes: vec![PatternNode {
                 id: "n1".into(),
-                variable: "p".into(),
+                variable: "p".to_string(),
                 label: Some("Person".into()),
                 property_filters: Vec::new(),
                 position: Some(Position { x: 1.0, y: 2.0 }),

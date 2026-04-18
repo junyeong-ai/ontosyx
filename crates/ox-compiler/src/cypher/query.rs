@@ -109,7 +109,7 @@ pub(super) fn compile_op(
                     // Add alias so ORDER BY can reference by name (e.g. ca.`name` AS name)
                     format!("{expr} AS {}", escape_identifier(f))
                 } else {
-                    g.variable.clone()
+                    g.variable.to_string()
                 };
                 return_items.push(field);
             }
@@ -117,7 +117,7 @@ pub(super) fn compile_op(
                 let field = if let Some(ref f) = agg.field.field {
                     format!("{}.{}", agg.field.variable, escape_identifier(f))
                 } else {
-                    agg.field.variable.clone()
+                    agg.field.variable.to_string()
                 };
                 let func = compile_agg_function(&agg.function, &field, agg.distinct);
                 return_items.push(format!("{func} AS {}", agg.alias));

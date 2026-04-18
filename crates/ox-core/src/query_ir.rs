@@ -4,6 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::types::{Direction, PropertyValue};
+use crate::variable_name::VariableName;
 
 // ---------------------------------------------------------------------------
 // GraphFunction — typed function registry (Phase 3.8)
@@ -312,7 +313,7 @@ pub enum QueryOp {
 pub enum GraphPattern {
     /// A single node: (variable:Label {props})
     Node {
-        variable: String,
+        variable: VariableName,
         label: Option<String>,
         property_filters: Vec<PropertyFilter>,
     },
@@ -320,10 +321,10 @@ pub enum GraphPattern {
     /// A relationship between two nodes:
     /// (source)-[variable:Label]->(target)
     Relationship {
-        variable: Option<String>,
+        variable: Option<VariableName>,
         label: Option<String>,
-        source: String,
-        target: String,
+        source: VariableName,
+        target: VariableName,
         direction: Direction,
         property_filters: Vec<PropertyFilter>,
         /// Variable-length path: *min..max
@@ -353,11 +354,11 @@ pub struct VarLength {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PathElement {
     Node {
-        variable: String,
+        variable: VariableName,
         label: Option<String>,
     },
     Edge {
-        variable: Option<String>,
+        variable: Option<VariableName>,
         label: Option<String>,
         direction: Direction,
     },
@@ -375,7 +376,7 @@ pub enum Expr {
 
     /// A property reference: variable.field (field is None when referencing the whole variable)
     Property {
-        variable: String,
+        variable: VariableName,
         #[serde(default)]
         field: Option<String>,
     },
@@ -500,7 +501,7 @@ impl<'de> Deserialize<'de> for Expr {
                 value: PropertyValue,
             },
             Property {
-                variable: String,
+                variable: VariableName,
                 #[serde(default)]
                 field: Option<String>,
             },
@@ -654,14 +655,14 @@ impl std::fmt::Display for StringOp {
 pub enum Projection {
     /// A specific field: variable.field AS alias
     Field {
-        variable: String,
+        variable: VariableName,
         field: String,
         alias: Option<String>,
     },
 
     /// A variable (returns all properties): variable AS alias
     Variable {
-        variable: String,
+        variable: VariableName,
         alias: Option<String>,
     },
 
@@ -669,16 +670,18 @@ pub enum Projection {
     Expression { expr: Expr, alias: String },
 
     /// Aggregation: count(variable), sum(variable.field), etc.
+    /// `argument` is `None` for wildcard-style calls like `count(*)`.
     Aggregation {
         function: AggFunction,
-        argument: Box<Projection>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        argument: Option<Box<Projection>>,
         alias: String,
         #[serde(default)]
         distinct: bool,
     },
 
     /// All properties of a variable: variable { .* }
-    AllProperties { variable: String },
+    AllProperties { variable: VariableName },
 }
 
 /// Custom deserializer for Projection.
@@ -699,13 +702,17 @@ impl<'de> Deserialize<'de> for Projection {
             .and_then(|v| v.as_str())
             .unwrap_or("variable");
 
+        let read_variable = |default: &str| -> Result<VariableName, D::Error> {
+            let s = obj
+                .get("variable")
+                .and_then(|v| v.as_str())
+                .unwrap_or(default);
+            VariableName::new(s).map_err(serde::de::Error::custom)
+        };
+
         match kind {
             "field" => {
-                let variable = obj
-                    .get("variable")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("n")
-                    .to_string();
+                let variable = read_variable("n")?;
                 let alias = obj.get("alias").and_then(|v| v.as_str()).map(String::from);
                 // If field is empty/missing, treat as variable projection (not n.``)
                 match obj
@@ -722,11 +729,7 @@ impl<'de> Deserialize<'de> for Projection {
                 }
             }
             "variable" => Ok(Projection::Variable {
-                variable: obj
-                    .get("variable")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("n")
-                    .to_string(),
+                variable: read_variable("n")?,
                 alias: obj.get("alias").and_then(|v| v.as_str()).map(String::from),
             }),
             "expression" => {
@@ -760,32 +763,36 @@ impl<'de> Deserialize<'de> for Projection {
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false);
 
-                // Try canonical "argument" first, then fall back to "variable"/"field"
+                // Canonical form uses `argument`; several LLM variants
+                // use `variable`/`field` shorthand, and `variable: "*"`
+                // is the wildcard form for `count(*)` where `argument`
+                // collapses to `None`.
                 let argument = if let Some(arg_val) = obj.get("argument") {
-                    Box::new(
+                    Some(Box::new(
                         serde_json::from_value::<Projection>(arg_val.clone())
                             .map_err(serde::de::Error::custom)?,
-                    )
-                } else if let Some(var) = obj.get("variable").and_then(|v| v.as_str()) {
-                    // LLM shorthand: {"kind": "aggregate", "function": "count", "variable": "c"}
-                    if let Some(field) = obj.get("field").and_then(|v| v.as_str()) {
-                        Box::new(Projection::Field {
-                            variable: var.to_string(),
-                            field: field.to_string(),
-                            alias: None,
-                        })
+                    ))
+                } else if let Some(var_str) = obj.get("variable").and_then(|v| v.as_str()) {
+                    if var_str == "*" {
+                        None
                     } else {
-                        Box::new(Projection::Variable {
-                            variable: var.to_string(),
-                            alias: None,
-                        })
+                        let variable =
+                            VariableName::new(var_str).map_err(serde::de::Error::custom)?;
+                        if let Some(field) = obj.get("field").and_then(|v| v.as_str()) {
+                            Some(Box::new(Projection::Field {
+                                variable,
+                                field: field.to_string(),
+                                alias: None,
+                            }))
+                        } else {
+                            Some(Box::new(Projection::Variable {
+                                variable,
+                                alias: None,
+                            }))
+                        }
                     }
                 } else {
-                    // count(*) — use wildcard variable
-                    Box::new(Projection::Variable {
-                        variable: "*".to_string(),
-                        alias: None,
-                    })
+                    None
                 };
 
                 Ok(Projection::Aggregation {
@@ -795,14 +802,9 @@ impl<'de> Deserialize<'de> for Projection {
                     distinct,
                 })
             }
-            "all_properties" => {
-                let variable = obj
-                    .get("variable")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("n")
-                    .to_string();
-                Ok(Projection::AllProperties { variable })
-            }
+            "all_properties" => Ok(Projection::AllProperties {
+                variable: read_variable("n")?,
+            }),
             other => Err(serde::de::Error::custom(format!(
                 "unknown Projection kind: {other}"
             ))),
@@ -842,13 +844,13 @@ pub enum AggFunction {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct FieldRef {
-    pub variable: String,
+    pub variable: VariableName,
     pub field: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct NodeRef {
-    pub variable: String,
+    pub variable: VariableName,
     pub label: Option<String>,
     pub property_filters: Vec<PropertyFilter>,
 }
@@ -923,10 +925,11 @@ impl<'de> Deserialize<'de> for OrderClause {
 
         // If neither, try to parse the whole value as a simple field reference
         if let Some(field) = obj.get("field").and_then(|v| v.as_str()) {
-            let variable = obj.get("variable").and_then(|v| v.as_str()).unwrap_or("n");
+            let variable_str = obj.get("variable").and_then(|v| v.as_str()).unwrap_or("n");
+            let variable = VariableName::new(variable_str).map_err(serde::de::Error::custom)?;
             return Ok(OrderClause {
                 projection: Projection::Field {
-                    variable: variable.to_string(),
+                    variable,
                     field: field.to_string(),
                     alias: None,
                 },
@@ -941,15 +944,20 @@ impl<'de> Deserialize<'de> for OrderClause {
 }
 
 impl OrderClause {
-    /// Create an order clause from a projection alias (e.g. ordering by aggregation result).
-    pub fn from_alias(alias: impl Into<String>, direction: SortDirection) -> Self {
-        Self {
+    /// Create an order clause from a projection alias (e.g. ordering by
+    /// aggregation result). Returns an error when the alias fails the
+    /// [`VariableName`] invariants.
+    pub fn from_alias(
+        alias: impl Into<String>,
+        direction: SortDirection,
+    ) -> crate::error::OxResult<Self> {
+        Ok(Self {
             projection: Projection::Variable {
-                variable: alias.into(),
+                variable: VariableName::new(alias)?,
                 alias: None,
             },
             direction,
-        }
+        })
     }
 }
 
@@ -991,23 +999,23 @@ pub struct ChainStep {
 pub enum MutateOp {
     /// CREATE (node)
     CreateNode {
-        variable: String,
+        variable: VariableName,
         label: String,
         properties: Vec<PropertyAssignment>,
     },
 
     /// CREATE (source)-[edge]->(target)
     CreateEdge {
-        variable: Option<String>,
+        variable: Option<VariableName>,
         label: String,
-        source: String,
-        target: String,
+        source: VariableName,
+        target: VariableName,
         properties: Vec<PropertyAssignment>,
     },
 
     /// MERGE (node) ON CREATE SET ... ON MATCH SET ...
     MergeNode {
-        variable: String,
+        variable: VariableName,
         label: String,
         match_properties: Vec<PropertyAssignment>,
         on_create: Vec<PropertyAssignment>,
@@ -1016,10 +1024,10 @@ pub enum MutateOp {
 
     /// MERGE (source)-[edge]->(target) ON CREATE SET ... ON MATCH SET ...
     MergeEdge {
-        variable: Option<String>,
+        variable: Option<VariableName>,
         label: String,
-        source: String,
-        target: String,
+        source: VariableName,
+        target: VariableName,
         match_properties: Vec<PropertyAssignment>,
         on_create: Vec<PropertyAssignment>,
         on_match: Vec<PropertyAssignment>,
@@ -1027,19 +1035,28 @@ pub enum MutateOp {
 
     /// SET variable.property = value
     SetProperty {
-        variable: String,
+        variable: VariableName,
         property: String,
         value: Expr,
     },
 
     /// DELETE variable (optionally DETACH DELETE)
-    Delete { variable: String, detach: bool },
+    Delete {
+        variable: VariableName,
+        detach: bool,
+    },
 
     /// REMOVE variable.property
-    RemoveProperty { variable: String, property: String },
+    RemoveProperty {
+        variable: VariableName,
+        property: String,
+    },
 
     /// REMOVE variable:Label
-    RemoveLabel { variable: String, label: String },
+    RemoveLabel {
+        variable: VariableName,
+        label: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

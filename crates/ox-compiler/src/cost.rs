@@ -424,6 +424,10 @@ mod tests {
         GraphLabel::new(s).expect("test label literal must be valid")
     }
 
+    fn vn(s: &'static str) -> ox_core::VariableName {
+        ox_core::VariableName::new(s).expect("test variable name literal must be valid")
+    }
+
     fn pk(s: &'static str) -> PropertyKey {
         PropertyKey::new(s).expect("test property name literal must be valid")
     }
@@ -500,7 +504,7 @@ mod tests {
     #[test]
     fn single_node_is_low_risk() {
         let ir = simple_match(vec![GraphPattern::Node {
-            variable: "n".into(),
+            variable: vn("n"),
             label: Some("Person".into()),
             property_filters: vec![],
         }]);
@@ -514,15 +518,15 @@ mod tests {
     fn connected_patterns_no_cartesian() {
         let ir = simple_match(vec![
             GraphPattern::Node {
-                variable: "a".into(),
+                variable: vn("a"),
                 label: Some("Person".into()),
                 property_filters: vec![],
             },
             GraphPattern::Relationship {
                 variable: None,
                 label: Some("KNOWS".into()),
-                source: "a".into(),
-                target: "b".into(),
+                source: vn("a"),
+                target: vn("b"),
                 direction: Direction::Outgoing,
                 property_filters: vec![],
                 var_length: None,
@@ -536,12 +540,12 @@ mod tests {
     fn disconnected_patterns_cartesian() {
         let ir = simple_match(vec![
             GraphPattern::Node {
-                variable: "a".into(),
+                variable: vn("a"),
                 label: Some("Person".into()),
                 property_filters: vec![],
             },
             GraphPattern::Node {
-                variable: "b".into(),
+                variable: vn("b"),
                 label: Some("Company".into()),
                 property_filters: vec![],
             },
@@ -556,8 +560,8 @@ mod tests {
         let ir = simple_match(vec![GraphPattern::Relationship {
             variable: None,
             label: Some("FOLLOWS".into()),
-            source: "a".into(),
-            target: "b".into(),
+            source: vn("a"),
+            target: vn("b"),
             direction: Direction::Outgoing,
             property_filters: vec![],
             var_length: Some(VarLength {
@@ -575,8 +579,8 @@ mod tests {
         let ir = simple_match(vec![GraphPattern::Relationship {
             variable: None,
             label: Some("FOLLOWS".into()),
-            source: "a".into(),
-            target: "b".into(),
+            source: vn("a"),
+            target: vn("b"),
             direction: Direction::Outgoing,
             property_filters: vec![],
             var_length: Some(VarLength {
@@ -593,7 +597,7 @@ mod tests {
         let ir = simple_match(vec![GraphPattern::Path {
             elements: vec![
                 PathElement::Node {
-                    variable: "a".into(),
+                    variable: vn("a"),
                     label: Some("Person".into()),
                 },
                 PathElement::Edge {
@@ -602,7 +606,7 @@ mod tests {
                     direction: Direction::Outgoing,
                 },
                 PathElement::Node {
-                    variable: "b".into(),
+                    variable: vn("b"),
                     label: None,
                 },
                 PathElement::Edge {
@@ -611,7 +615,7 @@ mod tests {
                     direction: Direction::Outgoing,
                 },
                 PathElement::Node {
-                    variable: "c".into(),
+                    variable: vn("c"),
                     label: Some("Company".into()),
                 },
             ],
@@ -631,7 +635,7 @@ mod tests {
                         pass_through: vec![],
                         operation: QueryOp::Match {
                             patterns: vec![GraphPattern::Node {
-                                variable: "n".into(),
+                                variable: vn("n"),
                                 label: None,
                                 property_filters: vec![],
                             }],
@@ -645,7 +649,7 @@ mod tests {
                         pass_through: vec![],
                         operation: QueryOp::Match {
                             patterns: vec![GraphPattern::Node {
-                                variable: "m".into(),
+                                variable: vn("m"),
                                 label: None,
                                 property_filters: vec![],
                             }],
@@ -659,7 +663,7 @@ mod tests {
                         pass_through: vec![],
                         operation: QueryOp::Match {
                             patterns: vec![GraphPattern::Node {
-                                variable: "x".into(),
+                                variable: vn("x"),
                                 label: None,
                                 property_filters: vec![],
                             }],
@@ -687,12 +691,12 @@ mod tests {
             operation: QueryOp::Match {
                 patterns: vec![
                     GraphPattern::Node {
-                        variable: "x".into(),
+                        variable: vn("x"),
                         label: None,
                         property_filters: vec![],
                     },
                     GraphPattern::Node {
-                        variable: "y".into(),
+                        variable: vn("y"),
                         label: None,
                         property_filters: vec![],
                     },
@@ -724,7 +728,7 @@ mod tests {
     #[test]
     fn indexed_filter_detected() {
         let ir = simple_match(vec![GraphPattern::Node {
-            variable: "p".into(),
+            variable: vn("p"),
             label: Some("Person".into()),
             property_filters: vec![PropertyFilter {
                 property: "name".into(),
@@ -744,8 +748,8 @@ mod tests {
         let ir = simple_match(vec![GraphPattern::Relationship {
             variable: None,
             label: Some("FOLLOWS".into()),
-            source: "a".into(),
-            target: "b".into(),
+            source: vn("a"),
+            target: vn("b"),
             direction: Direction::Outgoing,
             property_filters: vec![],
             var_length: Some(VarLength {
@@ -764,8 +768,8 @@ mod tests {
         let ir = simple_match(vec![GraphPattern::Relationship {
             variable: None,
             label: Some("FOLLOWS".into()),
-            source: "a".into(),
-            target: "b".into(),
+            source: vn("a"),
+            target: vn("b"),
             direction: Direction::Outgoing,
             property_filters: vec![],
             var_length: Some(VarLength {
@@ -782,8 +786,8 @@ mod tests {
         let ir = simple_match(vec![GraphPattern::Relationship {
             variable: None,
             label: Some("KNOWS".into()),
-            source: "a".into(),
-            target: "b".into(),
+            source: vn("a"),
+            target: vn("b"),
             direction: Direction::Outgoing,
             property_filters: vec![],
             var_length: None,

@@ -20,11 +20,16 @@ use std::hint::black_box;
 
 use ox_compiler::GraphCompiler;
 use ox_compiler::cypher::CypherCompiler;
+use ox_core::VariableName;
 use ox_core::query_ir::{
     AggFunction, AggregationExpr, ComparisonOp, Expr, FieldRef, GraphPattern, OrderClause,
     Projection, QueryIR, QueryOp, SortDirection,
 };
 use ox_core::types::{Direction, PropertyValue};
+
+fn vn(s: &'static str) -> VariableName {
+    VariableName::new(s).expect("bench variable literal must be valid")
+}
 
 fn bench_simple_match(c: &mut Criterion) {
     let compiler = CypherCompiler::neo4j();
@@ -32,13 +37,13 @@ fn bench_simple_match(c: &mut Criterion) {
         schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
-                variable: "p".into(),
+                variable: vn("p"),
                 label: Some("Product".into()),
                 property_filters: vec![],
             }],
             filter: Some(Expr::Comparison {
                 left: Box::new(Expr::Property {
-                    variable: "p".into(),
+                    variable: vn("p"),
                     field: Some("price".into()),
                 }),
                 op: ComparisonOp::Gt,
@@ -48,12 +53,12 @@ fn bench_simple_match(c: &mut Criterion) {
             }),
             projections: vec![
                 Projection::Field {
-                    variable: "p".into(),
+                    variable: vn("p"),
                     field: "name".into(),
                     alias: None,
                 },
                 Projection::Field {
-                    variable: "p".into(),
+                    variable: vn("p"),
                     field: "price".into(),
                     alias: None,
                 },
@@ -65,7 +70,7 @@ fn bench_simple_match(c: &mut Criterion) {
         skip: None,
         order_by: vec![OrderClause {
             projection: Projection::Field {
-                variable: "p".into(),
+                variable: vn("p"),
                 field: "price".into(),
                 alias: None,
             },
@@ -88,19 +93,19 @@ fn bench_relationship_traversal(c: &mut Criterion) {
         operation: QueryOp::Match {
             patterns: vec![
                 GraphPattern::Node {
-                    variable: "c".into(),
+                    variable: vn("c"),
                     label: Some("Customer".into()),
                     property_filters: vec![],
                 },
                 GraphPattern::Node {
-                    variable: "o".into(),
+                    variable: vn("o"),
                     label: Some("Order".into()),
                     property_filters: vec![],
                 },
                 GraphPattern::Relationship {
-                    variable: Some("r".into()),
-                    source: "c".into(),
-                    target: "o".into(),
+                    variable: Some(vn("r")),
+                    source: vn("c"),
+                    target: vn("o"),
                     label: Some("PLACED".into()),
                     direction: Direction::Outgoing,
                     property_filters: vec![],
@@ -110,12 +115,12 @@ fn bench_relationship_traversal(c: &mut Criterion) {
             filter: None,
             projections: vec![
                 Projection::Field {
-                    variable: "c".into(),
+                    variable: vn("c"),
                     field: "name".into(),
                     alias: None,
                 },
                 Projection::Field {
-                    variable: "o".into(),
+                    variable: vn("o"),
                     field: "total".into(),
                     alias: Some("order_total".into()),
                 },
@@ -127,7 +132,7 @@ fn bench_relationship_traversal(c: &mut Criterion) {
         skip: None,
         order_by: vec![OrderClause {
             projection: Projection::Field {
-                variable: "o".into(),
+                variable: vn("o"),
                 field: "total".into(),
                 alias: None,
             },
@@ -149,13 +154,13 @@ fn bench_aggregation(c: &mut Criterion) {
         schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
-                variable: "o".into(),
+                variable: vn("o"),
                 label: Some("Order".into()),
                 property_filters: vec![],
             }],
             filter: Some(Expr::Comparison {
                 left: Box::new(Expr::Property {
-                    variable: "o".into(),
+                    variable: vn("o"),
                     field: Some("status".into()),
                 }),
                 op: ComparisonOp::Eq,
@@ -165,12 +170,12 @@ fn bench_aggregation(c: &mut Criterion) {
             }),
             projections: vec![
                 Projection::Field {
-                    variable: "o".into(),
+                    variable: vn("o"),
                     field: "category".into(),
                     alias: None,
                 },
                 Projection::Field {
-                    variable: "o".into(),
+                    variable: vn("o"),
                     field: "total".into(),
                     alias: None,
                 },
@@ -188,13 +193,13 @@ fn bench_aggregation(c: &mut Criterion) {
         operation: QueryOp::Aggregate {
             source: Box::new(inner),
             group_by: vec![FieldRef {
-                variable: "o".into(),
+                variable: vn("o"),
                 field: Some("category".into()),
             }],
             aggregations: vec![AggregationExpr {
                 function: AggFunction::Sum,
                 field: FieldRef {
-                    variable: "o".into(),
+                    variable: vn("o"),
                     field: Some("total".into()),
                 },
                 distinct: false,

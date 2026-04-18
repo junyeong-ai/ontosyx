@@ -11,7 +11,7 @@ impl ResolverCtx<'_> {
         match expr {
             Expr::Property { variable, field } => {
                 if let Some(field) = field {
-                    self.resolve_variable_property(variable, field);
+                    self.resolve_variable_property(variable.as_str(), field);
                 }
             }
             Expr::Comparison { left, right, .. } => {
@@ -92,15 +92,17 @@ impl ResolverCtx<'_> {
             Projection::Field {
                 variable, field, ..
             } => {
-                self.resolve_variable_property(variable, field);
+                self.resolve_variable_property(variable.as_str(), field);
             }
             Projection::Variable { .. } | Projection::AllProperties { .. } => {}
             Projection::Expression { expr, .. } => self.resolve_expr(expr),
             Projection::Aggregation { argument, .. } => {
-                let prev_hint = self.usage_hint;
-                self.usage_hint = PropertyUsageHint::Aggregation;
-                self.resolve_projection(argument);
-                self.usage_hint = prev_hint;
+                if let Some(arg) = argument {
+                    let prev_hint = self.usage_hint;
+                    self.usage_hint = PropertyUsageHint::Aggregation;
+                    self.resolve_projection(arg);
+                    self.usage_hint = prev_hint;
+                }
             }
         }
     }

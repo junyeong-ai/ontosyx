@@ -371,7 +371,7 @@ impl StructuredMatchQuery {
 
         for node in &self.nodes {
             patterns.push(GraphPattern::Node {
-                variable: node.variable.clone(),
+                variable: crate::variable_name::VariableName::new(node.variable.clone())?,
                 label: Some(node.label.clone()),
                 property_filters: Vec::new(),
             });
@@ -413,12 +413,12 @@ impl StructuredMatchQuery {
                 .variable
                 .as_deref()
                 .and_then(sanitize_variable)
-                .map(String::from);
+                .and_then(|s| crate::variable_name::VariableName::new(s).ok());
             patterns.push(GraphPattern::Relationship {
                 variable,
                 label: Some(rel.label.clone()),
-                source: rel.source.clone(),
-                target: rel.target.clone(),
+                source: crate::variable_name::VariableName::new(rel.source.clone())?,
+                target: crate::variable_name::VariableName::new(rel.target.clone())?,
                 direction: Direction::Outgoing,
                 property_filters: Vec::new(),
                 var_length,
@@ -433,8 +433,8 @@ impl StructuredMatchQuery {
                     pattern: Box::new(GraphPattern::Relationship {
                         variable: None,
                         label: Some(exclude.relationship_label.clone()),
-                        source: exclude.source.clone(),
-                        target: exclude.target.clone(),
+                        source: crate::variable_name::VariableName::new(exclude.source.clone())?,
+                        target: crate::variable_name::VariableName::new(exclude.target.clone())?,
                         direction: Direction::Both,
                         property_filters: Vec::new(),
                         var_length: None,
@@ -455,12 +455,14 @@ impl StructuredMatchQuery {
         let group_by: Vec<Projection> = self
             .group_by
             .iter()
-            .map(|g| Projection::Field {
-                variable: g.variable.clone(),
-                field: g.field.clone(),
-                alias: None,
+            .map(|g| {
+                Ok::<_, OxError>(Projection::Field {
+                    variable: crate::variable_name::VariableName::new(g.variable.clone())?,
+                    field: g.field.clone(),
+                    alias: None,
+                })
             })
-            .collect();
+            .collect::<Result<Vec<_>, _>>()?;
 
         let order_by: Vec<OrderClause> = self.order_by.iter().map(sort_to_order).collect();
 
@@ -498,8 +500,20 @@ fn conditions_to_filter(conditions: &[Condition]) -> Option<Expr> {
 }
 
 fn condition_to_expr(c: &Condition) -> Option<Expr> {
+    let variable = match crate::variable_name::VariableName::new(c.variable.clone()) {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::warn!(
+                variable = %c.variable,
+                field = %c.field,
+                error = %e,
+                "Dropping condition with invalid variable name"
+            );
+            return None;
+        }
+    };
     let prop = Expr::Property {
-        variable: c.variable.clone(),
+        variable,
         field: Some(c.field.clone()),
     };
 
@@ -620,18 +634,39 @@ fn condition_value(c: &Condition) -> Option<Expr> {
 }
 
 fn return_to_projection(r: &ReturnClause) -> Projection {
+    // Bail out silently (producing a no-op AllProperties wildcard) when
+    // the variable fails `VariableName` validation — the upstream
+    // `validate()` pass already surfaces structural issues, and
+    // `QueryIR::validate()` in `into_query_ir` fires again after
+    // conversion, so a truly malformed return is never silently emitted.
+    let variable = match crate::variable_name::VariableName::new(r.variable.clone()) {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::warn!(
+                variable = %r.variable,
+                error = %e,
+                "Dropping return clause with invalid variable name"
+            );
+            return Projection::Expression {
+                expr: Expr::Literal {
+                    value: PropertyValue::Null,
+                },
+                alias: r.alias.clone().unwrap_or_else(|| "invalid".to_string()),
+            };
+        }
+    };
     if let Some(func) = r.aggregate {
         // Aggregation projection
         let argument = match &r.field {
-            Some(f) => Box::new(Projection::Field {
-                variable: r.variable.clone(),
+            Some(f) => Some(Box::new(Projection::Field {
+                variable,
                 field: f.clone(),
                 alias: None,
-            }),
-            None => Box::new(Projection::Variable {
-                variable: r.variable.clone(),
+            })),
+            None => Some(Box::new(Projection::Variable {
+                variable,
                 alias: None,
-            }),
+            })),
         };
         Projection::Aggregation {
             function: func.into(),
@@ -645,12 +680,12 @@ fn return_to_projection(r: &ReturnClause) -> Projection {
     } else {
         match &r.field {
             Some(f) => Projection::Field {
-                variable: r.variable.clone(),
+                variable,
                 field: f.clone(),
                 alias: r.alias.clone(),
             },
             None => Projection::Variable {
-                variable: r.variable.clone(),
+                variable,
                 alias: r.alias.clone(),
             },
         }
@@ -664,18 +699,36 @@ fn sort_to_order(s: &SortClause) -> OrderClause {
         SortDirection::Asc
     };
 
-    // Parse "variable.field" or treat as alias
+    // Parse "variable.field" or treat as alias. Fall back to an
+    // expression-sort-key on an invalid variable rather than dropping
+    // the clause so the caller still gets deterministic ordering.
     let projection = if let Some((var, field)) = s.field.split_once('.') {
-        Projection::Field {
-            variable: var.to_string(),
-            field: field.to_string(),
-            alias: None,
+        match crate::variable_name::VariableName::new(var) {
+            Ok(variable) => Projection::Field {
+                variable,
+                field: field.to_string(),
+                alias: None,
+            },
+            Err(_) => Projection::Expression {
+                expr: Expr::Literal {
+                    value: PropertyValue::String(s.field.clone()),
+                },
+                alias: "sort_key".to_string(),
+            },
         }
     } else {
         // Alias reference (e.g., "total_count")
-        Projection::Variable {
-            variable: s.field.clone(),
-            alias: None,
+        match crate::variable_name::VariableName::new(s.field.clone()) {
+            Ok(variable) => Projection::Variable {
+                variable,
+                alias: None,
+            },
+            Err(_) => Projection::Expression {
+                expr: Expr::Literal {
+                    value: PropertyValue::String(s.field.clone()),
+                },
+                alias: "sort_key".to_string(),
+            },
         }
     };
 

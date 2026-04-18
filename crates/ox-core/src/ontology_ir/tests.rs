@@ -620,7 +620,7 @@ fn ecommerce_ontology() -> OntologyIR {
 fn simple_match_query(node_label: &str, rel_label: Option<&str>) -> crate::query_ir::QueryIR {
     use crate::query_ir::{GraphPattern, QUERY_IR_SCHEMA_VERSION, QueryIR, QueryOp};
     let mut patterns = vec![GraphPattern::Node {
-        variable: "n".into(),
+        variable: crate::variable_name::VariableName::new("n").expect("valid"),
         label: Some(node_label.into()),
         property_filters: vec![],
     }];
@@ -628,14 +628,14 @@ fn simple_match_query(node_label: &str, rel_label: Option<&str>) -> crate::query
         patterns.push(GraphPattern::Relationship {
             variable: None,
             label: Some(r.into()),
-            source: "n".into(),
-            target: "m".into(),
+            source: crate::variable_name::VariableName::new("n").expect("valid"),
+            target: crate::variable_name::VariableName::new("m").expect("valid"),
             direction: crate::types::Direction::Outgoing,
             property_filters: vec![],
             var_length: None,
         });
         patterns.push(GraphPattern::Node {
-            variable: "m".into(),
+            variable: crate::variable_name::VariableName::new("m").expect("valid"),
             label: Some(node_label.into()),
             property_filters: vec![],
         });

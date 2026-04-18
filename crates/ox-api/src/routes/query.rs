@@ -577,9 +577,8 @@ pub(crate) async fn compile_pattern(
     _ws: WorkspaceContext,
     Json(req): Json<PatternCompileRequest>,
 ) -> Result<Json<ApiResponse<PatternCompileResponse>>, AppError> {
-    Ok(ApiResponse::of(PatternCompileResponse {
-        query_ir: req.pattern_ir.compile(),
-    }))
+    let query_ir = req.pattern_ir.compile().map_err(AppError::from)?;
+    Ok(ApiResponse::of(PatternCompileResponse { query_ir }))
 }
 
 // ---------------------------------------------------------------------------

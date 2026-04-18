@@ -34,8 +34,14 @@ impl ResolverCtx<'_> {
                 ..
             } => {
                 if let Some(label) = label {
-                    let source_node_id = self.var_nodes.get(source).map(|(id, _)| id.clone());
-                    let target_node_id = self.var_nodes.get(target).map(|(id, _)| id.clone());
+                    let source_node_id = self
+                        .var_nodes
+                        .get(source.as_str())
+                        .map(|(id, _)| id.clone());
+                    let target_node_id = self
+                        .var_nodes
+                        .get(target.as_str())
+                        .map(|(id, _)| id.clone());
 
                     let edge = self.ontology.edge_types.iter().find(|e| {
                         e.label == *label
@@ -48,7 +54,7 @@ impl ResolverCtx<'_> {
                     });
 
                     if let Some(edge) = edge {
-                        let var_key = variable.as_deref().unwrap_or("").to_string();
+                        let var_key = variable.as_ref().map(|v| v.to_string()).unwrap_or_default();
                         self.var_edges.entry(var_key).or_insert_with(|| {
                             (
                                 edge.id.to_string(),
@@ -58,7 +64,7 @@ impl ResolverCtx<'_> {
                             )
                         });
                         self.edge_bindings.push(EdgeBinding {
-                            variable: variable.clone(),
+                            variable: variable.as_ref().map(|v| v.to_string()),
                             edge_id: edge.id.to_string(),
                             label: edge.label.to_string(),
                             source_node_id: edge.source_node_id.to_string(),
@@ -74,7 +80,7 @@ impl ResolverCtx<'_> {
                     let prev_hint = self.usage_hint;
                     self.usage_hint = PropertyUsageHint::PatternFilter;
                     for pf in property_filters {
-                        self.resolve_property_filter(var, pf);
+                        self.resolve_property_filter(var.as_str(), pf);
                     }
                     self.usage_hint = prev_hint;
                 }
@@ -133,7 +139,8 @@ impl ResolverCtx<'_> {
                         });
 
                         if let Some(edge) = edge {
-                            let var_key = variable.as_deref().unwrap_or("").to_string();
+                            let var_key =
+                                variable.as_ref().map(|v| v.to_string()).unwrap_or_default();
                             self.var_edges.entry(var_key).or_insert_with(|| {
                                 (
                                     edge.id.to_string(),
@@ -143,7 +150,7 @@ impl ResolverCtx<'_> {
                                 )
                             });
                             self.edge_bindings.push(EdgeBinding {
-                                variable: variable.clone(),
+                                variable: variable.as_ref().map(|v| v.to_string()),
                                 edge_id: edge.id.to_string(),
                                 label: edge.label.to_string(),
                                 source_node_id: edge.source_node_id.to_string(),
@@ -161,12 +168,12 @@ impl ResolverCtx<'_> {
 
     pub(super) fn resolve_node_ref(&mut self, node_ref: &NodeRef) {
         if let Some(label) = &node_ref.label {
-            self.bind_node_variable(&node_ref.variable, label);
+            self.bind_node_variable(node_ref.variable.as_str(), label);
         }
         let prev_hint = self.usage_hint;
         self.usage_hint = PropertyUsageHint::PatternFilter;
         for pf in &node_ref.property_filters {
-            self.resolve_property_filter(&node_ref.variable, pf);
+            self.resolve_property_filter(node_ref.variable.as_str(), pf);
         }
         self.usage_hint = prev_hint;
     }
