@@ -37,11 +37,11 @@ pub use ast::{
 };
 pub use parse::parse;
 pub use rewrite::{
-    CypherRewriter, CypherRewriterPipeline, RewriteContext, RewriteError, RewrittenAst,
-    WorkspaceScopeRewriter,
+    CypherRewriter, CypherRewriterPipeline, RewriteContext, RewriteError, RewritePhase,
+    RewrittenAst, WorkspaceScopeRewriter,
 };
 pub use token::{CypherToken, Span, TokenKind, tokenize};
 pub use validate::{
     CypherValidator, CypherValidatorPipeline, IssueLevel, OntologyValidator, SafetyValidator,
-    ValidateContext, ValidationIssue, ValidationReport,
+    ValidateContext, ValidatePhase, ValidationIssue, ValidationReport,
 };

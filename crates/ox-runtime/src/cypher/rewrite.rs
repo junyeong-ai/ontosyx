@@ -29,6 +29,36 @@ use crate::cypher::ast::{
 use crate::cypher::parse;
 use crate::cypher::token::Span;
 
+/// Phase ordering for rewriter passes.
+///
+/// Every pass advertises the slot it should run in; the pipeline uses
+/// these values to sort rewriters deterministically regardless of
+/// registration order. A new pass that lands between two existing
+/// phases gets its own discriminant rather than mutating the
+/// existing values — numeric gaps (100 / 200 / 300) give room to
+/// wedge extra phases in without re-numbering the rest.
+///
+/// The current landscape:
+///
+/// - `Isolation` — workspace scope injection (`WorkspaceScopeRewriter`).
+///   Must run first because every subsequent pass assumes the final
+///   AST carries workspace scope on its writes.
+/// - `Acl` — row-level authorization filters (planned).
+/// - `SoftDelete` — tombstone predicate injection (planned).
+/// - `Temporal` — `as_of` / `valid_between` filters (planned).
+/// - `Custom` — per-installation passes that don't map onto any of
+///   the above. Runs last so it can observe everything that landed
+///   before it.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(u16)]
+pub enum RewritePhase {
+    Isolation = 100,
+    Acl = 200,
+    SoftDelete = 300,
+    Temporal = 400,
+    Custom = 900,
+}
+
 /// Errors a rewriter can raise when it refuses to transform a query.
 #[derive(Debug, Clone)]
 pub enum RewriteError {
@@ -117,6 +147,14 @@ pub trait CypherRewriter: Send + Sync {
     /// Identifier used in logs and diagnostic messages.
     fn name(&self) -> &str;
 
+    /// Slot this pass should run in. Lower values run first; same-phase
+    /// passes run in registration order (stable sort). Default is
+    /// [`RewritePhase::Custom`] so out-of-tree rewriters without an
+    /// obvious slot land last; every in-tree pass overrides it.
+    fn phase(&self) -> RewritePhase {
+        RewritePhase::Custom
+    }
+
     /// Produce a new AST reflecting this rewriter's transformation, or
     /// a [`RewriteError`] if the pass refuses the query.
     fn rewrite(&self, ast: CypherAst, ctx: &RewriteContext) -> Result<RewrittenAst, RewriteError>;
@@ -158,13 +196,28 @@ impl CypherRewriterPipeline {
     /// AST plus the sum of `modified_statements` across every pass
     /// (saturating at `u32::MAX`). The runtime uses the sum to decide
     /// whether isolation landed without re-inspecting the final AST.
+    ///
+    /// Passes are sorted by [`CypherRewriter::phase`] (stable) before
+    /// execution — callers don't need to worry about the order they
+    /// called `.with()` in, just that every pass advertised the right
+    /// phase. This is the mechanism the `bolt::pipeline` relies on to
+    /// guarantee that `Isolation` runs before `Acl` before
+    /// `SoftDelete`, regardless of build wiring.
     pub fn run_ast(
         &self,
         mut ast: CypherAst,
         ctx: &RewriteContext,
     ) -> Result<RewrittenAst, RewriteError> {
         let mut modified_total: u32 = 0;
-        for rewriter in &self.rewriters {
+
+        // Stable sort by phase. `sort_by_key` on a borrowed index
+        // vector keeps the original `Vec<Box<dyn _>>` in construction
+        // order so `Debug` still reflects how the caller wired it.
+        let mut order: Vec<usize> = (0..self.rewriters.len()).collect();
+        order.sort_by_key(|&i| self.rewriters[i].phase());
+
+        for idx in order {
+            let rewriter = &self.rewriters[idx];
             let out = rewriter.rewrite(ast, ctx)?;
             ast = out.ast;
             modified_total = modified_total.saturating_add(out.modified_statements);
@@ -232,6 +285,10 @@ impl WorkspaceScopeRewriter {
 impl CypherRewriter for WorkspaceScopeRewriter {
     fn name(&self) -> &str {
         "workspace-scope"
+    }
+
+    fn phase(&self) -> RewritePhase {
+        RewritePhase::Isolation
     }
 
     fn rewrite(
@@ -836,6 +893,58 @@ mod tests {
         assert_eq!(
             result.modified_statements, 0,
             "scalar query has nothing to scope; count stays 0"
+        );
+    }
+
+    #[test]
+    fn pipeline_sorts_rewriters_by_phase_regardless_of_registration_order() {
+        // Two rewriters: one at Isolation (100), one at a synthetic
+        // Custom (900). Registered in reverse. The pipeline must still
+        // run Isolation first — the runtime depends on this guarantee
+        // to add new passes without caring where `.with()` is called.
+        struct FakeCustom;
+        impl CypherRewriter for FakeCustom {
+            fn name(&self) -> &str {
+                "fake-custom"
+            }
+            fn phase(&self) -> RewritePhase {
+                RewritePhase::Custom
+            }
+            fn rewrite(
+                &self,
+                mut ast: CypherAst,
+                _: &RewriteContext,
+            ) -> Result<RewrittenAst, RewriteError> {
+                for stmt in &mut ast.statements {
+                    for clause in &mut stmt.clauses {
+                        if clause.kind == ClauseKind::Where {
+                            // Tag only if the isolation predicate is already there.
+                            // If this runs first, the tag won't appear.
+                            if clause.text.contains("_workspace_id") {
+                                clause.text = format!("{}/*CUSTOM_AFTER*/", clause.text);
+                            }
+                        }
+                    }
+                }
+                Ok(RewrittenAst {
+                    ast,
+                    modified_statements: 0,
+                })
+            }
+        }
+
+        let pipeline = CypherRewriterPipeline::new()
+            .with(FakeCustom) // registered first
+            .with(WorkspaceScopeRewriter::new("_workspace_id", "_ws_id")); // registered second
+        let out = pipeline
+            .run(
+                "MATCH (n:Person) RETURN n",
+                &RewriteContext::new("ws-phase"),
+            )
+            .expect("phase-sorted pipeline runs");
+        assert!(
+            out.contains("/*CUSTOM_AFTER*/"),
+            "Custom phase must run AFTER Isolation even when registered first: {out}"
         );
     }
 }

@@ -185,11 +185,46 @@ impl ValidationReport {
 // CypherValidator trait + Pipeline
 // ---------------------------------------------------------------------------
 
+/// Phase ordering for validator passes.
+///
+/// Like [`crate::cypher::rewrite::RewritePhase`] but for validation. The
+/// `bolt::pipeline` runs the pre-rewrite slots (`Safety` → `Ontology`)
+/// before any rewriter; any future post-rewrite validator would run
+/// in the `PostRewrite` slot after every rewriter has settled. Numeric
+/// gaps leave room for new slots without renumbering the existing
+/// ones.
+///
+/// The current set:
+///
+/// - `PreRewriteSafety` — hard blocks on destructive or DDL constructs.
+/// - `PreRewriteOntology` — schema conformance of labels / properties /
+///   relationship types against the active `OntologyIR`.
+/// - `PostRewrite` — inspections that require rewriters to have run
+///   first (none shipping today — the old substring scope gate was
+///   replaced by the structural `modified_statements` check in the
+///   runtime pipeline).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(u16)]
+pub enum ValidatePhase {
+    PreRewriteSafety = 100,
+    PreRewriteOntology = 200,
+    PostRewrite = 900,
+}
+
 /// A single Cypher validation pass. Unlike [`crate::cypher::rewrite::CypherRewriter`],
 /// validators never mutate the AST — they only inspect it.
 pub trait CypherValidator: Send + Sync {
     /// Identifier used in diagnostics and logs.
     fn name(&self) -> &str;
+
+    /// Slot this validator runs in. Same semantics as
+    /// [`crate::cypher::rewrite::CypherRewriter::phase`] — pipeline
+    /// stable-sorts by this value. Default is `PreRewriteOntology`
+    /// because every in-tree validator lands in a pre-rewrite slot
+    /// today; an out-of-tree post-rewrite validator must override.
+    fn phase(&self) -> ValidatePhase {
+        ValidatePhase::PreRewriteOntology
+    }
 
     /// Inspect `ast` and return any issues discovered.
     fn validate(&self, ast: &CypherAst, ctx: &ValidateContext) -> Vec<ValidationIssue>;
@@ -226,12 +261,18 @@ impl CypherValidatorPipeline {
     }
 
     /// Run every validator over the given AST and return a combined
-    /// [`ValidationReport`]. Issues appear in validator-registration
-    /// order, and within each validator in whatever order it chose.
+    /// [`ValidationReport`]. Validators are sorted by
+    /// [`CypherValidator::phase`] (stable) before execution, so the
+    /// caller doesn't need to worry about the order they called
+    /// `.with()` in; within each phase, issues appear in registration
+    /// order.
     pub fn run_ast(&self, ast: &CypherAst, ctx: &ValidateContext) -> ValidationReport {
+        let mut order: Vec<usize> = (0..self.validators.len()).collect();
+        order.sort_by_key(|&i| self.validators[i].phase());
+
         let mut issues = Vec::new();
-        for v in &self.validators {
-            issues.extend(v.validate(ast, ctx));
+        for idx in order {
+            issues.extend(self.validators[idx].validate(ast, ctx));
         }
         ValidationReport { issues }
     }
@@ -288,6 +329,10 @@ impl SafetyValidator {
 impl CypherValidator for SafetyValidator {
     fn name(&self) -> &str {
         "safety"
+    }
+
+    fn phase(&self) -> ValidatePhase {
+        ValidatePhase::PreRewriteSafety
     }
 
     fn validate(&self, ast: &CypherAst, _ctx: &ValidateContext) -> Vec<ValidationIssue> {
@@ -376,6 +421,10 @@ impl fmt::Debug for OntologyValidator {
 impl CypherValidator for OntologyValidator {
     fn name(&self) -> &str {
         "ontology"
+    }
+
+    fn phase(&self) -> ValidatePhase {
+        ValidatePhase::PreRewriteOntology
     }
 
     fn validate(&self, ast: &CypherAst, _ctx: &ValidateContext) -> Vec<ValidationIssue> {
@@ -791,6 +840,35 @@ mod tests {
     }
 
     #[test]
+    fn pipeline_sorts_validators_by_phase_regardless_of_registration_order() {
+        // Ontology validator (PreRewriteOntology, 200) registered first;
+        // safety validator (PreRewriteSafety, 100) registered second.
+        // Even so, safety errors must appear before ontology errors in
+        // the report — the runtime relies on this ordering when
+        // aggregating issues for the LLM retry message.
+        let p = CypherValidatorPipeline::new()
+            .with(OntologyValidator::new(person_company_ontology()))
+            .with(SafetyValidator::new());
+        let r = run(&p, "MATCH (u:Userr) DELETE u");
+        let first_safety = r
+            .issues
+            .iter()
+            .position(|i| i.validator_name == "safety")
+            .unwrap();
+        let first_onto = r
+            .issues
+            .iter()
+            .position(|i| i.validator_name == "ontology")
+            .unwrap();
+        assert!(
+            first_safety < first_onto,
+            "PreRewriteSafety must sort ahead of PreRewriteOntology even \
+             when safety is registered second: {:?}",
+            r.issues
+        );
+    }
+
+    #[test]
     fn ontology_dedupes_repeated_unknown_labels() {
         // Same unknown label in three different MATCH statements should
         // produce one error, not three — otherwise the report drowns
@@ -801,10 +879,7 @@ mod tests {
             &p,
             "MATCH (a:Userr) MATCH (b:Userr) MATCH (c:Userr) RETURN a, b, c",
         );
-        let count = r
-            .errors()
-            .filter(|e| e.message.contains("Userr"))
-            .count();
+        let count = r.errors().filter(|e| e.message.contains("Userr")).count();
         assert_eq!(count, 1, "unknown label should report once: {:?}", r.issues);
     }
 
