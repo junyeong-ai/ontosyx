@@ -1,21 +1,28 @@
 import type { Node, Edge } from "@xyflow/react";
 import type { UiConfig } from "@/types/api";
-import type { WorkerResponse } from "./elk-layout.worker";
+import type { WorkerRequest, WorkerResponse } from "./elk-layout.worker";
 import { ELK_OPTIONS, buildElkOptions } from "./elk-options";
 
 // ---------------------------------------------------------------------------
-// ELK layout computation for ontology graph
+// ELK layout computation for canvas surfaces
 //
-// Offloads layout to a Web Worker to keep the main thread responsive.
-// Falls back to main-thread computation if the worker cannot be created
-// (e.g. during SSR or if the browser doesn't support module workers).
+// Offloads every canvas's layout call to a shared Web Worker and falls
+// back to main-thread computation only if the worker can't be created
+// (SSR, older browsers without module-worker support).
 //
 // Public API:
-//   computeElkLayout(nodes, edges, config?) → Promise<LayoutResult>
+//   computeElkLayout(nodes, edges, options?) → Promise<LayoutResult>
 //
-// When `config` is provided, the main-thread fallback uses dynamic ELK
-// options from the server. The worker uses static defaults (initialized
-// at module load time — worker config updates require page reload).
+// `options.preset` picks the algorithm family:
+//   - "layered" (default): ontology editor — hierarchical, ports enabled.
+//                          Spacing / direction / edge-routing are tunable
+//                          via `options.uiConfig` (server-supplied).
+//   - "stress": explore surface — force-like placement, no ports (ports
+//               would fight the spring model). Static options for now.
+//
+// Both presets share one worker. That avoids a second module-worker
+// instance (and its 1 MB ELK bundle) and lets us scale new presets by
+// adding an entry here rather than duplicating the whole pipeline.
 // ---------------------------------------------------------------------------
 
 let cachedWorkerTimeoutMs = 30_000;
@@ -23,6 +30,51 @@ let cachedWorkerTimeoutMs = 30_000;
 export interface LayoutResult {
   nodes: Node[];
   edges: Edge[];
+}
+
+export type ElkLayoutPreset = "layered" | "stress";
+
+export interface ComputeElkOptions {
+  /** Algorithm preset. Defaults to "layered". */
+  preset?: ElkLayoutPreset;
+  /**
+   * Server-supplied layout tunables. Only consulted for the "layered"
+   * preset (direction / node + layer spacing / edge routing). Ignored
+   * for other presets that have their own spacing rationale.
+   */
+  uiConfig?: UiConfig;
+}
+
+// -- Preset resolution -------------------------------------------------------
+
+/** Static stress options — the force-like placement used by the explore
+ * canvas. `stress` minimises edge-length distortion, which looks good
+ * for general (non-hierarchical) graphs without pulling in d3-force.
+ */
+const STRESS_OPTIONS: Readonly<Record<string, string>> = Object.freeze({
+  "elk.algorithm": "stress",
+  "elk.spacing.nodeNode": "80",
+  "elk.stress.epsilon": "0.0001",
+  "elk.stress.iterationLimit": "400",
+});
+
+interface ResolvedPreset {
+  layoutOptions: Record<string, string>;
+  withPorts: boolean;
+}
+
+function resolvePreset(options: ComputeElkOptions | undefined): ResolvedPreset {
+  const preset = options?.preset ?? "layered";
+  switch (preset) {
+    case "stress":
+      return { layoutOptions: { ...STRESS_OPTIONS }, withPorts: false };
+    case "layered":
+    default:
+      return {
+        layoutOptions: options?.uiConfig ? buildElkOptions(options.uiConfig) : { ...ELK_OPTIONS },
+        withPorts: true,
+      };
+  }
 }
 
 // -- Worker singleton -------------------------------------------------------
@@ -91,6 +143,7 @@ function getWorker(): Worker | null {
 function layoutViaWorker(
   nodes: Node[],
   edges: Edge[],
+  resolved: ResolvedPreset,
 ): Promise<Record<string, { x: number; y: number }>> {
   const w = getWorker();
   if (!w) return Promise.reject(new Error("Worker unavailable"));
@@ -105,9 +158,10 @@ function layoutViaWorker(
 
     pending.set(id, { resolve, reject, timer });
 
-    // Send serializable plain data only
-    w.postMessage({
+    const request: WorkerRequest = {
       id,
+      layoutOptions: resolved.layoutOptions,
+      withPorts: resolved.withPorts,
       nodes: nodes.map((node) => ({
         id: node.id,
         width: node.measured?.width ?? node.width ?? 220,
@@ -118,7 +172,8 @@ function layoutViaWorker(
         source: edge.source,
         target: edge.target,
       })),
-    });
+    };
+    w.postMessage(request);
   });
 }
 
@@ -129,7 +184,7 @@ let elkInstance: import("elkjs/lib/elk-api").ELK | null = null;
 async function layoutOnMainThread(
   nodes: Node[],
   edges: Edge[],
-  config?: UiConfig,
+  resolved: ResolvedPreset,
 ): Promise<Record<string, { x: number; y: number }>> {
   if (!elkInstance) {
     const ELK = (await import("elkjs/lib/elk.bundled.js")).default;
@@ -138,23 +193,33 @@ async function layoutOnMainThread(
 
   const elkGraph = {
     id: "root",
-    layoutOptions: config ? buildElkOptions(config) : ELK_OPTIONS,
-    children: nodes.map((node) => ({
-      id: node.id,
-      width: node.measured?.width ?? node.width ?? 220,
-      height: node.measured?.height ?? node.height ?? 100,
-      ports: [
-        { id: `${node.id}:top`, properties: { "port.side": "NORTH" } },
-        { id: `${node.id}:bottom`, properties: { "port.side": "SOUTH" } },
-        { id: `${node.id}:left`, properties: { "port.side": "WEST" } },
-        { id: `${node.id}:right`, properties: { "port.side": "EAST" } },
-      ],
-    })),
-    edges: edges.map((edge) => ({
-      id: edge.id,
-      sources: [`${edge.source}:right`],
-      targets: [`${edge.target}:left`],
-    })),
+    layoutOptions: resolved.layoutOptions,
+    children: nodes.map((node) => {
+      const base = {
+        id: node.id,
+        width: node.measured?.width ?? node.width ?? 220,
+        height: node.measured?.height ?? node.height ?? 100,
+      };
+      if (!resolved.withPorts) return base;
+      return {
+        ...base,
+        ports: [
+          { id: `${node.id}:top`, properties: { "port.side": "NORTH" } },
+          { id: `${node.id}:bottom`, properties: { "port.side": "SOUTH" } },
+          { id: `${node.id}:left`, properties: { "port.side": "WEST" } },
+          { id: `${node.id}:right`, properties: { "port.side": "EAST" } },
+        ],
+      };
+    }),
+    edges: edges.map((edge) =>
+      resolved.withPorts
+        ? {
+            id: edge.id,
+            sources: [`${edge.source}:right`],
+            targets: [`${edge.target}:left`],
+          }
+        : { id: edge.id, sources: [edge.source], targets: [edge.target] },
+    ),
   };
 
   const layout = await elkInstance.layout(elkGraph);
@@ -179,20 +244,23 @@ export function updateElkConfig(config: UiConfig) {
 /**
  * Compute ELK layout for React Flow nodes/edges.
  * Uses a Web Worker when available, falling back to main-thread computation.
- * When `config` is provided, the main-thread fallback uses dynamic layout options.
+ * `options.preset` selects the algorithm family (default "layered");
+ * `options.uiConfig` applies server-supplied spacing for the "layered"
+ * preset only.
  */
 export async function computeElkLayout(
   nodes: Node[],
   edges: Edge[],
-  config?: UiConfig,
+  options?: ComputeElkOptions,
 ): Promise<LayoutResult> {
+  const resolved = resolvePreset(options);
   let positions: Record<string, { x: number; y: number }>;
 
   try {
-    positions = await layoutViaWorker(nodes, edges);
+    positions = await layoutViaWorker(nodes, edges, resolved);
   } catch {
     // Worker unavailable, failed, or timed out — fall back to main thread
-    positions = await layoutOnMainThread(nodes, edges, config);
+    positions = await layoutOnMainThread(nodes, edges, resolved);
   }
 
   const layoutNodes = nodes.map((node) => ({

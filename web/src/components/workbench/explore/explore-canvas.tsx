@@ -17,6 +17,7 @@ import {
 } from "@xyflow/react";
 
 import { GraphCanvas } from "@/components/workbench/canvas/graph-canvas";
+import { computeElkLayout } from "@/components/workbench/canvas/elk-layout";
 import { useIsDarkMode } from "@/lib/use-dark-mode";
 import { useTypeFilter } from "@/lib/use-type-filter";
 import type { ExpandNeighbor, GraphOverview } from "@/lib/api/queries";
@@ -36,11 +37,12 @@ import { resolveDisplayName, resolveNodeColor } from "./graph-utils";
 //      relationship count. Click a label to pivot into neighborhood
 //      mode for a representative node.
 //
-// Layout: ELK's `stress` algorithm computed on the main thread. Explore
-// graphs are small (≤ ~50 nodes) and the layout runs only when the data
-// reference changes, so the worker path isn't worth the ceremony here.
-// The result is post-processed by centering the focused node at (0, 0)
-// so neighborhood views feel stable across pivots.
+// Layout: ELK's `stress` preset, computed through the shared worker in
+// `canvas/elk-layout`. The neighborhood view is typically ≤ 50 nodes,
+// but schema-mode graphs can balloon past 100 labels on rich ontologies;
+// offloading to the worker keeps the canvas interactive during the
+// layout pass. The result is post-processed by centering the focused
+// node at (0, 0) so neighborhood views feel stable across pivots.
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -148,51 +150,6 @@ function ExploreEdgeRenderer(props: EdgeProps) {
 
 const nodeTypesRegistry = { explore: memo(ExploreNodeRenderer) };
 const edgeTypesRegistry = { explore: memo(ExploreEdgeRenderer) };
-
-// ---------------------------------------------------------------------------
-// Layout — ELK `stress` algorithm on the main thread
-// ---------------------------------------------------------------------------
-
-interface LayoutInput {
-  id: string;
-  width: number;
-  height: number;
-}
-interface LayoutEdge {
-  id: string;
-  source: string;
-  target: string;
-}
-
-async function computeExploreLayout(
-  nodes: LayoutInput[],
-  edges: LayoutEdge[],
-): Promise<Record<string, { x: number; y: number }>> {
-  if (nodes.length === 0) return {};
-  const ELK = (await import("elkjs/lib/elk.bundled.js")).default;
-  const elk = new ELK();
-  const graph = {
-    id: "explore-root",
-    layoutOptions: {
-      // `stress` finds a placement that minimises edge-length distortion —
-      // the closest ELK comes to a force-directed aesthetic for general
-      // (non-hierarchical) graphs without pulling in a separate d3-force
-      // dep. `spacing.nodeNode` is generous so labels have breathing room.
-      "elk.algorithm": "stress",
-      "elk.spacing.nodeNode": "80",
-      "elk.stress.epsilon": "0.0001",
-      "elk.stress.iterationLimit": "400",
-    },
-    children: nodes.map((n) => ({ id: n.id, width: n.width, height: n.height })),
-    edges: edges.map((e) => ({ id: e.id, sources: [e.source], targets: [e.target] })),
-  };
-  const laid = await elk.layout(graph);
-  const out: Record<string, { x: number; y: number }> = {};
-  for (const child of laid.children ?? []) {
-    out[child.id] = { x: child.x ?? 0, y: child.y ?? 0 };
-  }
-  return out;
-}
 
 // ---------------------------------------------------------------------------
 // Data builders — mirror the NVL version's shapes, emit XyFlow nodes/edges
@@ -342,30 +299,29 @@ function ExploreCanvasInner({ focusedNode, neighbors, schemaOverview, onNodeClic
       return;
     }
     setLaying(true);
-    const layoutInputs: LayoutInput[] = built.nodes.map((n) => {
+    // Feed the shared worker circles with diameter + label gutter so
+    // ELK's repulsion accounts for the rendered footprint, not just
+    // the XyFlow node box.
+    const sizedNodes = built.nodes.map((n) => {
       const r = (n.data as ExploreNodeData).radius;
       const diameter = r * 2;
-      return { id: n.id, width: diameter, height: diameter + 20 /* label */ };
+      return { ...n, width: diameter, height: diameter + 20 /* label */ };
     });
-    const layoutEdges: LayoutEdge[] = built.edges.map((e) => ({
-      id: e.id,
-      source: e.source,
-      target: e.target,
-    }));
-    computeExploreLayout(layoutInputs, layoutEdges)
-      .then((positions) => {
+    computeElkLayout(sizedNodes, built.edges, { preset: "stress" })
+      .then((result) => {
         if (cancelled) return;
         // Center on the focused node, if any, so pivots feel stable.
-        const center = built.focusedId ? positions[built.focusedId] : undefined;
+        const positions = new Map(result.nodes.map((n) => [n.id, n.position]));
+        const center = built.focusedId ? positions.get(built.focusedId) : undefined;
         const ox = center?.x ?? 0;
         const oy = center?.y ?? 0;
         setLayoutNodes(
-          built.nodes.map((n) => ({
-            ...n,
-            position: positions[n.id]
-              ? { x: positions[n.id].x - ox, y: positions[n.id].y - oy }
-              : n.position,
-          })),
+          built.nodes.map((n) => {
+            const pos = positions.get(n.id);
+            return pos
+              ? { ...n, position: { x: pos.x - ox, y: pos.y - oy } }
+              : n;
+          }),
         );
       })
       .catch((err) => {

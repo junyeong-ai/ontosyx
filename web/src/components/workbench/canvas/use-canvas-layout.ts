@@ -100,7 +100,10 @@ export function useCanvasLayout(
     function applyElkLayout(elements: FlowElements, version: number) {
       const schemaNodes = elements.nodes.filter((n) => n.type === "schema");
       const groupNodes = elements.nodes.filter((n) => n.type === "group");
-      computeElkLayout(schemaNodes, elements.edges, uiConfigRef.current ?? undefined).then((result) => {
+      computeElkLayout(schemaNodes, elements.edges, {
+        preset: "layered",
+        uiConfig: uiConfigRef.current ?? undefined,
+      }).then((result) => {
         if (layoutVersionRef.current !== version) return;
         setNodes([...groupNodes, ...result.nodes]);
         setEdges(result.edges);
@@ -157,7 +160,10 @@ export function useCanvasLayout(
     if (nodes.length === 0) return;
     const schemaNodes = nodes.filter((n) => n.type === "schema");
     const groupNodes = nodes.filter((n) => n.type === "group");
-    const result = await computeElkLayout(schemaNodes, edges, uiConfigRef.current ?? undefined);
+    const result = await computeElkLayout(schemaNodes, edges, {
+      preset: "layered",
+      uiConfig: uiConfigRef.current ?? undefined,
+    });
     setNodes([...groupNodes, ...result.nodes]);
     setEdges(result.edges);
     setTimeout(() => fitView({ padding: 0.15, duration: 300 }), 50);
