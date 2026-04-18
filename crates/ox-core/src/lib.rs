@@ -58,6 +58,7 @@ pub mod graph_label;
 pub mod i18n;
 pub mod prompt_version;
 pub mod types;
+pub mod variable_name;
 
 // Runtime / compile-target IRs
 pub mod ontology_ir;
@@ -67,10 +68,10 @@ pub mod query_ir;
 pub mod structured_match_query;
 
 // Input DTOs (user / LLM input before validation)
+pub mod load_plan;
 pub mod ontology_command;
 pub mod ontology_diff;
 pub mod ontology_input;
-pub mod load_plan;
 
 // Analysis outputs (source-introspection, repo analysis, quality)
 pub mod design_project;
@@ -94,6 +95,7 @@ pub use graph_label::GraphLabel;
 pub use i18n::{LanguageTag, LocaleError, LocalizedText};
 pub use prompt_version::PromptVersion;
 pub use types::{escape_cypher_identifier, is_valid_graph_identifier, sanitize_variable};
+pub use variable_name::VariableName;
 
 // ---------------------------------------------------------------------------
 // Re-exports — Runtime / compile-target IRs
