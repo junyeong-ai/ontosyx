@@ -7,8 +7,8 @@ rust-version.workspace = true
 
 [dependencies]
 ox-core = { workspace = true }
-ox-memory = { path = "../ox-memory" }
-ox-store = { path = "../ox-store" }
+ox-memory = { workspace = true }
+ox-store = { workspace = true }
 branchforge = { workspace = true, features = ["aws", "cli-auth"] }
 dashmap = "6"
 serde = { workspace = true }
