@@ -79,8 +79,7 @@ impl MongoAdapter {
         database: &str,
         sample_size: u64,
     ) -> OxResult<Self> {
-        Self::connect_with_config(uri, database, sample_size, crate::AdapterConfig::default())
-            .await
+        Self::connect_with_config(uri, database, sample_size, crate::AdapterConfig::default()).await
     }
 
     /// Connect with operator-supplied timeouts (MongoDB driver maps only
