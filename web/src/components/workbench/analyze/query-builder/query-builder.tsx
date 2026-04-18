@@ -5,7 +5,7 @@ import { useAppStore } from "@/lib/store";
 import { executeFromIr } from "@/lib/api/queries";
 import type { NodeTypeDef, EdgeTypeDef, PropertyDef, QueryResult } from "@/types/api";
 import { PatternPalette, type PaletteTab } from "./pattern-palette";
-import { PatternCanvas } from "./pattern-canvas";
+import { QueryCanvas } from "./query-canvas";
 import { FilterEditor } from "./filter-editor";
 import { ReturnSelector } from "./return-selector";
 import {
@@ -85,7 +85,7 @@ export function QueryBuilder() {
   // ---------------------------------------------------------------------------
 
   const handleAddNode = useCallback(
-    (nt: NodeTypeDef) => {
+    (nt: NodeTypeDef, position?: { x: number; y: number }) => {
       const alias = `n${nodeCounter}`;
       const newNode: PatternNode = {
         id: `pn-${Date.now()}`,
@@ -93,12 +93,22 @@ export function QueryBuilder() {
         alias,
         filters: [],
         returnProps: [],
+        position,
       };
       setNodes((prev) => [...prev, newNode]);
       setNodeCounter((c) => c + 1);
       setSelectedId(newNode.id);
     },
     [nodeCounter],
+  );
+
+  const handleMoveNode = useCallback(
+    (nodeId: string, position: { x: number; y: number }) => {
+      setNodes((prev) =>
+        prev.map((n) => (n.id === nodeId ? { ...n, position } : n)),
+      );
+    },
+    [],
   );
 
   const handleAddEdge = useCallback(
@@ -452,8 +462,8 @@ export function QueryBuilder() {
         {/* Center: Canvas + Preview + Results */}
         <div className="flex min-h-0 flex-1 flex-col">
           {/* Canvas */}
-          <div className="min-h-[120px] flex-1 overflow-auto p-3">
-            <PatternCanvas
+          <div className="min-h-[240px] flex-1 overflow-hidden p-3">
+            <QueryCanvas
               nodes={nodes}
               edges={edges}
               nodeTypes={nodeTypes}
@@ -465,6 +475,7 @@ export function QueryBuilder() {
               onAddEdge={handleAddEdge}
               onRemoveNode={handleRemoveNode}
               onRemoveEdge={handleRemoveEdge}
+              onMoveNode={handleMoveNode}
             />
           </div>
 

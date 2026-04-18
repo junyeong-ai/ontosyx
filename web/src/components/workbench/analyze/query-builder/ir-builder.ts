@@ -24,6 +24,13 @@ export interface PatternNode {
   alias: string;
   filters: PatternFilter[];
   returnProps: string[];
+  /**
+   * Canvas position for XyFlow rendering. `undefined` means the
+   * canvas has not yet placed this node (it will assign a default
+   * slot on first render). Round-tripped separately from QueryIR
+   * via `layout_hints` in the PatternIR wire shape.
+   */
+  position?: { x: number; y: number };
 }
 
 export interface PatternEdge {
