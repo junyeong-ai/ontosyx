@@ -17,7 +17,7 @@ use ox_core::source_schema::{
 };
 
 use crate::{
-    AnalysisResult, DEFAULT_INTROSPECTION_CONCURRENCY, DataSourceIntrospector,
+    AnalysisResult, DEFAULT_INTROSPECTION_CONCURRENCY, DataSourceAdapter,
     introspect_tables_concurrent,
 };
 
@@ -43,12 +43,12 @@ const DEFINITE_ENUM_CARDINALITY: i64 = 30;
 const POOL_MAX_CONNECTIONS: u32 = 10;
 const POOL_ACQUIRE_TIMEOUT_SECS: u64 = 10;
 
-pub struct PostgresIntrospector {
+pub struct PostgresAdapter {
     pool: PgPool,
     schema_name: String,
 }
 
-impl PostgresIntrospector {
+impl PostgresAdapter {
     pub async fn connect(url: &str, schema_name: &str) -> OxResult<Self> {
         let pool = PgPoolOptions::new()
             .max_connections(POOL_MAX_CONNECTIONS)
@@ -232,7 +232,7 @@ fn quote_ident(s: &str) -> String {
 }
 
 #[async_trait]
-impl DataSourceIntrospector for PostgresIntrospector {
+impl DataSourceAdapter for PostgresAdapter {
     fn source_type(&self) -> &str {
         "postgresql"
     }
@@ -339,7 +339,7 @@ async fn introspect_table_pg(
     })
 }
 
-impl PostgresIntrospector {
+impl PostgresAdapter {
     async fn discover_foreign_keys(&self) -> OxResult<Vec<ForeignKeyDef>> {
         let rows: Vec<(String, String, String, String, String)> = sqlx::query_as(
             "SELECT \

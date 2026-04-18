@@ -176,7 +176,7 @@ pub(crate) async fn create_project(
             }
 
             let (source_config, source_data, source_schema, source_profile, analysis_report) =
-                analyze_source(source, &state.introspector_registry).await?;
+                analyze_source(source, &state.adapter_registry).await?;
 
             let analyzed_at = if source_schema.is_some() {
                 Some(now)
@@ -744,7 +744,7 @@ pub(crate) async fn generate_load_plan(
 //
 // Returns the compiled Cypher statements for preview. The statements contain
 // $batch parameter placeholders — actual execution requires the source data
-// pipeline (IntrospectorRegistry → fetch → batch → execute_load) which is
+// pipeline (AdapterRegistry → fetch → batch → execute_load) which is
 // not yet connected.
 // ---------------------------------------------------------------------------
 

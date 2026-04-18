@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use ox_core::error::OxResult;
 
-use crate::DataSourceIntrospector;
+use crate::DataSourceAdapter;
 
 /// Input provided to an introspector factory.
 ///
@@ -23,22 +23,22 @@ pub struct SourceInput {
 }
 
 /// Future returned by an introspector factory.
-type IntrospectorFuture =
-    Pin<Box<dyn Future<Output = OxResult<Box<dyn DataSourceIntrospector>>> + Send>>;
+type AdapterFuture =
+    Pin<Box<dyn Future<Output = OxResult<Box<dyn DataSourceAdapter>>> + Send>>;
 
-/// Async factory function that creates a `DataSourceIntrospector` from source input.
-type IntrospectorFactory = Arc<dyn Fn(SourceInput) -> IntrospectorFuture + Send + Sync>;
+/// Async factory function that creates a `DataSourceAdapter` from source input.
+type AdapterFactory = Arc<dyn Fn(SourceInput) -> AdapterFuture + Send + Sync>;
 
 /// Registry mapping source type identifiers to introspector factories.
 ///
 /// Provides a pluggable way to add new data source types without modifying
 /// the dispatch logic. Built-in types (postgresql, csv, json) are registered
 /// via `with_defaults()`.
-pub struct IntrospectorRegistry {
-    factories: HashMap<String, IntrospectorFactory>,
+pub struct AdapterRegistry {
+    factories: HashMap<String, AdapterFactory>,
 }
 
-impl IntrospectorRegistry {
+impl AdapterRegistry {
     pub fn new() -> Self {
         Self {
             factories: HashMap::new(),
@@ -52,9 +52,9 @@ impl IntrospectorRegistry {
     pub fn register<F, Fut>(&mut self, source_type: &str, factory: F)
     where
         F: Fn(SourceInput) -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = OxResult<Box<dyn DataSourceIntrospector>>> + Send + 'static,
+        Fut: Future<Output = OxResult<Box<dyn DataSourceAdapter>>> + Send + 'static,
     {
-        let factory: IntrospectorFactory =
+        let factory: AdapterFactory =
             Arc::new(move |input: SourceInput| Box::pin(factory(input)));
 
         self.factories.insert(source_type.to_string(), factory);
@@ -67,7 +67,7 @@ impl IntrospectorRegistry {
         &self,
         source_type: &str,
         input: SourceInput,
-    ) -> Option<OxResult<Box<dyn DataSourceIntrospector>>> {
+    ) -> Option<OxResult<Box<dyn DataSourceAdapter>>> {
         let factory = self.factories.get(source_type)?;
         Some(factory(input).await)
     }
@@ -95,8 +95,8 @@ impl IntrospectorRegistry {
                 }
             })?;
             let schema = input.schema_name.as_deref().unwrap_or("public");
-            let introspector = crate::postgres::PostgresIntrospector::connect(conn, schema).await?;
-            Ok(Box::new(introspector) as Box<dyn DataSourceIntrospector>)
+            let introspector = crate::postgres::PostgresAdapter::connect(conn, schema).await?;
+            Ok(Box::new(introspector) as Box<dyn DataSourceAdapter>)
         });
 
         // MySQL: async connection pool setup
@@ -113,8 +113,8 @@ impl IntrospectorRegistry {
                     message: "MySQL source requires a schema (database) name".to_string(),
                 }
             })?;
-            let introspector = crate::mysql::MysqlIntrospector::connect(conn, schema).await?;
-            Ok(Box::new(introspector) as Box<dyn DataSourceIntrospector>)
+            let introspector = crate::mysql::MysqlAdapter::connect(conn, schema).await?;
+            Ok(Box::new(introspector) as Box<dyn DataSourceAdapter>)
         });
 
         // MongoDB: async client setup with document sampling
@@ -131,8 +131,8 @@ impl IntrospectorRegistry {
                     message: "MongoDB source requires a database name".to_string(),
                 }
             })?;
-            let introspector = crate::mongodb::MongoIntrospector::connect(conn, database).await?;
-            Ok(Box::new(introspector) as Box<dyn DataSourceIntrospector>)
+            let introspector = crate::mongodb::MongoAdapter::connect(conn, database).await?;
+            Ok(Box::new(introspector) as Box<dyn DataSourceAdapter>)
         });
 
         // CSV: synchronous analysis wrapped in async
@@ -145,8 +145,8 @@ impl IntrospectorRegistry {
                         field: "data".to_string(),
                         message: "CSV source requires data".to_string(),
                     })?;
-            let introspector = crate::sample::CsvIntrospector::new(data)?;
-            Ok(Box::new(introspector) as Box<dyn DataSourceIntrospector>)
+            let introspector = crate::sample::CsvAdapter::new(data)?;
+            Ok(Box::new(introspector) as Box<dyn DataSourceAdapter>)
         });
 
         // Snowflake: stub implementation (REST SQL API integration pending)
@@ -161,8 +161,8 @@ impl IntrospectorRegistry {
                 }
             })?;
             let introspector =
-                crate::snowflake::SnowflakeIntrospector::from_connection_string(conn)?;
-            Ok(Box::new(introspector) as Box<dyn DataSourceIntrospector>)
+                crate::snowflake::SnowflakeAdapter::from_connection_string(conn)?;
+            Ok(Box::new(introspector) as Box<dyn DataSourceAdapter>)
         });
 
         // BigQuery: stub implementation (gcp-bigquery-client integration pending)
@@ -175,8 +175,8 @@ impl IntrospectorRegistry {
                         .to_string(),
                 }
             })?;
-            let introspector = crate::bigquery::BigQueryIntrospector::connect(conn).await?;
-            Ok(Box::new(introspector) as Box<dyn DataSourceIntrospector>)
+            let introspector = crate::bigquery::BigQueryAdapter::connect(conn).await?;
+            Ok(Box::new(introspector) as Box<dyn DataSourceAdapter>)
         });
 
         // DuckDB: in-process file analysis (Parquet, CSV, JSON)
@@ -192,8 +192,8 @@ impl IntrospectorRegistry {
                               (provide as 'data' or 'connection_string')"
                         .to_string(),
                 })?;
-            let introspector = crate::duckdb_source::DuckDbIntrospector::from_file(path)?;
-            Ok(Box::new(introspector) as Box<dyn DataSourceIntrospector>)
+            let introspector = crate::duckdb_source::DuckDbAdapter::from_file(path)?;
+            Ok(Box::new(introspector) as Box<dyn DataSourceAdapter>)
         });
 
         // JSON: synchronous analysis wrapped in async
@@ -206,15 +206,15 @@ impl IntrospectorRegistry {
                         field: "data".to_string(),
                         message: "JSON source requires data".to_string(),
                     })?;
-            let introspector = crate::sample::JsonIntrospector::new(data)?;
-            Ok(Box::new(introspector) as Box<dyn DataSourceIntrospector>)
+            let introspector = crate::sample::JsonAdapter::new(data)?;
+            Ok(Box::new(introspector) as Box<dyn DataSourceAdapter>)
         });
 
         registry
     }
 }
 
-impl Default for IntrospectorRegistry {
+impl Default for AdapterRegistry {
     fn default() -> Self {
         Self::new()
     }
@@ -226,7 +226,7 @@ mod tests {
 
     #[test]
     fn registry_with_defaults_registers_builtin_types() {
-        let registry = IntrospectorRegistry::with_defaults();
+        let registry = AdapterRegistry::with_defaults();
         assert!(registry.supports("postgresql"));
         assert!(registry.supports("mysql"));
         assert!(registry.supports("mongodb"));
@@ -241,7 +241,7 @@ mod tests {
 
     #[test]
     fn registry_registered_types() {
-        let registry = IntrospectorRegistry::with_defaults();
+        let registry = AdapterRegistry::with_defaults();
         let mut types = registry.registered_types();
         types.sort();
         #[cfg(feature = "duckdb")]
@@ -275,7 +275,7 @@ mod tests {
 
     #[tokio::test]
     async fn create_returns_none_for_unknown_type() {
-        let registry = IntrospectorRegistry::with_defaults();
+        let registry = AdapterRegistry::with_defaults();
         let result = registry
             .create(
                 "unknown",
@@ -291,7 +291,7 @@ mod tests {
 
     #[tokio::test]
     async fn create_csv_introspector() {
-        let registry = IntrospectorRegistry::with_defaults();
+        let registry = AdapterRegistry::with_defaults();
         let result = registry
             .create(
                 "csv",
@@ -312,7 +312,7 @@ mod tests {
 
     #[tokio::test]
     async fn create_json_introspector() {
-        let registry = IntrospectorRegistry::with_defaults();
+        let registry = AdapterRegistry::with_defaults();
         let result = registry
             .create(
                 "json",
@@ -332,7 +332,7 @@ mod tests {
 
     #[tokio::test]
     async fn create_csv_missing_data_returns_error() {
-        let registry = IntrospectorRegistry::with_defaults();
+        let registry = AdapterRegistry::with_defaults();
         let result = registry
             .create(
                 "csv",
@@ -348,11 +348,11 @@ mod tests {
 
     #[tokio::test]
     async fn custom_factory_registration() {
-        let mut registry = IntrospectorRegistry::new();
+        let mut registry = AdapterRegistry::new();
         registry.register("csv", |input| async move {
             let data = input.data.as_deref().unwrap_or("");
-            let introspector = crate::sample::CsvIntrospector::new(data)?;
-            Ok(Box::new(introspector) as Box<dyn DataSourceIntrospector>)
+            let introspector = crate::sample::CsvAdapter::new(data)?;
+            Ok(Box::new(introspector) as Box<dyn DataSourceAdapter>)
         });
         assert!(registry.supports("csv"));
         assert!(!registry.supports("json"));

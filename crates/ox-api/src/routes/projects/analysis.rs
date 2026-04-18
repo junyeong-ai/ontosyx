@@ -74,7 +74,7 @@ pub(crate) async fn reanalyze_project(
             (config, None, Some(schema), Some(profile), Some(report))
         } else {
             let (config, data, schema, profile, report) =
-                analyze_source(req.source, &state.introspector_registry).await?;
+                analyze_source(req.source, &state.adapter_registry).await?;
 
             let mut report = report;
 

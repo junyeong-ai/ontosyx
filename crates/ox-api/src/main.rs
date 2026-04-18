@@ -22,7 +22,7 @@ use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberI
 use ox_brain::DefaultBrain;
 use ox_brain::prompts::PromptRegistry;
 use ox_runtime::registry::{GraphBackendConfig, GraphBackendRegistry};
-use ox_source::registry::IntrospectorRegistry;
+use ox_source::registry::AdapterRegistry;
 
 // All shared modules live in `lib.rs`; consume them via the library crate
 // so each module compiles once (not twice — once as `ox_api::*` and again
@@ -308,7 +308,7 @@ async fn main() -> anyhow::Result<()> {
             repo_policy.allowed_git_hosts
         );
     }
-    let introspector_registry = Arc::new(IntrospectorRegistry::with_defaults());
+    let adapter_registry = Arc::new(AdapterRegistry::with_defaults());
 
     // Load runtime-tunable config from DB (falls back to defaults if unavailable)
     let system_config = Arc::new(tokio::sync::RwLock::new(
@@ -418,7 +418,7 @@ async fn main() -> anyhow::Result<()> {
         timeouts,
         auth_config: config.auth.clone(),
         repo_policy,
-        introspector_registry,
+        adapter_registry,
         system_config,
         rate_limiter,
         memory,

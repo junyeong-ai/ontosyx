@@ -70,7 +70,7 @@ pub(crate) async fn test_source_connection(
 ) -> Result<Json<ApiResponse<TestConnectionResponse>>, AppError> {
     principal.require_designer()?;
 
-    let registry = &state.introspector_registry;
+    let registry = &state.adapter_registry;
 
     if !registry.supports(&req.source_type) {
         return Err(AppError::bad_request(format!(

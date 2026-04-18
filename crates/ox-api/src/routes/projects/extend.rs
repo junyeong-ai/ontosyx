@@ -82,7 +82,7 @@ pub(crate) async fn extend_project(
             let (config, schema, profile, report) = analyze_code_repository(&state, url).await?;
             (config, None, Some(schema), Some(profile), Some(report))
         } else {
-            analyze_source(req.source, &state.introspector_registry).await?
+            analyze_source(req.source, &state.adapter_registry).await?
         };
 
     // 2. Build LLM input directly from the new source data (no temp struct needed)

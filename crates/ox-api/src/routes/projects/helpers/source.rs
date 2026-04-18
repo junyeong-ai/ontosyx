@@ -4,7 +4,7 @@ use ox_core::design_project::{SourceConfig, SourceTypeKind};
 use ox_core::source_analysis::SourceAnalysisReport;
 use ox_core::source_schema::{SourceProfile, SourceSchema};
 use ox_source::analyzer::build_analysis_report;
-use ox_source::registry::{IntrospectorRegistry, SourceInput};
+use ox_source::registry::{AdapterRegistry, SourceInput};
 
 use crate::error::AppError;
 
@@ -18,11 +18,11 @@ use super::fingerprint::{
 ///
 /// Text sources bypass introspection entirely. Structured sources (CSV, JSON,
 /// PostgreSQL, and any custom type) are dispatched through the
-/// `IntrospectorRegistry`, making it easy to add new source types without
+/// `AdapterRegistry`, making it easy to add new source types without
 /// modifying this function.
 pub(crate) async fn analyze_source(
     source: ProjectSource,
-    registry: &IntrospectorRegistry,
+    registry: &AdapterRegistry,
 ) -> Result<
     (
         SourceConfig,

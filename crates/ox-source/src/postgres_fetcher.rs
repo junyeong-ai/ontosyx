@@ -13,7 +13,7 @@ const POOL_ACQUIRE_TIMEOUT_SECS: u64 = 10;
 
 /// Fetches data from a PostgreSQL source for graph loading.
 ///
-/// Connects to the same source database that `PostgresIntrospector` analyzes.
+/// Connects to the same source database that `PostgresAdapter` analyzes.
 /// Uses paginated SELECT queries with configurable batch sizes.
 pub struct PostgresFetcher {
     pool: PgPool,

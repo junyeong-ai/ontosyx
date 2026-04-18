@@ -17,7 +17,7 @@ use ox_core::source_schema::{
     TableProfile,
 };
 
-use crate::{AnalysisResult, DataSourceIntrospector};
+use crate::{AnalysisResult, DataSourceAdapter};
 
 type ProfileResult = (
     usize,
@@ -34,7 +34,7 @@ const CONNECT_TIMEOUT_SECS: u64 = 10;
 /// Server selection timeout.
 const SERVER_SELECTION_TIMEOUT_SECS: u64 = 10;
 
-pub struct MongoIntrospector {
+pub struct MongoAdapter {
     client: mongodb::Client,
     database: String,
     sample_size: u64,
@@ -44,7 +44,7 @@ pub struct MongoIntrospector {
     real_collections: std::sync::Mutex<HashSet<String>>,
 }
 
-impl MongoIntrospector {
+impl MongoAdapter {
     pub async fn connect(uri: &str, database: &str) -> OxResult<Self> {
         Self::connect_with_sample_size(uri, database, DEFAULT_SAMPLE_SIZE).await
     }
@@ -644,11 +644,11 @@ impl MongoIntrospector {
 }
 
 // ---------------------------------------------------------------------------
-// DataSourceIntrospector trait implementation
+// DataSourceAdapter trait implementation
 // ---------------------------------------------------------------------------
 
 #[async_trait]
-impl DataSourceIntrospector for MongoIntrospector {
+impl DataSourceAdapter for MongoAdapter {
     fn source_type(&self) -> &str {
         "mongodb"
     }

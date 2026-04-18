@@ -7,7 +7,7 @@ pub type SourceRow = serde_json::Map<String, serde_json::Value>;
 
 /// Fetch actual data from an external source for graph loading.
 ///
-/// Separate from `DataSourceIntrospector` because introspection discovers
+/// Separate from `DataSourceAdapter` because introspection discovers
 /// schema structure (lightweight, metadata-only) while fetching retrieves
 /// actual data rows (can move large volumes, different security profile).
 #[async_trait]

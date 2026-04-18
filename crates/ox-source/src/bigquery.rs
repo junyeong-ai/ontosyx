@@ -4,7 +4,7 @@ use tracing::info;
 use ox_core::error::{OxError, OxResult};
 use ox_core::source_schema::{SourceProfile, SourceSchema};
 
-use crate::DataSourceIntrospector;
+use crate::DataSourceAdapter;
 
 /// BigQuery introspector stub.
 ///
@@ -15,14 +15,14 @@ use crate::DataSourceIntrospector;
 /// This stub parses the connection URI, validates the required fields, and
 /// returns a clear error at introspection time so the registry entry and
 /// frontend form work end-to-end even before the SDK dependency is wired in.
-pub struct BigQueryIntrospector {
+pub struct BigQueryAdapter {
     project_id: String,
     dataset: String,
     #[allow(dead_code)]
     credentials_path: Option<String>,
 }
 
-impl BigQueryIntrospector {
+impl BigQueryAdapter {
     /// Parse a BigQuery connection URI and return a (stub) introspector.
     ///
     /// Expected format: `bigquery://PROJECT_ID/DATASET[?credentials_path=PATH]`
@@ -49,7 +49,7 @@ impl BigQueryIntrospector {
 }
 
 #[async_trait]
-impl DataSourceIntrospector for BigQueryIntrospector {
+impl DataSourceAdapter for BigQueryAdapter {
     fn source_type(&self) -> &str {
         "bigquery"
     }
@@ -169,7 +169,7 @@ mod tests {
 
     #[tokio::test]
     async fn introspect_returns_stub_error() {
-        let introspector = BigQueryIntrospector::connect("bigquery://test-project/test_dataset")
+        let introspector = BigQueryAdapter::connect("bigquery://test-project/test_dataset")
             .await
             .unwrap();
 

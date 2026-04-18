@@ -471,23 +471,23 @@ fn infer_scalar_type(raw: &str) -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
-// DataSourceIntrospector wrappers for CSV and JSON
+// DataSourceAdapter wrappers for CSV and JSON
 // ---------------------------------------------------------------------------
 
 use async_trait::async_trait;
 
-use crate::DataSourceIntrospector;
+use crate::DataSourceAdapter;
 
-/// A `DataSourceIntrospector` backed by in-memory CSV data.
+/// A `DataSourceAdapter` backed by in-memory CSV data.
 ///
 /// Schema and profile are computed eagerly at construction time (synchronous),
 /// then returned from the async trait methods without further I/O.
-pub struct CsvIntrospector {
+pub struct CsvAdapter {
     schema: SourceSchema,
     profile: SourceProfile,
 }
 
-impl CsvIntrospector {
+impl CsvAdapter {
     pub fn new(data: &str) -> OxResult<Self> {
         let (schema, profile) = analyze_csv(data)?;
         Ok(Self { schema, profile })
@@ -495,7 +495,7 @@ impl CsvIntrospector {
 }
 
 #[async_trait]
-impl DataSourceIntrospector for CsvIntrospector {
+impl DataSourceAdapter for CsvAdapter {
     fn source_type(&self) -> &str {
         "csv"
     }
@@ -509,16 +509,16 @@ impl DataSourceIntrospector for CsvIntrospector {
     }
 }
 
-/// A `DataSourceIntrospector` backed by in-memory JSON data.
+/// A `DataSourceAdapter` backed by in-memory JSON data.
 ///
 /// Schema and profile are computed eagerly at construction time (synchronous),
 /// then returned from the async trait methods without further I/O.
-pub struct JsonIntrospector {
+pub struct JsonAdapter {
     schema: SourceSchema,
     profile: SourceProfile,
 }
 
-impl JsonIntrospector {
+impl JsonAdapter {
     pub fn new(data: &str) -> OxResult<Self> {
         let (schema, profile) = analyze_json(data)?;
         Ok(Self { schema, profile })
@@ -526,7 +526,7 @@ impl JsonIntrospector {
 }
 
 #[async_trait]
-impl DataSourceIntrospector for JsonIntrospector {
+impl DataSourceAdapter for JsonAdapter {
     fn source_type(&self) -> &str {
         "json"
     }

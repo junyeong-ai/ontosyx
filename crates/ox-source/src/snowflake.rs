@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use ox_core::error::{OxError, OxResult};
 use ox_core::source_schema::{SourceProfile, SourceSchema};
 
-use crate::{AnalysisResult, DataSourceIntrospector};
+use crate::{AnalysisResult, DataSourceAdapter};
 
 /// Snowflake data source introspector (stub).
 ///
@@ -13,7 +13,7 @@ use crate::{AnalysisResult, DataSourceIntrospector};
 ///
 /// This stub validates connection parameters and returns a clear error directing
 /// users to the Snowflake REST SQL API integration path. It is registered in the
-/// `IntrospectorRegistry` so that the frontend can display Snowflake as a source
+/// `AdapterRegistry` so that the frontend can display Snowflake as a source
 /// option and collect credentials ahead of the full implementation.
 ///
 /// ## Connection parameters
@@ -34,7 +34,7 @@ use crate::{AnalysisResult, DataSourceIntrospector};
 /// to PostgreSQL, making the migration from stub to real implementation
 /// straightforward.
 #[derive(Debug)]
-pub struct SnowflakeIntrospector {
+pub struct SnowflakeAdapter {
     _account: String,
     _user: String,
     _warehouse: String,
@@ -42,7 +42,7 @@ pub struct SnowflakeIntrospector {
     _schema: String,
 }
 
-impl SnowflakeIntrospector {
+impl SnowflakeAdapter {
     /// Parse Snowflake connection parameters from the registry `SourceInput` fields.
     ///
     /// Expected `connection_string` format:
@@ -149,7 +149,7 @@ impl SnowflakeIntrospector {
 }
 
 #[async_trait]
-impl DataSourceIntrospector for SnowflakeIntrospector {
+impl DataSourceAdapter for SnowflakeAdapter {
     fn source_type(&self) -> &str {
         "snowflake"
     }
@@ -174,7 +174,7 @@ mod tests {
     #[test]
     fn parse_valid_connection_string() {
         let cs = "snowflake://xy12345.us-east-1/MY_DB/MY_SCHEMA?user=alice&password=secret&warehouse=COMPUTE_WH";
-        let introspector = SnowflakeIntrospector::from_connection_string(cs).unwrap();
+        let introspector = SnowflakeAdapter::from_connection_string(cs).unwrap();
         assert_eq!(introspector._account, "xy12345.us-east-1");
         assert_eq!(introspector._database, "MY_DB");
         assert_eq!(introspector._schema, "MY_SCHEMA");
@@ -185,14 +185,14 @@ mod tests {
     #[test]
     fn parse_connection_string_defaults_schema_to_public() {
         let cs = "snowflake://xy12345/MY_DB?user=alice&password=secret&warehouse=WH";
-        let introspector = SnowflakeIntrospector::from_connection_string(cs).unwrap();
+        let introspector = SnowflakeAdapter::from_connection_string(cs).unwrap();
         assert_eq!(introspector._schema, "PUBLIC");
     }
 
     #[test]
     fn parse_connection_string_wrong_scheme() {
         let cs = "postgres://host/db";
-        let result = SnowflakeIntrospector::from_connection_string(cs);
+        let result = SnowflakeAdapter::from_connection_string(cs);
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(
@@ -203,20 +203,20 @@ mod tests {
 
     #[test]
     fn from_params_validates_required_fields() {
-        let result = SnowflakeIntrospector::from_params("", "user", "pass", "wh", "db", "schema");
+        let result = SnowflakeAdapter::from_params("", "user", "pass", "wh", "db", "schema");
         assert!(result.is_err());
 
-        let result = SnowflakeIntrospector::from_params("acct", "", "pass", "wh", "db", "schema");
+        let result = SnowflakeAdapter::from_params("acct", "", "pass", "wh", "db", "schema");
         assert!(result.is_err());
 
-        let result = SnowflakeIntrospector::from_params("acct", "user", "pass", "wh", "", "schema");
+        let result = SnowflakeAdapter::from_params("acct", "user", "pass", "wh", "", "schema");
         assert!(result.is_err());
     }
 
     #[test]
     fn source_type_returns_snowflake() {
         let introspector =
-            SnowflakeIntrospector::from_params("acct", "user", "pass", "wh", "db", "schema")
+            SnowflakeAdapter::from_params("acct", "user", "pass", "wh", "db", "schema")
                 .unwrap();
         assert_eq!(introspector.source_type(), "snowflake");
     }
@@ -224,7 +224,7 @@ mod tests {
     #[tokio::test]
     async fn introspect_returns_stub_error() {
         let introspector =
-            SnowflakeIntrospector::from_params("acct", "user", "pass", "wh", "db", "schema")
+            SnowflakeAdapter::from_params("acct", "user", "pass", "wh", "db", "schema")
                 .unwrap();
         let result = introspector.introspect_schema().await;
         assert!(result.is_err());

@@ -20,7 +20,7 @@ use ox_core::source_schema::{
     ColumnStats, SourceColumnDef, SourceProfile, SourceSchema, SourceTableDef, TableProfile,
 };
 
-use crate::DataSourceIntrospector;
+use crate::DataSourceAdapter;
 
 /// Maximum distinct values to collect per column for sample enumeration.
 const MAX_SAMPLE_VALUES: usize = 30;
@@ -44,12 +44,12 @@ fn read_function_for_ext(ext: &str) -> Option<&'static str> {
 /// DuckDB connection is opened on each method call to sidestep the
 /// `!Send` constraint of `duckdb::Connection`.
 #[derive(Debug)]
-pub struct DuckDbIntrospector {
+pub struct DuckDbAdapter {
     file_path: String,
     read_fn: &'static str,
 }
 
-impl DuckDbIntrospector {
+impl DuckDbAdapter {
     /// Create an introspector for the given local file path.
     ///
     /// Validates that the file exists and has a supported extension.
@@ -253,7 +253,7 @@ fn collect_stats_sync(conn: &duckdb::Connection, schema: &SourceSchema) -> OxRes
 }
 
 #[async_trait]
-impl DataSourceIntrospector for DuckDbIntrospector {
+impl DataSourceAdapter for DuckDbAdapter {
     fn source_type(&self) -> &str {
         "duckdb"
     }
@@ -263,7 +263,7 @@ impl DataSourceIntrospector for DuckDbIntrospector {
         let read_fn = self.read_fn;
 
         tokio::task::spawn_blocking(move || {
-            let introspector = DuckDbIntrospector { file_path, read_fn };
+            let introspector = DuckDbAdapter { file_path, read_fn };
             let conn = introspector.open_connection()?;
             introspect_schema_sync(&conn)
         })
@@ -279,7 +279,7 @@ impl DataSourceIntrospector for DuckDbIntrospector {
         let schema = schema.clone();
 
         tokio::task::spawn_blocking(move || {
-            let introspector = DuckDbIntrospector { file_path, read_fn };
+            let introspector = DuckDbAdapter { file_path, read_fn };
             let conn = introspector.open_connection()?;
             collect_stats_sync(&conn, &schema)
         })
@@ -302,7 +302,7 @@ mod tests {
         let xlsx_path = dir.path().join("data.xlsx");
         std::fs::write(&xlsx_path, "dummy").unwrap();
 
-        let result = DuckDbIntrospector::from_file(xlsx_path.to_str().unwrap());
+        let result = DuckDbAdapter::from_file(xlsx_path.to_str().unwrap());
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("Unsupported file type"), "got: {err}");
@@ -310,7 +310,7 @@ mod tests {
 
     #[test]
     fn from_file_rejects_nonexistent_file() {
-        let result = DuckDbIntrospector::from_file("/tmp/nonexistent_file_abc123.parquet");
+        let result = DuckDbAdapter::from_file("/tmp/nonexistent_file_abc123.parquet");
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("does not exist"), "got: {err}");
@@ -339,7 +339,7 @@ mod tests {
             writeln!(f, "3,Charlie,92.3").unwrap();
         }
 
-        let introspector = DuckDbIntrospector::from_file(csv_path.to_str().unwrap()).unwrap();
+        let introspector = DuckDbAdapter::from_file(csv_path.to_str().unwrap()).unwrap();
         assert_eq!(introspector.source_type(), "duckdb");
 
         let schema = introspector.introspect_schema().await.unwrap();
@@ -379,7 +379,7 @@ mod tests {
         )
         .unwrap();
 
-        let introspector = DuckDbIntrospector::from_file(json_path.to_str().unwrap()).unwrap();
+        let introspector = DuckDbAdapter::from_file(json_path.to_str().unwrap()).unwrap();
 
         let schema = introspector.introspect_schema().await.unwrap();
         assert_eq!(schema.tables[0].columns.len(), 2);
@@ -398,7 +398,7 @@ mod tests {
         )
         .unwrap();
 
-        let introspector = DuckDbIntrospector::from_file(jsonl_path.to_str().unwrap()).unwrap();
+        let introspector = DuckDbAdapter::from_file(jsonl_path.to_str().unwrap()).unwrap();
 
         let schema = introspector.introspect_schema().await.unwrap();
         assert_eq!(schema.tables[0].columns.len(), 2);
@@ -418,7 +418,7 @@ mod tests {
             writeln!(f, "inactive,5").unwrap();
         }
 
-        let introspector = DuckDbIntrospector::from_file(csv_path.to_str().unwrap()).unwrap();
+        let introspector = DuckDbAdapter::from_file(csv_path.to_str().unwrap()).unwrap();
 
         // Use the default analyze() from the trait
         let result = introspector.analyze().await.unwrap();

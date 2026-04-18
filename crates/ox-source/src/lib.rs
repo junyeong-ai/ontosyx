@@ -13,6 +13,7 @@ pub mod bigquery;
 #[cfg(feature = "duckdb")]
 pub mod duckdb_source;
 pub mod fetcher;
+pub mod kernel;
 pub mod mongodb;
 pub mod mysql;
 pub mod postgres;
@@ -26,6 +27,8 @@ use async_trait::async_trait;
 use ox_core::error::OxResult;
 use ox_core::source_analysis::AnalysisWarning;
 use ox_core::source_schema::{SourceProfile, SourceSchema, SourceTableDef};
+
+pub use kernel::{CacheTtl, IntrospectionKernel, RetryPolicy};
 
 /// Default concurrency limit for table introspection.
 pub const DEFAULT_INTROSPECTION_CONCURRENCY: usize = 8;
@@ -69,6 +72,7 @@ where
 /// The default `analyze()` implementation returns an empty `warnings` vec.
 /// Backends that perform resilient analysis (e.g., PostgreSQL skipping
 /// inaccessible tables) override `analyze()` to populate warnings.
+#[derive(Debug, Clone)]
 pub struct AnalysisResult {
     pub schema: SourceSchema,
     pub profile: SourceProfile,
@@ -77,8 +81,13 @@ pub struct AnalysisResult {
 
 /// Introspect an external data source to discover its schema and collect statistics.
 /// Used to provide structured input to the ontology design LLM.
+///
+/// Adapters implement the per-backend primitive behaviour (schema discovery,
+/// stats collection). Cross-cutting concerns — retry on transient errors,
+/// result caching, warning surfacing — live in [`IntrospectionKernel`], not
+/// inside individual adapter implementations.
 #[async_trait]
-pub trait DataSourceIntrospector: Send + Sync {
+pub trait DataSourceAdapter: Send + Sync {
     /// Discover tables, columns, types, constraints, foreign keys
     async fn introspect_schema(&self) -> OxResult<SourceSchema>;
 

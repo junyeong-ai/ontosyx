@@ -56,7 +56,7 @@ type BackendFactory = Arc<dyn Fn(GraphBackendConfig) -> BackendFuture + Send + S
 
 /// Registry mapping backend identifiers to async factories.
 ///
-/// Follows the same pattern as `IntrospectorRegistry` in ox-source.
+/// Follows the same pattern as `AdapterRegistry` in ox-source.
 /// Adding a new graph DB = implement GraphCompiler + GraphRuntime + register factory.
 pub struct GraphBackendRegistry {
     factories: HashMap<String, BackendFactory>,

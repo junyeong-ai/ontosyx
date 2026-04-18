@@ -9,7 +9,7 @@ use ox_brain::Brain;
 use ox_brain::client_pool::ClientPool;
 use ox_compiler::GraphCompiler;
 use ox_runtime::GraphRuntime;
-use ox_source::registry::IntrospectorRegistry;
+use ox_source::registry::AdapterRegistry;
 use ox_store::{Store, ToolApproval};
 
 use crate::model_router::DbModelRouter;
@@ -42,7 +42,7 @@ pub struct AppState {
     pub timeouts: Timeouts,
     pub auth_config: AuthConfig,
     pub repo_policy: RepoPolicy,
-    pub introspector_registry: Arc<IntrospectorRegistry>,
+    pub adapter_registry: Arc<AdapterRegistry>,
     pub system_config: Arc<RwLock<SystemConfig>>,
     pub rate_limiter: Option<Arc<RateLimiter>>,
     pub memory: Option<Arc<ox_memory::MemoryStore>>,

@@ -4,13 +4,17 @@ Data source introspection: schema discovery + column profiling.
 
 ## Supported Sources
 
-PostgreSQL, MySQL, MongoDB, CSV, JSON. Each implements `DataSourceIntrospector` trait.
+PostgreSQL, MySQL, MongoDB, CSV, JSON. Each implements `DataSourceAdapter` trait.
 
 ## Adding a New Source
 
-1. Create `my_source.rs` implementing `DataSourceIntrospector` (introspect_schema, collect_stats, analyze).
+1. Create `my_source.rs` implementing `DataSourceAdapter` (introspect_schema, collect_stats, analyze).
 2. Register in `registry.rs` via `registry.register("my_source", |input| async { ... })`.
 3. Input is `SourceInput` (connection string or file path).
+
+## Cross-Cutting Orchestration
+
+`IntrospectionKernel` wraps any `DataSourceAdapter` to add retry (via `RetryPolicy`), schema caching (via `CacheTtl`), and warning aggregation without each adapter re-implementing them. Callers that want retry + caching (UI request loops, analysis re-runs) should use the kernel instead of calling the adapter directly.
 
 ## Concurrency
 

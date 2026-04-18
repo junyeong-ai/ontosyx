@@ -16,7 +16,7 @@ use ox_core::source_schema::{
 };
 
 use crate::{
-    AnalysisResult, DEFAULT_INTROSPECTION_CONCURRENCY, DataSourceIntrospector,
+    AnalysisResult, DEFAULT_INTROSPECTION_CONCURRENCY, DataSourceAdapter,
     introspect_tables_concurrent,
 };
 
@@ -32,13 +32,13 @@ const MAX_DISTINCT_VALUES: i64 = 30;
 const POOL_MAX_CONNECTIONS: u32 = 10;
 const POOL_ACQUIRE_TIMEOUT_SECS: u64 = 10;
 
-pub struct MysqlIntrospector {
+pub struct MysqlAdapter {
     pool: MySqlPool,
     /// MySQL "schema" is the database name
     schema_name: String,
 }
 
-impl MysqlIntrospector {
+impl MysqlAdapter {
     pub async fn connect(url: &str, schema_name: &str) -> OxResult<Self> {
         let pool = MySqlPoolOptions::new()
             .max_connections(POOL_MAX_CONNECTIONS)
@@ -222,7 +222,7 @@ fn quote_ident(s: &str) -> String {
 }
 
 #[async_trait]
-impl DataSourceIntrospector for MysqlIntrospector {
+impl DataSourceAdapter for MysqlAdapter {
     fn source_type(&self) -> &str {
         "mysql"
     }
@@ -332,7 +332,7 @@ async fn introspect_table_mysql(
     })
 }
 
-impl MysqlIntrospector {
+impl MysqlAdapter {
     async fn discover_foreign_keys(&self) -> OxResult<Vec<ForeignKeyDef>> {
         // MySQL uses REFERENCED_TABLE_NAME / REFERENCED_COLUMN_NAME in
         // information_schema.KEY_COLUMN_USAGE (no constraint_column_usage table).
