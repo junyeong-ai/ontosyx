@@ -693,20 +693,31 @@ impl OntologyIR {
             for p in &node.properties {
                 let desc = p.description.as_str();
                 let nullable = if p.nullable { ", nullable" } else { "" };
+                let hints = property_hints(p);
                 props.insert(
                     p.name.clone(),
                     serde_json::Value::String(
-                        format!("{}{} {}", p.property_type, nullable, desc)
+                        format!("{}{}{} {}", p.property_type, nullable, hints, desc)
                             .trim()
                             .to_string(),
                     ),
                 );
             }
             let mut node_obj = serde_json::Map::new();
+            let mut node_description = String::new();
             if !node.description.is_empty() {
+                node_description.push_str(node.description.default_str());
+            }
+            if node.deprecated_at.is_some() {
+                if !node_description.is_empty() {
+                    node_description.push_str(" — ");
+                }
+                node_description.push_str("[DEPRECATED]");
+            }
+            if !node_description.is_empty() {
                 node_obj.insert(
                     "description".into(),
-                    serde_json::Value::String(node.description.default_str().to_string()),
+                    serde_json::Value::String(node_description),
                 );
             }
             node_obj.insert("properties".into(), serde_json::Value::Object(props));
@@ -731,10 +742,35 @@ impl OntologyIR {
                     "cardinality".into(),
                     serde_json::Value::String(format!("{:?}", edge.cardinality)),
                 );
+                // Surface functional endpoint roles so the LLM sees that
+                // MANAGES carries "manager"/"direct_report" semantics
+                // rather than treating the edge label as the only hint.
+                if let Some(role) = &edge.source_role {
+                    edge_obj.insert(
+                        "source_role".into(),
+                        serde_json::Value::String(role.clone()),
+                    );
+                }
+                if let Some(role) = &edge.target_role {
+                    edge_obj.insert(
+                        "target_role".into(),
+                        serde_json::Value::String(role.clone()),
+                    );
+                }
+                let mut edge_description = String::new();
                 if !edge.description.is_empty() {
+                    edge_description.push_str(edge.description.default_str());
+                }
+                if edge.deprecated_at.is_some() {
+                    if !edge_description.is_empty() {
+                        edge_description.push_str(" — ");
+                    }
+                    edge_description.push_str("[DEPRECATED]");
+                }
+                if !edge_description.is_empty() {
                     edge_obj.insert(
                         "description".into(),
-                        serde_json::Value::String(edge.description.default_str().to_string()),
+                        serde_json::Value::String(edge_description),
                     );
                 }
                 if !edge.properties.is_empty() {
@@ -774,5 +810,32 @@ impl OntologyIR {
         neighbors.sort_unstable();
         neighbors.dedup();
         neighbors
+    }
+}
+
+/// Build a bracketed hint suffix carrying Phase A semantic flags for a
+/// property: `", localized"`, `", deprecated"`, `", min N"`, `", max N"`.
+/// Empty string when the property has no special flags. Kept on one line
+/// so it slots into `compact_schema` without bloating the per-property
+/// token budget — an LLM consuming this view gets the governance hints
+/// inline rather than having to cross-reference a sidecar table.
+fn property_hints(p: &PropertyDef) -> String {
+    let mut hints: Vec<String> = Vec::new();
+    if p.is_localized {
+        hints.push("localized".into());
+    }
+    if let Some(min) = p.min_count {
+        hints.push(format!("min {min}"));
+    }
+    if let Some(max) = p.max_count {
+        hints.push(format!("max {max}"));
+    }
+    if p.deprecated_at.is_some() {
+        hints.push("deprecated".into());
+    }
+    if hints.is_empty() {
+        String::new()
+    } else {
+        format!(", {}", hints.join(", "))
     }
 }

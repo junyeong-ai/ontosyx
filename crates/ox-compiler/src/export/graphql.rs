@@ -179,7 +179,15 @@ fn emit_graphql_relationships(lines: &mut Vec<String>, ontology: &OntologyIR, no
         if edge.source_node_id == node.id
             && let Some(target) = ontology.node_by_id(&edge.target_node_id)
         {
-            let field_name = relationship_field_name(&edge.label, &target.label, true);
+            // Prefer `target_role` for the outgoing field name when the
+            // ontology designer pinned one — `customer.subscriptions` reads
+            // better than `customer.has_subscription`. Falls back to the
+            // existing `<edge>_<target>` scheme otherwise.
+            let field_name = edge
+                .target_role
+                .as_deref()
+                .map(graphql_safe_name)
+                .unwrap_or_else(|| relationship_field_name(&edge.label, &target.label, true));
             let is_many = matches!(
                 edge.cardinality,
                 Cardinality::OneToMany | Cardinality::ManyToMany
@@ -199,7 +207,12 @@ fn emit_graphql_relationships(lines: &mut Vec<String>, ontology: &OntologyIR, no
         if edge.target_node_id == node.id
             && let Some(source) = ontology.node_by_id(&edge.source_node_id)
         {
-            let field_name = relationship_field_name(&edge.label, &source.label, false);
+            // Incoming field: the source role describes who's holding us.
+            let field_name = edge
+                .source_role
+                .as_deref()
+                .map(graphql_safe_name)
+                .unwrap_or_else(|| relationship_field_name(&edge.label, &source.label, false));
             let is_many = matches!(
                 edge.cardinality,
                 Cardinality::ManyToOne | Cardinality::ManyToMany
@@ -361,6 +374,30 @@ mod tests {
         assert!(
             count >= 2,
             "expected @deprecated on both directions of the edge: {schema}"
+        );
+    }
+
+    #[test]
+    fn target_role_becomes_outgoing_field_name() {
+        let mut ontology = sample_ontology();
+        ontology
+            .update_edge_type(&"e1".into(), |e| {
+                e.target_role = Some("orders".into());
+                e.source_role = Some("customer".into());
+            })
+            .unwrap();
+        let schema = generate_graphql(&ontology);
+        // Outgoing field on Customer should use the target role.
+        assert!(
+            schema.contains("orders: [Order!]!"),
+            "outgoing field should use target_role `orders`: {schema}"
+        );
+        // Incoming field on Order should use the source role. Edge is
+        // OneToMany (one Customer → many Orders), so Order sees a single
+        // Customer field, not a list.
+        assert!(
+            schema.contains("customer: Customer!"),
+            "incoming field should use source_role `customer`: {schema}"
         );
     }
 

@@ -131,9 +131,13 @@ pub fn generate_shacl(ontology: &OntologyIR) -> String {
             let mut lines: Vec<String> = Vec::new();
             lines.push(format!("sh:path :{}", local_name(&edge.label)));
             lines.push(format!("sh:class :{tgt_class}"));
-            lines.push(format!("sh:name {}", turtle_literal(&edge.label)));
-            if let Some(desc) = edge.description.present() {
-                lines.push(format!("sh:description {}", turtle_literal(desc)));
+            // Prefer the target role as the SHACL property name when
+            // available — that is what a human would call this field in
+            // context ("subordinates" vs the raw "MANAGES" label).
+            let shape_name = edge.target_role.as_deref().unwrap_or(&edge.label);
+            lines.push(format!("sh:name {}", turtle_literal(shape_name)));
+            if let Some(desc) = build_edge_description(edge) {
+                lines.push(format!("sh:description {}", turtle_literal(&desc)));
             }
             push_edge_cardinality(&mut lines, &edge.cardinality);
             if edge.deprecated_at.is_some() {
@@ -172,6 +176,26 @@ fn emit_block(out: &mut String, lines: &[String]) {
     for (i, line) in lines.iter().enumerate() {
         let suffix = if i == last { "" } else { " ;" };
         out.push_str(&format!("        {line}{suffix}\n"));
+    }
+}
+
+/// Compose an edge's SHACL description: base description + optional
+/// source/target role hint. Roles describe the functional endpoints of
+/// the relationship (e.g. MANAGES has "manager" / "direct_report") and
+/// are what a data consumer actually needs to interpret the triple.
+fn build_edge_description(edge: &ox_core::ontology_ir::EdgeTypeDef) -> Option<String> {
+    let base = edge.description.present();
+    let role_hint = match (edge.source_role.as_deref(), edge.target_role.as_deref()) {
+        (None, None) => None,
+        (Some(s), Some(t)) => Some(format!("Roles: {s} → {t}")),
+        (Some(s), None) => Some(format!("Source role: {s}")),
+        (None, Some(t)) => Some(format!("Target role: {t}")),
+    };
+    match (base, role_hint) {
+        (None, None) => None,
+        (Some(b), None) => Some(b.to_string()),
+        (None, Some(r)) => Some(r),
+        (Some(b), Some(r)) => Some(format!("{b} — {r}")),
     }
 }
 
@@ -657,6 +681,29 @@ mod tests {
         assert!(
             block.contains("owl:deprecated true"),
             "deprecated edge block should carry owl:deprecated true: {block}"
+        );
+    }
+
+    #[test]
+    fn edge_roles_flow_into_sh_name_and_description() {
+        let mut ontology = sample_ontology();
+        ontology
+            .update_edge_type(&"e1".into(), |e| {
+                e.source_role = Some("producer".into());
+                e.target_role = Some("brand".into());
+            })
+            .unwrap();
+        let ttl = generate_shacl(&ontology);
+        let edge_start = ttl.find("sh:path :MANUFACTURED_BY").unwrap();
+        let block_end = ttl[edge_start..].find(']').unwrap() + edge_start;
+        let block = &ttl[edge_start..block_end];
+        assert!(
+            block.contains("sh:name \"brand\""),
+            "sh:name should prefer target_role: {block}"
+        );
+        assert!(
+            block.contains("Roles: producer → brand"),
+            "sh:description should carry role hint: {block}"
         );
     }
 

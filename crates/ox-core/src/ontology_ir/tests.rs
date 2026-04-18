@@ -15,6 +15,140 @@ fn property(id: &str, name: &str, nullable: bool) -> PropertyDef {
     }
 }
 
+#[test]
+fn compact_schema_surfaces_localization_cardinality_and_deprecation_hints() {
+    let mut ontology = OntologyIR::new(
+        "t".into(),
+        "Hints".into(),
+        LocalizedText::default(),
+        1,
+        vec![NodeTypeDef {
+            id: "n1".into(),
+            label: "Doc".into(),
+            description: LocalizedText::default(),
+            properties: vec![
+                PropertyDef {
+                    id: "p-title".into(),
+                    name: "title".into(),
+                    property_type: PropertyType::String,
+                    nullable: false,
+                    default_value: None,
+                    description: LocalizedText::default(),
+                    classification: None,
+                    is_localized: true,
+                    min_count: Some(1),
+                    ..Default::default()
+                },
+                PropertyDef {
+                    id: "p-tags".into(),
+                    name: "tags".into(),
+                    property_type: PropertyType::List {
+                        element: Box::new(PropertyType::String),
+                    },
+                    nullable: true,
+                    default_value: None,
+                    description: LocalizedText::default(),
+                    classification: None,
+                    min_count: Some(0),
+                    max_count: Some(5),
+                    ..Default::default()
+                },
+                PropertyDef {
+                    id: "p-old".into(),
+                    name: "legacy_field".into(),
+                    property_type: PropertyType::String,
+                    nullable: true,
+                    default_value: None,
+                    description: LocalizedText::default(),
+                    classification: None,
+                    deprecated_at: Some(chrono::Utc::now()),
+                    ..Default::default()
+                },
+            ],
+            constraints: vec![],
+            ..Default::default()
+        }],
+        vec![],
+        vec![],
+    );
+    let _ = &mut ontology;
+    let schema = ontology.compact_schema(&["Doc"]);
+    let doc = schema.pointer("/nodes/Doc/properties").unwrap();
+    let title = doc.get("title").and_then(|v| v.as_str()).unwrap();
+    let tags = doc.get("tags").and_then(|v| v.as_str()).unwrap();
+    let legacy = doc.get("legacy_field").and_then(|v| v.as_str()).unwrap();
+    assert!(
+        title.contains("localized") && title.contains("min 1"),
+        "title should hint localized + min cardinality: {title}"
+    );
+    assert!(
+        tags.contains("min 0") && tags.contains("max 5"),
+        "tags should expose cardinality bounds: {tags}"
+    );
+    assert!(
+        legacy.contains("deprecated"),
+        "legacy_field should carry deprecated hint: {legacy}"
+    );
+}
+
+#[test]
+fn compact_schema_surfaces_edge_roles_and_deprecation() {
+    let mut ontology = OntologyIR::new(
+        "t".into(),
+        "Edges".into(),
+        LocalizedText::default(),
+        1,
+        vec![
+            NodeTypeDef {
+                id: "n1".into(),
+                label: "Manager".into(),
+                description: LocalizedText::default(),
+                properties: vec![],
+                constraints: vec![],
+                ..Default::default()
+            },
+            NodeTypeDef {
+                id: "n2".into(),
+                label: "Employee".into(),
+                description: LocalizedText::default(),
+                properties: vec![],
+                constraints: vec![],
+                ..Default::default()
+            },
+        ],
+        vec![EdgeTypeDef {
+            id: "e1".into(),
+            label: "MANAGES".into(),
+            description: LocalizedText::new("Reporting relationship"),
+            source_node_id: "n1".into(),
+            target_node_id: "n2".into(),
+            properties: vec![],
+            cardinality: Cardinality::OneToMany,
+            source_role: Some("manager".into()),
+            target_role: Some("direct_report".into()),
+            deprecated_at: Some(chrono::Utc::now()),
+            ..Default::default()
+        }],
+        vec![],
+    );
+    let _ = &mut ontology;
+    let schema = ontology.compact_schema(&["Manager", "Employee"]);
+    let edge = schema.pointer("/edges/MANAGES").unwrap();
+    assert_eq!(
+        edge.get("source_role").and_then(|v| v.as_str()),
+        Some("manager")
+    );
+    assert_eq!(
+        edge.get("target_role").and_then(|v| v.as_str()),
+        Some("direct_report")
+    );
+    let desc = edge.get("description").and_then(|v| v.as_str()).unwrap();
+    assert!(
+        desc.contains("[DEPRECATED]"),
+        "edge description should carry deprecation marker: {desc}"
+    );
+}
+
 fn base_ontology() -> OntologyIR {
     OntologyIR::new(
         "test".to_string(),

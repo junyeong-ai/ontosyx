@@ -92,6 +92,27 @@ pub fn generate_owl_turtle(ontology: &OntologyIR) -> String {
         if let Some(desc) = edge.description.present() {
             chain_triple(&mut out, &format!("rdfs:comment {}", turtle_literal(desc)));
         }
+        // Surface source/target roles as separate comments so an OWL
+        // consumer can distinguish the rdfs:comment (human prose) from
+        // the functional role of each endpoint.
+        if let Some(role) = &edge.source_role {
+            chain_triple(
+                &mut out,
+                &format!(
+                    "rdfs:comment {}",
+                    turtle_literal(&format!("Source role: {role}"))
+                ),
+            );
+        }
+        if let Some(role) = &edge.target_role {
+            chain_triple(
+                &mut out,
+                &format!(
+                    "rdfs:comment {}",
+                    turtle_literal(&format!("Target role: {role}"))
+                ),
+            );
+        }
         if edge.deprecated_at.is_some() {
             chain_triple(&mut out, "owl:deprecated true");
         }
@@ -578,6 +599,28 @@ mod tests {
         assert!(
             dp_block.contains("owl:deprecated true"),
             "deprecated datatype property should carry owl:deprecated true: {dp_block}"
+        );
+    }
+
+    #[test]
+    fn edge_source_and_target_roles_surface_as_comments() {
+        let mut ontology = sample_ontology();
+        ontology
+            .update_edge_type(&"e1".into(), |e| {
+                e.source_role = Some("producer".into());
+                e.target_role = Some("brand".into());
+            })
+            .unwrap();
+        let ttl = generate_owl_turtle(&ontology);
+        // Both roles emit separate rdfs:comment triples alongside the
+        // description comment.
+        assert!(
+            ttl.contains("\"Source role: producer\""),
+            "source role comment missing: {ttl}"
+        );
+        assert!(
+            ttl.contains("\"Target role: brand\""),
+            "target role comment missing: {ttl}"
         );
     }
 
