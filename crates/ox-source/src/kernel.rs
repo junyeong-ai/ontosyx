@@ -30,11 +30,17 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use futures::stream::{self, StreamExt};
 use tokio::sync::Mutex;
+use tracing::warn;
 
 use ox_core::error::{OxError, OxResult};
+use ox_core::source_analysis::{
+    AnalysisPhase, AnalysisWarning, AnalysisWarningKind, LARGE_SCHEMA_GATE_THRESHOLD, WarningLevel,
+};
+use ox_core::source_schema::{SourceProfile, SourceSchema, TableProfile};
 
-use crate::{AnalysisResult, DataSourceAdapter};
+use crate::{AnalysisResult, DEFAULT_INTROSPECTION_CONCURRENCY, DataSourceAdapter};
 
 // ---------------------------------------------------------------------------
 // RetryPolicy
@@ -167,10 +173,10 @@ struct CacheEntry {
     inserted_at: Instant,
 }
 
-/// Wraps a [`DataSourceAdapter`] with retry, caching, and warning
-/// aggregation. Use this in favour of calling adapter methods directly
-/// so every data-source consumer in the platform gets the same
-/// cross-cutting behaviour.
+/// Wraps a [`DataSourceAdapter`] with retry, caching, concurrent
+/// orchestration, and warning aggregation. Use this in favour of calling
+/// adapter methods directly so every data-source consumer in the platform
+/// gets the same cross-cutting behaviour.
 ///
 /// Construction is cheap (single heap alloc for the mutex). Cloning an
 /// `Arc<IntrospectionKernel>` is the right way to share the same cache
@@ -179,6 +185,7 @@ pub struct IntrospectionKernel {
     adapter: Arc<dyn DataSourceAdapter>,
     retry: RetryPolicy,
     cache_ttl: CacheTtl,
+    concurrency: usize,
     cache: Mutex<Option<CacheEntry>>,
 }
 
@@ -188,19 +195,22 @@ impl std::fmt::Debug for IntrospectionKernel {
             .field("source_type", &self.adapter.source_type())
             .field("retry", &self.retry)
             .field("cache_ttl", &self.cache_ttl)
+            .field("concurrency", &self.concurrency)
             .finish_non_exhaustive()
     }
 }
 
 impl IntrospectionKernel {
-    /// Wrap an adapter with default (no-retry, no-cache) behaviour.
-    /// Fluent builders (`with_retry`, `with_cache_ttl`) layer on the
-    /// desired policies.
+    /// Wrap an adapter with default (no-retry, no-cache, default
+    /// concurrency) behaviour. Fluent builders
+    /// (`with_retry` / `with_cache_ttl` / `with_concurrency`) layer on
+    /// the desired policies.
     pub fn new(adapter: Arc<dyn DataSourceAdapter>) -> Self {
         Self {
             adapter,
             retry: RetryPolicy::default(),
             cache_ttl: CacheTtl::default(),
+            concurrency: DEFAULT_INTROSPECTION_CONCURRENCY,
             cache: Mutex::new(None),
         }
     }
@@ -215,6 +225,14 @@ impl IntrospectionKernel {
     /// caching entirely.
     pub fn with_cache_ttl(mut self, ttl: CacheTtl) -> Self {
         self.cache_ttl = ttl;
+        self
+    }
+
+    /// Override the concurrent-primitive fan-out (default: 8). Kept for
+    /// adapters with connection pools that can serve more/fewer parallel
+    /// callers than the default.
+    pub fn with_concurrency(mut self, n: usize) -> Self {
+        self.concurrency = n.max(1);
         self
     }
 
@@ -245,8 +263,8 @@ impl IntrospectionKernel {
             .is_some_and(|e| self.cache_ttl.is_fresh(e.inserted_at))
     }
 
-    /// Run full analysis through retry + cache. Identical to
-    /// [`DataSourceAdapter::analyze`] except:
+    /// Run full analysis: schema + profile + warnings, under retry and
+    /// cache policy.
     ///
     /// - Transient errors retry according to the configured policy.
     /// - Repeat calls within the cache TTL reuse the previous successful
@@ -273,6 +291,160 @@ impl IntrospectionKernel {
         Ok(arc)
     }
 
+    /// Discover the source's schema (tables + columns + PK + FKs), with
+    /// per-table warnings captured rather than surfaced as fatal errors.
+    /// Resilient: a table whose `describe_table` fails is skipped with
+    /// a `TableSkipped` warning; FK discovery failures degrade to an
+    /// empty FK set with a warning. Returns `Err` only when the source
+    /// is fundamentally unreachable or every table is inaccessible.
+    pub async fn introspect_schema(&self) -> OxResult<(SourceSchema, Vec<AnalysisWarning>)> {
+        let table_names = self.adapter.list_tables().await?;
+        if table_names.len() >= LARGE_SCHEMA_GATE_THRESHOLD {
+            warn!(
+                table_count = table_names.len(),
+                threshold = LARGE_SCHEMA_GATE_THRESHOLD,
+                "Large schema detected. Introspection may take significant time on the source.",
+            );
+        }
+
+        let mut warnings = Vec::new();
+
+        // Describe every table concurrently, preserving input order.
+        let adapter = Arc::clone(&self.adapter);
+        let describe_results: Vec<(String, OxResult<ox_core::source_schema::SourceTableDef>)> =
+            run_concurrent(&table_names, self.concurrency, |name| {
+                let adapter = Arc::clone(&adapter);
+                async move {
+                    let name_for_call = name.clone();
+                    let result = adapter.describe_table(&name_for_call).await;
+                    (name, result)
+                }
+            })
+            .await;
+
+        let mut tables = Vec::with_capacity(table_names.len());
+        for (table_name, result) in describe_results {
+            match result {
+                Ok(t) => tables.push(t),
+                Err(err) => {
+                    warn!(table = %table_name, error = %err, "Skipping inaccessible table during schema introspection");
+                    warnings.push(AnalysisWarning {
+                        level: WarningLevel::Warning,
+                        phase: AnalysisPhase::SchemaIntrospection,
+                        kind: AnalysisWarningKind::TableSkipped,
+                        location: table_name,
+                        message: err.to_string(),
+                    });
+                }
+            }
+        }
+
+        if tables.is_empty() && !table_names.is_empty() {
+            return Err(OxError::Runtime {
+                message: format!(
+                    "No accessible tables were introspected from {}",
+                    self.adapter.source_type()
+                ),
+            });
+        }
+
+        // Foreign keys: a discovery failure degrades to an empty set
+        // with a single warning rather than failing the whole flow.
+        let mut foreign_keys = match self.adapter.list_foreign_keys().await {
+            Ok(fks) => fks,
+            Err(err) => {
+                warn!(error = %err, "Foreign key discovery failed; continuing without declared foreign keys");
+                warnings.push(AnalysisWarning {
+                    level: WarningLevel::Warning,
+                    phase: AnalysisPhase::SchemaIntrospection,
+                    kind: AnalysisWarningKind::ForeignKeysUnavailable,
+                    location: self.adapter.source_type().to_string(),
+                    message: err.to_string(),
+                });
+                Vec::new()
+            }
+        };
+
+        // Filter FKs to tables that actually made it into the schema —
+        // a dangling FK referring to a skipped table would just confuse
+        // downstream graph-edge inference.
+        let accessible: std::collections::HashSet<&str> =
+            tables.iter().map(|t| t.name.as_str()).collect();
+        foreign_keys.retain(|fk| {
+            accessible.contains(fk.from_table.as_str())
+                && accessible.contains(fk.to_table.as_str())
+        });
+
+        Ok((
+            SourceSchema {
+                source_type: self.adapter.source_type().to_string(),
+                tables,
+                foreign_keys,
+            },
+            warnings,
+        ))
+    }
+
+    /// Profile every table in `schema`: row count + per-column
+    /// [`ColumnStats`](ox_core::source_schema::ColumnStats). Each
+    /// failure converts to a warning rather than a fatal error so a
+    /// single inaccessible table doesn't kill an otherwise useful
+    /// analysis.
+    pub async fn collect_stats(
+        &self,
+        schema: &SourceSchema,
+    ) -> OxResult<(SourceProfile, Vec<AnalysisWarning>)> {
+        let adapter = Arc::clone(&self.adapter);
+        let concurrency = self.concurrency;
+
+        let items: Vec<(String, Vec<ox_core::source_schema::SourceColumnDef>)> = schema
+            .tables
+            .iter()
+            .map(|t| (t.name.clone(), t.columns.clone()))
+            .collect();
+
+        let profile_results = run_concurrent(&items, concurrency, |(name, columns)| {
+            let adapter = Arc::clone(&adapter);
+            async move {
+                let result = profile_table(adapter.as_ref(), &name, &columns).await;
+                (name, result)
+            }
+        })
+        .await;
+
+        let mut table_profiles = Vec::new();
+        let mut warnings = Vec::new();
+        for (table_name, result) in profile_results {
+            match result {
+                Ok((tp, mut tp_warnings)) => {
+                    table_profiles.push(tp);
+                    warnings.append(&mut tp_warnings);
+                }
+                Err(err) => {
+                    warn!(table = %table_name, error = %err, "Skipping table during data profiling");
+                    warnings.push(AnalysisWarning {
+                        level: WarningLevel::Warning,
+                        phase: AnalysisPhase::DataProfiling,
+                        kind: AnalysisWarningKind::TableSkipped,
+                        location: table_name,
+                        message: err.to_string(),
+                    });
+                }
+            }
+        }
+
+        if table_profiles.is_empty() && !schema.tables.is_empty() {
+            return Err(OxError::Runtime {
+                message: format!(
+                    "Failed to collect stats for any table in {}",
+                    self.adapter.source_type()
+                ),
+            });
+        }
+
+        Ok((SourceProfile { table_profiles }, warnings))
+    }
+
     async fn cache_hit(&self) -> Option<Arc<AnalysisResult>> {
         if matches!(self.cache_ttl, CacheTtl::Disabled) {
             return None;
@@ -292,7 +464,7 @@ impl IntrospectionKernel {
         let mut backoff = self.retry.initial_backoff;
         loop {
             attempt += 1;
-            match self.adapter.analyze().await {
+            match self.run_full_analysis_once().await {
                 Ok(result) => return Ok(result),
                 Err(err) => {
                     let transient = (self.retry.is_transient)(&err);
@@ -308,6 +480,80 @@ impl IntrospectionKernel {
             }
         }
     }
+
+    async fn run_full_analysis_once(&self) -> OxResult<AnalysisResult> {
+        let (schema, mut warnings) = self.introspect_schema().await?;
+        let (profile, profile_warnings) = self.collect_stats(&schema).await?;
+        warnings.extend(profile_warnings);
+        Ok(AnalysisResult {
+            schema,
+            profile,
+            warnings,
+        })
+    }
+}
+
+/// Profile one table against an adapter. Extracted as a free function so
+/// the kernel can capture it inside a concurrent stream without
+/// re-borrowing `self`. Column-level failures degrade to a warning +
+/// skipped `ColumnStats` rather than a fatal table error.
+async fn profile_table(
+    adapter: &(dyn DataSourceAdapter + '_),
+    table_name: &str,
+    columns: &[ox_core::source_schema::SourceColumnDef],
+) -> OxResult<(TableProfile, Vec<AnalysisWarning>)> {
+    let row_count = adapter.count_rows(table_name).await?;
+    let mut column_stats = Vec::new();
+    let mut warnings = Vec::new();
+    for col in columns {
+        match adapter.sample_column(table_name, col).await {
+            Ok(stats) => column_stats.push(stats),
+            Err(err) => {
+                warn!(
+                    table = %table_name,
+                    column = %col.name,
+                    error = %err,
+                    "Skipping column during data profiling"
+                );
+                warnings.push(AnalysisWarning {
+                    level: WarningLevel::Warning,
+                    phase: AnalysisPhase::DataProfiling,
+                    kind: AnalysisWarningKind::ColumnSkipped,
+                    location: format!("{table_name}.{}", col.name),
+                    message: err.to_string(),
+                });
+            }
+        }
+    }
+    Ok((
+        TableProfile {
+            table_name: table_name.to_string(),
+            row_count,
+            column_stats,
+        },
+        warnings,
+    ))
+}
+
+/// Run an async closure over each item with bounded parallelism,
+/// returning results in input order.
+async fn run_concurrent<T, F, Fut, R>(items: &[T], concurrency: usize, f: F) -> Vec<R>
+where
+    T: Clone + Send + Sync,
+    F: Fn(T) -> Fut + Send + Sync + Copy,
+    Fut: std::future::Future<Output = R> + Send,
+    R: Send,
+{
+    let mut results: Vec<(usize, R)> = stream::iter(items.iter().cloned().enumerate())
+        .map(|(idx, item)| async move {
+            let r = f(item).await;
+            (idx, r)
+        })
+        .buffer_unordered(concurrency.max(1))
+        .collect()
+        .await;
+    results.sort_by_key(|(idx, _)| *idx);
+    results.into_iter().map(|(_, r)| r).collect()
 }
 
 /// Apply the retry policy's geometric growth, clamping to the backoff's
@@ -330,22 +576,25 @@ fn scale_backoff(current: Duration, multiplier: f64) -> Duration {
 mod tests {
     use super::*;
     use async_trait::async_trait;
-    use ox_core::source_schema::{SourceProfile, SourceSchema};
+    use ox_core::source_schema::{ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef};
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    /// Adapter whose behaviour is fully scripted by a VecDeque of
-    /// results. Each `analyze()` call consumes one entry. Useful for
-    /// driving retry / cache scenarios deterministically.
+    /// Adapter whose `list_tables()` return is scripted per-call.
+    /// Every other primitive is a fixed empty response (kernel tests
+    /// exercise retry / cache behaviour, not per-column profiling).
+    /// Each `list_tables()` invocation consumes one response from the
+    /// queue — wiring the scripted error/success sequence directly into
+    /// the kernel's retry loop.
     struct ScriptedAdapter {
         calls: AtomicUsize,
-        responses: std::sync::Mutex<std::collections::VecDeque<OxResult<AnalysisResult>>>,
+        list_responses: std::sync::Mutex<std::collections::VecDeque<OxResult<Vec<String>>>>,
     }
 
     impl ScriptedAdapter {
-        fn new(responses: Vec<OxResult<AnalysisResult>>) -> Self {
+        fn new(list_responses: Vec<OxResult<Vec<String>>>) -> Self {
             Self {
                 calls: AtomicUsize::new(0),
-                responses: std::sync::Mutex::new(responses.into_iter().collect()),
+                list_responses: std::sync::Mutex::new(list_responses.into_iter().collect()),
             }
         }
 
@@ -359,34 +608,45 @@ mod tests {
         fn source_type(&self) -> &str {
             "scripted"
         }
-        async fn introspect_schema(&self) -> OxResult<SourceSchema> {
-            unreachable!("kernel tests only exercise analyze()")
-        }
-        async fn collect_stats(&self, _schema: &SourceSchema) -> OxResult<SourceProfile> {
-            unreachable!("kernel tests only exercise analyze()")
-        }
-        async fn analyze(&self) -> OxResult<AnalysisResult> {
+        async fn list_tables(&self) -> OxResult<Vec<String>> {
             self.calls.fetch_add(1, Ordering::SeqCst);
-            self.responses
+            self.list_responses
                 .lock()
                 .expect("mutex")
                 .pop_front()
                 .expect("ScriptedAdapter: no more scripted responses")
         }
+        async fn describe_table(&self, table: &str) -> OxResult<SourceTableDef> {
+            Ok(SourceTableDef {
+                name: table.to_string(),
+                columns: Vec::new(),
+                primary_key: Vec::new(),
+            })
+        }
+        async fn count_rows(&self, _table: &str) -> OxResult<u64> {
+            Ok(0)
+        }
+        async fn sample_column(
+            &self,
+            _table: &str,
+            column: &SourceColumnDef,
+        ) -> OxResult<ColumnStats> {
+            Ok(ColumnStats {
+                column_name: column.name.clone(),
+                null_count: 0,
+                distinct_count: 0,
+                sample_values: Vec::new(),
+                min_value: None,
+                max_value: None,
+            })
+        }
+        async fn list_foreign_keys(&self) -> OxResult<Vec<ForeignKeyDef>> {
+            Ok(Vec::new())
+        }
     }
 
-    fn empty_analysis() -> AnalysisResult {
-        AnalysisResult {
-            schema: SourceSchema {
-                source_type: "scripted".to_string(),
-                tables: Vec::new(),
-                foreign_keys: Vec::new(),
-            },
-            profile: SourceProfile {
-                table_profiles: Vec::new(),
-            },
-            warnings: Vec::new(),
-        }
+    fn empty_tables() -> OxResult<Vec<String>> {
+        Ok(Vec::new())
     }
 
     fn transient_err() -> OxError {
@@ -409,7 +669,7 @@ mod tests {
         let adapter = Arc::new(ScriptedAdapter::new(vec![
             Err(transient_err()),
             Err(transient_err()),
-            Ok(empty_analysis()),
+            empty_tables(),
         ]));
         let kernel = IntrospectionKernel::new(adapter.clone())
             .with_retry(RetryPolicy::exponential_default().with_transient(
@@ -468,7 +728,7 @@ mod tests {
             Err(transient_err()),
             Err(transient_err()),
             Err(transient_err()),
-            Ok(empty_analysis()),
+            empty_tables(),
         ]));
         let kernel = IntrospectionKernel::new(adapter.clone()).with_retry(
             RetryPolicy::exponential_default()
@@ -485,8 +745,8 @@ mod tests {
     #[tokio::test]
     async fn cache_disabled_always_hits_adapter() {
         let adapter = Arc::new(ScriptedAdapter::new(vec![
-            Ok(empty_analysis()),
-            Ok(empty_analysis()),
+            empty_tables(),
+            empty_tables(),
         ]));
         let kernel = IntrospectionKernel::new(adapter.clone());
         let _ = kernel.analyze().await.unwrap();
@@ -496,7 +756,7 @@ mod tests {
 
     #[tokio::test]
     async fn cache_hit_within_ttl_skips_adapter() {
-        let adapter = Arc::new(ScriptedAdapter::new(vec![Ok(empty_analysis())]));
+        let adapter = Arc::new(ScriptedAdapter::new(vec![empty_tables()]));
         let kernel = IntrospectionKernel::new(adapter.clone())
             .with_cache_ttl(CacheTtl::Duration(Duration::from_secs(60)));
         let first = kernel.analyze().await.unwrap();
@@ -508,8 +768,8 @@ mod tests {
     #[tokio::test]
     async fn cache_miss_after_ttl_expiry_calls_adapter_again() {
         let adapter = Arc::new(ScriptedAdapter::new(vec![
-            Ok(empty_analysis()),
-            Ok(empty_analysis()),
+            empty_tables(),
+            empty_tables(),
         ]));
         let kernel = IntrospectionKernel::new(adapter.clone())
             .with_cache_ttl(CacheTtl::Duration(Duration::from_millis(5)));
@@ -522,8 +782,8 @@ mod tests {
     #[tokio::test]
     async fn invalidate_forces_next_call_to_adapter() {
         let adapter = Arc::new(ScriptedAdapter::new(vec![
-            Ok(empty_analysis()),
-            Ok(empty_analysis()),
+            empty_tables(),
+            empty_tables(),
         ]));
         let kernel = IntrospectionKernel::new(adapter.clone())
             .with_cache_ttl(CacheTtl::Duration(Duration::from_secs(60)));
@@ -539,7 +799,7 @@ mod tests {
     async fn errors_are_not_cached() {
         let adapter = Arc::new(ScriptedAdapter::new(vec![
             Err(permanent_err()),
-            Ok(empty_analysis()),
+            empty_tables(),
         ]));
         let kernel = IntrospectionKernel::new(adapter.clone())
             .with_cache_ttl(CacheTtl::Duration(Duration::from_secs(60)));
@@ -557,9 +817,9 @@ mod tests {
     async fn cache_stores_result_produced_by_retry() {
         let adapter = Arc::new(ScriptedAdapter::new(vec![
             Err(transient_err()),
-            Ok(empty_analysis()),
+            empty_tables(),
             // Extra entry never reached if cache works — asserts below.
-            Ok(empty_analysis()),
+            empty_tables(),
         ]));
         let kernel = IntrospectionKernel::new(adapter.clone())
             .with_retry(

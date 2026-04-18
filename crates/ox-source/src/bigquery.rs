@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use tracing::info;
 
 use ox_core::error::{OxError, OxResult};
-use ox_core::source_schema::{SourceProfile, SourceSchema};
+use ox_core::source_schema::{ColumnStats, SourceColumnDef, SourceTableDef};
 
 use crate::DataSourceAdapter;
 
@@ -48,14 +48,9 @@ impl BigQueryAdapter {
     }
 }
 
-#[async_trait]
-impl DataSourceAdapter for BigQueryAdapter {
-    fn source_type(&self) -> &str {
-        "bigquery"
-    }
-
-    async fn introspect_schema(&self) -> OxResult<SourceSchema> {
-        Err(OxError::Runtime {
+impl BigQueryAdapter {
+    fn stub_error(&self) -> OxError {
+        OxError::Runtime {
             message: format!(
                 "BigQuery introspection is not yet implemented. \
                  Target: project={}, dataset={}. \
@@ -63,13 +58,34 @@ impl DataSourceAdapter for BigQueryAdapter {
                  or direct REST API integration.",
                 self.project_id, self.dataset
             ),
-        })
+        }
+    }
+}
+
+#[async_trait]
+impl DataSourceAdapter for BigQueryAdapter {
+    fn source_type(&self) -> &str {
+        "bigquery"
     }
 
-    async fn collect_stats(&self, _schema: &SourceSchema) -> OxResult<SourceProfile> {
-        Err(OxError::Runtime {
-            message: "BigQuery data profiling is not yet implemented.".to_string(),
-        })
+    async fn list_tables(&self) -> OxResult<Vec<String>> {
+        Err(self.stub_error())
+    }
+
+    async fn describe_table(&self, _table: &str) -> OxResult<SourceTableDef> {
+        Err(self.stub_error())
+    }
+
+    async fn count_rows(&self, _table: &str) -> OxResult<u64> {
+        Err(self.stub_error())
+    }
+
+    async fn sample_column(
+        &self,
+        _table: &str,
+        _column: &SourceColumnDef,
+    ) -> OxResult<ColumnStats> {
+        Err(self.stub_error())
     }
 }
 
@@ -169,13 +185,13 @@ mod tests {
 
     #[tokio::test]
     async fn introspect_returns_stub_error() {
-        let introspector = BigQueryAdapter::connect("bigquery://test-project/test_dataset")
+        let adapter = BigQueryAdapter::connect("bigquery://test-project/test_dataset")
             .await
             .unwrap();
 
-        assert_eq!(introspector.source_type(), "bigquery");
+        assert_eq!(adapter.source_type(), "bigquery");
 
-        let err = introspector.introspect_schema().await.unwrap_err();
+        let err = adapter.list_tables().await.unwrap_err();
         let msg = err.to_string();
         assert!(
             msg.contains("not yet implemented"),

@@ -1,9 +1,9 @@
 use async_trait::async_trait;
 
 use ox_core::error::{OxError, OxResult};
-use ox_core::source_schema::{SourceProfile, SourceSchema};
+use ox_core::source_schema::{ColumnStats, SourceColumnDef, SourceTableDef};
 
-use crate::{AnalysisResult, DataSourceAdapter};
+use crate::DataSourceAdapter;
 
 /// Snowflake data source introspector (stub).
 ///
@@ -154,15 +154,23 @@ impl DataSourceAdapter for SnowflakeAdapter {
         "snowflake"
     }
 
-    async fn introspect_schema(&self) -> OxResult<SourceSchema> {
+    async fn list_tables(&self) -> OxResult<Vec<String>> {
         Err(Self::stub_error())
     }
 
-    async fn collect_stats(&self, _schema: &SourceSchema) -> OxResult<SourceProfile> {
+    async fn describe_table(&self, _table: &str) -> OxResult<SourceTableDef> {
         Err(Self::stub_error())
     }
 
-    async fn analyze(&self) -> OxResult<AnalysisResult> {
+    async fn count_rows(&self, _table: &str) -> OxResult<u64> {
+        Err(Self::stub_error())
+    }
+
+    async fn sample_column(
+        &self,
+        _table: &str,
+        _column: &SourceColumnDef,
+    ) -> OxResult<ColumnStats> {
         Err(Self::stub_error())
     }
 }
@@ -223,10 +231,9 @@ mod tests {
 
     #[tokio::test]
     async fn introspect_returns_stub_error() {
-        let introspector =
-            SnowflakeAdapter::from_params("acct", "user", "pass", "wh", "db", "schema")
-                .unwrap();
-        let result = introspector.introspect_schema().await;
+        let adapter = SnowflakeAdapter::from_params("acct", "user", "pass", "wh", "db", "schema")
+            .unwrap();
+        let result = adapter.list_tables().await;
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("not yet fully implemented"), "Error: {err}");

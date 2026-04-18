@@ -112,9 +112,11 @@ pub(crate) async fn test_source_connection(
         Some(Ok(i)) => i,
     };
 
-    // Introspect schema with a 10-second timeout
+    // Test connection by listing tables with a 10-second timeout —
+    // a successful `list_tables` proves both connectivity and baseline
+    // permissions without paying for per-table column introspection.
     let schema_result =
-        tokio::time::timeout(Duration::from_secs(10), introspector.introspect_schema()).await;
+        tokio::time::timeout(Duration::from_secs(10), introspector.list_tables()).await;
 
     match schema_result {
         Err(_elapsed) => {
@@ -138,8 +140,7 @@ pub(crate) async fn test_source_connection(
                 error_type: Some(classify_error(&msg).to_string()),
             }))
         }
-        Ok(Ok(schema)) => {
-            let table_names: Vec<String> = schema.tables.iter().map(|t| t.name.clone()).collect();
+        Ok(Ok(table_names)) => {
             let count = table_names.len();
             info!(
                 source_type = %req.source_type,

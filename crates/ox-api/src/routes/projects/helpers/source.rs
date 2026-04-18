@@ -3,6 +3,7 @@ use tracing::info;
 use ox_core::design_project::{SourceConfig, SourceTypeKind};
 use ox_core::source_analysis::SourceAnalysisReport;
 use ox_core::source_schema::{SourceProfile, SourceSchema};
+use ox_source::IntrospectionKernel;
 use ox_source::analyzer::build_analysis_report;
 use ox_source::registry::{AdapterRegistry, SourceInput};
 
@@ -66,7 +67,10 @@ pub(crate) async fn analyze_source(
                 .await
                 .ok_or_else(|| AppError::bad_request("CSV source type is not registered"))?
                 .map_err(AppError::from)?;
-            let analysis = introspector.analyze().await.map_err(AppError::from)?;
+            let analysis = IntrospectionKernel::new(introspector)
+                .analyze()
+                .await
+                .map_err(AppError::from)?;
             let fingerprint = schema_fingerprint(&analysis.schema);
             let report = build_analysis_report(&analysis.schema, &analysis.profile);
             Ok((
@@ -76,8 +80,8 @@ pub(crate) async fn analyze_source(
                     source_fingerprint: Some(fingerprint),
                 },
                 Some(data),
-                Some(analysis.schema),
-                Some(analysis.profile),
+                Some(analysis.schema.clone()),
+                Some(analysis.profile.clone()),
                 Some(report),
             ))
         }
@@ -97,7 +101,10 @@ pub(crate) async fn analyze_source(
                 .await
                 .ok_or_else(|| AppError::bad_request("JSON source type is not registered"))?
                 .map_err(AppError::from)?;
-            let analysis = introspector.analyze().await.map_err(AppError::from)?;
+            let analysis = IntrospectionKernel::new(introspector)
+                .analyze()
+                .await
+                .map_err(AppError::from)?;
             let fingerprint = schema_fingerprint(&analysis.schema);
             let report = build_analysis_report(&analysis.schema, &analysis.profile);
             Ok((
@@ -107,8 +114,8 @@ pub(crate) async fn analyze_source(
                     source_fingerprint: Some(fingerprint),
                 },
                 Some(data),
-                Some(analysis.schema),
-                Some(analysis.profile),
+                Some(analysis.schema.clone()),
+                Some(analysis.profile.clone()),
                 Some(report),
             ))
         }
@@ -140,10 +147,13 @@ pub(crate) async fn analyze_source(
                 .ok_or_else(|| AppError::bad_request("PostgreSQL source type is not registered"))?
                 .map_err(AppError::from)?;
 
-            let analysis = introspector.analyze().await.map_err(AppError::from)?;
+            let analysis = IntrospectionKernel::new(introspector)
+                .analyze()
+                .await
+                .map_err(AppError::from)?;
 
             let report = build_analysis_report(&analysis.schema, &analysis.profile)
-                .with_analysis_warnings(analysis.warnings);
+                .with_analysis_warnings(analysis.warnings.clone());
 
             info!(
                 tables = analysis.schema.tables.len(),
@@ -159,8 +169,8 @@ pub(crate) async fn analyze_source(
                     source_fingerprint: Some(fingerprint),
                 },
                 None, // PG: no raw data stored, regenerated from schema+profile
-                Some(analysis.schema),
-                Some(analysis.profile),
+                Some(analysis.schema.clone()),
+                Some(analysis.profile.clone()),
                 Some(report),
             ))
         }
@@ -184,10 +194,13 @@ pub(crate) async fn analyze_source(
                 .ok_or_else(|| AppError::bad_request("MySQL source type is not registered"))?
                 .map_err(AppError::from)?;
 
-            let analysis = introspector.analyze().await.map_err(AppError::from)?;
+            let analysis = IntrospectionKernel::new(introspector)
+                .analyze()
+                .await
+                .map_err(AppError::from)?;
 
             let report = build_analysis_report(&analysis.schema, &analysis.profile)
-                .with_analysis_warnings(analysis.warnings);
+                .with_analysis_warnings(analysis.warnings.clone());
 
             info!(
                 tables = analysis.schema.tables.len(),
@@ -203,8 +216,8 @@ pub(crate) async fn analyze_source(
                     source_fingerprint: Some(fingerprint),
                 },
                 None, // MySQL: no raw data stored, regenerated from schema+profile
-                Some(analysis.schema),
-                Some(analysis.profile),
+                Some(analysis.schema.clone()),
+                Some(analysis.profile.clone()),
                 Some(report),
             ))
         }
@@ -228,10 +241,13 @@ pub(crate) async fn analyze_source(
                 .ok_or_else(|| AppError::bad_request("MongoDB source type is not registered"))?
                 .map_err(AppError::from)?;
 
-            let analysis = introspector.analyze().await.map_err(AppError::from)?;
+            let analysis = IntrospectionKernel::new(introspector)
+                .analyze()
+                .await
+                .map_err(AppError::from)?;
 
             let report = build_analysis_report(&analysis.schema, &analysis.profile)
-                .with_analysis_warnings(analysis.warnings);
+                .with_analysis_warnings(analysis.warnings.clone());
 
             info!(
                 collections = analysis.schema.tables.len(),
@@ -247,8 +263,8 @@ pub(crate) async fn analyze_source(
                     source_fingerprint: Some(fingerprint),
                 },
                 None, // MongoDB: no raw data stored, regenerated from schema+profile
-                Some(analysis.schema),
-                Some(analysis.profile),
+                Some(analysis.schema.clone()),
+                Some(analysis.profile.clone()),
                 Some(report),
             ))
         }
@@ -281,10 +297,13 @@ pub(crate) async fn analyze_source(
                 .ok_or_else(|| AppError::bad_request("Snowflake source type is not registered"))?
                 .map_err(AppError::from)?;
 
-            let analysis = introspector.analyze().await.map_err(AppError::from)?;
+            let analysis = IntrospectionKernel::new(introspector)
+                .analyze()
+                .await
+                .map_err(AppError::from)?;
 
             let report = build_analysis_report(&analysis.schema, &analysis.profile)
-                .with_analysis_warnings(analysis.warnings);
+                .with_analysis_warnings(analysis.warnings.clone());
 
             info!(
                 tables = analysis.schema.tables.len(),
@@ -300,8 +319,8 @@ pub(crate) async fn analyze_source(
                     source_fingerprint: Some(fingerprint),
                 },
                 None, // Snowflake: no raw data stored, regenerated from schema+profile
-                Some(analysis.schema),
-                Some(analysis.profile),
+                Some(analysis.schema.clone()),
+                Some(analysis.profile.clone()),
                 Some(report),
             ))
         }
@@ -332,10 +351,13 @@ pub(crate) async fn analyze_source(
                 .ok_or_else(|| AppError::bad_request("BigQuery source type is not registered"))?
                 .map_err(AppError::from)?;
 
-            let analysis = introspector.analyze().await.map_err(AppError::from)?;
+            let analysis = IntrospectionKernel::new(introspector)
+                .analyze()
+                .await
+                .map_err(AppError::from)?;
 
             let report = build_analysis_report(&analysis.schema, &analysis.profile)
-                .with_analysis_warnings(analysis.warnings);
+                .with_analysis_warnings(analysis.warnings.clone());
 
             info!(
                 tables = analysis.schema.tables.len(),
@@ -351,8 +373,8 @@ pub(crate) async fn analyze_source(
                     source_fingerprint: Some(fingerprint),
                 },
                 None, // BigQuery: no raw data stored, regenerated from schema+profile
-                Some(analysis.schema),
-                Some(analysis.profile),
+                Some(analysis.schema.clone()),
+                Some(analysis.profile.clone()),
                 Some(report),
             ))
         }
@@ -372,11 +394,14 @@ pub(crate) async fn analyze_source(
                 .ok_or_else(|| AppError::bad_request("DuckDB source type is not registered"))?
                 .map_err(AppError::from)?;
 
-            let analysis = introspector.analyze().await.map_err(AppError::from)?;
+            let analysis = IntrospectionKernel::new(introspector)
+                .analyze()
+                .await
+                .map_err(AppError::from)?;
             let fingerprint = schema_fingerprint(&analysis.schema);
 
             let report = build_analysis_report(&analysis.schema, &analysis.profile)
-                .with_analysis_warnings(analysis.warnings);
+                .with_analysis_warnings(analysis.warnings.clone());
 
             info!(
                 tables = analysis.schema.tables.len(),
@@ -392,8 +417,8 @@ pub(crate) async fn analyze_source(
                     source_fingerprint: Some(fingerprint),
                 },
                 None, // DuckDB: no raw data stored, regenerated from schema+profile
-                Some(analysis.schema),
-                Some(analysis.profile),
+                Some(analysis.schema.clone()),
+                Some(analysis.profile.clone()),
                 Some(report),
             ))
         }

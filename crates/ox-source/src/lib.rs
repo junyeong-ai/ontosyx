@@ -26,52 +26,23 @@ pub mod snowflake;
 use async_trait::async_trait;
 use ox_core::error::OxResult;
 use ox_core::source_analysis::AnalysisWarning;
-use ox_core::source_schema::{SourceProfile, SourceSchema, SourceTableDef};
+use ox_core::source_schema::{
+    ColumnStats, ForeignKeyDef, SourceColumnDef, SourceProfile, SourceSchema, SourceTableDef,
+};
 
 pub use kernel::{CacheTtl, IntrospectionKernel, RetryPolicy};
 
-/// Default concurrency limit for table introspection.
+/// Default concurrency limit for table introspection orchestration.
+/// The [`IntrospectionKernel`] uses this when a caller doesn't override.
 pub const DEFAULT_INTROSPECTION_CONCURRENCY: usize = 8;
-
-/// Execute table introspection concurrently with bounded parallelism.
-/// Returns results in the original table order.
-pub async fn introspect_tables_concurrent<F, Fut>(
-    table_names: &[String],
-    concurrency: usize,
-    introspect_fn: F,
-) -> Vec<(String, OxResult<SourceTableDef>)>
-where
-    F: Fn(String) -> Fut + Send + Sync,
-    Fut: std::future::Future<Output = OxResult<SourceTableDef>> + Send,
-{
-    use futures::stream::{self, StreamExt};
-
-    let introspect_fn = &introspect_fn;
-    let mut results: Vec<_> = stream::iter(table_names.iter().cloned().enumerate())
-        .map(|(idx, name)| {
-            let name_clone = name.clone();
-            async move {
-                let result = introspect_fn(name_clone).await;
-                (idx, name, result)
-            }
-        })
-        .buffer_unordered(concurrency)
-        .collect()
-        .await;
-
-    results.sort_by_key(|(idx, _, _)| *idx);
-    results
-        .into_iter()
-        .map(|(_, name, result)| (name, result))
-        .collect()
-}
 
 /// Result of a full source analysis: schema, profile, and any warnings
 /// encountered during introspection or profiling.
 ///
-/// The default `analyze()` implementation returns an empty `warnings` vec.
-/// Backends that perform resilient analysis (e.g., PostgreSQL skipping
-/// inaccessible tables) override `analyze()` to populate warnings.
+/// Produced by [`IntrospectionKernel::analyze`]. Adapters themselves never
+/// emit this directly — they expose atomic primitives and the kernel
+/// orchestrates them into a full analysis, attaching warnings as
+/// individual primitive calls succeed or fail.
 #[derive(Debug, Clone)]
 pub struct AnalysisResult {
     pub schema: SourceSchema,
@@ -79,36 +50,56 @@ pub struct AnalysisResult {
     pub warnings: Vec<AnalysisWarning>,
 }
 
-/// Introspect an external data source to discover its schema and collect statistics.
-/// Used to provide structured input to the ontology design LLM.
+/// Introspect an external data source through a set of **atomic, read-only
+/// primitives**. The [`IntrospectionKernel`] composes these primitives
+/// into the higher-level flow (schema discovery → profiling → analysis)
+/// while owning retry, concurrency, caching, and warning aggregation.
 ///
-/// Adapters implement the per-backend primitive behaviour (schema discovery,
-/// stats collection). Cross-cutting concerns — retry on transient errors,
-/// result caching, warning surfacing — live in [`IntrospectionKernel`], not
-/// inside individual adapter implementations.
+/// Every adapter implements exactly the same five methods (+ a default FK
+/// primitive). Cross-cutting behaviour lives in one place; per-backend
+/// code never re-implements it.
+///
+/// Primitives are expected to be idempotent and safe to retry — callers
+/// get retry semantics from the kernel's `RetryPolicy`, and a mid-
+/// introspection connection hiccup shouldn't leave server-side state
+/// behind.
 #[async_trait]
 pub trait DataSourceAdapter: Send + Sync {
-    /// Discover tables, columns, types, constraints, foreign keys
-    async fn introspect_schema(&self) -> OxResult<SourceSchema>;
-
-    /// Collect data statistics (row counts, distinct values, ranges)
-    async fn collect_stats(&self, schema: &SourceSchema) -> OxResult<SourceProfile>;
-
-    /// Source type identifier (e.g., "postgresql", "mysql")
+    /// Source type identifier (e.g., "postgresql", "mysql"). Cheap,
+    /// synchronous accessor — no I/O.
     fn source_type(&self) -> &str;
 
-    /// Run full analysis including per-table/column warnings.
-    ///
-    /// Default implementation delegates to `introspect_schema` + `collect_stats`
-    /// with an empty warnings list. Backends with resilient analysis (e.g.,
-    /// PostgreSQL) override this to capture partial-analysis warnings.
-    async fn analyze(&self) -> OxResult<AnalysisResult> {
-        let schema = self.introspect_schema().await?;
-        let profile = self.collect_stats(&schema).await?;
-        Ok(AnalysisResult {
-            schema,
-            profile,
-            warnings: Vec::new(),
-        })
+    /// Enumerate every table (or collection) visible to this adapter.
+    /// The returned names are fed to [`describe_table`] / [`count_rows`]
+    /// / [`sample_column`] without further translation.
+    async fn list_tables(&self) -> OxResult<Vec<String>>;
+
+    /// Describe a single table: column metadata plus primary-key columns.
+    /// Foreign keys are source-global and surface through
+    /// [`list_foreign_keys`] instead — that split lets the kernel
+    /// orchestrate them concurrently.
+    async fn describe_table(&self, table: &str) -> OxResult<SourceTableDef>;
+
+    /// Approximate row count for a table. Adapters should prefer a
+    /// fast-path (e.g. PostgreSQL `pg_stat_user_tables`, MySQL InnoDB
+    /// stats, Mongo `estimatedDocumentCount`) and only fall back to an
+    /// exact count when statistics aren't available.
+    async fn count_rows(&self, table: &str) -> OxResult<u64>;
+    /// Profile a single column: null count, distinct count, sample
+    /// values, min/max. Adapters fold these into the most efficient
+    /// form their backend offers — a single aggregation query in SQL
+    /// engines, in-memory aggregation for sampled documents, etc.
+    async fn sample_column(
+        &self,
+        table: &str,
+        column: &SourceColumnDef,
+    ) -> OxResult<ColumnStats>;
+
+    /// Enumerate declared or inferred foreign-key relationships. Many
+    /// backends don't declare FKs (CSV flat files, Mongo, most JSON)
+    /// so the default returns an empty list; adapters that can
+    /// discover FKs override this.
+    async fn list_foreign_keys(&self) -> OxResult<Vec<ForeignKeyDef>> {
+        Ok(Vec::new())
     }
 }

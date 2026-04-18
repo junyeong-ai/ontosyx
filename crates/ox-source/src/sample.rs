@@ -473,24 +473,53 @@ fn infer_scalar_type(raw: &str) -> &'static str {
 // ---------------------------------------------------------------------------
 // DataSourceAdapter wrappers for CSV and JSON
 // ---------------------------------------------------------------------------
+//
+// CSV and JSON sources are fully in-memory — `analyze_csv` / `analyze_json`
+// compute the entire schema + profile eagerly at construction. The adapter
+// primitives are then plain lookups against those pre-computed structures,
+// so every method is O(1) w.r.t. I/O and returns cloned snapshots.
+
+use std::collections::HashMap;
 
 use async_trait::async_trait;
 
 use crate::DataSourceAdapter;
 
-/// A `DataSourceAdapter` backed by in-memory CSV data.
-///
-/// Schema and profile are computed eagerly at construction time (synchronous),
-/// then returned from the async trait methods without further I/O.
+/// A [`DataSourceAdapter`] backed by in-memory CSV data.
 pub struct CsvAdapter {
     schema: SourceSchema,
-    profile: SourceProfile,
+    stats_by_column: HashMap<(String, String), ColumnStats>,
+    counts_by_table: HashMap<String, u64>,
 }
 
 impl CsvAdapter {
     pub fn new(data: &str) -> OxResult<Self> {
         let (schema, profile) = analyze_csv(data)?;
-        Ok(Self { schema, profile })
+        let (stats_by_column, counts_by_table) = index_profile(&profile);
+        Ok(Self {
+            schema,
+            stats_by_column,
+            counts_by_table,
+        })
+    }
+}
+
+/// A [`DataSourceAdapter`] backed by in-memory JSON data.
+pub struct JsonAdapter {
+    schema: SourceSchema,
+    stats_by_column: HashMap<(String, String), ColumnStats>,
+    counts_by_table: HashMap<String, u64>,
+}
+
+impl JsonAdapter {
+    pub fn new(data: &str) -> OxResult<Self> {
+        let (schema, profile) = analyze_json(data)?;
+        let (stats_by_column, counts_by_table) = index_profile(&profile);
+        Ok(Self {
+            schema,
+            stats_by_column,
+            counts_by_table,
+        })
     }
 }
 
@@ -499,29 +528,28 @@ impl DataSourceAdapter for CsvAdapter {
     fn source_type(&self) -> &str {
         "csv"
     }
-
-    async fn introspect_schema(&self) -> OxResult<SourceSchema> {
-        Ok(self.schema.clone())
+    async fn list_tables(&self) -> OxResult<Vec<String>> {
+        Ok(list_tables_from_schema(&self.schema))
     }
-
-    async fn collect_stats(&self, _schema: &SourceSchema) -> OxResult<SourceProfile> {
-        Ok(self.profile.clone())
+    async fn describe_table(&self, table: &str) -> OxResult<SourceTableDef> {
+        describe_from_schema(&self.schema, table)
     }
-}
-
-/// A `DataSourceAdapter` backed by in-memory JSON data.
-///
-/// Schema and profile are computed eagerly at construction time (synchronous),
-/// then returned from the async trait methods without further I/O.
-pub struct JsonAdapter {
-    schema: SourceSchema,
-    profile: SourceProfile,
-}
-
-impl JsonAdapter {
-    pub fn new(data: &str) -> OxResult<Self> {
-        let (schema, profile) = analyze_json(data)?;
-        Ok(Self { schema, profile })
+    async fn count_rows(&self, table: &str) -> OxResult<u64> {
+        Ok(self.counts_by_table.get(table).copied().unwrap_or_default())
+    }
+    async fn sample_column(
+        &self,
+        table: &str,
+        column: &SourceColumnDef,
+    ) -> OxResult<ColumnStats> {
+        Ok(self
+            .stats_by_column
+            .get(&(table.to_string(), column.name.clone()))
+            .cloned()
+            .unwrap_or_else(|| empty_stats(&column.name)))
+    }
+    async fn list_foreign_keys(&self) -> OxResult<Vec<ForeignKeyDef>> {
+        Ok(self.schema.foreign_keys.clone())
     }
 }
 
@@ -530,13 +558,77 @@ impl DataSourceAdapter for JsonAdapter {
     fn source_type(&self) -> &str {
         "json"
     }
-
-    async fn introspect_schema(&self) -> OxResult<SourceSchema> {
-        Ok(self.schema.clone())
+    async fn list_tables(&self) -> OxResult<Vec<String>> {
+        Ok(list_tables_from_schema(&self.schema))
     }
+    async fn describe_table(&self, table: &str) -> OxResult<SourceTableDef> {
+        describe_from_schema(&self.schema, table)
+    }
+    async fn count_rows(&self, table: &str) -> OxResult<u64> {
+        Ok(self.counts_by_table.get(table).copied().unwrap_or_default())
+    }
+    async fn sample_column(
+        &self,
+        table: &str,
+        column: &SourceColumnDef,
+    ) -> OxResult<ColumnStats> {
+        Ok(self
+            .stats_by_column
+            .get(&(table.to_string(), column.name.clone()))
+            .cloned()
+            .unwrap_or_else(|| empty_stats(&column.name)))
+    }
+    async fn list_foreign_keys(&self) -> OxResult<Vec<ForeignKeyDef>> {
+        Ok(self.schema.foreign_keys.clone())
+    }
+}
 
-    async fn collect_stats(&self, _schema: &SourceSchema) -> OxResult<SourceProfile> {
-        Ok(self.profile.clone())
+/// Index a `SourceProfile` into `(table, column) → ColumnStats` and
+/// `table → row_count` lookups. Both adapters pre-compute this once;
+/// primitives then read in O(1).
+fn index_profile(
+    profile: &SourceProfile,
+) -> (
+    HashMap<(String, String), ColumnStats>,
+    HashMap<String, u64>,
+) {
+    let mut stats = HashMap::new();
+    let mut counts = HashMap::new();
+    for tp in &profile.table_profiles {
+        counts.insert(tp.table_name.clone(), tp.row_count);
+        for col in &tp.column_stats {
+            stats.insert(
+                (tp.table_name.clone(), col.column_name.clone()),
+                col.clone(),
+            );
+        }
+    }
+    (stats, counts)
+}
+
+fn list_tables_from_schema(schema: &SourceSchema) -> Vec<String> {
+    schema.tables.iter().map(|t| t.name.clone()).collect()
+}
+
+fn describe_from_schema(schema: &SourceSchema, table: &str) -> OxResult<SourceTableDef> {
+    schema
+        .tables
+        .iter()
+        .find(|t| t.name == table)
+        .cloned()
+        .ok_or_else(|| OxError::NotFound {
+            entity: format!("table `{table}`"),
+        })
+}
+
+fn empty_stats(column_name: &str) -> ColumnStats {
+    ColumnStats {
+        column_name: column_name.to_string(),
+        null_count: 0,
+        distinct_count: 0,
+        sample_values: Vec::new(),
+        min_value: None,
+        max_value: None,
     }
 }
 

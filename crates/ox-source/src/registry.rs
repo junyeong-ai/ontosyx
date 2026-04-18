@@ -24,7 +24,7 @@ pub struct SourceInput {
 
 /// Future returned by an introspector factory.
 type AdapterFuture =
-    Pin<Box<dyn Future<Output = OxResult<Box<dyn DataSourceAdapter>>> + Send>>;
+    Pin<Box<dyn Future<Output = OxResult<Arc<dyn DataSourceAdapter>>> + Send>>;
 
 /// Async factory function that creates a `DataSourceAdapter` from source input.
 type AdapterFactory = Arc<dyn Fn(SourceInput) -> AdapterFuture + Send + Sync>;
@@ -52,7 +52,7 @@ impl AdapterRegistry {
     pub fn register<F, Fut>(&mut self, source_type: &str, factory: F)
     where
         F: Fn(SourceInput) -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = OxResult<Box<dyn DataSourceAdapter>>> + Send + 'static,
+        Fut: Future<Output = OxResult<Arc<dyn DataSourceAdapter>>> + Send + 'static,
     {
         let factory: AdapterFactory =
             Arc::new(move |input: SourceInput| Box::pin(factory(input)));
@@ -67,7 +67,7 @@ impl AdapterRegistry {
         &self,
         source_type: &str,
         input: SourceInput,
-    ) -> Option<OxResult<Box<dyn DataSourceAdapter>>> {
+    ) -> Option<OxResult<Arc<dyn DataSourceAdapter>>> {
         let factory = self.factories.get(source_type)?;
         Some(factory(input).await)
     }
@@ -96,7 +96,7 @@ impl AdapterRegistry {
             })?;
             let schema = input.schema_name.as_deref().unwrap_or("public");
             let introspector = crate::postgres::PostgresAdapter::connect(conn, schema).await?;
-            Ok(Box::new(introspector) as Box<dyn DataSourceAdapter>)
+            Ok(Arc::new(introspector) as Arc<dyn DataSourceAdapter>)
         });
 
         // MySQL: async connection pool setup
@@ -114,7 +114,7 @@ impl AdapterRegistry {
                 }
             })?;
             let introspector = crate::mysql::MysqlAdapter::connect(conn, schema).await?;
-            Ok(Box::new(introspector) as Box<dyn DataSourceAdapter>)
+            Ok(Arc::new(introspector) as Arc<dyn DataSourceAdapter>)
         });
 
         // MongoDB: async client setup with document sampling
@@ -132,7 +132,7 @@ impl AdapterRegistry {
                 }
             })?;
             let introspector = crate::mongodb::MongoAdapter::connect(conn, database).await?;
-            Ok(Box::new(introspector) as Box<dyn DataSourceAdapter>)
+            Ok(Arc::new(introspector) as Arc<dyn DataSourceAdapter>)
         });
 
         // CSV: synchronous analysis wrapped in async
@@ -146,7 +146,7 @@ impl AdapterRegistry {
                         message: "CSV source requires data".to_string(),
                     })?;
             let introspector = crate::sample::CsvAdapter::new(data)?;
-            Ok(Box::new(introspector) as Box<dyn DataSourceAdapter>)
+            Ok(Arc::new(introspector) as Arc<dyn DataSourceAdapter>)
         });
 
         // Snowflake: stub implementation (REST SQL API integration pending)
@@ -162,7 +162,7 @@ impl AdapterRegistry {
             })?;
             let introspector =
                 crate::snowflake::SnowflakeAdapter::from_connection_string(conn)?;
-            Ok(Box::new(introspector) as Box<dyn DataSourceAdapter>)
+            Ok(Arc::new(introspector) as Arc<dyn DataSourceAdapter>)
         });
 
         // BigQuery: stub implementation (gcp-bigquery-client integration pending)
@@ -176,7 +176,7 @@ impl AdapterRegistry {
                 }
             })?;
             let introspector = crate::bigquery::BigQueryAdapter::connect(conn).await?;
-            Ok(Box::new(introspector) as Box<dyn DataSourceAdapter>)
+            Ok(Arc::new(introspector) as Arc<dyn DataSourceAdapter>)
         });
 
         // DuckDB: in-process file analysis (Parquet, CSV, JSON)
@@ -193,7 +193,7 @@ impl AdapterRegistry {
                         .to_string(),
                 })?;
             let introspector = crate::duckdb_source::DuckDbAdapter::from_file(path)?;
-            Ok(Box::new(introspector) as Box<dyn DataSourceAdapter>)
+            Ok(Arc::new(introspector) as Arc<dyn DataSourceAdapter>)
         });
 
         // JSON: synchronous analysis wrapped in async
@@ -207,7 +207,7 @@ impl AdapterRegistry {
                         message: "JSON source requires data".to_string(),
                     })?;
             let introspector = crate::sample::JsonAdapter::new(data)?;
-            Ok(Box::new(introspector) as Box<dyn DataSourceAdapter>)
+            Ok(Arc::new(introspector) as Arc<dyn DataSourceAdapter>)
         });
 
         registry
@@ -302,12 +302,13 @@ mod tests {
                 },
             )
             .await;
-        let introspector = result.unwrap().unwrap();
-        assert_eq!(introspector.source_type(), "csv");
+        let adapter = result.unwrap().unwrap();
+        assert_eq!(adapter.source_type(), "csv");
 
-        let schema = introspector.introspect_schema().await.unwrap();
-        assert_eq!(schema.tables.len(), 1);
-        assert_eq!(schema.tables[0].columns.len(), 2);
+        let tables = adapter.list_tables().await.unwrap();
+        assert_eq!(tables.len(), 1);
+        let table = adapter.describe_table(&tables[0]).await.unwrap();
+        assert_eq!(table.columns.len(), 2);
     }
 
     #[tokio::test]
@@ -323,11 +324,11 @@ mod tests {
                 },
             )
             .await;
-        let introspector = result.unwrap().unwrap();
-        assert_eq!(introspector.source_type(), "json");
+        let adapter = result.unwrap().unwrap();
+        assert_eq!(adapter.source_type(), "json");
 
-        let schema = introspector.introspect_schema().await.unwrap();
-        assert_eq!(schema.tables.len(), 1);
+        let tables = adapter.list_tables().await.unwrap();
+        assert_eq!(tables.len(), 1);
     }
 
     #[tokio::test]
@@ -352,7 +353,7 @@ mod tests {
         registry.register("csv", |input| async move {
             let data = input.data.as_deref().unwrap_or("");
             let introspector = crate::sample::CsvAdapter::new(data)?;
-            Ok(Box::new(introspector) as Box<dyn DataSourceAdapter>)
+            Ok(Arc::new(introspector) as Arc<dyn DataSourceAdapter>)
         });
         assert!(registry.supports("csv"));
         assert!(!registry.supports("json"));

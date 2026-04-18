@@ -16,9 +16,7 @@ use async_trait::async_trait;
 use tracing::info;
 
 use ox_core::error::{OxError, OxResult};
-use ox_core::source_schema::{
-    ColumnStats, SourceColumnDef, SourceProfile, SourceSchema, SourceTableDef, TableProfile,
-};
+use ox_core::source_schema::{ColumnStats, SourceColumnDef, SourceTableDef};
 
 use crate::DataSourceAdapter;
 
@@ -121,8 +119,9 @@ fn quote_ident(s: &str) -> String {
     format!("\"{}\"", s.replace('"', "\"\""))
 }
 
-/// Introspect schema synchronously using the given connection.
-fn introspect_schema_sync(conn: &duckdb::Connection) -> OxResult<SourceSchema> {
+/// Describe the single virtual view backed by the file. Extracted for the
+/// `describe_table` primitive; runs synchronously inside `spawn_blocking`.
+fn describe_table_sync(conn: &duckdb::Connection) -> OxResult<SourceTableDef> {
     // DESCRIBE returns: column_name, column_type, null, key, default, extra
     let mut stmt = conn
         .prepare(&format!("DESCRIBE SELECT * FROM {VIEW_NAME}"))
@@ -155,100 +154,82 @@ fn introspect_schema_sync(conn: &duckdb::Connection) -> OxResult<SourceSchema> {
         });
     }
 
-    Ok(SourceSchema {
-        source_type: "duckdb".to_string(),
-        tables: vec![SourceTableDef {
-            name: VIEW_NAME.to_string(),
-            columns,
-            primary_key: Vec::new(), // Files have no declared primary key
-        }],
-        foreign_keys: Vec::new(), // Single-file source — no foreign keys
+    Ok(SourceTableDef {
+        name: VIEW_NAME.to_string(),
+        columns,
+        primary_key: Vec::new(), // Files have no declared primary key.
     })
 }
 
-/// Collect statistics synchronously using the given connection.
-fn collect_stats_sync(conn: &duckdb::Connection, schema: &SourceSchema) -> OxResult<SourceProfile> {
-    let table = schema.tables.first().ok_or_else(|| OxError::Runtime {
-        message: "No tables in schema to profile".to_string(),
-    })?;
+/// Count rows in the single view. Kept as a separate sync helper so the
+/// primitive `count_rows` can call it inside `spawn_blocking`.
+fn count_rows_sync(conn: &duckdb::Connection) -> OxResult<u64> {
+    conn.query_row(&format!("SELECT count(*) FROM {VIEW_NAME}"), [], |row| {
+        row.get::<_, i64>(0)
+    })
+    .map(|n| n.max(0) as u64)
+    .map_err(|e| OxError::Runtime {
+        message: format!("DuckDB count query failed: {e}"),
+    })
+}
 
-    // Row count
-    let row_count: u64 = conn
-        .query_row(&format!("SELECT count(*) FROM {VIEW_NAME}"), [], |row| {
-            row.get::<_, i64>(0)
+/// Profile a single column: null / distinct / min / max + samples.
+fn sample_column_sync(
+    conn: &duckdb::Connection,
+    column: &SourceColumnDef,
+) -> OxResult<ColumnStats> {
+    let qc = quote_ident(&column.name);
+
+    let stats_query = format!(
+        "SELECT \
+            count(*) FILTER (WHERE {qc} IS NULL), \
+            count(DISTINCT {qc}), \
+            min({qc}::VARCHAR), \
+            max({qc}::VARCHAR) \
+         FROM {VIEW_NAME}",
+    );
+
+    let (null_count, distinct_count, min_value, max_value): (
+        i64,
+        i64,
+        Option<String>,
+        Option<String>,
+    ) = conn
+        .query_row(&stats_query, [], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
         })
-        .map(|n| n.max(0) as u64)
         .map_err(|e| OxError::Runtime {
-            message: format!("DuckDB count query failed: {e}"),
+            message: format!("DuckDB stats query failed for '{}': {e}", column.name),
         })?;
 
-    let mut column_stats = Vec::with_capacity(table.columns.len());
-
-    for col in &table.columns {
-        let qc = quote_ident(&col.name);
-
-        // Combined stats: null count, distinct count, min, max
-        let stats_query = format!(
-            "SELECT \
-                count(*) FILTER (WHERE {qc} IS NULL), \
-                count(DISTINCT {qc}), \
-                min({qc}::VARCHAR), \
-                max({qc}::VARCHAR) \
-             FROM {VIEW_NAME}",
+    let sample_values = if distinct_count > 0 && (distinct_count as usize) <= MAX_SAMPLE_VALUES {
+        let sample_query = format!(
+            "SELECT DISTINCT {qc}::VARCHAR AS val \
+             FROM {VIEW_NAME} \
+             WHERE {qc} IS NOT NULL \
+             ORDER BY val \
+             LIMIT {MAX_SAMPLE_VALUES}",
         );
-
-        let (null_count, distinct_count, min_value, max_value): (
-            i64,
-            i64,
-            Option<String>,
-            Option<String>,
-        ) = conn
-            .query_row(&stats_query, [], |row| {
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
-            })
+        let mut stmt = conn.prepare(&sample_query).map_err(|e| OxError::Runtime {
+            message: format!("DuckDB sample query prepare failed for '{}': {e}", column.name),
+        })?;
+        stmt.query_map([], |row| row.get::<_, String>(0))
             .map_err(|e| OxError::Runtime {
-                message: format!("DuckDB stats query failed for '{}': {e}", col.name),
-            })?;
+                message: format!("DuckDB sample query failed for '{}': {e}", column.name),
+            })?
+            .filter_map(|r| r.ok())
+            .collect()
+    } else {
+        Vec::new()
+    };
 
-        // Collect sample values for low-cardinality columns
-        let sample_values = if distinct_count > 0 && (distinct_count as usize) <= MAX_SAMPLE_VALUES
-        {
-            let sample_query = format!(
-                "SELECT DISTINCT {qc}::VARCHAR AS val \
-                 FROM {VIEW_NAME} \
-                 WHERE {qc} IS NOT NULL \
-                 ORDER BY val \
-                 LIMIT {MAX_SAMPLE_VALUES}",
-            );
-            let mut stmt = conn.prepare(&sample_query).map_err(|e| OxError::Runtime {
-                message: format!("DuckDB sample query prepare failed for '{}': {e}", col.name),
-            })?;
-            stmt.query_map([], |row| row.get::<_, String>(0))
-                .map_err(|e| OxError::Runtime {
-                    message: format!("DuckDB sample query failed for '{}': {e}", col.name),
-                })?
-                .filter_map(|r| r.ok())
-                .collect()
-        } else {
-            Vec::new()
-        };
-
-        column_stats.push(ColumnStats {
-            column_name: col.name.clone(),
-            null_count: null_count.max(0) as u64,
-            distinct_count: distinct_count.max(0) as u64,
-            sample_values,
-            min_value,
-            max_value,
-        });
-    }
-
-    Ok(SourceProfile {
-        table_profiles: vec![TableProfile {
-            table_name: VIEW_NAME.to_string(),
-            row_count,
-            column_stats,
-        }],
+    Ok(ColumnStats {
+        column_name: column.name.clone(),
+        null_count: null_count.max(0) as u64,
+        distinct_count: distinct_count.max(0) as u64,
+        sample_values,
+        min_value,
+        max_value,
     })
 }
 
@@ -258,34 +239,55 @@ impl DataSourceAdapter for DuckDbAdapter {
         "duckdb"
     }
 
-    async fn introspect_schema(&self) -> OxResult<SourceSchema> {
+    async fn list_tables(&self) -> OxResult<Vec<String>> {
+        // DuckDB in-process wraps a single virtual view over the file.
+        Ok(vec![VIEW_NAME.to_string()])
+    }
+
+    async fn describe_table(&self, _table: &str) -> OxResult<SourceTableDef> {
         let file_path = self.file_path.clone();
         let read_fn = self.read_fn;
-
         tokio::task::spawn_blocking(move || {
-            let introspector = DuckDbAdapter { file_path, read_fn };
-            let conn = introspector.open_connection()?;
-            introspect_schema_sync(&conn)
+            let adapter = DuckDbAdapter { file_path, read_fn };
+            let conn = adapter.open_connection()?;
+            describe_table_sync(&conn)
         })
         .await
         .map_err(|e| OxError::Runtime {
-            message: format!("DuckDB introspection task panicked: {e}"),
+            message: format!("DuckDB describe_table task panicked: {e}"),
         })?
     }
 
-    async fn collect_stats(&self, schema: &SourceSchema) -> OxResult<SourceProfile> {
+    async fn count_rows(&self, _table: &str) -> OxResult<u64> {
         let file_path = self.file_path.clone();
         let read_fn = self.read_fn;
-        let schema = schema.clone();
-
         tokio::task::spawn_blocking(move || {
-            let introspector = DuckDbAdapter { file_path, read_fn };
-            let conn = introspector.open_connection()?;
-            collect_stats_sync(&conn, &schema)
+            let adapter = DuckDbAdapter { file_path, read_fn };
+            let conn = adapter.open_connection()?;
+            count_rows_sync(&conn)
         })
         .await
         .map_err(|e| OxError::Runtime {
-            message: format!("DuckDB stats collection task panicked: {e}"),
+            message: format!("DuckDB count_rows task panicked: {e}"),
+        })?
+    }
+
+    async fn sample_column(
+        &self,
+        _table: &str,
+        column: &SourceColumnDef,
+    ) -> OxResult<ColumnStats> {
+        let file_path = self.file_path.clone();
+        let read_fn = self.read_fn;
+        let column = column.clone();
+        tokio::task::spawn_blocking(move || {
+            let adapter = DuckDbAdapter { file_path, read_fn };
+            let conn = adapter.open_connection()?;
+            sample_column_sync(&conn, &column)
+        })
+        .await
+        .map_err(|e| OxError::Runtime {
+            message: format!("DuckDB sample_column task panicked: {e}"),
         })?
     }
 }
@@ -339,30 +341,23 @@ mod tests {
             writeln!(f, "3,Charlie,92.3").unwrap();
         }
 
-        let introspector = DuckDbAdapter::from_file(csv_path.to_str().unwrap()).unwrap();
-        assert_eq!(introspector.source_type(), "duckdb");
+        let adapter = DuckDbAdapter::from_file(csv_path.to_str().unwrap()).unwrap();
+        assert_eq!(adapter.source_type(), "duckdb");
 
-        let schema = introspector.introspect_schema().await.unwrap();
-        assert_eq!(schema.source_type, "duckdb");
-        assert_eq!(schema.tables.len(), 1);
-        assert_eq!(schema.tables[0].name, VIEW_NAME);
-        assert_eq!(schema.tables[0].columns.len(), 3);
+        let tables = adapter.list_tables().await.unwrap();
+        assert_eq!(tables, vec![VIEW_NAME.to_string()]);
 
-        let col_names: Vec<&str> = schema.tables[0]
-            .columns
-            .iter()
-            .map(|c| c.name.as_str())
-            .collect();
+        let table = adapter.describe_table(VIEW_NAME).await.unwrap();
+        assert_eq!(table.name, VIEW_NAME);
+        assert_eq!(table.columns.len(), 3);
+        let col_names: Vec<&str> = table.columns.iter().map(|c| c.name.as_str()).collect();
         assert_eq!(col_names, vec!["id", "name", "score"]);
 
-        // Collect stats
-        let profile = introspector.collect_stats(&schema).await.unwrap();
-        assert_eq!(profile.table_profiles.len(), 1);
-        assert_eq!(profile.table_profiles[0].row_count, 3);
-        assert_eq!(profile.table_profiles[0].column_stats.len(), 3);
+        let row_count = adapter.count_rows(VIEW_NAME).await.unwrap();
+        assert_eq!(row_count, 3);
 
-        // Name column should have 3 distinct values with samples
-        let name_stats = &profile.table_profiles[0].column_stats[1];
+        let name_col = &table.columns[1];
+        let name_stats = adapter.sample_column(VIEW_NAME, name_col).await.unwrap();
         assert_eq!(name_stats.column_name, "name");
         assert_eq!(name_stats.distinct_count, 3);
         assert_eq!(name_stats.null_count, 0);
@@ -379,13 +374,10 @@ mod tests {
         )
         .unwrap();
 
-        let introspector = DuckDbAdapter::from_file(json_path.to_str().unwrap()).unwrap();
-
-        let schema = introspector.introspect_schema().await.unwrap();
-        assert_eq!(schema.tables[0].columns.len(), 2);
-
-        let profile = introspector.collect_stats(&schema).await.unwrap();
-        assert_eq!(profile.table_profiles[0].row_count, 2);
+        let adapter = DuckDbAdapter::from_file(json_path.to_str().unwrap()).unwrap();
+        let table = adapter.describe_table(VIEW_NAME).await.unwrap();
+        assert_eq!(table.columns.len(), 2);
+        assert_eq!(adapter.count_rows(VIEW_NAME).await.unwrap(), 2);
     }
 
     #[tokio::test]
@@ -398,17 +390,17 @@ mod tests {
         )
         .unwrap();
 
-        let introspector = DuckDbAdapter::from_file(jsonl_path.to_str().unwrap()).unwrap();
-
-        let schema = introspector.introspect_schema().await.unwrap();
-        assert_eq!(schema.tables[0].columns.len(), 2);
-
-        let profile = introspector.collect_stats(&schema).await.unwrap();
-        assert_eq!(profile.table_profiles[0].row_count, 2);
+        let adapter = DuckDbAdapter::from_file(jsonl_path.to_str().unwrap()).unwrap();
+        let table = adapter.describe_table(VIEW_NAME).await.unwrap();
+        assert_eq!(table.columns.len(), 2);
+        assert_eq!(adapter.count_rows(VIEW_NAME).await.unwrap(), 2);
     }
 
     #[tokio::test]
-    async fn full_analysis_via_trait() {
+    async fn full_analysis_via_kernel() {
+        use crate::IntrospectionKernel;
+        use std::sync::Arc;
+
         let dir = tempfile::tempdir().unwrap();
         let csv_path = dir.path().join("analysis.csv");
         {
@@ -418,12 +410,11 @@ mod tests {
             writeln!(f, "inactive,5").unwrap();
         }
 
-        let introspector = DuckDbAdapter::from_file(csv_path.to_str().unwrap()).unwrap();
-
-        // Use the default analyze() from the trait
-        let result = introspector.analyze().await.unwrap();
-        assert_eq!(result.schema.tables.len(), 1);
-        assert_eq!(result.profile.table_profiles[0].row_count, 2);
-        assert!(result.warnings.is_empty());
+        let adapter = DuckDbAdapter::from_file(csv_path.to_str().unwrap()).unwrap();
+        let kernel = IntrospectionKernel::new(Arc::new(adapter));
+        let analysis = kernel.analyze().await.unwrap();
+        assert_eq!(analysis.schema.tables.len(), 1);
+        assert_eq!(analysis.profile.table_profiles[0].row_count, 2);
+        assert!(analysis.warnings.is_empty());
     }
 }
