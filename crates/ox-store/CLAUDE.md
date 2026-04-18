@@ -31,16 +31,7 @@ Missing `FORCE` silently disables RLS for the table owner role. Missing `system_
 
 ## Method Naming
 
-- `list_*` — return Vec, cursor-paginated.
-- `get_*` — return single item by ID.
-- `find_*` — conditional search, returns Option.
-- `create_*` — insert, return created row.
-- `update_*` — modify, return updated row. Never use `set_*`.
-- `upsert_*` — insert-or-update keyed on a natural key (as opposed to
-  a surrogate id). Used only when the operation is semantically
-  "ensure this row exists". Pairs with a `UNIQUE` constraint on the
-  natural key + an `ON CONFLICT DO UPDATE` in the `INSERT`.
-- `delete_*` — remove by ID.
+See the root `CLAUDE.md` "Store methods" section — this crate is the reference implementation of that policy. Do not re-define it here.
 
 ## Task-local context
 

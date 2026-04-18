@@ -24,12 +24,48 @@ Use `./scripts/dev.sh start` to launch everything (Docker + backend + frontend).
 
 ## Coding Conventions
 
-- Rust: snake_case methods, PascalCase types. No `get_` prefix on getters.
-- Store trait verbs: `list_*`, `get_*`, `find_*`, `create_*`, `update_*`, `delete_*`.
-- Frontend: camelCase functions, PascalCase components. Zustand for state.
-- All LLM calls go through branchforge (crates.io). Never call LLM APIs directly.
-- Errors propagate via `OxResult<T>`. No `unwrap()` or `expect()` in library code.
-- Korean is the primary user language. English for code, comments, and docs.
+### Rust
+
+- snake_case methods, PascalCase types.
+- **Field accessors**: no `get_` prefix. `fn name(&self) -> &str`, not `fn get_name(...)`.
+- **Store methods** (single source of truth — all crate `CLAUDE.md` files reference this):
+  - `list_X(...)` — `Vec<X>`, cursor-paginated.
+  - `get_X(id)` — single item by PK, returns `OxResult<Option<X>>`.
+  - `find_X_by_Y(...)` — conditional lookup, returns `OxResult<Option<X>>`.
+  - `create_X(...)` — insert, returns created row.
+  - `update_X(...)` — modify, returns updated row. **Never `set_*`.**
+  - `upsert_X(...)` — insert-or-update on a natural key (unique constraint + `ON CONFLICT`). Only when the operation is semantically "ensure this row exists".
+  - `delete_X(id)` — remove by PK.
+- **Builders**: `with_X(...)`, `add_X(...)`, `remove_X(...)`, terminal `build() -> Result<T, _>`.
+- All LLM calls go through branchforge (crates.io). Never call provider APIs directly.
+- Errors propagate via `OxResult<T>`. No `unwrap()` / `expect()` / `panic!()` in library code — workspace lints are gated to `deny` once Phase 1 clean-up completes.
+
+### Identifier families
+
+- **Compile-target / runtime IR**: `QueryIR`, `OntologyIR`, `PatternIR`.
+- **LLM structured output**: `StructuredXxxQuery` (e.g., `StructuredMatchQuery`).
+- **Input DTO** (user / LLM input pre-validation): `InputXxxDef`.
+- **Analysis output**: `XxxReport`, `XxxInsight`.
+
+### Task-local context (intentional asymmetry)
+
+- **Store layer** uses bare names (`WORKSPACE_ID`, `SYSTEM_BYPASS`) — see `crates/ox-store/CLAUDE.md`.
+- **Graph / runtime layer** uses `GRAPH_` prefix (`GRAPH_WORKSPACE_ID`, `GRAPH_SYSTEM_BYPASS`, `GRAPH_ONTOLOGY`) — see `crates/ox-runtime/CLAUDE.md`.
+- Reason: a request that crosses both layers keeps postgres and graph contexts distinct in the same tokio task scope without `sync_scope` disambiguation.
+
+### Frontend
+
+- camelCase functions, PascalCase components, PascalCase types.
+- Zustand selectors:
+  - State selectors: `selectState<Noun>` — e.g., `selectStateOntology`.
+  - Action selectors: `selectAction<Verb>` — e.g., `selectActionSetOntology`.
+- Hooks: `use<Capability>` — e.g., `useGraphInteractions`.
+- File-level `/* eslint-disable */` is **forbidden**. Use `// eslint-disable-next-line` only on the one line that needs it.
+
+### Language
+
+- **Korean** is the primary user-facing language (UI strings, error messages to end users).
+- **English** for code, comments, commit messages, AI prompts, internal logs, and all documentation.
 
 ## Architecture Rules
 
