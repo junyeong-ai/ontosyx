@@ -29,6 +29,7 @@ pub mod ast;
 pub mod parse;
 pub mod rewrite;
 pub mod token;
+pub mod validate;
 
 pub use ast::{
     CypherAst, CypherClause, CypherPattern, CypherPatternElement, CypherStatement, ClauseKind,
@@ -39,3 +40,7 @@ pub use rewrite::{
     CypherRewriter, CypherRewriterPipeline, RewriteContext, WorkspaceScopeRewriter,
 };
 pub use token::{CypherToken, Span, TokenKind, tokenize};
+pub use validate::{
+    CypherValidator, CypherValidatorPipeline, IssueLevel, OntologyValidator, SafetyValidator,
+    ValidateContext, ValidationIssue, ValidationReport, WorkspaceScopeValidator,
+};
