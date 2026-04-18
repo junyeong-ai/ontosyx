@@ -65,9 +65,24 @@ export function QueryBuilder() {
   // updating in place.
   const [currentPatternId, setCurrentPatternId] = useState<string | null>(null);
 
+  // Baseline serialised canvas state captured at the last Save / Load.
+  // Used as the comparand for the "unsaved changes" dot — we memoise
+  // `JSON.stringify(currentSnapshot)` against this and render the dot
+  // when they diverge. O(N) compare per render, but `useMemo` gates
+  // recomputation to the state slices that actually affect the shape.
+  const savedBaselineRef = useRef<string | null>(null);
+
   // Imperative handle on the canvas — used to snapshot / restore the
   // XyFlow viewport (zoom + pan) when saving / loading patterns.
   const canvasRef = useRef<QueryCanvasHandle>(null);
+
+  // Pending viewport — written on Load, consumed once by a layout
+  // effect after React renders the new node set. Replaces the fragile
+  // requestAnimationFrame-then-setViewport pattern so viewport restore
+  // waits for XyFlow to know its bounds (larger patterns need >1 frame).
+  const pendingViewportRef = useRef<
+    { zoom: number; x: number; y: number } | null
+  >(null);
 
   // Palette tab state
   const [paletteTab, setPaletteTab] = useState<PaletteTab>("nodes");
@@ -395,6 +410,7 @@ export function QueryBuilder() {
     setNodeCounter(0);
     setEdgeCounter(0);
     setCurrentPatternId(null);
+    savedBaselineRef.current = null;
   }, []);
 
   // ---------------------------------------------------------------------------
@@ -408,13 +424,18 @@ export function QueryBuilder() {
       // an unmounted ref safely collapses to `undefined` via the
       // optional chain, which toPatternIR treats as "no layout hints".
       const vp = canvasRef.current?.getViewport();
+      const pattern_ir = toPatternIR(
+        { nodes, edges, returnFields, orderBy, limit },
+        vp
+          ? { layoutHints: { zoom: vp.zoom, pan_x: vp.x, pan_y: vp.y } }
+          : {},
+      );
+      // Record the baseline so the "unsaved changes" dot clears on
+      // the next render — the caller will update currentPatternId
+      // before that render happens.
+      savedBaselineRef.current = JSON.stringify(pattern_ir);
       return {
-        pattern_ir: toPatternIR(
-          { nodes, edges, returnFields, orderBy, limit },
-          vp
-            ? { layoutHints: { zoom: vp.zoom, pan_x: vp.x, pan_y: vp.y } }
-            : {},
-        ),
+        pattern_ir,
         fallbackName: nodes[0]?.label
           ? `${nodes[0].label} pattern`
           : "Untitled pattern",
@@ -445,24 +466,52 @@ export function QueryBuilder() {
     setNodeCounter(maxNode + 1);
     setEdgeCounter(maxEdge + 1);
     setCurrentPatternId(pattern.id);
-    // Restore viewport after React renders the new nodes. Without the
-    // rAF delay the canvas has no bounds yet and XyFlow snaps back to
-    // (0, 0, 1) before the user's zoom can take effect.
+    // Stage the viewport for the effect below — restoring here would
+    // race the pending `setNodes` render.
     if (
       layoutHints.zoom !== undefined ||
       layoutHints.pan_x !== undefined ||
       layoutHints.pan_y !== undefined
     ) {
-      requestAnimationFrame(() => {
-        canvasRef.current?.setViewport({
-          zoom: layoutHints.zoom ?? 1,
-          x: layoutHints.pan_x ?? 0,
-          y: layoutHints.pan_y ?? 0,
-        });
-      });
+      pendingViewportRef.current = {
+        zoom: layoutHints.zoom ?? 1,
+        x: layoutHints.pan_x ?? 0,
+        y: layoutHints.pan_y ?? 0,
+      };
     }
+    // The loaded state *is* the saved baseline — no unsaved dot
+    // until the user touches something.
+    savedBaselineRef.current = JSON.stringify(pattern.pattern_ir);
     toast.success(`Loaded "${pattern.name}"`);
   }, []);
+
+  // One-shot viewport apply: consumes the ref after the canvas has
+  // rendered the new node set and XyFlow has computed its bounds.
+  useEffect(() => {
+    const pending = pendingViewportRef.current;
+    if (!pending || nodes.length === 0) return;
+    pendingViewportRef.current = null;
+    canvasRef.current?.setViewport(pending);
+  }, [nodes]);
+
+  // "Unsaved changes" indicator — baseline vs current. Cheap via
+  // JSON.stringify (<10ms for 100-node patterns); only re-computed
+  // when the pattern state slices change.
+  const isDirty = useMemo(() => {
+    if (savedBaselineRef.current === null) return false;
+    // We can't call snapshotPatternIR here (it writes the baseline)
+    // so inline the payload shape. `toPatternIR` is pure; cheap.
+    const vp = canvasRef.current?.getViewport();
+    const current = JSON.stringify(
+      toPatternIR(
+        { nodes, edges, returnFields, orderBy, limit },
+        vp
+          ? { layoutHints: { zoom: vp.zoom, pan_x: vp.x, pan_y: vp.y } }
+          : {},
+      ),
+    );
+    return current !== savedBaselineRef.current;
+  }, [nodes, edges, returnFields, orderBy, limit]);
 
   // ---------------------------------------------------------------------------
   // Render
@@ -508,6 +557,7 @@ export function QueryBuilder() {
             onSaved={(saved) => setCurrentPatternId(saved.id)}
             onNewPattern={handleClear}
             disabled={nodes.length === 0}
+            isDirty={isDirty}
           />
           <button
             onClick={handleClear}

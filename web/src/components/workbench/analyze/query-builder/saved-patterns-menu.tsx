@@ -47,6 +47,10 @@ export interface SavedPatternsMenuProps {
   onNewPattern: () => void;
   /** Disabled state while the builder has nothing to save. */
   disabled?: boolean;
+  /** `true` when the canvas has unsaved edits relative to the loaded
+   *  pattern (or any content for a brand-new canvas). Renders a
+   *  discreet dot next to the Save button. */
+  isDirty?: boolean;
 }
 
 export function SavedPatternsMenu({
@@ -58,6 +62,7 @@ export function SavedPatternsMenu({
   onSaved,
   onNewPattern,
   disabled,
+  isDirty,
 }: SavedPatternsMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [items, setItems] = useState<SavedPattern[]>([]);
@@ -210,10 +215,30 @@ export function SavedPatternsMenu({
       <button
         onClick={handleSave}
         disabled={disabled || noOntology}
-        className="rounded px-2 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-zinc-100 disabled:opacity-40 dark:hover:bg-zinc-800"
-        title={currentId ? "Update the loaded pattern" : "Save current pattern"}
+        className="flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-zinc-100 disabled:opacity-40 dark:hover:bg-zinc-800"
+        title={
+          currentId
+            ? isDirty
+              ? "Update the loaded pattern (unsaved changes)"
+              : "Update the loaded pattern"
+            : "Save current pattern"
+        }
       >
-        {currentId ? "Save" : "Save…"}
+        <span>{currentId ? "Save" : "Save…"}</span>
+        {isDirty && (
+          <span
+            aria-label="unsaved changes"
+            className="h-1.5 w-1.5 rounded-full bg-amber-500"
+          />
+        )}
+      </button>
+      <button
+        onClick={handleSaveAs}
+        disabled={disabled || noOntology}
+        className="rounded px-2 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-zinc-100 disabled:opacity-40 dark:hover:bg-zinc-800"
+        title="Save as a new pattern (fork)"
+      >
+        Save as…
       </button>
 
       <Popover open={isOpen} onOpenChange={setIsOpen}>

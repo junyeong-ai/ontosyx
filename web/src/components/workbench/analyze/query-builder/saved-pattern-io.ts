@@ -154,16 +154,15 @@ function isAggregation(value: unknown): value is Aggregation {
   return typeof value === "string" && (AGGREGATIONS as readonly string[]).includes(value);
 }
 
-let nextFilterId = 0;
+// Collision-free ids, same module-global across tabs. `crypto.randomUUID`
+// is stable across every runtime we target (Next.js 16 SSR + evergreen
+// browsers + Node ≥ 14.17), so no fallback branch is warranted.
 function freshFilterId(): string {
-  nextFilterId += 1;
-  return `pf-${Date.now()}-${nextFilterId}`;
+  return `pf-${crypto.randomUUID()}`;
 }
 
-let nextProjectionId = 0;
 function freshProjectionId(): string {
-  nextProjectionId += 1;
-  return `pp-${Date.now()}-${nextProjectionId}`;
+  return `pp-${crypto.randomUUID()}`;
 }
 
 // ---------------------------------------------------------------------------
