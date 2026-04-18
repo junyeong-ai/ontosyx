@@ -517,7 +517,7 @@ pub fn assess_quality(
                 category: QualityGapCategory::MissingDescription,
                 location: QualityGapRef::Edge {
                     edge_id: edge.id.to_string(),
-                    label: edge.label.clone(),
+                    label: edge.label.to_string(),
                 },
                 issue: format!(
                     "[{}] has no description — multi-hop traversal hints are missing.",
@@ -539,7 +539,7 @@ pub fn assess_quality(
                     location: QualityGapRef::EdgeProperty {
                         edge_id: edge.id.to_string(),
                         property_id: prop.id.to_string(),
-                        label: edge.label.clone(),
+                        label: edge.label.to_string(),
                         property_name: prop.name.clone(),
                     },
                     issue: format!(
@@ -768,7 +768,7 @@ fn detect_self_referential_edges(ontology: &OntologyIR, gaps: &mut Vec<QualityGa
                 category: QualityGapCategory::SelfReferentialEdge,
                 location: QualityGapRef::Edge {
                     edge_id: edge.id.to_string(),
-                    label: edge.label.clone(),
+                    label: edge.label.to_string(),
                 },
                 issue: format!(
                     "Edge [{}] is self-referential: {} -> {}. This creates a recursive/hierarchical relationship.",

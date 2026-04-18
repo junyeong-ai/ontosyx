@@ -221,13 +221,22 @@ pub fn ontology_from_graph(overview: &GraphSchemaOverview, name: &str) -> OxResu
         .iter()
         .enumerate()
         .filter(|(_, rp)| seen_rels.insert(rp.rel_type.clone()))
-        .filter_map(|(i, rp)| {
+        .map(|(i, rp)| {
+            // Fail the whole conversion on an invalid relationship
+            // label for the same reason as node labels above —
+            // better an observable error than a silent coercion that
+            // produces an ontology the caller can't actually query.
+            let label = GraphLabel::new(rp.rel_type.clone())?;
             // Skip edges with unknown source/target labels (orphaned relationships)
-            let source_id = label_to_id.get(rp.from_label.as_str()).copied()?;
-            let target_id = label_to_id.get(rp.to_label.as_str()).copied()?;
-            Some(EdgeTypeDef {
+            let Some(source_id) = label_to_id.get(rp.from_label.as_str()).copied() else {
+                return Ok(None);
+            };
+            let Some(target_id) = label_to_id.get(rp.to_label.as_str()).copied() else {
+                return Ok(None);
+            };
+            Ok(Some(EdgeTypeDef {
                 id: format!("e{i}").into(),
-                label: rp.rel_type.clone(),
+                label,
                 description: LocalizedText::new(format!(
                     "{} -[:{}]-> {} ({} relationships)",
                     rp.from_label, rp.rel_type, rp.to_label, rp.count,
@@ -237,8 +246,11 @@ pub fn ontology_from_graph(overview: &GraphSchemaOverview, name: &str) -> OxResu
                 properties: build_props(&overview.rel_properties, &rp.rel_type),
                 cardinality: Cardinality::ManyToMany,
                 ..Default::default()
-            })
+            }))
         })
+        .collect::<OxResult<Vec<Option<EdgeTypeDef>>>>()?
+        .into_iter()
+        .flatten()
         .collect();
 
     Ok(OntologyIR::new(
@@ -282,7 +294,7 @@ mod tests {
             .enumerate()
             .map(|(i, (src, label, tgt))| EdgeTypeDef {
                 id: format!("e{i}").into(),
-                label: label.to_string(),
+                label: GraphLabel::new(*label).expect("test edge label must be valid"),
                 description: LocalizedText::default(),
                 source_node_id: format!("n{}", nodes.iter().position(|n| n == src).unwrap_or(0))
                     .into(),

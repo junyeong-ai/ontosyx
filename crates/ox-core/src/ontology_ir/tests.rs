@@ -124,7 +124,7 @@ fn compact_schema_surfaces_edge_roles_and_deprecation() {
         ],
         vec![EdgeTypeDef {
             id: "e1".into(),
-            label: "MANAGES".into(),
+            label: gl("MANAGES"),
             description: LocalizedText::new("Reporting relationship"),
             source_node_id: "n1".into(),
             target_node_id: "n2".into(),
@@ -187,7 +187,7 @@ fn base_ontology() -> OntologyIR {
         }],
         vec![EdgeTypeDef {
             id: "edge-owns".into(),
-            label: "OWNS".to_string(),
+            label: gl("OWNS"),
             description: LocalizedText::default(),
             source_node_id: "node-user".into(),
             target_node_id: "node-user".into(),
@@ -266,7 +266,7 @@ fn test_validate_duplicate_edge_ids() {
     // Add a second edge with the same id but different label/endpoints
     ontology.edge_types.push(EdgeTypeDef {
         id: "edge-owns".into(), // duplicate id
-        label: "FOLLOWS".to_string(),
+        label: gl("FOLLOWS"),
         description: LocalizedText::default(),
         source_node_id: "node-user".into(),
         target_node_id: "node-user".into(),
@@ -295,7 +295,7 @@ fn test_validate_duplicate_edge_ids() {
         vec![
             EdgeTypeDef {
                 id: "edge-1".into(),
-                label: "KNOWS".to_string(),
+                label: gl("KNOWS"),
                 description: LocalizedText::default(),
                 source_node_id: "node-user".into(),
                 target_node_id: "node-user".into(),
@@ -305,7 +305,7 @@ fn test_validate_duplicate_edge_ids() {
             },
             EdgeTypeDef {
                 id: "edge-2".into(),
-                label: "KNOWS".to_string(),
+                label: gl("KNOWS"),
                 description: LocalizedText::default(),
                 source_node_id: "node-user".into(),
                 target_node_id: "node-user".into(),
@@ -343,7 +343,7 @@ fn test_validate_self_referencing_edge() {
         }],
         vec![EdgeTypeDef {
             id: "edge-knows".into(),
-            label: "KNOWS".to_string(),
+            label: gl("KNOWS"),
             description: LocalizedText::default(),
             source_node_id: "node-person".into(),
             target_node_id: "node-person".into(), // self-loop
@@ -538,7 +538,7 @@ fn property_def_omits_new_optional_fields_when_unset() {
 fn edge_def_roundtrip_with_roles_and_tags() {
     let e = EdgeTypeDef {
         id: "e1".into(),
-        label: "MANAGES".to_string(),
+        label: gl("MANAGES"),
         source_node_id: "n1".into(),
         target_node_id: "n1".into(),
         source_role: Some("manager".to_string()),
@@ -600,7 +600,7 @@ fn ecommerce_ontology() -> OntologyIR {
         ],
         vec![EdgeTypeDef {
             id: "e1".into(),
-            label: "PLACED".into(),
+            label: gl("PLACED"),
             description: LocalizedText::default(),
             source_node_id: "n1".into(),
             target_node_id: "n2".into(),

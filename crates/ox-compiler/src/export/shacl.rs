@@ -355,7 +355,7 @@ mod tests {
             ],
             vec![EdgeTypeDef {
                 id: "e1".into(),
-                label: "MANUFACTURED_BY".into(),
+                label: gl("MANUFACTURED_BY"),
                 description: LocalizedText::new("Product manufactured by brand"),
                 source_node_id: "n2".into(),
                 target_node_id: "n1".into(),
@@ -558,7 +558,7 @@ mod tests {
             ],
             vec![EdgeTypeDef {
                 id: "e1".into(),
-                label: "RELATES_TO".into(),
+                label: gl("RELATES_TO"),
                 description: LocalizedText::default(),
                 source_node_id: "n1".into(),
                 target_node_id: "n2".into(),
@@ -739,7 +739,7 @@ mod tests {
             ],
             vec![EdgeTypeDef {
                 id: "e1".into(),
-                label: "HAS_CHILD".into(),
+                label: gl("HAS_CHILD"),
                 description: LocalizedText::default(),
                 source_node_id: "n1".into(),
                 target_node_id: "n2".into(),

@@ -348,7 +348,7 @@ mod tests {
             ],
             vec![EdgeTypeDef {
                 id: EdgeTypeId::new("e1"),
-                label: "PURCHASED".to_string(),
+                label: gl("PURCHASED"),
                 description: LocalizedText::new("Customer bought a product"),
                 source_node_id: NodeTypeId::new("n1"),
                 target_node_id: NodeTypeId::new("n2"),

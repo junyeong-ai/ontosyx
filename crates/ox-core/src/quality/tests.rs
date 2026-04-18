@@ -226,7 +226,7 @@ fn skips_excluded_tables_from_coverage_checks() {
         }],
         vec![EdgeTypeDef {
             id: "edge-belongs-to".into(),
-            label: "BELONGS_TO".to_string(),
+            label: gl("BELONGS_TO"),
             description: LocalizedText::new("edge"),
             source_node_id: "node-order".into(),
             target_node_id: "node-user".into(),
@@ -434,7 +434,7 @@ fn junction_table_not_flagged_as_unmapped() {
         ],
         vec![EdgeTypeDef {
             id: "edge-contains".into(),
-            label: "CONTAINS".to_string(),
+            label: gl("CONTAINS"),
             description: LocalizedText::new("order contains product"),
             source_node_id: "node-order".into(),
             target_node_id: "node-product".into(),
@@ -575,7 +575,7 @@ fn flags_orphan_node_with_no_edges() {
         // Only one edge connecting User, Product is orphaned
         vec![EdgeTypeDef {
             id: "edge-self".into(),
-            label: "KNOWS".to_string(),
+            label: gl("KNOWS"),
             description: LocalizedText::new("desc"),
             source_node_id: "node-user".into(),
             target_node_id: "node-user".into(),
@@ -623,7 +623,7 @@ fn no_orphan_when_all_nodes_connected() {
         ],
         vec![EdgeTypeDef {
             id: "edge-placed".into(),
-            label: "PLACED".to_string(),
+            label: gl("PLACED"),
             description: LocalizedText::new("desc"),
             source_node_id: "node-user".into(),
             target_node_id: "node-order".into(),
@@ -710,7 +710,7 @@ fn flags_property_type_inconsistency() {
         ],
         vec![EdgeTypeDef {
             id: "edge-supplies".into(),
-            label: "SUPPLIES".to_string(),
+            label: gl("SUPPLIES"),
             description: LocalizedText::new("desc"),
             source_node_id: "node-supplier".into(),
             target_node_id: "node-customer".into(),
@@ -764,7 +764,7 @@ fn no_property_type_inconsistency_when_same_type() {
         ],
         vec![EdgeTypeDef {
             id: "edge-supplies".into(),
-            label: "SUPPLIES".to_string(),
+            label: gl("SUPPLIES"),
             description: LocalizedText::new("desc"),
             source_node_id: "node-supplier".into(),
             target_node_id: "node-customer".into(),
@@ -814,7 +814,7 @@ fn flags_hub_node_with_many_edges() {
         });
         edges.push(EdgeTypeDef {
             id: format!("edge-{i}").into(),
-            label: format!("REL_{i}"),
+            label: gl(&format!("REL_{i}")),
             description: LocalizedText::new("desc"),
             source_node_id: "node-center".into(),
             target_node_id: node_id.into(),
@@ -871,7 +871,7 @@ fn no_hub_node_under_threshold() {
         ],
         vec![EdgeTypeDef {
             id: "edge-1".into(),
-            label: "REL".to_string(),
+            label: gl("REL"),
             description: LocalizedText::new("desc"),
             source_node_id: "node-a".into(),
             target_node_id: "node-b".into(),
@@ -914,7 +914,7 @@ fn flags_overloaded_property_on_many_nodes() {
     let edges: Vec<_> = (0..3)
         .map(|i| EdgeTypeDef {
             id: format!("edge-{i}").into(),
-            label: format!("REL_{i}"),
+            label: gl(&format!("REL_{i}")),
             description: LocalizedText::new("desc"),
             source_node_id: format!("node-{i}").into(),
             target_node_id: format!("node-{}", i + 1).into(),
@@ -961,7 +961,7 @@ fn no_overloaded_property_under_threshold() {
     let edges: Vec<_> = (0..2)
         .map(|i| EdgeTypeDef {
             id: format!("edge-{i}").into(),
-            label: format!("REL_{i}"),
+            label: gl(&format!("REL_{i}")),
             description: LocalizedText::new("desc"),
             source_node_id: format!("node-{i}").into(),
             target_node_id: format!("node-{}", i + 1).into(),
@@ -1012,7 +1012,7 @@ fn flags_self_referential_edge() {
         }],
         vec![EdgeTypeDef {
             id: "edge-manages".into(),
-            label: "MANAGES".to_string(),
+            label: gl("MANAGES"),
             description: LocalizedText::new("desc"),
             source_node_id: "node-employee".into(),
             target_node_id: "node-employee".into(),
@@ -1060,7 +1060,7 @@ fn no_self_referential_for_normal_edges() {
         ],
         vec![EdgeTypeDef {
             id: "edge-rel".into(),
-            label: "RELATES".to_string(),
+            label: gl("RELATES"),
             description: LocalizedText::new("desc"),
             source_node_id: "node-a".into(),
             target_node_id: "node-b".into(),
@@ -1129,7 +1129,7 @@ fn well_designed_ontology_has_no_structural_gaps() {
         vec![
             EdgeTypeDef {
                 id: "edge-placed".into(),
-                label: "PLACED".to_string(),
+                label: gl("PLACED"),
                 description: LocalizedText::new("Customer placed an order"),
                 source_node_id: "node-customer".into(),
                 target_node_id: "node-order".into(),
@@ -1139,7 +1139,7 @@ fn well_designed_ontology_has_no_structural_gaps() {
             },
             EdgeTypeDef {
                 id: "edge-contains".into(),
-                label: "CONTAINS".to_string(),
+                label: gl("CONTAINS"),
                 description: LocalizedText::new("Order contains a product"),
                 source_node_id: "node-order".into(),
                 target_node_id: "node-product".into(),

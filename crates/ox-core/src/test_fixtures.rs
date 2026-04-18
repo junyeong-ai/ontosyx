@@ -62,7 +62,7 @@ pub fn test_ontology() -> OntologyIR {
         ],
         vec![EdgeTypeDef {
             id: "e1".into(),
-            label: "WORKS_AT".to_string(),
+            label: gl("WORKS_AT"),
             description: LocalizedText::default(),
             source_node_id: "n1".into(),
             target_node_id: "n2".into(),
@@ -233,7 +233,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
     let edge_types = vec![
         EdgeTypeDef {
             id: "e-ordered".into(),
-            label: "주문함".to_string(),
+            label: gl("주문함"),
             description: LocalizedText::new("고객이 주문을 발행"),
             source_node_id: "n-customer".into(),
             target_node_id: "n-order".into(),
@@ -243,7 +243,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
         },
         EdgeTypeDef {
             id: "e-contains".into(),
-            label: "포함".to_string(),
+            label: gl("포함"),
             description: LocalizedText::new("주문에 포함된 상품"),
             source_node_id: "n-order".into(),
             target_node_id: "n-product".into(),
@@ -253,7 +253,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
         },
         EdgeTypeDef {
             id: "e-belongs".into(),
-            label: "속함".to_string(),
+            label: gl("속함"),
             description: LocalizedText::new("상품이 속한 카테고리"),
             source_node_id: "n-product".into(),
             target_node_id: "n-category".into(),
@@ -263,7 +263,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
         },
         EdgeTypeDef {
             id: "e-wrote".into(),
-            label: "작성함".to_string(),
+            label: gl("작성함"),
             description: LocalizedText::new("고객이 리뷰 작성"),
             source_node_id: "n-customer".into(),
             target_node_id: "n-review".into(),
@@ -273,7 +273,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
         },
         EdgeTypeDef {
             id: "e-shipped".into(),
-            label: "배송됨".to_string(),
+            label: gl("배송됨"),
             description: LocalizedText::new("주문의 배송 연결"),
             source_node_id: "n-order".into(),
             target_node_id: "n-shipment".into(),
@@ -283,7 +283,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
         },
         EdgeTypeDef {
             id: "e-paid".into(),
-            label: "결제함".to_string(),
+            label: gl("결제함"),
             description: LocalizedText::new("주문의 결제 연결"),
             source_node_id: "n-order".into(),
             target_node_id: "n-payment".into(),

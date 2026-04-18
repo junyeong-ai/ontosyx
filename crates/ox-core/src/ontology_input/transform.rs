@@ -302,6 +302,17 @@ pub fn normalize(input: OntologyInputIR) -> Result<NormalizeResult, Vec<String>>
                 }
             };
 
+            let label = match GraphLabel::new(e.label.clone()) {
+                Ok(l) => l,
+                Err(err) => {
+                    norm_warn!(
+                        "dropped_edge",
+                        format!("Edge '{}': dropping — invalid label: {err}", e.label)
+                    );
+                    return None;
+                }
+            };
+
             let properties = e
                 .properties
                 .into_iter()
@@ -319,7 +330,7 @@ pub fn normalize(input: OntologyInputIR) -> Result<NormalizeResult, Vec<String>>
 
             Some(EdgeTypeDef {
                 id: ensure_id(e.id).into(),
-                label: e.label,
+                label,
                 description: e.description,
                 source_node_id,
                 target_node_id,

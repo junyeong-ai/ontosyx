@@ -1,16 +1,16 @@
-use crate::graph_label::GraphLabel;
 use crate::property_key::PropertyKey;
 
 use super::{
     IndexDef, NodeConstraint, NodeTypeDef, NodeTypeId, OntologyIR, PropertyDef, PropertyId,
 };
 
-/// Sentinel label produced by `NodeTypeDef::default()` — a placeholder
-/// that satisfies [`GraphLabel`] invariants but is not a real user
-/// label. Reject it at validate() so a caller that forgot to override
-/// `label: ...` in struct-update syntax gets a clear error instead of
-/// a silent default.
-const NODE_TYPE_LABEL_PLACEHOLDER: &str = "__default_placeholder__";
+/// Sentinel label produced by [`NodeTypeDef::default`] /
+/// [`EdgeTypeDef::default`] — a placeholder that satisfies
+/// [`crate::graph_label::GraphLabel`] invariants but is not a real
+/// user label. Reject it at validate() so a caller that forgot to
+/// override `label: ...` in struct-update syntax gets a clear error
+/// instead of a silent default.
+const LABEL_PLACEHOLDER: &str = "__default_placeholder__";
 
 // ---------------------------------------------------------------------------
 // Validation helpers
@@ -201,7 +201,7 @@ impl OntologyIR {
             // placeholder sentinel (caller forgot to override the
             // Default::default() label), and duplicate-label detection.
             let label = node.label.as_str();
-            if label == NODE_TYPE_LABEL_PLACEHOLDER {
+            if label == LABEL_PLACEHOLDER {
                 errors.push(format!(
                     "Node type '{}' has the `Default::default()` placeholder label — \
                      struct-update callers must override `label` explicitly",
@@ -264,18 +264,17 @@ impl OntologyIR {
                 errors.push("Edge type id must not be empty".to_string());
             }
 
-            let label = edge.label.trim();
-            // Same delegation as node labels above — `GraphLabel::
-            // is_valid` already rejects the empty string, but we keep
-            // the explicit branch so the diagnostic distinguishes
-            // "missing label" from "malformed label" for an operator
-            // reading the error.
-            if label.is_empty() {
-                errors.push("Edge type label must not be empty".to_string());
-            } else if !GraphLabel::is_valid(label) {
+            // Parallel to the node case above: `GraphLabel` enforces
+            // the identifier invariants at construction, so validation
+            // here only has to catch the sentinel and duplicates.
+            let label = edge.label.as_str();
+            if label == LABEL_PLACEHOLDER {
                 errors.push(format!(
-                    "Invalid edge label '{label}': must contain only alphanumeric characters, underscores, or spaces"
+                    "Edge type '{}' has the `Default::default()` placeholder label — \
+                     struct-update callers must override `label` explicitly",
+                    edge.id
                 ));
+                continue;
             }
             if edge.source_node_id.trim().is_empty() || edge.target_node_id.trim().is_empty() {
                 errors.push(format!(
@@ -431,7 +430,7 @@ mod tests {
             }],
             vec![EdgeTypeDef {
                 id: "edge-owns".into(),
-                label: "OWNS".to_string(),
+                label: GraphLabel::new("OWNS").expect("OWNS is valid"),
                 description: LocalizedText::default(),
                 source_node_id: "node-user".into(),
                 target_node_id: "node-user".into(),

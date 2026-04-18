@@ -761,7 +761,7 @@ impl OntosyxMcpServer {
                     .to_string();
 
                 EdgeSummary {
-                    label: e.label.clone(),
+                    label: e.label.to_string(),
                     description: e.description.clone(),
                     source,
                     target,

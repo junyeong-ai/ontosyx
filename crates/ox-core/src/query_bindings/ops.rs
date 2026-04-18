@@ -60,7 +60,7 @@ impl ResolverCtx<'_> {
                             self.var_edges.entry(key).or_insert_with(|| {
                                 (
                                     edge.id.to_string(),
-                                    edge.label.clone(),
+                                    edge.label.to_string(),
                                     edge.source_node_id.to_string(),
                                     edge.target_node_id.to_string(),
                                 )
@@ -68,7 +68,7 @@ impl ResolverCtx<'_> {
                             self.edge_bindings.push(super::EdgeBinding {
                                 variable: None,
                                 edge_id: edge.id.to_string(),
-                                label: edge.label.clone(),
+                                label: edge.label.to_string(),
                                 source_node_id: edge.source_node_id.to_string(),
                                 target_node_id: edge.target_node_id.to_string(),
                                 binding_kind: BindingKind::PathFind,

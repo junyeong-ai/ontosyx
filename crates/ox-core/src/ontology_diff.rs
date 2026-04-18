@@ -157,7 +157,7 @@ pub fn breaking_labels(diff: &OntologyDiff) -> Vec<String> {
         labels.push(n.label.to_string());
     }
     for e in &diff.removed_edges {
-        labels.push(e.label.clone());
+        labels.push(e.label.to_string());
     }
     for nd in &diff.modified_nodes {
         for c in &nd.changes {
@@ -303,7 +303,7 @@ pub fn compute_diff(old: &OntologyIR, new: &OntologyIR) -> OntologyDiff {
             if !changes.is_empty() {
                 modified_edges.push(EdgeDiff {
                     edge_id: new_edge.id.clone(),
-                    label: new_edge.label.clone(),
+                    label: new_edge.label.to_string(),
                     changes,
                 });
             }
@@ -431,8 +431,8 @@ fn diff_edge(
 
     if old.label != new.label {
         changes.push(EdgeChange::LabelChanged {
-            old: old.label.clone(),
-            new: new.label.clone(),
+            old: old.label.to_string(),
+            new: new.label.to_string(),
         });
     }
 
@@ -784,7 +784,7 @@ mod tests {
         let mut new = old.clone();
         new.edge_types.push(EdgeTypeDef {
             id: "e2".into(),
-            label: "KNOWS".to_string(),
+            label: gl("KNOWS"),
             description: LocalizedText::default(),
             source_node_id: "n1".into(),
             target_node_id: "n1".into(),
@@ -868,7 +868,7 @@ mod tests {
         // 6. Add SELLS edge
         new.edge_types.push(EdgeTypeDef {
             id: "e2".into(),
-            label: "SELLS".to_string(),
+            label: gl("SELLS"),
             description: LocalizedText::default(),
             source_node_id: "n1".into(),
             target_node_id: "n3".into(),

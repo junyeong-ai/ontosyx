@@ -308,7 +308,7 @@ pub fn reconcile_refined(
             matched_orig_edge_ids.insert(edge.id.clone());
             preserved.push(PreservedEntity {
                 id: edge.id.to_string(),
-                label: edge.label.clone(),
+                label: edge.label.to_string(),
                 entity_kind: EntityKind::Edge,
             });
         } else if let Some(orig_edge) = orig_edge_by_sig.get(&(
@@ -318,8 +318,8 @@ pub fn reconcile_refined(
         )) {
             uncertain.push(UncertainMatch {
                 original_id: orig_edge.id.to_string(),
-                original_label: orig_edge.label.clone(),
-                matched_label: edge.label.clone(),
+                original_label: orig_edge.label.to_string(),
+                matched_label: edge.label.to_string(),
                 match_reason: "matched by label+source+target".to_string(),
                 entity_kind: EntityKind::Edge,
             });
@@ -328,7 +328,7 @@ pub fn reconcile_refined(
         } else {
             generated.push(GeneratedEntity {
                 id: edge.id.to_string(),
-                label: edge.label.clone(),
+                label: edge.label.to_string(),
                 entity_kind: EntityKind::Edge,
             });
         }
@@ -338,7 +338,7 @@ pub fn reconcile_refined(
         if !matched_orig_edge_ids.contains(&orig_edge.id) {
             deleted.push(DeletedEntity {
                 id: orig_edge.id.to_string(),
-                label: orig_edge.label.clone(),
+                label: orig_edge.label.to_string(),
                 entity_kind: EntityKind::Edge,
             });
         }

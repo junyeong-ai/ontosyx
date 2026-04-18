@@ -311,8 +311,11 @@ pub struct EdgeTypeDef {
     /// Stable UUID for this edge type.
     pub id: EdgeTypeId,
     /// Canonical, language-neutral relationship label (e.g. "PURCHASED",
-    /// "REVIEWED"). Used as the Neo4j relationship type.
-    pub label: String,
+    /// "REVIEWED"). Used as the Neo4j relationship type. [`GraphLabel`]
+    /// enforces the `is_valid_graph_identifier` invariant at the type
+    /// level — an EdgeTypeDef cannot exist with a label that would
+    /// fail Cypher emission.
+    pub label: GraphLabel,
     /// Localized display name shown in the UI.
     #[serde(default)]
     pub display_name: LocalizedText,
@@ -353,10 +356,16 @@ pub struct EdgeTypeDef {
 }
 
 impl Default for EdgeTypeDef {
+    // Same placeholder-label strategy as `NodeTypeDef::default` — the
+    // slot must be filled even though every real caller uses
+    // struct-update syntax to overwrite it, and a missed override is
+    // caught at validate() via the placeholder sentinel check.
     fn default() -> Self {
         Self {
             id: EdgeTypeId::default(),
-            label: String::new(),
+            #[allow(clippy::expect_used)]
+            label: GraphLabel::new("__default_placeholder__")
+                .expect("placeholder satisfies GraphLabel invariants"),
             display_name: LocalizedText::default(),
             description: LocalizedText::default(),
             source_node_id: NodeTypeId::default(),

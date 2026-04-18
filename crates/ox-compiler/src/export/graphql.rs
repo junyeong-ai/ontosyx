@@ -323,7 +323,7 @@ mod tests {
             ],
             vec![EdgeTypeDef {
                 id: "e1".into(),
-                label: "PLACED".into(),
+                label: gl("PLACED"),
                 description: LocalizedText::default(),
                 source_node_id: "n1".into(),
                 target_node_id: "n2".into(),

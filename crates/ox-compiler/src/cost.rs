@@ -465,7 +465,7 @@ mod tests {
             }],
             vec![EdgeTypeDef {
                 id: "et1".into(),
-                label: "KNOWS".into(),
+                label: gl("KNOWS"),
                 description: LocalizedText::default(),
                 source_node_id: "nt1".into(),
                 target_node_id: "nt1".into(),

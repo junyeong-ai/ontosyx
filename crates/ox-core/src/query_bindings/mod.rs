@@ -190,7 +190,7 @@ mod tests {
             ],
             vec![EdgeTypeDef {
                 id: "e1".into(),
-                label: "WORKS_AT".into(),
+                label: GraphLabel::new("WORKS_AT").expect("WORKS_AT is valid"),
                 description: LocalizedText::default(),
                 source_node_id: "n1".into(),
                 target_node_id: "n2".into(),

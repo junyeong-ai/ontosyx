@@ -355,7 +355,7 @@ fn all_labels(ontology: &OntologyIR) -> Vec<String> {
         .node_types()
         .iter()
         .map(|n| n.label.to_string())
-        .chain(ontology.edge_types().iter().map(|e| e.label.clone()))
+        .chain(ontology.edge_types().iter().map(|e| e.label.to_string()))
         .collect()
 }
 

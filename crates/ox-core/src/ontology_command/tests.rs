@@ -171,7 +171,7 @@ fn batch_execute_and_inverse() {
             },
             OntologyCommand::AddEdge {
                 id: "e2".into(),
-                label: "MANAGES".to_string(),
+                label: gl("MANAGES"),
                 source_node_id: "n1".into(),
                 target_node_id: "n3".into(),
                 cardinality: Cardinality::OneToMany,
@@ -292,7 +292,7 @@ fn error_on_invalid_references() {
     // Add edge with invalid source
     let cmd = OntologyCommand::AddEdge {
         id: "e99".into(),
-        label: "BAD".to_string(),
+        label: gl("BAD"),
         source_node_id: "nonexistent".into(),
         target_node_id: "n2".into(),
         cardinality: Cardinality::OneToOne,

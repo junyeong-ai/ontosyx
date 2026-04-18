@@ -45,7 +45,7 @@ pub enum OntologyCommand {
 
     AddEdge {
         id: EdgeTypeId,
-        label: String,
+        label: GraphLabel,
         source_node_id: NodeTypeId,
         target_node_id: NodeTypeId,
         cardinality: Cardinality,
@@ -55,7 +55,7 @@ pub enum OntologyCommand {
     },
     RenameEdge {
         edge_id: EdgeTypeId,
-        new_label: String,
+        new_label: GraphLabel,
     },
     UpdateEdgeCardinality {
         edge_id: EdgeTypeId,

@@ -744,7 +744,7 @@ impl OntologyIR {
                 continue;
             }
             edges.insert(
-                edge.label.clone(),
+                edge.label.as_str().to_string(),
                 serde_json::json!({ "source": src, "target": tgt }),
             );
         }
@@ -858,7 +858,10 @@ impl OntologyIR {
                         edge.properties.iter().map(|p| p.name.clone()).collect();
                     edge_obj.insert("properties".into(), serde_json::json!(props));
                 }
-                edges.insert(edge.label.clone(), serde_json::Value::Object(edge_obj));
+                edges.insert(
+                    edge.label.as_str().to_string(),
+                    serde_json::Value::Object(edge_obj),
+                );
             }
         }
 

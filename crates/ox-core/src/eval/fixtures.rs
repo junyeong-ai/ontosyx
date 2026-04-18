@@ -212,7 +212,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
             // PLACED: Customer → Order
             EdgeTypeDef {
                 id: "edge-placed".into(),
-                label: "PLACED".to_string(),
+                label: gl("PLACED"),
                 description: LocalizedText::new("Customer placed an order"),
                 source_node_id: "node-customer".into(),
                 target_node_id: "node-order".into(),
@@ -223,7 +223,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
             // CONTAINS: Order → Product
             EdgeTypeDef {
                 id: "edge-contains".into(),
-                label: "CONTAINS".to_string(),
+                label: gl("CONTAINS"),
                 description: LocalizedText::new(
                     "Order contains a product. Customer→Product path: (Customer)-[:PLACED]->(Order)-[:CONTAINS]->(Product)",
                 ),
@@ -241,7 +241,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
             // BELONGS_TO: Product → Category
             EdgeTypeDef {
                 id: "edge-belongs-to".into(),
-                label: "BELONGS_TO".to_string(),
+                label: gl("BELONGS_TO"),
                 description: LocalizedText::new("Product belongs to a category"),
                 source_node_id: "node-product".into(),
                 target_node_id: "node-category".into(),
@@ -252,7 +252,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
             // WROTE: Customer → Review
             EdgeTypeDef {
                 id: "edge-wrote".into(),
-                label: "WROTE".to_string(),
+                label: gl("WROTE"),
                 description: LocalizedText::new("Customer wrote a review"),
                 source_node_id: "node-customer".into(),
                 target_node_id: "node-review".into(),
@@ -263,7 +263,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
             // ABOUT: Review → Product
             EdgeTypeDef {
                 id: "edge-about".into(),
-                label: "ABOUT".to_string(),
+                label: gl("ABOUT"),
                 description: LocalizedText::new("Review is about a product"),
                 source_node_id: "node-review".into(),
                 target_node_id: "node-product".into(),

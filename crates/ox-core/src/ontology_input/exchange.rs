@@ -112,7 +112,7 @@ pub fn to_exchange_format(
         .iter()
         .map(|e| InputEdgeTypeDef {
             id: Some(e.id.to_string()),
-            label: e.label.clone(),
+            label: e.label.to_string(),
             description: e.description.clone(),
             source_type: resolve_node_label(&e.source_node_id),
             target_type: resolve_node_label(&e.target_node_id),

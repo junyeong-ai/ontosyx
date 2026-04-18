@@ -459,7 +459,7 @@ mod tests {
             ],
             vec![EdgeTypeDef {
                 id: "e1".into(),
-                label: "MANUFACTURED_BY".into(),
+                label: gl("MANUFACTURED_BY"),
                 description: LocalizedText::new("Product manufactured by brand"),
                 source_node_id: "n2".into(),
                 target_node_id: "n1".into(),

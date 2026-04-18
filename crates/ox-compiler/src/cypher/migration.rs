@@ -544,7 +544,7 @@ mod tests {
             ],
             vec![EdgeTypeDef {
                 id: "e1".into(),
-                label: "WORKS_AT".to_string(),
+                label: gl("WORKS_AT"),
                 description: LocalizedText::default(),
                 source_node_id: "n1".into(),
                 target_node_id: "n2".into(),
@@ -721,7 +721,7 @@ mod tests {
         let mut new = old.clone();
         new.add_edge_type(EdgeTypeDef {
             id: "e2".into(),
-            label: "MANAGES".to_string(),
+            label: gl("MANAGES"),
             description: LocalizedText::default(),
             source_node_id: "n1".into(),
             target_node_id: "n1".into(),
@@ -1093,7 +1093,7 @@ mod tests {
     fn data_migration_edge_label_rename_requires_manual() {
         let old = test_ontology();
         let mut new = old.clone();
-        new.edge_types_mut()[0].label = "EMPLOYED_AT".to_string();
+        new.edge_types_mut()[0].label = gl("EMPLOYED_AT");
         new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
