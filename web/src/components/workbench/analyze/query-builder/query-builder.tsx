@@ -14,8 +14,8 @@ import {
   type PatternNode,
   type PatternEdge,
   type PatternFilter,
-  type ReturnField,
-  type OrderByField,
+  type PatternReturnField,
+  type PatternOrderClause,
 } from "./ir-builder";
 import { useSuggestions, type Suggestion } from "./use-suggestions";
 import { SavedPatternsMenu } from "./saved-patterns-menu";
@@ -36,8 +36,8 @@ export function QueryBuilder() {
   // Pattern state
   const [nodes, setNodes] = useState<PatternNode[]>([]);
   const [edges, setEdges] = useState<PatternEdge[]>([]);
-  const [returnFields, setReturnFields] = useState<ReturnField[]>([]);
-  const [orderBy, setOrderBy] = useState<OrderByField[]>([]);
+  const [returnFields, setReturnFields] = useState<PatternReturnField[]>([]);
+  const [orderBy, setOrderBy] = useState<PatternOrderClause[]>([]);
   const [limit, setLimit] = useState<number | null>(25);
 
   // Selection state
@@ -104,7 +104,6 @@ export function QueryBuilder() {
         label: nt.label,
         alias,
         filters: [],
-        returnProps: [],
         position,
       };
       setNodes((prev) => [...prev, newNode]);
@@ -146,7 +145,6 @@ export function QueryBuilder() {
           label: srcType.label,
           alias: `n${nc}`,
           filters: [],
-          returnProps: [],
         };
         newNodes.push(srcNode);
         nc++;
@@ -160,7 +158,6 @@ export function QueryBuilder() {
           label: tgtType.label,
           alias: `n${nc}`,
           filters: [],
-          returnProps: [],
         };
         newNodes.push(tgtNode);
         nc++;
@@ -180,7 +177,6 @@ export function QueryBuilder() {
         relType: et.label,
         alias,
         filters: [],
-        returnProps: [],
       };
 
       setNodes(newNodes);
@@ -207,7 +203,6 @@ export function QueryBuilder() {
           label: targetNode.label,
           alias: `n${nc}`,
           filters: [],
-          returnProps: [],
         };
         newNodes.push(existingTarget);
         nc++;
@@ -236,7 +231,6 @@ export function QueryBuilder() {
         relType: edge.label,
         alias,
         filters: [],
-        returnProps: [],
       };
 
       setNodes(newNodes);

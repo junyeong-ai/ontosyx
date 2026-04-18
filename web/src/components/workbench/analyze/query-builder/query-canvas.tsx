@@ -53,7 +53,6 @@ interface QueryNodeData extends Record<string, unknown> {
   alias: string;
   propCount: number;
   filterCount: number;
-  returnCount: number;
   selected: boolean;
   onRemove: () => void;
 }
@@ -93,9 +92,6 @@ function QueryNodeRenderer({ data }: NodeProps & { data: QueryNodeData }) {
           <span className="ml-1 text-amber-500">
             &middot; {data.filterCount} filter{data.filterCount > 1 ? "s" : ""}
           </span>
-        )}
-        {data.returnCount > 0 && (
-          <span className="ml-1 text-emerald-500">&middot; {data.returnCount} return</span>
         )}
       </div>
     </div>
@@ -289,7 +285,6 @@ const QueryCanvasInner = forwardRef<QueryCanvasHandle, QueryCanvasProps>(functio
           alias: n.alias,
           propCount: nt?.properties.length ?? 0,
           filterCount: n.filters.length,
-          returnCount: n.returnProps.length,
           selected: selectedId === n.id,
           onRemove: () => onRemoveNode(n.id),
         } satisfies QueryNodeData,

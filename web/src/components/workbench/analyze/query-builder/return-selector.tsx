@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import type { PatternNode, PatternEdge, ReturnField, Aggregation, OrderByField } from "./ir-builder";
+import type { PatternNode, PatternEdge, PatternReturnField, Aggregation, PatternOrderClause } from "./ir-builder";
 import type { NodeTypeDef, EdgeTypeDef } from "@/types/api";
 
 // ---------------------------------------------------------------------------
@@ -14,10 +14,10 @@ interface ReturnSelectorProps {
   /** Full ontology types for property lookup */
   nodeTypes: NodeTypeDef[];
   edgeTypes: EdgeTypeDef[];
-  returnFields: ReturnField[];
-  onReturnFieldsChange: (fields: ReturnField[]) => void;
-  orderBy: OrderByField[];
-  onOrderByChange: (orderBy: OrderByField[]) => void;
+  returnFields: PatternReturnField[];
+  onReturnFieldsChange: (fields: PatternReturnField[]) => void;
+  orderBy: PatternOrderClause[];
+  onOrderByChange: (orderBy: PatternOrderClause[]) => void;
   limit: number | null;
   onLimitChange: (limit: number | null) => void;
 }

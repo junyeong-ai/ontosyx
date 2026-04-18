@@ -14,6 +14,8 @@
 //   Expr::Comparison { operator, left, right } (kind: "comparison")
 // ---------------------------------------------------------------------------
 
+import { parseFilterValue } from "@/lib/filter-value";
+
 // ---------------------------------------------------------------------------
 // Visual pattern types (internal to query builder)
 // ---------------------------------------------------------------------------
@@ -23,7 +25,6 @@ export interface PatternNode {
   label: string;
   alias: string;
   filters: PatternFilter[];
-  returnProps: string[];
   /**
    * Canvas position for XyFlow rendering. `undefined` means the
    * canvas has not yet placed this node (it will assign a default
@@ -40,7 +41,6 @@ export interface PatternEdge {
   relType: string;
   alias: string;
   filters: PatternFilter[];
-  returnProps: string[];
 }
 
 export interface PatternFilter {
@@ -54,7 +54,10 @@ export type FilterOperator =
   | "=" | "!=" | ">" | "<" | ">=" | "<="
   | "CONTAINS" | "STARTS WITH";
 
-export interface ReturnField {
+/** Return-clause entry. Builder-facing view onto the backend
+ *  `PatternProjection` type — aggregation + output alias broken out
+ *  for the "Return" tab UI. */
+export interface PatternReturnField {
   alias: string;
   property: string;
   aggregation?: Aggregation | null;
@@ -63,7 +66,9 @@ export interface ReturnField {
 
 export type Aggregation = "count" | "sum" | "avg" | "min" | "max";
 
-export interface OrderByField {
+/** Order-by entry. Mirrors backend `OrderClause` with the canvas's
+ *  simplified shape (sort by `<alias>.<property>`). */
+export interface PatternOrderClause {
   alias: string;
   property: string;
   direction: "asc" | "desc";
@@ -72,23 +77,14 @@ export interface OrderByField {
 export interface VisualPattern {
   nodes: PatternNode[];
   edges: PatternEdge[];
-  returnFields: ReturnField[];
-  orderBy: OrderByField[];
+  returnFields: PatternReturnField[];
+  orderBy: PatternOrderClause[];
   limit: number | null;
 }
 
 // ---------------------------------------------------------------------------
 // Builder
 // ---------------------------------------------------------------------------
-
-function parseFilterValue(raw: string): unknown {
-  if (/^-?\d+(\.\d+)?$/.test(raw)) return Number(raw);
-  if (raw === "true") return true;
-  if (raw === "false") return false;
-  if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'")))
-    return raw.slice(1, -1);
-  return raw;
-}
 
 function buildGraphPatterns(nodes: PatternNode[], edges: PatternEdge[]): unknown[] {
   const patterns: unknown[] = [];
@@ -178,7 +174,7 @@ function buildFilter(nodes: PatternNode[], edges: PatternEdge[]): unknown | null
   return { kind: "and", operands: conditions };
 }
 
-function buildProjections(returnFields: ReturnField[]): unknown[] {
+function buildProjections(returnFields: PatternReturnField[]): unknown[] {
   return returnFields.map((f) => {
     if (f.property === "*") {
       return {

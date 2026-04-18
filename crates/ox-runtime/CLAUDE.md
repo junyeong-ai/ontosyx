@@ -19,6 +19,13 @@ Three task-locals drive the pipeline:
 - `GRAPH_SYSTEM_BYPASS: bool` — skips isolation for system tasks (migrations, health checks).
 - `GRAPH_ONTOLOGY: Arc<OntologyIR>` — active ontology snapshot. When unset, the ontology validator is skipped (server-internal paths like `search_nodes`, profiler, introspection rely on this).
 
+The `GRAPH_` prefix is intentional. `ox-store` also owns
+`WORKSPACE_ID` / `SYSTEM_BYPASS` task-locals for its Postgres RLS
+layer. A request typically crosses both layers in the same tokio task
+scope; keeping the graph-layer names prefixed ensures spawn helpers
+(`spawn_scoped::spawn_with_ws`) can capture both pairs without
+disambiguating the same bare identifier twice.
+
 ## Enrichment
 
 `enrichment.rs` post-processes query results: resolves node labels, adds display names, formats temporal values. Applied after execution, before returning to the agent.

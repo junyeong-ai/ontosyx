@@ -21,12 +21,13 @@
 // land on the wire too, so the caller can capture XyFlow viewport state
 // before calling `toPatternIR` and restore it after `fromPatternIR`.
 
+import { parseFilterValue, stringifyFilterValue } from "@/lib/filter-value";
 import type {
   PatternNode,
   PatternEdge,
   PatternFilter,
-  ReturnField,
-  OrderByField,
+  PatternReturnField,
+  PatternOrderClause,
   FilterOperator,
   Aggregation,
   VisualPattern,
@@ -131,25 +132,6 @@ export interface WirePatternIR {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function parseFilterValue(raw: string): unknown {
-  if (/^-?\d+(\.\d+)?$/.test(raw)) return Number(raw);
-  if (raw === "true") return true;
-  if (raw === "false") return false;
-  if (
-    (raw.startsWith('"') && raw.endsWith('"')) ||
-    (raw.startsWith("'") && raw.endsWith("'"))
-  ) {
-    return raw.slice(1, -1);
-  }
-  return raw;
-}
-
-function stringifyFilterValue(value: unknown): string {
-  if (typeof value === "string") return value;
-  if (value === null || value === undefined) return "";
-  return String(value);
-}
 
 const FILTER_OPERATORS: readonly FilterOperator[] = [
   "=",
@@ -300,7 +282,6 @@ export function fromPatternIR(wire: WirePatternIR): FromPatternIRResult {
     label: n.label ?? "",
     alias: n.variable,
     filters: [],
-    returnProps: [],
     position: n.position ? { x: n.position.x, y: n.position.y } : undefined,
   }));
 
@@ -312,7 +293,6 @@ export function fromPatternIR(wire: WirePatternIR): FromPatternIRResult {
     relType: e.label ?? "",
     alias: e.variable ?? "",
     filters: [],
-    returnProps: [],
   }));
 
   // ----- Filters (distribute back onto their host variable) -----------
@@ -334,7 +314,7 @@ export function fromPatternIR(wire: WirePatternIR): FromPatternIRResult {
   }
 
   // ----- Return fields -------------------------------------------------
-  const returnFields: ReturnField[] = [];
+  const returnFields: PatternReturnField[] = [];
   for (const proj of wire.projections ?? []) {
     const p = proj.projection;
     if (!p) continue;
@@ -363,7 +343,7 @@ export function fromPatternIR(wire: WirePatternIR): FromPatternIRResult {
   }
 
   // ----- Order by ------------------------------------------------------
-  const orderBy: OrderByField[] = [];
+  const orderBy: PatternOrderClause[] = [];
   for (const clause of wire.order_by ?? []) {
     const direction = clause.direction === "desc" ? "desc" : "asc";
     const p = clause.projection;

@@ -36,4 +36,27 @@ Missing `FORCE` silently disables RLS for the table owner role. Missing `system_
 - `find_*` — conditional search, returns Option.
 - `create_*` — insert, return created row.
 - `update_*` — modify, return updated row. Never use `set_*`.
+- `upsert_*` — insert-or-update keyed on a natural key (as opposed to
+  a surrogate id). Used only when the operation is semantically
+  "ensure this row exists". Pairs with a `UNIQUE` constraint on the
+  natural key + an `ON CONFLICT DO UPDATE` in the `INSERT`.
 - `delete_*` — remove by ID.
+
+## Task-local context
+
+Two task-locals carry per-request state into store calls:
+
+- `WORKSPACE_ID: Uuid` — set by the HTTP middleware (`workspace_context`).
+  The pool's `before_acquire` reads it and runs `SET app.workspace_id`
+  on the connection, which the RLS policies in `0004_rls.sql` read.
+- `SYSTEM_BYPASS: bool` — scheduled tasks and cross-workspace admin
+  paths set this to `true`. Policies whitelist `current_setting(...)
+  = 'true'` so bypass reads every row.
+
+The names intentionally have **no** `STORE_` or `PG_` prefix. The
+sibling graph layer (`ox-runtime`) uses `GRAPH_WORKSPACE_ID` /
+`GRAPH_SYSTEM_BYPASS` / `GRAPH_ONTOLOGY` instead, so a request that
+crosses both layers keeps the postgres and graph contexts distinct in
+the same tokio task scope. Reusing the same bare names across layers
+would require `ox-store::WORKSPACE_ID::sync_scope(id, ws_id, ...)`
+disambiguation on every single call.
