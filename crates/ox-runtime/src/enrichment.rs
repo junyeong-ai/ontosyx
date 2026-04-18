@@ -43,7 +43,7 @@ pub struct PropertyEnrichment {
     pub entity_label: String,
     pub entity_kind: &'static str, // "node" or "edge"
     pub property_name: String,
-    pub old_description: Option<String>,
+    pub old_description: ox_core::LocalizedText,
     pub new_description: String,
 }
 
@@ -63,7 +63,7 @@ pub fn enrich_descriptions(ontology: &OntologyIR, profile: &DataProfile) -> Enri
     // Enrich node properties
     for node_profile in &profile.node_profiles {
         let Some(node) = ont
-            .node_types
+            .node_types_mut()
             .iter_mut()
             .find(|n| n.label == node_profile.label)
         else {
@@ -80,7 +80,7 @@ pub fn enrich_descriptions(ontology: &OntologyIR, profile: &DataProfile) -> Enri
                     Some(manual) => format!("{manual}{ENRICHMENT_MARKER}{enrichment}"),
                     None => enrichment.clone(),
                 };
-                if prop.description.as_deref() != Some(&new_desc) {
+                if prop.description.present() != Some(new_desc.as_str()) {
                     changes.push(PropertyEnrichment {
                         entity_label: node_profile.label.clone(),
                         entity_kind: "node",
@@ -88,7 +88,7 @@ pub fn enrich_descriptions(ontology: &OntologyIR, profile: &DataProfile) -> Enri
                         old_description: old,
                         new_description: new_desc.clone(),
                     });
-                    prop.description = Some(new_desc);
+                    prop.description = ox_core::LocalizedText::new(new_desc);
                 }
             }
         }
@@ -97,7 +97,7 @@ pub fn enrich_descriptions(ontology: &OntologyIR, profile: &DataProfile) -> Enri
     // Enrich edge properties
     for edge_profile in &profile.edge_profiles {
         let Some(edge) = ont
-            .edge_types
+            .edge_types_mut()
             .iter_mut()
             .find(|e| e.label == edge_profile.label)
         else {
@@ -114,7 +114,7 @@ pub fn enrich_descriptions(ontology: &OntologyIR, profile: &DataProfile) -> Enri
                     Some(manual) => format!("{manual}{ENRICHMENT_MARKER}{enrichment}"),
                     None => enrichment.clone(),
                 };
-                if prop.description.as_deref() != Some(&new_desc) {
+                if prop.description.present() != Some(new_desc.as_str()) {
                     changes.push(PropertyEnrichment {
                         entity_label: edge_profile.label.clone(),
                         entity_kind: "edge",
@@ -122,7 +122,7 @@ pub fn enrich_descriptions(ontology: &OntologyIR, profile: &DataProfile) -> Enri
                         old_description: old,
                         new_description: new_desc.clone(),
                     });
-                    prop.description = Some(new_desc);
+                    prop.description = ox_core::LocalizedText::new(new_desc);
                 }
             }
         }
@@ -187,8 +187,8 @@ fn format_enrichment(stats: &PropertyStats) -> Option<String> {
 ///
 /// Handles both the current `\n[enriched] ` marker and the legacy ` | ` separator
 /// for seamless data migration on re-enrichment.
-fn strip_enrichment(description: &Option<String>) -> Option<String> {
-    let desc = description.as_deref()?;
+fn strip_enrichment(description: &ox_core::LocalizedText) -> Option<String> {
+    let desc = description.present()?;
 
     // Entire description is enrichment (no manual part)
     if desc.starts_with(PREFIX_VALUES)
@@ -318,15 +318,16 @@ mod tests {
 
     #[test]
     fn strip_pure_enrichment() {
-        let desc = Some("Values: \"a\", \"b\" (2 distinct)".to_string());
+        let desc = ox_core::LocalizedText::new("Values: \"a\", \"b\" (2 distinct)");
         assert_eq!(strip_enrichment(&desc), None);
     }
 
     #[test]
     fn strip_manual_plus_enrichment() {
         // Current format
-        let desc =
-            Some("Regulatory authority.\n[enriched] Values: \"EU_SCCS\" (1 distinct)".to_string());
+        let desc = ox_core::LocalizedText::new(
+            "Regulatory authority.\n[enriched] Values: \"EU_SCCS\" (1 distinct)",
+        );
         assert_eq!(
             strip_enrichment(&desc),
             Some("Regulatory authority.".to_string())
@@ -336,7 +337,9 @@ mod tests {
     #[test]
     fn strip_legacy_format() {
         // Legacy ` | ` separator still works for data migration
-        let desc = Some("Regulatory authority. | Values: \"EU_SCCS\" (1 distinct)".to_string());
+        let desc = ox_core::LocalizedText::new(
+            "Regulatory authority. | Values: \"EU_SCCS\" (1 distinct)",
+        );
         assert_eq!(
             strip_enrichment(&desc),
             Some("Regulatory authority.".to_string())
@@ -346,7 +349,7 @@ mod tests {
     #[test]
     fn strip_preserves_pipe_in_manual() {
         // User description with pipes should NOT be stripped
-        let desc = Some("Type A | Type B classification".to_string());
+        let desc = ox_core::LocalizedText::new("Type A | Type B classification");
         assert_eq!(
             strip_enrichment(&desc),
             Some("Type A | Type B classification".to_string())
@@ -355,7 +358,7 @@ mod tests {
 
     #[test]
     fn strip_no_enrichment() {
-        let desc = Some("A plain description".to_string());
+        let desc = ox_core::LocalizedText::new("A plain description");
         assert_eq!(
             strip_enrichment(&desc),
             Some("A plain description".to_string())
@@ -364,20 +367,20 @@ mod tests {
 
     #[test]
     fn strip_none() {
-        assert_eq!(strip_enrichment(&None), None);
+        assert_eq!(strip_enrichment(&ox_core::LocalizedText::default()), None);
     }
 
     #[test]
     fn idempotent_enrichment() {
         // First enrichment
-        let desc = Some("Manual desc".to_string());
+        let desc = ox_core::LocalizedText::new("Manual desc");
         let manual = strip_enrichment(&desc);
         let enriched = format!(
             "{}{ENRICHMENT_MARKER}Values: \"a\" (1 distinct)",
             manual.unwrap()
         );
         // Second enrichment (should strip first, re-apply)
-        let desc2 = Some(enriched);
+        let desc2 = ox_core::LocalizedText::new(enriched);
         let manual2 = strip_enrichment(&desc2);
         assert_eq!(manual2, Some("Manual desc".to_string()));
     }

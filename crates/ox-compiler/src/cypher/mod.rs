@@ -82,12 +82,12 @@ impl GraphCompiler for CypherCompiler {
     fn compile_schema(&self, ontology: &OntologyIR) -> OxResult<Vec<String>> {
         let mut statements = Vec::new();
 
-        for node in &ontology.node_types {
+        for node in ontology.node_types() {
             statements.extend(compile_node_constraints(node));
         }
 
         // Explicit indices from ontology.indexes (never capped)
-        for index in &ontology.indexes {
+        for index in ontology.indexes() {
             statements.push(compile_index(ontology, index));
         }
 

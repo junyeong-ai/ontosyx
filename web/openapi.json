@@ -9,6 +9,220 @@
     "version": "1.0.0"
   },
   "paths": {
+    "/api/admin/prompts": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "list_prompt_templates",
+        "responses": {
+          "200": {
+            "description": "All prompt templates (active + inactive)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PromptTemplateRow"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin role required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "create_prompt_template",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "New template version created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptTemplateRow"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid semver version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/admin/prompts/{id}": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "get_prompt_template",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Prompt template id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Prompt template",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptTemplateRow"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "delete_prompt_template",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Prompt template id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Template deleted"
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "update_prompt_template",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Prompt template id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Template updated"
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/api/chat/stream": {
       "post": {
         "tags": [
@@ -4085,6 +4299,35 @@
           }
         ]
       },
+      "PromptCreateRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "version",
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "metadata": {},
+          "name": {
+            "type": "string"
+          },
+          "variables": {},
+          "version": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "When set, the prompt is a workspace-scoped override of the\nglobal template. When `None`, it's a new global version."
+          }
+        }
+      },
       "PromptInfo": {
         "type": "object",
         "required": [
@@ -4098,6 +4341,73 @@
           "version": {
             "type": "string"
           }
+        }
+      },
+      "PromptTemplateRow": {
+        "type": "object",
+        "description": "Prompt template row (admin-only — wired by `routes/prompts_admin.rs`).\n\n`version` is the semver string (e.g. `1.2.3`). `workspace_id = null`\nmeans the template is global; a concrete uuid scopes it to one\nworkspace (used by the `/api/admin/prompts` workspace-override flow).",
+        "required": [
+          "id",
+          "name",
+          "version",
+          "content",
+          "variables",
+          "metadata",
+          "created_by",
+          "created_at",
+          "is_active"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "metadata": {},
+          "name": {
+            "type": "string"
+          },
+          "variables": {},
+          "version": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "PromptUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "is_active": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "variables": {}
         }
       },
       "QueryExecution": {
@@ -4452,6 +4762,10 @@
     {
       "name": "System",
       "description": "System administration"
+    },
+    {
+      "name": "Admin",
+      "description": "Platform administration (admin role required)"
     }
   ]
 }

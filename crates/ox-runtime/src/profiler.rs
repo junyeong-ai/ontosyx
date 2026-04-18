@@ -124,8 +124,8 @@ pub async fn profile_graph(
     config: &ProfileConfig,
 ) -> OxResult<DataProfile> {
     let started = Instant::now();
-    let node_count = ontology.node_types.len();
-    let edge_count = ontology.edge_types.len();
+    let node_count = ontology.node_types().len();
+    let edge_count = ontology.edge_types().len();
 
     info!(
         node_count,
@@ -139,7 +139,7 @@ pub async fn profile_graph(
     type NodeFut<'a> = Pin<Box<dyn Future<Output = (usize, OxResult<NodeProfile>)> + Send + 'a>>;
     let mut node_futures: FuturesUnordered<NodeFut<'_>> = FuturesUnordered::new();
 
-    for (idx, node_type) in ontology.node_types.iter().enumerate() {
+    for (idx, node_type) in ontology.node_types().iter().enumerate() {
         let properties = property_names(&node_type.properties);
         let label = node_type.label.clone();
         node_futures.push(Box::pin(async move {
@@ -148,7 +148,7 @@ pub async fn profile_graph(
         }));
     }
 
-    let mut node_profiles: Vec<Option<NodeProfile>> = vec![None; ontology.node_types.len()];
+    let mut node_profiles: Vec<Option<NodeProfile>> = vec![None; ontology.node_types().len()];
     let mut in_flight = 0usize;
 
     // Drain with bounded concurrency
@@ -158,7 +158,7 @@ pub async fn profile_graph(
         match result {
             Ok(profile) => node_profiles[idx] = Some(profile),
             Err(e) => {
-                warn!(label = %ontology.node_types[idx].label, "Failed to profile node type: {e}")
+                warn!(label = %ontology.node_types()[idx].label, "Failed to profile node type: {e}")
             }
         }
     }
@@ -170,7 +170,7 @@ pub async fn profile_graph(
     type EdgeFut<'a> = Pin<Box<dyn Future<Output = (usize, OxResult<EdgeProfile>)> + Send + 'a>>;
     let mut edge_futures: FuturesUnordered<EdgeFut<'_>> = FuturesUnordered::new();
 
-    for (idx, edge_type) in ontology.edge_types.iter().enumerate() {
+    for (idx, edge_type) in ontology.edge_types().iter().enumerate() {
         let source_label = ontology
             .node_label(&edge_type.source_node_id)
             .unwrap_or("UNKNOWN")
@@ -195,7 +195,7 @@ pub async fn profile_graph(
         }));
     }
 
-    let mut edge_profiles: Vec<Option<EdgeProfile>> = vec![None; ontology.edge_types.len()];
+    let mut edge_profiles: Vec<Option<EdgeProfile>> = vec![None; ontology.edge_types().len()];
     in_flight = 0;
 
     while let Some((idx, result)) =
@@ -204,7 +204,7 @@ pub async fn profile_graph(
         match result {
             Ok(profile) => edge_profiles[idx] = Some(profile),
             Err(e) => {
-                warn!(label = %ontology.edge_types[idx].label, "Failed to profile edge type: {e}")
+                warn!(label = %ontology.edge_types()[idx].label, "Failed to profile edge type: {e}")
             }
         }
     }

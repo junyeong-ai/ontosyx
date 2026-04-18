@@ -9,7 +9,7 @@ pub fn generate_mermaid(ontology: &OntologyIR) -> String {
     lines.push("erDiagram".to_string());
 
     // Entity definitions
-    for node in &ontology.node_types {
+    for node in ontology.node_types() {
         let pk_name = find_pk_property(node);
         let id = mermaid_id(&node.label);
         lines.push(format!("    {id} {{"));
@@ -30,7 +30,7 @@ pub fn generate_mermaid(ontology: &OntologyIR) -> String {
     }
 
     // Relationships
-    for edge in &ontology.edge_types {
+    for edge in ontology.edge_types() {
         let src = ontology
             .node_label(&edge.source_node_id)
             .map(mermaid_id)

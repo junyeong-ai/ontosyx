@@ -1,16 +1,12 @@
 #![cfg_attr(
     test,
-    allow(
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::panic,
-        clippy::unreachable
-    )
+    allow(clippy::unwrap_used, clippy::panic, clippy::unreachable)
 )]
 // Binary entrypoint: startup-time `expect` on infrastructure (OTLP,
 // Prometheus, signal handlers) is idiomatic — failing fast is the correct
-// behavior when the process cannot initialize. We scope this allow to the
-// binary crate so library code is still held to the stricter rule.
+// behavior when the process cannot initialize. The library crate
+// (`ox_api`) is still held to the stricter rule via workspace-level
+// clippy config.
 #![allow(clippy::expect_used)]
 
 use std::net::SocketAddr;
@@ -28,31 +24,13 @@ use ox_brain::prompts::PromptRegistry;
 use ox_runtime::registry::{GraphBackendConfig, GraphBackendRegistry};
 use ox_source::registry::IntrospectorRegistry;
 
-pub(crate) mod acl_enforcement;
-pub(crate) mod audit_middleware;
-pub(crate) mod collaboration;
-mod config;
-mod error;
-mod mcp;
-pub(crate) mod response;
-pub(crate) mod metrics;
-mod middleware;
-pub(crate) mod model_router;
-pub(crate) mod openapi;
-mod principal;
-mod routes;
-pub(crate) mod schedule;
-pub(crate) mod spawn_scoped;
-pub(crate) mod sso;
-mod state;
-pub(crate) mod system_config;
-mod validation;
-pub(crate) mod workspace;
-pub(crate) mod workspace_scope;
-
-use config::OxConfig;
-use middleware::RateLimiter;
-use state::{AppState, Timeouts};
+// All shared modules live in `lib.rs`; consume them via the library crate
+// so each module compiles once (not twice — once as `ox_api::*` and again
+// as `ontosyx`-bin-local `crate::*`).
+use ox_api::config::OxConfig;
+use ox_api::middleware::RateLimiter;
+use ox_api::state::{AppState, Timeouts};
+use ox_api::{collaboration, mcp, middleware, model_router, openapi, routes, schedule, sso, state, system_config};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

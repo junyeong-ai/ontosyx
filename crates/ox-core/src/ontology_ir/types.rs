@@ -1,6 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::i18n::LocalizedText;
 use crate::types::{PropertyType, PropertyValue, deserialize_optional_property_value};
 
 // ---------------------------------------------------------------------------
@@ -135,21 +136,24 @@ impl std::fmt::Display for OntologyVersion {
 // NodeTypeDef
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 pub struct NodeTypeDef {
-    /// Stable UUID for this node type
+    /// Stable UUID for this node type.
     pub id: NodeTypeId,
-    /// Label name (e.g. "Product", "Customer")
+    /// Canonical, language-neutral label used as the Neo4j node label and in
+    /// query identifiers. Must satisfy [`crate::types::is_valid_graph_identifier`].
     pub label: String,
-    /// Optional human-readable description
-    pub description: Option<String>,
-    /// Source table this node was derived from (for DB sources)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub source_table: Option<String>,
-    /// Properties on this node type
+    /// Localized display name shown in the UI. Defaults to empty; consumers
+    /// typically fall back to `label` when the display name is empty.
+    #[serde(default)]
+    pub display_name: LocalizedText,
+    /// Localized human-readable description.
+    #[serde(default)]
+    pub description: LocalizedText,
+    /// Properties on this node type.
     #[serde(default)]
     pub properties: Vec<PropertyDef>,
-    /// Constraints on this node type
+    /// Constraints on this node type.
     #[serde(default)]
     pub constraints: Vec<ConstraintDef>,
     /// Parent node type for inheritance (e.g., Employee is-a Person).
@@ -157,9 +161,20 @@ pub struct NodeTypeDef {
     /// Governance metadata (owner, steward, tags, retention policy).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub governance: Option<Governance>,
-    /// Detailed source lineage (richer than the legacy `source_table` field).
+    /// Source lineage — which data source table this node was derived from
+    /// (table name, primary key, source system). Authoritative replacement
+    /// for the removed `source_table` field.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_lineage: Option<SourceLineage>,
+    /// Deprecation timestamp. When set, the node is marked for removal and
+    /// UI consumers should render it with a deprecated indicator. Queries
+    /// still work for compatibility until the deprecation window elapses.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deprecated_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// Points at the replacement entity when this node is deprecated. Used
+    /// by the UI to guide users from deprecated to current entities.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replaced_by_id: Option<NodeTypeId>,
 }
 
 /// Type-safe reference to the owner of a property — node or edge.
@@ -239,21 +254,6 @@ pub struct Governance {
     pub retention_days: Option<u32>,
 }
 
-impl Default for NodeTypeDef {
-    fn default() -> Self {
-        Self {
-            id: NodeTypeId::default(),
-            label: String::new(),
-            description: None,
-            source_table: None,
-            properties: vec![],
-            constraints: vec![],
-            parent: None,
-            governance: None,
-            source_lineage: None,
-        }
-    }
-}
 
 impl NodeTypeDef {
     pub fn required_properties(&self) -> impl Iterator<Item = &PropertyDef> {
@@ -273,24 +273,48 @@ impl NodeTypeDef {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct EdgeTypeDef {
-    /// Stable UUID for this edge type
+    /// Stable UUID for this edge type.
     pub id: EdgeTypeId,
-    /// Relationship label (e.g. "PURCHASED", "REVIEWED")
+    /// Canonical, language-neutral relationship label (e.g. "PURCHASED",
+    /// "REVIEWED"). Used as the Neo4j relationship type.
     pub label: String,
-    /// Optional human-readable description
-    pub description: Option<String>,
-    /// Source node type ID (references NodeTypeDef.id)
+    /// Localized display name shown in the UI.
+    #[serde(default)]
+    pub display_name: LocalizedText,
+    /// Localized human-readable description.
+    #[serde(default)]
+    pub description: LocalizedText,
+    /// Source node type ID (references NodeTypeDef.id).
     pub source_node_id: NodeTypeId,
-    /// Target node type ID (references NodeTypeDef.id)
+    /// Target node type ID (references NodeTypeDef.id).
     pub target_node_id: NodeTypeId,
-    /// Properties on this edge type
+    /// Role played by the source endpoint, e.g. "manager" for a MANAGES edge
+    /// from Employee to Employee. Distinguishes the *functional* role from
+    /// the edge label itself when the same relationship label could carry
+    /// different semantics depending on direction.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_role: Option<String>,
+    /// Role played by the target endpoint (e.g. "direct_report").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_role: Option<String>,
+    /// Properties on this edge type.
     #[serde(default)]
     pub properties: Vec<PropertyDef>,
-    /// Cardinality constraint
+    /// Cardinality constraint.
     #[serde(default = "default_cardinality")]
     pub cardinality: Cardinality,
     /// Logical inverse edge (e.g., PURCHASED ↔ PURCHASED_BY).
     pub inverse_of: Option<EdgeTypeId>,
+    /// Free-form tags (e.g. "i18n", "derived", "temporal") for downstream
+    /// filtering and UI grouping. Not validated; ontology designer's choice.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+    /// Deprecation timestamp. See [`NodeTypeDef::deprecated_at`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deprecated_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// Replacement edge when deprecated. See [`NodeTypeDef::replaced_by_id`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replaced_by_id: Option<EdgeTypeId>,
 }
 
 impl Default for EdgeTypeDef {
@@ -298,12 +322,18 @@ impl Default for EdgeTypeDef {
         Self {
             id: EdgeTypeId::default(),
             label: String::new(),
-            description: None,
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
             source_node_id: NodeTypeId::default(),
             target_node_id: NodeTypeId::default(),
+            source_role: None,
+            target_role: None,
             properties: vec![],
             cardinality: Cardinality::ManyToMany,
             inverse_of: None,
+            tags: Vec::new(),
+            deprecated_at: None,
+            replaced_by_id: None,
         }
     }
 }
@@ -338,21 +368,42 @@ impl std::fmt::Display for DataClassification {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct PropertyDef {
-    /// Stable UUID for this property
+    /// Stable UUID for this property.
     pub id: PropertyId,
-    /// Property name (e.g. "name", "price", "created_at")
+    /// Canonical, language-neutral property name (e.g. "name", "price",
+    /// "created_at"). Used as the Neo4j property key.
     pub name: String,
-    /// Data type
+    /// Localized display name shown in the UI.
+    #[serde(default)]
+    pub display_name: LocalizedText,
+    /// Data type.
     pub property_type: PropertyType,
-    /// Whether this property can be null
+    /// Whether this property can be null.
     #[serde(default)]
     pub nullable: bool,
-    /// Default value if not provided
+    /// Default value if not provided.
     #[serde(default, deserialize_with = "deserialize_optional_property_value")]
     pub default_value: Option<PropertyValue>,
-    /// Human-readable description
-    pub description: Option<String>,
-    /// Data sensitivity classification (derived from PII detection)
+    /// Localized human-readable description.
+    #[serde(default)]
+    pub description: LocalizedText,
+    /// Minimum cardinality for list-valued properties (inclusive). `None`
+    /// means unbounded at the lower end (i.e., the list can be empty when
+    /// `nullable` is also permissive). Maps to `owl:minCardinality` and
+    /// SHACL `sh:minCount` on export.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_count: Option<u32>,
+    /// Maximum cardinality for list-valued properties (inclusive). `None`
+    /// means unbounded. Maps to `owl:maxCardinality` and SHACL `sh:maxCount`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_count: Option<u32>,
+    /// Marks the property as storing a localized value. The expected runtime
+    /// shape is `PropertyType::Map` with `{locale: value}` entries, or a
+    /// structured `LocalizedText` document. UI and LLM consumers use this
+    /// hint to filter or merge translations based on the caller's locale.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub is_localized: bool,
+    /// Data sensitivity classification (derived from PII detection).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub classification: Option<DataClassification>,
     /// Semantic type hint (Email, Phone, Url, etc.) for richer LLM context.
@@ -370,6 +421,12 @@ pub struct PropertyDef {
     /// Transformation expression applied to the source column (e.g., `UPPER(col)`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transform: Option<String>,
+    /// Deprecation timestamp. See [`NodeTypeDef::deprecated_at`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deprecated_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// Replacement property when deprecated. See [`NodeTypeDef::replaced_by_id`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replaced_by_id: Option<PropertyId>,
 }
 
 impl Default for PropertyDef {
@@ -377,23 +434,35 @@ impl Default for PropertyDef {
         Self {
             id: PropertyId::default(),
             name: String::new(),
+            display_name: LocalizedText::default(),
             property_type: PropertyType::String,
             nullable: false,
             default_value: None,
-            description: None,
+            description: LocalizedText::default(),
+            min_count: None,
+            max_count: None,
+            is_localized: false,
             classification: None,
             semantic_type: None,
             unit: None,
             pii_kind: None,
             source_column: None,
             transform: None,
+            deprecated_at: None,
+            replaced_by_id: None,
         }
     }
 }
 
 /// Semantic type of a property value — higher-level than PropertyType.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+///
+/// Canonical variants cover globally common semantics. `LocalizedText` marks
+/// a property whose runtime value is a `{locale: text}` map (pairs with
+/// `PropertyDef::is_localized`). `Other(String)` is an open extension point
+/// for domain-specific semantics (e.g. "ISBN", "VIN", "CUSIP") that the
+/// platform does not want to hardcode.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
 pub enum SemanticType {
     Email,
     Phone,
@@ -403,22 +472,55 @@ pub enum SemanticType {
     Currency,
     Percentage,
     Iso8601,
+    /// Value is a localized text map. Requires `PropertyDef::is_localized == true`.
+    LocalizedText,
+    /// Open extension: caller-supplied semantic identifier (e.g. "ISBN", "VIN").
+    Other(String),
 }
 
 /// PII (Personally Identifiable Information) classification.
 /// Set explicitly by the user via UI confirmation, never auto-assigned.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+///
+/// Covers the union of GDPR Article 4(1), HIPAA Safe Harbor identifiers,
+/// PCI DSS cardholder data, and ICAO / national-identity schemes. `NationalId`
+/// is parameterised by ISO 3166-1 alpha-2 country code so country-specific
+/// schemes (KR RRN, US SSN, JP My Number, etc.) stay distinguishable in
+/// downstream masking rules. `Custom` is the escape hatch for schemes the
+/// platform has not anticipated — still tracked as PII for audit purposes.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
 pub enum PiiKind {
+    // --- Identity ---
     Name,
+    DateOfBirth,
+    /// National identifier scoped by ISO 3166-1 alpha-2 country code
+    /// (e.g. `{"kind":"national_id","value":"kr"}`).
+    NationalId { country: String },
+    Passport,
+    DriversLicense,
+    // --- Contact ---
     Email,
     Phone,
-    Ssn,
-    CreditCard,
     Address,
-    DateOfBirth,
     IpAddress,
-    Other,
+    // --- Financial / PCI DSS ---
+    PaymentCardNumber,
+    BankAccountNumber,
+    Iban,
+    /// Historical variant kept for backfill paths; prefer `PaymentCardNumber`.
+    CreditCard,
+    /// Historical variant kept for backfill paths; prefer `NationalId { country }`.
+    Ssn,
+    // --- Health / HIPAA ---
+    MedicalRecordNumber,
+    InsuranceId,
+    // --- Biometric / Location ---
+    Biometric,
+    GeoLocation,
+    // --- Open extension ---
+    /// Caller-supplied PII scheme name for anything the platform has not
+    /// predefined. Still treated as PII for audit and masking purposes.
+    Custom(String),
 }
 
 // ---------------------------------------------------------------------------

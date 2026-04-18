@@ -16,8 +16,8 @@ pub fn generate_typescript(ontology: &OntologyIR) -> String {
     lines.push(String::new());
 
     // --- Node type interfaces ---
-    for node in &ontology.node_types {
-        if let Some(desc) = &node.description {
+    for node in ontology.node_types() {
+        if let Some(desc) = node.description.present() {
             lines.push(format!("/** {} */", desc));
         }
         lines.push(format!("export interface {} {{", ts_safe_name(&node.label)));
@@ -27,7 +27,7 @@ pub fn generate_typescript(ontology: &OntologyIR) -> String {
             let comment = ts_type_comment(&prop.property_type);
             let desc_comment = prop
                 .description
-                .as_ref()
+                .present()
                 .map(|d| format!("  // {d}"))
                 .unwrap_or_default();
             let full_comment = if !comment.is_empty() && !desc_comment.is_empty() {
@@ -63,7 +63,7 @@ pub fn generate_typescript(ontology: &OntologyIR) -> String {
     }
 
     // --- Edge type interfaces ---
-    for edge in &ontology.edge_types {
+    for edge in ontology.edge_types() {
         let source_label = ontology
             .node_by_id(&edge.source_node_id)
             .map(|n| n.label.as_str())
@@ -87,7 +87,7 @@ pub fn generate_typescript(ontology: &OntologyIR) -> String {
             let comment = ts_type_comment(&prop.property_type);
             let desc_comment = prop
                 .description
-                .as_ref()
+                .present()
                 .map(|d| format!("  // {d}"))
                 .unwrap_or_default();
             let full_comment = if !comment.is_empty() && !desc_comment.is_empty() {
@@ -202,6 +202,7 @@ fn ts_field_name(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ox_core::LocalizedText;
     use ox_core::ontology_ir::{
         EdgeTypeDef, EdgeTypeId, NodeTypeDef, NodeTypeId, PropertyDef, PropertyId,
     };
@@ -210,14 +211,13 @@ mod tests {
         OntologyIR::new(
             "test-id".to_string(),
             "TestOntology".to_string(),
-            Some("A test ontology".to_string()),
+            LocalizedText::new("A test ontology"),
             1,
             vec![
                 NodeTypeDef {
                     id: NodeTypeId::new("n1"),
                     label: "Customer".to_string(),
-                    description: Some("A customer".to_string()),
-                    source_table: None,
+                    description: LocalizedText::new("A customer"),
                     properties: vec![
                         PropertyDef {
                             id: PropertyId::new("p1"),
@@ -225,7 +225,7 @@ mod tests {
                             property_type: PropertyType::String,
                             nullable: false,
                             default_value: None,
-                            description: None,
+                            description: LocalizedText::default(),
                             classification: None,
                             ..Default::default()
                         },
@@ -235,7 +235,7 @@ mod tests {
                             property_type: PropertyType::String,
                             nullable: false,
                             default_value: None,
-                            description: None,
+                            description: LocalizedText::default(),
                             classification: None,
                             ..Default::default()
                         },
@@ -245,7 +245,7 @@ mod tests {
                             property_type: PropertyType::String,
                             nullable: true,
                             default_value: None,
-                            description: None,
+                            description: LocalizedText::default(),
                             classification: None,
                             ..Default::default()
                         },
@@ -255,7 +255,7 @@ mod tests {
                             property_type: PropertyType::DateTime,
                             nullable: false,
                             default_value: None,
-                            description: None,
+                            description: LocalizedText::default(),
                             classification: None,
                             ..Default::default()
                         },
@@ -266,8 +266,7 @@ mod tests {
                 NodeTypeDef {
                     id: NodeTypeId::new("n2"),
                     label: "Product".to_string(),
-                    description: None,
-                    source_table: None,
+                    description: LocalizedText::default(),
                     properties: vec![
                         PropertyDef {
                             id: PropertyId::new("p5"),
@@ -275,7 +274,7 @@ mod tests {
                             property_type: PropertyType::String,
                             nullable: false,
                             default_value: None,
-                            description: None,
+                            description: LocalizedText::default(),
                             classification: None,
                             ..Default::default()
                         },
@@ -285,7 +284,7 @@ mod tests {
                             property_type: PropertyType::Float,
                             nullable: false,
                             default_value: None,
-                            description: None,
+                            description: LocalizedText::default(),
                             classification: None,
                             ..Default::default()
                         },
@@ -297,7 +296,7 @@ mod tests {
                             },
                             nullable: false,
                             default_value: None,
-                            description: None,
+                            description: LocalizedText::default(),
                             classification: None,
                             ..Default::default()
                         },
@@ -309,7 +308,7 @@ mod tests {
             vec![EdgeTypeDef {
                 id: EdgeTypeId::new("e1"),
                 label: "PURCHASED".to_string(),
-                description: Some("Customer bought a product".to_string()),
+                description: LocalizedText::new("Customer bought a product"),
                 source_node_id: NodeTypeId::new("n1"),
                 target_node_id: NodeTypeId::new("n2"),
                 properties: vec![PropertyDef {
@@ -318,7 +317,7 @@ mod tests {
                     property_type: PropertyType::Int,
                     nullable: false,
                     default_value: None,
-                    description: None,
+                    description: LocalizedText::default(),
                     classification: None,
                     ..Default::default()
                 }],

@@ -3,6 +3,7 @@ use crate::GraphCompiler;
 
 use ox_core::load_plan::PropertyMapping;
 use ox_core::load_plan::{ConflictStrategy, LoadMode, LoadOp, LoadPlan, LoadStep};
+use ox_core::LocalizedText;
 use ox_core::ontology_ir::*;
 use ox_core::query_ir::*;
 use ox_core::types::*;
@@ -109,13 +110,12 @@ fn test_compile_schema_constraints() {
     let ontology = OntologyIR::new(
         "test".to_string(),
         "Test".to_string(),
-        None,
+        LocalizedText::default(),
         1,
         vec![NodeTypeDef {
             id: "node-product".into(),
             label: "Product".to_string(),
-            description: None,
-            source_table: None,
+            description: LocalizedText::default(),
             properties: vec![
                 PropertyDef {
                     id: "prop-sku".into(),
@@ -123,7 +123,7 @@ fn test_compile_schema_constraints() {
                     property_type: PropertyType::String,
                     nullable: false,
                     default_value: None,
-                    description: None,
+                    description: LocalizedText::default(),
                     classification: None,
                     ..Default::default()
                 },
@@ -133,7 +133,7 @@ fn test_compile_schema_constraints() {
                     property_type: PropertyType::String,
                     nullable: false,
                     default_value: None,
-                    description: None,
+                    description: LocalizedText::default(),
                     classification: None,
                     ..Default::default()
                 },

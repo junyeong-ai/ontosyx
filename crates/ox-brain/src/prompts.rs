@@ -283,7 +283,7 @@ impl PromptRegistry {
             .iter()
             .map(|(name, ver)| PromptVersionInfo {
                 name: name.clone(),
-                version: ver.clone(),
+                version: *ver,
                 raw_version: ver.to_string(),
             })
             .collect()

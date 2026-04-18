@@ -43,13 +43,13 @@ impl SchemaTool for ExplainOntologyTool {
             // Internal UUIDs, property counts, and the monotonic version
             // number add tokens without helping the model reason.
             let node_labels = ontology
-                .node_types
+                .node_types()
                 .iter()
                 .map(|n| n.label.as_str())
                 .collect::<Vec<_>>()
                 .join(", ");
             let edge_labels = ontology
-                .edge_types
+                .edge_types()
                 .iter()
                 .map(|e| {
                     let src = ontology.node_label(&e.source_node_id).unwrap_or("?");

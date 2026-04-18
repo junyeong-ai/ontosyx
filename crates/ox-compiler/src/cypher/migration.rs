@@ -91,8 +91,8 @@ pub fn compile_migration(diff: &OntologyDiff, old: &OntologyIR, new: &OntologyIR
 
     // --- Modified nodes ---
     for node_diff in &diff.modified_nodes {
-        let new_node = new.node_types.iter().find(|n| n.id == node_diff.node_id);
-        let old_node = old.node_types.iter().find(|n| n.id == node_diff.node_id);
+        let new_node = new.node_types().iter().find(|n| n.id == node_diff.node_id);
+        let old_node = old.node_types().iter().find(|n| n.id == node_diff.node_id);
 
         for change in &node_diff.changes {
             match change {
@@ -480,6 +480,7 @@ pub fn compile_data_migration(diff: &OntologyDiff) -> Vec<DataMigrationStep> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ox_core::LocalizedText;
     use ox_core::ontology_diff::compute_diff;
     use ox_core::ontology_ir::{
         Cardinality, ConstraintDef, EdgeTypeDef, IndexDef, NodeConstraint, NodeTypeDef, PropertyDef,
@@ -493,7 +494,7 @@ mod tests {
             property_type: PropertyType::String,
             nullable: false,
             default_value: None,
-            description: None,
+            description: LocalizedText::default(),
             classification: None,
         ..Default::default()
         }
@@ -503,14 +504,13 @@ mod tests {
         OntologyIR::new(
             "ont-1".to_string(),
             "Test Ontology".to_string(),
-            None,
+            LocalizedText::default(),
             1,
             vec![
                 NodeTypeDef {
                     id: "n1".into(),
                     label: "Person".to_string(),
-                    description: Some("A person".to_string()),
-                    source_table: None,
+                    description: LocalizedText::new("A person"),
                     properties: vec![property("p1", "name"), property("p2", "age")],
                     constraints: vec![ConstraintDef {
                         id: "c1".into(),
@@ -523,8 +523,7 @@ mod tests {
                 NodeTypeDef {
                     id: "n2".into(),
                     label: "Company".to_string(),
-                    description: None,
-                    source_table: None,
+                    description: LocalizedText::default(),
                     properties: vec![property("p3", "company_name")],
                     constraints: vec![],
                     ..Default::default()
@@ -533,7 +532,7 @@ mod tests {
             vec![EdgeTypeDef {
                 id: "e1".into(),
                 label: "WORKS_AT".to_string(),
-                description: None,
+                description: LocalizedText::default(),
                 source_node_id: "n1".into(),
                 target_node_id: "n2".into(),
                 properties: vec![property("ep1", "since")],
@@ -565,11 +564,10 @@ mod tests {
     fn added_node_creates_constraints_and_indexes() {
         let old = test_ontology();
         let mut new = old.clone();
-        new.node_types.push(NodeTypeDef {
+        new.add_node_type(NodeTypeDef {
             id: "n3".into(),
             label: "Product".to_string(),
-            description: None,
-            source_table: None,
+            description: LocalizedText::default(),
             properties: vec![property("p10", "sku"), property("p11", "price")],
             constraints: vec![ConstraintDef {
                 id: "c3".into(),
@@ -578,8 +576,8 @@ mod tests {
                 },
             }],
             ..Default::default()
-        });
-        new.rebuild_indices();
+        }).expect("test fixture add_node_type");
+        new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
         let plan = compile_migration(&diff, &old, &new);
@@ -599,9 +597,9 @@ mod tests {
     fn removed_node_is_breaking_change() {
         let old = test_ontology();
         let mut new = old.clone();
-        new.node_types.retain(|n| n.id != "n2");
-        new.edge_types.clear();
-        new.rebuild_indices();
+        new.with_batch(|nt, _, _| nt.retain(|n| n.id != "n2")).expect("test fixture retain");
+        new.with_batch(|_, et, _| et.clear()).expect("test fixture clear");
+        new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
         let plan = compile_migration(&diff, &old, &new);
@@ -616,8 +614,8 @@ mod tests {
     fn label_rename_produces_warning() {
         let old = test_ontology();
         let mut new = old.clone();
-        new.node_types[0].label = "Individual".to_string();
-        new.rebuild_indices();
+        new.node_types_mut()[0].label = "Individual".to_string();
+        new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
         let plan = compile_migration(&diff, &old, &new);
@@ -639,17 +637,17 @@ mod tests {
     fn added_required_property_is_breaking() {
         let old = test_ontology();
         let mut new = old.clone();
-        new.node_types[0].properties.push(PropertyDef {
+        new.node_types_mut()[0].properties.push(PropertyDef {
             id: "p_new".into(),
             name: "email".to_string(),
             property_type: PropertyType::String,
             nullable: false,
             default_value: None,
-            description: None,
+            description: LocalizedText::default(),
             classification: None,
             ..Default::default()
         });
-        new.rebuild_indices();
+        new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
         let plan = compile_migration(&diff, &old, &new);
@@ -669,8 +667,8 @@ mod tests {
     fn removed_property_produces_warning() {
         let old = test_ontology();
         let mut new = old.clone();
-        new.node_types[0].properties.retain(|p| p.name != "age");
-        new.rebuild_indices();
+        new.node_types_mut()[0].properties.retain(|p| p.name != "age");
+        new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
         let plan = compile_migration(&diff, &old, &new);
@@ -685,8 +683,8 @@ mod tests {
     fn property_type_change_is_breaking() {
         let old = test_ontology();
         let mut new = old.clone();
-        new.node_types[0].properties[1].property_type = PropertyType::Int;
-        new.rebuild_indices();
+        new.node_types_mut()[0].properties[1].property_type = PropertyType::Int;
+        new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
         let plan = compile_migration(&diff, &old, &new);
@@ -703,17 +701,17 @@ mod tests {
     fn added_edge_produces_warning() {
         let old = test_ontology();
         let mut new = old.clone();
-        new.edge_types.push(EdgeTypeDef {
+        new.add_edge_type(EdgeTypeDef {
             id: "e2".into(),
             label: "MANAGES".to_string(),
-            description: None,
+            description: LocalizedText::default(),
             source_node_id: "n1".into(),
             target_node_id: "n1".into(),
             properties: vec![],
             cardinality: Cardinality::ManyToMany,
             ..Default::default()
-        });
-        new.rebuild_indices();
+        }).expect("test fixture add_edge_type");
+        new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
         let plan = compile_migration(&diff, &old, &new);
@@ -728,8 +726,8 @@ mod tests {
     fn removed_edge_is_breaking() {
         let old = test_ontology();
         let mut new = old.clone();
-        new.edge_types.clear();
-        new.rebuild_indices();
+        new.with_batch(|_, et, _| et.clear()).expect("test fixture clear");
+        new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
         let plan = compile_migration(&diff, &old, &new);
@@ -744,13 +742,13 @@ mod tests {
     fn added_constraint_creates_ddl() {
         let old = test_ontology();
         let mut new = old.clone();
-        new.node_types[1].constraints.push(ConstraintDef {
+        new.node_types_mut()[1].constraints.push(ConstraintDef {
             id: "c_new".into(),
             constraint: NodeConstraint::Unique {
                 property_ids: vec!["p3".into()],
             },
         });
-        new.rebuild_indices();
+        new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
         let plan = compile_migration(&diff, &old, &new);
@@ -765,16 +763,15 @@ mod tests {
     fn rollback_reverses_forward_indexes() {
         let old = test_ontology();
         let mut new = old.clone();
-        new.node_types.push(NodeTypeDef {
+        new.add_node_type(NodeTypeDef {
             id: "n4".into(),
             label: "Order".to_string(),
-            description: None,
-            source_table: None,
+            description: LocalizedText::default(),
             properties: vec![property("p20", "order_id")],
             constraints: vec![],
             ..Default::default()
-        });
-        new.rebuild_indices();
+        }).expect("test fixture add_node_type");
+        new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
         let plan = compile_migration(&diff, &old, &new);
@@ -801,27 +798,27 @@ mod tests {
         let old = test_ontology();
         let mut new = old.clone();
         // Add two properties that both generate CREATE INDEX
-        new.node_types[0].properties.push(PropertyDef {
+        new.node_types_mut()[0].properties.push(PropertyDef {
             id: "px".into(),
             name: "email".to_string(),
             property_type: PropertyType::String,
             nullable: false,
             default_value: None,
-            description: None,
+            description: LocalizedText::default(),
             classification: None,
             ..Default::default()
         });
-        new.node_types[0].properties.push(PropertyDef {
+        new.node_types_mut()[0].properties.push(PropertyDef {
             id: "py".into(),
             name: "phone".to_string(),
             property_type: PropertyType::String,
             nullable: false,
             default_value: None,
-            description: None,
+            description: LocalizedText::default(),
             classification: None,
             ..Default::default()
         });
-        new.rebuild_indices();
+        new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
         let plan = compile_migration(&diff, &old, &new);
@@ -846,8 +843,8 @@ mod tests {
     fn data_migration_label_rename() {
         let old = test_ontology();
         let mut new = old.clone();
-        new.node_types[0].label = "Individual".to_string();
-        new.rebuild_indices();
+        new.node_types_mut()[0].label = "Individual".to_string();
+        new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
         let steps = compile_data_migration(&diff);
@@ -875,17 +872,17 @@ mod tests {
     fn data_migration_property_added_with_default() {
         let old = test_ontology();
         let mut new = old.clone();
-        new.node_types[0].properties.push(PropertyDef {
+        new.node_types_mut()[0].properties.push(PropertyDef {
             id: "p_new".into(),
             name: "status".to_string(),
             property_type: PropertyType::String,
             nullable: false,
             default_value: Some(ox_core::types::PropertyValue::String("active".to_string())),
-            description: None,
+            description: LocalizedText::default(),
             classification: None,
             ..Default::default()
         });
-        new.rebuild_indices();
+        new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
         let steps = compile_data_migration(&diff);
@@ -913,17 +910,17 @@ mod tests {
     fn data_migration_property_added_nullable_no_step() {
         let old = test_ontology();
         let mut new = old.clone();
-        new.node_types[0].properties.push(PropertyDef {
+        new.node_types_mut()[0].properties.push(PropertyDef {
             id: "p_new".into(),
             name: "nickname".to_string(),
             property_type: PropertyType::String,
             nullable: true,
             default_value: None,
-            description: None,
+            description: LocalizedText::default(),
             classification: None,
             ..Default::default()
         });
-        new.rebuild_indices();
+        new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
         let steps = compile_data_migration(&diff);
@@ -939,17 +936,17 @@ mod tests {
     fn data_migration_property_added_required_no_default_no_step() {
         let old = test_ontology();
         let mut new = old.clone();
-        new.node_types[0].properties.push(PropertyDef {
+        new.node_types_mut()[0].properties.push(PropertyDef {
             id: "p_new".into(),
             name: "email".to_string(),
             property_type: PropertyType::String,
             nullable: false,
             default_value: None,
-            description: None,
+            description: LocalizedText::default(),
             classification: None,
             ..Default::default()
         });
-        new.rebuild_indices();
+        new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
         let steps = compile_data_migration(&diff);
@@ -965,8 +962,8 @@ mod tests {
     fn data_migration_property_removed() {
         let old = test_ontology();
         let mut new = old.clone();
-        new.node_types[0].properties.retain(|p| p.name != "age");
-        new.rebuild_indices();
+        new.node_types_mut()[0].properties.retain(|p| p.name != "age");
+        new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
         let steps = compile_data_migration(&diff);
@@ -990,8 +987,8 @@ mod tests {
         let old = test_ontology();
         let mut new = old.clone();
         // age is String in test_ontology, change to Int
-        new.node_types[0].properties[1].property_type = PropertyType::Int;
-        new.rebuild_indices();
+        new.node_types_mut()[0].properties[1].property_type = PropertyType::Int;
+        new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
         let steps = compile_data_migration(&diff);
@@ -1009,8 +1006,8 @@ mod tests {
     fn data_migration_property_type_string_to_float() {
         let old = test_ontology();
         let mut new = old.clone();
-        new.node_types[0].properties[1].property_type = PropertyType::Float;
-        new.rebuild_indices();
+        new.node_types_mut()[0].properties[1].property_type = PropertyType::Float;
+        new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
         let steps = compile_data_migration(&diff);
@@ -1030,8 +1027,8 @@ mod tests {
         // Create an "old" where age is Int
         let old_modified = {
             let mut m = old.clone();
-            m.node_types[0].properties[1].property_type = PropertyType::Int;
-            m.rebuild_indices();
+            m.node_types_mut()[0].properties[1].property_type = PropertyType::Int;
+            m.rebuild_indices().expect("test fixture rebuild");
             m
         };
         let diff = compute_diff(&old_modified, &old);
@@ -1050,8 +1047,8 @@ mod tests {
     fn data_migration_property_type_unsupported_warns() {
         let old = test_ontology();
         let mut new = old.clone();
-        new.node_types[0].properties[1].property_type = PropertyType::Date;
-        new.rebuild_indices();
+        new.node_types_mut()[0].properties[1].property_type = PropertyType::Date;
+        new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
         let steps = compile_data_migration(&diff);
@@ -1073,8 +1070,8 @@ mod tests {
     fn data_migration_edge_label_rename_requires_manual() {
         let old = test_ontology();
         let mut new = old.clone();
-        new.edge_types[0].label = "EMPLOYED_AT".to_string();
-        new.rebuild_indices();
+        new.edge_types_mut()[0].label = "EMPLOYED_AT".to_string();
+        new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
         let steps = compile_data_migration(&diff);
@@ -1095,8 +1092,8 @@ mod tests {
     fn data_migration_edge_property_removed() {
         let old = test_ontology();
         let mut new = old.clone();
-        new.edge_types[0].properties.clear();
-        new.rebuild_indices();
+        new.edge_types_mut()[0].properties.clear();
+        new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
         let steps = compile_data_migration(&diff);
@@ -1120,8 +1117,8 @@ mod tests {
         let old = test_ontology();
         let mut new = old.clone();
         // Remove a property to trigger a data migration
-        new.node_types[0].properties.retain(|p| p.name != "age");
-        new.rebuild_indices();
+        new.node_types_mut()[0].properties.retain(|p| p.name != "age");
+        new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
         let plan = compile_migration(&diff, &old, &new);

@@ -604,22 +604,22 @@ impl QueryTranslator for DefaultBrain {
         let rag_memory = self
             .memory
             .as_ref()
-            .filter(|_| ontology.node_types.len() > schema_rag::FULL_SCHEMA_NODE_THRESHOLD);
+            .filter(|_| ontology.node_types().len() > schema_rag::FULL_SCHEMA_NODE_THRESHOLD);
 
         let (ontology_json, discovered_labels) = if let Some(memory) = rag_memory {
             let oid = self.ontology_id.as_deref().unwrap_or(&ontology.id);
             schema_rag::discover_schema(memory, ontology, question, oid).await
         } else {
             let all_node_labels: Vec<&str> = ontology
-                .node_types
+                .node_types()
                 .iter()
                 .map(|n| n.label.as_str())
                 .collect();
             let all_label_strings: Vec<String> = ontology
-                .node_types
+                .node_types()
                 .iter()
                 .map(|n| n.label.clone())
-                .chain(ontology.edge_types.iter().map(|e| e.label.clone()))
+                .chain(ontology.edge_types().iter().map(|e| e.label.clone()))
                 .collect();
             let schema = schema_rag::build_progressive_schema(ontology, &all_node_labels);
             (schema, all_label_strings)
@@ -743,12 +743,12 @@ impl QueryTranslator for DefaultBrain {
         let warnings = validate_query_labels(&query_ir, ontology);
         if !warnings.is_empty() {
             let available_nodes: Vec<&str> = ontology
-                .node_types
+                .node_types()
                 .iter()
                 .map(|n| n.label.as_str())
                 .collect();
             let available_edges: Vec<&str> = ontology
-                .edge_types
+                .edge_types()
                 .iter()
                 .map(|e| e.label.as_str())
                 .collect();
@@ -938,7 +938,7 @@ impl Explainer for DefaultBrain {
         graph_stats: Option<&serde_json::Value>,
     ) -> OxResult<Vec<ox_core::InsightSuggestion>> {
         let nodes: Vec<String> = ontology
-            .node_types
+            .node_types()
             .iter()
             .map(|n| {
                 format!(
@@ -953,17 +953,17 @@ impl Explainer for DefaultBrain {
             })
             .collect();
         let edges: Vec<String> = ontology
-            .edge_types
+            .edge_types()
             .iter()
             .map(|e| {
                 let src = ontology
-                    .node_types
+                    .node_types()
                     .iter()
                     .find(|n| n.id == e.source_node_id)
                     .map(|n| n.label.as_str())
                     .unwrap_or("?");
                 let tgt = ontology
-                    .node_types
+                    .node_types()
                     .iter()
                     .find(|n| n.id == e.target_node_id)
                     .map(|n| n.label.as_str())
@@ -1090,12 +1090,12 @@ fn validate_query_labels(query: &QueryIR, ontology: &OntologyIR) -> Vec<String> 
     let edge_labels = ox_core::eval::extract_edge_labels(query);
 
     let valid_node_labels: std::collections::HashSet<&str> = ontology
-        .node_types
+        .node_types()
         .iter()
         .map(|n| n.label.as_str())
         .collect();
     let valid_edge_labels: std::collections::HashSet<&str> = ontology
-        .edge_types
+        .edge_types()
         .iter()
         .map(|e| e.label.as_str())
         .collect();

@@ -1,3 +1,4 @@
+use crate::i18n::LocalizedText;
 use crate::ontology_ir::{
     Cardinality, ConstraintDef, EdgeTypeDef, IndexDef, NodeConstraint, NodeTypeDef, OntologyIR,
     PropertyDef,
@@ -12,7 +13,7 @@ pub fn property(id: &str, name: &str) -> PropertyDef {
         property_type: PropertyType::String,
         nullable: false,
         default_value: None,
-        description: None,
+        description: LocalizedText::default(),
         classification: None,
     ..Default::default()
     }
@@ -23,14 +24,13 @@ pub fn test_ontology() -> OntologyIR {
     OntologyIR::new(
         "ont-1".to_string(),
         "Test Ontology".to_string(),
-        None,
+        LocalizedText::default(),
         1,
         vec![
             NodeTypeDef {
                 id: "n1".into(),
                 label: "Person".to_string(),
-                description: Some("A person".to_string()),
-                source_table: None,
+                description: LocalizedText::new("A person"),
                 properties: vec![property("p1", "name"), property("p2", "age")],
                 constraints: vec![ConstraintDef {
                     id: "c1".into(),
@@ -43,8 +43,7 @@ pub fn test_ontology() -> OntologyIR {
             NodeTypeDef {
                 id: "n2".into(),
                 label: "Company".to_string(),
-                description: None,
-                source_table: None,
+                description: LocalizedText::default(),
                 properties: vec![property("p3", "company_name")],
                 constraints: vec![],
                 ..Default::default()
@@ -53,7 +52,7 @@ pub fn test_ontology() -> OntologyIR {
         vec![EdgeTypeDef {
             id: "e1".into(),
             label: "WORKS_AT".to_string(),
-            description: None,
+            description: LocalizedText::default(),
             source_node_id: "n1".into(),
             target_node_id: "n2".into(),
             properties: vec![property("ep1", "since")],
@@ -101,7 +100,7 @@ fn prop(id: &str, name: &str, property_type: PropertyType, nullable: bool) -> Pr
         property_type,
         nullable,
         default_value: None,
-        description: None,
+        description: LocalizedText::default(),
         classification: None,
     ..Default::default()
     }
@@ -125,8 +124,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
         NodeTypeDef {
             id: "n-customer".into(),
             label: "고객".to_string(),
-            description: Some("구매 활동의 주체".to_string()),
-            source_table: None,
+            description: LocalizedText::new("구매 활동의 주체"),
             properties: vec![
                 prop("p-customer-id", "고객번호", PropertyType::String, false),
                 prop("p-customer-name", "이름", PropertyType::String, false),
@@ -139,8 +137,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
         NodeTypeDef {
             id: "n-order".into(),
             label: "주문".to_string(),
-            description: Some("고객이 발행한 주문 건".to_string()),
-            source_table: None,
+            description: LocalizedText::new("고객이 발행한 주문 건"),
             properties: vec![
                 prop("p-order-id", "주문번호", PropertyType::String, false),
                 prop("p-order-placed", "주문일시", PropertyType::DateTime, false),
@@ -152,8 +149,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
         NodeTypeDef {
             id: "n-product".into(),
             label: "상품".to_string(),
-            description: Some("판매 가능한 상품 SKU".to_string()),
-            source_table: None,
+            description: LocalizedText::new("판매 가능한 상품 SKU"),
             properties: vec![
                 prop("p-product-id", "상품번호", PropertyType::String, false),
                 prop("p-product-name", "상품명", PropertyType::String, false),
@@ -166,8 +162,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
         NodeTypeDef {
             id: "n-category".into(),
             label: "카테고리".to_string(),
-            description: Some("상품 분류".to_string()),
-            source_table: None,
+            description: LocalizedText::new("상품 분류"),
             properties: vec![
                 prop("p-category-id", "카테고리번호", PropertyType::String, false),
                 prop("p-category-name", "카테고리명", PropertyType::String, false),
@@ -178,8 +173,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
         NodeTypeDef {
             id: "n-review".into(),
             label: "리뷰".to_string(),
-            description: Some("고객이 작성한 상품 리뷰".to_string()),
-            source_table: None,
+            description: LocalizedText::new("고객이 작성한 상품 리뷰"),
             properties: vec![
                 prop("p-review-id", "리뷰번호", PropertyType::String, false),
                 prop("p-review-rating", "평점", PropertyType::Int, false),
@@ -192,8 +186,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
         NodeTypeDef {
             id: "n-shipment".into(),
             label: "배송".to_string(),
-            description: Some("주문의 배송 상태".to_string()),
-            source_table: None,
+            description: LocalizedText::new("주문의 배송 상태"),
             properties: vec![
                 prop("p-shipment-id", "배송번호", PropertyType::String, false),
                 prop("p-shipment-status", "배송상태", PropertyType::String, false),
@@ -205,8 +198,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
         NodeTypeDef {
             id: "n-payment".into(),
             label: "결제수단".to_string(),
-            description: Some("주문에 사용된 결제 수단".to_string()),
-            source_table: None,
+            description: LocalizedText::new("주문에 사용된 결제 수단"),
             properties: vec![
                 prop("p-payment-id", "결제번호", PropertyType::String, false),
                 prop("p-payment-method", "결제방법", PropertyType::String, false),
@@ -221,7 +213,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
         EdgeTypeDef {
             id: "e-ordered".into(),
             label: "주문함".to_string(),
-            description: Some("고객이 주문을 발행".to_string()),
+            description: LocalizedText::new("고객이 주문을 발행"),
             source_node_id: "n-customer".into(),
             target_node_id: "n-order".into(),
             properties: vec![],
@@ -231,7 +223,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
         EdgeTypeDef {
             id: "e-contains".into(),
             label: "포함".to_string(),
-            description: Some("주문에 포함된 상품".to_string()),
+            description: LocalizedText::new("주문에 포함된 상품"),
             source_node_id: "n-order".into(),
             target_node_id: "n-product".into(),
             properties: vec![prop("p-contains-qty", "수량", PropertyType::Int, false)],
@@ -241,7 +233,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
         EdgeTypeDef {
             id: "e-belongs".into(),
             label: "속함".to_string(),
-            description: Some("상품이 속한 카테고리".to_string()),
+            description: LocalizedText::new("상품이 속한 카테고리"),
             source_node_id: "n-product".into(),
             target_node_id: "n-category".into(),
             properties: vec![],
@@ -251,7 +243,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
         EdgeTypeDef {
             id: "e-wrote".into(),
             label: "작성함".to_string(),
-            description: Some("고객이 리뷰 작성".to_string()),
+            description: LocalizedText::new("고객이 리뷰 작성"),
             source_node_id: "n-customer".into(),
             target_node_id: "n-review".into(),
             properties: vec![],
@@ -261,7 +253,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
         EdgeTypeDef {
             id: "e-shipped".into(),
             label: "배송됨".to_string(),
-            description: Some("주문의 배송 연결".to_string()),
+            description: LocalizedText::new("주문의 배송 연결"),
             source_node_id: "n-order".into(),
             target_node_id: "n-shipment".into(),
             properties: vec![],
@@ -271,7 +263,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
         EdgeTypeDef {
             id: "e-paid".into(),
             label: "결제함".to_string(),
-            description: Some("주문의 결제 연결".to_string()),
+            description: LocalizedText::new("주문의 결제 연결"),
             source_node_id: "n-order".into(),
             target_node_id: "n-payment".into(),
             properties: vec![],
@@ -289,7 +281,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
     OntologyIR::new(
         "korean-ecommerce".to_string(),
         "한글 전자상거래 온톨로지".to_string(),
-        Some("Phase 0 Korean MVP golden fixture".to_string()),
+        LocalizedText::new("Phase 0 Korean MVP golden fixture"),
         1,
         node_types,
         edge_types,

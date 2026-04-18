@@ -5,7 +5,7 @@
 //! - [`exchange`]      — normalize, export to multiple formats, OWL import
 //! - [`verifications`] — element verification CRUD
 //! - [`schema_ops`]    — reindex, audit vs live graph, adopt graph schema,
-//!                       LLM-backed suggestions + data-sample enrichment
+//!   LLM-backed suggestions + data-sample enrichment
 
 mod crud;
 mod exchange;

@@ -12,6 +12,7 @@ pub use reconcile::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::i18n::LocalizedText;
 use crate::ontology_ir::*;
 use crate::types::{PropertyType, PropertyValue, deserialize_patch_property_value};
 
@@ -25,8 +26,8 @@ pub enum OntologyCommand {
     AddNode {
         id: NodeTypeId,
         label: String,
-        description: Option<String>,
-        source_table: Option<String>,
+        #[serde(default)]
+        description: LocalizedText,
     },
     DeleteNode {
         node_id: NodeTypeId,
@@ -37,7 +38,8 @@ pub enum OntologyCommand {
     },
     UpdateNodeDescription {
         node_id: NodeTypeId,
-        description: Option<String>,
+        #[serde(default)]
+        description: LocalizedText,
     },
 
     AddEdge {
@@ -60,12 +62,16 @@ pub enum OntologyCommand {
     },
     UpdateEdgeDescription {
         edge_id: EdgeTypeId,
-        description: Option<String>,
+        #[serde(default)]
+        description: LocalizedText,
     },
 
     AddProperty {
         owner: PropertyOwner,
-        property: PropertyDef,
+        // Boxed because `PropertyDef` carries the full property schema
+        // (~400 bytes after Phase A's Palantir-grade fields) and would
+        // otherwise dominate the size of every `OntologyCommand` value.
+        property: Box<PropertyDef>,
     },
     DeleteProperty {
         owner: PropertyOwner,
@@ -234,8 +240,9 @@ pub struct PropertyPatch {
     /// `Some(None)` = clear default, `Some(Some(v))` = set default, `None` = no change
     #[serde(default, deserialize_with = "deserialize_patch_property_value")]
     pub default_value: Option<Option<PropertyValue>>,
-    /// `Some(None)` = clear description, `Some(Some(s))` = set, `None` = no change
-    pub description: Option<Option<String>>,
+    /// `Some(text)` = set description to `text` (use empty `LocalizedText` to clear);
+    /// `None` = no change.
+    pub description: Option<LocalizedText>,
 }
 
 // ---------------------------------------------------------------------------
@@ -305,7 +312,9 @@ impl OntologyCommand {
     pub fn execute(&self, ontology: &OntologyIR) -> Result<CommandResult, String> {
         let result = self.execute_inner(ontology.clone())?;
         let mut new_ontology = result.new_ontology;
-        new_ontology.rebuild_indices();
+        new_ontology
+            .rebuild_indices()
+            .map_err(|e| format!("command produced invalid ontology: {e}"))?;
         let errors = new_ontology.validate();
         if errors.is_empty() {
             Ok(CommandResult {

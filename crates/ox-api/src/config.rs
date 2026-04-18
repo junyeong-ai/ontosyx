@@ -370,9 +370,9 @@ pub struct TimeoutsConfig {
     /// Design/load LLM operation timeout in seconds (default: 300).
     ///
     /// Long-running ontology design on a medium-sized source schema can
-    /// easily run 2–4 minutes end-to-end (introspection + LLM generation
-    /// + validation). The default is intentionally generous so the user
-    /// does not hit a spurious timeout on the first run.
+    /// easily run 2–4 minutes end-to-end (introspection + LLM generation +
+    /// validation). The default is intentionally generous so the user does
+    /// not hit a spurious timeout on the first run.
     pub design_operation_secs: u64,
     /// Raw query execution timeout in seconds (default: 30)
     pub raw_query_secs: u64,
@@ -561,9 +561,15 @@ impl OxConfig {
             )?
             // TOML file (optional — missing file is not an error)
             .add_source(File::with_name(&config_file).required(false))
-            // Environment overrides: OX_SERVER__PORT=8080
+            // Environment overrides: `OX_SERVER__PORT=8080` →
+            // `server.port`. `prefix_separator("_")` is explicit because
+            // the config crate otherwise reuses `separator("__")` as the
+            // prefix separator and then looks for `OX__SERVER__PORT` —
+            // which no operator would ever type. Without this override,
+            // every `OX_*` env var was silently dropped.
             .add_source(
                 Environment::with_prefix("OX")
+                    .prefix_separator("_")
                     .separator("__")
                     .try_parsing(true),
             )
@@ -612,6 +618,21 @@ impl OxConfig {
             anyhow::bail!("graph.max_connections must be > 0");
         }
 
+        // Read-only graph runtime is an all-or-nothing pair. A partial
+        // config (only user, only password) would silently fall back to
+        // "no readonly runtime" at startup, meaning MCP execute_cypher
+        // quietly reuses the read-write runtime and defeats the whole
+        // defence-in-depth story. Fail loudly here so the operator sees
+        // the mistake in validate() output, not buried in later boot logs.
+        let user_set = !is_blank(&self.graph.readonly_user);
+        let password_set = !is_blank(&self.graph.readonly_password);
+        if user_set != password_set {
+            anyhow::bail!(
+                "graph.readonly_user and graph.readonly_password must both be set or both unset \
+                 (got user_set={user_set}, password_set={password_set})"
+            );
+        }
+
         // Warnings — these don't block startup but a production deploy
         // with any of them is almost always a mistake.
         if self.graph.password == "neo4j" || self.graph.password == "password" {
@@ -655,6 +676,7 @@ mod config_section_tests {
         }
         builder = builder.add_source(
             Environment::with_prefix("OX")
+                .prefix_separator("_")
                 .separator("__")
                 .try_parsing(true),
         );

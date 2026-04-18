@@ -51,12 +51,30 @@ pub enum WorkspaceRole {
 }
 
 impl WorkspaceRole {
-    pub fn from_str(s: &str) -> Self {
+    /// Parse a DB-stored role string, defaulting unknown values to the
+    /// least-privileged `Viewer`. An unknown string implies either a
+    /// migration mismatch or a manual DB edit bypassing the CHECK
+    /// constraint; we log it so operators can investigate instead of
+    /// silently granting anything.
+    ///
+    /// Named `from_db_string` (not `from_str`) to distinguish it from the
+    /// `std::str::FromStr` contract — this method is infallible, applies
+    /// a least-privilege fallback, and is scoped to the DB schema's role
+    /// column values (not free-form user input).
+    pub fn from_db_string(s: &str) -> Self {
         match s {
             "owner" => Self::Owner,
             "admin" => Self::Admin,
             "member" => Self::Member,
-            _ => Self::Viewer,
+            "viewer" => Self::Viewer,
+            unknown => {
+                tracing::warn!(
+                    role = unknown,
+                    "Unknown workspace role string — defaulting to Viewer. \
+                     Check `workspace_members.role` and the `valid_workspace_role` CHECK."
+                );
+                Self::Viewer
+            }
         }
     }
 

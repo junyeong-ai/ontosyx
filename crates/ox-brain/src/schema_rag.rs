@@ -202,7 +202,7 @@ pub(crate) fn build_progressive_schema(ontology: &OntologyIR, expanded_labels: &
     // Tier 1: Graph topology — edges between relevant nodes
     // Explicit labels help the LLM use EXACT edge names (critical in JSON mode)
     output.push_str("Graph edges (use EXACTLY these edge labels):\n");
-    for edge in &ontology.edge_types {
+    for edge in ontology.edge_types() {
         let src = ontology
             .node_label(edge.source_node_id.as_ref())
             .unwrap_or("?");
@@ -265,9 +265,8 @@ pub(crate) fn build_progressive_schema(ontology: &OntologyIR, expanded_labels: &
                 .iter()
                 .filter_map(|p| {
                     p.description
-                        .as_ref()
-                        .filter(|d| !d.is_empty())
-                        .map(|d| (p.name.as_str(), d.as_str()))
+                        .present()
+                        .map(|d| (p.name.as_str(), d))
                 })
                 .collect();
             // Rank by description length (descending) — longer = more informative
@@ -294,7 +293,7 @@ pub(crate) fn build_progressive_schema(ontology: &OntologyIR, expanded_labels: &
     }
 
     // Edge property details (enriched sample values for edge properties)
-    for edge in &ontology.edge_types {
+    for edge in ontology.edge_types() {
         let src = ontology
             .node_label(edge.source_node_id.as_ref())
             .unwrap_or("?");
@@ -307,8 +306,7 @@ pub(crate) fn build_progressive_schema(ontology: &OntologyIR, expanded_labels: &
                 .iter()
                 .filter_map(|p| {
                     p.description
-                        .as_deref()
-                        .filter(|d| !d.is_empty())
+                        .present()
                         .map(|d| (p.name.as_str(), d))
                 })
                 .collect();
@@ -358,10 +356,10 @@ fn format_property_type(pt: &ox_core::types::PropertyType) -> String {
 
 fn all_labels(ontology: &OntologyIR) -> Vec<String> {
     ontology
-        .node_types
+        .node_types()
         .iter()
         .map(|n| n.label.clone())
-        .chain(ontology.edge_types.iter().map(|e| e.label.clone()))
+        .chain(ontology.edge_types().iter().map(|e| e.label.clone()))
         .collect()
 }
 
@@ -370,9 +368,9 @@ fn all_labels(ontology: &OntologyIR) -> Vec<String> {
 /// - First MAX_SCHEMA_NODES nodes get full detail (properties + types)
 /// - Remaining nodes get label-only summary with edge connectivity
 fn fallback_compact_schema(ontology: &OntologyIR) -> String {
-    if ontology.node_types.len() <= MAX_SCHEMA_NODES {
+    if ontology.node_types().len() <= MAX_SCHEMA_NODES {
         let all_labels: Vec<&str> = ontology
-            .node_types
+            .node_types()
             .iter()
             .map(|n| n.label.as_str())
             .collect();
@@ -385,7 +383,7 @@ fn fallback_compact_schema(ontology: &OntologyIR) -> String {
         let mut summary =
             String::from("Schema (tiered — detailed nodes first, then labels-only):\n\n");
         summary.push_str("## Detailed Nodes\n");
-        for node in ontology.node_types.iter().take(MAX_SCHEMA_NODES) {
+        for node in ontology.node_types().iter().take(MAX_SCHEMA_NODES) {
             let props: Vec<String> = node
                 .properties
                 .iter()
@@ -401,12 +399,12 @@ fn fallback_compact_schema(ontology: &OntologyIR) -> String {
             summary.push_str(&format!("- {} [{}]\n", node.label, props.join(", ")));
         }
 
-        if ontology.node_types.len() > MAX_SCHEMA_NODES {
+        if ontology.node_types().len() > MAX_SCHEMA_NODES {
             summary.push_str(&format!(
                 "\n## Additional Nodes ({} labels-only)\n",
-                ontology.node_types.len() - MAX_SCHEMA_NODES
+                ontology.node_types().len() - MAX_SCHEMA_NODES
             ));
-            for node in ontology.node_types.iter().skip(MAX_SCHEMA_NODES) {
+            for node in ontology.node_types().iter().skip(MAX_SCHEMA_NODES) {
                 summary.push_str(&format!(
                     "- {} ({} props)\n",
                     node.label,
@@ -416,7 +414,7 @@ fn fallback_compact_schema(ontology: &OntologyIR) -> String {
         }
 
         summary.push_str("\n## Edges\n");
-        for edge in &ontology.edge_types {
+        for edge in ontology.edge_types() {
             let src = ontology
                 .node_label(edge.source_node_id.as_ref())
                 .unwrap_or("?");

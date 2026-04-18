@@ -399,10 +399,16 @@ pub async fn workspace_context(
         .cloned()
         .ok_or_else(|| AppError::unauthorized("Authentication required"))?;
 
-    // API key users: resolve workspace from X-Workspace-Id header.
-    // API keys have admin-level access, so any workspace is valid.
-    // No fallback — callers must explicitly specify which workspace to operate on.
-    if claims.sub.starts_with("system:") {
+    // Machine principals (system tasks and API keys) resolve workspace
+    // from the X-Workspace-Id header. They have admin-level access, so
+    // any workspace is valid. No fallback — callers must explicitly
+    // specify which workspace to operate on.
+    //
+    // IMPORTANT: check BOTH `system:` and `apikey:` prefixes via the
+    // shared helper. Phase 4.2 switched the API-key `sub` format to
+    // `apikey:<label>`; a bare `starts_with("system:")` here silently
+    // rejected every API-key caller with an opaque 401.
+    if crate::principal::is_machine_sub(&claims.sub) {
         let workspace_id = req
             .headers()
             .get("x-workspace-id")
@@ -488,7 +494,7 @@ pub async fn workspace_context(
 
     let ws_ctx = WorkspaceContext {
         workspace_id,
-        workspace_role: WorkspaceRole::from_str(&role),
+        workspace_role: WorkspaceRole::from_db_string(&role),
     };
 
     req.extensions_mut().insert(ws_ctx);

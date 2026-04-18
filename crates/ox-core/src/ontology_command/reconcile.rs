@@ -6,6 +6,7 @@ use crate::ontology_ir::*;
 
 use super::{OntologyCommand, PropertyPatch};
 
+use crate::i18n::LocalizedText;
 // ---------------------------------------------------------------------------
 // Reconcile — compare original ontology with LLM-refined output
 // ---------------------------------------------------------------------------
@@ -93,12 +94,13 @@ pub struct MatchDecision {
 /// Apply user decisions to a reconciled ontology.
 /// For rejected matches: revert the id assignment (generate new UUID).
 /// For accepted matches: keep the original id (already assigned by reconcile).
-/// Returns the finalized ontology.
+/// Returns the finalized ontology, or an invariant error if the remapping
+/// produced duplicate identifiers (a bug in the decision list, not user input).
 pub fn apply_match_decisions(
     mut ontology: OntologyIR,
     decisions: &[MatchDecision],
     uncertain_matches: &[UncertainMatch],
-) -> OntologyIR {
+) -> Result<OntologyIR, crate::ontology_ir::OntologyInvariantError> {
     for decision in decisions {
         if decision.accept {
             continue; // Already mapped to original_id by reconcile
@@ -199,8 +201,8 @@ pub fn apply_match_decisions(
             }
         }
     }
-    ontology.rebuild_indices();
-    ontology
+    ontology.rebuild_indices()?;
+    Ok(ontology)
 }
 
 /// Reconcile a refined ontology against the original.
@@ -210,7 +212,10 @@ pub fn apply_match_decisions(
 /// 2. Falls back to label/name matching for entities without matching ids
 /// 3. Generates a Batch command representing the diff
 /// 4. Reports confidence based on matching quality
-pub fn reconcile_refined(original: &OntologyIR, mut refined: OntologyIR) -> ReconcileResult {
+pub fn reconcile_refined(
+    original: &OntologyIR,
+    mut refined: OntologyIR,
+) -> Result<ReconcileResult, crate::ontology_ir::OntologyInvariantError> {
     let mut preserved = Vec::new();
     let mut generated = Vec::new();
     let mut uncertain = Vec::new();
@@ -437,12 +442,11 @@ pub fn reconcile_refined(original: &OntologyIR, mut refined: OntologyIR) -> Reco
                 id: ref_node.id.clone(),
                 label: ref_node.label.clone(),
                 description: ref_node.description.clone(),
-                source_table: ref_node.source_table.clone(),
             });
             for prop in &ref_node.properties {
                 commands.push(OntologyCommand::AddProperty {
                     owner: PropertyOwner::Node(ref_node.id.clone()),
-                    property: prop.clone(),
+                    property: Box::new(prop.clone()),
                 });
             }
             for constraint in &ref_node.constraints {
@@ -492,7 +496,7 @@ pub fn reconcile_refined(original: &OntologyIR, mut refined: OntologyIR) -> Reco
             for prop in &ref_edge.properties {
                 commands.push(OntologyCommand::AddProperty {
                     owner: PropertyOwner::Edge(ref_edge.id.clone()),
-                    property: prop.clone(),
+                    property: Box::new(prop.clone()),
                 });
             }
         }
@@ -518,9 +522,9 @@ pub fn reconcile_refined(original: &OntologyIR, mut refined: OntologyIR) -> Reco
     };
 
     // Rebuild indices after ID remapping
-    refined.rebuild_indices();
+    refined.rebuild_indices()?;
 
-    ReconcileResult {
+    Ok(ReconcileResult {
         ontology: refined,
         batch,
         report: ReconcileReport {
@@ -530,7 +534,7 @@ pub fn reconcile_refined(original: &OntologyIR, mut refined: OntologyIR) -> Reco
             deleted_entities: deleted,
             confidence,
         },
-    }
+    })
 }
 
 /// Match properties within entities that share the same id.
@@ -609,7 +613,7 @@ fn diff_properties(
                 property_type: None,
                 nullable: None,
                 default_value: None,
-                description: None,
+                description: Some(LocalizedText::default()),
             };
             let mut has_changes = false;
 
@@ -644,7 +648,7 @@ fn diff_properties(
         } else {
             commands.push(OntologyCommand::AddProperty {
                 owner: PropertyOwner::Node(owner_id.into()),
-                property: ref_prop.clone(),
+                property: Box::new(ref_prop.clone()),
             });
         }
     }
@@ -740,6 +744,7 @@ use super::index_id;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::i18n::LocalizedText;
     use crate::test_fixtures::{ontologies_equal, property, test_ontology};
 
     #[test]
@@ -747,7 +752,7 @@ mod tests {
         let original = test_ontology();
         let refined = original.clone();
 
-        let result = reconcile_refined(&original, refined);
+        let result = reconcile_refined(&original, refined).expect("reconcile succeeds on valid fixtures");
 
         // All entities preserved
         assert!(!result.report.preserved_ids.is_empty());
@@ -795,7 +800,7 @@ mod tests {
         refined.edge_types[0].target_node_id = "new-n2".into();
         refined.edge_types[0].properties[0].id = "new-ep1".into();
 
-        let result = reconcile_refined(&original, refined);
+        let result = reconcile_refined(&original, refined).expect("reconcile succeeds on valid fixtures");
 
         // Should have uncertain matches for nodes and properties
         assert!(!result.report.uncertain_matches.is_empty());
@@ -831,8 +836,7 @@ mod tests {
         refined.node_types.push(NodeTypeDef {
             id: "n3".into(),
             label: "Product".to_string(),
-            description: Some("A product".to_string()),
-            source_table: None,
+            description: LocalizedText::new("A product"),
             properties: vec![property("p4", "product_name")],
             constraints: vec![],
             ..Default::default()
@@ -840,7 +844,7 @@ mod tests {
         // Remove the edge that referenced n2
         refined.edge_types.clear();
 
-        let result = reconcile_refined(&original, refined);
+        let result = reconcile_refined(&original, refined).expect("reconcile succeeds on valid fixtures");
 
         // n2 should be deleted
         assert!(

@@ -2,7 +2,7 @@ use serde::Serialize;
 use utoipa::openapi::security::{ApiKey, ApiKeyValue, SecurityScheme};
 use utoipa::{Modify, OpenApi, ToSchema};
 
-use crate::routes::{chat, config, health, load, ontology, perspectives, pins, query};
+use crate::routes::{chat, config, health, load, ontology, perspectives, pins, prompts_admin, query};
 
 // Module aliases for utoipa path resolution — utoipa generates hidden __path_*
 // structs in the module where #[utoipa::path] is applied, so we must reference
@@ -90,6 +90,7 @@ impl Modify for SecurityAddon {
         (name = "Config", description = "System configuration"),
         (name = "Load", description = "Data loading into graph database"),
         (name = "System", description = "System administration"),
+        (name = "Admin", description = "Platform administration (admin role required)"),
     ),
     paths(
         // Health
@@ -151,6 +152,12 @@ impl Modify for SecurityAddon {
         load::plan_load,
         load::execute_load,
         load::list_prompts,
+        // Admin — prompt template CRUD
+        prompts_admin::list_prompt_templates,
+        prompts_admin::get_prompt_template,
+        prompts_admin::create_prompt_template,
+        prompts_admin::update_prompt_template,
+        prompts_admin::delete_prompt_template,
     ),
     components(
         schemas(
@@ -205,6 +212,10 @@ impl Modify for SecurityAddon {
             load::PromptInfo,
             // Revisions
             project_revisions::ProjectRestoreResponse,
+            // Admin — prompt templates
+            prompts_admin::PromptCreateRequest,
+            prompts_admin::PromptUpdateRequest,
+            PromptTemplateRow,
             // Store models
             CursorParams,
             DesignProject,
@@ -395,4 +406,25 @@ pub struct OntologySnapshotSummary {
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub node_count: i64,
     pub edge_count: i64,
+}
+
+/// Prompt template row (admin-only — wired by `routes/prompts_admin.rs`).
+///
+/// `version` is the semver string (e.g. `1.2.3`). `workspace_id = null`
+/// means the template is global; a concrete uuid scopes it to one
+/// workspace (used by the `/api/admin/prompts` workspace-override flow).
+#[derive(ToSchema)]
+#[schema(as = PromptTemplateRow)]
+#[allow(dead_code)]
+pub struct PromptTemplateRow {
+    pub id: uuid::Uuid,
+    pub name: String,
+    pub version: String,
+    pub content: String,
+    pub variables: serde_json::Value,
+    pub metadata: serde_json::Value,
+    pub created_by: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub is_active: bool,
+    pub workspace_id: Option<uuid::Uuid>,
 }

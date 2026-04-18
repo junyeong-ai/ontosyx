@@ -24,7 +24,7 @@ pub fn generate_shacl(ontology: &OntologyIR) -> String {
     out.push('\n');
 
     // --- Node Shapes ---
-    for node in &ontology.node_types {
+    for node in ontology.node_types() {
         let class_name = local_name(&node.label);
         let shape_name = format!("{class_name}Shape");
 
@@ -60,14 +60,14 @@ pub fn generate_shacl(ontology: &OntologyIR) -> String {
             "    rdfs:label {} ;\n",
             turtle_literal(&format!("{} shape", node.label)),
         ));
-        if let Some(desc) = &node.description {
+        if let Some(desc) = node.description.present() {
             out.push_str(&format!("    rdfs:comment {} ;\n", turtle_literal(desc)));
         }
 
         // --- Property shapes for node properties ---
         let has_props = !node.properties.is_empty();
         let edges_for_node: Vec<_> = ontology
-            .edge_types
+            .edge_types()
             .iter()
             .filter(|e| e.source_node_id == node.id)
             .collect();
@@ -89,7 +89,7 @@ pub fn generate_shacl(ontology: &OntologyIR) -> String {
                 "        sh:name {} ;\n",
                 turtle_literal(&prop.name),
             ));
-            if let Some(desc) = &prop.description {
+            if let Some(desc) = prop.description.present() {
                 out.push_str(&format!(
                     "        sh:description {} ;\n",
                     turtle_literal(desc),
@@ -126,7 +126,7 @@ pub fn generate_shacl(ontology: &OntologyIR) -> String {
                 "        sh:name {} ;\n",
                 turtle_literal(&edge.label),
             ));
-            if let Some(desc) = &edge.description {
+            if let Some(desc) = edge.description.present() {
                 out.push_str(&format!(
                     "        sh:description {} ;\n",
                     turtle_literal(desc),
@@ -243,6 +243,7 @@ fn uri_encode(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ox_core::LocalizedText;
     use ox_core::ontology_ir::{
         Cardinality, ConstraintDef, EdgeTypeDef, NodeConstraint, NodeTypeDef, OntologyIR,
         PropertyDef,
@@ -253,14 +254,13 @@ mod tests {
         OntologyIR::new(
             "test-id".into(),
             "Cosmetics".into(),
-            Some("Korean cosmetics ontology".into()),
+            LocalizedText::new("Korean cosmetics ontology"),
             1,
             vec![
                 NodeTypeDef {
                     id: "n1".into(),
                     label: "Brand".into(),
-                    description: Some("Cosmetic brand entity".into()),
-                    source_table: None,
+                    description: LocalizedText::new("Cosmetic brand entity"),
                     properties: vec![
                         PropertyDef {
                             id: "p1".into(),
@@ -268,7 +268,7 @@ mod tests {
                             property_type: PropertyType::String,
                             nullable: false,
                             default_value: None,
-                            description: Some("Brand name in Korean".into()),
+                            description: LocalizedText::new("Brand name in Korean"),
                             classification: None,
                             ..Default::default()
                         },
@@ -278,7 +278,7 @@ mod tests {
                             property_type: PropertyType::Int,
                             nullable: true,
                             default_value: None,
-                            description: None,
+                            description: LocalizedText::default(),
                             classification: None,
                             ..Default::default()
                         },
@@ -294,15 +294,14 @@ mod tests {
                 NodeTypeDef {
                     id: "n2".into(),
                     label: "Product".into(),
-                    description: Some("A cosmetic product".into()),
-                    source_table: None,
+                    description: LocalizedText::new("A cosmetic product"),
                     properties: vec![PropertyDef {
                         id: "p3".into(),
                         name: "price".into(),
                         property_type: PropertyType::Float,
                         nullable: false,
                         default_value: None,
-                        description: None,
+                        description: LocalizedText::default(),
                         classification: None,
                         ..Default::default()
                     }],
@@ -313,7 +312,7 @@ mod tests {
             vec![EdgeTypeDef {
                 id: "e1".into(),
                 label: "MANUFACTURED_BY".into(),
-                description: Some("Product manufactured by brand".into()),
+                description: LocalizedText::new("Product manufactured by brand"),
                 source_node_id: "n2".into(),
                 target_node_id: "n1".into(),
                 properties: vec![],
@@ -374,20 +373,19 @@ mod tests {
         let ontology = OntologyIR::new(
             "nk-test".into(),
             "NodeKeyTest".into(),
-            None,
+            LocalizedText::default(),
             1,
             vec![NodeTypeDef {
                 id: "n1".into(),
                 label: "Entity".into(),
-                description: None,
-                source_table: None,
+                description: LocalizedText::default(),
                 properties: vec![PropertyDef {
                     id: "p1".into(),
                     name: "code".into(),
                     property_type: PropertyType::String,
                     nullable: true, // nullable but NodeKey should force minCount 1
                     default_value: None,
-                    description: None,
+                    description: LocalizedText::default(),
                     classification: None,
                     ..Default::default()
                 }],
@@ -457,7 +455,7 @@ mod tests {
         let ontology = OntologyIR::new(
             "empty".into(),
             "Empty".into(),
-            None,
+            LocalizedText::default(),
             1,
             vec![],
             vec![],
@@ -494,14 +492,13 @@ mod tests {
         let ontology = OntologyIR::new(
             "mm-test".into(),
             "ManyManyTest".into(),
-            None,
+            LocalizedText::default(),
             1,
             vec![
                 NodeTypeDef {
                     id: "n1".into(),
                     label: "A".into(),
-                    description: None,
-                    source_table: None,
+                    description: LocalizedText::default(),
                     properties: vec![],
                     constraints: vec![],
                     ..Default::default()
@@ -509,8 +506,7 @@ mod tests {
                 NodeTypeDef {
                     id: "n2".into(),
                     label: "B".into(),
-                    description: None,
-                    source_table: None,
+                    description: LocalizedText::default(),
                     properties: vec![],
                     constraints: vec![],
                     ..Default::default()
@@ -519,7 +515,7 @@ mod tests {
             vec![EdgeTypeDef {
                 id: "e1".into(),
                 label: "RELATES_TO".into(),
-                description: None,
+                description: LocalizedText::default(),
                 source_node_id: "n1".into(),
                 target_node_id: "n2".into(),
                 properties: vec![],
@@ -541,14 +537,13 @@ mod tests {
         let ontology = OntologyIR::new(
             "otm-test".into(),
             "OneToManyTest".into(),
-            None,
+            LocalizedText::default(),
             1,
             vec![
                 NodeTypeDef {
                     id: "n1".into(),
                     label: "Parent".into(),
-                    description: None,
-                    source_table: None,
+                    description: LocalizedText::default(),
                     properties: vec![],
                     constraints: vec![],
                     ..Default::default()
@@ -556,8 +551,7 @@ mod tests {
                 NodeTypeDef {
                     id: "n2".into(),
                     label: "Child".into(),
-                    description: None,
-                    source_table: None,
+                    description: LocalizedText::default(),
                     properties: vec![],
                     constraints: vec![],
                     ..Default::default()
@@ -566,7 +560,7 @@ mod tests {
             vec![EdgeTypeDef {
                 id: "e1".into(),
                 label: "HAS_CHILD".into(),
-                description: None,
+                description: LocalizedText::default(),
                 source_node_id: "n1".into(),
                 target_node_id: "n2".into(),
                 properties: vec![],

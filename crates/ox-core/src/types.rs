@@ -179,12 +179,6 @@ pub trait PropertyTyper: Send + Sync {
     /// case-insensitive and tolerate precision suffixes such as
     /// `varchar(255)` or `numeric(10,2)`.
     fn map_type(&self, raw_db_type: &str) -> Option<PropertyType>;
-
-    /// Optional alternative interpretations for ambiguous types, used to
-    /// surface design suggestions in the UI. Default: empty.
-    fn ambiguous_suggestions(&self, _raw_db_type: &str) -> Vec<PropertyType> {
-        Vec::new()
-    }
 }
 
 /// Default dialect-agnostic typer. Recognises common SQL/PG/MySQL/Mongo
@@ -489,30 +483,6 @@ pub enum Direction {
     Outgoing,
     Incoming,
     Both,
-}
-
-// ---------------------------------------------------------------------------
-// CompilationTarget — which graph DB backend to target
-// ---------------------------------------------------------------------------
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum CompilationTarget {
-    Cypher,
-    OpenCypher,
-    Gql,
-    Gremlin,
-}
-
-impl std::fmt::Display for CompilationTarget {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Cypher => write!(f, "Cypher (Neo4j)"),
-            Self::OpenCypher => write!(f, "openCypher (Neptune)"),
-            Self::Gql => write!(f, "GQL (ISO)"),
-            Self::Gremlin => write!(f, "Gremlin"),
-        }
-    }
 }
 
 // ---------------------------------------------------------------------------

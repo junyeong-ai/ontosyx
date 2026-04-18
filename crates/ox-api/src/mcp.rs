@@ -7,6 +7,7 @@ use tracing::{info, warn};
 
 use ox_brain::Brain;
 use ox_compiler::GraphCompiler;
+use ox_core::LocalizedText;
 use ox_core::ontology_ir::OntologyIR;
 use ox_core::types::PropertyValue;
 use ox_runtime::GraphRuntime;
@@ -274,7 +275,7 @@ struct ListOntologiesResponse {
 #[derive(Serialize)]
 struct NodeSummary {
     label: String,
-    description: Option<String>,
+    description: LocalizedText,
     properties: Vec<PropertySummary>,
     constraints: Vec<String>,
 }
@@ -284,13 +285,13 @@ struct PropertySummary {
     name: String,
     property_type: String,
     nullable: bool,
-    description: Option<String>,
+    description: LocalizedText,
 }
 
 #[derive(Serialize)]
 struct EdgeSummary {
     label: String,
-    description: Option<String>,
+    description: LocalizedText,
     source: String,
     target: String,
     cardinality: String,
@@ -299,7 +300,7 @@ struct EdgeSummary {
 #[derive(Serialize)]
 struct DescribeOntologyResponse {
     name: String,
-    description: Option<String>,
+    description: LocalizedText,
     version: u32,
     nodes: Vec<NodeSummary>,
     edges: Vec<EdgeSummary>,
@@ -707,7 +708,7 @@ impl OntosyxMcpServer {
         let ontology = load_ontology(self.store.as_ref(), &params.ontology_name).await?;
 
         let nodes: Vec<NodeSummary> = ontology
-            .node_types
+            .node_types()
             .iter()
             .map(|n| {
                 let properties = n
@@ -737,7 +738,7 @@ impl OntosyxMcpServer {
             .collect();
 
         let edges: Vec<EdgeSummary> = ontology
-            .edge_types
+            .edge_types()
             .iter()
             .map(|e| {
                 let source = ontology

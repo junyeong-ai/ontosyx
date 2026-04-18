@@ -494,7 +494,7 @@ fn extract_ontology_input(triples: &[OwnedTriple]) -> OxResult<OntologyInputIR> 
                             .unwrap_or(PropertyType::String),
                         nullable: true,
                         default_value: None,
-                        description: dp.description.clone(),
+                        description: dp.description.clone().into(),
                         source_column: None,
                     };
                     edge_property_map
@@ -570,7 +570,7 @@ fn extract_ontology_input(triples: &[OwnedTriple]) -> OxResult<OntologyInputIR> 
                         .unwrap_or(PropertyType::String),
                     nullable: true,
                     default_value: None,
-                    description: dp.description.clone(),
+                    description: dp.description.clone().into(),
                     source_column: None,
                 });
 
@@ -586,7 +586,7 @@ fn extract_ontology_input(triples: &[OwnedTriple]) -> OxResult<OntologyInputIR> 
         node_types.push(InputNodeTypeDef {
             id: None,
             label,
-            description: class_info.description.clone(),
+            description: class_info.description.clone().into(),
             source_table: None,
             properties,
             constraints,
@@ -654,7 +654,7 @@ fn extract_ontology_input(triples: &[OwnedTriple]) -> OxResult<OntologyInputIR> 
         edge_types.push(InputEdgeTypeDef {
             id: None,
             label,
-            description: op.description.clone(),
+            description: op.description.clone().into(),
             source_type: source_label,
             target_type: target_label,
             properties: edge_props,
@@ -675,7 +675,7 @@ fn extract_ontology_input(triples: &[OwnedTriple]) -> OxResult<OntologyInputIR> 
         format_version: 1,
         id: None,
         name,
-        description: ontology_description,
+        description: ontology_description.into(),
         version: 1,
         node_types,
         edge_types,
@@ -731,6 +731,7 @@ fn xsd_to_property_type(xsd_iri: &str) -> PropertyType {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ox_core::LocalizedText;
     use ox_core::ontology_ir::{
         Cardinality, ConstraintDef, EdgeTypeDef, NodeConstraint, NodeTypeDef, OntologyIR,
         PropertyDef,
@@ -748,14 +749,13 @@ mod tests {
         OntologyIR::new(
             "test-id".into(),
             "Cosmetics".into(),
-            Some("Korean cosmetics ontology".into()),
+            LocalizedText::new("Korean cosmetics ontology"),
             1,
             vec![
                 NodeTypeDef {
                     id: "n1".into(),
                     label: "Brand".into(),
-                    description: Some("Cosmetic brand entity".into()),
-                    source_table: None,
+                    description: LocalizedText::new("Cosmetic brand entity"),
                     properties: vec![
                         PropertyDef {
                             id: "p1".into(),
@@ -763,7 +763,7 @@ mod tests {
                             property_type: PropertyType::String,
                             nullable: false,
                             default_value: None,
-                            description: Some("Brand name in Korean".into()),
+                            description: LocalizedText::new("Brand name in Korean"),
                             classification: None,
                             ..Default::default()
                         },
@@ -773,7 +773,7 @@ mod tests {
                             property_type: PropertyType::Int,
                             nullable: true,
                             default_value: None,
-                            description: None,
+                            description: LocalizedText::default(),
                             classification: None,
                             ..Default::default()
                         },
@@ -789,15 +789,14 @@ mod tests {
                 NodeTypeDef {
                     id: "n2".into(),
                     label: "Product".into(),
-                    description: Some("A cosmetic product".into()),
-                    source_table: None,
+                    description: LocalizedText::new("A cosmetic product"),
                     properties: vec![PropertyDef {
                         id: "p3".into(),
                         name: "price".into(),
                         property_type: PropertyType::Float,
                         nullable: false,
                         default_value: None,
-                        description: None,
+                        description: LocalizedText::default(),
                         classification: None,
                         ..Default::default()
                     }],
@@ -808,7 +807,7 @@ mod tests {
             vec![EdgeTypeDef {
                 id: "e1".into(),
                 label: "MANUFACTURED_BY".into(),
-                description: Some("Product manufactured by brand".into()),
+                description: LocalizedText::new("Product manufactured by brand"),
                 source_node_id: "n2".into(),
                 target_node_id: "n1".into(),
                 properties: vec![],
@@ -836,11 +835,11 @@ mod tests {
 
         let result = parse_owl_turtle(turtle).unwrap();
         assert_eq!(result.name, "Test");
-        assert_eq!(result.node_types.len(), 1);
-        assert_eq!(result.node_types[0].label, "Person");
+        assert_eq!(result.node_types().len(), 1);
+        assert_eq!(result.node_types()[0].label, "Person");
         assert_eq!(
-            result.node_types[0].description,
-            Some("A human being".to_string())
+            result.node_types()[0].description,
+            LocalizedText::new("A human being")
         );
     }
 
@@ -868,7 +867,7 @@ mod tests {
         "#;
 
         let result = parse_owl_turtle(turtle).unwrap();
-        let person = &result.node_types[0];
+        let person = &result.node_types()[0];
         assert_eq!(person.properties.len(), 2);
 
         let name_prop = person.properties.iter().find(|p| p.name == "name").unwrap();
@@ -898,13 +897,13 @@ mod tests {
         "#;
 
         let result = parse_owl_turtle(turtle).unwrap();
-        assert_eq!(result.edge_types.len(), 1);
+        assert_eq!(result.edge_types().len(), 1);
 
-        let edge = &result.edge_types[0];
+        let edge = &result.edge_types()[0];
         assert_eq!(edge.label, "WORKS_FOR");
         assert_eq!(
             edge.description,
-            Some("Employment relationship".to_string())
+            LocalizedText::new("Employment relationship")
         );
 
         // Source should be Person, target should be Company
@@ -933,7 +932,7 @@ mod tests {
         "#;
 
         let result = parse_owl_turtle(turtle).unwrap();
-        let person = &result.node_types[0];
+        let person = &result.node_types()[0];
 
         // Should have a Unique constraint on "email"
         assert!(person.has_unique_constraint());
@@ -983,7 +982,7 @@ mod tests {
         "#;
 
         let result = parse_owl_turtle(turtle).unwrap();
-        let edge = &result.edge_types[0];
+        let edge = &result.edge_types()[0];
         assert_eq!(edge.cardinality, Cardinality::ManyToOne);
     }
 
@@ -1034,21 +1033,21 @@ mod tests {
         assert_eq!(result.name, "E-Commerce");
         assert_eq!(
             result.description,
-            Some("Online store ontology".to_string())
+            LocalizedText::new("Online store ontology")
         );
-        assert_eq!(result.node_types.len(), 3);
-        assert_eq!(result.edge_types.len(), 2);
+        assert_eq!(result.node_types().len(), 3);
+        assert_eq!(result.edge_types().len(), 2);
 
         // Verify each class has its property
         let customer = result
-            .node_types
+            .node_types()
             .iter()
             .find(|n| n.label == "Customer")
             .unwrap();
         assert!(customer.properties.iter().any(|p| p.name == "email"));
 
         let product = result
-            .node_types
+            .node_types()
             .iter()
             .find(|n| n.label == "Product")
             .unwrap();
@@ -1060,7 +1059,7 @@ mod tests {
         );
 
         let order = result
-            .node_types
+            .node_types()
             .iter()
             .find(|n| n.label == "Order")
             .unwrap();
@@ -1114,13 +1113,13 @@ mod tests {
         // Structure should be equivalent
         assert_eq!(imported.name, original.name);
         assert_eq!(imported.description, original.description);
-        assert_eq!(imported.node_types.len(), original.node_types.len());
-        assert_eq!(imported.edge_types.len(), original.edge_types.len());
+        assert_eq!(imported.node_types().len(), original.node_types().len());
+        assert_eq!(imported.edge_types().len(), original.edge_types().len());
 
         // Check each node type
-        for orig_node in &original.node_types {
+        for orig_node in original.node_types() {
             let imp_node = imported
-                .node_types
+                .node_types()
                 .iter()
                 .find(|n| n.label == orig_node.label)
                 .unwrap_or_else(|| panic!("Missing node type: {}", orig_node.label));
@@ -1141,9 +1140,9 @@ mod tests {
         }
 
         // Check edge types
-        for orig_edge in &original.edge_types {
+        for orig_edge in original.edge_types() {
             let imp_edge = imported
-                .edge_types
+                .edge_types()
                 .iter()
                 .find(|e| e.label == orig_edge.label)
                 .unwrap_or_else(|| panic!("Missing edge type: {}", orig_edge.label));
@@ -1163,7 +1162,7 @@ mod tests {
 
         // Check unique constraint survived roundtrip
         let brand = imported
-            .node_types
+            .node_types()
             .iter()
             .find(|n| n.label == "Brand")
             .unwrap();
@@ -1194,10 +1193,10 @@ mod tests {
 
         let result = parse_owl_turtle(turtle).unwrap();
         // orphanProp should be skipped (no domain)
-        let thing = &result.node_types[0];
+        let thing = &result.node_types()[0];
         assert!(thing.properties.is_empty());
         // orphanEdge should be skipped (no range)
-        assert!(result.edge_types.is_empty());
+        assert!(result.edge_types().is_empty());
     }
 
     #[test]
@@ -1242,7 +1241,7 @@ mod tests {
         "#;
 
         let result = parse_owl_turtle(turtle).unwrap();
-        assert_eq!(result.node_types[0].label, "MyClass");
+        assert_eq!(result.node_types()[0].label, "MyClass");
     }
 
     #[test]
@@ -1264,7 +1263,7 @@ mod tests {
         "#;
 
         let result = parse_owl_turtle(turtle).unwrap();
-        assert_eq!(result.edge_types[0].cardinality, Cardinality::ManyToMany);
+        assert_eq!(result.edge_types()[0].cardinality, Cardinality::ManyToMany);
     }
 
     #[test]
@@ -1273,14 +1272,13 @@ mod tests {
         let ontology = OntologyIR::new(
             "test".into(),
             "Test".into(),
-            None,
+            LocalizedText::default(),
             1,
             vec![
                 NodeTypeDef {
                     id: "n1".into(),
                     label: "Person".into(),
-                    description: None,
-                    source_table: None,
+                    description: LocalizedText::default(),
                     properties: vec![],
                     constraints: vec![],
                     ..Default::default()
@@ -1288,8 +1286,7 @@ mod tests {
                 NodeTypeDef {
                     id: "n2".into(),
                     label: "Company".into(),
-                    description: None,
-                    source_table: None,
+                    description: LocalizedText::default(),
                     properties: vec![],
                     constraints: vec![],
                     ..Default::default()
@@ -1298,7 +1295,7 @@ mod tests {
             vec![EdgeTypeDef {
                 id: "e1".into(),
                 label: "WORKS_AT".into(),
-                description: None,
+                description: LocalizedText::default(),
                 source_node_id: "n1".into(),
                 target_node_id: "n2".into(),
                 properties: vec![PropertyDef {
@@ -1307,7 +1304,7 @@ mod tests {
                     property_type: PropertyType::Date,
                     nullable: true,
                     default_value: None,
-                    description: None,
+                    description: LocalizedText::default(),
                     classification: None,
                     ..Default::default()
                 }],
@@ -1321,7 +1318,7 @@ mod tests {
 
         // Edge properties should survive roundtrip
         let edge = imported
-            .edge_types
+            .edge_types()
             .iter()
             .find(|e| e.label == "WORKS_AT")
             .unwrap();

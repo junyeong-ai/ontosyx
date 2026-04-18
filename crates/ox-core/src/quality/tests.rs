@@ -1,4 +1,5 @@
 use super::*;
+use crate::i18n::LocalizedText;
 use crate::ontology_ir::{Cardinality, EdgeTypeDef, NodeTypeDef, OntologyIR, PropertyDef};
 use crate::source_mapping::SourceMapping;
 use crate::source_schema::{
@@ -20,7 +21,7 @@ fn property_typed(name: &str, property_type: PropertyType) -> PropertyDef {
         property_type,
         nullable: false,
         default_value: None,
-        description: Some("desc".to_string()),
+        description: LocalizedText::new("desc"),
         classification: None,
     ..Default::default()
     }
@@ -39,13 +40,12 @@ fn flags_unmapped_tables_and_missing_edges() {
     let ontology = OntologyIR::new(
         "onto".to_string(),
         "Test".to_string(),
-        None,
+        LocalizedText::default(),
         1,
         vec![NodeTypeDef {
             id: "node-user".into(),
             label: "User".to_string(),
-            description: Some("users".to_string()),
-            source_table: None,
+            description: LocalizedText::new("users"),
             properties: vec![property("id")],
             constraints: vec![],
             ..Default::default()
@@ -120,14 +120,13 @@ fn flags_missing_fk_edge_when_both_tables_mapped() {
     let ontology = OntologyIR::new(
         "onto".to_string(),
         "Test".to_string(),
-        None,
+        LocalizedText::default(),
         1,
         vec![
             NodeTypeDef {
                 id: "node-user".into(),
                 label: "User".to_string(),
-                description: Some("desc".to_string()),
-                source_table: None,
+                description: LocalizedText::new("desc"),
                 properties: vec![property("id")],
                 constraints: vec![],
                 ..Default::default()
@@ -135,8 +134,7 @@ fn flags_missing_fk_edge_when_both_tables_mapped() {
             NodeTypeDef {
                 id: "node-order".into(),
                 label: "Order".to_string(),
-                description: Some("desc".to_string()),
-                source_table: None,
+                description: LocalizedText::new("desc"),
                 properties: vec![property("id")],
                 constraints: vec![],
                 ..Default::default()
@@ -195,13 +193,12 @@ fn skips_excluded_tables_from_coverage_checks() {
     let ontology = OntologyIR::new(
         "onto".to_string(),
         "Test".to_string(),
-        None,
+        LocalizedText::default(),
         1,
         vec![NodeTypeDef {
             id: "node-user".into(),
             label: "User".to_string(),
-            description: Some("users".to_string()),
-            source_table: None,
+            description: LocalizedText::new("users"),
             properties: vec![property("id")],
             constraints: vec![],
             ..Default::default()
@@ -209,7 +206,7 @@ fn skips_excluded_tables_from_coverage_checks() {
         vec![EdgeTypeDef {
             id: "edge-belongs-to".into(),
             label: "BELONGS_TO".to_string(),
-            description: Some("edge".to_string()),
+            description: LocalizedText::new("edge"),
             source_node_id: "node-order".into(),
             target_node_id: "node-user".into(),
             properties: vec![],
@@ -264,13 +261,12 @@ fn column_clarifications_suppress_data_observation_gaps() {
     let ontology = OntologyIR::new(
         "onto".to_string(),
         "Test".to_string(),
-        None,
+        LocalizedText::default(),
         1,
         vec![NodeTypeDef {
             id: "node-store".into(),
             label: "Store".to_string(),
-            description: Some("stores".to_string()),
-            source_table: None,
+            description: LocalizedText::new("stores"),
             properties: vec![property("id"), property("type_code"), property("status")],
             constraints: vec![],
             ..Default::default()
@@ -388,14 +384,13 @@ fn junction_table_not_flagged_as_unmapped() {
     let ontology = OntologyIR::new(
         "onto".to_string(),
         "Test".to_string(),
-        None,
+        LocalizedText::default(),
         1,
         vec![
             NodeTypeDef {
                 id: "node-order".into(),
                 label: "Order".to_string(),
-                description: Some("desc".to_string()),
-                source_table: None,
+                description: LocalizedText::new("desc"),
                 properties: vec![property("id")],
                 constraints: vec![],
                 ..Default::default()
@@ -403,8 +398,7 @@ fn junction_table_not_flagged_as_unmapped() {
             NodeTypeDef {
                 id: "node-product".into(),
                 label: "Product".to_string(),
-                description: Some("desc".to_string()),
-                source_table: None,
+                description: LocalizedText::new("desc"),
                 properties: vec![property("id")],
                 constraints: vec![],
                 ..Default::default()
@@ -413,7 +407,7 @@ fn junction_table_not_flagged_as_unmapped() {
         vec![EdgeTypeDef {
             id: "edge-contains".into(),
             label: "CONTAINS".to_string(),
-            description: Some("order contains product".to_string()),
+            description: LocalizedText::new("order contains product"),
             source_node_id: "node-order".into(),
             target_node_id: "node-product".into(),
             properties: vec![],
@@ -514,14 +508,13 @@ fn flags_orphan_node_with_no_edges() {
     let ontology = OntologyIR::new(
         "onto".to_string(),
         "Test".to_string(),
-        None,
+        LocalizedText::default(),
         1,
         vec![
             NodeTypeDef {
                 id: "node-user".into(),
                 label: "User".to_string(),
-                description: Some("desc".to_string()),
-                source_table: None,
+                description: LocalizedText::new("desc"),
                 properties: vec![property("id")],
                 constraints: vec![],
                 ..Default::default()
@@ -529,8 +522,7 @@ fn flags_orphan_node_with_no_edges() {
             NodeTypeDef {
                 id: "node-product".into(),
                 label: "Product".to_string(),
-                description: Some("desc".to_string()),
-                source_table: None,
+                description: LocalizedText::new("desc"),
                 properties: vec![property("id")],
                 constraints: vec![],
                 ..Default::default()
@@ -540,7 +532,7 @@ fn flags_orphan_node_with_no_edges() {
         vec![EdgeTypeDef {
             id: "edge-self".into(),
             label: "KNOWS".to_string(),
-            description: Some("desc".to_string()),
+            description: LocalizedText::new("desc"),
             source_node_id: "node-user".into(),
             target_node_id: "node-user".into(),
             properties: vec![],
@@ -565,14 +557,13 @@ fn no_orphan_when_all_nodes_connected() {
     let ontology = OntologyIR::new(
         "onto".to_string(),
         "Test".to_string(),
-        None,
+        LocalizedText::default(),
         1,
         vec![
             NodeTypeDef {
                 id: "node-user".into(),
                 label: "User".to_string(),
-                description: Some("desc".to_string()),
-                source_table: None,
+                description: LocalizedText::new("desc"),
                 properties: vec![property("id")],
                 constraints: vec![],
                 ..Default::default()
@@ -580,8 +571,7 @@ fn no_orphan_when_all_nodes_connected() {
             NodeTypeDef {
                 id: "node-order".into(),
                 label: "Order".to_string(),
-                description: Some("desc".to_string()),
-                source_table: None,
+                description: LocalizedText::new("desc"),
                 properties: vec![property("id")],
                 constraints: vec![],
                 ..Default::default()
@@ -590,7 +580,7 @@ fn no_orphan_when_all_nodes_connected() {
         vec![EdgeTypeDef {
             id: "edge-placed".into(),
             label: "PLACED".to_string(),
-            description: Some("desc".to_string()),
+            description: LocalizedText::new("desc"),
             source_node_id: "node-user".into(),
             target_node_id: "node-order".into(),
             properties: vec![],
@@ -615,13 +605,12 @@ fn no_orphan_when_single_node() {
     let ontology = OntologyIR::new(
         "onto".to_string(),
         "Test".to_string(),
-        None,
+        LocalizedText::default(),
         1,
         vec![NodeTypeDef {
             id: "node-user".into(),
             label: "User".to_string(),
-            description: Some("desc".to_string()),
-            source_table: None,
+            description: LocalizedText::new("desc"),
             properties: vec![property("id")],
             constraints: vec![],
             ..Default::default()
@@ -649,14 +638,13 @@ fn flags_property_type_inconsistency() {
     let ontology = OntologyIR::new(
         "onto".to_string(),
         "Test".to_string(),
-        None,
+        LocalizedText::default(),
         1,
         vec![
             NodeTypeDef {
                 id: "node-customer".into(),
                 label: "Customer".to_string(),
-                description: Some("desc".to_string()),
-                source_table: None,
+                description: LocalizedText::new("desc"),
                 properties: vec![
                     property("id"),
                     property_typed("email", PropertyType::String),
@@ -667,8 +655,7 @@ fn flags_property_type_inconsistency() {
             NodeTypeDef {
                 id: "node-supplier".into(),
                 label: "Supplier".to_string(),
-                description: Some("desc".to_string()),
-                source_table: None,
+                description: LocalizedText::new("desc"),
                 properties: vec![
                     property("id"),
                     property_typed("email", PropertyType::Int), // inconsistent type
@@ -680,7 +667,7 @@ fn flags_property_type_inconsistency() {
         vec![EdgeTypeDef {
             id: "edge-supplies".into(),
             label: "SUPPLIES".to_string(),
-            description: Some("desc".to_string()),
+            description: LocalizedText::new("desc"),
             source_node_id: "node-supplier".into(),
             target_node_id: "node-customer".into(),
             properties: vec![],
@@ -705,14 +692,13 @@ fn no_property_type_inconsistency_when_same_type() {
     let ontology = OntologyIR::new(
         "onto".to_string(),
         "Test".to_string(),
-        None,
+        LocalizedText::default(),
         1,
         vec![
             NodeTypeDef {
                 id: "node-customer".into(),
                 label: "Customer".to_string(),
-                description: Some("desc".to_string()),
-                source_table: None,
+                description: LocalizedText::new("desc"),
                 properties: vec![
                     property("id"),
                     property_typed("email", PropertyType::String),
@@ -723,8 +709,7 @@ fn no_property_type_inconsistency_when_same_type() {
             NodeTypeDef {
                 id: "node-supplier".into(),
                 label: "Supplier".to_string(),
-                description: Some("desc".to_string()),
-                source_table: None,
+                description: LocalizedText::new("desc"),
                 properties: vec![
                     property("id"),
                     property_typed("email", PropertyType::String), // same type
@@ -736,7 +721,7 @@ fn no_property_type_inconsistency_when_same_type() {
         vec![EdgeTypeDef {
             id: "edge-supplies".into(),
             label: "SUPPLIES".to_string(),
-            description: Some("desc".to_string()),
+            description: LocalizedText::new("desc"),
             source_node_id: "node-supplier".into(),
             target_node_id: "node-customer".into(),
             properties: vec![],
@@ -766,8 +751,7 @@ fn flags_hub_node_with_many_edges() {
     let mut nodes = vec![NodeTypeDef {
         id: "node-center".into(),
         label: "Center".to_string(),
-        description: Some("desc".to_string()),
-        source_table: None,
+        description: LocalizedText::new("desc"),
         properties: vec![property("id")],
         constraints: vec![],
         ..Default::default()
@@ -779,8 +763,7 @@ fn flags_hub_node_with_many_edges() {
         nodes.push(NodeTypeDef {
             id: node_id.clone().into(),
             label: format!("Satellite{i}"),
-            description: Some("desc".to_string()),
-            source_table: None,
+            description: LocalizedText::new("desc"),
             properties: vec![property("id")],
             constraints: vec![],
             ..Default::default()
@@ -788,7 +771,7 @@ fn flags_hub_node_with_many_edges() {
         edges.push(EdgeTypeDef {
             id: format!("edge-{i}").into(),
             label: format!("REL_{i}"),
-            description: Some("desc".to_string()),
+            description: LocalizedText::new("desc"),
             source_node_id: "node-center".into(),
             target_node_id: node_id.into(),
             properties: vec![],
@@ -800,7 +783,7 @@ fn flags_hub_node_with_many_edges() {
     let ontology = OntologyIR::new(
         "onto".to_string(),
         "Test".to_string(),
-        None,
+        LocalizedText::default(),
         1,
         nodes,
         edges,
@@ -822,14 +805,13 @@ fn no_hub_node_under_threshold() {
     let ontology = OntologyIR::new(
         "onto".to_string(),
         "Test".to_string(),
-        None,
+        LocalizedText::default(),
         1,
         vec![
             NodeTypeDef {
                 id: "node-a".into(),
                 label: "NodeA".to_string(),
-                description: Some("desc".to_string()),
-                source_table: None,
+                description: LocalizedText::new("desc"),
                 properties: vec![property("id")],
                 constraints: vec![],
                 ..Default::default()
@@ -837,8 +819,7 @@ fn no_hub_node_under_threshold() {
             NodeTypeDef {
                 id: "node-b".into(),
                 label: "NodeB".to_string(),
-                description: Some("desc".to_string()),
-                source_table: None,
+                description: LocalizedText::new("desc"),
                 properties: vec![property("id")],
                 constraints: vec![],
                 ..Default::default()
@@ -847,7 +828,7 @@ fn no_hub_node_under_threshold() {
         vec![EdgeTypeDef {
             id: "edge-1".into(),
             label: "REL".to_string(),
-            description: Some("desc".to_string()),
+            description: LocalizedText::new("desc"),
             source_node_id: "node-a".into(),
             target_node_id: "node-b".into(),
             properties: vec![],
@@ -878,8 +859,7 @@ fn flags_overloaded_property_on_many_nodes() {
         .map(|i| NodeTypeDef {
             id: format!("node-{i}").into(),
             label: format!("Type{i}"),
-            description: Some("desc".to_string()),
-            source_table: None,
+            description: LocalizedText::new("desc"),
             properties: vec![property("id"), property("status")],
             constraints: vec![],
             ..Default::default()
@@ -891,7 +871,7 @@ fn flags_overloaded_property_on_many_nodes() {
         .map(|i| EdgeTypeDef {
             id: format!("edge-{i}").into(),
             label: format!("REL_{i}"),
-            description: Some("desc".to_string()),
+            description: LocalizedText::new("desc"),
             source_node_id: format!("node-{i}").into(),
             target_node_id: format!("node-{}", i + 1).into(),
             properties: vec![],
@@ -903,7 +883,7 @@ fn flags_overloaded_property_on_many_nodes() {
     let ontology = OntologyIR::new(
         "onto".to_string(),
         "Test".to_string(),
-        None,
+        LocalizedText::default(),
         1,
         nodes,
         edges,
@@ -927,8 +907,7 @@ fn no_overloaded_property_under_threshold() {
         .map(|i| NodeTypeDef {
             id: format!("node-{i}").into(),
             label: format!("Type{i}"),
-            description: Some("desc".to_string()),
-            source_table: None,
+            description: LocalizedText::new("desc"),
             properties: vec![property("id"), property("name")],
             constraints: vec![],
             ..Default::default()
@@ -939,7 +918,7 @@ fn no_overloaded_property_under_threshold() {
         .map(|i| EdgeTypeDef {
             id: format!("edge-{i}").into(),
             label: format!("REL_{i}"),
-            description: Some("desc".to_string()),
+            description: LocalizedText::new("desc"),
             source_node_id: format!("node-{i}").into(),
             target_node_id: format!("node-{}", i + 1).into(),
             properties: vec![],
@@ -951,7 +930,7 @@ fn no_overloaded_property_under_threshold() {
     let ontology = OntologyIR::new(
         "onto".to_string(),
         "Test".to_string(),
-        None,
+        LocalizedText::default(),
         1,
         nodes,
         edges,
@@ -977,13 +956,12 @@ fn flags_self_referential_edge() {
     let ontology = OntologyIR::new(
         "onto".to_string(),
         "Test".to_string(),
-        None,
+        LocalizedText::default(),
         1,
         vec![NodeTypeDef {
             id: "node-employee".into(),
             label: "Employee".to_string(),
-            description: Some("desc".to_string()),
-            source_table: None,
+            description: LocalizedText::new("desc"),
             properties: vec![property("id")],
             constraints: vec![],
             ..Default::default()
@@ -991,7 +969,7 @@ fn flags_self_referential_edge() {
         vec![EdgeTypeDef {
             id: "edge-manages".into(),
             label: "MANAGES".to_string(),
-            description: Some("desc".to_string()),
+            description: LocalizedText::new("desc"),
             source_node_id: "node-employee".into(),
             target_node_id: "node-employee".into(),
             properties: vec![],
@@ -1016,14 +994,13 @@ fn no_self_referential_for_normal_edges() {
     let ontology = OntologyIR::new(
         "onto".to_string(),
         "Test".to_string(),
-        None,
+        LocalizedText::default(),
         1,
         vec![
             NodeTypeDef {
                 id: "node-a".into(),
                 label: "NodeA".to_string(),
-                description: Some("desc".to_string()),
-                source_table: None,
+                description: LocalizedText::new("desc"),
                 properties: vec![property("id")],
                 constraints: vec![],
                 ..Default::default()
@@ -1031,8 +1008,7 @@ fn no_self_referential_for_normal_edges() {
             NodeTypeDef {
                 id: "node-b".into(),
                 label: "NodeB".to_string(),
-                description: Some("desc".to_string()),
-                source_table: None,
+                description: LocalizedText::new("desc"),
                 properties: vec![property("id")],
                 constraints: vec![],
                 ..Default::default()
@@ -1041,7 +1017,7 @@ fn no_self_referential_for_normal_edges() {
         vec![EdgeTypeDef {
             id: "edge-rel".into(),
             label: "RELATES".to_string(),
-            description: Some("desc".to_string()),
+            description: LocalizedText::new("desc"),
             source_node_id: "node-a".into(),
             target_node_id: "node-b".into(),
             properties: vec![],
@@ -1070,14 +1046,13 @@ fn well_designed_ontology_has_no_structural_gaps() {
     let ontology = OntologyIR::new(
         "onto".to_string(),
         "E-commerce".to_string(),
-        Some("Well-designed e-commerce ontology".to_string()),
+        LocalizedText::new("Well-designed e-commerce ontology"),
         1,
         vec![
             NodeTypeDef {
                 id: "node-customer".into(),
                 label: "Customer".to_string(),
-                description: Some("A customer who places orders".to_string()),
-                source_table: None,
+                description: LocalizedText::new("A customer who places orders"),
                 properties: vec![property("id"), property("name"), property("email")],
                 constraints: vec![],
                 ..Default::default()
@@ -1085,8 +1060,7 @@ fn well_designed_ontology_has_no_structural_gaps() {
             NodeTypeDef {
                 id: "node-order".into(),
                 label: "Order".to_string(),
-                description: Some("An order placed by a customer".to_string()),
-                source_table: None,
+                description: LocalizedText::new("An order placed by a customer"),
                 properties: vec![
                     property("id"),
                     property_typed("total", PropertyType::Float),
@@ -1098,8 +1072,7 @@ fn well_designed_ontology_has_no_structural_gaps() {
             NodeTypeDef {
                 id: "node-product".into(),
                 label: "Product".to_string(),
-                description: Some("A product available for purchase".to_string()),
-                source_table: None,
+                description: LocalizedText::new("A product available for purchase"),
                 properties: vec![
                     property("id"),
                     property("name"),
@@ -1113,7 +1086,7 @@ fn well_designed_ontology_has_no_structural_gaps() {
             EdgeTypeDef {
                 id: "edge-placed".into(),
                 label: "PLACED".to_string(),
-                description: Some("Customer placed an order".to_string()),
+                description: LocalizedText::new("Customer placed an order"),
                 source_node_id: "node-customer".into(),
                 target_node_id: "node-order".into(),
                 properties: vec![],
@@ -1123,7 +1096,7 @@ fn well_designed_ontology_has_no_structural_gaps() {
             EdgeTypeDef {
                 id: "edge-contains".into(),
                 label: "CONTAINS".to_string(),
-                description: Some("Order contains a product".to_string()),
+                description: LocalizedText::new("Order contains a product"),
                 source_node_id: "node-order".into(),
                 target_node_id: "node-product".into(),
                 properties: vec![property_typed("quantity", PropertyType::Int)],

@@ -6,16 +6,16 @@ pub fn generate_graphql(ontology: &OntologyIR) -> String {
     let mut lines: Vec<String> = Vec::new();
 
     lines.push(format!("# GraphQL Schema for: {}", ontology.name));
-    if let Some(desc) = &ontology.description {
+    if let Some(desc) = ontology.description.present() {
         lines.push(format!("# {desc}"));
     }
     lines.push(String::new());
 
-    for node in &ontology.node_types {
+    for node in ontology.node_types() {
         // Determine if any property is a PK (unique constraint -> ID type)
         let pk_name = find_pk_property(node);
 
-        if let Some(desc) = &node.description {
+        if let Some(desc) = node.description.present() {
             lines.push(format!("\"\"\"{}\"\"\"", desc));
         }
         lines.push(format!("type {} {{", graphql_safe_name(&node.label)));
@@ -30,7 +30,7 @@ pub fn generate_graphql(ontology: &OntologyIR) -> String {
             };
             let desc_comment = prop
                 .description
-                .as_ref()
+                .present()
                 .map(|d| format!("  # {d}"))
                 .unwrap_or_default();
             lines.push(format!(
@@ -106,7 +106,7 @@ fn find_pk_property(node: &NodeTypeDef) -> Option<&str> {
 }
 
 fn emit_graphql_relationships(lines: &mut Vec<String>, ontology: &OntologyIR, node: &NodeTypeDef) {
-    for edge in &ontology.edge_types {
+    for edge in ontology.edge_types() {
         // Outgoing edges (source = this node)
         if edge.source_node_id == node.id
             && let Some(target) = ontology.node_by_id(&edge.target_node_id)

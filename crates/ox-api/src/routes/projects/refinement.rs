@@ -247,7 +247,7 @@ pub(crate) async fn refine_project(
 
     // Graph profile (optional, non-fatal)
     let refine_started = Instant::now();
-    let node_count = ontology.node_types.len();
+    let node_count = ontology.node_types().len();
     let profile_config = profiler::ProfileConfig::for_ontology_size(node_count);
     let graph_profile = if let Some(runtime) = &state.runtime {
         info!(project_id = %id, "Profiling graph data for refinement");
@@ -390,7 +390,8 @@ pub(crate) async fn refine_project(
     }
 
     // Reconcile LLM output against original to preserve lineage IDs
-    let reconciled = ox_core::ontology_command::reconcile_refined(&ontology, llm_refined);
+    let reconciled = ox_core::ontology_command::reconcile_refined(&ontology, llm_refined)
+        .map_err(|e| AppError::internal(format!("Reconcile produced invalid ontology: {e}")))?;
     let _ = refined_mapping; // Source mapping preserved from project; refine does not change it
 
     // Fail-closed: reject if uncertain matches are present.
@@ -416,7 +417,7 @@ pub(crate) async fn refine_project(
     let refined = if let Some((_, _, _)) = &graph_profile {
         if let Some(runtime) = &state.runtime {
             let config = ox_runtime::profiler::ProfileConfig::for_ontology_size(
-                reconciled.ontology.node_types.len(),
+                reconciled.ontology.node_types().len(),
             );
             match ox_runtime::profiler::profile_graph(
                 runtime.as_ref(),
@@ -543,7 +544,8 @@ pub(crate) async fn apply_reconcile(
         req.reconciled_ontology,
         &req.decisions,
         &req.uncertain_matches,
-    );
+    )
+    .map_err(|e| AppError::internal(format!("Decision remapping produced invalid ontology: {e}")))?;
 
     // Validate
     let errors = finalized.validate();

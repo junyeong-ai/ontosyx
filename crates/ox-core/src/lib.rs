@@ -22,6 +22,7 @@ pub mod design_project;
 pub mod error;
 pub mod graph_audit;
 pub mod graph_exploration;
+pub mod i18n;
 pub mod load_plan;
 pub mod match_query_ir;
 pub mod ontology_command;
@@ -42,6 +43,7 @@ pub mod widget_spec;
 
 pub use design_project::{DesignProjectStatus, SourceConfig, SourceHistoryEntry, SourceTypeKind};
 pub use error::{ErrorContext, OxError};
+pub use i18n::{LanguageTag, LocaleError, LocalizedText};
 pub use load_plan::{LoadMode, LoadPlan};
 pub use match_query_ir::MatchQueryIR;
 pub use ontology_command::{

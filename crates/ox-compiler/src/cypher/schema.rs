@@ -266,7 +266,7 @@ pub(super) fn compile_auto_indices_with(
 ) -> (Vec<String>, IndexStats) {
     let mut candidates: Vec<AutoIndexCandidate> = Vec::new();
 
-    for node in &ontology.node_types {
+    for node in ontology.node_types() {
         for prop in &node.properties {
             if prop.nullable {
                 continue;
@@ -307,7 +307,7 @@ pub(super) fn compile_auto_indices_with(
 
     candidates.truncate(max_auto_indices);
 
-    let explicit = ontology.indexes.len();
+    let explicit = ontology.indexes().len();
     let auto_generated = candidates.len();
 
     let stats = IndexStats {

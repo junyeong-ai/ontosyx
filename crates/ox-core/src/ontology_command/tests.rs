@@ -2,6 +2,7 @@ use super::*;
 use crate::test_fixtures::{ontologies_equal, test_ontology};
 use crate::types::PropertyType;
 
+use crate::i18n::LocalizedText;
 #[test]
 fn add_and_delete_node_roundtrip() {
     let ontology = test_ontology();
@@ -10,8 +11,7 @@ fn add_and_delete_node_roundtrip() {
     let cmd = OntologyCommand::AddNode {
         id: "n3".into(),
         label: "Product".to_string(),
-        description: Some("A product".to_string()),
-        source_table: None,
+        description: LocalizedText::new("A product"),
     };
     let result = cmd.execute(&ontology).unwrap();
     assert_eq!(result.new_ontology.node_types.len(), 3);
@@ -99,13 +99,13 @@ fn add_delete_property() {
         property_type: PropertyType::String,
         nullable: true,
         default_value: None,
-        description: Some("Industry sector".to_string()),
+        description: LocalizedText::new("Industry sector"),
         classification: None,
         ..Default::default()
     };
     let add_cmd = OntologyCommand::AddProperty {
         owner: PropertyOwner::Node("n2".into()),
-        property: new_prop,
+        property: Box::new(new_prop),
     };
     let add_result = add_cmd.execute(&ontology).unwrap();
     assert_eq!(
@@ -132,13 +132,13 @@ fn add_delete_property() {
         property_type: PropertyType::String,
         nullable: true,
         default_value: None,
-        description: None,
+        description: LocalizedText::default(),
         classification: None,
         ..Default::default()
     };
     let add_edge_cmd = OntologyCommand::AddProperty {
         owner: PropertyOwner::Edge("e1".into()),
-        property: edge_prop,
+        property: Box::new(edge_prop),
     };
     let edge_result = add_edge_cmd.execute(&ontology).unwrap();
     assert_eq!(
@@ -162,8 +162,7 @@ fn batch_execute_and_inverse() {
             OntologyCommand::AddNode {
                 id: "n3".into(),
                 label: "Project".to_string(),
-                description: None,
-                source_table: None,
+                description: LocalizedText::default(),
             },
             OntologyCommand::AddEdge {
                 id: "e2".into(),
@@ -201,7 +200,7 @@ fn update_property_roundtrip() {
         property_type: Some(PropertyType::String),
         nullable: Some(true),
         default_value: None,
-        description: Some(Some("Full name of person".to_string())),
+        description: Some(LocalizedText::new("Full name of person")),
     };
     let cmd = OntologyCommand::UpdateProperty {
         owner: PropertyOwner::Node("n1".into()),
@@ -221,7 +220,7 @@ fn update_property_roundtrip() {
     assert!(updated_prop.nullable);
     assert_eq!(
         updated_prop.description,
-        Some("Full name of person".to_string())
+        LocalizedText::new("Full name of person")
     );
 
     // Inverse restores original
@@ -306,8 +305,7 @@ fn error_on_invalid_references() {
     let cmd = OntologyCommand::AddNode {
         id: "n1".into(),
         label: "Duplicate".to_string(),
-        description: None,
-        source_table: None,
+        description: LocalizedText::default(),
     };
     assert!(cmd.execute(&ontology).is_err());
 }

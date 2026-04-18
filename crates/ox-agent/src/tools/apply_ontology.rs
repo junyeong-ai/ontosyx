@@ -132,8 +132,8 @@ impl SchemaTool for ApplyOntologyTool {
                     "commands_applied": applied_count,
                     "errors": errors,
                     "explanation": edit_result.explanation,
-                    "new_node_count": updated.node_types.len(),
-                    "new_edge_count": updated.edge_types.len(),
+                    "new_node_count": updated.node_types().len(),
+                    "new_edge_count": updated.edge_types().len(),
                 });
                 ToolResult::success(serde_json::to_string_pretty(&output).unwrap_or_default())
             }

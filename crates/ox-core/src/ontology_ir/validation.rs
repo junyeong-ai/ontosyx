@@ -363,6 +363,7 @@ impl OntologyIR {
 
 #[cfg(test)]
 mod tests {
+    use crate::i18n::LocalizedText;
     use crate::ontology_ir::*;
     use crate::types::PropertyType;
 
@@ -373,7 +374,7 @@ mod tests {
             property_type: PropertyType::String,
             nullable,
             default_value: None,
-            description: None,
+            description: LocalizedText::default(),
             classification: None,
         ..Default::default()
         }
@@ -383,13 +384,12 @@ mod tests {
         OntologyIR::new(
             "test".to_string(),
             "Test".to_string(),
-            None,
+            LocalizedText::default(),
             1,
             vec![NodeTypeDef {
                 id: "node-user".into(),
                 label: "User".to_string(),
-                description: None,
-                source_table: None,
+                description: LocalizedText::default(),
                 properties: vec![
                     property("prop-id", "id", false),
                     property("prop-email", "email", false),
@@ -413,7 +413,7 @@ mod tests {
             vec![EdgeTypeDef {
                 id: "edge-owns".into(),
                 label: "OWNS".to_string(),
-                description: None,
+                description: LocalizedText::default(),
                 source_node_id: "node-user".into(),
                 target_node_id: "node-user".into(),
                 properties: vec![],
@@ -477,7 +477,7 @@ mod tests {
         let ontology = OntologyIR::new(
             "  ".to_string(),
             String::new(),
-            None,
+            LocalizedText::default(),
             1,
             vec![],
             vec![],

@@ -46,8 +46,8 @@ pub enum NodeChange {
         new: String,
     },
     DescriptionChanged {
-        old: Option<String>,
-        new: Option<String>,
+        old: crate::i18n::LocalizedText,
+        new: crate::i18n::LocalizedText,
     },
     PropertyAdded {
         property: PropertyDef,
@@ -79,8 +79,8 @@ pub enum PropertyChange {
         new: bool,
     },
     DescriptionChanged {
-        old: Option<String>,
-        new: Option<String>,
+        old: crate::i18n::LocalizedText,
+        new: crate::i18n::LocalizedText,
     },
     DefaultValueChanged {
         old: Option<String>,
@@ -103,8 +103,8 @@ pub enum EdgeChange {
         new: String,
     },
     DescriptionChanged {
-        old: Option<String>,
-        new: Option<String>,
+        old: crate::i18n::LocalizedText,
+        new: crate::i18n::LocalizedText,
     },
     SourceChanged {
         old: String,
@@ -627,6 +627,7 @@ fn resolve_node_label(ontology: &OntologyIR, node_id: &NodeTypeId) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::i18n::LocalizedText;
     use crate::test_fixtures::{property, test_ontology};
 
     #[test]
@@ -651,13 +652,12 @@ mod tests {
         new.node_types.push(NodeTypeDef {
             id: "n3".into(),
             label: "Product".to_string(),
-            description: Some("A product".to_string()),
-            source_table: None,
+            description: LocalizedText::new("A product"),
             properties: vec![property("p10", "product_name")],
             constraints: vec![],
             ..Default::default()
         });
-        new.rebuild_indices();
+        new.rebuild_indices().expect("fixture rebuild");
 
         let diff = compute_diff(&old, &new);
 
@@ -676,7 +676,7 @@ mod tests {
         // Remove Company (n2) and the edge referencing it
         new.node_types.retain(|n| n.id != "n2");
         new.edge_types.clear();
-        new.rebuild_indices();
+        new.rebuild_indices().expect("fixture rebuild");
 
         let diff = compute_diff(&old, &new);
 
@@ -692,7 +692,7 @@ mod tests {
         let old = test_ontology();
         let mut new = old.clone();
         new.node_types[0].label = "Individual".to_string();
-        new.rebuild_indices();
+        new.rebuild_indices().expect("fixture rebuild");
 
         let diff = compute_diff(&old, &new);
 
@@ -717,11 +717,11 @@ mod tests {
             property_type: PropertyType::String,
             nullable: true,
             default_value: None,
-            description: Some("Email address".to_string()),
+            description: LocalizedText::new("Email address"),
             classification: None,
             ..Default::default()
         });
-        new.rebuild_indices();
+        new.rebuild_indices().expect("fixture rebuild");
 
         let diff = compute_diff(&old, &new);
 
@@ -739,7 +739,7 @@ mod tests {
         let mut new = old.clone();
         // Remove "age" property (p2) from Person (n1)
         new.node_types[0].properties.retain(|p| p.id != "p2");
-        new.rebuild_indices();
+        new.rebuild_indices().expect("fixture rebuild");
 
         let diff = compute_diff(&old, &new);
 
@@ -757,7 +757,7 @@ mod tests {
         let mut new = old.clone();
         // Change "age" from String to Int
         new.node_types[0].properties[1].property_type = PropertyType::Int;
-        new.rebuild_indices();
+        new.rebuild_indices().expect("fixture rebuild");
 
         let diff = compute_diff(&old, &new);
 
@@ -780,14 +780,14 @@ mod tests {
         new.edge_types.push(EdgeTypeDef {
             id: "e2".into(),
             label: "KNOWS".to_string(),
-            description: None,
+            description: LocalizedText::default(),
             source_node_id: "n1".into(),
             target_node_id: "n1".into(),
             properties: vec![],
             cardinality: Cardinality::ManyToMany,
             ..Default::default()
         });
-        new.rebuild_indices();
+        new.rebuild_indices().expect("fixture rebuild");
 
         let diff = compute_diff(&old, &new);
 
@@ -801,7 +801,7 @@ mod tests {
         let old = test_ontology();
         let mut new = old.clone();
         new.edge_types.clear();
-        new.rebuild_indices();
+        new.rebuild_indices().expect("fixture rebuild");
 
         let diff = compute_diff(&old, &new);
 
@@ -815,7 +815,7 @@ mod tests {
         let old = test_ontology();
         let mut new = old.clone();
         new.edge_types[0].cardinality = Cardinality::ManyToMany;
-        new.rebuild_indices();
+        new.rebuild_indices().expect("fixture rebuild");
 
         let diff = compute_diff(&old, &new);
 
@@ -843,7 +843,7 @@ mod tests {
             property_type: PropertyType::String,
             nullable: true,
             default_value: None,
-            description: None,
+            description: LocalizedText::default(),
             classification: None,
             ..Default::default()
         });
@@ -853,8 +853,7 @@ mod tests {
         new.node_types.push(NodeTypeDef {
             id: "n3".into(),
             label: "Product".to_string(),
-            description: None,
-            source_table: None,
+            description: LocalizedText::default(),
             properties: vec![property("p_prod", "product_name")],
             constraints: vec![],
             ..Default::default()
@@ -865,14 +864,14 @@ mod tests {
         new.edge_types.push(EdgeTypeDef {
             id: "e2".into(),
             label: "SELLS".to_string(),
-            description: None,
+            description: LocalizedText::default(),
             source_node_id: "n1".into(),
             target_node_id: "n3".into(),
             properties: vec![],
             cardinality: Cardinality::OneToMany,
             ..Default::default()
         });
-        new.rebuild_indices();
+        new.rebuild_indices().expect("fixture rebuild");
 
         let diff = compute_diff(&old, &new);
 
@@ -893,15 +892,14 @@ mod tests {
         new.node_types.push(NodeTypeDef {
             id: "n3".into(),
             label: "Product".to_string(),
-            description: None,
-            source_table: None,
+            description: LocalizedText::default(),
             properties: vec![property("p10", "product_name"), property("p11", "price")],
             constraints: vec![],
             ..Default::default()
         });
         // Remove age property from Person
         new.node_types[0].properties.retain(|p| p.id != "p2");
-        new.rebuild_indices();
+        new.rebuild_indices().expect("fixture rebuild");
 
         let diff = compute_diff(&old, &new);
 
@@ -915,18 +913,16 @@ mod tests {
     fn test_description_changed() {
         let old = test_ontology();
         let mut new = old.clone();
-        new.node_types[0].description = Some("A human being".to_string());
-        new.rebuild_indices();
+        new.node_types[0].description = LocalizedText::new("A human being");
+        new.rebuild_indices().expect("fixture rebuild");
 
         let diff = compute_diff(&old, &new);
 
         assert_eq!(diff.modified_nodes.len(), 1);
         assert!(diff.modified_nodes[0].changes.iter().any(|c| matches!(
             c,
-            NodeChange::DescriptionChanged {
-                old: Some(o),
-                new: Some(n),
-            } if o == "A person" && n == "A human being"
+            NodeChange::DescriptionChanged { old, new }
+                if old.default == "A person" && new.default == "A human being"
         )));
     }
 
@@ -938,14 +934,13 @@ mod tests {
         new.node_types.push(NodeTypeDef {
             id: "n3".into(),
             label: "Department".to_string(),
-            description: None,
-            source_table: None,
+            description: LocalizedText::default(),
             properties: vec![property("p10", "dept_name")],
             constraints: vec![],
             ..Default::default()
         });
         new.edge_types[0].target_node_id = "n3".into();
-        new.rebuild_indices();
+        new.rebuild_indices().expect("fixture rebuild");
 
         let diff = compute_diff(&old, &new);
 
@@ -962,7 +957,7 @@ mod tests {
         let old = test_ontology();
         let mut new = old.clone();
         new.node_types[0].properties[0].nullable = true;
-        new.rebuild_indices();
+        new.rebuild_indices().expect("fixture rebuild");
 
         let diff = compute_diff(&old, &new);
 
@@ -988,11 +983,11 @@ mod tests {
             property_type: PropertyType::String,
             nullable: true,
             default_value: None,
-            description: None,
+            description: LocalizedText::default(),
             classification: None,
             ..Default::default()
         });
-        new.rebuild_indices();
+        new.rebuild_indices().expect("fixture rebuild");
 
         let diff = compute_diff(&old, &new);
 

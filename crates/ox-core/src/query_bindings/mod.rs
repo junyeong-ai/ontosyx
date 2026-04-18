@@ -140,6 +140,7 @@ pub fn resolve_query_bindings(query: &QueryIR, ontology: &OntologyIR) -> Resolve
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::i18n::LocalizedText;
     use crate::ontology_ir::*;
     use crate::query_ir::*;
     use crate::types::{Direction, PropertyType, PropertyValue};
@@ -148,21 +149,20 @@ mod tests {
         OntologyIR::new(
             "ont1".into(),
             "Test".into(),
-            None,
+            LocalizedText::default(),
             1,
             vec![
                 NodeTypeDef {
                     id: "n1".into(),
                     label: "Person".into(),
-                    description: None,
-                    source_table: None,
+                    description: LocalizedText::default(),
                     properties: vec![PropertyDef {
                         id: "p1".into(),
                         name: "name".into(),
                         property_type: PropertyType::String,
                         nullable: false,
                         default_value: None,
-                        description: None,
+                        description: LocalizedText::default(),
                         classification: None,
                         ..Default::default()
                     }],
@@ -172,15 +172,14 @@ mod tests {
                 NodeTypeDef {
                     id: "n2".into(),
                     label: "Company".into(),
-                    description: None,
-                    source_table: None,
+                    description: LocalizedText::default(),
                     properties: vec![PropertyDef {
                         id: "p2".into(),
                         name: "title".into(),
                         property_type: PropertyType::String,
                         nullable: false,
                         default_value: None,
-                        description: None,
+                        description: LocalizedText::default(),
                         classification: None,
                         ..Default::default()
                     }],
@@ -191,7 +190,7 @@ mod tests {
             vec![EdgeTypeDef {
                 id: "e1".into(),
                 label: "WORKS_AT".into(),
-                description: None,
+                description: LocalizedText::default(),
                 source_node_id: "n1".into(),
                 target_node_id: "n2".into(),
                 properties: vec![],

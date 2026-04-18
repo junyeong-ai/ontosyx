@@ -4,6 +4,20 @@
 // (e.g., `dump_openapi`) live under `src/bin/`. All shared modules are
 // declared here so they can be reached from every binary via `ox_api::*`.
 
+// Tests inside library modules (e.g., `config.rs`'s env-var section
+// tests) use `unwrap`/`expect`/`panic` for setup and assertion
+// shortcuts. Scoped to `cfg(test)` so library code is still held to
+// the stricter rule for production builds.
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unreachable
+    )
+)]
+
 pub mod acl_enforcement;
 pub mod audit_middleware;
 pub mod collaboration;

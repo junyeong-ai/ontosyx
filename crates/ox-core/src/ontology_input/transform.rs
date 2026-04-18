@@ -250,7 +250,6 @@ pub fn normalize(input: OntologyInputIR) -> Result<NormalizeResult, Vec<String>>
             id: node_id,
             label: input_node.label,
             description: input_node.description,
-            source_table: None,
             properties,
             constraints,
             ..Default::default()
@@ -482,6 +481,7 @@ pub fn normalize(input: OntologyInputIR) -> Result<NormalizeResult, Vec<String>>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::i18n::LocalizedText;
     use crate::ontology_input::to_exchange_format;
     use crate::types::PropertyType;
     use uuid::Uuid;
@@ -493,7 +493,7 @@ mod tests {
             property_type: PropertyType::String,
             nullable: false,
             default_value: None,
-            description: None,
+            description: LocalizedText::default(),
             source_column: None,
         }
     }
@@ -503,13 +503,13 @@ mod tests {
             format_version: 1,
             id: None,
             name: "Test Ontology".to_string(),
-            description: Some("A test".to_string()),
+            description: LocalizedText::new("A test"),
             version: 1,
             node_types: vec![
                 InputNodeTypeDef {
                     id: None,
                     label: "User".to_string(),
-                    description: None,
+                    description: LocalizedText::default(),
                     source_table: Some("users".to_string()),
                     properties: vec![input_property("id"), input_property("email")],
                     constraints: vec![
@@ -526,8 +526,8 @@ mod tests {
                 InputNodeTypeDef {
                     id: None,
                     label: "Product".to_string(),
-                    description: Some("A product".to_string()),
-                    source_table: None,
+                source_table: None,
+                    description: LocalizedText::new("A product"),
                     properties: vec![input_property("sku"), input_property("name")],
                     constraints: vec![],
                 },
@@ -535,7 +535,7 @@ mod tests {
             edge_types: vec![InputEdgeTypeDef {
                 id: None,
                 label: "PURCHASED".to_string(),
-                description: None,
+                description: LocalizedText::default(),
                 source_type: "User".to_string(),
                 target_type: "Product".to_string(),
                 properties: vec![],
@@ -894,7 +894,7 @@ mod tests {
             format_version: 1,
             id: Some("  ".to_string()),
             name: "".to_string(),
-            description: None,
+            description: LocalizedText::default(),
             version: 1,
             node_types: vec![],
             edge_types: vec![],
@@ -915,13 +915,13 @@ mod tests {
             format_version: 1,
             id: None,
             name: "NodeKey Test".to_string(),
-            description: None,
+            description: LocalizedText::default(),
             version: 1,
             node_types: vec![InputNodeTypeDef {
                 id: None,
                 label: "Account".to_string(),
-                description: None,
                 source_table: None,
+                description: LocalizedText::default(),
                 properties: vec![input_property("tenant_id"), input_property("account_id")],
                 constraints: vec![InputNodeConstraint::NodeKey {
                     id: None,

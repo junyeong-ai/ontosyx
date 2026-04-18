@@ -271,7 +271,7 @@ fn check_indexed_filters(filters: &[(String, String)], ontology: &OntologyIR) ->
 
     // Build a set of indexed (node_label, property_name) pairs
     let mut indexed: HashSet<(&str, &str)> = HashSet::new();
-    for idx in &ontology.indexes {
+    for idx in ontology.indexes() {
         let (node_id, prop_ids) = match idx {
             ox_core::ontology_ir::IndexDef::Single {
                 node_id,
@@ -295,7 +295,7 @@ fn check_indexed_filters(filters: &[(String, String)], ontology: &OntologyIR) ->
             } => (node_id, vec![property_id]),
         };
 
-        if let Some(node) = ontology.node_types.iter().find(|n| &n.id == node_id) {
+        if let Some(node) = ontology.node_types().iter().find(|n| &n.id == node_id) {
             for pid in prop_ids {
                 if let Some(prop) = node.properties.iter().find(|p| &p.id == pid) {
                     indexed.insert((&node.label, &prop.name));
@@ -305,7 +305,7 @@ fn check_indexed_filters(filters: &[(String, String)], ontology: &OntologyIR) ->
     }
 
     // Also count unique constraints as implicit indexes
-    for node in &ontology.node_types {
+    for node in ontology.node_types() {
         for cdef in node.constraints.iter() {
             let prop_ids: Vec<&str> = match &cdef.constraint {
                 ox_core::ontology_ir::NodeConstraint::Unique { property_ids } => {
@@ -332,7 +332,7 @@ fn check_indexed_filters(filters: &[(String, String)], ontology: &OntologyIR) ->
 /// Check if any referenced relationship label has many-to-many cardinality.
 fn check_high_fanout(rel_labels: &[String], ontology: &OntologyIR) -> bool {
     rel_labels.iter().any(|label| {
-        ontology.edge_types.iter().any(|e| {
+        ontology.edge_types().iter().any(|e| {
             e.label == *label
                 && matches!(e.cardinality, ox_core::ontology_ir::Cardinality::ManyToMany)
         })
@@ -411,6 +411,7 @@ fn has_cartesian_product(patterns: &[GraphPattern]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ox_core::LocalizedText;
     use ox_core::ontology_ir::{
         Cardinality, ConstraintDef, EdgeTypeDef, NodeConstraint, NodeTypeDef, PropertyDef,
     };
@@ -421,7 +422,7 @@ mod tests {
         OntologyIR::new(
             "test".into(),
             "Test".into(),
-            None,
+            LocalizedText::default(),
             1,
             vec![],
             vec![],
@@ -433,20 +434,19 @@ mod tests {
         OntologyIR::new(
             "test".into(),
             "Test".into(),
-            None,
+            LocalizedText::default(),
             1,
             vec![NodeTypeDef {
                 id: "nt1".into(),
                 label: "Person".into(),
-                description: None,
-                source_table: None,
+                description: LocalizedText::default(),
                 properties: vec![PropertyDef {
                     id: "p1".into(),
                     name: "name".into(),
                     property_type: PropertyType::String,
                     nullable: false,
                     default_value: None,
-                    description: None,
+                    description: LocalizedText::default(),
                     classification: None,
                     ..Default::default()
                 }],
@@ -461,7 +461,7 @@ mod tests {
             vec![EdgeTypeDef {
                 id: "et1".into(),
                 label: "KNOWS".into(),
-                description: None,
+                description: LocalizedText::default(),
                 source_node_id: "nt1".into(),
                 target_node_id: "nt1".into(),
                 properties: vec![],

@@ -6,7 +6,7 @@ pub fn generate_cypher_ddl(ontology: &OntologyIR) -> String {
     let mut lines: Vec<String> = Vec::new();
 
     lines.push(format!("// Cypher DDL for: {}", ontology.name));
-    if let Some(desc) = &ontology.description {
+    if let Some(desc) = ontology.description.present() {
         lines.push(format!("// {desc}"));
     }
     lines.push(format!("// Version: {}", ontology.version.number));
@@ -14,7 +14,7 @@ pub fn generate_cypher_ddl(ontology: &OntologyIR) -> String {
 
     // Node constraints
     lines.push("// --- Node Constraints ---".to_string());
-    for node in &ontology.node_types {
+    for node in ontology.node_types() {
         for cdef in &node.constraints {
             match &cdef.constraint {
                 NodeConstraint::Unique { property_ids } => {
@@ -57,7 +57,7 @@ pub fn generate_cypher_ddl(ontology: &OntologyIR) -> String {
 
     // Indexes
     lines.push("// --- Indexes ---".to_string());
-    for index in &ontology.indexes {
+    for index in ontology.indexes() {
         match index {
             IndexDef::Single {
                 node_id,
@@ -151,7 +151,7 @@ pub fn generate_cypher_ddl(ontology: &OntologyIR) -> String {
 
     // Node structure comments
     lines.push("// --- Node Structures ---".to_string());
-    for node in &ontology.node_types {
+    for node in ontology.node_types() {
         lines.push(format!("// :{}", node.label));
         for prop in &node.properties {
             let nullable = if prop.nullable { " (nullable)" } else { "" };
@@ -167,7 +167,7 @@ pub fn generate_cypher_ddl(ontology: &OntologyIR) -> String {
 
     // Edge structure comments
     lines.push("// --- Relationship Structures ---".to_string());
-    for edge in &ontology.edge_types {
+    for edge in ontology.edge_types() {
         let src = ontology.node_label(&edge.source_node_id).unwrap_or("?");
         let tgt = ontology.node_label(&edge.target_node_id).unwrap_or("?");
         lines.push(format!("// (:{src})-[:{}]->(:{tgt})", edge.label));

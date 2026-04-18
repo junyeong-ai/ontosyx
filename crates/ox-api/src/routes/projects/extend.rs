@@ -170,13 +170,14 @@ pub(crate) async fn extend_project(
     info!(
         project_id = %id,
         design_ms = design_started.elapsed().as_millis() as u64,
-        new_nodes = new_ontology.node_types.len(),
-        new_edges = new_ontology.edge_types.len(),
+        new_nodes = new_ontology.node_types().len(),
+        new_edges = new_ontology.edge_types().len(),
         "LLM extension design completed"
     );
 
     // 5. Reconcile: merge new ontology with existing (preserves existing IDs)
-    let reconciled = ox_core::ontology_command::reconcile_refined(&existing_ontology, new_ontology);
+    let reconciled = ox_core::ontology_command::reconcile_refined(&existing_ontology, new_ontology)
+        .map_err(|e| AppError::internal(format!("Reconcile produced invalid ontology: {e}")))?;
 
     let merged = reconciled.ontology;
 

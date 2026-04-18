@@ -41,7 +41,7 @@ pub(crate) async fn reindex_schema(
     let ontology: OntologyIR = serde_json::from_value(saved.ontology_ir)
         .map_err(|e| AppError::internal(format!("Failed to deserialize ontology: {e}")))?;
 
-    let node_count = ontology.node_types.len();
+    let node_count = ontology.node_types().len();
     let memory = state
         .memory
         .as_ref()
@@ -168,8 +168,8 @@ pub(crate) async fn adopt_graph(
 
         tracing::info!(
             saved_ontology_id = %saved_id,
-            nodes = ontology.node_types.len(),
-            edges = ontology.edge_types.len(),
+            nodes = ontology.node_types().len(),
+            edges = ontology.edge_types().len(),
             "Graph ontology adopted and saved"
         );
     }
@@ -230,6 +230,8 @@ pub struct EnrichChange {
     pub entity_label: String,
     pub entity_kind: String,
     pub property_name: String,
+    /// Previous description resolved to plain text (pre-enrichment). `None`
+    /// when the property had no prior description.
     pub old_description: Option<String>,
     pub new_description: String,
 }
@@ -268,7 +270,7 @@ pub(crate) async fn enrich_ontology(
     let ontology: OntologyIR = serde_json::from_value(saved.ontology_ir.clone())
         .map_err(|e| AppError::internal(format!("Failed to parse ontology IR: {e}")))?;
 
-    let config = ox_runtime::profiler::ProfileConfig::for_ontology_size(ontology.node_types.len());
+    let config = ox_runtime::profiler::ProfileConfig::for_ontology_size(ontology.node_types().len());
     let profile = ox_runtime::profiler::profile_graph(runtime.as_ref(), &ontology, &config)
         .await
         .map_err(AppError::from)?;
@@ -285,7 +287,7 @@ pub(crate) async fn enrich_ontology(
             entity_label: c.entity_label.clone(),
             entity_kind: c.entity_kind.to_string(),
             property_name: c.property_name.clone(),
-            old_description: c.old_description.clone(),
+            old_description: c.old_description.present().map(str::to_string),
             new_description: c.new_description.clone(),
         })
         .collect();

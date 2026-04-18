@@ -312,7 +312,7 @@ fn build_dropped_table_summary(
             .map(|c| c.name.as_str())
             .collect();
         if !ref_cols.is_empty() {
-            write!(line, " refs: {}", ref_cols.join(", ")).unwrap();
+            write!(line, " refs: {}", ref_cols.join(", ")).ok();
         }
 
         // Declared FK targets
@@ -323,7 +323,7 @@ fn build_dropped_table_summary(
                 v.dedup();
                 v
             };
-            write!(line, " fk_targets: {}", unique.join(", ")).unwrap();
+            write!(line, " fk_targets: {}", unique.join(", ")).ok();
         }
 
         lines.push(line);
@@ -639,7 +639,7 @@ pub(crate) fn merge_input_irs(
         format_version: 1,
         id: None,
         name: name.to_string(),
-        description: description.map(|d| d.to_string()),
+        description: description.map(|d| d.to_string()).into(),
         version: 1,
         node_types,
         edge_types,
@@ -748,6 +748,7 @@ pub(crate) fn format_uncovered_fks(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ox_core::LocalizedText;
     use ox_core::source_schema::{
         ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef, TableProfile,
     };
@@ -1007,14 +1008,14 @@ mod tests {
             format_version: 1,
             id: None,
             name: name.to_string(),
-            description: None,
+            description: LocalizedText::default(),
             version: 1,
             node_types: nodes
                 .iter()
                 .map(|(label, source)| InputNodeTypeDef {
                     id: None,
                     label: label.to_string(),
-                    description: None,
+                    description: LocalizedText::default(),
                     source_table: source.map(|s| s.to_string()),
                     properties: vec![InputPropertyDef {
                         id: None,
@@ -1022,7 +1023,7 @@ mod tests {
                         property_type: ox_core::types::PropertyType::String,
                         nullable: false,
                         default_value: None,
-                        description: None,
+                        description: LocalizedText::default(),
                         source_column: None,
                     }],
                     constraints: vec![],
@@ -1033,7 +1034,7 @@ mod tests {
                 .map(|(label, src, tgt)| InputEdgeTypeDef {
                     id: None,
                     label: label.to_string(),
-                    description: None,
+                    description: LocalizedText::default(),
                     source_type: src.to_string(),
                     target_type: tgt.to_string(),
                     properties: vec![],
@@ -1088,7 +1089,7 @@ mod tests {
         assert!(merged.node_types.is_empty());
         assert!(merged.edge_types.is_empty());
         assert_eq!(merged.name, "empty");
-        assert_eq!(merged.description.as_deref(), Some("Empty merge"));
+        assert_eq!(merged.description.present(), Some("Empty merge"));
     }
 
     #[test]

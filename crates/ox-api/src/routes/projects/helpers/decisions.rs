@@ -269,11 +269,11 @@ pub(crate) fn build_source_schema_summary(schema: &ox_core::source_schema::Sourc
 
     for table in &schema.tables {
         let cols: Vec<&str> = table.columns.iter().map(|c| c.name.as_str()).collect();
-        writeln!(out, "  {} — columns: [{}]", table.name, cols.join(", ")).unwrap();
+        writeln!(out, "  {} — columns: [{}]", table.name, cols.join(", ")).ok();
     }
 
     if !schema.foreign_keys.is_empty() {
-        writeln!(out, "\nForeign keys:").unwrap();
+        writeln!(out, "\nForeign keys:").ok();
         for fk in &schema.foreign_keys {
             writeln!(
                 out,

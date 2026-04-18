@@ -71,9 +71,13 @@ pub struct CompiledRule {
 
 /// Compile a static spec list into [`CompiledRule`]s.
 ///
-/// Patterns must be valid regex; an invalid pattern is a programming
-/// error caught at first access (panics inside the `LazyLock`
-/// initializer with the offending pattern in the message).
+/// Patterns are `&'static str` literals owned by this crate. The `tests`
+/// module below exercises every backend's rule list via `classify(&…)`,
+/// forcing the `LazyLock` initializer at test time — so a malformed
+/// pattern fails CI before it can reach production. The `#[allow]`
+/// below acknowledges that the panic is a compile-time-style invariant,
+/// not a runtime failure mode.
+#[allow(clippy::panic, reason = "static specs validated by tests; see module docs")]
 pub fn compile_rules(
     specs: &[(&'static str, TransienceKind, &'static str)],
 ) -> Vec<CompiledRule> {

@@ -191,8 +191,10 @@ pub(crate) async fn me(
     State(state): State<AppState>,
     principal: Principal,
 ) -> Result<Json<ApiResponse<AuthMeResponse>>, AppError> {
-    // For API key access, return the synthetic system principal
-    if principal.id.starts_with("system:") {
+    // Machine principals (system tasks + API keys) don't have a real
+    // DB user row; return a synthetic response so clients can still call
+    // `/auth/me` to confirm the key works.
+    if principal.is_machine() {
         return Ok(ApiResponse::of(AuthMeResponse {
             user: UserInfo {
                 id: Uuid::nil(),

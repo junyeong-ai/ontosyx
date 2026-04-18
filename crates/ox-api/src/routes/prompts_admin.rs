@@ -15,6 +15,17 @@ use crate::state::AppState;
 // GET /api/admin/prompts — list all prompt templates
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/prompts",
+    responses(
+        (status = 200, description = "All prompt templates (active + inactive)",
+            body = Vec<crate::openapi::PromptTemplateRow>),
+        (status = 403, description = "Admin role required", body = crate::openapi::ErrorResponse),
+    ),
+    tag = "Admin",
+    security(("api_key" = [])),
+)]
 pub(crate) async fn list_prompt_templates(
     State(state): State<AppState>,
     principal: Principal,
@@ -32,6 +43,17 @@ pub(crate) async fn list_prompt_templates(
 // GET /api/admin/prompts/:id — get single prompt template
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/prompts/{id}",
+    params(("id" = uuid::Uuid, Path, description = "Prompt template id")),
+    responses(
+        (status = 200, description = "Prompt template", body = crate::openapi::PromptTemplateRow),
+        (status = 404, description = "Not found", body = crate::openapi::ErrorResponse),
+    ),
+    tag = "Admin",
+    security(("api_key" = [])),
+)]
 pub(crate) async fn get_prompt_template(
     State(state): State<AppState>,
     principal: Principal,
@@ -66,6 +88,18 @@ pub struct PromptCreateRequest {
     pub workspace_id: Option<Uuid>,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/prompts",
+    request_body = PromptCreateRequest,
+    responses(
+        (status = 200, description = "New template version created",
+            body = crate::openapi::PromptTemplateRow),
+        (status = 400, description = "Invalid semver version", body = crate::openapi::ErrorResponse),
+    ),
+    tag = "Admin",
+    security(("api_key" = [])),
+)]
 pub(crate) async fn create_prompt_template(
     State(state): State<AppState>,
     principal: Principal,
@@ -118,6 +152,18 @@ pub struct PromptUpdateRequest {
     pub is_active: Option<bool>,
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/admin/prompts/{id}",
+    params(("id" = uuid::Uuid, Path, description = "Prompt template id")),
+    request_body = PromptUpdateRequest,
+    responses(
+        (status = 204, description = "Template updated"),
+        (status = 404, description = "Not found", body = crate::openapi::ErrorResponse),
+    ),
+    tag = "Admin",
+    security(("api_key" = [])),
+)]
 pub(crate) async fn update_prompt_template(
     State(state): State<AppState>,
     principal: Principal,
@@ -162,6 +208,17 @@ pub(crate) async fn update_prompt_template(
 // DELETE /api/admin/prompts/:id — delete a prompt template version
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    delete,
+    path = "/api/admin/prompts/{id}",
+    params(("id" = uuid::Uuid, Path, description = "Prompt template id")),
+    responses(
+        (status = 204, description = "Template deleted"),
+        (status = 404, description = "Not found", body = crate::openapi::ErrorResponse),
+    ),
+    tag = "Admin",
+    security(("api_key" = [])),
+)]
 pub(crate) async fn delete_prompt_template(
     State(state): State<AppState>,
     principal: Principal,

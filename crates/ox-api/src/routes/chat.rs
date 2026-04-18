@@ -84,7 +84,7 @@ pub(crate) async fn chat_stream(
     let user_message = req.message.clone();
     let ontology = req.ontology.clone();
     let user_id = principal.id.clone();
-    let is_system = principal.is_system();
+    let is_system = principal.is_machine();
     // Capture workspace context NOW (while middleware scope is active).
     // This must be used for ALL spawn calls inside the SSE stream,
     // because the stream runs AFTER the middleware scope ends.

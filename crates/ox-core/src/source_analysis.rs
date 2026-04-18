@@ -395,8 +395,8 @@ pub struct ColumnClarification {
 /// and set `classification` on each matched property.
 ///
 /// Matching logic:
-/// - For each PII finding (table, column), find the node whose source_table
-///   matches the finding's table (via SourceMapping or NodeTypeDef.source_table).
+/// - For each PII finding (table, column), find the node whose source table
+///   matches the finding's table (via the authoritative SourceMapping lookup).
 /// - Then find the property whose source column (via SourceMapping) matches
 ///   the finding's column.
 /// - Set classification based on PiiType.
@@ -447,13 +447,14 @@ pub fn apply_pii_classifications(
     let mut count = 0;
 
     for node in &mut ontology.node_types {
-        // Resolve source table: prefer SourceMapping, fall back to NodeTypeDef.source_table
-        let source_table = source_mapping
+        // Resolve source table via SourceMapping (the authoritative lookup).
+        // NodeTypeDef no longer carries a `source_table` field; downstream
+        // consumers should always query SourceMapping for ontology→source
+        // relationships.
+        let source_table = match source_mapping
             .table_for_node(node.id.as_ref())
             .map(|s| s.to_lowercase())
-            .or_else(|| node.source_table.as_ref().map(|s| s.to_lowercase()));
-
-        let source_table = match source_table {
+        {
             Some(t) => t,
             None => continue,
         };

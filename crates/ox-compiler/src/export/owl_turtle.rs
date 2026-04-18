@@ -27,7 +27,7 @@ pub fn generate_owl_turtle(ontology: &OntologyIR) -> String {
         "    rdfs:label {} .\n",
         turtle_literal(&ontology.name),
     ));
-    if let Some(desc) = &ontology.description {
+    if let Some(desc) = ontology.description.present() {
         // Replace the trailing " .\n" with " ;\n" to chain the comment
         let len = out.len();
         out.truncate(len - 3); // remove " .\n"
@@ -37,19 +37,19 @@ pub fn generate_owl_turtle(ontology: &OntologyIR) -> String {
     out.push('\n');
 
     // --- Classes (from NodeTypeDef) ---
-    if !ontology.node_types.is_empty() {
+    if !ontology.node_types().is_empty() {
         out.push_str("# ----------------------------------------------------------------\n");
         out.push_str("# Classes\n");
         out.push_str("# ----------------------------------------------------------------\n\n");
     }
-    for node in &ontology.node_types {
+    for node in ontology.node_types() {
         let class_id = local_name(&node.label);
         out.push_str(&format!(":{class_id} a owl:Class ;\n"));
         out.push_str(&format!(
             "    rdfs:label {} .\n",
             turtle_literal(&node.label),
         ));
-        if let Some(desc) = &node.description {
+        if let Some(desc) = node.description.present() {
             let len = out.len();
             out.truncate(len - 3);
             out.push_str(" ;\n");
@@ -59,12 +59,12 @@ pub fn generate_owl_turtle(ontology: &OntologyIR) -> String {
     }
 
     // --- Object Properties (from EdgeTypeDef) ---
-    if !ontology.edge_types.is_empty() {
+    if !ontology.edge_types().is_empty() {
         out.push_str("# ----------------------------------------------------------------\n");
         out.push_str("# Object Properties\n");
         out.push_str("# ----------------------------------------------------------------\n\n");
     }
-    for edge in &ontology.edge_types {
+    for edge in ontology.edge_types() {
         let prop_id = local_name(&edge.label);
         let src_label = ontology.node_label(&edge.source_node_id).unwrap_or("Thing");
         let tgt_label = ontology.node_label(&edge.target_node_id).unwrap_or("Thing");
@@ -78,7 +78,7 @@ pub fn generate_owl_turtle(ontology: &OntologyIR) -> String {
         ));
         out.push_str(&format!("    rdfs:domain :{src_class} ;\n"));
         out.push_str(&format!("    rdfs:range :{tgt_class} .\n"));
-        if let Some(desc) = &edge.description {
+        if let Some(desc) = edge.description.present() {
             let len = out.len();
             out.truncate(len - 3);
             out.push_str(" ;\n");
@@ -106,7 +106,7 @@ pub fn generate_owl_turtle(ontology: &OntologyIR) -> String {
                 "    rdfs:range {} .\n",
                 xsd_type(&prop.property_type),
             ));
-            if let Some(desc) = &prop.description {
+            if let Some(desc) = prop.description.present() {
                 let len = out.len();
                 out.truncate(len - 3);
                 out.push_str(" ;\n");
@@ -117,14 +117,14 @@ pub fn generate_owl_turtle(ontology: &OntologyIR) -> String {
     }
 
     // --- Datatype Properties (from PropertyDef on nodes) ---
-    if ontology.node_types.iter().any(|n| !n.properties.is_empty()) {
+    if ontology.node_types().iter().any(|n| !n.properties.is_empty()) {
         out.push_str("# ----------------------------------------------------------------\n");
         out.push_str("# Datatype Properties\n");
         out.push_str("# ----------------------------------------------------------------\n\n");
     }
 
     // Collect unique constraint property ids per node for functional marking
-    for node in &ontology.node_types {
+    for node in ontology.node_types() {
         let class_id = local_name(&node.label);
         let unique_prop_ids: std::collections::HashSet<&str> = node
             .constraints
@@ -157,7 +157,7 @@ pub fn generate_owl_turtle(ontology: &OntologyIR) -> String {
                 "    rdfs:range {} .\n",
                 xsd_type(&prop.property_type),
             ));
-            if let Some(desc) = &prop.description {
+            if let Some(desc) = prop.description.present() {
                 let len = out.len();
                 out.truncate(len - 3);
                 out.push_str(" ;\n");
@@ -256,6 +256,7 @@ fn uri_encode(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ox_core::LocalizedText;
     use ox_core::ontology_ir::{
         Cardinality, ConstraintDef, EdgeTypeDef, NodeConstraint, NodeTypeDef, OntologyIR,
         PropertyDef,
@@ -266,14 +267,13 @@ mod tests {
         OntologyIR::new(
             "test-id".into(),
             "Cosmetics".into(),
-            Some("Korean cosmetics ontology".into()),
+            LocalizedText::new("Korean cosmetics ontology"),
             1,
             vec![
                 NodeTypeDef {
                     id: "n1".into(),
                     label: "Brand".into(),
-                    description: Some("Cosmetic brand entity".into()),
-                    source_table: None,
+                    description: LocalizedText::new("Cosmetic brand entity"),
                     properties: vec![
                         PropertyDef {
                             id: "p1".into(),
@@ -281,7 +281,7 @@ mod tests {
                             property_type: PropertyType::String,
                             nullable: false,
                             default_value: None,
-                            description: Some("Brand name in Korean".into()),
+                            description: LocalizedText::new("Brand name in Korean"),
                             classification: None,
                             ..Default::default()
                         },
@@ -291,7 +291,7 @@ mod tests {
                             property_type: PropertyType::Int,
                             nullable: true,
                             default_value: None,
-                            description: None,
+                            description: LocalizedText::default(),
                             classification: None,
                             ..Default::default()
                         },
@@ -307,15 +307,14 @@ mod tests {
                 NodeTypeDef {
                     id: "n2".into(),
                     label: "Product".into(),
-                    description: Some("A cosmetic product".into()),
-                    source_table: None,
+                    description: LocalizedText::new("A cosmetic product"),
                     properties: vec![PropertyDef {
                         id: "p3".into(),
                         name: "price".into(),
                         property_type: PropertyType::Float,
                         nullable: false,
                         default_value: None,
-                        description: None,
+                        description: LocalizedText::default(),
                         classification: None,
                         ..Default::default()
                     }],
@@ -326,7 +325,7 @@ mod tests {
             vec![EdgeTypeDef {
                 id: "e1".into(),
                 label: "MANUFACTURED_BY".into(),
-                description: Some("Product manufactured by brand".into()),
+                description: LocalizedText::new("Product manufactured by brand"),
                 source_node_id: "n2".into(),
                 target_node_id: "n1".into(),
                 properties: vec![],

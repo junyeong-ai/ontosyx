@@ -10,6 +10,41 @@ use std::collections::HashMap;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+// ---------------------------------------------------------------------------
+// OntologyInvariantError — typed invariant violations
+// ---------------------------------------------------------------------------
+
+/// Invariants that the ontology IR maintains at construction and after any
+/// structural mutation. A violation means the caller produced inconsistent
+/// data (duplicate ids, references to non-existent entities, etc.).
+///
+/// Raised by [`OntologyIR::try_new`], [`OntologyIR::rebuild_indices`], and
+/// every mutation method that can introduce duplicates.
+#[derive(Debug, Clone, Error, PartialEq, Eq)]
+pub enum OntologyInvariantError {
+    #[error("duplicate node type id: {id}")]
+    DuplicateNodeTypeId { id: NodeTypeId },
+
+    #[error("duplicate node type label: {label}")]
+    DuplicateNodeTypeLabel { label: String },
+
+    #[error("duplicate edge type id: {id}")]
+    DuplicateEdgeTypeId { id: EdgeTypeId },
+
+    #[error("duplicate property id: {id} (property ids must be unique across the ontology)")]
+    DuplicatePropertyId { id: PropertyId },
+
+    #[error("node type not found: {id}")]
+    NodeTypeNotFound { id: NodeTypeId },
+
+    #[error("edge type not found: {id}")]
+    EdgeTypeNotFound { id: EdgeTypeId },
+
+    #[error("index not found: {id}")]
+    IndexNotFound { id: String },
+}
 
 // ---------------------------------------------------------------------------
 // OntologyIR — DB-agnostic ontology definition
@@ -59,22 +94,29 @@ struct OntologyLookup {
 
 #[derive(Debug, Clone, Serialize, JsonSchema)]
 pub struct OntologyIR {
-    /// Unique identifier for this ontology version
+    /// Unique identifier for this ontology version.
     pub id: String,
-    /// Human-readable name (e.g. "E-commerce Ontology")
+    /// Human-readable name (e.g. "E-commerce Ontology"). Single canonical
+    /// string; for localized display use the workspace's ontology catalog
+    /// layer rather than embedding locale variants into the identifier.
     pub name: String,
-    /// Optional description
-    pub description: Option<String>,
+    /// Localized human-readable description of the ontology.
+    #[serde(default)]
+    pub description: crate::i18n::LocalizedText,
     /// Version metadata (number + temporal window + provenance).
     pub version: OntologyVersion,
-    /// All node types in this ontology
-    pub node_types: Vec<NodeTypeDef>,
-    /// All edge types (relationships) in this ontology
+    /// All node types in this ontology. Accessed externally via
+    /// [`OntologyIR::node_types`]; structural mutations go through
+    /// [`OntologyIR::add_node_type`], [`OntologyIR::remove_node_type`], etc.
+    pub(crate) node_types: Vec<NodeTypeDef>,
+    /// All edge types (relationships) in this ontology. See
+    /// [`OntologyIR::edge_types`] / [`OntologyIR::add_edge_type`].
     #[serde(default)]
-    pub edge_types: Vec<EdgeTypeDef>,
-    /// Global indexes that span multiple types
+    pub(crate) edge_types: Vec<EdgeTypeDef>,
+    /// Global indexes that span multiple types. See
+    /// [`OntologyIR::indexes`] / [`OntologyIR::add_index`].
     #[serde(default)]
-    pub indexes: Vec<IndexDef>,
+    pub(crate) indexes: Vec<IndexDef>,
 
     /// Precomputed lookup indices — not serialized, rebuilt on deserialize.
     #[serde(skip)]
@@ -89,9 +131,8 @@ impl<'de> Deserialize<'de> for OntologyIR {
         struct Wire {
             id: String,
             name: String,
-            description: Option<String>,
-            /// Accepts both `1` (legacy u32) and `{"number":1,...}` (OntologyVersion).
-            #[serde(deserialize_with = "deserialize_version")]
+            #[serde(default)]
+            description: crate::i18n::LocalizedText,
             version: OntologyVersion,
             node_types: Vec<NodeTypeDef>,
             #[serde(default)]
@@ -100,32 +141,17 @@ impl<'de> Deserialize<'de> for OntologyIR {
             indexes: Vec<IndexDef>,
         }
 
-        fn deserialize_version<'de, D: serde::Deserializer<'de>>(
-            d: D,
-        ) -> Result<OntologyVersion, D::Error> {
-            let val = serde_json::Value::deserialize(d)?;
-            match val {
-                serde_json::Value::Number(n) => {
-                    let num = n.as_u64().unwrap_or(1) as u32;
-                    Ok(OntologyVersion::from(num))
-                }
-                other => serde_json::from_value(other).map_err(serde::de::Error::custom),
-            }
-        }
-
         let w = Wire::deserialize(deserializer)?;
-        let mut ont = OntologyIR {
-            id: w.id,
-            name: w.name,
-            description: w.description,
-            version: w.version,
-            node_types: w.node_types,
-            edge_types: w.edge_types,
-            indexes: w.indexes,
-            lookup: OntologyLookup::default(),
-        };
-        ont.rebuild_indices();
-        Ok(ont)
+        OntologyIR::try_new(
+            w.id,
+            w.name,
+            w.description,
+            w.version,
+            w.node_types,
+            w.edge_types,
+            w.indexes,
+        )
+        .map_err(serde::de::Error::custom)
     }
 }
 
@@ -135,15 +161,47 @@ impl<'de> Deserialize<'de> for OntologyIR {
 
 impl OntologyIR {
     /// Construct a new OntologyIR with prebuilt lookup indices.
+    ///
+    /// This is the ergonomic constructor used when the caller has just built
+    /// the vectors with known-unique ids/labels (e.g. test fixtures, transform
+    /// helpers). It delegates to [`OntologyIR::try_new`] and panics on invariant
+    /// violations — such a panic indicates a programming bug in the caller.
+    ///
+    /// For deserialization or any input whose uniqueness cannot be guaranteed
+    /// up-front, call [`OntologyIR::try_new`] directly and handle the
+    /// [`OntologyInvariantError`] explicitly.
+    #[allow(clippy::expect_used)]
     pub fn new(
         id: String,
         name: String,
-        description: Option<String>,
+        description: crate::i18n::LocalizedText,
         version: impl Into<OntologyVersion>,
         node_types: Vec<NodeTypeDef>,
         edge_types: Vec<EdgeTypeDef>,
         indexes: Vec<IndexDef>,
     ) -> Self {
+        Self::try_new(id, name, description, version, node_types, edge_types, indexes)
+            .expect(
+                "OntologyIR::new called with duplicate ids/labels; \
+                 caller must ensure uniqueness or use OntologyIR::try_new instead",
+            )
+    }
+
+    /// Fallible constructor. Returns [`OntologyInvariantError`] if the input
+    /// vectors contain duplicate node/edge/property ids or duplicate node
+    /// labels.
+    ///
+    /// Use this whenever input cannot be statically guaranteed unique —
+    /// deserialization, merging ontologies, LLM-generated data, etc.
+    pub fn try_new(
+        id: String,
+        name: String,
+        description: crate::i18n::LocalizedText,
+        version: impl Into<OntologyVersion>,
+        node_types: Vec<NodeTypeDef>,
+        edge_types: Vec<EdgeTypeDef>,
+        indexes: Vec<IndexDef>,
+    ) -> Result<Self, OntologyInvariantError> {
         let mut ont = Self {
             id,
             name,
@@ -154,23 +212,24 @@ impl OntologyIR {
             indexes,
             lookup: OntologyLookup::default(),
         };
-        ont.rebuild_indices();
-        ont
+        ont.rebuild_indices()?;
+        Ok(ont)
     }
 
     /// Construct a new OntologyIR, validate it, and return the validated instance.
-    /// Returns an error if validation fails, ensuring all OntologyIR instances
-    /// created through this constructor are valid by construction.
+    ///
+    /// Structural invariant violations (duplicate ids/labels) and semantic
+    /// validation errors are both returned as strings in the `Err` vec.
     pub fn new_validated(
         id: String,
         name: String,
-        description: Option<String>,
+        description: crate::i18n::LocalizedText,
         version: impl Into<OntologyVersion>,
         node_types: Vec<NodeTypeDef>,
         edge_types: Vec<EdgeTypeDef>,
         indexes: Vec<IndexDef>,
     ) -> Result<Self, Vec<String>> {
-        let ont = Self::new(
+        let ont = Self::try_new(
             id,
             name,
             description,
@@ -178,7 +237,8 @@ impl OntologyIR {
             node_types,
             edge_types,
             indexes,
-        );
+        )
+        .map_err(|e| vec![e.to_string()])?;
         let errors = ont.validate();
         if errors.is_empty() {
             Ok(ont)
@@ -188,33 +248,247 @@ impl OntologyIR {
     }
 
     /// Rebuild all lookup indices from current data.
-    /// Must be called after any structural mutation (add/remove/reorder nodes/edges/properties).
     ///
-    /// # Panics (debug only)
-    /// Debug-asserts if duplicate IDs or labels are found, indicating a corrupt ontology.
-    pub fn rebuild_indices(&mut self) {
+    /// Must be called after any structural mutation (add/remove/reorder
+    /// nodes/edges/properties). Returns an error if duplicate ids or labels
+    /// are detected — a programming mistake in the caller, not a user input
+    /// error.
+    ///
+    /// Structural mutation methods on this type (`add_node_type`,
+    /// `remove_edge_type`, `with_batch`, etc.) call this automatically, so
+    /// most callers never need to invoke it directly.
+    pub fn rebuild_indices(&mut self) -> Result<(), OntologyInvariantError> {
         let mut lookup = OntologyLookup::default();
         for (i, node) in self.node_types.iter().enumerate() {
-            let prev_id = lookup.node_id_idx.insert(node.id.clone(), i);
-            debug_assert!(prev_id.is_none(), "duplicate node id: {}", node.id);
-            let prev_label = lookup.node_label_idx.insert(node.label.clone(), i);
-            debug_assert!(prev_label.is_none(), "duplicate node label: {}", node.label);
+            if lookup.node_id_idx.insert(node.id.clone(), i).is_some() {
+                return Err(OntologyInvariantError::DuplicateNodeTypeId {
+                    id: node.id.clone(),
+                });
+            }
+            if lookup.node_label_idx.insert(node.label.clone(), i).is_some() {
+                return Err(OntologyInvariantError::DuplicateNodeTypeLabel {
+                    label: node.label.clone(),
+                });
+            }
             for (j, prop) in node.properties.iter().enumerate() {
-                let prev_prop = lookup.prop_id_loc.insert(prop.id.clone(), (i, j));
-                debug_assert!(prev_prop.is_none(), "duplicate property id: {}", prop.id);
+                if lookup.prop_id_loc.insert(prop.id.clone(), (i, j)).is_some() {
+                    return Err(OntologyInvariantError::DuplicatePropertyId {
+                        id: prop.id.clone(),
+                    });
+                }
             }
         }
         for (i, edge) in self.edge_types.iter().enumerate() {
-            let prev = lookup.edge_id_idx.insert(edge.id.clone(), i);
-            debug_assert!(prev.is_none(), "duplicate edge id: {}", edge.id);
+            if lookup.edge_id_idx.insert(edge.id.clone(), i).is_some() {
+                return Err(OntologyInvariantError::DuplicateEdgeTypeId {
+                    id: edge.id.clone(),
+                });
+            }
         }
         self.lookup = lookup;
+        Ok(())
     }
 
-    /// Consume self, rebuild indices, return self. Useful for chaining after construction.
-    pub fn with_indices(mut self) -> Self {
-        self.rebuild_indices();
-        self
+    /// Consume self, rebuild indices, return self. Useful for chaining after
+    /// ad-hoc mutation patterns; fails with [`OntologyInvariantError`] on
+    /// duplicate detection.
+    pub fn with_indices(mut self) -> Result<Self, OntologyInvariantError> {
+        self.rebuild_indices()?;
+        Ok(self)
+    }
+
+    // -----------------------------------------------------------------------
+    // Structural mutation API — every method rebuilds the lookup internally
+    // and surfaces invariant violations via [`OntologyInvariantError`].
+    // -----------------------------------------------------------------------
+
+    /// Add a node type. Fails if a node with the same id or label already
+    /// exists. On success, returns an immutable reference to the inserted
+    /// entry.
+    pub fn add_node_type(
+        &mut self,
+        node: NodeTypeDef,
+    ) -> Result<&NodeTypeDef, OntologyInvariantError> {
+        if self.lookup.node_id_idx.contains_key(&node.id) {
+            return Err(OntologyInvariantError::DuplicateNodeTypeId { id: node.id });
+        }
+        if self.lookup.node_label_idx.contains_key(&node.label) {
+            return Err(OntologyInvariantError::DuplicateNodeTypeLabel {
+                label: node.label,
+            });
+        }
+        self.node_types.push(node);
+        self.rebuild_indices()?;
+        self.node_types
+            .last()
+            .ok_or_else(|| OntologyInvariantError::NodeTypeNotFound {
+                id: NodeTypeId::new(""),
+            })
+    }
+
+    /// Remove a node type by id and return the removed entry. Fails with
+    /// [`OntologyInvariantError::NodeTypeNotFound`] if no such id exists.
+    ///
+    /// Edge types and indexes that reference the removed node are NOT
+    /// cascaded — the caller is responsible for cleaning up references,
+    /// typically via `ontology_command::OntologyCommand::DeleteNode`.
+    pub fn remove_node_type(
+        &mut self,
+        id: &NodeTypeId,
+    ) -> Result<NodeTypeDef, OntologyInvariantError> {
+        let idx = *self.lookup.node_id_idx.get(id).ok_or_else(|| {
+            OntologyInvariantError::NodeTypeNotFound { id: id.clone() }
+        })?;
+        let removed = self.node_types.remove(idx);
+        self.rebuild_indices()?;
+        Ok(removed)
+    }
+
+    /// Apply a closure to a node type in place.
+    ///
+    /// The closure receives a mutable reference to the entry; on return, the
+    /// lookup is rebuilt and invariant violations surface as
+    /// [`OntologyInvariantError`] (e.g. if the closure renamed the node to a
+    /// duplicate label).
+    pub fn update_node_type<F>(
+        &mut self,
+        id: &NodeTypeId,
+        f: F,
+    ) -> Result<(), OntologyInvariantError>
+    where
+        F: FnOnce(&mut NodeTypeDef),
+    {
+        let idx = *self.lookup.node_id_idx.get(id).ok_or_else(|| {
+            OntologyInvariantError::NodeTypeNotFound { id: id.clone() }
+        })?;
+        f(&mut self.node_types[idx]);
+        self.rebuild_indices()
+    }
+
+    /// Add an edge type. Fails on duplicate id.
+    pub fn add_edge_type(
+        &mut self,
+        edge: EdgeTypeDef,
+    ) -> Result<&EdgeTypeDef, OntologyInvariantError> {
+        if self.lookup.edge_id_idx.contains_key(&edge.id) {
+            return Err(OntologyInvariantError::DuplicateEdgeTypeId { id: edge.id });
+        }
+        self.edge_types.push(edge);
+        self.rebuild_indices()?;
+        self.edge_types
+            .last()
+            .ok_or_else(|| OntologyInvariantError::EdgeTypeNotFound {
+                id: EdgeTypeId::new(""),
+            })
+    }
+
+    /// Remove an edge type by id and return the removed entry.
+    pub fn remove_edge_type(
+        &mut self,
+        id: &EdgeTypeId,
+    ) -> Result<EdgeTypeDef, OntologyInvariantError> {
+        let idx = *self.lookup.edge_id_idx.get(id).ok_or_else(|| {
+            OntologyInvariantError::EdgeTypeNotFound { id: id.clone() }
+        })?;
+        let removed = self.edge_types.remove(idx);
+        self.rebuild_indices()?;
+        Ok(removed)
+    }
+
+    /// Apply a closure to an edge type in place.
+    pub fn update_edge_type<F>(
+        &mut self,
+        id: &EdgeTypeId,
+        f: F,
+    ) -> Result<(), OntologyInvariantError>
+    where
+        F: FnOnce(&mut EdgeTypeDef),
+    {
+        let idx = *self.lookup.edge_id_idx.get(id).ok_or_else(|| {
+            OntologyInvariantError::EdgeTypeNotFound { id: id.clone() }
+        })?;
+        f(&mut self.edge_types[idx]);
+        self.rebuild_indices()
+    }
+
+    /// Add an index definition. No uniqueness check on ids (indexes carry
+    /// caller-supplied ids that are not structural identifiers).
+    pub fn add_index(&mut self, index: IndexDef) -> Result<(), OntologyInvariantError> {
+        self.indexes.push(index);
+        self.rebuild_indices()
+    }
+
+    /// Remove an index whose `id` matches `index_id`.
+    pub fn remove_index(&mut self, index_id: &str) -> Result<IndexDef, OntologyInvariantError> {
+        let pos = self.indexes.iter().position(|idx| match idx {
+            IndexDef::Single { id, .. }
+            | IndexDef::Composite { id, .. }
+            | IndexDef::FullText { id, .. }
+            | IndexDef::Vector { id, .. } => id == index_id,
+        });
+        let pos = pos.ok_or_else(|| OntologyInvariantError::IndexNotFound {
+            id: index_id.to_string(),
+        })?;
+        let removed = self.indexes.remove(pos);
+        self.rebuild_indices()?;
+        Ok(removed)
+    }
+
+    /// Execute a batch of structural mutations with a single rebuild at the
+    /// end.
+    ///
+    /// Use when a single logical change touches several entries (e.g.
+    /// renaming a node and rewriting all edges that reference it). The
+    /// closure receives direct mutable access to the internal vectors; on
+    /// return, the lookup is rebuilt once and invariant violations surface
+    /// as [`OntologyInvariantError`].
+    pub fn with_batch<F, R>(&mut self, f: F) -> Result<R, OntologyInvariantError>
+    where
+        F: FnOnce(&mut Vec<NodeTypeDef>, &mut Vec<EdgeTypeDef>, &mut Vec<IndexDef>) -> R,
+    {
+        let r = f(&mut self.node_types, &mut self.edge_types, &mut self.indexes);
+        self.rebuild_indices()?;
+        Ok(r)
+    }
+
+    // -----------------------------------------------------------------------
+    // Read accessors — prefer these over direct field access.
+    // -----------------------------------------------------------------------
+
+    /// All node types in declaration order.
+    pub fn node_types(&self) -> &[NodeTypeDef] {
+        &self.node_types
+    }
+
+    /// All edge types in declaration order.
+    pub fn edge_types(&self) -> &[EdgeTypeDef] {
+        &self.edge_types
+    }
+
+    /// All indexes in declaration order.
+    pub fn indexes(&self) -> &[IndexDef] {
+        &self.indexes
+    }
+
+    /// Mutable slice of node types. Intended for field-level mutation that
+    /// does **not** change `id` or `label` (e.g. description/property edits).
+    /// If you do change `id`/`label`, call [`OntologyIR::rebuild_indices`]
+    /// afterwards to refresh the lookup tables; for structural add/remove,
+    /// use [`OntologyIR::add_node_type`] / [`OntologyIR::remove_node_type`].
+    pub fn node_types_mut(&mut self) -> &mut [NodeTypeDef] {
+        &mut self.node_types
+    }
+
+    /// Mutable slice of edge types. Same contract as
+    /// [`OntologyIR::node_types_mut`].
+    pub fn edge_types_mut(&mut self) -> &mut [EdgeTypeDef] {
+        &mut self.edge_types
+    }
+
+    /// Mutable slice of index definitions. Same contract as
+    /// [`OntologyIR::node_types_mut`].
+    pub fn indexes_mut(&mut self) -> &mut [IndexDef] {
+        &mut self.indexes
     }
 
     /// Resolve a node's label from its ID. O(1).
@@ -296,7 +570,7 @@ impl OntologyIR {
 
             let props: Vec<&str> = node.properties.iter().map(|p| p.name.as_str()).collect();
 
-            let desc = node.description.as_deref().unwrap_or("");
+            let desc = node.description.as_str();
             let mut text = format!("{}: {} Properties: {}.", node.label, desc, props.join(", "));
 
             if !outgoing.is_empty() {
@@ -417,7 +691,7 @@ impl OntologyIR {
             }
             let mut props = serde_json::Map::new();
             for p in &node.properties {
-                let desc = p.description.as_deref().unwrap_or("");
+                let desc = p.description.as_str();
                 let nullable = if p.nullable { ", nullable" } else { "" };
                 props.insert(
                     p.name.clone(),
@@ -429,8 +703,11 @@ impl OntologyIR {
                 );
             }
             let mut node_obj = serde_json::Map::new();
-            if let Some(d) = &node.description {
-                node_obj.insert("description".into(), serde_json::Value::String(d.clone()));
+            if !node.description.is_empty() {
+                node_obj.insert(
+                    "description".into(),
+                    serde_json::Value::String(node.description.default_str().to_string()),
+                );
             }
             node_obj.insert("properties".into(), serde_json::Value::Object(props));
             nodes.insert(node.label.clone(), serde_json::Value::Object(node_obj));
@@ -454,8 +731,11 @@ impl OntologyIR {
                     "cardinality".into(),
                     serde_json::Value::String(format!("{:?}", edge.cardinality)),
                 );
-                if let Some(d) = &edge.description {
-                    edge_obj.insert("description".into(), serde_json::Value::String(d.clone()));
+                if !edge.description.is_empty() {
+                    edge_obj.insert(
+                        "description".into(),
+                        serde_json::Value::String(edge.description.default_str().to_string()),
+                    );
                 }
                 if !edge.properties.is_empty() {
                     let props: Vec<String> =

@@ -12,6 +12,7 @@ use schemars::JsonSchema;
 use serde::Serialize;
 
 use crate::graph_exploration::GraphSchemaOverview;
+use crate::i18n::LocalizedText;
 use crate::ontology_ir::OntologyIR;
 
 /// Sync status between ontology and graph data.
@@ -173,7 +174,7 @@ pub fn ontology_from_graph(overview: &GraphSchemaOverview, name: &str) -> Ontolo
                     ),
                     nullable: !p.mandatory,
                     default_value: None,
-                    description: None,
+                    description: LocalizedText::default(),
                     classification: None,
                     ..Default::default()
                 })
@@ -188,8 +189,10 @@ pub fn ontology_from_graph(overview: &GraphSchemaOverview, name: &str) -> Ontolo
         .map(|(i, label_stat)| NodeTypeDef {
             id: format!("n{i}").into(),
             label: label_stat.label.clone(),
-            description: Some(format!("{} ({} nodes)", label_stat.label, label_stat.count)),
-            source_table: None,
+            description: LocalizedText::new(format!(
+                "{} ({} nodes)",
+                label_stat.label, label_stat.count
+            )),
             properties: build_props(&overview.node_properties, &label_stat.label),
             constraints: vec![],
             ..Default::default()
@@ -216,7 +219,7 @@ pub fn ontology_from_graph(overview: &GraphSchemaOverview, name: &str) -> Ontolo
             Some(EdgeTypeDef {
                 id: format!("e{i}").into(),
                 label: rp.rel_type.clone(),
-                description: Some(format!(
+                description: LocalizedText::new(format!(
                     "{} -[:{}]-> {} ({} relationships)",
                     rp.from_label, rp.rel_type, rp.to_label, rp.count,
                 )),
@@ -232,7 +235,7 @@ pub fn ontology_from_graph(overview: &GraphSchemaOverview, name: &str) -> Ontolo
     OntologyIR::new(
         uuid::Uuid::new_v4().to_string(),
         name.to_string(),
-        Some(format!(
+        LocalizedText::new(format!(
             "Auto-generated from graph with {} nodes and {} relationships",
             overview.total_nodes, overview.total_relationships
         )),
@@ -246,6 +249,7 @@ pub fn ontology_from_graph(overview: &GraphSchemaOverview, name: &str) -> Ontolo
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::i18n::LocalizedText;
     use crate::graph_exploration::{GraphSchemaOverview, LabelStat, RelationshipPattern};
     use crate::ontology_ir::OntologyIR;
     use crate::ontology_ir::{Cardinality, EdgeTypeDef, NodeTypeDef};
@@ -257,8 +261,7 @@ mod tests {
             .map(|(i, label)| NodeTypeDef {
                 id: format!("n{i}").into(),
                 label: label.to_string(),
-                description: None,
-                source_table: None,
+                description: LocalizedText::default(),
                 properties: vec![],
                 constraints: vec![],
                 ..Default::default()
@@ -270,7 +273,7 @@ mod tests {
             .map(|(i, (src, label, tgt))| EdgeTypeDef {
                 id: format!("e{i}").into(),
                 label: label.to_string(),
-                description: None,
+                description: LocalizedText::default(),
                 source_node_id: format!("n{}", nodes.iter().position(|n| n == src).unwrap_or(0))
                     .into(),
                 target_node_id: format!("n{}", nodes.iter().position(|n| n == tgt).unwrap_or(0))
@@ -283,7 +286,7 @@ mod tests {
         OntologyIR::new(
             "test".into(),
             "Test".into(),
-            None,
+            LocalizedText::default(),
             1,
             node_types,
             edge_types,

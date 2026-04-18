@@ -23,11 +23,24 @@ pub enum PlatformRole {
 }
 
 impl PlatformRole {
-    pub fn from_str(s: &str) -> Self {
+    /// Parse a DB-stored role string, defaulting unknown values to the
+    /// least-privileged `Viewer`. Unknown values indicate schema drift
+    /// or manual DB edits, so we warn instead of silently downgrading.
+    ///
+    /// Named `from_db_string` (not `from_str`) to make the infallible,
+    /// least-privilege-defaulting contract explicit.
+    pub fn from_db_string(s: &str) -> Self {
         match s {
             "admin" => Self::Admin,
             "designer" => Self::Designer,
-            _ => Self::Viewer,
+            "viewer" => Self::Viewer,
+            unknown => {
+                tracing::warn!(
+                    role = unknown,
+                    "Unknown platform role string — defaulting to Viewer."
+                );
+                Self::Viewer
+            }
         }
     }
 
@@ -73,19 +86,42 @@ pub struct Principal {
     pub role: PlatformRole,
 }
 
+/// Prefixes that identify non-human `sub` values produced by the
+/// auth layer:
+///
+/// - `system:*` — internal system tasks (bootstrap seeding, migrations).
+/// - `apikey:*` — DB-backed API keys (see `AuthClaims` construction in
+///   `middleware.rs::require_auth`). Phase 4.2 switched API-key auth to
+///   this prefix; anything downstream that still checks only `system:`
+///   will silently reject live API-key callers.
+///
+/// Use `Principal::is_machine()` / `AuthClaims::is_machine()` instead of
+/// hand-rolling the prefix check at every call site.
+pub const MACHINE_SUB_PREFIXES: &[&str] = &["system:", "apikey:"];
+
+/// Returns `true` when the given claim `sub` belongs to a non-human
+/// principal (system task or API key).
+pub fn is_machine_sub(sub: &str) -> bool {
+    MACHINE_SUB_PREFIXES.iter().any(|p| sub.starts_with(p))
+}
+
 impl Principal {
     /// Create a Principal from authenticated claims.
     pub fn from_claims(claims: &AuthClaims) -> Self {
         Self {
             id: claims.sub.clone(),
             email: claims.email.clone(),
-            role: PlatformRole::from_str(&claims.role),
+            role: PlatformRole::from_db_string(&claims.role),
         }
     }
 
-    /// Whether this principal represents a system/API-key user (not a human).
-    pub fn is_system(&self) -> bool {
-        self.id.starts_with("system:")
+    /// Whether this principal represents a non-human identity — either a
+    /// system task (`system:*`) or a DB-backed API key (`apikey:*`).
+    /// All middleware and handlers MUST use this predicate instead of
+    /// ad-hoc `id.starts_with(...)` checks, otherwise new prefix
+    /// additions will silently bypass workspace resolution.
+    pub fn is_machine(&self) -> bool {
+        is_machine_sub(&self.id)
     }
 
     /// Parse the principal's ID as a UUID. Fails for system users.

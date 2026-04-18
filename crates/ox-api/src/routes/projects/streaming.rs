@@ -663,7 +663,7 @@ pub(crate) async fn refine_project_stream(
     };
     // Dynamic profiling timeout based on ontology size
     let dynamic_timeout_secs = if profiling_timeout_secs > 0 {
-        let node_count = ontology.node_types.len();
+        let node_count = ontology.node_types().len();
         match node_count {
             0..=100 => profiling_timeout_secs,
             101..=500 => profiling_timeout_secs.max(120),
@@ -680,7 +680,7 @@ pub(crate) async fn refine_project_stream(
         yield Ok(Event::default().event("phase").data(sse_phase("validating", None)));
 
         let refine_started = Instant::now();
-        let node_count = ontology.node_types.len();
+        let node_count = ontology.node_types().len();
         let profile_config = profiler::ProfileConfig::for_ontology_size(node_count);
 
         // Graph profiling (optional, non-fatal)
@@ -826,7 +826,15 @@ pub(crate) async fn refine_project_stream(
             sse_phase("reconciling", None)
         ));
 
-        let reconciled = ox_core::ontology_command::reconcile_refined(&ontology, llm_refined);
+        let reconciled = match ox_core::ontology_command::reconcile_refined(&ontology, llm_refined) {
+            Ok(r) => r,
+            Err(e) => {
+                yield Ok(Event::default().event("error").data(
+                    sse_error("reconcile_error", &format!("{e}"))
+                ));
+                return;
+            }
+        };
         let _ = refined_mapping;
 
         // Fail-closed: return uncertain matches as special SSE event

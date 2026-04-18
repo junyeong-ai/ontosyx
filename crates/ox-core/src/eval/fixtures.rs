@@ -3,6 +3,7 @@
 //! The e-commerce ontology and its 20 evaluation cases provide a comprehensive
 //! baseline for measuring query translation accuracy across all query categories.
 
+use crate::i18n::LocalizedText;
 use crate::ontology_ir::{
     Cardinality, ConstraintDef, EdgeTypeDef, IndexDef, NodeConstraint, NodeTypeDef, OntologyIR,
     PropertyDef,
@@ -22,7 +23,7 @@ fn prop(id: &str, name: &str, ty: PropertyType, desc: Option<&str>) -> PropertyD
         property_type: ty,
         nullable: false,
         default_value: None,
-        description: desc.map(String::from),
+        description: LocalizedText::from(desc),
         classification: None,
         ..Default::default()
     }
@@ -35,7 +36,7 @@ fn nullable_prop(id: &str, name: &str, ty: PropertyType, desc: Option<&str>) -> 
         property_type: ty,
         nullable: true,
         default_value: None,
-        description: desc.map(String::from),
+        description: LocalizedText::from(desc),
         classification: None,
         ..Default::default()
     }
@@ -53,15 +54,14 @@ pub fn ecommerce_ontology() -> OntologyIR {
     OntologyIR::new(
         "eval-ecommerce".to_string(),
         "E-Commerce Ontology".to_string(),
-        Some("Standard evaluation ontology for NL-to-QueryIR testing".to_string()),
+        LocalizedText::new("Standard evaluation ontology for NL-to-QueryIR testing"),
         1,
         vec![
             // Customer
             NodeTypeDef {
                 id: "node-customer".into(),
                 label: "Customer".to_string(),
-                description: Some("A registered customer in the platform".to_string()),
-                source_table: None,
+                description: LocalizedText::new("A registered customer in the platform"),
                 properties: vec![
                     prop("p-cust-name", "name", PropertyType::String, Some("Full name of the customer")),
                     prop("p-cust-email", "email", PropertyType::String, Some("Email address (unique)")),
@@ -79,8 +79,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
             NodeTypeDef {
                 id: "node-order".into(),
                 label: "Order".to_string(),
-                description: Some("A purchase order placed by a customer".to_string()),
-                source_table: None,
+                description: LocalizedText::new("A purchase order placed by a customer"),
                 properties: vec![
                     prop("p-ord-date", "date", PropertyType::Date, Some("Date the order was placed")),
                     prop("p-ord-total", "total", PropertyType::Float, Some("Total order amount in USD")),
@@ -93,8 +92,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
             NodeTypeDef {
                 id: "node-product".into(),
                 label: "Product".to_string(),
-                description: Some("A product available for purchase".to_string()),
-                source_table: None,
+                description: LocalizedText::new("A product available for purchase"),
                 properties: vec![
                     prop("p-prod-name", "name", PropertyType::String, Some("Product name")),
                     prop("p-prod-price", "price", PropertyType::Float, Some("Unit price in USD")),
@@ -112,8 +110,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
             NodeTypeDef {
                 id: "node-category".into(),
                 label: "Category".to_string(),
-                description: Some("Product category for classification".to_string()),
-                source_table: None,
+                description: LocalizedText::new("Product category for classification"),
                 properties: vec![
                     prop("p-cat-name", "name", PropertyType::String, Some("Category name (e.g., Electronics, Clothing, Books)")),
                 ],
@@ -129,8 +126,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
             NodeTypeDef {
                 id: "node-review".into(),
                 label: "Review".to_string(),
-                description: Some("A product review written by a customer".to_string()),
-                source_table: None,
+                description: LocalizedText::new("A product review written by a customer"),
                 properties: vec![
                     prop("p-rev-rating", "rating", PropertyType::Int, Some("Rating from 1 to 5")),
                     nullable_prop("p-rev-text", "text", PropertyType::String, Some("Review text content")),
@@ -145,7 +141,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
             EdgeTypeDef {
                 id: "edge-placed".into(),
                 label: "PLACED".to_string(),
-                description: Some("Customer placed an order".to_string()),
+                description: LocalizedText::new("Customer placed an order"),
                 source_node_id: "node-customer".into(),
                 target_node_id: "node-order".into(),
                 properties: vec![],
@@ -156,7 +152,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
             EdgeTypeDef {
                 id: "edge-contains".into(),
                 label: "CONTAINS".to_string(),
-                description: Some("Order contains a product. Customer→Product path: (Customer)-[:PLACED]->(Order)-[:CONTAINS]->(Product)".to_string()),
+                description: LocalizedText::new("Order contains a product. Customer→Product path: (Customer)-[:PLACED]->(Order)-[:CONTAINS]->(Product)"),
                 source_node_id: "node-order".into(),
                 target_node_id: "node-product".into(),
                 properties: vec![
@@ -169,7 +165,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
             EdgeTypeDef {
                 id: "edge-belongs-to".into(),
                 label: "BELONGS_TO".to_string(),
-                description: Some("Product belongs to a category".to_string()),
+                description: LocalizedText::new("Product belongs to a category"),
                 source_node_id: "node-product".into(),
                 target_node_id: "node-category".into(),
                 properties: vec![],
@@ -180,7 +176,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
             EdgeTypeDef {
                 id: "edge-wrote".into(),
                 label: "WROTE".to_string(),
-                description: Some("Customer wrote a review".to_string()),
+                description: LocalizedText::new("Customer wrote a review"),
                 source_node_id: "node-customer".into(),
                 target_node_id: "node-review".into(),
                 properties: vec![],
@@ -191,7 +187,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
             EdgeTypeDef {
                 id: "edge-about".into(),
                 label: "ABOUT".to_string(),
-                description: Some("Review is about a product".to_string()),
+                description: LocalizedText::new("Review is about a product"),
                 source_node_id: "node-review".into(),
                 target_node_id: "node-product".into(),
                 properties: vec![],

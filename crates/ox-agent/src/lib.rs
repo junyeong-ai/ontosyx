@@ -341,13 +341,13 @@ async fn build_system_prompt(domain: &DomainContext, user_role: &str) -> String 
             ontology.name,
             ontology.version.number,
             ontology
-                .node_types
+                .node_types()
                 .iter()
                 .map(|n| n.label.as_str())
                 .collect::<Vec<_>>()
                 .join(", "),
             ontology
-                .edge_types
+                .edge_types()
                 .iter()
                 .map(|e| e.label.as_str())
                 .collect::<Vec<_>>()

@@ -105,7 +105,6 @@ impl OntologyCommand {
                 id,
                 label,
                 description,
-                source_table,
             } => {
                 if ont.node_types.iter().any(|n| n.id == *id) {
                     return Err(format!("node with id '{}' already exists", id));
@@ -117,7 +116,6 @@ impl OntologyCommand {
                     id: id.clone(),
                     label: label.clone(),
                     description: description.clone(),
-                    source_table: source_table.clone(),
                     properties: vec![],
                     constraints: vec![],
                     ..Default::default()
@@ -165,14 +163,13 @@ impl OntologyCommand {
                     id: node.id.clone(),
                     label: node.label.clone(),
                     description: node.description.clone(),
-                    source_table: node.source_table.clone(),
                 });
 
                 // Re-add properties
                 for prop in &node.properties {
                     inverse_commands.push(OntologyCommand::AddProperty {
                         owner: PropertyOwner::Node(node.id.clone()),
-                        property: prop.clone(),
+                        property: Box::new(prop.clone()),
                     });
                 }
 
@@ -197,7 +194,7 @@ impl OntologyCommand {
                     for prop in &edge.properties {
                         inverse_commands.push(OntologyCommand::AddProperty {
                             owner: PropertyOwner::Edge(edge.id.clone()),
-                            property: prop.clone(),
+                            property: Box::new(prop.clone()),
                         });
                     }
                 }
@@ -298,7 +295,7 @@ impl OntologyCommand {
                 ont.edge_types.push(EdgeTypeDef {
                     id: id.clone(),
                     label: label.clone(),
-                    description: None,
+                    description: LocalizedText::default(),
                     source_node_id: source_node_id.clone(),
                     target_node_id: target_node_id.clone(),
                     properties: vec![],
@@ -329,7 +326,7 @@ impl OntologyCommand {
                 for prop in edge.properties {
                     inverse_cmds.push(OntologyCommand::AddProperty {
                         owner: PropertyOwner::Edge(edge.id.clone()),
-                        property: prop,
+                        property: Box::new(prop),
                     });
                 }
 
@@ -412,7 +409,7 @@ impl OntologyCommand {
 
             // ----- AddProperty -----
             OntologyCommand::AddProperty { owner, property } => {
-                let loc = find_owner_location(&ont, &owner)?;
+                let loc = find_owner_location(&ont, owner)?;
                 let props = owner_properties_mut(&mut ont, &loc);
                 if props.iter().any(|p| p.id == property.id) {
                     return Err(format!(
@@ -420,7 +417,7 @@ impl OntologyCommand {
                         property.id, owner
                     ));
                 }
-                props.push(property.clone());
+                props.push((**property).clone());
                 Ok(CommandResult {
                     new_ontology: ont,
                     inverse: OntologyCommand::DeleteProperty {
@@ -435,7 +432,7 @@ impl OntologyCommand {
                 owner,
                 property_id,
             } => {
-                let loc = find_owner_location(&ont, &owner)?;
+                let loc = find_owner_location(&ont, owner)?;
                 let removed_prop = {
                     let props = owner_properties_mut(&mut ont, &loc);
                     let prop_idx =
@@ -467,7 +464,7 @@ impl OntologyCommand {
                     new_ontology: ont,
                     inverse: OntologyCommand::AddProperty {
                         owner: owner.clone(),
-                        property: removed_prop,
+                        property: Box::new(removed_prop),
                     },
                 })
             }
@@ -478,7 +475,7 @@ impl OntologyCommand {
                 property_id,
                 patch,
             } => {
-                let loc = find_owner_location(&ont, &owner)?;
+                let loc = find_owner_location(&ont, owner)?;
                 let props = owner_properties_mut(&mut ont, &loc);
                 let prop = props
                     .iter_mut()

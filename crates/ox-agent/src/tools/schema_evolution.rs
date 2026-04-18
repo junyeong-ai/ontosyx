@@ -200,24 +200,31 @@ fn detect_drift(schema: &SourceSchema, ontology: &ox_core::ontology_ir::Ontology
     let source_tables: std::collections::HashSet<String> =
         schema.tables.iter().map(|t| t.name.clone()).collect();
 
-    // Extract ontology node labels and their source_table mappings
+    // Extract ontology node labels and their source-table bindings via source_lineage.
+    // NodeTypeDef no longer carries a flat `source_table` field; the authoritative
+    // source binding lives on `SourceLineage` (or in SourceMapping at the project level).
     let ontology_nodes: std::collections::HashMap<String, Option<String>> = ontology
-        .node_types
+        .node_types()
         .iter()
-        .map(|n| (n.label.clone(), n.source_table.clone()))
+        .map(|n| {
+            (
+                n.label.clone(),
+                n.source_lineage.as_ref().map(|l| l.table.clone()),
+            )
+        })
         .collect();
 
     // Find unmapped tables (in source but not in ontology)
     let mapped_tables: std::collections::HashSet<String> = ontology_nodes
         .values()
-        .filter_map(|st| st.clone())
+        .filter_map(|st: &Option<String>| st.clone())
         .collect();
     let unmapped_tables: Vec<String> = source_tables.difference(&mapped_tables).cloned().collect();
 
     // Find orphaned nodes (in ontology but source table doesn't exist)
     let orphaned_nodes: Vec<String> = ontology_nodes
         .iter()
-        .filter(|(_, source_table)| {
+        .filter(|(_, source_table): &(&String, &Option<String>)| {
             source_table
                 .as_ref()
                 .map(|st| !source_tables.contains(st))
@@ -232,11 +239,15 @@ fn detect_drift(schema: &SourceSchema, ontology: &ox_core::ontology_ir::Ontology
     let mut type_mismatches = Vec::new();
 
     for table in &schema.tables {
-        // Find the ontology node mapped to this table
+        // Find the ontology node mapped to this table via source_lineage
         let mapped_node = ontology
-            .node_types
+            .node_types()
             .iter()
-            .find(|n| n.source_table.as_deref() == Some(&table.name));
+            .find(|n| {
+                n.source_lineage
+                    .as_ref()
+                    .is_some_and(|l| l.table == table.name)
+            });
 
         if let Some(node) = mapped_node {
             let node_prop_names: std::collections::HashSet<&str> =

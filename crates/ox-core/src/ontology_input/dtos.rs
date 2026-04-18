@@ -2,6 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::i18n::LocalizedText;
 use crate::ontology_ir::*;
 use crate::types::{PropertyType, PropertyValue, deserialize_optional_property_value};
 
@@ -37,7 +38,8 @@ pub struct OntologyInputIR {
     pub format_version: u32,
     pub id: Option<String>,
     pub name: String,
-    pub description: Option<String>,
+    #[serde(default)]
+    pub description: LocalizedText,
     pub version: u32,
     pub node_types: Vec<InputNodeTypeDef>,
     #[serde(default)]
@@ -74,7 +76,8 @@ where
 pub struct InputNodeTypeDef {
     pub id: Option<String>,
     pub label: String,
-    pub description: Option<String>,
+    #[serde(default)]
+    pub description: LocalizedText,
     /// Source table name this node was derived from (e.g., "products").
     /// Extracted into SourceMapping during normalization; not stored on OntologyIR.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -93,7 +96,8 @@ pub struct InputNodeTypeDef {
 pub struct InputEdgeTypeDef {
     pub id: Option<String>,
     pub label: String,
-    pub description: Option<String>,
+    #[serde(default)]
+    pub description: LocalizedText,
     /// Source node type label or ID (resolved to node UUID during normalize)
     #[serde(alias = "source_node_id")]
     pub source_type: String,
@@ -119,7 +123,8 @@ pub struct InputPropertyDef {
     pub nullable: bool,
     #[serde(default, deserialize_with = "deserialize_optional_property_value")]
     pub default_value: Option<PropertyValue>,
-    pub description: Option<String>,
+    #[serde(default)]
+    pub description: LocalizedText,
     /// Source column name this property was derived from (e.g., "cust_nm").
     /// Extracted into SourceMapping during normalization; not stored on OntologyIR.
     #[serde(default, skip_serializing_if = "Option::is_none")]

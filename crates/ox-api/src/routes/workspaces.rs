@@ -117,10 +117,11 @@ impl From<WorkspaceMember> for MemberResponse {
 // Handlers
 // ---------------------------------------------------------------------------
 
-/// Resolve user UUID, falling back to default workspace owner for system users.
+/// Resolve user UUID, falling back to default workspace owner for
+/// machine principals (system tasks + API keys).
 async fn resolve_user_id(principal: &Principal, state: &AppState) -> Result<Uuid, AppError> {
-    if principal.is_system() {
-        // System/API-key users: use the default workspace owner as proxy identity
+    if principal.is_machine() {
+        // Machine principals: use the default workspace owner as proxy identity
         let ws = state
             .store
             .get_workspace_by_slug(DEFAULT_WORKSPACE_SLUG)
@@ -164,6 +165,11 @@ pub(crate) async fn create_workspace(
         owner_id: user_id,
         settings: serde_json::json!({}),
         created_at: chrono::Utc::now(),
+        // Defaults for Phase A: Korean-first, fall back to English. Both are
+        // runtime-tunable via PATCH /api/workspaces/{id}/locale once the
+        // corresponding endpoint is wired.
+        primary_locale: "ko".to_string(),
+        locale_fallback: serde_json::json!(["ko", "en"]),
     };
 
     state

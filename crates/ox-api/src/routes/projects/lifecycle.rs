@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 use uuid::Uuid;
 
+use ox_core::LocalizedText;
 use ox_core::design_project::{
     DesignProjectStatus, SourceConfig, SourceHistoryEntry, SourceTypeKind,
 };
@@ -490,7 +491,7 @@ pub(crate) async fn complete_project(
                 ox_core::OntologyIR::new(
                     String::new(),
                     String::new(),
-                    None,
+                    LocalizedText::default(),
                     0,
                     vec![],
                     vec![],
@@ -1179,7 +1180,7 @@ pub(crate) async fn execute_load_from_source(
                 return;
             };
             let config =
-                ox_runtime::profiler::ProfileConfig::for_ontology_size(ontology.node_types.len());
+                ox_runtime::profiler::ProfileConfig::for_ontology_size(ontology.node_types().len());
             let Ok(profile) =
                 ox_runtime::profiler::profile_graph(runtime.as_ref(), &ontology, &config).await
             else {

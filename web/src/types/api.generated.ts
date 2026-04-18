@@ -4,6 +4,38 @@
  */
 
 export interface paths {
+    "/api/admin/prompts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_prompt_templates"];
+        put?: never;
+        post: operations["create_prompt_template"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/prompts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_prompt_template"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_prompt_template"];
+        options?: never;
+        head?: never;
+        patch: operations["update_prompt_template"];
+        trace?: never;
+    };
     "/api/chat/stream": {
         parameters: {
             query?: never;
@@ -1133,9 +1165,49 @@ export interface components {
             type: "code_repository";
             url: string;
         };
+        PromptCreateRequest: {
+            content: string;
+            metadata?: unknown;
+            name: string;
+            variables?: unknown;
+            version: string;
+            /**
+             * Format: uuid
+             * @description When set, the prompt is a workspace-scoped override of the
+             *     global template. When `None`, it's a new global version.
+             */
+            workspace_id?: string | null;
+        };
         PromptInfo: {
             name: string;
             version: string;
+        };
+        /**
+         * @description Prompt template row (admin-only — wired by `routes/prompts_admin.rs`).
+         *
+         *     `version` is the semver string (e.g. `1.2.3`). `workspace_id = null`
+         *     means the template is global; a concrete uuid scopes it to one
+         *     workspace (used by the `/api/admin/prompts` workspace-override flow).
+         */
+        PromptTemplateRow: {
+            content: string;
+            /** Format: date-time */
+            created_at: string;
+            created_by: string;
+            /** Format: uuid */
+            id: string;
+            is_active: boolean;
+            metadata: unknown;
+            name: string;
+            variables: unknown;
+            version: string;
+            /** Format: uuid */
+            workspace_id?: string | null;
+        };
+        PromptUpdateRequest: {
+            content?: string | null;
+            is_active?: boolean | null;
+            variables?: unknown;
         };
         /** @description Query execution record. */
         QueryExecution: {
@@ -1250,6 +1322,164 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_prompt_templates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All prompt templates (active + inactive) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptTemplateRow"][];
+                };
+            };
+            /** @description Admin role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_prompt_template: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromptCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description New template version created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptTemplateRow"];
+                };
+            };
+            /** @description Invalid semver version */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_prompt_template: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Prompt template id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Prompt template */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptTemplateRow"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    delete_prompt_template: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Prompt template id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Template deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    update_prompt_template: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Prompt template id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromptUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Template updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     chat_stream: {
         parameters: {
             query?: never;

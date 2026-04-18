@@ -1,6 +1,7 @@
 use super::*;
 use crate::types::PropertyType;
 
+use crate::i18n::LocalizedText;
 fn property(id: &str, name: &str, nullable: bool) -> PropertyDef {
     PropertyDef {
         id: id.into(),
@@ -8,7 +9,7 @@ fn property(id: &str, name: &str, nullable: bool) -> PropertyDef {
         property_type: PropertyType::String,
         nullable,
         default_value: None,
-        description: None,
+        description: LocalizedText::default(),
         classification: None,
     ..Default::default()
     }
@@ -18,13 +19,12 @@ fn base_ontology() -> OntologyIR {
     OntologyIR::new(
         "test".to_string(),
         "Test".to_string(),
-        None,
+        LocalizedText::default(),
         1,
         vec![NodeTypeDef {
             id: "node-user".into(),
             label: "User".to_string(),
-            description: None,
-            source_table: None,
+            description: LocalizedText::default(),
             properties: vec![
                 property("prop-id", "id", false),
                 property("prop-email", "email", false),
@@ -48,7 +48,7 @@ fn base_ontology() -> OntologyIR {
         vec![EdgeTypeDef {
             id: "edge-owns".into(),
             label: "OWNS".to_string(),
-            description: None,
+            description: LocalizedText::default(),
             source_node_id: "node-user".into(),
             target_node_id: "node-user".into(),
             properties: vec![],
@@ -107,8 +107,7 @@ fn has_unique_constraint_works_with_wrapper() {
     let node_no_unique = NodeTypeDef {
         id: "n1".into(),
         label: "Empty".to_string(),
-        description: None,
-        source_table: None,
+        description: LocalizedText::default(),
         properties: vec![property("p1", "x", false)],
         constraints: vec![ConstraintDef {
             id: "c1".into(),
@@ -128,7 +127,7 @@ fn test_validate_duplicate_edge_ids() {
     ontology.edge_types.push(EdgeTypeDef {
         id: "edge-owns".into(), // duplicate id
         label: "FOLLOWS".to_string(),
-        description: None,
+        description: LocalizedText::default(),
         source_node_id: "node-user".into(),
         target_node_id: "node-user".into(),
         properties: vec![],
@@ -143,13 +142,12 @@ fn test_validate_duplicate_edge_ids() {
     let ontology2 = OntologyIR::new(
         "test".to_string(),
         "Test".to_string(),
-        None,
+        LocalizedText::default(),
         1,
         vec![NodeTypeDef {
             id: "node-user".into(),
             label: "User".to_string(),
-            description: None,
-            source_table: None,
+            description: LocalizedText::default(),
             properties: vec![property("prop-id", "id", false)],
             constraints: vec![],
             ..Default::default()
@@ -158,7 +156,7 @@ fn test_validate_duplicate_edge_ids() {
             EdgeTypeDef {
                 id: "edge-1".into(),
                 label: "KNOWS".to_string(),
-                description: None,
+                description: LocalizedText::default(),
                 source_node_id: "node-user".into(),
                 target_node_id: "node-user".into(),
                 properties: vec![],
@@ -168,7 +166,7 @@ fn test_validate_duplicate_edge_ids() {
             EdgeTypeDef {
                 id: "edge-2".into(),
                 label: "KNOWS".to_string(),
-                description: None,
+                description: LocalizedText::default(),
                 source_node_id: "node-user".into(),
                 target_node_id: "node-user".into(),
                 properties: vec![],
@@ -193,13 +191,12 @@ fn test_validate_self_referencing_edge() {
     let ontology = OntologyIR::new(
         "test".to_string(),
         "Test".to_string(),
-        None,
+        LocalizedText::default(),
         1,
         vec![NodeTypeDef {
             id: "node-person".into(),
             label: "Person".to_string(),
-            description: None,
-            source_table: None,
+            description: LocalizedText::default(),
             properties: vec![property("prop-name", "name", false)],
             constraints: vec![],
             ..Default::default()
@@ -207,7 +204,7 @@ fn test_validate_self_referencing_edge() {
         vec![EdgeTypeDef {
             id: "edge-knows".into(),
             label: "KNOWS".to_string(),
-            description: None,
+            description: LocalizedText::default(),
             source_node_id: "node-person".into(),
             target_node_id: "node-person".into(), // self-loop
             properties: vec![],
@@ -275,4 +272,160 @@ fn schema_view_detailed_matches_compact_schema() {
     let detailed = ont.schema_view(SchemaView::Detailed, &korean_labels());
     let compact = ont.compact_schema(&korean_labels());
     assert_eq!(detailed, compact);
+}
+
+// ---------------------------------------------------------------------------
+// Palantir-grade semantic field tests (Phase A Day 5)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn semantic_type_canonical_variants_roundtrip() {
+    let email = SemanticType::Email;
+    let json = serde_json::to_string(&email).unwrap();
+    assert_eq!(json, r#"{"kind":"email"}"#);
+    let back: SemanticType = serde_json::from_str(&json).unwrap();
+    assert_eq!(back, email);
+}
+
+#[test]
+fn semantic_type_localized_text_variant() {
+    let t = SemanticType::LocalizedText;
+    let json = serde_json::to_string(&t).unwrap();
+    assert_eq!(json, r#"{"kind":"localized_text"}"#);
+}
+
+#[test]
+fn semantic_type_other_open_extension() {
+    let t = SemanticType::Other("isbn".to_string());
+    let json = serde_json::to_string(&t).unwrap();
+    assert_eq!(json, r#"{"kind":"other","value":"isbn"}"#);
+    let back: SemanticType = serde_json::from_str(&json).unwrap();
+    assert_eq!(back, t);
+}
+
+#[test]
+fn pii_kind_national_id_carries_country_code() {
+    let kr_rrn = PiiKind::NationalId {
+        country: "kr".to_string(),
+    };
+    let json = serde_json::to_string(&kr_rrn).unwrap();
+    // Tag + content layout: struct variants nest payload under `value`.
+    assert_eq!(
+        json,
+        r#"{"kind":"national_id","value":{"country":"kr"}}"#
+    );
+    let back: PiiKind = serde_json::from_str(&json).unwrap();
+    assert_eq!(back, kr_rrn);
+}
+
+#[test]
+fn pii_kind_custom_open_extension() {
+    let t = PiiKind::Custom("employee_badge".to_string());
+    let json = serde_json::to_string(&t).unwrap();
+    assert_eq!(json, r#"{"kind":"custom","value":"employee_badge"}"#);
+    let back: PiiKind = serde_json::from_str(&json).unwrap();
+    assert_eq!(back, t);
+}
+
+#[test]
+fn pii_kind_hipaa_variants_distinct_from_national_id() {
+    assert_ne!(
+        PiiKind::MedicalRecordNumber,
+        PiiKind::NationalId { country: "us".to_string() },
+    );
+    let mrn_json = serde_json::to_string(&PiiKind::MedicalRecordNumber).unwrap();
+    assert_eq!(mrn_json, r#"{"kind":"medical_record_number"}"#);
+}
+
+#[test]
+fn property_def_default_has_new_fields_unset() {
+    let p = PropertyDef::default();
+    assert_eq!(p.min_count, None);
+    assert_eq!(p.max_count, None);
+    assert!(!p.is_localized);
+    assert_eq!(p.deprecated_at, None);
+    assert_eq!(p.replaced_by_id, None);
+}
+
+#[test]
+fn edge_def_default_has_new_fields_unset() {
+    let e = EdgeTypeDef::default();
+    assert_eq!(e.source_role, None);
+    assert_eq!(e.target_role, None);
+    assert!(e.tags.is_empty());
+    assert_eq!(e.deprecated_at, None);
+    assert_eq!(e.replaced_by_id, None);
+}
+
+#[test]
+fn property_def_roundtrip_with_cardinality_and_localized() {
+    let p = PropertyDef {
+        id: "p1".into(),
+        name: "categories".to_string(),
+        property_type: PropertyType::List {
+            element: Box::new(PropertyType::String),
+        },
+        min_count: Some(1),
+        max_count: Some(10),
+        is_localized: false,
+        semantic_type: Some(SemanticType::Other("category_code".to_string())),
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&p).unwrap();
+    let back: PropertyDef = serde_json::from_str(&json).unwrap();
+    assert_eq!(back.min_count, Some(1));
+    assert_eq!(back.max_count, Some(10));
+    assert!(!back.is_localized);
+    assert_eq!(back.semantic_type, p.semantic_type);
+}
+
+#[test]
+fn property_def_omits_new_optional_fields_when_unset() {
+    let p = PropertyDef {
+        id: "p1".into(),
+        name: "name".to_string(),
+        property_type: PropertyType::String,
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&p).unwrap();
+    assert!(!json.contains("min_count"));
+    assert!(!json.contains("max_count"));
+    assert!(!json.contains("is_localized"));
+    assert!(!json.contains("deprecated_at"));
+    assert!(!json.contains("replaced_by_id"));
+}
+
+#[test]
+fn edge_def_roundtrip_with_roles_and_tags() {
+    let e = EdgeTypeDef {
+        id: "e1".into(),
+        label: "MANAGES".to_string(),
+        source_node_id: "n1".into(),
+        target_node_id: "n1".into(),
+        source_role: Some("manager".to_string()),
+        target_role: Some("direct_report".to_string()),
+        tags: vec!["org_chart".to_string(), "derived".to_string()],
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&e).unwrap();
+    let back: EdgeTypeDef = serde_json::from_str(&json).unwrap();
+    assert_eq!(back.source_role.as_deref(), Some("manager"));
+    assert_eq!(back.target_role.as_deref(), Some("direct_report"));
+    assert_eq!(back.tags, vec!["org_chart", "derived"]);
+}
+
+#[test]
+fn node_def_deprecation_fields_roundtrip() {
+    let now = chrono::Utc::now();
+    let n = NodeTypeDef {
+        id: "n1".into(),
+        label: "LegacyUser".to_string(),
+        deprecated_at: Some(now),
+        replaced_by_id: Some(NodeTypeId::new("n2")),
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&n).unwrap();
+    let back: NodeTypeDef = serde_json::from_str(&json).unwrap();
+    assert!(back.deprecated_at.is_some());
+    assert_eq!(back.replaced_by_id, Some(NodeTypeId::new("n2")));
 }
