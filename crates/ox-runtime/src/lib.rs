@@ -13,10 +13,10 @@ pub mod cypher;
 pub mod enrichment;
 pub mod isolation;
 pub mod memgraph;
-pub mod transience;
 pub mod neo4j;
 pub mod profiler;
 pub mod registry;
+pub mod transience;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -128,11 +128,7 @@ pub trait GraphRuntime: Send + Sync {
     ///
     /// Backends override this for audit logging, result enrichment, or any
     /// other after-the-fact transformation.
-    async fn post_execute(
-        &self,
-        _query: &str,
-        result: QueryResult,
-    ) -> OxResult<QueryResult> {
+    async fn post_execute(&self, _query: &str, result: QueryResult) -> OxResult<QueryResult> {
         Ok(result)
     }
 

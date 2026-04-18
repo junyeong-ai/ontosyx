@@ -122,7 +122,10 @@ impl Default for OntologyVersion {
 
 impl From<u32> for OntologyVersion {
     fn from(n: u32) -> Self {
-        Self { number: n, ..Default::default() }
+        Self {
+            number: n,
+            ..Default::default()
+        }
     }
 }
 
@@ -253,7 +256,6 @@ pub struct Governance {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub retention_days: Option<u32>,
 }
-
 
 impl NodeTypeDef {
     pub fn required_properties(&self) -> impl Iterator<Item = &PropertyDef> {
@@ -495,7 +497,9 @@ pub enum PiiKind {
     DateOfBirth,
     /// National identifier scoped by ISO 3166-1 alpha-2 country code
     /// (e.g. `{"kind":"national_id","value":"kr"}`).
-    NationalId { country: String },
+    NationalId {
+        country: String,
+    },
     Passport,
     DriversLicense,
     // --- Contact ---

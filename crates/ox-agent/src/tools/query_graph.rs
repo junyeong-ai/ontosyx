@@ -67,8 +67,7 @@ pub struct QueryGraphTool {
 impl SchemaTool for QueryGraphTool {
     type Input = QueryGraphInput;
     const NAME: &'static str = super::QUERY_GRAPH;
-    const DESCRIPTION: &'static str =
-        "Execute a natural-language query against the knowledge graph. \
+    const DESCRIPTION: &'static str = "Execute a natural-language query against the knowledge graph. \
          Include all entities and relationships in one question — the engine handles multi-hop \
          chains (A→B→C→D) in a single query. Do NOT split per entity.";
     const READ_ONLY: bool = true;

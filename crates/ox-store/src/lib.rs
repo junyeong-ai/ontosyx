@@ -20,7 +20,7 @@ pub use store::{
     AclStore, AgentSessionStore, AnalysisResultStore, AnalysisSnapshot, ApprovalStore, AuditStore,
     ConfigStore, CursorPage, CursorParams, DashboardStore, EmbeddingRetryStore, ExtendResult,
     HealthStore, KnowledgeStore, LineageStore, LoadCheckpointStore, MeteringStore,
-    ModelConfigStore, NotificationStore, OntologyStore, PerspectiveStore, PinStore, ProjectStore,
-    PatternStore, PromptTemplateStore, QualityStore, QueryStore, RecipeStore, ReportStore, ScheduledTaskStore,
-    Store, ToolApprovalStore, UserStore, VerificationStore, WorkspaceStore,
+    ModelConfigStore, NotificationStore, OntologyStore, PatternStore, PerspectiveStore, PinStore,
+    ProjectStore, PromptTemplateStore, QualityStore, QueryStore, RecipeStore, ReportStore,
+    ScheduledTaskStore, Store, ToolApprovalStore, UserStore, VerificationStore, WorkspaceStore,
 };

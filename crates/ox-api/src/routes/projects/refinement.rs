@@ -545,7 +545,9 @@ pub(crate) async fn apply_reconcile(
         &req.decisions,
         &req.uncertain_matches,
     )
-    .map_err(|e| AppError::internal(format!("Decision remapping produced invalid ontology: {e}")))?;
+    .map_err(|e| {
+        AppError::internal(format!("Decision remapping produced invalid ontology: {e}"))
+    })?;
 
     // Validate
     let errors = finalized.validate();

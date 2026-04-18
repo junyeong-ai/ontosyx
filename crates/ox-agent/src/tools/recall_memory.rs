@@ -70,8 +70,7 @@ pub struct RecallMemoryTool {
 impl SchemaTool for RecallMemoryTool {
     type Input = RecallMemoryInput;
     const NAME: &'static str = super::RECALL_MEMORY;
-    const DESCRIPTION: &'static str =
-        "Search long-term memory across past queries, analyses, edits, sessions. \
+    const DESCRIPTION: &'static str = "Search long-term memory across past queries, analyses, edits, sessions. \
          'semantic' mode for meaning-based match, 'pattern' for exact keyword. \
          Call when prior session context would help.";
     const READ_ONLY: bool = true;
@@ -83,8 +82,10 @@ impl SchemaTool for RecallMemoryTool {
         let hits = match input.mode {
             SearchMode::Semantic => {
                 // Merge tool-level ontology scope with any per-request overrides.
-                let effective_ontology_lineage_id =
-                    input.ontology_lineage_id.as_deref().or(self.ontology_lineage_id.as_deref());
+                let effective_ontology_lineage_id = input
+                    .ontology_lineage_id
+                    .as_deref()
+                    .or(self.ontology_lineage_id.as_deref());
 
                 let filter = MemoryFilter {
                     ontology_lineage_id: effective_ontology_lineage_id.map(String::from),

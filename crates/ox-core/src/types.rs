@@ -155,9 +155,9 @@ impl PropertyType {
         let is_safe = matches!(
             (&inferred, self),
             (Self::Int, Self::Float)
-            | (Self::Date, Self::DateTime)
-            | (Self::Bool, Self::Int)
-            | (_, Self::String)
+                | (Self::Date, Self::DateTime)
+                | (Self::Bool, Self::Int)
+                | (_, Self::String)
         );
 
         Some(is_safe)

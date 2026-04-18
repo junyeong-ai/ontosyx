@@ -221,23 +221,20 @@ pub(crate) async fn raw_query(
     let empty_params: HashMap<String, PropertyValue> = HashMap::new();
     let start = std::time::Instant::now();
     let exec_fut = runtime.execute_query(&req.query, &empty_params);
-    let results = tokio::time::timeout(
-        timeout,
-        scope_with_ontology(ontology.clone(), exec_fut),
-    )
-    .await
-    .map_err(|_| {
-        crate::metrics::record_query("timeout", start.elapsed());
-        AppError::timeout(format!(
-            "Query execution timed out after {}s",
-            timeout.as_secs()
-        ))
-    })?
-    .map_err(|e| {
-        crate::metrics::record_query("error", start.elapsed());
-        error!("Raw query execution failed: {e}");
-        AppError::unprocessable(format!("Query execution failed: {e}"))
-    })?;
+    let results = tokio::time::timeout(timeout, scope_with_ontology(ontology.clone(), exec_fut))
+        .await
+        .map_err(|_| {
+            crate::metrics::record_query("timeout", start.elapsed());
+            AppError::timeout(format!(
+                "Query execution timed out after {}s",
+                timeout.as_secs()
+            ))
+        })?
+        .map_err(|e| {
+            crate::metrics::record_query("error", start.elapsed());
+            error!("Raw query execution failed: {e}");
+            AppError::unprocessable(format!("Query execution failed: {e}"))
+        })?;
     crate::metrics::record_query("ok", start.elapsed());
 
     // Apply ACL enforcement
@@ -466,23 +463,20 @@ pub(crate) async fn execute_from_ir(
     let timeout = state.timeouts.raw_query;
     let start = std::time::Instant::now();
     let exec_fut = runtime.execute_query(&compiled.statement, &compiled.params);
-    let results = tokio::time::timeout(
-        timeout,
-        scope_with_ontology(ontology, exec_fut),
-    )
-    .await
-    .map_err(|_| {
-        crate::metrics::record_query("timeout", start.elapsed());
-        AppError::timeout(format!(
-            "Query execution timed out after {}s",
-            timeout.as_secs()
-        ))
-    })?
-    .map_err(|e| {
-        crate::metrics::record_query("error", start.elapsed());
-        error!("QueryIR execution failed: {e}");
-        AppError::unprocessable(format!("Query execution failed: {e}"))
-    })?;
+    let results = tokio::time::timeout(timeout, scope_with_ontology(ontology, exec_fut))
+        .await
+        .map_err(|_| {
+            crate::metrics::record_query("timeout", start.elapsed());
+            AppError::timeout(format!(
+                "Query execution timed out after {}s",
+                timeout.as_secs()
+            ))
+        })?
+        .map_err(|e| {
+            crate::metrics::record_query("error", start.elapsed());
+            error!("QueryIR execution failed: {e}");
+            AppError::unprocessable(format!("Query execution failed: {e}"))
+        })?;
     crate::metrics::record_query("ok", start.elapsed());
 
     // Step 3: Auto-detect best widget type (non-blocking, best-effort)
@@ -738,7 +732,11 @@ pub(crate) async fn create_saved_pattern(
         created_at: now,
         updated_at: now,
     };
-    state.store.create_pattern(&row).await.map_err(AppError::from)?;
+    state
+        .store
+        .create_pattern(&row)
+        .await
+        .map_err(AppError::from)?;
     Ok(ApiResponse::of(SavedPatternResponse::try_from_row(row)?))
 }
 

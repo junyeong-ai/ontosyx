@@ -206,11 +206,19 @@ impl OntologyIR {
         edge_types: Vec<EdgeTypeDef>,
         indexes: Vec<IndexDef>,
     ) -> Self {
-        Self::try_new(id, name, description, version, node_types, edge_types, indexes)
-            .expect(
-                "OntologyIR::new called with duplicate ids/labels; \
+        Self::try_new(
+            id,
+            name,
+            description,
+            version,
+            node_types,
+            edge_types,
+            indexes,
+        )
+        .expect(
+            "OntologyIR::new called with duplicate ids/labels; \
                  caller must ensure uniqueness or use OntologyIR::try_new instead",
-            )
+        )
     }
 
     /// Fallible constructor. Returns [`OntologyInvariantError`] if the input
@@ -292,7 +300,11 @@ impl OntologyIR {
                     id: node.id.clone(),
                 });
             }
-            if lookup.node_label_idx.insert(node.label.clone(), i).is_some() {
+            if lookup
+                .node_label_idx
+                .insert(node.label.clone(), i)
+                .is_some()
+            {
                 return Err(OntologyInvariantError::DuplicateNodeTypeLabel {
                     label: node.label.clone(),
                 });
@@ -340,9 +352,7 @@ impl OntologyIR {
             return Err(OntologyInvariantError::DuplicateNodeTypeId { id: node.id });
         }
         if self.lookup.node_label_idx.contains_key(&node.label) {
-            return Err(OntologyInvariantError::DuplicateNodeTypeLabel {
-                label: node.label,
-            });
+            return Err(OntologyInvariantError::DuplicateNodeTypeLabel { label: node.label });
         }
         self.node_types.push(node);
         self.rebuild_indices()?;
@@ -363,9 +373,11 @@ impl OntologyIR {
         &mut self,
         id: &NodeTypeId,
     ) -> Result<NodeTypeDef, OntologyInvariantError> {
-        let idx = *self.lookup.node_id_idx.get(id).ok_or_else(|| {
-            OntologyInvariantError::NodeTypeNotFound { id: id.clone() }
-        })?;
+        let idx = *self
+            .lookup
+            .node_id_idx
+            .get(id)
+            .ok_or_else(|| OntologyInvariantError::NodeTypeNotFound { id: id.clone() })?;
         let removed = self.node_types.remove(idx);
         self.rebuild_indices()?;
         Ok(removed)
@@ -385,9 +397,11 @@ impl OntologyIR {
     where
         F: FnOnce(&mut NodeTypeDef),
     {
-        let idx = *self.lookup.node_id_idx.get(id).ok_or_else(|| {
-            OntologyInvariantError::NodeTypeNotFound { id: id.clone() }
-        })?;
+        let idx = *self
+            .lookup
+            .node_id_idx
+            .get(id)
+            .ok_or_else(|| OntologyInvariantError::NodeTypeNotFound { id: id.clone() })?;
         f(&mut self.node_types[idx]);
         self.rebuild_indices()
     }
@@ -414,9 +428,11 @@ impl OntologyIR {
         &mut self,
         id: &EdgeTypeId,
     ) -> Result<EdgeTypeDef, OntologyInvariantError> {
-        let idx = *self.lookup.edge_id_idx.get(id).ok_or_else(|| {
-            OntologyInvariantError::EdgeTypeNotFound { id: id.clone() }
-        })?;
+        let idx = *self
+            .lookup
+            .edge_id_idx
+            .get(id)
+            .ok_or_else(|| OntologyInvariantError::EdgeTypeNotFound { id: id.clone() })?;
         let removed = self.edge_types.remove(idx);
         self.rebuild_indices()?;
         Ok(removed)
@@ -431,9 +447,11 @@ impl OntologyIR {
     where
         F: FnOnce(&mut EdgeTypeDef),
     {
-        let idx = *self.lookup.edge_id_idx.get(id).ok_or_else(|| {
-            OntologyInvariantError::EdgeTypeNotFound { id: id.clone() }
-        })?;
+        let idx = *self
+            .lookup
+            .edge_id_idx
+            .get(id)
+            .ok_or_else(|| OntologyInvariantError::EdgeTypeNotFound { id: id.clone() })?;
         f(&mut self.edge_types[idx]);
         self.rebuild_indices()
     }
@@ -473,7 +491,11 @@ impl OntologyIR {
     where
         F: FnOnce(&mut Vec<NodeTypeDef>, &mut Vec<EdgeTypeDef>, &mut Vec<IndexDef>) -> R,
     {
-        let r = f(&mut self.node_types, &mut self.edge_types, &mut self.indexes);
+        let r = f(
+            &mut self.node_types,
+            &mut self.edge_types,
+            &mut self.indexes,
+        );
         self.rebuild_indices()?;
         Ok(r)
     }
@@ -660,11 +682,7 @@ impl OntologyIR {
     /// - `Detailed` (~120 tokens/node): full property types, nullable,
     ///   descriptions, edge cardinality, edge properties. Use only for
     ///   the subset of labels actually needed in the final query.
-    pub fn schema_view(
-        &self,
-        view: SchemaView,
-        node_labels: &[&str],
-    ) -> serde_json::Value {
+    pub fn schema_view(&self, view: SchemaView, node_labels: &[&str]) -> serde_json::Value {
         match view {
             SchemaView::Labels => self.labels_view(node_labels),
             SchemaView::Structural => self.structural_view(node_labels),
@@ -709,8 +727,7 @@ impl OntologyIR {
             if !selected.contains(node.label.as_str()) {
                 continue;
             }
-            let props: Vec<&str> =
-                node.properties.iter().map(|p| p.name.as_str()).collect();
+            let props: Vec<&str> = node.properties.iter().map(|p| p.name.as_str()).collect();
             nodes.insert(
                 node.label.clone(),
                 serde_json::json!({ "properties": props }),

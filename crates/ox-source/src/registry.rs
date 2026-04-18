@@ -23,8 +23,7 @@ pub struct SourceInput {
 }
 
 /// Future returned by an introspector factory.
-type AdapterFuture =
-    Pin<Box<dyn Future<Output = OxResult<Arc<dyn DataSourceAdapter>>> + Send>>;
+type AdapterFuture = Pin<Box<dyn Future<Output = OxResult<Arc<dyn DataSourceAdapter>>> + Send>>;
 
 /// Async factory function that creates a `DataSourceAdapter` from source input.
 type AdapterFactory = Arc<dyn Fn(SourceInput) -> AdapterFuture + Send + Sync>;
@@ -54,8 +53,7 @@ impl AdapterRegistry {
         F: Fn(SourceInput) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = OxResult<Arc<dyn DataSourceAdapter>>> + Send + 'static,
     {
-        let factory: AdapterFactory =
-            Arc::new(move |input: SourceInput| Box::pin(factory(input)));
+        let factory: AdapterFactory = Arc::new(move |input: SourceInput| Box::pin(factory(input)));
 
         self.factories.insert(source_type.to_string(), factory);
     }
@@ -160,8 +158,7 @@ impl AdapterRegistry {
                         .to_string(),
                 }
             })?;
-            let introspector =
-                crate::snowflake::SnowflakeAdapter::from_connection_string(conn)?;
+            let introspector = crate::snowflake::SnowflakeAdapter::from_connection_string(conn)?;
             Ok(Arc::new(introspector) as Arc<dyn DataSourceAdapter>)
         });
 

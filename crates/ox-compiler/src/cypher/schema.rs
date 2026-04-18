@@ -17,9 +17,15 @@ pub const DEFAULT_MAX_AUTO_INDICES: usize = 20;
 /// and exact — property names are normalized to lowercase before comparison.
 pub const DEFAULT_HIGH_PRIORITY_NAMES: &[&str] = &[
     // English
-    "id", "code", "name", "email",
+    "id",
+    "code",
+    "name",
+    "email",
     // Korean
-    "번호", "이름", "이메일", "코드",
+    "번호",
+    "이름",
+    "이메일",
+    "코드",
 ];
 
 /// Runtime-configurable auto-index policy.

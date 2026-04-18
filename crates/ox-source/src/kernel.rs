@@ -371,8 +371,7 @@ impl IntrospectionKernel {
         let accessible: std::collections::HashSet<&str> =
             tables.iter().map(|t| t.name.as_str()).collect();
         foreign_keys.retain(|fk| {
-            accessible.contains(fk.from_table.as_str())
-                && accessible.contains(fk.to_table.as_str())
+            accessible.contains(fk.from_table.as_str()) && accessible.contains(fk.to_table.as_str())
         });
 
         Ok((
@@ -673,8 +672,8 @@ mod tests {
         ]));
         let kernel = IntrospectionKernel::new(adapter.clone())
             .with_retry(RetryPolicy::exponential_default().with_transient(
-                |e| matches!(e, OxError::Runtime { message } if message.contains("connection refused")),
-            ));
+            |e| matches!(e, OxError::Runtime { message } if message.contains("connection refused")),
+        ));
         let result = kernel.analyze().await;
         assert!(result.is_ok(), "expected success after retries: {result:?}");
         assert_eq!(adapter.call_count(), 3);
@@ -744,10 +743,7 @@ mod tests {
 
     #[tokio::test]
     async fn cache_disabled_always_hits_adapter() {
-        let adapter = Arc::new(ScriptedAdapter::new(vec![
-            empty_tables(),
-            empty_tables(),
-        ]));
+        let adapter = Arc::new(ScriptedAdapter::new(vec![empty_tables(), empty_tables()]));
         let kernel = IntrospectionKernel::new(adapter.clone());
         let _ = kernel.analyze().await.unwrap();
         let _ = kernel.analyze().await.unwrap();
@@ -767,10 +763,7 @@ mod tests {
 
     #[tokio::test]
     async fn cache_miss_after_ttl_expiry_calls_adapter_again() {
-        let adapter = Arc::new(ScriptedAdapter::new(vec![
-            empty_tables(),
-            empty_tables(),
-        ]));
+        let adapter = Arc::new(ScriptedAdapter::new(vec![empty_tables(), empty_tables()]));
         let kernel = IntrospectionKernel::new(adapter.clone())
             .with_cache_ttl(CacheTtl::Duration(Duration::from_millis(5)));
         let _ = kernel.analyze().await.unwrap();
@@ -781,10 +774,7 @@ mod tests {
 
     #[tokio::test]
     async fn invalidate_forces_next_call_to_adapter() {
-        let adapter = Arc::new(ScriptedAdapter::new(vec![
-            empty_tables(),
-            empty_tables(),
-        ]));
+        let adapter = Arc::new(ScriptedAdapter::new(vec![empty_tables(), empty_tables()]));
         let kernel = IntrospectionKernel::new(adapter.clone())
             .with_cache_ttl(CacheTtl::Duration(Duration::from_secs(60)));
         let _ = kernel.analyze().await.unwrap();
@@ -830,7 +820,11 @@ mod tests {
 
         let first = kernel.analyze().await.unwrap();
         let second = kernel.analyze().await.unwrap();
-        assert_eq!(adapter.call_count(), 2, "retry used 2 calls, cache blocks 3rd");
+        assert_eq!(
+            adapter.call_count(),
+            2,
+            "retry used 2 calls, cache blocks 3rd"
+        );
         assert!(Arc::ptr_eq(&first, &second));
     }
 

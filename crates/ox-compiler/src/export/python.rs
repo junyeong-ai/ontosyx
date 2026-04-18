@@ -280,8 +280,7 @@ fn collect_field_deprecations(
     properties
         .iter()
         .filter_map(|p| {
-            property_deprecation_reason(p, ontology)
-                .map(|reason| (p.name.clone(), reason))
+            property_deprecation_reason(p, ontology).map(|reason| (p.name.clone(), reason))
         })
         .collect()
 }

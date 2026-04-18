@@ -34,9 +34,7 @@ use tokio::sync::OnceCell;
 use tracing::{info, warn};
 
 use ox_core::error::{OxError, OxResult};
-use ox_core::source_schema::{
-    ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef,
-};
+use ox_core::source_schema::{ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef};
 
 use crate::DataSourceAdapter;
 
@@ -328,11 +326,7 @@ impl DataSourceAdapter for MongoAdapter {
             .unwrap_or_default())
     }
 
-    async fn sample_column(
-        &self,
-        table: &str,
-        column: &SourceColumnDef,
-    ) -> OxResult<ColumnStats> {
+    async fn sample_column(&self, table: &str, column: &SourceColumnDef) -> OxResult<ColumnStats> {
         let snap = self.get_snapshot().await?;
         if let Some(stats) = snap
             .stats_by_column
@@ -531,8 +525,7 @@ fn profile_field_over_docs(field_name: &str, documents: &[Document]) -> ColumnSt
                     Some(current) if str_val > *current => max_value = Some(str_val.clone()),
                     _ => {}
                 }
-                if sample_seen.insert(str_val.clone())
-                    && sample_values.len() < MAX_DISTINCT_VALUES
+                if sample_seen.insert(str_val.clone()) && sample_values.len() < MAX_DISTINCT_VALUES
                 {
                     sample_values.push(str_val);
                 }

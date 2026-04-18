@@ -99,8 +99,7 @@ pub struct SchemaEvolutionTool {
 impl SchemaTool for SchemaEvolutionTool {
     type Input = SchemaEvolutionInput;
     const NAME: &'static str = super::SCHEMA_EVOLUTION;
-    const DESCRIPTION: &'static str =
-        "Detect schema drift between source database and ontology. \
+    const DESCRIPTION: &'static str = "Detect schema drift between source database and ontology. \
          'detect_drift' compares source tables/columns against nodes/properties; \
          'suggest_updates' proposes ontology changes. \
          Call on schema changes, new tables, or data model evolution.";
@@ -240,14 +239,11 @@ fn detect_drift(schema: &SourceSchema, ontology: &ox_core::ontology_ir::Ontology
 
     for table in &schema.tables {
         // Find the ontology node mapped to this table via source_lineage
-        let mapped_node = ontology
-            .node_types()
-            .iter()
-            .find(|n| {
-                n.source_lineage
-                    .as_ref()
-                    .is_some_and(|l| l.table == table.name)
-            });
+        let mapped_node = ontology.node_types().iter().find(|n| {
+            n.source_lineage
+                .as_ref()
+                .is_some_and(|l| l.table == table.name)
+        });
 
         if let Some(node) = mapped_node {
             let node_prop_names: std::collections::HashSet<&str> =

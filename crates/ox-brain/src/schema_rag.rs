@@ -48,7 +48,11 @@ const MAX_DESCRIBED_PROPS_PER_EDGE: usize = 10;
 /// Each node becomes a natural language embedding with its properties and connections.
 ///
 /// Idempotent: existing entries for the same ontology_lineage_id are replaced via upsert.
-pub async fn index_ontology_schema(memory: &MemoryStore, ontology: &OntologyIR, ontology_lineage_id: &str) {
+pub async fn index_ontology_schema(
+    memory: &MemoryStore,
+    ontology: &OntologyIR,
+    ontology_lineage_id: &str,
+) {
     // Use ontology.id (internal IR ID) for consistency with discover_schema lookups.
     // The caller may pass saved_ontology_lineage_id, but discovery falls back to ontology.id
     // when Brain.ontology_lineage_id is None (the common case in Analyze mode).
@@ -263,11 +267,7 @@ pub(crate) fn build_progressive_schema(ontology: &OntologyIR, expanded_labels: &
             let mut described_props: Vec<(&str, &str)> = node
                 .properties
                 .iter()
-                .filter_map(|p| {
-                    p.description
-                        .present()
-                        .map(|d| (p.name.as_str(), d))
-                })
+                .filter_map(|p| p.description.present().map(|d| (p.name.as_str(), d)))
                 .collect();
             // Rank by description length (descending) — longer = more informative
             described_props.sort_by(|a, b| b.1.len().cmp(&a.1.len()));
@@ -304,11 +304,7 @@ pub(crate) fn build_progressive_schema(ontology: &OntologyIR, expanded_labels: &
             let mut described: Vec<(&str, &str)> = edge
                 .properties
                 .iter()
-                .filter_map(|p| {
-                    p.description
-                        .present()
-                        .map(|d| (p.name.as_str(), d))
-                })
+                .filter_map(|p| p.description.present().map(|d| (p.name.as_str(), d)))
                 .collect();
             described.sort_by(|a, b| b.1.len().cmp(&a.1.len()));
             let total = described.len();

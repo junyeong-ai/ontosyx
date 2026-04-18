@@ -2,7 +2,9 @@ use serde::Serialize;
 use utoipa::openapi::security::{ApiKey, ApiKeyValue, SecurityScheme};
 use utoipa::{Modify, OpenApi, ToSchema};
 
-use crate::routes::{chat, config, health, load, ontology, perspectives, pins, prompts_admin, query};
+use crate::routes::{
+    chat, config, health, load, ontology, perspectives, pins, prompts_admin, query,
+};
 
 // Module aliases for utoipa path resolution — utoipa generates hidden __path_*
 // structs in the module where #[utoipa::path] is applied, so we must reference

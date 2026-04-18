@@ -90,9 +90,9 @@ pub fn generate_shacl(ontology: &OntologyIR) -> String {
             // Explicit `min_count` / `max_count` override the nullability /
             // constraint defaults so an ontology designer can pin a
             // 0..N or 2..5 list-property without changing the constraint set.
-            let effective_min = prop.min_count.or_else(|| {
-                (!prop.nullable || is_node_key).then_some(1)
-            });
+            let effective_min = prop
+                .min_count
+                .or_else(|| (!prop.nullable || is_node_key).then_some(1));
             let effective_max = prop
                 .max_count
                 .or_else(|| (is_unique || is_node_key).then_some(1));

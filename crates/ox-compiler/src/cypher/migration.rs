@@ -496,7 +496,7 @@ mod tests {
             default_value: None,
             description: LocalizedText::default(),
             classification: None,
-        ..Default::default()
+            ..Default::default()
         }
     }
 
@@ -576,7 +576,8 @@ mod tests {
                 },
             }],
             ..Default::default()
-        }).expect("test fixture add_node_type");
+        })
+        .expect("test fixture add_node_type");
         new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
@@ -597,8 +598,10 @@ mod tests {
     fn removed_node_is_breaking_change() {
         let old = test_ontology();
         let mut new = old.clone();
-        new.with_batch(|nt, _, _| nt.retain(|n| n.id != "n2")).expect("test fixture retain");
-        new.with_batch(|_, et, _| et.clear()).expect("test fixture clear");
+        new.with_batch(|nt, _, _| nt.retain(|n| n.id != "n2"))
+            .expect("test fixture retain");
+        new.with_batch(|_, et, _| et.clear())
+            .expect("test fixture clear");
         new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
@@ -667,7 +670,9 @@ mod tests {
     fn removed_property_produces_warning() {
         let old = test_ontology();
         let mut new = old.clone();
-        new.node_types_mut()[0].properties.retain(|p| p.name != "age");
+        new.node_types_mut()[0]
+            .properties
+            .retain(|p| p.name != "age");
         new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
@@ -710,7 +715,8 @@ mod tests {
             properties: vec![],
             cardinality: Cardinality::ManyToMany,
             ..Default::default()
-        }).expect("test fixture add_edge_type");
+        })
+        .expect("test fixture add_edge_type");
         new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
@@ -726,7 +732,8 @@ mod tests {
     fn removed_edge_is_breaking() {
         let old = test_ontology();
         let mut new = old.clone();
-        new.with_batch(|_, et, _| et.clear()).expect("test fixture clear");
+        new.with_batch(|_, et, _| et.clear())
+            .expect("test fixture clear");
         new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
@@ -770,7 +777,8 @@ mod tests {
             properties: vec![property("p20", "order_id")],
             constraints: vec![],
             ..Default::default()
-        }).expect("test fixture add_node_type");
+        })
+        .expect("test fixture add_node_type");
         new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
@@ -962,7 +970,9 @@ mod tests {
     fn data_migration_property_removed() {
         let old = test_ontology();
         let mut new = old.clone();
-        new.node_types_mut()[0].properties.retain(|p| p.name != "age");
+        new.node_types_mut()[0]
+            .properties
+            .retain(|p| p.name != "age");
         new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
@@ -1117,7 +1127,9 @@ mod tests {
         let old = test_ontology();
         let mut new = old.clone();
         // Remove a property to trigger a data migration
-        new.node_types_mut()[0].properties.retain(|p| p.name != "age");
+        new.node_types_mut()[0]
+            .properties
+            .retain(|p| p.name != "age");
         new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);

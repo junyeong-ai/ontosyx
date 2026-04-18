@@ -121,9 +121,7 @@ pub(crate) fn run_pre_execute(
     };
 
     // --- Step 3: post-rewrite validation ---------------------------------
-    if !system_bypass
-        && let Some(prop) = strategy.and_then(|s| s.scope_property())
-    {
+    if !system_bypass && let Some(prop) = strategy.and_then(|s| s.scope_property()) {
         run_post_rewrite_validation(&scoped_ast, ws_id_str, prop)?;
     }
 
@@ -371,8 +369,14 @@ mod tests {
         .expect_err("both gates must fail");
         match err {
             OxError::Validation { message, .. } => {
-                assert!(message.contains("DELETE"), "safety issue present: {message}");
-                assert!(message.contains("Userr"), "ontology issue present: {message}");
+                assert!(
+                    message.contains("DELETE"),
+                    "safety issue present: {message}"
+                );
+                assert!(
+                    message.contains("Userr"),
+                    "ontology issue present: {message}"
+                );
             }
             other => panic!("expected Validation, got {other:?}"),
         }

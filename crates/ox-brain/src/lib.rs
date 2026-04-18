@@ -636,7 +636,9 @@ impl QueryTranslator for DefaultBrain {
             knowledge_rag::discover_knowledge(
                 kb.as_ref(),
                 &label_refs,
-                self.ontology_lineage_id.as_deref().unwrap_or(&ontology.name),
+                self.ontology_lineage_id
+                    .as_deref()
+                    .unwrap_or(&ontology.name),
                 ontology.version.number as i32,
                 8,
             )
@@ -880,12 +882,9 @@ impl Explainer for DefaultBrain {
         ]))
         .with_temperature(0.3);
 
-        let resp = client
-            .send(&request)
-            .await
-            .map_err(|e| OxError::Runtime {
-                message: format!("Explanation failed: {e}"),
-            })?;
+        let resp = client.send(&request).await.map_err(|e| OxError::Runtime {
+            message: format!("Explanation failed: {e}"),
+        })?;
 
         Ok(ExplanationOutput {
             content: resp.text(),
@@ -1107,4 +1106,3 @@ impl LlmMetadata for DefaultBrain {
             .collect()
     }
 }
-

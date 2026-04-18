@@ -30,8 +30,7 @@ pub struct ExplainOntologyTool {
 impl SchemaTool for ExplainOntologyTool {
     type Input = ExplainInput;
     const NAME: &'static str = super::EXPLAIN_ONTOLOGY;
-    const DESCRIPTION: &'static str =
-        "Explain ontology concepts, relationships, and data patterns. \
+    const DESCRIPTION: &'static str = "Explain ontology concepts, relationships, and data patterns. \
          Use for 'what is', 'explain', 'describe' questions — live graph stats when a runtime is available.";
     const READ_ONLY: bool = true;
 

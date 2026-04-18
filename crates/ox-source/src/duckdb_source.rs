@@ -211,7 +211,10 @@ fn sample_column_sync(
              LIMIT {MAX_SAMPLE_VALUES}",
         );
         let mut stmt = conn.prepare(&sample_query).map_err(|e| OxError::Runtime {
-            message: format!("DuckDB sample query prepare failed for '{}': {e}", column.name),
+            message: format!(
+                "DuckDB sample query prepare failed for '{}': {e}",
+                column.name
+            ),
         })?;
         stmt.query_map([], |row| row.get::<_, String>(0))
             .map_err(|e| OxError::Runtime {
@@ -272,11 +275,7 @@ impl DataSourceAdapter for DuckDbAdapter {
         })?
     }
 
-    async fn sample_column(
-        &self,
-        _table: &str,
-        column: &SourceColumnDef,
-    ) -> OxResult<ColumnStats> {
+    async fn sample_column(&self, _table: &str, column: &SourceColumnDef) -> OxResult<ColumnStats> {
         let file_path = self.file_path.clone();
         let read_fn = self.read_fn;
         let column = column.clone();

@@ -269,9 +269,8 @@ pub(crate) async fn test_model_connection(
         Ok(client) => {
             use branchforge::{Message, ModelRequest};
 
-            let request =
-                ModelRequest::new(&provider_config.model, vec![Message::user("Say OK")])
-                    .with_max_tokens(16);
+            let request = ModelRequest::new(&provider_config.model, vec![Message::user("Say OK")])
+                .with_max_tokens(16);
 
             match client.send(&request).await {
                 Ok(_) => Ok(ApiResponse::of(TestModelResponse {

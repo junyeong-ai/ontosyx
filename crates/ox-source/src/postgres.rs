@@ -22,9 +22,7 @@ use tracing::{info, warn};
 
 use ox_core::error::{OxError, OxResult};
 use ox_core::source_analysis::ENUM_CARDINALITY_THRESHOLD;
-use ox_core::source_schema::{
-    ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef,
-};
+use ox_core::source_schema::{ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef};
 
 use crate::DataSourceAdapter;
 
@@ -192,11 +190,7 @@ impl DataSourceAdapter for PostgresAdapter {
         Ok(exact.max(0) as u64)
     }
 
-    async fn sample_column(
-        &self,
-        table: &str,
-        column: &SourceColumnDef,
-    ) -> OxResult<ColumnStats> {
+    async fn sample_column(&self, table: &str, column: &SourceColumnDef) -> OxResult<ColumnStats> {
         let qt = quote_ident(table);
         let qc = quote_ident(&column.name);
 
@@ -205,9 +199,7 @@ impl DataSourceAdapter for PostgresAdapter {
         let is_blob = is_blob_type(&column.data_type);
 
         let (null_count, distinct_count, min_value, max_value) = if is_blob {
-            let q = format!(
-                "SELECT count(*) FILTER (WHERE {qc} IS NULL) AS null_count FROM {qt}"
-            );
+            let q = format!("SELECT count(*) FILTER (WHERE {qc} IS NULL) AS null_count FROM {qt}");
             let row: (i64,) = sqlx::query_as(&q)
                 .fetch_one(&self.pool)
                 .await
@@ -253,11 +245,7 @@ impl DataSourceAdapter for PostgresAdapter {
                 .fetch_one(&self.pool)
                 .await
                 .unwrap_or((999,));
-            if avg_len.0 <= 50 {
-                distinct_count
-            } else {
-                0
-            }
+            if avg_len.0 <= 50 { distinct_count } else { 0 }
         } else {
             0
         };
@@ -326,13 +314,15 @@ impl DataSourceAdapter for PostgresAdapter {
 
         Ok(rows
             .into_iter()
-            .map(|(_, from_table, from_column, to_table, to_column)| ForeignKeyDef {
-                from_table,
-                from_column,
-                to_table,
-                to_column,
-                inferred: false,
-            })
+            .map(
+                |(_, from_table, from_column, to_table, to_column)| ForeignKeyDef {
+                    from_table,
+                    from_column,
+                    to_table,
+                    to_column,
+                    inferred: false,
+                },
+            )
             .collect())
     }
 }

@@ -205,7 +205,8 @@ impl PatternIR {
             .map(|n| (n.id.as_str(), n.variable.as_str()))
             .collect();
 
-        let mut patterns: Vec<GraphPattern> = Vec::with_capacity(self.nodes.len() + self.edges.len());
+        let mut patterns: Vec<GraphPattern> =
+            Vec::with_capacity(self.nodes.len() + self.edges.len());
 
         for node in &self.nodes {
             patterns.push(GraphPattern::Node {
@@ -465,7 +466,12 @@ mod tests {
     fn compile_empty_pattern_yields_empty_match() {
         let query = PatternIR::default().compile();
         match query.operation {
-            QueryOp::Match { patterns, filter, projections, .. } => {
+            QueryOp::Match {
+                patterns,
+                filter,
+                projections,
+                ..
+            } => {
                 assert!(patterns.is_empty());
                 assert!(filter.is_none());
                 assert!(projections.is_empty());
@@ -612,7 +618,9 @@ mod tests {
         let query = pattern.compile();
         match query.operation {
             QueryOp::Match { filter, .. } => match filter {
-                Some(Expr::Logical { op: LogicalOp::And, .. }) => (),
+                Some(Expr::Logical {
+                    op: LogicalOp::And, ..
+                }) => (),
                 other => panic!("expected top-level AND, got {other:?}"),
             },
             _ => panic!("expected Match"),
@@ -638,7 +646,10 @@ mod tests {
         };
         let query = pattern.compile();
         let json = serde_json::to_string(&query).expect("serializable");
-        assert!(!json.contains("position"), "QueryIR must not carry canvas position");
+        assert!(
+            !json.contains("position"),
+            "QueryIR must not carry canvas position"
+        );
         assert!(!json.contains("zoom"), "QueryIR must not carry canvas zoom");
     }
 
@@ -695,7 +706,9 @@ mod tests {
         let back = PatternIR::decompile(&query);
         assert_eq!(back.order_by.len(), 1);
         match &back.order_by[0].projection {
-            Projection::Field { variable, field, .. } => {
+            Projection::Field {
+                variable, field, ..
+            } => {
                 assert_eq!(variable, "p");
                 assert_eq!(field, "age");
             }
@@ -728,7 +741,10 @@ mod tests {
         assert_eq!(pattern.nodes.len(), 1);
         assert_eq!(pattern.nodes[0].variable, "p");
         assert_eq!(pattern.nodes[0].label.as_deref(), Some("Person"));
-        assert!(pattern.nodes[0].position.is_none(), "decompile must not invent layout");
+        assert!(
+            pattern.nodes[0].position.is_none(),
+            "decompile must not invent layout"
+        );
     }
 
     #[test]
@@ -843,7 +859,11 @@ mod tests {
             order_by: Vec::new(),
         };
         let pattern = PatternIR::decompile(&query);
-        assert_eq!(pattern.filters.len(), 3, "top-level AND must yield 3 filter rows");
+        assert_eq!(
+            pattern.filters.len(),
+            3,
+            "top-level AND must yield 3 filter rows"
+        );
     }
 
     #[test]
@@ -994,7 +1014,11 @@ mod tests {
         };
         let query = original.compile();
         let rt = PatternIR::decompile(&query);
-        assert_eq!(rt.filters.len(), 2, "compile AND-chained, decompile must split back");
+        assert_eq!(
+            rt.filters.len(),
+            2,
+            "compile AND-chained, decompile must split back"
+        );
     }
 
     #[test]

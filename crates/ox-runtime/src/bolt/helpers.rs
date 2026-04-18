@@ -179,7 +179,10 @@ mod tests {
 
     #[test]
     fn truncate_query_short_unchanged() {
-        assert_eq!(truncate_query("MATCH (n) RETURN n", 100), "MATCH (n) RETURN n");
+        assert_eq!(
+            truncate_query("MATCH (n) RETURN n", 100),
+            "MATCH (n) RETURN n"
+        );
     }
 
     #[test]

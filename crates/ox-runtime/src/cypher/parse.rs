@@ -23,7 +23,7 @@
 //! structural accuracy is best-effort on surfaces that rewriters touch.
 
 use crate::cypher::ast::{
-    CypherAst, CypherClause, CypherPattern, CypherPatternElement, CypherStatement, ClauseKind,
+    ClauseKind, CypherAst, CypherClause, CypherPattern, CypherPatternElement, CypherStatement,
     NodePattern, RelDirection, RelationshipPattern, UnionKind,
 };
 use crate::cypher::token::{CypherToken, Span, TokenKind, tokenize};
@@ -157,8 +157,7 @@ impl<'a> Parser<'a> {
             self.source.len()
         };
 
-        let clause_tokens: Vec<CypherToken> =
-            self.tokens[start_tok_idx..end_tok_idx].to_vec();
+        let clause_tokens: Vec<CypherToken> = self.tokens[start_tok_idx..end_tok_idx].to_vec();
         let text = self.source[start_byte..end_byte].to_string();
         let span = Span::new(start_byte, end_byte);
 
@@ -189,34 +188,28 @@ impl<'a> Parser<'a> {
         let head = first.text.to_ascii_uppercase();
         match head.as_str() {
             "MATCH" => ClauseKind::Match,
-            "OPTIONAL" => {
-                match self.peek_non_trivia(1) {
-                    Some(t) if t.is_keyword("MATCH") => ClauseKind::OptionalMatch,
-                    _ => ClauseKind::Unknown,
-                }
-            }
+            "OPTIONAL" => match self.peek_non_trivia(1) {
+                Some(t) if t.is_keyword("MATCH") => ClauseKind::OptionalMatch,
+                _ => ClauseKind::Unknown,
+            },
             "CREATE" => ClauseKind::Create,
             "MERGE" => ClauseKind::Merge,
             "WHERE" => ClauseKind::Where,
             "SET" => ClauseKind::Set,
             "DELETE" => ClauseKind::Delete,
-            "DETACH" => {
-                match self.peek_non_trivia(1) {
-                    Some(t) if t.is_keyword("DELETE") => ClauseKind::DetachDelete,
-                    _ => ClauseKind::Unknown,
-                }
-            }
+            "DETACH" => match self.peek_non_trivia(1) {
+                Some(t) if t.is_keyword("DELETE") => ClauseKind::DetachDelete,
+                _ => ClauseKind::Unknown,
+            },
             "REMOVE" => ClauseKind::Remove,
             "RETURN" => ClauseKind::Return,
             "WITH" => ClauseKind::With,
             "UNWIND" => ClauseKind::Unwind,
             "CALL" => ClauseKind::Call,
-            "ORDER" => {
-                match self.peek_non_trivia(1) {
-                    Some(t) if t.is_keyword("BY") => ClauseKind::OrderBy,
-                    _ => ClauseKind::Unknown,
-                }
-            }
+            "ORDER" => match self.peek_non_trivia(1) {
+                Some(t) if t.is_keyword("BY") => ClauseKind::OrderBy,
+                _ => ClauseKind::Unknown,
+            },
             "SKIP" => ClauseKind::Skip,
             "LIMIT" => ClauseKind::Limit,
             _ => ClauseKind::Unknown,
@@ -226,8 +219,7 @@ impl<'a> Parser<'a> {
     /// True if the current position is at the start of a recognisable
     /// clause (used to stop clause-body accumulation).
     fn at_clause_head(&self) -> bool {
-        !matches!(self.classify_clause_head(), ClauseKind::Unknown)
-            || self.peek_keyword("UNION")
+        !matches!(self.classify_clause_head(), ClauseKind::Unknown) || self.peek_keyword("UNION")
     }
 
     /// Peek whether the next non-trivia tokens constitute a UNION boundary.
@@ -594,7 +586,9 @@ fn parse_relationship_pattern(tokens: &[CypherToken]) -> (RelationshipPattern, u
                 while i < tokens.len() && tokens[i].is_trivia() {
                     i += 1;
                 }
-                if i < tokens.len() && tokens[i].kind == TokenKind::Operator && tokens[i].text == "|"
+                if i < tokens.len()
+                    && tokens[i].kind == TokenKind::Operator
+                    && tokens[i].text == "|"
                 {
                     i += 1;
                     continue;
@@ -753,10 +747,7 @@ fn parse_property_map(tokens: &[CypherToken]) -> (Vec<(String, String)>, usize) 
         }
         i += 1;
         // Capture value tokens until top-level `,` or `}`.
-        let value_start_byte = tokens
-            .get(i)
-            .map(|t| t.span.start)
-            .unwrap_or_default();
+        let value_start_byte = tokens.get(i).map(|t| t.span.start).unwrap_or_default();
         let mut depth_paren = 0i32;
         let mut depth_bracket = 0i32;
         let mut depth_brace = 0i32;
@@ -965,7 +956,8 @@ mod tests {
     #[test]
     fn relationship_unbounded_var_length() {
         let ast = parse("MATCH (a)-[:R*]->(b) RETURN a, b");
-        if let CypherPatternElement::Relationship(r) = &ast.statements[0].clauses[0].patterns[0].elements[1]
+        if let CypherPatternElement::Relationship(r) =
+            &ast.statements[0].clauses[0].patterns[0].elements[1]
         {
             assert_eq!(r.var_length, Some((None, None)));
         } else {
@@ -976,7 +968,8 @@ mod tests {
     #[test]
     fn relationship_alternative_types() {
         let ast = parse("MATCH (a)-[:KNOWS|LIKES]->(b) RETURN a, b");
-        if let CypherPatternElement::Relationship(r) = &ast.statements[0].clauses[0].patterns[0].elements[1]
+        if let CypherPatternElement::Relationship(r) =
+            &ast.statements[0].clauses[0].patterns[0].elements[1]
         {
             assert_eq!(r.types, vec!["KNOWS".to_string(), "LIKES".to_string()]);
         } else {
@@ -987,7 +980,8 @@ mod tests {
     #[test]
     fn incoming_relationship_direction() {
         let ast = parse("MATCH (a)<-[:R]-(b) RETURN a, b");
-        if let CypherPatternElement::Relationship(r) = &ast.statements[0].clauses[0].patterns[0].elements[1]
+        if let CypherPatternElement::Relationship(r) =
+            &ast.statements[0].clauses[0].patterns[0].elements[1]
         {
             assert_eq!(r.direction, RelDirection::Incoming);
         } else {
@@ -998,7 +992,8 @@ mod tests {
     #[test]
     fn undirected_relationship_direction() {
         let ast = parse("MATCH (a)-[:R]-(b) RETURN a, b");
-        if let CypherPatternElement::Relationship(r) = &ast.statements[0].clauses[0].patterns[0].elements[1]
+        if let CypherPatternElement::Relationship(r) =
+            &ast.statements[0].clauses[0].patterns[0].elements[1]
         {
             assert_eq!(r.direction, RelDirection::Undirected);
         } else {
@@ -1078,19 +1073,11 @@ mod tests {
                 reparsed
                     .statements
                     .iter()
-                    .map(|s| s
-                        .clauses
-                        .iter()
-                        .map(|c| c.kind)
-                        .collect::<Vec<_>>())
+                    .map(|s| s.clauses.iter().map(|c| c.kind).collect::<Vec<_>>())
                     .collect::<Vec<_>>(),
                 ast.statements
                     .iter()
-                    .map(|s| s
-                        .clauses
-                        .iter()
-                        .map(|c| c.kind)
-                        .collect::<Vec<_>>())
+                    .map(|s| s.clauses.iter().map(|c| c.kind).collect::<Vec<_>>())
                     .collect::<Vec<_>>(),
                 "reparsing rendered form must yield the same clause shape for `{src}`",
             );
@@ -1111,7 +1098,11 @@ mod tests {
         let ast = parse("MATCH (a)-[:KNOWS]->(b)-[:LIKES|HATES]->(c) RETURN a, b, c");
         assert_eq!(
             ast.relationship_types(),
-            vec!["KNOWS".to_string(), "LIKES".to_string(), "HATES".to_string()]
+            vec![
+                "KNOWS".to_string(),
+                "LIKES".to_string(),
+                "HATES".to_string()
+            ]
         );
     }
 

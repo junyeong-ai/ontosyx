@@ -311,9 +311,7 @@ impl CypherValidator for SafetyValidator {
                 if let Some(msg) = destructive_msg
                     && !has_where
                 {
-                    issues.push(
-                        ValidationIssue::error("safety", msg).with_span(clause.span),
-                    );
+                    issues.push(ValidationIssue::error("safety", msg).with_span(clause.span));
                 }
 
                 // DDL tokens (DROP) are never allowed on the runtime path.
@@ -383,9 +381,7 @@ impl CypherValidator for OntologyValidator {
             if self.ontology.node_by_label(&label).is_none() {
                 issues.push(ValidationIssue::error(
                     "ontology",
-                    format!(
-                        "unknown node label `{label}` — not defined in the active ontology"
-                    ),
+                    format!("unknown node label `{label}` — not defined in the active ontology"),
                 ));
             }
         }
@@ -628,7 +624,11 @@ mod tests {
     fn safety_allows_delete_with_where() {
         let p = CypherValidatorPipeline::new().with(SafetyValidator::new());
         let r = run(&p, "MATCH (n:Person) WHERE n.id = $id DELETE n");
-        assert!(!r.has_errors(), "DELETE with WHERE must pass: {:?}", r.issues);
+        assert!(
+            !r.has_errors(),
+            "DELETE with WHERE must pass: {:?}",
+            r.issues
+        );
     }
 
     #[test]
@@ -689,7 +689,12 @@ mod tests {
         let p = CypherValidatorPipeline::new().with(SafetyValidator::new());
         // Two destructive operations in one statement, no WHERE anywhere.
         let r = run(&p, "MATCH (n) REMOVE n.age DETACH DELETE n");
-        assert!(r.errors().filter(|e| e.message.contains("DETACH DELETE")).count() >= 1);
+        assert!(
+            r.errors()
+                .filter(|e| e.message.contains("DETACH DELETE"))
+                .count()
+                >= 1
+        );
         assert!(r.errors().filter(|e| e.message.contains("REMOVE")).count() >= 1);
     }
 
@@ -699,16 +704,16 @@ mod tests {
 
     #[test]
     fn ontology_accepts_known_labels_and_edges() {
-        let p = CypherValidatorPipeline::new()
-            .with(OntologyValidator::new(person_company_ontology()));
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
         let r = run(&p, "MATCH (p:Person)-[:WORKS_AT]->(c:Company) RETURN p, c");
         assert!(!r.has_errors(), "known entities must pass: {:?}", r.issues);
     }
 
     #[test]
     fn ontology_flags_unknown_node_label() {
-        let p = CypherValidatorPipeline::new()
-            .with(OntologyValidator::new(person_company_ontology()));
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
         let r = run(&p, "MATCH (u:Userr) RETURN u");
         assert!(r.has_errors());
         assert!(r.errors().any(|e| e.message.contains("Userr")));
@@ -716,8 +721,8 @@ mod tests {
 
     #[test]
     fn ontology_flags_unknown_relationship_type() {
-        let p = CypherValidatorPipeline::new()
-            .with(OntologyValidator::new(person_company_ontology()));
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
         let r = run(&p, "MATCH (p:Person)-[:WORKS_FOR]->(c:Company) RETURN p");
         assert!(r.has_errors());
         assert!(r.errors().any(|e| e.message.contains("WORKS_FOR")));
@@ -725,8 +730,8 @@ mod tests {
 
     #[test]
     fn ontology_flags_unknown_property_key_on_known_label() {
-        let p = CypherValidatorPipeline::new()
-            .with(OntologyValidator::new(person_company_ontology()));
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
         let r = run(&p, "MATCH (p:Person {emial: 'x'}) RETURN p");
         assert!(r.has_errors());
         assert!(r.errors().any(|e| e.message.contains("emial")));
@@ -734,8 +739,8 @@ mod tests {
 
     #[test]
     fn ontology_accepts_known_inline_property() {
-        let p = CypherValidatorPipeline::new()
-            .with(OntologyValidator::new(person_company_ontology()));
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
         let r = run(&p, "MATCH (p:Person {name: 'Alice'}) RETURN p");
         assert!(!r.has_errors(), "{:?}", r.issues);
     }
@@ -745,8 +750,8 @@ mod tests {
         // `_workspace_id` is injected by the rewriter; validator must
         // not flag it as an unknown property even when it appears on a
         // labelled node.
-        let p = CypherValidatorPipeline::new()
-            .with(OntologyValidator::new(person_company_ontology()));
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
         let r = run(&p, "MATCH (p:Person {_workspace_id: $ws}) RETURN p");
         assert!(!r.has_errors(), "{:?}", r.issues);
     }
@@ -756,8 +761,8 @@ mod tests {
         // Without a label we cannot resolve the property — skip rather
         // than false-positive. A labelled sibling in the same pattern
         // takes care of the structural check.
-        let p = CypherValidatorPipeline::new()
-            .with(OntologyValidator::new(person_company_ontology()));
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
         let r = run(&p, "MATCH (n {name: 'x'}) RETURN n");
         assert!(!r.has_errors(), "{:?}", r.issues);
     }
@@ -766,28 +771,29 @@ mod tests {
     fn ontology_multi_label_accepts_property_on_either_label() {
         // Multi-label `(n:Person:Company)` — the property need only
         // be defined on at least one label (label union).
-        let p = CypherValidatorPipeline::new()
-            .with(OntologyValidator::new(person_company_ontology()));
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
         let r = run(&p, "MATCH (n:Person:Company {title: 'x'}) RETURN n");
         assert!(!r.has_errors(), "{:?}", r.issues);
     }
 
     #[test]
     fn ontology_reports_each_issue_separately() {
-        let p = CypherValidatorPipeline::new()
-            .with(OntologyValidator::new(person_company_ontology()));
-        let r = run(
-            &p,
-            "MATCH (u:Userr)-[:BADREL]->(v:Alsounknown) RETURN u",
-        );
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(&p, "MATCH (u:Userr)-[:BADREL]->(v:Alsounknown) RETURN u");
         let err_count = r.errors().count();
-        assert!(err_count >= 3, "expected 3 errors, got {err_count}: {:?}", r.issues);
+        assert!(
+            err_count >= 3,
+            "expected 3 errors, got {err_count}: {:?}",
+            r.issues
+        );
     }
 
     #[test]
     fn ontology_passes_non_pattern_statement() {
-        let p = CypherValidatorPipeline::new()
-            .with(OntologyValidator::new(person_company_ontology()));
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
         let r = run(&p, "RETURN 1");
         assert!(!r.has_errors());
     }
@@ -815,13 +821,17 @@ mod tests {
     #[test]
     fn scope_validator_passes_after_workspace_rewrite() {
         // The whole point: rewrite then validate must pass.
-        let rewriter = CypherRewriterPipeline::new()
-            .with(WorkspaceScopeRewriter::new(SCOPE_PROP, "_ws_id"));
+        let rewriter =
+            CypherRewriterPipeline::new().with(WorkspaceScopeRewriter::new(SCOPE_PROP, "_ws_id"));
         let scoped = rewriter.run("MATCH (n:Person) RETURN n", &RewriteContext::new("ws"));
-        let validator = CypherValidatorPipeline::new()
-            .with(WorkspaceScopeValidator::new(SCOPE_PROP));
+        let validator =
+            CypherValidatorPipeline::new().with(WorkspaceScopeValidator::new(SCOPE_PROP));
         let r = validator.run(&scoped, &ValidateContext::new("ws"));
-        assert!(!r.has_errors(), "post-rewrite must pass scope gate: {scoped} => {:?}", r.issues);
+        assert!(
+            !r.has_errors(),
+            "post-rewrite must pass scope gate: {scoped} => {:?}",
+            r.issues
+        );
     }
 
     #[test]
@@ -846,7 +856,11 @@ mod tests {
         let p = CypherValidatorPipeline::new().with(WorkspaceScopeValidator::new(SCOPE_PROP));
         let r = run(&p, raw);
         let err = r.errors().next().unwrap();
-        assert!(err.message.contains("#2"), "error should name statement #2: {}", err.message);
+        assert!(
+            err.message.contains("#2"),
+            "error should name statement #2: {}",
+            err.message
+        );
     }
 
     // =====================================================================
@@ -968,32 +982,41 @@ mod tests {
         assert!(!pre_report.has_errors(), "{:?}", pre_report.issues);
 
         // Rewrite: inject workspace scope.
-        let rewriter = CypherRewriterPipeline::new()
-            .with(WorkspaceScopeRewriter::new(SCOPE_PROP, "_ws_id"));
+        let rewriter =
+            CypherRewriterPipeline::new().with(WorkspaceScopeRewriter::new(SCOPE_PROP, "_ws_id"));
         let scoped = rewriter.run(query, &RewriteContext::new("ws-123"));
 
         // Post-rewrite: scope gate.
-        let post = CypherValidatorPipeline::new()
-            .with(WorkspaceScopeValidator::new(SCOPE_PROP));
+        let post = CypherValidatorPipeline::new().with(WorkspaceScopeValidator::new(SCOPE_PROP));
         let post_report = post.run(&scoped, &ValidateContext::new("ws"));
-        assert!(!post_report.has_errors(), "{scoped} => {:?}", post_report.issues);
+        assert!(
+            !post_report.has_errors(),
+            "{scoped} => {:?}",
+            post_report.issues
+        );
     }
 
     #[test]
     fn e2e_llm_flow_blocks_unsafe_query_before_rewrite() {
         let pre = CypherValidatorPipeline::new().with(SafetyValidator::new());
         let report = pre.run("MATCH (n:Person) DELETE n", &ValidateContext::new("ws"));
-        assert!(report.has_errors(), "pre-rewrite safety gate must catch unscoped DELETE");
+        assert!(
+            report.has_errors(),
+            "pre-rewrite safety gate must catch unscoped DELETE"
+        );
     }
 
     #[test]
     fn e2e_llm_flow_catches_ontology_miss_before_rewrite() {
-        let pre = CypherValidatorPipeline::new()
-            .with(OntologyValidator::new(person_company_ontology()));
+        let pre =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
         let report = pre.run(
             "MATCH (p:NonExistent) RETURN p",
             &ValidateContext::new("ws"),
         );
-        assert!(report.has_errors(), "pre-rewrite ontology gate must catch unknown label");
+        assert!(
+            report.has_errors(),
+            "pre-rewrite ontology gate must catch unknown label"
+        );
     }
 }

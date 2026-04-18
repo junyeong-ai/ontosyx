@@ -41,12 +41,7 @@ pub fn generate_mermaid(ontology: &OntologyIR) -> String {
             .unwrap_or(&[]);
 
         // Inline tag / deprecation comment above the entity.
-        push_tag_comment(
-            &mut lines,
-            "    ",
-            node_tags,
-            node.deprecated_at.is_some(),
-        );
+        push_tag_comment(&mut lines, "    ", node_tags, node.deprecated_at.is_some());
         for tag in node_tags {
             tag_index
                 .entry(tag.clone())
@@ -198,9 +193,7 @@ fn mermaid_cardinality(c: &Cardinality) -> &'static str {
 mod tests {
     use super::*;
     use ox_core::LocalizedText;
-    use ox_core::ontology_ir::{
-        Cardinality, EdgeTypeDef, Governance, NodeTypeDef, PropertyDef,
-    };
+    use ox_core::ontology_ir::{Cardinality, EdgeTypeDef, Governance, NodeTypeDef, PropertyDef};
 
     fn sample_ontology() -> OntologyIR {
         OntologyIR::new(

@@ -24,9 +24,7 @@ use snowflake_api::{QueryResult, SnowflakeApi};
 
 use ox_core::error::{OxError, OxResult};
 use ox_core::source_analysis::ENUM_CARDINALITY_THRESHOLD;
-use ox_core::source_schema::{
-    ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef,
-};
+use ox_core::source_schema::{ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef};
 
 use crate::DataSourceAdapter;
 
@@ -329,11 +327,7 @@ impl DataSourceAdapter for SnowflakeAdapter {
         Ok(cell.parse::<i64>().unwrap_or_default().max(0) as u64)
     }
 
-    async fn sample_column(
-        &self,
-        table: &str,
-        column: &SourceColumnDef,
-    ) -> OxResult<ColumnStats> {
+    async fn sample_column(&self, table: &str, column: &SourceColumnDef) -> OxResult<ColumnStats> {
         let qt = quote_ident(table);
         let qc = quote_ident(&column.name);
 
@@ -475,9 +469,7 @@ impl DataSourceAdapter for SnowflakeAdapter {
 /// Handles the subset of Arrow types that Snowflake actually returns for
 /// INFORMATION_SCHEMA queries (Utf8 / LargeUtf8 / Int / BigInt) plus a
 /// fallback that formats any other array's scalar value via its `Display`.
-fn rows_from_arrow_batches(
-    batches: &[arrow::array::RecordBatch],
-) -> Vec<Vec<Option<String>>> {
+fn rows_from_arrow_batches(batches: &[arrow::array::RecordBatch]) -> Vec<Vec<Option<String>>> {
     let mut rows: Vec<Vec<Option<String>>> = Vec::new();
     for batch in batches {
         let num_rows = batch.num_rows();
@@ -602,7 +594,10 @@ mod tests {
         let result = SnowflakeAdapter::from_connection_string("postgres://host/db");
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
-        assert!(err.contains("snowflake://"), "Error should mention expected scheme: {err}");
+        assert!(
+            err.contains("snowflake://"),
+            "Error should mention expected scheme: {err}"
+        );
     }
 
     #[test]
@@ -617,24 +612,21 @@ mod tests {
         // Single quotes and semicolons must be rejected at the parameter
         // layer — otherwise they'd end up un-escaped in INFORMATION_SCHEMA
         // predicates we interpolate.
-        assert!(SnowflakeAdapter::from_params(
-            "acct';DROP DATABASE neo4j;--",
-            "user",
-            "pass",
-            "wh",
-            "db",
-            "schema"
-        )
-        .is_err());
-        assert!(SnowflakeAdapter::from_params(
-            "acct",
-            "user\"name",
-            "pass",
-            "wh",
-            "db",
-            "schema"
-        )
-        .is_err());
+        assert!(
+            SnowflakeAdapter::from_params(
+                "acct';DROP DATABASE neo4j;--",
+                "user",
+                "pass",
+                "wh",
+                "db",
+                "schema"
+            )
+            .is_err()
+        );
+        assert!(
+            SnowflakeAdapter::from_params("acct", "user\"name", "pass", "wh", "db", "schema")
+                .is_err()
+        );
     }
 
     #[test]

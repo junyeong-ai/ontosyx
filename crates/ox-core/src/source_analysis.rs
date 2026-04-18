@@ -330,10 +330,7 @@ mod pii_type_tests {
             PiiType::PaymentCard.to_pii_kind(),
             PiiKind::PaymentCardNumber
         ));
-        assert!(matches!(
-            PiiType::Iban.to_pii_kind(),
-            PiiKind::Iban
-        ));
+        assert!(matches!(PiiType::Iban.to_pii_kind(), PiiKind::Iban));
 
         // HIPAA
         assert!(matches!(

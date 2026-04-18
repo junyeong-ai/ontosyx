@@ -42,9 +42,7 @@ impl PromptVersion {
         if parts.len() != 3 {
             return Err(OxError::Validation {
                 field: "version".to_string(),
-                message: format!(
-                    "Invalid prompt version '{version}': expected major.minor.patch"
-                ),
+                message: format!("Invalid prompt version '{version}': expected major.minor.patch"),
             });
         }
         let major = parts[0].parse::<u32>().map_err(|_| OxError::Validation {

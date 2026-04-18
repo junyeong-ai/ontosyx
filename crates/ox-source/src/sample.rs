@@ -537,11 +537,7 @@ impl DataSourceAdapter for CsvAdapter {
     async fn count_rows(&self, table: &str) -> OxResult<u64> {
         Ok(self.counts_by_table.get(table).copied().unwrap_or_default())
     }
-    async fn sample_column(
-        &self,
-        table: &str,
-        column: &SourceColumnDef,
-    ) -> OxResult<ColumnStats> {
+    async fn sample_column(&self, table: &str, column: &SourceColumnDef) -> OxResult<ColumnStats> {
         Ok(self
             .stats_by_column
             .get(&(table.to_string(), column.name.clone()))
@@ -567,11 +563,7 @@ impl DataSourceAdapter for JsonAdapter {
     async fn count_rows(&self, table: &str) -> OxResult<u64> {
         Ok(self.counts_by_table.get(table).copied().unwrap_or_default())
     }
-    async fn sample_column(
-        &self,
-        table: &str,
-        column: &SourceColumnDef,
-    ) -> OxResult<ColumnStats> {
+    async fn sample_column(&self, table: &str, column: &SourceColumnDef) -> OxResult<ColumnStats> {
         Ok(self
             .stats_by_column
             .get(&(table.to_string(), column.name.clone()))
@@ -588,10 +580,7 @@ impl DataSourceAdapter for JsonAdapter {
 /// primitives then read in O(1).
 fn index_profile(
     profile: &SourceProfile,
-) -> (
-    HashMap<(String, String), ColumnStats>,
-    HashMap<String, u64>,
-) {
+) -> (HashMap<(String, String), ColumnStats>, HashMap<String, u64>) {
     let mut stats = HashMap::new();
     let mut counts = HashMap::new();
     for tp in &profile.table_profiles {

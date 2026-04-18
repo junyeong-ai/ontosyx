@@ -1,5 +1,7 @@
 use branchforge::ir::{JsonSchemaSpec, ResponseFormat};
-use branchforge::{FinishReason, LlmCall, Message, ModelRequest, ModelResponse, SystemBlock, SystemPrompt};
+use branchforge::{
+    FinishReason, LlmCall, Message, ModelRequest, ModelResponse, SystemBlock, SystemPrompt,
+};
 use ox_core::error::{OxError, OxResult};
 use serde::{Deserialize, Serialize};
 
@@ -115,10 +117,8 @@ pub async fn structured_completion_with_thresholds<
     };
 
     // Prompt caching: system prompt cached with 1-hour TTL.
-    let cached_system = SystemPrompt::Blocks(vec![SystemBlock::cached_with_ttl(
-        &effective_system,
-        "1h",
-    )]);
+    let cached_system =
+        SystemPrompt::Blocks(vec![SystemBlock::cached_with_ttl(&effective_system, "1h")]);
 
     let mut request = ModelRequest::new(model, vec![Message::user(user_prompt)])
         .with_max_tokens(max_tokens)
@@ -150,15 +150,16 @@ pub async fn structured_completion_with_thresholds<
                 "Content filtering blocked structured output, falling back to JSON mode"
             );
             request.response_format = None;
-            request = request.with_system(SystemPrompt::Blocks(vec![SystemBlock::cached_with_ttl(
-                format!(
-                    "{system}\n\n\
+            request =
+                request.with_system(SystemPrompt::Blocks(vec![SystemBlock::cached_with_ttl(
+                    format!(
+                        "{system}\n\n\
                      CRITICAL: You MUST output ONLY a valid JSON object. \
                      Do NOT include any explanation, reasoning, or text before or after the JSON. \
                      Start your response with {{ and end with }}."
-                ),
-                "1h",
-            )]));
+                    ),
+                    "1h",
+                )]));
             let resp = client.send(&request).await.map_err(|e| OxError::Runtime {
                 message: format!("LLM request failed (JSON fallback): {e}"),
             })?;

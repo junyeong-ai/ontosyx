@@ -288,7 +288,6 @@ impl PromptRegistry {
             })
             .collect()
     }
-
 }
 
 /// Parse DB content format: "[system]\n...\n\n[user_template]\n..."

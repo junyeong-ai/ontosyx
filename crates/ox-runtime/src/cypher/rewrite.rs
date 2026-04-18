@@ -140,7 +140,10 @@ pub struct WorkspaceScopeRewriter {
 
 impl WorkspaceScopeRewriter {
     pub const fn new(property: &'static str, param_name: &'static str) -> Self {
-        Self { property, param_name }
+        Self {
+            property,
+            param_name,
+        }
     }
 }
 
@@ -471,7 +474,10 @@ mod tests {
         let out = rewrite(
             "MATCH (c:Customer)-[:PLACED]->(o:Order) WHERE o.status = 'delivered' RETURN c, o",
         );
-        assert!(out.contains("c._workspace_id = $_ws_id AND o.status"), "{out}");
+        assert!(
+            out.contains("c._workspace_id = $_ws_id AND o.status"),
+            "{out}"
+        );
     }
 
     #[test]
@@ -505,15 +511,28 @@ mod tests {
     fn scope_union_scopes_each_fragment_independently() {
         let out = rewrite("MATCH (a:A) RETURN a UNION MATCH (b:B) RETURN b");
         // Both fragments get a workspace predicate.
-        let matches: Vec<&str> = out.match_indices("_workspace_id = $_ws_id").map(|(_, m)| m).collect();
-        assert_eq!(matches.len(), 2, "both UNION fragments must be scoped: {out}");
-        assert!(out.contains("a._workspace_id") && out.contains("b._workspace_id"), "{out}");
+        let matches: Vec<&str> = out
+            .match_indices("_workspace_id = $_ws_id")
+            .map(|(_, m)| m)
+            .collect();
+        assert_eq!(
+            matches.len(),
+            2,
+            "both UNION fragments must be scoped: {out}"
+        );
+        assert!(
+            out.contains("a._workspace_id") && out.contains("b._workspace_id"),
+            "{out}"
+        );
     }
 
     #[test]
     fn scope_union_all_variant_preserved_and_scoped() {
         let out = rewrite("MATCH (a:A) RETURN a UNION ALL MATCH (b:B) RETURN b");
-        assert!(out.contains("UNION ALL"), "UNION ALL keyword preserved: {out}");
+        assert!(
+            out.contains("UNION ALL"),
+            "UNION ALL keyword preserved: {out}"
+        );
         assert!(out.contains("a._workspace_id") && out.contains("b._workspace_id"));
     }
 
@@ -580,7 +599,10 @@ mod tests {
     #[test]
     fn scope_nested_where_parens_do_not_confuse_injection() {
         let out = rewrite("MATCH (n) WHERE (n.a = 1 AND (n.b = 2 OR n.c = 3)) RETURN n");
-        assert!(out.contains("WHERE n._workspace_id = $_ws_id AND ("), "{out}");
+        assert!(
+            out.contains("WHERE n._workspace_id = $_ws_id AND ("),
+            "{out}"
+        );
     }
 
     #[test]
@@ -604,7 +626,9 @@ mod tests {
         // reflect registration order.
         struct TagWhere;
         impl CypherRewriter for TagWhere {
-            fn name(&self) -> &str { "tag-where" }
+            fn name(&self) -> &str {
+                "tag-where"
+            }
             fn rewrite(&self, mut ast: CypherAst, _: &RewriteContext) -> CypherAst {
                 for stmt in &mut ast.statements {
                     for clause in &mut stmt.clauses {
@@ -618,7 +642,9 @@ mod tests {
         }
         struct TagMatch;
         impl CypherRewriter for TagMatch {
-            fn name(&self) -> &str { "tag-match" }
+            fn name(&self) -> &str {
+                "tag-match"
+            }
             fn rewrite(&self, mut ast: CypherAst, _: &RewriteContext) -> CypherAst {
                 for stmt in &mut ast.statements {
                     for clause in &mut stmt.clauses {
@@ -631,7 +657,10 @@ mod tests {
             }
         }
         let pipeline = CypherRewriterPipeline::new().with(TagMatch).with(TagWhere);
-        let out = pipeline.run("MATCH (n) WHERE n.a = 1 RETURN n", &RewriteContext::new("ws"));
+        let out = pipeline.run(
+            "MATCH (n) WHERE n.a = 1 RETURN n",
+            &RewriteContext::new("ws"),
+        );
         let a = out.find("/*A*/").unwrap();
         let b = out.find("/*B*/").unwrap();
         assert!(a < b, "MATCH tag must appear before WHERE tag: {out}");

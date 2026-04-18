@@ -239,8 +239,7 @@ pub struct MemGraphTransienceDetector;
 
 impl TransienceDetector for MemGraphTransienceDetector {
     fn is_transient(&self, err_msg: &str) -> bool {
-        crate::transience::classify(&crate::transience::MEMGRAPH_RULES, err_msg)
-            .is_transient()
+        crate::transience::classify(&crate::transience::MEMGRAPH_RULES, err_msg).is_transient()
     }
 }
 

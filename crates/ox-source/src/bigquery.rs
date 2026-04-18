@@ -28,9 +28,7 @@ use tracing::info;
 
 use ox_core::error::{OxError, OxResult};
 use ox_core::source_analysis::ENUM_CARDINALITY_THRESHOLD;
-use ox_core::source_schema::{
-    ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef,
-};
+use ox_core::source_schema::{ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef};
 
 use crate::DataSourceAdapter;
 
@@ -215,7 +213,10 @@ impl DataSourceAdapter for BigQueryAdapter {
         let mut col_rs = self.run_query(&col_sql).await?;
         let mut columns = Vec::new();
         while col_rs.next_row() {
-            let name = match col_rs.get_string_by_name("column_name").map_err(bq_row_err)? {
+            let name = match col_rs
+                .get_string_by_name("column_name")
+                .map_err(bq_row_err)?
+            {
                 Some(n) => n,
                 None => continue,
             };
@@ -260,9 +261,7 @@ impl DataSourceAdapter for BigQueryAdapter {
         );
         let mut meta_rs = self.run_query(&meta_sql).await?;
         if meta_rs.next_row()
-            && let Some(n) = meta_rs
-                .get_i64_by_name("row_count")
-                .map_err(bq_row_err)?
+            && let Some(n) = meta_rs.get_i64_by_name("row_count").map_err(bq_row_err)?
             && n > 0
         {
             return Ok(n as u64);
@@ -285,11 +284,7 @@ impl DataSourceAdapter for BigQueryAdapter {
         Ok(0)
     }
 
-    async fn sample_column(
-        &self,
-        table: &str,
-        column: &SourceColumnDef,
-    ) -> OxResult<ColumnStats> {
+    async fn sample_column(&self, table: &str, column: &SourceColumnDef) -> OxResult<ColumnStats> {
         // `table` is always an INFORMATION_SCHEMA-returned identifier
         // (BigQuery enforces `[A-Za-z_][A-Za-z0-9_]*`) so it's safe to
         // interpolate directly into the dotted `project.dataset.table`
@@ -319,7 +314,10 @@ impl DataSourceAdapter for BigQueryAdapter {
                 ),
             });
         }
-        let null_count = rs.get_i64_by_name("null_count").map_err(bq_row_err)?.unwrap_or(0);
+        let null_count = rs
+            .get_i64_by_name("null_count")
+            .map_err(bq_row_err)?
+            .unwrap_or(0);
         let distinct_count = rs
             .get_i64_by_name("distinct_count")
             .map_err(bq_row_err)?
@@ -345,7 +343,10 @@ impl DataSourceAdapter for BigQueryAdapter {
             );
             let mut avg_rs = self.run_query(&avg_len_sql).await?;
             let avg_len = if avg_rs.next_row() {
-                avg_rs.get_i64_by_name("avg_len").unwrap_or(None).unwrap_or(999)
+                avg_rs
+                    .get_i64_by_name("avg_len")
+                    .unwrap_or(None)
+                    .unwrap_or(999)
             } else {
                 999
             };

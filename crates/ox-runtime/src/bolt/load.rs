@@ -28,7 +28,10 @@ pub(crate) struct LoadContext<'a> {
     pub backend_label: &'a str,
 }
 
-pub(crate) async fn run_batched_load(ctx: LoadContext<'_>, batch: LoadBatch) -> OxResult<LoadResult> {
+pub(crate) async fn run_batched_load(
+    ctx: LoadContext<'_>,
+    batch: LoadBatch,
+) -> OxResult<LoadResult> {
     let LoadContext {
         graph,
         cypher,
@@ -58,32 +61,31 @@ pub(crate) async fn run_batched_load(ctx: LoadContext<'_>, batch: LoadBatch) -> 
     let mut futures: FuturesUnordered<BatchFuture> = FuturesUnordered::new();
     let mut iter = batch.into_records().into_iter().enumerate();
 
-    let spawn_one =
-        |futures: &mut FuturesUnordered<BatchFuture>,
-         i: usize,
-         record: serde_json::Map<String, serde_json::Value>| {
-            let field_pairs: Vec<(String, serde_json::Value)> = record.into_iter().collect();
-            let graph = graph.clone();
-            let cypher = Arc::clone(&cypher);
-            let detector = Arc::clone(&detector);
-            let scoped_params = Arc::clone(&scoped_params);
-            let backend_label = backend_label.to_string();
+    let spawn_one = |futures: &mut FuturesUnordered<BatchFuture>,
+                     i: usize,
+                     record: serde_json::Map<String, serde_json::Value>| {
+        let field_pairs: Vec<(String, serde_json::Value)> = record.into_iter().collect();
+        let graph = graph.clone();
+        let cypher = Arc::clone(&cypher);
+        let detector = Arc::clone(&detector);
+        let scoped_params = Arc::clone(&scoped_params);
+        let backend_label = backend_label.to_string();
 
-            futures.push(Box::pin(async move {
-                let res = with_retry(&retry, detector.as_ref(), &backend_label, || {
-                    let mut q = query(&cypher);
-                    for (key, val) in &field_pairs {
-                        q = bind_json_field(q, &format!("row_{key}"), val);
-                    }
-                    for (key, val) in scoped_params.iter() {
-                        q = q.param(key.as_str(), val.as_str());
-                    }
-                    graph.run(q)
-                })
-                .await;
-                (i, res)
-            }));
-        };
+        futures.push(Box::pin(async move {
+            let res = with_retry(&retry, detector.as_ref(), &backend_label, || {
+                let mut q = query(&cypher);
+                for (key, val) in &field_pairs {
+                    q = bind_json_field(q, &format!("row_{key}"), val);
+                }
+                for (key, val) in scoped_params.iter() {
+                    q = q.param(key.as_str(), val.as_str());
+                }
+                graph.run(q)
+            })
+            .await;
+            (i, res)
+        }));
+    };
 
     for _ in 0..max_concurrent {
         match iter.next() {

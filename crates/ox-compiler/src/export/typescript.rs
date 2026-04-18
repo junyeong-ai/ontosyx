@@ -99,7 +99,12 @@ fn push_doc_block(
 /// Render a property as one or more TS lines (optional JSDoc + the field).
 fn push_property_field(lines: &mut Vec<String>, prop: &PropertyDef, ontology: &OntologyIR) {
     let dep_reason = property_deprecation_reason(prop, ontology);
-    push_doc_block(lines, "  ", prop.description.present(), dep_reason.as_deref());
+    push_doc_block(
+        lines,
+        "  ",
+        prop.description.present(),
+        dep_reason.as_deref(),
+    );
 
     let ts_type_str = ts_type(&prop.property_type);
     let inline_hint = ts_type_comment(&prop.property_type);

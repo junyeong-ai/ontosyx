@@ -23,7 +23,7 @@ fn property_typed(name: &str, property_type: PropertyType) -> PropertyDef {
         default_value: None,
         description: LocalizedText::new("desc"),
         classification: None,
-    ..Default::default()
+        ..Default::default()
     }
 }
 
@@ -99,7 +99,15 @@ fn flags_unmapped_tables_and_missing_edges() {
         ],
     };
 
-    let report = assess_quality(&ontology, Some(&schema), Some(&profile), &mapping, &[], &[], &QualityConfig::default());
+    let report = assess_quality(
+        &ontology,
+        Some(&schema),
+        Some(&profile),
+        &mapping,
+        &[],
+        &[],
+        &QualityConfig::default(),
+    );
 
     assert!(report.gaps.iter().any(|gap| {
         matches!(gap.category, QualityGapCategory::UnmappedSourceTable)
@@ -178,7 +186,15 @@ fn flags_missing_fk_edge_when_both_tables_mapped() {
         table_profiles: vec![],
     };
 
-    let report = assess_quality(&ontology, Some(&schema), Some(&profile), &mapping, &[], &[], &QualityConfig::default());
+    let report = assess_quality(
+        &ontology,
+        Some(&schema),
+        Some(&profile),
+        &mapping,
+        &[],
+        &[],
+        &QualityConfig::default(),
+    );
 
     assert!(
         report
@@ -326,8 +342,15 @@ fn column_clarifications_suppress_data_observation_gaps() {
     };
 
     // Without clarifications: should have NumericEnumCode + SingleValueBias gaps
-    let report_no_clarify =
-        assess_quality(&ontology, Some(&schema), Some(&profile), &mapping, &[], &[], &QualityConfig::default());
+    let report_no_clarify = assess_quality(
+        &ontology,
+        Some(&schema),
+        Some(&profile),
+        &mapping,
+        &[],
+        &[],
+        &QualityConfig::default(),
+    );
     assert!(
         report_no_clarify
             .gaps
@@ -481,7 +504,15 @@ fn junction_table_not_flagged_as_unmapped() {
         table_profiles: vec![],
     };
 
-    let report = assess_quality(&ontology, Some(&schema), Some(&profile), &mapping, &[], &[], &QualityConfig::default());
+    let report = assess_quality(
+        &ontology,
+        Some(&schema),
+        Some(&profile),
+        &mapping,
+        &[],
+        &[],
+        &QualityConfig::default(),
+    );
 
     // order_items is a pure junction table with an edge between orders and products,
     // so it should NOT be flagged as unmapped.
@@ -496,7 +527,15 @@ fn junction_table_not_flagged_as_unmapped() {
 
 /// Assess ontology quality without source data (ontology-only checks).
 fn assess_ontology_only(ontology: &OntologyIR) -> OntologyQualityReport {
-    assess_quality(ontology, None, None, &SourceMapping::new(), &[], &[], &QualityConfig::default())
+    assess_quality(
+        ontology,
+        None,
+        None,
+        &SourceMapping::new(),
+        &[],
+        &[],
+        &QualityConfig::default(),
+    )
 }
 
 // ---------------------------------------------------------------------------

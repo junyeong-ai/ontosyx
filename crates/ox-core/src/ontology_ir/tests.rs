@@ -11,7 +11,7 @@ fn property(id: &str, name: &str, nullable: bool) -> PropertyDef {
         default_value: None,
         description: LocalizedText::default(),
         classification: None,
-    ..Default::default()
+        ..Default::default()
     }
 }
 
@@ -444,10 +444,7 @@ fn pii_kind_national_id_carries_country_code() {
     };
     let json = serde_json::to_string(&kr_rrn).unwrap();
     // Tag + content layout: struct variants nest payload under `value`.
-    assert_eq!(
-        json,
-        r#"{"kind":"national_id","value":{"country":"kr"}}"#
-    );
+    assert_eq!(json, r#"{"kind":"national_id","value":{"country":"kr"}}"#);
     let back: PiiKind = serde_json::from_str(&json).unwrap();
     assert_eq!(back, kr_rrn);
 }
@@ -465,7 +462,9 @@ fn pii_kind_custom_open_extension() {
 fn pii_kind_hipaa_variants_distinct_from_national_id() {
     assert_ne!(
         PiiKind::MedicalRecordNumber,
-        PiiKind::NationalId { country: "us".to_string() },
+        PiiKind::NationalId {
+            country: "us".to_string()
+        },
     );
     let mrn_json = serde_json::to_string(&PiiKind::MedicalRecordNumber).unwrap();
     assert_eq!(mrn_json, r#"{"kind":"medical_record_number"}"#);
@@ -608,7 +607,7 @@ fn ecommerce_ontology() -> OntologyIR {
 }
 
 fn simple_match_query(node_label: &str, rel_label: Option<&str>) -> crate::query_ir::QueryIR {
-    use crate::query_ir::{GraphPattern, QueryIR, QueryOp, QUERY_IR_SCHEMA_VERSION};
+    use crate::query_ir::{GraphPattern, QUERY_IR_SCHEMA_VERSION, QueryIR, QueryOp};
     let mut patterns = vec![GraphPattern::Node {
         variable: "n".into(),
         label: Some(node_label.into()),
@@ -667,7 +666,11 @@ fn unknown_labels_in_query_flags_edge_miss() {
     let ontology = ecommerce_ontology();
     let query = simple_match_query("Customer", Some("BOUGHT")); // unknown rel
     let unknown = ontology.unknown_labels_in_query(&query);
-    assert!(unknown.iter().any(|u| u.contains("BOUGHT") && u.starts_with("Edge")));
+    assert!(
+        unknown
+            .iter()
+            .any(|u| u.contains("BOUGHT") && u.starts_with("Edge"))
+    );
 }
 
 #[test]

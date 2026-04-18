@@ -246,8 +246,7 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
             // Previously passed `saved_ontology_id.to_string()` — a UUID
             // that never matched the lineage-string field it was compared
             // against (silent mismatch). Fixed during the lineage rename.
-            let ontology_lineage_id =
-                current_ontology_at_build.as_ref().map(|o| o.id.clone());
+            let ontology_lineage_id = current_ontology_at_build.as_ref().map(|o| o.id.clone());
             let retry_store: Option<Arc<dyn ox_store::EmbeddingRetryStore>> =
                 Some(Arc::clone(&domain.store) as Arc<dyn ox_store::EmbeddingRetryStore>);
             builder = builder.hook(EmbeddingHook::with_ontology_lineage_id(

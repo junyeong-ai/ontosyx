@@ -340,7 +340,9 @@ pub struct PromptInfo {
     security(("api_key" = [])),
     tag = "System",
 )]
-pub(crate) async fn list_prompts(State(state): State<AppState>) -> Json<ApiResponse<Vec<PromptInfo>>> {
+pub(crate) async fn list_prompts(
+    State(state): State<AppState>,
+) -> Json<ApiResponse<Vec<PromptInfo>>> {
     let prompts = state
         .brain
         .list_prompts()

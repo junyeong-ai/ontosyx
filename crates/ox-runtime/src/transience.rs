@@ -77,16 +77,16 @@ pub struct CompiledRule {
 /// pattern fails CI before it can reach production. The `#[allow]`
 /// below acknowledges that the panic is a compile-time-style invariant,
 /// not a runtime failure mode.
-#[allow(clippy::panic, reason = "static specs validated by tests; see module docs")]
-pub fn compile_rules(
-    specs: &[(&'static str, TransienceKind, &'static str)],
-) -> Vec<CompiledRule> {
+#[allow(
+    clippy::panic,
+    reason = "static specs validated by tests; see module docs"
+)]
+pub fn compile_rules(specs: &[(&'static str, TransienceKind, &'static str)]) -> Vec<CompiledRule> {
     specs
         .iter()
         .map(|(pattern, kind, note)| {
-            let regex = Regex::new(pattern).unwrap_or_else(|err| {
-                panic!("invalid transience-rule pattern {pattern:?}: {err}")
-            });
+            let regex = Regex::new(pattern)
+                .unwrap_or_else(|err| panic!("invalid transience-rule pattern {pattern:?}: {err}"));
             CompiledRule {
                 regex,
                 kind: *kind,
@@ -308,5 +308,4 @@ mod tests {
             "syntax error mentioning 'connection' must stay permanent"
         );
     }
-
 }

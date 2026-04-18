@@ -140,7 +140,9 @@ pub(crate) async fn export_shacl(Json(ontology): Json<OntologyIR>) -> Result<Str
     security(("api_key" = [])),
     tag = "Ontologies",
 )]
-pub(crate) async fn export_typescript(Json(ontology): Json<OntologyIR>) -> Result<String, AppError> {
+pub(crate) async fn export_typescript(
+    Json(ontology): Json<OntologyIR>,
+) -> Result<String, AppError> {
     Ok(export::generate_typescript(&ontology))
 }
 
@@ -185,7 +187,7 @@ pub(crate) async fn import_owl(
     if req.content.trim().is_empty() {
         return Err(AppError::bad_request("content must not be empty"));
     }
-    let ontology = import::parse_owl_turtle(&req.content)
-        .map_err(|e| AppError::bad_request(e.to_string()))?;
+    let ontology =
+        import::parse_owl_turtle(&req.content).map_err(|e| AppError::bad_request(e.to_string()))?;
     Ok(ApiResponse::of(ontology))
 }

@@ -23,9 +23,7 @@ use std::time::Duration;
 use tracing::{info, warn};
 
 use ox_core::error::{OxError, OxResult};
-use ox_core::source_schema::{
-    ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef,
-};
+use ox_core::source_schema::{ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef};
 
 use crate::DataSourceAdapter;
 
@@ -168,11 +166,7 @@ impl DataSourceAdapter for MysqlAdapter {
         Ok(exact.max(0) as u64)
     }
 
-    async fn sample_column(
-        &self,
-        table: &str,
-        column: &SourceColumnDef,
-    ) -> OxResult<ColumnStats> {
+    async fn sample_column(&self, table: &str, column: &SourceColumnDef) -> OxResult<ColumnStats> {
         let qt = quote_ident(table);
         let qc = quote_ident(&column.name);
 
@@ -264,13 +258,15 @@ impl DataSourceAdapter for MysqlAdapter {
 
         Ok(rows
             .into_iter()
-            .map(|(_, from_table, from_column, to_table, to_column)| ForeignKeyDef {
-                from_table,
-                from_column,
-                to_table,
-                to_column,
-                inferred: false,
-            })
+            .map(
+                |(_, from_table, from_column, to_table, to_column)| ForeignKeyDef {
+                    from_table,
+                    from_column,
+                    to_table,
+                    to_column,
+                    inferred: false,
+                },
+            )
             .collect())
     }
 }

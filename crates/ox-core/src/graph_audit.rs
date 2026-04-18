@@ -249,8 +249,8 @@ pub fn ontology_from_graph(overview: &GraphSchemaOverview, name: &str) -> Ontolo
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::i18n::LocalizedText;
     use crate::graph_exploration::{GraphSchemaOverview, LabelStat, RelationshipPattern};
+    use crate::i18n::LocalizedText;
     use crate::ontology_ir::OntologyIR;
     use crate::ontology_ir::{Cardinality, EdgeTypeDef, NodeTypeDef};
 

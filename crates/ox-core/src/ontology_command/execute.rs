@@ -11,7 +11,10 @@ enum OwnerLocation {
 }
 
 /// Find the index-based location of a property owner.
-fn find_owner_location(ontology: &OntologyIR, owner: &PropertyOwner) -> Result<OwnerLocation, String> {
+fn find_owner_location(
+    ontology: &OntologyIR,
+    owner: &PropertyOwner,
+) -> Result<OwnerLocation, String> {
     match owner {
         PropertyOwner::Node(id) => ontology
             .node_types
@@ -428,10 +431,7 @@ impl OntologyCommand {
             }
 
             // ----- DeleteProperty -----
-            OntologyCommand::DeleteProperty {
-                owner,
-                property_id,
-            } => {
+            OntologyCommand::DeleteProperty { owner, property_id } => {
                 let loc = find_owner_location(&ont, owner)?;
                 let removed_prop = {
                     let props = owner_properties_mut(&mut ont, &loc);
@@ -440,16 +440,17 @@ impl OntologyCommand {
                             .iter()
                             .position(|p| p.id == *property_id)
                             .ok_or_else(|| {
-                                format!(
-                                    "property '{}' not found on owner '{}'",
-                                    property_id, owner
-                                )
+                                format!("property '{}' not found on owner '{}'", property_id, owner)
                             })?;
                     props.remove(prop_idx)
                 };
 
                 // Remove constraints referencing this property (only on nodes)
-                if let Some(node) = ont.node_types.iter_mut().find(|n| n.id.as_ref() == owner.as_str()) {
+                if let Some(node) = ont
+                    .node_types
+                    .iter_mut()
+                    .find(|n| n.id.as_ref() == owner.as_str())
+                {
                     node.constraints
                         .retain(|c| !constraint_property_ids(c).contains(&&**property_id));
                 }
@@ -481,10 +482,7 @@ impl OntologyCommand {
                     .iter_mut()
                     .find(|p| p.id == *property_id)
                     .ok_or_else(|| {
-                        format!(
-                            "property '{}' not found on owner '{}'",
-                            property_id, owner
-                        )
+                        format!("property '{}' not found on owner '{}'", property_id, owner)
                     })?;
 
                 // Build reverse patch from current values before applying

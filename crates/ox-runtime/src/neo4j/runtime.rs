@@ -102,7 +102,6 @@ impl Neo4jRuntime {
         self.isolation = Some(strategy);
         self
     }
-
 }
 
 #[async_trait]

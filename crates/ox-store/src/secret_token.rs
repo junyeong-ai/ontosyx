@@ -17,10 +17,11 @@ pub fn generate_hex(bytes: usize) -> String {
     let mut buf = vec![0u8; bytes];
     rand::rngs::OsRng.fill_bytes(&mut buf);
     use std::fmt::Write;
-    buf.iter().fold(String::with_capacity(bytes * 2), |mut s, b| {
-        let _ = write!(s, "{b:02x}");
-        s
-    })
+    buf.iter()
+        .fold(String::with_capacity(bytes * 2), |mut s, b| {
+            let _ = write!(s, "{b:02x}");
+            s
+        })
 }
 
 /// SHA-256 digest of the given bytes. Used to convert a plaintext

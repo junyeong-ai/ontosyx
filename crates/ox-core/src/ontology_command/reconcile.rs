@@ -752,7 +752,8 @@ mod tests {
         let original = test_ontology();
         let refined = original.clone();
 
-        let result = reconcile_refined(&original, refined).expect("reconcile succeeds on valid fixtures");
+        let result =
+            reconcile_refined(&original, refined).expect("reconcile succeeds on valid fixtures");
 
         // All entities preserved
         assert!(!result.report.preserved_ids.is_empty());
@@ -800,7 +801,8 @@ mod tests {
         refined.edge_types[0].target_node_id = "new-n2".into();
         refined.edge_types[0].properties[0].id = "new-ep1".into();
 
-        let result = reconcile_refined(&original, refined).expect("reconcile succeeds on valid fixtures");
+        let result =
+            reconcile_refined(&original, refined).expect("reconcile succeeds on valid fixtures");
 
         // Should have uncertain matches for nodes and properties
         assert!(!result.report.uncertain_matches.is_empty());
@@ -844,7 +846,8 @@ mod tests {
         // Remove the edge that referenced n2
         refined.edge_types.clear();
 
-        let result = reconcile_refined(&original, refined).expect("reconcile succeeds on valid fixtures");
+        let result =
+            reconcile_refined(&original, refined).expect("reconcile succeeds on valid fixtures");
 
         // n2 should be deleted
         assert!(

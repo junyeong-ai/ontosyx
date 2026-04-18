@@ -78,8 +78,10 @@ impl PropertyStrategy {
 
 impl GraphIsolationStrategy for PropertyStrategy {
     fn scope_ast(&self, ast: CypherAst, workspace_id: &str) -> ScopedAst {
-        let pipeline = CypherRewriterPipeline::new()
-            .with(WorkspaceScopeRewriter::new(Self::PROPERTY, Self::PARAM_NAME));
+        let pipeline = CypherRewriterPipeline::new().with(WorkspaceScopeRewriter::new(
+            Self::PROPERTY,
+            Self::PARAM_NAME,
+        ));
         let scoped = pipeline.run_ast(ast, &RewriteContext::new(workspace_id));
         ScopedAst {
             ast: scoped,
@@ -144,7 +146,10 @@ mod tests {
         let rendered = result.ast.render();
         assert!(rendered.contains("WHERE n._workspace_id = $_ws_id"));
         assert_eq!(result.params.len(), 1);
-        assert_eq!(result.params[0], ("_ws_id".to_string(), "ws-123".to_string()));
+        assert_eq!(
+            result.params[0],
+            ("_ws_id".to_string(), "ws-123".to_string())
+        );
     }
 
     #[test]
@@ -155,7 +160,12 @@ mod tests {
             "MATCH (n:Person) WHERE n.age > 21 RETURN n",
             "ws-123",
         );
-        assert!(result.ast.render().contains("n._workspace_id = $_ws_id AND n.age > 21"));
+        assert!(
+            result
+                .ast
+                .render()
+                .contains("n._workspace_id = $_ws_id AND n.age > 21")
+        );
     }
 
     #[test]
@@ -174,7 +184,12 @@ mod tests {
     fn scope_simple_create() {
         let strategy = PropertyStrategy;
         let result = scope_text(&strategy, "CREATE (n:Person {name: 'Alice'})", "ws-123");
-        assert!(result.ast.render().contains("SET n._workspace_id = $_ws_id"));
+        assert!(
+            result
+                .ast
+                .render()
+                .contains("SET n._workspace_id = $_ws_id")
+        );
     }
 
     #[test]
@@ -222,7 +237,12 @@ mod tests {
     fn scope_merge_pattern() {
         let strategy = PropertyStrategy;
         let result = scope_text(&strategy, "MERGE (n:Person {name: 'Alice'})", "ws-123");
-        assert!(result.ast.render().contains("SET n._workspace_id = $_ws_id"));
+        assert!(
+            result
+                .ast
+                .render()
+                .contains("SET n._workspace_id = $_ws_id")
+        );
     }
 
     #[test]
@@ -262,7 +282,10 @@ mod tests {
             "ws-123",
         );
         assert!(
-            result.ast.render().contains("c._workspace_id = $_ws_id AND o.status"),
+            result
+                .ast
+                .render()
+                .contains("c._workspace_id = $_ws_id AND o.status"),
             "Should prepend to existing WHERE"
         );
     }
@@ -276,7 +299,10 @@ mod tests {
             "ws-123",
         );
         assert!(
-            result.ast.render().contains("(p:Product) WHERE c._workspace_id"),
+            result
+                .ast
+                .render()
+                .contains("(p:Product) WHERE c._workspace_id"),
             "WHERE after last node in chain"
         );
     }

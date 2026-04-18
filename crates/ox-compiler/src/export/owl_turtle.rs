@@ -117,15 +117,11 @@ pub fn generate_owl_turtle(ontology: &OntologyIR) -> String {
             chain_triple(&mut out, "owl:deprecated true");
         }
         if let Some(replaced_by) = &edge.replaced_by_id
-            && let Some(replacement) =
-                ontology.edge_types().iter().find(|e| &e.id == replaced_by)
+            && let Some(replacement) = ontology.edge_types().iter().find(|e| &e.id == replaced_by)
         {
             chain_triple(
                 &mut out,
-                &format!(
-                    "dcterms:isReplacedBy :{}",
-                    local_name(&replacement.label)
-                ),
+                &format!("dcterms:isReplacedBy :{}", local_name(&replacement.label)),
             );
         }
         out.push('\n');
@@ -161,7 +157,11 @@ pub fn generate_owl_turtle(ontology: &OntologyIR) -> String {
     }
 
     // --- Datatype Properties (from PropertyDef on nodes) ---
-    if ontology.node_types().iter().any(|n| !n.properties.is_empty()) {
+    if ontology
+        .node_types()
+        .iter()
+        .any(|n| !n.properties.is_empty())
+    {
         out.push_str("# ----------------------------------------------------------------\n");
         out.push_str("# Datatype Properties\n");
         out.push_str("# ----------------------------------------------------------------\n\n");
@@ -212,12 +212,8 @@ pub fn generate_owl_turtle(ontology: &OntologyIR) -> String {
             if let Some(replaced_by) = &prop.replaced_by_id
                 && let Some((_, replacement)) = ontology.property_by_id(replaced_by.as_ref())
             {
-                let replacement_dp =
-                    format!("{class_id}_{}", local_name(&replacement.name));
-                chain_triple(
-                    &mut out,
-                    &format!("dcterms:isReplacedBy :{replacement_dp}"),
-                );
+                let replacement_dp = format!("{class_id}_{}", local_name(&replacement.name));
+                chain_triple(&mut out, &format!("dcterms:isReplacedBy :{replacement_dp}"));
             }
             out.push('\n');
 
@@ -591,10 +587,7 @@ mod tests {
             .unwrap();
         let ttl = generate_owl_turtle(&ontology);
         let dp_start = ttl.find(":Brand_name a owl:DatatypeProperty").unwrap();
-        let dp_end = ttl[dp_start..]
-            .find(" .\n")
-            .map(|i| dp_start + i)
-            .unwrap();
+        let dp_end = ttl[dp_start..].find(" .\n").map(|i| dp_start + i).unwrap();
         let dp_block = &ttl[dp_start..dp_end];
         assert!(
             dp_block.contains("owl:deprecated true"),
@@ -670,8 +663,7 @@ mod tests {
         let ttl = generate_owl_turtle(&ontology);
         // Equal min == max collapses to owl:cardinality.
         assert!(
-            ttl.contains("owl:onProperty :Box_exact")
-                && ttl.contains("owl:cardinality \"3\""),
+            ttl.contains("owl:onProperty :Box_exact") && ttl.contains("owl:cardinality \"3\""),
             "exact bound should emit owl:cardinality, got: {ttl}"
         );
         // Distinct bounds expand to owl:minCardinality + owl:maxCardinality.

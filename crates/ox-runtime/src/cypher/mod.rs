@@ -32,13 +32,11 @@ pub mod token;
 pub mod validate;
 
 pub use ast::{
-    CypherAst, CypherClause, CypherPattern, CypherPatternElement, CypherStatement, ClauseKind,
+    ClauseKind, CypherAst, CypherClause, CypherPattern, CypherPatternElement, CypherStatement,
     NodePattern, RelDirection, RelationshipPattern, UnionKind,
 };
 pub use parse::parse;
-pub use rewrite::{
-    CypherRewriter, CypherRewriterPipeline, RewriteContext, WorkspaceScopeRewriter,
-};
+pub use rewrite::{CypherRewriter, CypherRewriterPipeline, RewriteContext, WorkspaceScopeRewriter};
 pub use token::{CypherToken, Span, TokenKind, tokenize};
 pub use validate::{
     CypherValidator, CypherValidatorPipeline, IssueLevel, OntologyValidator, SafetyValidator,

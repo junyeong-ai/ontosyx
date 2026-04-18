@@ -57,7 +57,9 @@ pub(crate) async fn create_project(
     let now = Utc::now();
 
     let project = match req.origin {
-        ProjectOrigin::BaseOntology { base_saved_ontology_id } => {
+        ProjectOrigin::BaseOntology {
+            base_saved_ontology_id,
+        } => {
             // --- From existing ontology ---
             let saved = state
                 .store

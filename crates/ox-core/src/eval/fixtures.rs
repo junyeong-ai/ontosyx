@@ -63,9 +63,24 @@ pub fn ecommerce_ontology() -> OntologyIR {
                 label: "Customer".to_string(),
                 description: LocalizedText::new("A registered customer in the platform"),
                 properties: vec![
-                    prop("p-cust-name", "name", PropertyType::String, Some("Full name of the customer")),
-                    prop("p-cust-email", "email", PropertyType::String, Some("Email address (unique)")),
-                    prop("p-cust-city", "city", PropertyType::String, Some("City of residence")),
+                    prop(
+                        "p-cust-name",
+                        "name",
+                        PropertyType::String,
+                        Some("Full name of the customer"),
+                    ),
+                    prop(
+                        "p-cust-email",
+                        "email",
+                        PropertyType::String,
+                        Some("Email address (unique)"),
+                    ),
+                    prop(
+                        "p-cust-city",
+                        "city",
+                        PropertyType::String,
+                        Some("City of residence"),
+                    ),
                 ],
                 constraints: vec![ConstraintDef {
                     id: "cst-cust-email".into(),
@@ -81,9 +96,24 @@ pub fn ecommerce_ontology() -> OntologyIR {
                 label: "Order".to_string(),
                 description: LocalizedText::new("A purchase order placed by a customer"),
                 properties: vec![
-                    prop("p-ord-date", "date", PropertyType::Date, Some("Date the order was placed")),
-                    prop("p-ord-total", "total", PropertyType::Float, Some("Total order amount in USD")),
-                    prop("p-ord-status", "status", PropertyType::String, Some("Order status: pending, confirmed, shipped, delivered, cancelled")),
+                    prop(
+                        "p-ord-date",
+                        "date",
+                        PropertyType::Date,
+                        Some("Date the order was placed"),
+                    ),
+                    prop(
+                        "p-ord-total",
+                        "total",
+                        PropertyType::Float,
+                        Some("Total order amount in USD"),
+                    ),
+                    prop(
+                        "p-ord-status",
+                        "status",
+                        PropertyType::String,
+                        Some("Order status: pending, confirmed, shipped, delivered, cancelled"),
+                    ),
                 ],
                 constraints: vec![],
                 ..Default::default()
@@ -94,9 +124,24 @@ pub fn ecommerce_ontology() -> OntologyIR {
                 label: "Product".to_string(),
                 description: LocalizedText::new("A product available for purchase"),
                 properties: vec![
-                    prop("p-prod-name", "name", PropertyType::String, Some("Product name")),
-                    prop("p-prod-price", "price", PropertyType::Float, Some("Unit price in USD")),
-                    prop("p-prod-sku", "sku", PropertyType::String, Some("Stock keeping unit (unique)")),
+                    prop(
+                        "p-prod-name",
+                        "name",
+                        PropertyType::String,
+                        Some("Product name"),
+                    ),
+                    prop(
+                        "p-prod-price",
+                        "price",
+                        PropertyType::Float,
+                        Some("Unit price in USD"),
+                    ),
+                    prop(
+                        "p-prod-sku",
+                        "sku",
+                        PropertyType::String,
+                        Some("Stock keeping unit (unique)"),
+                    ),
                 ],
                 constraints: vec![ConstraintDef {
                     id: "cst-prod-sku".into(),
@@ -111,9 +156,12 @@ pub fn ecommerce_ontology() -> OntologyIR {
                 id: "node-category".into(),
                 label: "Category".to_string(),
                 description: LocalizedText::new("Product category for classification"),
-                properties: vec![
-                    prop("p-cat-name", "name", PropertyType::String, Some("Category name (e.g., Electronics, Clothing, Books)")),
-                ],
+                properties: vec![prop(
+                    "p-cat-name",
+                    "name",
+                    PropertyType::String,
+                    Some("Category name (e.g., Electronics, Clothing, Books)"),
+                )],
                 constraints: vec![ConstraintDef {
                     id: "cst-cat-name".into(),
                     constraint: NodeConstraint::Unique {
@@ -128,9 +176,24 @@ pub fn ecommerce_ontology() -> OntologyIR {
                 label: "Review".to_string(),
                 description: LocalizedText::new("A product review written by a customer"),
                 properties: vec![
-                    prop("p-rev-rating", "rating", PropertyType::Int, Some("Rating from 1 to 5")),
-                    nullable_prop("p-rev-text", "text", PropertyType::String, Some("Review text content")),
-                    prop("p-rev-date", "date", PropertyType::Date, Some("Date the review was written")),
+                    prop(
+                        "p-rev-rating",
+                        "rating",
+                        PropertyType::Int,
+                        Some("Rating from 1 to 5"),
+                    ),
+                    nullable_prop(
+                        "p-rev-text",
+                        "text",
+                        PropertyType::String,
+                        Some("Review text content"),
+                    ),
+                    prop(
+                        "p-rev-date",
+                        "date",
+                        PropertyType::Date,
+                        Some("Date the review was written"),
+                    ),
                 ],
                 constraints: vec![],
                 ..Default::default()
@@ -152,12 +215,17 @@ pub fn ecommerce_ontology() -> OntologyIR {
             EdgeTypeDef {
                 id: "edge-contains".into(),
                 label: "CONTAINS".to_string(),
-                description: LocalizedText::new("Order contains a product. Customer→Product path: (Customer)-[:PLACED]->(Order)-[:CONTAINS]->(Product)"),
+                description: LocalizedText::new(
+                    "Order contains a product. Customer→Product path: (Customer)-[:PLACED]->(Order)-[:CONTAINS]->(Product)",
+                ),
                 source_node_id: "node-order".into(),
                 target_node_id: "node-product".into(),
-                properties: vec![
-                    prop("p-cont-quantity", "quantity", PropertyType::Int, Some("Number of units ordered")),
-                ],
+                properties: vec![prop(
+                    "p-cont-quantity",
+                    "quantity",
+                    PropertyType::Int,
+                    Some("Number of units ordered"),
+                )],
                 cardinality: Cardinality::ManyToMany,
                 ..Default::default()
             },

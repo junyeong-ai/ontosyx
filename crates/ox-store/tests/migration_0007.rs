@@ -322,10 +322,7 @@ async fn fn_to_localized_text_normalises_legacy_shapes() {
 
     let cases: &[(serde_json::Value, serde_json::Value)] = &[
         // null → empty LocalizedText
-        (
-            json!(null),
-            json!({"default": "", "translations": {}}),
-        ),
+        (json!(null), json!({"default": "", "translations": {}})),
         // bare string → default-only LocalizedText
         (
             json!("Hello"),
@@ -337,10 +334,7 @@ async fn fn_to_localized_text_normalises_legacy_shapes() {
             json!({"default": "안녕", "translations": {"en": "Hi"}}),
         ),
         // empty object → empty LocalizedText
-        (
-            json!({}),
-            json!({"default": "", "translations": {}}),
-        ),
+        (json!({}), json!({"default": "", "translations": {}})),
     ];
 
     for (input, expected) in cases {
@@ -358,14 +352,13 @@ async fn fn_to_localized_text_normalises_legacy_shapes() {
 
     // Idempotency: apply twice → same result as once
     let legacy = json!("hello");
-    let once: serde_json::Value =
-        sqlx::query("SELECT fn_to_localized_text($1::jsonb) AS out")
-            .bind(&legacy)
-            .fetch_one(&mut *tx)
-            .await
-            .unwrap()
-            .try_get("out")
-            .unwrap();
+    let once: serde_json::Value = sqlx::query("SELECT fn_to_localized_text($1::jsonb) AS out")
+        .bind(&legacy)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap()
+        .try_get("out")
+        .unwrap();
     let twice: serde_json::Value =
         sqlx::query("SELECT fn_to_localized_text(fn_to_localized_text($1::jsonb)) AS out")
             .bind(&legacy)

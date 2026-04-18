@@ -270,7 +270,8 @@ pub(crate) async fn enrich_ontology(
     let ontology: OntologyIR = serde_json::from_value(saved.ontology_ir.clone())
         .map_err(|e| AppError::internal(format!("Failed to parse ontology IR: {e}")))?;
 
-    let config = ox_runtime::profiler::ProfileConfig::for_ontology_size(ontology.node_types().len());
+    let config =
+        ox_runtime::profiler::ProfileConfig::for_ontology_size(ontology.node_types().len());
     let profile = ox_runtime::profiler::profile_graph(runtime.as_ref(), &ontology, &config)
         .await
         .map_err(AppError::from)?;

@@ -66,17 +66,13 @@ impl LanguageTag {
             .next()
             .ok_or_else(|| LocaleError::InvalidTag(raw.to_string()))?;
         let primary_len = primary.len();
-        if !(2..=3).contains(&primary_len)
-            || !primary.chars().all(|c| c.is_ascii_alphabetic())
-        {
+        if !(2..=3).contains(&primary_len) || !primary.chars().all(|c| c.is_ascii_alphabetic()) {
             return Err(LocaleError::InvalidTag(raw.to_string()));
         }
 
         for sub in parts {
             let sub_len = sub.len();
-            if !(2..=8).contains(&sub_len)
-                || !sub.chars().all(|c| c.is_ascii_alphanumeric())
-            {
+            if !(2..=8).contains(&sub_len) || !sub.chars().all(|c| c.is_ascii_alphanumeric()) {
                 return Err(LocaleError::InvalidTag(raw.to_string()));
             }
         }

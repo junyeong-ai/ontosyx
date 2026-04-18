@@ -465,8 +465,7 @@ pub fn assess_quality(
 
     // Ontology-level check: nodes without description.
     for node in &ontology.node_types {
-        if node.description.as_str().trim().is_empty()
-        {
+        if node.description.as_str().trim().is_empty() {
             gaps.push(QualityGap {
                 severity: QualityGapSeverity::Medium,
                 category: QualityGapCategory::MissingDescription,
@@ -487,8 +486,7 @@ pub fn assess_quality(
 
         // Node property descriptions
         for prop in &node.properties {
-            if prop.description.as_str().trim().is_empty()
-            {
+            if prop.description.as_str().trim().is_empty() {
                 gaps.push(QualityGap {
                     severity: QualityGapSeverity::Low,
                     category: QualityGapCategory::MissingDescription,
@@ -513,8 +511,7 @@ pub fn assess_quality(
 
     // Ontology-level check: edges without description.
     for edge in &ontology.edge_types {
-        if edge.description.as_str().trim().is_empty()
-        {
+        if edge.description.as_str().trim().is_empty() {
             gaps.push(QualityGap {
                 severity: QualityGapSeverity::Low,
                 category: QualityGapCategory::MissingDescription,
@@ -535,8 +532,7 @@ pub fn assess_quality(
 
         // Edge property descriptions
         for prop in &edge.properties {
-            if prop.description.as_str().trim().is_empty()
-            {
+            if prop.description.as_str().trim().is_empty() {
                 gaps.push(QualityGap {
                     severity: QualityGapSeverity::Low,
                     category: QualityGapCategory::MissingDescription,

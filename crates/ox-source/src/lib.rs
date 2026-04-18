@@ -89,11 +89,7 @@ pub trait DataSourceAdapter: Send + Sync {
     /// values, min/max. Adapters fold these into the most efficient
     /// form their backend offers — a single aggregation query in SQL
     /// engines, in-memory aggregation for sampled documents, etc.
-    async fn sample_column(
-        &self,
-        table: &str,
-        column: &SourceColumnDef,
-    ) -> OxResult<ColumnStats>;
+    async fn sample_column(&self, table: &str, column: &SourceColumnDef) -> OxResult<ColumnStats>;
 
     /// Enumerate declared or inferred foreign-key relationships. Many
     /// backends don't declare FKs (CSV flat files, Mongo, most JSON)

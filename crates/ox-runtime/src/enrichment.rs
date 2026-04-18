@@ -337,9 +337,8 @@ mod tests {
     #[test]
     fn strip_legacy_format() {
         // Legacy ` | ` separator still works for data migration
-        let desc = ox_core::LocalizedText::new(
-            "Regulatory authority. | Values: \"EU_SCCS\" (1 distinct)",
-        );
+        let desc =
+            ox_core::LocalizedText::new("Regulatory authority. | Values: \"EU_SCCS\" (1 distinct)");
         assert_eq!(
             strip_enrichment(&desc),
             Some("Regulatory authority.".to_string())

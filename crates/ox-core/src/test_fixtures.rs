@@ -15,7 +15,7 @@ pub fn property(id: &str, name: &str) -> PropertyDef {
         default_value: None,
         description: LocalizedText::default(),
         classification: None,
-    ..Default::default()
+        ..Default::default()
     }
 }
 
@@ -102,7 +102,7 @@ fn prop(id: &str, name: &str, property_type: PropertyType, nullable: bool) -> Pr
         default_value: None,
         description: LocalizedText::default(),
         classification: None,
-    ..Default::default()
+        ..Default::default()
     }
 }
 
@@ -129,7 +129,12 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
                 prop("p-customer-id", "고객번호", PropertyType::String, false),
                 prop("p-customer-name", "이름", PropertyType::String, false),
                 prop("p-customer-email", "이메일", PropertyType::String, true),
-                prop("p-customer-joined", "가입일시", PropertyType::DateTime, false),
+                prop(
+                    "p-customer-joined",
+                    "가입일시",
+                    PropertyType::DateTime,
+                    false,
+                ),
             ],
             constraints: vec![unique_on("c-customer-id", "p-customer-id")],
             ..Default::default()
@@ -178,7 +183,12 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
                 prop("p-review-id", "리뷰번호", PropertyType::String, false),
                 prop("p-review-rating", "평점", PropertyType::Int, false),
                 prop("p-review-content", "내용", PropertyType::String, true),
-                prop("p-review-written", "작성일시", PropertyType::DateTime, false),
+                prop(
+                    "p-review-written",
+                    "작성일시",
+                    PropertyType::DateTime,
+                    false,
+                ),
             ],
             constraints: vec![unique_on("c-review-id", "p-review-id")],
             ..Default::default()

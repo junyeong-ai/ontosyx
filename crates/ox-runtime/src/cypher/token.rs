@@ -66,7 +66,10 @@ impl CypherToken {
     /// Whitespace or comment — not semantically significant to parsers
     /// but preserved on the token stream for lossless rendering.
     pub fn is_trivia(&self) -> bool {
-        matches!(self.kind, TokenKind::Whitespace | TokenKind::LineComment | TokenKind::BlockComment)
+        matches!(
+            self.kind,
+            TokenKind::Whitespace | TokenKind::LineComment | TokenKind::BlockComment
+        )
     }
 
     /// Is this token a keyword equal (case-insensitively) to `kw`?
@@ -273,9 +276,7 @@ pub fn tokenize(input: &str) -> Vec<CypherToken> {
         // Parameter reference `$name` or `$0`.
         if b == b'$' {
             i += 1;
-            while i < bytes.len()
-                && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_')
-            {
+            while i < bytes.len() && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') {
                 i += 1;
             }
             out.push(CypherToken::new(
@@ -371,7 +372,18 @@ pub fn tokenize(input: &str) -> Vec<CypherToken> {
         // Single-char operator-ish bytes.
         if matches!(
             b,
-            b'=' | b'<' | b'>' | b'+' | b'-' | b'*' | b'/' | b'%' | b'!' | b':' | b'.' | b'|' | b'^'
+            b'=' | b'<'
+                | b'>'
+                | b'+'
+                | b'-'
+                | b'*'
+                | b'/'
+                | b'%'
+                | b'!'
+                | b':'
+                | b'.'
+                | b'|'
+                | b'^'
         ) {
             i += 1;
             out.push(CypherToken::new(
@@ -384,9 +396,7 @@ pub fn tokenize(input: &str) -> Vec<CypherToken> {
 
         // Identifier / keyword.
         if b.is_ascii_alphabetic() || b == b'_' {
-            while i < bytes.len()
-                && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_')
-            {
+            while i < bytes.len() && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') {
                 i += 1;
             }
             let text = &input[start..i];
@@ -402,11 +412,7 @@ pub fn tokenize(input: &str) -> Vec<CypherToken> {
         // Unknown byte — preserve as Unknown so round-trip stays lossless.
         // Advance by the full UTF-8 character width so we never land
         // inside a multi-byte code point when slicing the source.
-        let ch_len = input[i..]
-            .chars()
-            .next()
-            .map(|c| c.len_utf8())
-            .unwrap_or(1);
+        let ch_len = input[i..].chars().next().map(|c| c.len_utf8()).unwrap_or(1);
         i += ch_len;
         out.push(CypherToken::new(
             TokenKind::Unknown,
@@ -494,7 +500,11 @@ mod tests {
         let toks = tokenize("// hi\nMATCH");
         assert_eq!(
             kinds(&toks),
-            vec![TokenKind::LineComment, TokenKind::Whitespace, TokenKind::Keyword]
+            vec![
+                TokenKind::LineComment,
+                TokenKind::Whitespace,
+                TokenKind::Keyword
+            ]
         );
         assert_eq!(toks[0].text, "// hi");
     }
@@ -534,16 +544,18 @@ mod tests {
     fn double_quoted_string_with_escaped_quote() {
         let toks = tokenize(r#"SET n.name = "He said \"hi\""#);
         assert!(
-            toks.iter().any(|t| t.kind == TokenKind::StringLiteral
-                && t.text == "\"He said \\\"hi\\\"")
+            toks.iter()
+                .any(|t| t.kind == TokenKind::StringLiteral && t.text == "\"He said \\\"hi\\\"")
         );
     }
 
     #[test]
     fn backtick_quoted_identifier() {
         let toks = tokenize("MATCH (`odd name`:Label)");
-        assert!(toks.iter().any(|t| t.kind == TokenKind::QuotedIdentifier
-            && t.text == "`odd name`"));
+        assert!(
+            toks.iter()
+                .any(|t| t.kind == TokenKind::QuotedIdentifier && t.text == "`odd name`")
+        );
     }
 
     #[test]

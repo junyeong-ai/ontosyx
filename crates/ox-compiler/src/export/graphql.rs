@@ -89,7 +89,10 @@ fn property_deprecation_directive(
         },
         None => "Deprecated".into(),
     };
-    format!(" @deprecated(reason: \"{}\")", escape_directive_string(&reason))
+    format!(
+        " @deprecated(reason: \"{}\")",
+        escape_directive_string(&reason)
+    )
 }
 
 /// Build the `@deprecated(reason: "...")` directive for a relationship field
@@ -109,7 +112,10 @@ fn edge_deprecation_directive(
         },
         None => "Deprecated".into(),
     };
-    format!(" @deprecated(reason: \"{}\")", escape_directive_string(&reason))
+    format!(
+        " @deprecated(reason: \"{}\")",
+        escape_directive_string(&reason)
+    )
 }
 
 /// Escape characters that would break a GraphQL string literal inside a
@@ -370,7 +376,9 @@ mod tests {
             .unwrap();
         let schema = generate_graphql(&ontology);
         // Expect every relationship field for this edge to carry @deprecated.
-        let count = schema.matches("@deprecated(reason: \"Deprecated\")").count();
+        let count = schema
+            .matches("@deprecated(reason: \"Deprecated\")")
+            .count();
         assert!(
             count >= 2,
             "expected @deprecated on both directions of the edge: {schema}"

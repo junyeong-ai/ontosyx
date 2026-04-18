@@ -547,7 +547,16 @@ impl OxConfig {
             .set_default("cypher.max_auto_indices", 20_i64)?
             .set_default(
                 "cypher.high_priority_names",
-                vec!["id", "code", "name", "email", "번호", "이름", "이메일", "코드"],
+                vec![
+                    "id",
+                    "code",
+                    "name",
+                    "email",
+                    "번호",
+                    "이름",
+                    "이메일",
+                    "코드",
+                ],
             )?
             // TOML file (optional — missing file is not an error)
             .add_source(File::with_name(&config_file).required(false))
@@ -732,8 +741,7 @@ mod config_section_tests {
             ("OX_RECOVERY__JACCARD_THRESHOLD", "0.75"),
             ("OX_RECOVERY__SESSION_WINDOW_MINUTES", "30"),
         ];
-        let r: RecoveryConfig =
-            load_section("recovery", &env).expect("env-only recovery config");
+        let r: RecoveryConfig = load_section("recovery", &env).expect("env-only recovery config");
         assert!((r.jaccard_threshold - 0.75).abs() < f64::EPSILON);
         assert_eq!(r.session_window_minutes, 30);
     }

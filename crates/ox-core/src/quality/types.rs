@@ -18,7 +18,9 @@ pub struct QualityConfig {
 
 impl Default for QualityConfig {
     fn default() -> Self {
-        Self { small_sample_threshold: 5 }
+        Self {
+            small_sample_threshold: 5,
+        }
     }
 }
 

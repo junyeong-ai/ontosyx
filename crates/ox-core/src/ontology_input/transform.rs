@@ -526,7 +526,7 @@ mod tests {
                 InputNodeTypeDef {
                     id: None,
                     label: "Product".to_string(),
-                source_table: None,
+                    source_table: None,
                     description: LocalizedText::new("A product"),
                     properties: vec![input_property("sku"), input_property("name")],
                     constraints: vec![],

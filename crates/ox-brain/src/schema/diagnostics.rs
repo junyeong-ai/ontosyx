@@ -113,10 +113,7 @@ fn count_total_inner(
             }
             count
         }
-        Value::Array(arr) => arr
-            .iter()
-            .map(|v| count_total_inner(v, defs, stack))
-            .sum(),
+        Value::Array(arr) => arr.iter().map(|v| count_total_inner(v, defs, stack)).sum(),
         _ => 0,
     }
 }

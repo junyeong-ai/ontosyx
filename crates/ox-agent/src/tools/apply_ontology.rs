@@ -30,8 +30,7 @@ pub struct ApplyOntologyTool {
 impl SchemaTool for ApplyOntologyTool {
     type Input = ApplyOntologyInput;
     const NAME: &'static str = super::APPLY_ONTOLOGY;
-    const DESCRIPTION: &'static str =
-        "Apply ontology edits directly to the current project (not a preview). \
+    const DESCRIPTION: &'static str = "Apply ontology edits directly to the current project (not a preview). \
          Creates a new revision; requires designer role.";
 
     async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {

@@ -18,8 +18,8 @@
 
 mod ctx;
 mod exprs;
-mod ops;
 mod mutations;
+mod ops;
 mod patterns;
 
 use serde::{Deserialize, Serialize};
@@ -411,8 +411,8 @@ mod tests {
             operation: QueryOp::Union {
                 queries: vec![
                     QueryIR {
-            schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
-            operation: QueryOp::Match {
+                        schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
+                        operation: QueryOp::Match {
                             patterns: vec![GraphPattern::Node {
                                 variable: "x".into(),
                                 label: Some("Person".into()),
@@ -432,8 +432,8 @@ mod tests {
                         order_by: vec![],
                     },
                     QueryIR {
-            schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
-            operation: QueryOp::Match {
+                        schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
+                        operation: QueryOp::Match {
                             patterns: vec![GraphPattern::Node {
                                 variable: "x".into(),
                                 label: Some("Company".into()),
@@ -655,7 +655,11 @@ mod tests {
             .iter()
             .find(|b| b.variable == "p2")
             .unwrap();
-        assert!(p2_bind.scope_path.contains(&ScopeSegment::ExistsSubquery { depth: 1 }));
+        assert!(
+            p2_bind
+                .scope_path
+                .contains(&ScopeSegment::ExistsSubquery { depth: 1 })
+        );
 
         // The relationship is inside the EXISTS *inside* the CallSubquery.
         // Its scope path must include depth 2 — proving the counter bumped.

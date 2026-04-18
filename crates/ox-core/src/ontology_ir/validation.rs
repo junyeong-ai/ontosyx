@@ -376,7 +376,7 @@ mod tests {
             default_value: None,
             description: LocalizedText::default(),
             classification: None,
-        ..Default::default()
+            ..Default::default()
         }
     }
 

@@ -59,10 +59,7 @@ impl ClientPool {
     /// Delegates to branchforge's [`LlmClient::from_auth`] which handles
     /// all provider types (API key, OAuth/ClaudeCli, Bedrock SigV4, etc.)
     /// with automatic retry.
-    pub async fn get_or_create(
-        &self,
-        config: &LlmProviderConfig,
-    ) -> OxResult<Arc<dyn LlmCall>> {
+    pub async fn get_or_create(&self, config: &LlmProviderConfig) -> OxResult<Arc<dyn LlmCall>> {
         let key = provider_identity_hash(config);
 
         if let Some(entry) = self.clients.get(&key) {
@@ -107,7 +104,10 @@ impl ClientPool {
     pub fn by_provider(&self, provider: &str) -> Option<Arc<dyn LlmCall>> {
         for entry in self.clients.iter() {
             if entry.value().provider == provider {
-                entry.value().last_used.store(now_epoch_secs(), Ordering::Relaxed);
+                entry
+                    .value()
+                    .last_used
+                    .store(now_epoch_secs(), Ordering::Relaxed);
                 return Some(Arc::clone(&entry.value().client));
             }
         }
@@ -122,18 +122,21 @@ impl ClientPool {
     pub fn invalidate_idle(&self, max_idle_secs: u64) {
         let cutoff = now_epoch_secs().saturating_sub(max_idle_secs);
         let before = self.clients.len();
-        self.clients
-            .retain(|key, entry| {
-                let keep = entry.last_used.load(Ordering::Relaxed) > cutoff;
-                if !keep {
-                    self.credentials.remove(key);
-                    info!(provider = %entry.provider, "Evicted idle LLM client from pool");
-                }
-                keep
-            });
+        self.clients.retain(|key, entry| {
+            let keep = entry.last_used.load(Ordering::Relaxed) > cutoff;
+            if !keep {
+                self.credentials.remove(key);
+                info!(provider = %entry.provider, "Evicted idle LLM client from pool");
+            }
+            keep
+        });
         let evicted = before.saturating_sub(self.clients.len());
         if evicted > 0 {
-            info!(evicted, remaining = self.clients.len(), "Client pool idle eviction complete");
+            info!(
+                evicted,
+                remaining = self.clients.len(),
+                "Client pool idle eviction complete"
+            );
         }
     }
 

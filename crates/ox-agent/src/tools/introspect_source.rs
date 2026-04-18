@@ -38,8 +38,7 @@ pub struct IntrospectSourceTool {
 impl SchemaTool for IntrospectSourceTool {
     type Input = IntrospectSourceInput;
     const NAME: &'static str = super::INTROSPECT_SOURCE;
-    const DESCRIPTION: &'static str =
-        "Inspect the source database schema. \
+    const DESCRIPTION: &'static str = "Inspect the source database schema. \
          'list_tables' returns tables with column/row counts; \
          'table_detail' with a table_name returns column definitions, types, constraints, stats.";
     const READ_ONLY: bool = true;

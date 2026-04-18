@@ -34,18 +34,15 @@ pub(super) const PII_KEYWORDS: &[(&str, PiiType)] = &[
     ("street", PiiType::Address),
     ("zip", PiiType::Address),
     ("postal", PiiType::Address),
-
     // --- Network identifiers ---
     ("ipaddr", PiiType::IpAddress),
     ("ipv4", PiiType::IpAddress),
     ("ipv6", PiiType::IpAddress),
-
     // --- Geo ---
     ("latitude", PiiType::GeoLocation),
     ("longitude", PiiType::GeoLocation),
     ("geolocation", PiiType::GeoLocation),
     ("geohash", PiiType::GeoLocation),
-
     // --- Financial (PCI DSS) ---
     ("creditcard", PiiType::PaymentCard),
     ("cardnumber", PiiType::PaymentCard),
@@ -54,13 +51,11 @@ pub(super) const PII_KEYWORDS: &[(&str, PiiType)] = &[
     ("iban", PiiType::Iban),
     ("bankaccount", PiiType::BankAccount),
     ("routing", PiiType::BankAccount),
-
     // --- Health (HIPAA) ---
     ("mrn", PiiType::MedicalRecord),
     ("medicalrecord", PiiType::MedicalRecord),
     ("insurance", PiiType::InsuranceId),
     ("memberid", PiiType::InsuranceId),
-
     // --- Biometric ---
     ("fingerprint", PiiType::Biometric),
     ("biometric", PiiType::Biometric),
@@ -286,10 +281,7 @@ mod tests {
     #[test]
     fn detect_pii_recognises_health_keywords() {
         let schema = make_schema(
-            &[(
-                "patients",
-                &["id", "mrn", "medicalrecord", "insurance"],
-            )],
+            &[("patients", &["id", "mrn", "medicalrecord", "insurance"])],
             &[],
         );
         let profile = SourceProfile {
@@ -313,10 +305,7 @@ mod tests {
 
     #[test]
     fn detect_pii_recognises_passport_and_iban() {
-        let schema = make_schema(
-            &[("travelers", &["id", "passport", "iban"])],
-            &[],
-        );
+        let schema = make_schema(&[("travelers", &["id", "passport", "iban"])], &[]);
         let profile = SourceProfile {
             table_profiles: vec![],
         };
