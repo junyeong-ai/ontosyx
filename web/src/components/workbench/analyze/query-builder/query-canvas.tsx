@@ -2,10 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
-  ReactFlow,
   ReactFlowProvider,
-  Background,
-  Controls,
   useReactFlow,
   type Node,
   type Edge,
@@ -22,10 +19,10 @@ import {
   applyNodeChanges,
   MarkerType,
 } from "@xyflow/react";
-import "@xyflow/react/dist/style.css";
 
 import type { NodeTypeDef, EdgeTypeDef } from "@/types/api";
 import { ContextMenu, type ContextMenuItem } from "@/components/workbench/canvas/context-menu";
+import { GraphCanvas } from "@/components/workbench/canvas/graph-canvas";
 import { useGraphInteractions } from "@/lib/use-graph-interactions";
 import type { GraphContextMenuTarget } from "@/lib/use-graph-context-menu";
 import type { PatternNode, PatternEdge } from "./ir-builder";
@@ -449,7 +446,7 @@ function QueryCanvasInner(props: QueryCanvasProps) {
       onDragOver={handleDragOver}
       className="relative h-full overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700"
     >
-      <ReactFlow
+      <GraphCanvas
         nodes={flowNodes}
         edges={flowEdges}
         onNodesChange={handleNodesChange}
@@ -460,23 +457,9 @@ function QueryCanvasInner(props: QueryCanvasProps) {
         onEdgeContextMenu={handleEdgeContextMenu}
         nodeTypes={nodeTypesRegistry}
         edgeTypes={edgeTypesRegistry}
-        fitView
-        proOptions={{ hideAttribution: true }}
         minZoom={0.2}
-        maxZoom={2}
-        nodesDraggable
-        nodesConnectable={false}
-        elementsSelectable
-        selectNodesOnDrag={false}
-        zoomOnDoubleClick={false}
         className="bg-zinc-50/50 dark:bg-zinc-900/50"
-      >
-        <Background gap={20} size={1} color="#e4e4e7" />
-        <Controls
-          showInteractive={false}
-          className="!rounded-lg !border-zinc-200 !bg-white !shadow-sm dark:!border-zinc-700 dark:!bg-zinc-900"
-        />
-      </ReactFlow>
+      />
       {contextMenu.state && contextMenuItems.length > 0 && (
         <ContextMenu
           state={{
