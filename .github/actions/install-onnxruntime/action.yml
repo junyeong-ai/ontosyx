@@ -1,0 +1,42 @@
+# Reusable onnxruntime installer
+#
+# The `ox-memory` crate links against onnxruntime at build time. Every
+# backend CI job that touches Rust needs the shared library on
+# LD_LIBRARY_PATH and the path in ORT_LIB_LOCATION, so we centralize the
+# install here instead of copy-pasting seven `run:` blocks across jobs.
+#
+# Usage:
+#   - uses: ./.github/actions/install-onnxruntime
+#
+# Bump the `version` input when upgrading onnxruntime so the SHA ref
+# and the URL stay in sync.
+
+name: Install onnxruntime
+description: Download onnxruntime linux-x64 and expose it via ORT_LIB_LOCATION + LD_LIBRARY_PATH.
+
+inputs:
+  version:
+    description: onnxruntime release tag (without leading `v`).
+    required: false
+    default: "1.21.1"
+
+runs:
+  using: composite
+  steps:
+    - name: Install onnxruntime
+      shell: bash
+      # `working-directory` is pinned to `github.workspace` (absolute) so
+      # this action stays correct even when the caller sets
+      # `defaults.run.working-directory: web`. Without this pin, the
+      # tarball would land under `web/` and the exported `LD_LIBRARY_PATH`
+      # would point at a non-existent absolute path.
+      working-directory: ${{ github.workspace }}
+      run: |
+        set -euo pipefail
+        v="${{ inputs.version }}"
+        url="https://github.com/microsoft/onnxruntime/releases/download/v${v}/onnxruntime-linux-x64-${v}.tgz"
+        wget -q "$url"
+        tar xzf "onnxruntime-linux-x64-${v}.tgz"
+        lib_dir="${GITHUB_WORKSPACE}/onnxruntime-linux-x64-${v}/lib"
+        echo "ORT_LIB_LOCATION=$lib_dir" >> "$GITHUB_ENV"
+        echo "LD_LIBRARY_PATH=$lib_dir" >> "$GITHUB_ENV"
