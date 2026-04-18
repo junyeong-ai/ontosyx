@@ -18,6 +18,7 @@ import type {
 import { cn } from "@/lib/cn";
 import { useIsDarkMode } from "@/lib/use-dark-mode";
 import { useContainerWidth } from "@/lib/use-container-width";
+import { useTypeFilter } from "@/lib/use-type-filter";
 import { formatValue } from "./chart-utils";
 import type { GraphNodeData, FGNode, FGLink } from "./graph/graph-types";
 import { DEFAULT_MAX_NODES, DARK_BG, LIGHT_BG } from "./graph/graph-constants";
@@ -79,12 +80,26 @@ export const GraphWidget = memo(function GraphWidget({
     return idx;
   }, [extracted.nodes]);
 
+  // Type filter — clickable legend chips hide nodes (and edges whose
+  // endpoints are hidden) of the selected types. Defaults to "nothing
+  // hidden" so the widget behaves identically to before until someone
+  // interacts with the legend.
+  const typeFilter = useTypeFilter<(typeof extracted.nodes)[number], (typeof extracted.links)[number]>({
+    allTypes: useMemo(() => Array.from(typeColorIndex.keys()), [typeColorIndex]),
+    getNodeType: (n) => n.type ?? "default",
+    getEdgeSource: (e) => (typeof e.source === "string" ? e.source : (e.source as { id: string }).id),
+    getEdgeTarget: (e) => (typeof e.target === "string" ? e.target : (e.target as { id: string }).id),
+  });
+
   // react-force-graph expects { nodes, links } — our custom fields survive
-  // because NodeObject/LinkObject have [others: string]: any.
-  const graphData = useMemo(
-    () => ({ nodes: extracted.nodes, links: extracted.links }),
-    [extracted],
-  );
+  // because NodeObject/LinkObject have [others: string]: any. Filter here
+  // so the force simulation only simulates what the user wants to see.
+  const graphData = useMemo(() => {
+    const visibleNodes = typeFilter.filterNodes(extracted.nodes);
+    const visibleIds = new Set(visibleNodes.map((n) => n.id));
+    const visibleLinks = typeFilter.filterEdges(extracted.links, visibleIds);
+    return { nodes: visibleNodes, links: visibleLinks };
+  }, [extracted, typeFilter]);
 
   const dagMode = layoutToDagMode(layout);
   const isDirected = edgeConfig?.directed ?? true;
@@ -302,13 +317,22 @@ export const GraphWidget = memo(function GraphWidget({
         )}
 
         {/* Legend */}
-        <Legend typeColorIndex={typeColorIndex} />
+        <Legend
+          typeColorIndex={typeColorIndex}
+          hiddenTypes={typeFilter.hiddenTypes}
+          onToggleType={typeFilter.toggle}
+        />
       </div>
 
       {/* Footer stats */}
       <p className="text-[10px] text-zinc-400">
-        {extracted.nodes.length} node{extracted.nodes.length !== 1 ? "s" : ""} ·{" "}
-        {extracted.links.length} edge{extracted.links.length !== 1 ? "s" : ""}
+        {graphData.nodes.length} node{graphData.nodes.length !== 1 ? "s" : ""} ·{" "}
+        {graphData.links.length} edge{graphData.links.length !== 1 ? "s" : ""}
+        {typeFilter.isAnyHidden && (
+          <span className="ml-1 text-zinc-500">
+            · {extracted.nodes.length - graphData.nodes.length} hidden
+          </span>
+        )}
         {isTruncated && (
           <span className="ml-1 text-amber-500">
             · Showing {extracted.nodes.length} of {extracted.totalNodes} nodes

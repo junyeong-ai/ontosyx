@@ -25,6 +25,9 @@ import {
 import "@xyflow/react/dist/style.css";
 
 import type { NodeTypeDef, EdgeTypeDef } from "@/types/api";
+import { ContextMenu, type ContextMenuItem } from "@/components/workbench/canvas/context-menu";
+import { useGraphInteractions } from "@/lib/use-graph-interactions";
+import type { GraphContextMenuTarget } from "@/lib/use-graph-context-menu";
 import type { PatternNode, PatternEdge } from "./ir-builder";
 
 // ---------------------------------------------------------------------------
@@ -216,6 +219,29 @@ function QueryCanvasInner(props: QueryCanvasProps) {
 
   const reactFlow = useReactFlow();
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+
+  // Derive the shared interaction policy (context menu + Delete/Backspace +
+  // Escape) from the canvas's own selection state. `selectedTarget` is
+  // `null` whenever the user hasn't selected anything — the hook then
+  // makes Delete/Backspace a no-op.
+  const selectedTarget = useMemo<GraphContextMenuTarget | null>(() => {
+    if (!selectedId) return null;
+    if (nodes.some((n) => n.id === selectedId)) return { type: "node", id: selectedId };
+    if (edges.some((e) => e.id === selectedId)) return { type: "edge", id: selectedId };
+    return null;
+  }, [selectedId, nodes, edges]);
+
+  const clearSelection = useCallback(() => {
+    onSelectNode(null);
+    onSelectEdge(null);
+  }, [onSelectNode, onSelectEdge]);
+
+  const { contextMenu } = useGraphInteractions({
+    selectedTarget,
+    onClearSelection: clearSelection,
+    onRemoveNode,
+    onRemoveEdge,
+  });
   /**
    * Positions assigned on the fly for nodes that arrive without one.
    * Not persisted — `onMoveNode` flushes to state the first time the
@@ -342,7 +368,48 @@ function QueryCanvasInner(props: QueryCanvasProps) {
   const handlePaneClick = useCallback(() => {
     onSelectNode(null);
     onSelectEdge(null);
-  }, [onSelectNode, onSelectEdge]);
+    contextMenu.close();
+  }, [onSelectNode, onSelectEdge, contextMenu]);
+
+  const handleNodeContextMenu: NodeMouseHandler = useCallback(
+    (event, node) => {
+      onSelectNode(node.id);
+      contextMenu.open(event, { type: "node", id: node.id });
+    },
+    [contextMenu, onSelectNode],
+  );
+
+  const handleEdgeContextMenu: EdgeMouseHandler = useCallback(
+    (event, edge) => {
+      onSelectEdge(edge.id);
+      contextMenu.open(event, { type: "edge", id: edge.id });
+    },
+    [contextMenu, onSelectEdge],
+  );
+
+  // Context-menu items: derived fresh each render so they capture the
+  // latest targetId. `Remove` is the only action right now; Edit-style
+  // actions (rename variable, convert direction) can slot in here
+  // without touching the hook or the surface.
+  const contextMenuItems = useMemo<ContextMenuItem[]>(() => {
+    const target = contextMenu.state?.target;
+    if (!target) return [];
+    return [
+      {
+        label: target.type === "node" ? "Remove node" : "Remove edge",
+        shortcut: "Del",
+        danger: true,
+        onClick: () => {
+          if (target.type === "node") {
+            onRemoveNode(target.id);
+          } else {
+            onRemoveEdge(target.id);
+          }
+          clearSelection();
+        },
+      },
+    ];
+  }, [contextMenu.state, onRemoveNode, onRemoveEdge, clearSelection]);
 
   // ----- Empty state ---------------------------------------------------
 
@@ -389,6 +456,8 @@ function QueryCanvasInner(props: QueryCanvasProps) {
         onNodeClick={handleNodeClick}
         onEdgeClick={handleEdgeClick}
         onPaneClick={handlePaneClick}
+        onNodeContextMenu={handleNodeContextMenu}
+        onEdgeContextMenu={handleEdgeContextMenu}
         nodeTypes={nodeTypesRegistry}
         edgeTypes={edgeTypesRegistry}
         fitView
@@ -408,6 +477,18 @@ function QueryCanvasInner(props: QueryCanvasProps) {
           className="!rounded-lg !border-zinc-200 !bg-white !shadow-sm dark:!border-zinc-700 dark:!bg-zinc-900"
         />
       </ReactFlow>
+      {contextMenu.state && contextMenuItems.length > 0 && (
+        <ContextMenu
+          state={{
+            type: contextMenu.state.target.type,
+            id: contextMenu.state.target.id,
+            x: contextMenu.state.x,
+            y: contextMenu.state.y,
+          }}
+          items={contextMenuItems}
+          onClose={contextMenu.close}
+        />
+      )}
     </div>
   );
 }
