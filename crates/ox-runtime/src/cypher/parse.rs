@@ -113,12 +113,34 @@ impl<'a> Parser<'a> {
         }
 
         // Collect tokens until the next clause head / UNION / EOF.
+        // A clause head inside brackets / parens / braces belongs to a
+        // subquery (CALL { … }), a map literal, or a pattern body —
+        // never a new outer clause. Track bracket depth and only look
+        // for the next head at depth 0.
+        let mut depth_paren: i32 = 0;
+        let mut depth_bracket: i32 = 0;
+        let mut depth_brace: i32 = 0;
         while self.idx < self.tokens.len() {
-            if self.peek_union().is_some() {
-                break;
+            let at_top_level = depth_paren == 0 && depth_bracket == 0 && depth_brace == 0;
+            if at_top_level {
+                if self.peek_union().is_some() {
+                    break;
+                }
+                if self.at_clause_head() {
+                    break;
+                }
             }
-            if self.at_clause_head() {
-                break;
+            let tok = &self.tokens[self.idx];
+            if tok.kind == crate::cypher::token::TokenKind::Paren {
+                match tok.text.as_str() {
+                    "(" => depth_paren += 1,
+                    ")" => depth_paren -= 1,
+                    "[" => depth_bracket += 1,
+                    "]" => depth_bracket -= 1,
+                    "{" => depth_brace += 1,
+                    "}" => depth_brace -= 1,
+                    _ => {}
+                }
             }
             self.idx += 1;
         }

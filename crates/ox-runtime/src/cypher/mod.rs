@@ -27,6 +27,7 @@
 
 pub mod ast;
 pub mod parse;
+pub mod rewrite;
 pub mod token;
 
 pub use ast::{
@@ -34,4 +35,7 @@ pub use ast::{
     NodePattern, RelDirection, RelationshipPattern, UnionKind,
 };
 pub use parse::parse;
+pub use rewrite::{
+    CypherRewriter, CypherRewriterPipeline, RewriteContext, WorkspaceScopeRewriter,
+};
 pub use token::{CypherToken, Span, TokenKind, tokenize};
