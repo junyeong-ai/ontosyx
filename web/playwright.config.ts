@@ -4,7 +4,9 @@ import { defineConfig, devices } from "@playwright/test";
  * Playwright config — Phase 6.4 frontend E2E.
  *
  * Assumptions:
- * - Dev server runs on http://localhost:3100 (Next.js, `pnpm dev`).
+ * - Tests run against the production Next build (`pnpm build && pnpm start`)
+ *   on port 3100. We avoid `pnpm dev` because HMR, react-refresh, and
+ *   development-only error overlays diverge from what real users see.
  * - Backend API is proxied through Next at the same origin.
  * - Tests live under `web/tests/e2e/`.
  */
@@ -34,7 +36,12 @@ export default defineConfig({
   webServer: process.env.PLAYWRIGHT_NO_SERVER
     ? undefined
     : {
-        command: "pnpm dev",
+        // `pnpm start` serves the production build and is closer to what
+        // users see (no HMR, minified bundles, production error boundaries).
+        // Local runs: prime once via `pnpm build` before `pnpm exec playwright test`.
+        // CI pipelines should run `pnpm build` in a separate step so the
+        // web server boot is fast enough to fit the 120s timeout.
+        command: process.env.PLAYWRIGHT_SERVER_COMMAND ?? "pnpm start",
         url: "http://localhost:3100",
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,
