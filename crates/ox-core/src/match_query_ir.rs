@@ -460,6 +460,7 @@ impl MatchQueryIR {
         let order_by: Vec<OrderClause> = self.order_by.iter().map(sort_to_order).collect();
 
         let qir = QueryIR {
+            schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns,
                 filter,

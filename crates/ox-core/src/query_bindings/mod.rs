@@ -205,6 +205,7 @@ mod tests {
     fn test_match_pattern_bindings() {
         let ontology = test_ontology();
         let query = QueryIR {
+            schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns: vec![
                     GraphPattern::Node {
@@ -287,6 +288,7 @@ mod tests {
     fn test_filter_property_bindings() {
         let ontology = test_ontology();
         let query = QueryIR {
+            schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns: vec![GraphPattern::Node {
                     variable: "p".into(),
@@ -325,6 +327,7 @@ mod tests {
     fn test_unknown_label_ignored() {
         let ontology = test_ontology();
         let query = QueryIR {
+            schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns: vec![GraphPattern::Node {
                     variable: "x".into(),
@@ -349,6 +352,7 @@ mod tests {
     fn test_exists_subquery_scope_isolation() {
         let ontology = test_ontology();
         let query = QueryIR {
+            schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns: vec![GraphPattern::Node {
                     variable: "p".into(),
@@ -403,10 +407,12 @@ mod tests {
     fn test_union_branch_scope_isolation() {
         let ontology = test_ontology();
         let query = QueryIR {
+            schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Union {
                 queries: vec![
                     QueryIR {
-                        operation: QueryOp::Match {
+            schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Match {
                             patterns: vec![GraphPattern::Node {
                                 variable: "x".into(),
                                 label: Some("Person".into()),
@@ -426,7 +432,8 @@ mod tests {
                         order_by: vec![],
                     },
                     QueryIR {
-                        operation: QueryOp::Match {
+            schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Match {
                             patterns: vec![GraphPattern::Node {
                                 variable: "x".into(),
                                 label: Some("Company".into()),
@@ -512,6 +519,7 @@ mod tests {
     fn test_property_multi_use_not_deduped() {
         let ontology = test_ontology();
         let query = QueryIR {
+            schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns: vec![GraphPattern::Node {
                     variable: "p".into(),
@@ -557,6 +565,7 @@ mod tests {
     fn test_pathfind_binding_kind() {
         let ontology = test_ontology();
         let query = QueryIR {
+            schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::PathFind {
                 start: NodeRef {
                     variable: "s".into(),
@@ -601,6 +610,7 @@ mod tests {
     fn nested_subquery_scope_paths_have_distinct_depths() {
         let ontology = test_ontology();
         let inner = QueryIR {
+            schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns: vec![GraphPattern::Node {
                     variable: "p2".into(),
@@ -627,6 +637,7 @@ mod tests {
             order_by: vec![],
         };
         let outer = QueryIR {
+            schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::CallSubquery {
                 inner: Box::new(inner),
                 import_variables: vec![],

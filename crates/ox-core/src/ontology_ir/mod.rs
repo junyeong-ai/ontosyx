@@ -92,8 +92,24 @@ struct OntologyLookup {
     prop_id_loc: HashMap<PropertyId, (usize, usize)>,
 }
 
+/// Current on-wire schema version for `OntologyIR` JSONB. Bumped whenever
+/// a backwards-incompatible shape change lands. Deserialisation rejects
+/// a payload whose `schema_version` exceeds this number so we fail fast
+/// instead of silently dropping new fields.
+pub const ONTOLOGY_IR_SCHEMA_VERSION: u32 = 1;
+
+fn default_ontology_ir_schema_version() -> u32 {
+    ONTOLOGY_IR_SCHEMA_VERSION
+}
+
 #[derive(Debug, Clone, Serialize, JsonSchema)]
 pub struct OntologyIR {
+    /// On-wire struct shape version. `1` is the current baseline —
+    /// future incompatible changes bump it and deserialisation rejects
+    /// higher values so the runtime fails loud instead of losing
+    /// data. Read `ONTOLOGY_IR_SCHEMA_VERSION` for the live constant.
+    #[serde(default = "default_ontology_ir_schema_version")]
+    pub schema_version: u32,
     /// Unique identifier for this ontology version.
     pub id: String,
     /// Human-readable name (e.g. "E-commerce Ontology"). Single canonical
@@ -124,11 +140,14 @@ pub struct OntologyIR {
     lookup: OntologyLookup,
 }
 
-/// Custom Deserialize that auto-builds lookup indices after loading.
+/// Custom Deserialize that auto-builds lookup indices after loading
+/// and rejects payloads from a future struct shape.
 impl<'de> Deserialize<'de> for OntologyIR {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
         struct Wire {
+            #[serde(default = "default_ontology_ir_schema_version")]
+            schema_version: u32,
             id: String,
             name: String,
             #[serde(default)]
@@ -142,6 +161,13 @@ impl<'de> Deserialize<'de> for OntologyIR {
         }
 
         let w = Wire::deserialize(deserializer)?;
+        if w.schema_version > ONTOLOGY_IR_SCHEMA_VERSION {
+            return Err(serde::de::Error::custom(format!(
+                "OntologyIR schema_version {} is newer than this build supports (max {}). \
+                 Upgrade the server or export/import through a compatible version.",
+                w.schema_version, ONTOLOGY_IR_SCHEMA_VERSION,
+            )));
+        }
         OntologyIR::try_new(
             w.id,
             w.name,
@@ -203,6 +229,7 @@ impl OntologyIR {
         indexes: Vec<IndexDef>,
     ) -> Result<Self, OntologyInvariantError> {
         let mut ont = Self {
+            schema_version: ONTOLOGY_IR_SCHEMA_VERSION,
             id,
             name,
             description,

@@ -474,6 +474,7 @@ mod tests {
 
     fn simple_match(patterns: Vec<GraphPattern>) -> QueryIR {
         QueryIR {
+            schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns,
                 filter: None,
@@ -614,6 +615,7 @@ mod tests {
     #[test]
     fn optional_matches_tracked() {
         let ir = QueryIR {
+            schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Chain {
                 steps: vec![
                     ChainStep {
@@ -672,6 +674,7 @@ mod tests {
     #[test]
     fn aggregate_walks_into_source() {
         let inner = QueryIR {
+            schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns: vec![
                     GraphPattern::Node {
@@ -695,6 +698,7 @@ mod tests {
             order_by: vec![],
         };
         let ir = QueryIR {
+            schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Aggregate {
                 source: Box::new(inner),
                 group_by: vec![],

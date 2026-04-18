@@ -131,8 +131,23 @@ impl std::fmt::Display for GraphFunction {
 //   GQL     → ISO GQL (MATCH ... FILTER ... RETURN)
 // ---------------------------------------------------------------------------
 
+/// Current on-wire schema version for `QueryIR` JSONB. See
+/// [`crate::ontology_ir::ONTOLOGY_IR_SCHEMA_VERSION`] for the versioning
+/// rationale — the same contract applies: bump on incompatible shape
+/// change, deserialisation rejects higher values.
+pub const QUERY_IR_SCHEMA_VERSION: u32 = 1;
+
+fn default_query_ir_schema_version() -> u32 {
+    QUERY_IR_SCHEMA_VERSION
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct QueryIR {
+    /// On-wire struct shape version. Future incompatible layout changes
+    /// bump it; deserialisation rejects newer values so a stale server
+    /// never silently drops fields a newer writer added.
+    #[serde(default = "default_query_ir_schema_version")]
+    pub schema_version: u32,
     /// The core query operation
     pub operation: QueryOp,
     /// LIMIT clause

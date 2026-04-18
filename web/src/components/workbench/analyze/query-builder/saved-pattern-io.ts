@@ -118,7 +118,15 @@ interface WireOrderClause {
   direction: "asc" | "desc";
 }
 
+/** On-wire shape version — mirrors the Rust `PATTERN_IR_SCHEMA_VERSION`
+ *  constant. The backend rejects a higher value during deserialisation,
+ *  so bump here in lockstep whenever a breaking field shape change
+ *  lands on the Rust side. Older payloads (missing the field) serde
+ *  back to the default on the backend. */
+export const PATTERN_IR_SCHEMA_VERSION = 1;
+
 export interface WirePatternIR {
+  schema_version?: number;
   nodes?: WirePatternNode[];
   edges?: WirePatternEdge[];
   filters?: WirePatternFilter[];
@@ -255,6 +263,7 @@ export function toPatternIR(
   }));
 
   return {
+    schema_version: PATTERN_IR_SCHEMA_VERSION,
     nodes,
     edges,
     filters,

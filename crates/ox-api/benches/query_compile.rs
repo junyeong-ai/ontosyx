@@ -29,7 +29,8 @@ use ox_core::types::{Direction, PropertyValue};
 fn bench_simple_match(c: &mut Criterion) {
     let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
-        operation: QueryOp::Match {
+            schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: "p".into(),
                 label: Some("Product".into()),
@@ -83,7 +84,8 @@ fn bench_simple_match(c: &mut Criterion) {
 fn bench_relationship_traversal(c: &mut Criterion) {
     let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
-        operation: QueryOp::Match {
+            schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Match {
             patterns: vec![
                 GraphPattern::Node {
                     variable: "c".into(),
@@ -144,7 +146,8 @@ fn bench_relationship_traversal(c: &mut Criterion) {
 fn bench_aggregation(c: &mut Criterion) {
     let compiler = CypherCompiler::neo4j();
     let inner = QueryIR {
-        operation: QueryOp::Match {
+            schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: "o".into(),
                 label: Some("Order".into()),
@@ -181,7 +184,8 @@ fn bench_aggregation(c: &mut Criterion) {
     };
 
     let query = QueryIR {
-        operation: QueryOp::Aggregate {
+            schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Aggregate {
             source: Box::new(inner),
             group_by: vec![FieldRef {
                 variable: "o".into(),

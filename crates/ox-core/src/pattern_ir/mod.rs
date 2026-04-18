@@ -44,11 +44,24 @@ use crate::types::Direction;
 // Core PatternIR types
 // ---------------------------------------------------------------------------
 
+/// Current on-wire schema version for `PatternIR` JSONB. See
+/// [`crate::ontology_ir::ONTOLOGY_IR_SCHEMA_VERSION`] for the versioning
+/// rationale — bump on incompatible shape change; deserialisation
+/// rejects higher values to fail loud rather than silently drop fields.
+pub const PATTERN_IR_SCHEMA_VERSION: u32 = 1;
+
+fn default_pattern_ir_schema_version() -> u32 {
+    PATTERN_IR_SCHEMA_VERSION
+}
+
 /// Root of the canvas representation. Each component (nodes, edges,
 /// filters, projections) is a flat list with stable per-entry ids so a
 /// frontend can address them individually in edit operations.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct PatternIR {
+    /// On-wire struct shape version.
+    #[serde(default = "default_pattern_ir_schema_version")]
+    pub schema_version: u32,
     /// Nodes the user has placed on the canvas.
     #[serde(default)]
     pub nodes: Vec<PatternNode>,
@@ -79,6 +92,26 @@ pub struct PatternIR {
     /// reopens with the same sort order the user configured.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub order_by: Vec<OrderClause>,
+}
+
+// `Default` is a manual impl so `schema_version` starts at the correct
+// current baseline. The `#[serde(default = ...)]` attribute only covers
+// deserialisation; `PatternIR::default()` (used by test fixtures and
+// `..Default::default()` struct-update syntax) needs its own seed.
+impl Default for PatternIR {
+    fn default() -> Self {
+        Self {
+            schema_version: PATTERN_IR_SCHEMA_VERSION,
+            nodes: Vec::new(),
+            edges: Vec::new(),
+            filters: Vec::new(),
+            projections: Vec::new(),
+            layout_hints: LayoutHints::default(),
+            limit: None,
+            skip: None,
+            order_by: Vec::new(),
+        }
+    }
 }
 
 /// A single node on the canvas. `id` is the UI identity (stable across
@@ -215,6 +248,7 @@ impl PatternIR {
             .collect();
 
         QueryIR {
+            schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns,
                 filter,
@@ -357,6 +391,7 @@ impl PatternIR {
             .collect();
 
         Self {
+            schema_version: PATTERN_IR_SCHEMA_VERSION,
             nodes,
             edges,
             filters,
@@ -673,6 +708,7 @@ mod tests {
     #[test]
     fn decompile_single_node_match() {
         let query = QueryIR {
+            schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns: vec![GraphPattern::Node {
                     variable: "p".into(),
@@ -698,6 +734,7 @@ mod tests {
     #[test]
     fn decompile_node_edge_pair_cross_references_ids() {
         let query = QueryIR {
+            schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns: vec![
                     GraphPattern::Node {
@@ -745,6 +782,7 @@ mod tests {
         // break as a synthetic `missing_*` id rather than dropping
         // the edge.
         let query = QueryIR {
+            schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns: vec![
                     GraphPattern::Node {
@@ -788,6 +826,7 @@ mod tests {
             right: Box::new(cmp(prop("p", "status"), ComparisonOp::Eq, lit_int(1))),
         };
         let query = QueryIR {
+            schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns: vec![GraphPattern::Node {
                     variable: "p".into(),
@@ -815,6 +854,7 @@ mod tests {
             right: Box::new(cmp(prop("p", "y"), ComparisonOp::Eq, lit_int(2))),
         };
         let query = QueryIR {
+            schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns: vec![GraphPattern::Node {
                     variable: "p".into(),
@@ -839,6 +879,7 @@ mod tests {
         // PathFind is a non-Match operation; decompile should bail out.
         use crate::query_ir::{NodeRef, PathAlgorithm};
         let query = QueryIR {
+            schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::PathFind {
                 start: NodeRef {
                     variable: "s".into(),
@@ -869,6 +910,7 @@ mod tests {
     #[test]
     fn roundtrip_compile_decompile_preserves_structure() {
         let original = PatternIR {
+            schema_version: PATTERN_IR_SCHEMA_VERSION,
             nodes: vec![
                 PatternNode {
                     id: "n1".into(),

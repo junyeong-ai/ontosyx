@@ -500,6 +500,7 @@ mod tests {
     #[test]
     fn test_extract_node_labels_simple_match() {
         let qir = QueryIR {
+            schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns: vec![GraphPattern::Node {
                     variable: "c".into(),
@@ -521,6 +522,7 @@ mod tests {
     #[test]
     fn test_extract_edge_labels_relationship() {
         let qir = QueryIR {
+            schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns: vec![
                     GraphPattern::Node {
