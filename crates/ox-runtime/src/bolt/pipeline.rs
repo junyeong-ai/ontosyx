@@ -30,6 +30,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use tracing::{info, warn};
+
 use ox_core::error::{OxError, OxResult};
 use ox_core::ontology_ir::OntologyIR;
 use ox_core::types::PropertyValue;
@@ -92,6 +94,7 @@ fn run_pre_rewrite_validation(
         pipeline = pipeline.with(OntologyValidator::new(onto.clone()));
     }
     let report = pipeline.run(cypher, &ValidateContext::new(workspace_id));
+    log_non_errors(&report, "pre-rewrite", workspace_id);
     ensure_no_errors(&report)
 }
 
@@ -103,7 +106,34 @@ fn run_post_rewrite_validation(
     let pipeline =
         CypherValidatorPipeline::new().with(WorkspaceScopeValidator::new(scope_property));
     let report = pipeline.run(rewritten, &ValidateContext::new(workspace_id));
+    log_non_errors(&report, "post-rewrite", workspace_id);
     ensure_no_errors(&report)
+}
+
+/// Emit `Warning` / `Info` issues to tracing so they show up in server
+/// logs without blocking execution. The validators shipping today only
+/// produce `Error`-level issues, so in practice this is a no-op; it
+/// exists so future validators (complexity hints, ACL advisories) can
+/// surface observations without each adding its own logging boilerplate.
+fn log_non_errors(report: &ValidationReport, phase: &str, workspace_id: &str) {
+    for issue in report.warnings() {
+        warn!(
+            phase,
+            workspace_id,
+            validator = %issue.validator_name,
+            message = %issue.message,
+            "Cypher validator warning",
+        );
+    }
+    for issue in report.infos() {
+        info!(
+            phase,
+            workspace_id,
+            validator = %issue.validator_name,
+            message = %issue.message,
+            "Cypher validator info",
+        );
+    }
 }
 
 fn apply_isolation(
@@ -130,9 +160,10 @@ fn apply_isolation(
 }
 
 /// Collapse every `Error`-level issue into a single `OxError::Validation`
-/// whose message lists the offending issues one per line. Warnings and
-/// infos are currently dropped — they'll gain a first-class log surface
-/// when `ctx.progress` is wired through the runtime.
+/// whose message lists the offending issues one per line. `Warning` /
+/// `Info` issues are surfaced via `log_non_errors` before this runs,
+/// so the caller sees them in tracing logs even when no error blocks
+/// execution.
 fn ensure_no_errors(report: &ValidationReport) -> OxResult<()> {
     if !report.has_errors() {
         return Ok(());
@@ -342,6 +373,28 @@ mod tests {
         let (rewritten, merged) = result.expect("system bypass must pass");
         assert_eq!(rewritten, "MATCH (p:Person) RETURN p");
         assert!(merged.is_empty(), "no scope param injected under bypass");
+    }
+
+    #[test]
+    fn log_non_errors_does_not_block_execution() {
+        // A ValidationReport carrying only Warnings + Infos should not
+        // convert into an OxError. `ensure_no_errors` is what gates the
+        // pipeline, and `log_non_errors` is a side-effect emitter —
+        // double-check the split here so a future validator that emits
+        // non-Error issues doesn't silently break execution.
+        use crate::cypher::{ValidationIssue, ValidationReport};
+
+        let report = ValidationReport {
+            issues: vec![
+                ValidationIssue::warning("hypothetical-advisory", "use LIMIT for big reads"),
+                ValidationIssue::info("hypothetical-hint", "consider indexing :Person(name)"),
+            ],
+        };
+        // log_non_errors is internal — call it directly to ensure it
+        // tolerates a non-empty Warning / Info set without panicking.
+        log_non_errors(&report, "pre-rewrite", "ws-123");
+        // And the error gate sees no Errors so execution continues.
+        assert!(ensure_no_errors(&report).is_ok());
     }
 
     #[test]
