@@ -18,7 +18,16 @@ export interface Workspace {
   slug: string;
   owner_id: string;
   settings: Record<string, unknown>;
+  /** Canonical BCP 47 tag used as the workspace's primary UI/LLM locale. */
+  primary_locale: string;
+  /** Ordered fallback chain — non-empty list of BCP 47 tags. */
+  locale_fallback: string[];
   created_at: string;
+}
+
+export interface UpdateWorkspaceLocaleRequest {
+  primary_locale: string;
+  locale_fallback: string[];
 }
 
 export interface WorkspaceMember {

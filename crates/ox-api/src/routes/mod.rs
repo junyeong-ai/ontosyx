@@ -380,6 +380,10 @@ pub fn router(state: AppState) -> Router {
     let workspace_mgmt = Router::new()
         .route("/workspaces/{id}", patch(workspaces::update_workspace))
         .route("/workspaces/{id}", delete(workspaces::delete_workspace))
+        .route(
+            "/workspaces/{id}/locale",
+            put(workspaces::update_workspace_locale),
+        )
         .route("/workspaces/{id}/members", post(workspaces::add_member))
         .route(
             "/workspaces/{id}/members/{uid}",

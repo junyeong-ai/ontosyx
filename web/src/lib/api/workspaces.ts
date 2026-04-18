@@ -5,6 +5,7 @@ import type {
   WorkspaceMember,
   CreateWorkspaceRequest,
   UpdateWorkspaceRequest,
+  UpdateWorkspaceLocaleRequest,
   AddMemberRequest,
 } from "@/types/workspace";
 
@@ -42,6 +43,16 @@ export async function updateWorkspace(
 export async function deleteWorkspace(id: string): Promise<void> {
   await request<void>(`/workspaces/${encodeURIComponent(id)}`, {
     method: "DELETE",
+  });
+}
+
+export async function updateWorkspaceLocale(
+  id: string,
+  req: UpdateWorkspaceLocaleRequest,
+): Promise<Workspace> {
+  return request<Workspace>(`/workspaces/${encodeURIComponent(id)}/locale`, {
+    method: "PUT",
+    body: JSON.stringify(req),
   });
 }
 

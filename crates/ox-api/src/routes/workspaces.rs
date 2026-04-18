@@ -30,6 +30,20 @@ pub struct UpdateWorkspaceRequest {
     pub settings: serde_json::Value,
 }
 
+/// Body for `PUT /workspaces/:id/locale`.
+///
+/// `primary_locale` must be a BCP 47 tag (lowercase canonical form).
+/// `locale_fallback` is a non-empty ordered list of BCP 47 tags used by
+/// `LocalizedText::resolve`. Both are validated at the ox-core layer via
+/// `LanguageTag::parse` before hitting the DB, and again at the DB layer
+/// by `fn_validate_locale_chain` — a malformed value is rejected twice
+/// before any row is touched.
+#[derive(Deserialize)]
+pub struct UpdateWorkspaceLocaleRequest {
+    pub primary_locale: String,
+    pub locale_fallback: Vec<String>,
+}
+
 #[derive(Deserialize)]
 pub struct AddMemberRequest {
     pub user_id: Uuid,
@@ -53,6 +67,8 @@ pub struct WorkspaceResponse {
     pub slug: String,
     pub owner_id: Uuid,
     pub settings: serde_json::Value,
+    pub primary_locale: String,
+    pub locale_fallback: serde_json::Value,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -64,6 +80,8 @@ impl From<Workspace> for WorkspaceResponse {
             slug: w.slug,
             owner_id: w.owner_id,
             settings: w.settings,
+            primary_locale: w.primary_locale,
+            locale_fallback: w.locale_fallback,
             created_at: w.created_at,
         }
     }
@@ -255,6 +273,62 @@ pub(crate) async fn update_workspace(
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::not_found("Workspace"))?;
 
+    Ok(ApiResponse::of(workspace.into()))
+}
+
+/// PUT /workspaces/:id/locale — update the workspace's locale policy.
+///
+/// Admins only. Validates both the primary locale and every fallback
+/// entry against `LanguageTag::parse` (BCP 47 subset) before handing
+/// off to the store — the DB CHECK constraints catch any oversight as
+/// a final safety net.
+pub(crate) async fn update_workspace_locale(
+    State(state): State<AppState>,
+    ws_ctx: WorkspaceContext,
+    Path(id): Path<Uuid>,
+    Json(req): Json<UpdateWorkspaceLocaleRequest>,
+) -> Result<Json<ApiResponse<WorkspaceResponse>>, AppError> {
+    ws_ctx.require_admin()?;
+
+    // Validate primary locale shape.
+    let primary = ox_core::LanguageTag::parse(&req.primary_locale)
+        .map_err(|e| AppError::bad_request(format!("Invalid primary_locale: {e}")))?;
+
+    // Fallback chain must be non-empty and every entry must parse.
+    if req.locale_fallback.is_empty() {
+        return Err(AppError::bad_request(
+            "locale_fallback must contain at least one tag",
+        ));
+    }
+    let mut fallback_canonical: Vec<String> = Vec::with_capacity(req.locale_fallback.len());
+    for (idx, tag) in req.locale_fallback.iter().enumerate() {
+        let parsed = ox_core::LanguageTag::parse(tag).map_err(|e| {
+            AppError::bad_request(format!("Invalid locale_fallback[{idx}] `{tag}`: {e}"))
+        })?;
+        fallback_canonical.push(parsed.to_string());
+    }
+
+    let fallback_json = serde_json::Value::Array(
+        fallback_canonical
+            .into_iter()
+            .map(serde_json::Value::String)
+            .collect(),
+    );
+
+    state
+        .store
+        .update_workspace_locale(id, &primary.to_string(), &fallback_json)
+        .await
+        .map_err(AppError::from)?;
+
+    let workspace = state
+        .store
+        .get_workspace(id)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::not_found("Workspace"))?;
+
+    tracing::info!(workspace_id = %id, primary_locale = %req.primary_locale, "Workspace locale updated");
     Ok(ApiResponse::of(workspace.into()))
 }
 
