@@ -33,6 +33,7 @@ chrono = { workspace = true }
 tempfile = { workspace = true }
 sha2 = "0.10.9"
 dashmap = "6"
+arc-swap = { workspace = true }
 
 [lints]
 workspace = true

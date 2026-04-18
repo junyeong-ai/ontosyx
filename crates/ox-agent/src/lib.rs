@@ -22,6 +22,7 @@ pub mod tools;
 
 use std::sync::Arc;
 
+use arc_swap::ArcSwap;
 use branchforge::{Agent, Auth, CacheConfig, ExecutionMode, ToolSurface};
 use hooks::{EmbeddingHook, RecoveryDetectionHook, RecoveryHookConfig};
 use ox_compiler::GraphCompiler;
@@ -44,11 +45,18 @@ use tools::{
 // ---------------------------------------------------------------------------
 
 /// Shared state for all agent tools — graph backends, store, and current ontology context.
+///
+/// `ontology` is an `ArcSwap` (not a plain `Arc`) so tools that mutate
+/// the ontology — `apply_ontology`, `edit_ontology` — can publish the
+/// new snapshot into the DomainContext without needing to rebuild it.
+/// Downstream tools in the same session read the latest snapshot right
+/// before wrapping `runtime.execute_query` in `GRAPH_ONTOLOGY.scope`,
+/// so schema edits take effect on the very next query.
 pub struct DomainContext {
     pub compiler: Arc<dyn GraphCompiler>,
     pub runtime: Option<Arc<dyn GraphRuntime>>,
     pub store: Arc<dyn Store>,
-    pub ontology: Option<Arc<OntologyIR>>,
+    pub ontology: Option<ArcSwap<OntologyIR>>,
     pub user_id: String,
     pub workspace_id: uuid::Uuid,
     pub saved_ontology_id: Option<uuid::Uuid>,
@@ -65,6 +73,33 @@ pub struct DomainContext {
     /// Original user question — always passed to translate_query as primary context.
     /// Prevents agent-driven question fragmentation that defeats graph traversal.
     pub user_question: Option<String>,
+}
+
+impl DomainContext {
+    /// Load the current ontology snapshot. Returns `None` when no
+    /// ontology has been attached to this session. Callers that need
+    /// a short-lived reference should hold the `Arc` across a single
+    /// tool invocation rather than for the entire session so a
+    /// mid-session edit can publish a replacement.
+    pub fn current_ontology(&self) -> Option<Arc<OntologyIR>> {
+        self.ontology.as_ref().map(|o| o.load_full())
+    }
+
+    /// Publish a replacement ontology. Called by tools that mutate the
+    /// ontology (e.g. apply_ontology, edit_ontology) so every
+    /// subsequent tool in the session sees the new snapshot.
+    ///
+    /// Returns `true` when a replacement was stored, `false` when the
+    /// session has no ontology slot (and therefore no subscribers).
+    pub fn replace_ontology(&self, ontology: OntologyIR) -> bool {
+        match &self.ontology {
+            Some(slot) => {
+                slot.store(Arc::new(ontology));
+                true
+            }
+            None => false,
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -165,7 +200,7 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
                 // Pass the lineage (OntologyIR.id), not the saved-row UUID.
                 // Memory entries are filtered by `ontology_lineage_id` so a
                 // UUID-shaped string would never match.
-                ontology_lineage_id: domain.ontology.as_ref().map(|o| o.id.clone()),
+                ontology_lineage_id: domain.current_ontology().map(|o| o.id.clone()),
             });
         }
         builder = builder.tool(SearchRecipesTool {
@@ -187,11 +222,21 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
         }
 
         // Knowledge base tool (requires knowledge store + ontology context)
+        //
+        // Reads are taken at agent-build time. If the user later edits
+        // the ontology mid-session, the knowledge tool sees the
+        // *construction-time* name + version; that's the correct
+        // behavior — knowledge entries are version-scoped, and a
+        // post-edit build step re-creates the agent for a fresh
+        // session.
+        let current_ontology_at_build = domain.current_ontology();
         if let Some(kb) = &domain.knowledge_store {
             builder = builder.tool(ConsultKnowledgeTool {
                 knowledge_store: Arc::clone(kb),
-                ontology_name: domain.ontology.as_ref().map(|o| o.name.clone()),
-                ontology_version: domain.ontology.as_ref().map(|o| o.version.number as i32),
+                ontology_name: current_ontology_at_build.as_ref().map(|o| o.name.clone()),
+                ontology_version: current_ontology_at_build
+                    .as_ref()
+                    .map(|o| o.version.number as i32),
             });
         }
 
@@ -201,7 +246,8 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
             // Previously passed `saved_ontology_id.to_string()` — a UUID
             // that never matched the lineage-string field it was compared
             // against (silent mismatch). Fixed during the lineage rename.
-            let ontology_lineage_id = domain.ontology.as_ref().map(|o| o.id.clone());
+            let ontology_lineage_id =
+                current_ontology_at_build.as_ref().map(|o| o.id.clone());
             let retry_store: Option<Arc<dyn ox_store::EmbeddingRetryStore>> =
                 Some(Arc::clone(&domain.store) as Arc<dyn ox_store::EmbeddingRetryStore>);
             builder = builder.hook(EmbeddingHook::with_ontology_lineage_id(
@@ -214,7 +260,7 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
         // Recovery detection hook: auto-creates knowledge when query_graph
         // fails then succeeds in the same session.
         if let Some(kb) = &domain.knowledge_store
-            && let Some(ontology) = &domain.ontology
+            && let Some(ontology) = current_ontology_at_build.as_ref()
         {
             builder = builder.hook(RecoveryDetectionHook::new(
                 Arc::clone(kb),
@@ -340,7 +386,7 @@ async fn build_system_prompt(domain: &DomainContext, user_role: &str) -> String 
     }
 
     // Ontology context
-    if let Some(ontology) = &domain.ontology {
+    if let Some(ontology) = domain.current_ontology() {
         prompt.push_str(&format!(
             "\nCurrent ontology: '{}' (v{})\n\
              Node types: {}\n\
@@ -371,7 +417,7 @@ async fn build_system_prompt(domain: &DomainContext, user_role: &str) -> String 
     }
 
     // Knowledge base: learned corrections and admin hints
-    if let (Some(kb), Some(ontology)) = (&domain.knowledge_store, &domain.ontology) {
+    if let (Some(kb), Some(ontology)) = (&domain.knowledge_store, domain.current_ontology()) {
         match kb
             .list_active_knowledge(
                 &ontology.name,

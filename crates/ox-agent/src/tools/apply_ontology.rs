@@ -35,7 +35,7 @@ impl SchemaTool for ApplyOntologyTool {
          Creates a new revision; requires designer role.";
 
     async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
-        let ontology = match &self.domain.ontology {
+        let ontology = match self.domain.current_ontology() {
             Some(o) => o,
             None => return ToolResult::error("No ontology loaded"),
         };
@@ -55,7 +55,7 @@ impl SchemaTool for ApplyOntologyTool {
         // Generate edit commands via Brain
         let edit_result = match self
             .brain
-            .generate_edit_commands(ontology, &input.edit_request)
+            .generate_edit_commands(&ontology, &input.edit_request)
             .await
         {
             Ok(result) => result,
@@ -79,7 +79,7 @@ impl SchemaTool for ApplyOntologyTool {
         );
 
         // Apply commands sequentially — each command validates against the current state
-        let mut updated = (**ontology).clone();
+        let mut updated = (*ontology).clone();
         let mut applied_count = 0;
         let mut errors = Vec::new();
 
@@ -120,6 +120,13 @@ impl SchemaTool for ApplyOntologyTool {
             .await
         {
             Ok(()) => {
+                // Publish the new ontology into the shared DomainContext
+                // slot so subsequent tools (query_graph, explain, etc.)
+                // see the edits without a session restart. The
+                // GRAPH_ONTOLOGY task-local picks up the fresh snapshot
+                // on the next `runtime.execute_query` wrap.
+                self.domain.replace_ontology(updated.clone());
+
                 info!(
                     project_id = %project_id,
                     applied = applied_count,

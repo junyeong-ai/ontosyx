@@ -114,18 +114,18 @@ impl SchemaTool for SchemaEvolutionTool {
                 );
             }
         };
-        let ontology = match &self.domain.ontology {
+        let ontology = match self.domain.current_ontology() {
             Some(o) => o,
             None => return ToolResult::error("No ontology loaded. Design an ontology first."),
         };
 
         match input.action {
             EvolutionAction::DetectDrift => {
-                let report = detect_drift(schema, ontology);
+                let report = detect_drift(schema, &ontology);
                 ToolResult::success(serde_json::to_string_pretty(&report).unwrap_or_default())
             }
             EvolutionAction::SuggestUpdates => {
-                let report = detect_drift(schema, ontology);
+                let report = detect_drift(schema, &ontology);
                 if !report.summary.drift_detected {
                     return ToolResult::success(
                         serde_json::json!({

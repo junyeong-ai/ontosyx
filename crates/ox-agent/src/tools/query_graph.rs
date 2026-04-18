@@ -74,7 +74,10 @@ impl SchemaTool for QueryGraphTool {
     const READ_ONLY: bool = true;
 
     async fn handle(&self, input: Self::Input, ctx: &ExecutionContext) -> ToolResult {
-        let ontology = match self.domain.ontology.as_ref() {
+        // Load the current ontology snapshot — a tool that edits the
+        // ontology mid-session publishes a replacement into the shared
+        // `ArcSwap`, and we pick it up here on the next invocation.
+        let ontology = match self.domain.current_ontology() {
             Some(o) => o,
             None => {
                 return ToolResult::error(
@@ -107,7 +110,7 @@ impl SchemaTool for QueryGraphTool {
         let t1 = std::time::Instant::now();
         let query_ir = match tokio::time::timeout(
             std::time::Duration::from_secs(60),
-            self.brain.translate_query(&question, ontology, ctx),
+            self.brain.translate_query(&question, &ontology, ctx),
         )
         .await
         {
@@ -130,7 +133,7 @@ impl SchemaTool for QueryGraphTool {
         };
 
         // Cost estimation: analyse QueryIR before compilation
-        let cost_estimate = ox_compiler::cost::estimate_cost(&query_ir, ontology);
+        let cost_estimate = ox_compiler::cost::estimate_cost(&query_ir, &ontology);
         if cost_estimate.risk_level == ox_compiler::cost::RiskLevel::High {
             warn!(
                 risk = ?cost_estimate.risk_level,
@@ -176,7 +179,7 @@ impl SchemaTool for QueryGraphTool {
         ctx.progress("executing").started();
         let t3 = std::time::Instant::now();
         let execute_fut = ox_runtime::GRAPH_ONTOLOGY.scope(
-            Arc::clone(ontology),
+            Arc::clone(&ontology),
             runtime.execute_query(&compiled.statement, &compiled.params),
         );
         let results = tokio::select! {
@@ -231,7 +234,7 @@ impl SchemaTool for QueryGraphTool {
         );
 
         // Persist query execution
-        let bindings = resolve_query_bindings(&query_ir, ontology);
+        let bindings = resolve_query_bindings(&query_ir, &ontology);
         let query_bindings_json = serde_json::to_value(&bindings).ok();
         let _params_json = serde_json::to_value(&compiled.params).ok();
 
@@ -245,7 +248,7 @@ impl SchemaTool for QueryGraphTool {
             ontology_snapshot: if self.domain.saved_ontology_id.is_some() {
                 None
             } else {
-                serde_json::to_value(ontology).ok()
+                serde_json::to_value(&*ontology).ok()
             },
             query_ir: serde_json::to_value(&query_ir).unwrap_or_default(),
             compiled_target: self.domain.compiler.target_name().to_string(),

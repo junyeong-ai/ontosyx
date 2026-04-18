@@ -38,7 +38,7 @@ impl SchemaTool for ExplainOntologyTool {
     async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
         let mut context = String::new();
 
-        if let Some(ontology) = &self.domain.ontology {
+        if let Some(ontology) = self.domain.current_ontology() {
             // Only user-meaningful signal goes to the LLM: labels and shape.
             // Internal UUIDs, property counts, and the monotonic version
             // number add tokens without helping the model reason.

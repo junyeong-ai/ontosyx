@@ -42,7 +42,7 @@ impl SchemaTool for EditOntologyTool {
          Returns a preview; the user must approve before apply_ontology runs.";
 
     async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
-        let ontology = match self.domain.ontology.as_ref() {
+        let ontology = match self.domain.current_ontology() {
             Some(o) => o,
             None => {
                 return ToolResult::error(
@@ -53,7 +53,7 @@ impl SchemaTool for EditOntologyTool {
 
         let output = match self
             .brain
-            .generate_edit_commands(ontology, &input.request)
+            .generate_edit_commands(&ontology, &input.request)
             .await
         {
             Ok(o) => o,
