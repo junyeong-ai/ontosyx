@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import type { NodeMouseHandler, EdgeMouseHandler } from "@xyflow/react";
 
@@ -8,8 +8,29 @@ import { useAppStore } from "@/lib/store";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { usePrompt } from "@/components/ui/prompt-dialog";
 import { editProject } from "@/lib/api";
-import type { ContextMenuState, ContextMenuItem } from "@/components/workbench/canvas/context-menu";
+import type { ContextMenuItem } from "@/components/workbench/canvas/context-menu";
+import type { UseGraphContextMenuResult } from "@/lib/use-graph-context-menu";
 import type { OntologyIR, OntologyCommand } from "@/types/api";
+
+// ---------------------------------------------------------------------------
+// useOntologyContextMenu — ontology-aware right-click menu contributions
+// ---------------------------------------------------------------------------
+//
+// Splits cleanly along the primitive / policy boundary the canvas uses
+// elsewhere:
+//
+//   • `useGraphContextMenu` (in lib/) owns the *state* — open, close,
+//     target, position — and is shared with QueryCanvas / ExploreCanvas
+//     / future surfaces.
+//   • This hook owns the *policy* — the domain-specific menu items
+//     (Inspect, Focus Neighborhood, Improve with AI, Rename, Delete)
+//     that only make sense for the ontology editor — plus the right-click
+//     handlers that push a target into the shared state.
+//
+// Callers construct the shared state via `useGraphContextMenu()` and
+// thread it in here. Rendering the `<ContextMenu/>` component stays in
+// the canvas itself so the overlay layer is colocated with the rest of
+// the canvas chrome.
 
 async function improveWithAi(
   entityType: "node" | "edge",
@@ -44,14 +65,17 @@ async function improveWithAi(
   }
 }
 
-/**
- * Context menu state, items, and event handlers for nodes and edges.
- *
- * Holds the open/close position state and computes the correct item list
- * based on the selection kind. Actions trigger ontology commands, confirm
- * dialogs, and prompt dialogs.
- */
-export function useCanvasContextMenu(ontology: OntologyIR | null) {
+export interface UseOntologyContextMenuResult {
+  handleNodeContextMenu: NodeMouseHandler;
+  handleEdgeContextMenu: EdgeMouseHandler;
+  nodeContextMenuItems: ContextMenuItem[];
+  edgeContextMenuItems: ContextMenuItem[];
+}
+
+export function useOntologyContextMenu(
+  ontology: OntologyIR | null,
+  contextMenu: UseGraphContextMenuResult,
+): UseOntologyContextMenuResult {
   const select = useAppStore((s) => s.select);
   const clearSelection = useAppStore((s) => s.clearSelection);
   const applyCommand = useAppStore((s) => s.applyCommand);
@@ -61,40 +85,28 @@ export function useCanvasContextMenu(ontology: OntologyIR | null) {
   const confirm = useConfirm();
   const prompt = usePrompt();
 
-  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
-
   const handleNodeContextMenu: NodeMouseHandler = useCallback(
     (event, node) => {
-      event.preventDefault();
       if (node.type === "group") return;
       select({ type: "node", nodeId: node.id });
-      setContextMenu({
-        type: "node",
-        id: node.id,
-        x: event.clientX,
-        y: event.clientY,
-      });
+      contextMenu.open(event, { type: "node", id: node.id });
     },
-    [select],
+    [contextMenu, select],
   );
 
   const handleEdgeContextMenu: EdgeMouseHandler = useCallback(
     (event, edge) => {
-      event.preventDefault();
       select({ type: "edge", edgeId: edge.id });
-      setContextMenu({
-        type: "edge",
-        id: edge.id,
-        x: event.clientX,
-        y: event.clientY,
-      });
+      contextMenu.open(event, { type: "edge", id: edge.id });
     },
-    [select],
+    [contextMenu, select],
   );
 
+  const target = contextMenu.state?.target ?? null;
+
   const nodeContextMenuItems = useMemo((): ContextMenuItem[] => {
-    if (!contextMenu || contextMenu.type !== "node" || !ontology) return [];
-    const nodeId = contextMenu.id;
+    if (!target || target.type !== "node" || !ontology) return [];
+    const nodeId = target.id;
     const nodeDef = ontology.node_types.find((n) => n.id === nodeId);
     if (!nodeDef) return [];
     const connectedEdges = ontology.edge_types.filter(
@@ -150,11 +162,11 @@ export function useCanvasContextMenu(ontology: OntologyIR | null) {
         },
       },
     ];
-  }, [contextMenu, ontology, select, clearSelection, applyCommand, toggleInspector, setNeighborhoodFocus, confirm, prompt]);
+  }, [target, ontology, select, clearSelection, applyCommand, toggleInspector, setNeighborhoodFocus, confirm, prompt]);
 
   const edgeContextMenuItems = useMemo((): ContextMenuItem[] => {
-    if (!contextMenu || contextMenu.type !== "edge" || !ontology) return [];
-    const edgeId = contextMenu.id;
+    if (!target || target.type !== "edge" || !ontology) return [];
+    const edgeId = target.id;
     const edgeDef = ontology.edge_types.find((e) => e.id === edgeId);
     if (!edgeDef) return [];
     const project = useAppStore.getState().activeProject;
@@ -211,13 +223,9 @@ export function useCanvasContextMenu(ontology: OntologyIR | null) {
         },
       },
     ];
-  }, [contextMenu, ontology, select, clearSelection, applyCommand, toggleInspector, confirm, prompt]);
-
-  const closeContextMenu = useCallback(() => setContextMenu(null), []);
+  }, [target, ontology, select, clearSelection, applyCommand, toggleInspector, confirm, prompt]);
 
   return {
-    contextMenu,
-    closeContextMenu,
     handleNodeContextMenu,
     handleEdgeContextMenu,
     nodeContextMenuItems,

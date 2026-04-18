@@ -22,11 +22,12 @@ import { CanvasEmptyState } from "./canvas-empty-state";
 import { CanvasToolbar } from "./canvas-toolbar";
 import { CanvasFlow } from "./canvas-flow";
 import { useCanvasState } from "./use-canvas-state";
+import { useOntologyContextMenu } from "./use-ontology-context-menu";
 import { useCanvasCommands } from "@/lib/store/canvas/commands";
 import { useCanvasKeyboard } from "@/lib/store/canvas/keyboard";
-import { useCanvasContextMenu } from "@/lib/store/canvas/context-menu";
 import { useCanvasSelection } from "@/lib/store/canvas/selection";
 import { useCanvasViewport } from "@/lib/store/canvas/viewport";
+import { useGraphContextMenu } from "@/lib/use-graph-context-menu";
 import type { QualityGap } from "@/types/api";
 
 function CanvasInner({ gaps }: { gaps: QualityGap[] }) {
@@ -66,22 +67,21 @@ function CanvasInner({ gaps }: { gaps: QualityGap[] }) {
   });
   const memoizedPaletteCommands = useMemo(() => getPaletteCommands(), [getPaletteCommands]);
 
+  const contextMenu = useGraphContextMenu();
   const {
-    contextMenu,
-    closeContextMenu,
     handleNodeContextMenu,
     handleEdgeContextMenu,
     nodeContextMenuItems,
     edgeContextMenuItems,
-  } = useCanvasContextMenu(ontology);
+  } = useOntologyContextMenu(ontology, contextMenu);
 
   const onNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {
-      closeContextMenu();
+      contextMenu.close();
       if (node.type === "group") return;
       select({ type: "node", nodeId: node.id });
     },
-    [select, closeContextMenu],
+    [select, contextMenu],
   );
 
   const onNodeDoubleClick: NodeMouseHandler = useCallback(
@@ -94,17 +94,17 @@ function CanvasInner({ gaps }: { gaps: QualityGap[] }) {
 
   const onEdgeClick: EdgeMouseHandler = useCallback(
     (_event, edge) => {
-      closeContextMenu();
+      contextMenu.close();
       select({ type: "edge", edgeId: edge.id });
     },
-    [select, closeContextMenu],
+    [select, contextMenu],
   );
 
   const onPaneClick = useCallback(() => {
-    closeContextMenu();
+    contextMenu.close();
     clearSelection();
     setHighlightedBindings(null);
-  }, [clearSelection, setHighlightedBindings, closeContextMenu]);
+  }, [clearSelection, setHighlightedBindings, contextMenu]);
 
   const applyPositions = useCallback(
     (positions: Record<string, { x: number; y: number }>) => {
@@ -151,11 +151,20 @@ function CanvasInner({ gaps }: { gaps: QualityGap[] }) {
       <VersionDiffBar />
       <CommandBar />
 
-      {contextMenu && (
+      {contextMenu.state && (
         <ContextMenu
-          state={contextMenu}
-          items={contextMenu.type === "node" ? nodeContextMenuItems : edgeContextMenuItems}
-          onClose={closeContextMenu}
+          state={{
+            type: contextMenu.state.target.type,
+            id: contextMenu.state.target.id,
+            x: contextMenu.state.x,
+            y: contextMenu.state.y,
+          }}
+          items={
+            contextMenu.state.target.type === "node"
+              ? nodeContextMenuItems
+              : edgeContextMenuItems
+          }
+          onClose={contextMenu.close}
         />
       )}
 

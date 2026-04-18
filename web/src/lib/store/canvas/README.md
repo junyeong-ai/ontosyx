@@ -35,17 +35,20 @@ Global keyboard shortcuts and command-palette entries.
 - **Returns**: `paletteCommands` — memoizable factory producing the array of
   `PaletteCommand` entries consumed by `CommandPalette`.
 
-## `context-menu.ts` — `useCanvasContextMenu`
+## Context menu (now in the canvas component directory)
 
-Right-click menu state + items for nodes and edges.
+Right-click plumbing split into two pieces along the primitive / policy
+boundary:
 
-- **Fields**: `contextMenu` (`{ type, id, x, y }` or null), updated by
-  `handleNodeContextMenu` / `handleEdgeContextMenu`.
-- **Computed**: `nodeContextMenuItems`, `edgeContextMenuItems` — menu entries
-  for Inspect, Focus Neighborhood, Improve with AI, Rename, Change
-  Cardinality (edges only), and Delete. All destructive actions route
-  through the shared `useConfirm` dialog.
-- **Actions**: `closeContextMenu`.
+- **State** lives in `@/lib/use-graph-context-menu.ts` (`useGraphContextMenu`)
+  and is shared with QueryCanvas / ExploreCanvas.
+- **Items + handlers** live in
+  `@/components/workbench/canvas/use-ontology-context-menu.ts`
+  (`useOntologyContextMenu`). It takes the shared state and returns
+  `handleNodeContextMenu` / `handleEdgeContextMenu` plus the ontology-
+  specific menu entries (Inspect, Focus Neighborhood, Improve with AI,
+  Rename, Change Cardinality on edges, Delete). Destructive actions
+  route through the shared `useConfirm` dialog.
 
 ## `selection.ts` — `useCanvasSelection`
 
