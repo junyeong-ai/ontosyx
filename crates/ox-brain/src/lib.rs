@@ -739,12 +739,61 @@ impl QueryTranslator for DefaultBrain {
             }
         };
 
-        // Label/edge existence is enforced downstream by the Cypher-layer
-        // OntologyValidator in `ox-runtime::cypher`, which runs inside
-        // `GraphRuntime::pre_execute` once the ontology snapshot is bound
-        // to the `GRAPH_ONTOLOGY` task-local. Duplicating that check here
-        // against QueryIR drifted whenever the compiler touched naming;
-        // the Cypher layer is the single source of truth.
+        // Pre-flight label validation. The runtime's OntologyValidator is
+        // the final authority (operates on the AST, catches inline
+        // property keys too), but a cheap QueryIR-level check here
+        // short-circuits the agent-level retry when the LLM hallucinates
+        // a label. If we spot unknown labels, retry once with the
+        // offending labels listed in the prompt context. If the retry
+        // still produces unknowns, surface them to the runtime — it will
+        // reject consistently, so the agent can still learn via the
+        // tool-error path.
+        let query_ir = match ontology.unknown_labels_in_query(&query_ir) {
+            unknown if unknown.is_empty() => query_ir,
+            unknown => {
+                ctx.progress("llm_label_retry").started();
+                let t_label_retry = std::time::Instant::now();
+                info!(
+                    unknown_labels = ?unknown,
+                    "LLM returned unknown labels; retrying translate with explicit schema context",
+                );
+                // Enrich the prompt variables with the specific unknown
+                // labels the last attempt produced — the LLM tends to
+                // correct itself when given the exact violation.
+                let correction = format!(
+                    "Previous attempt referenced labels that do not exist in the ontology: \
+                     {}. Use only labels listed in the schema above.",
+                    unknown.join(", "),
+                );
+                let mut retry_vars = vars.clone();
+                retry_vars.insert("correction", correction.as_str());
+                let retry: OxResult<QueryIR> = self
+                    .call_structured(
+                        "translate_query",
+                        Some("1.0.0"),
+                        "translate_query",
+                        &retry_vars,
+                        "Retrying query translation with label correction",
+                    )
+                    .await;
+                match retry {
+                    Ok(qir) => {
+                        ctx.progress("llm_label_retry")
+                            .completed(t_label_retry.elapsed().as_millis() as u64);
+                        qir
+                    }
+                    Err(_) => {
+                        ctx.progress("llm_label_retry")
+                            .failed(t_label_retry.elapsed().as_millis() as u64);
+                        // Retry failed — fall through to the downstream
+                        // OntologyValidator so the agent sees a
+                        // deterministic rejection.
+                        query_ir
+                    }
+                }
+            }
+        };
+
         Ok(query_ir)
     }
 

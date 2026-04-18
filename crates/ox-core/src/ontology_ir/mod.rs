@@ -541,6 +541,37 @@ impl OntologyIR {
         properties.iter().find(|p| p.id == prop_id)
     }
 
+    /// Labels referenced by `query` that this ontology does not declare.
+    ///
+    /// Returns both unknown node labels and unknown relationship types,
+    /// each prefixed with `"Node "` / `"Edge "` for readability in
+    /// diagnostic messages. Empty `Vec` means the query's labels are
+    /// all known — the caller can accept the query.
+    ///
+    /// This is a *pre-flight* check used by `ox-brain` to catch LLM
+    /// label hallucinations before invoking compile + runtime. The
+    /// runtime's `OntologyValidator` remains the final authority over
+    /// the AST-level surface (inline property keys, etc.); this helper
+    /// only looks at the QueryIR's extracted label set.
+    pub fn unknown_labels_in_query(&self, query: &crate::query_ir::QueryIR) -> Vec<String> {
+        let node_labels = crate::eval::extract_node_labels(query);
+        let edge_labels = crate::eval::extract_edge_labels(query);
+        let mut unknown = Vec::new();
+        for label in &node_labels {
+            if self.node_by_label(label).is_none() {
+                unknown.push(format!("Node '{label}'"));
+            }
+        }
+        let known_edge_labels: std::collections::HashSet<&str> =
+            self.edge_types.iter().map(|e| e.label.as_str()).collect();
+        for label in &edge_labels {
+            if !known_edge_labels.contains(label.as_str()) {
+                unknown.push(format!("Edge '{label}'"));
+            }
+        }
+        unknown
+    }
+
     // -----------------------------------------------------------------------
     // Schema RAG — natural language descriptions for embedding + compact schema
     // -----------------------------------------------------------------------
