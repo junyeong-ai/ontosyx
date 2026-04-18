@@ -510,6 +510,33 @@ pub trait ReportStore: Send + Sync {
 }
 
 // ---------------------------------------------------------------------------
+// PatternStore — saved canvas-editable PatternIR (positions + zoom preserved)
+// ---------------------------------------------------------------------------
+
+/// Persistent storage for saved visual-query-builder patterns. The payload
+/// is the PatternIR itself rather than a compiled QueryIR so a reopen
+/// restores the user's node layout and viewport without re-layout.
+#[async_trait]
+pub trait PatternStore: Send + Sync {
+    async fn create_pattern(&self, pattern: &SavedQueryPattern) -> OxResult<()>;
+    async fn get_pattern(&self, id: Uuid) -> OxResult<Option<SavedQueryPattern>>;
+    async fn list_patterns(
+        &self,
+        user_id: &str,
+        ontology_id: &str,
+        pagination: &CursorParams,
+    ) -> OxResult<CursorPage<SavedQueryPattern>>;
+    async fn update_pattern(
+        &self,
+        id: Uuid,
+        name: &str,
+        description: Option<&str>,
+        pattern_ir: &serde_json::Value,
+    ) -> OxResult<bool>;
+    async fn delete_pattern(&self, id: Uuid) -> OxResult<bool>;
+}
+
+// ---------------------------------------------------------------------------
 // EmbeddingRetryStore — pending embedding retry queue
 // ---------------------------------------------------------------------------
 
@@ -1042,6 +1069,7 @@ pub trait Store:
     + AnalysisResultStore
     + ScheduledTaskStore
     + ReportStore
+    + PatternStore
     + PromptTemplateStore
     + AgentSessionStore
     + EmbeddingRetryStore
@@ -1076,6 +1104,7 @@ impl<T> Store for T where
         + AnalysisResultStore
         + ScheduledTaskStore
         + ReportStore
+        + PatternStore
         + PromptTemplateStore
         + AgentSessionStore
         + EmbeddingRetryStore

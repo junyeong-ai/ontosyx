@@ -172,6 +172,73 @@ export async function deletePin(id: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Saved PatternIR (canvas layout persistence)
+// ---------------------------------------------------------------------------
+//
+// The wire shape mirrors the Rust `SavedPatternResponse`. `pattern_ir`
+// carries the full PatternIR (nodes + edges + filters + `positions` +
+// `layout_hints`) so re-opening a saved pattern restores the canvas
+// layout without a re-layout pass.
+
+/** Full PatternIR round-trip shape. Kept as `unknown` because the
+ *  frontend already builds the backend-compatible JSON from its own
+ *  `PatternNode` / `PatternEdge` types in the query-builder module
+ *  and there's no single canonical TypeScript definition yet. */
+export type PatternIRJson = unknown;
+
+export interface SavedPattern {
+  id: string;
+  name: string;
+  description?: string;
+  ontology_id: string;
+  pattern_ir: PatternIRJson;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function createSavedPattern(req: {
+  name: string;
+  description?: string;
+  ontology_id: string;
+  pattern_ir: PatternIRJson;
+}): Promise<SavedPattern> {
+  return request<SavedPattern>("/query/pattern/saved", {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+}
+
+export async function listSavedPatterns(
+  ontologyId: string,
+  params?: { cursor?: string; limit?: number },
+): Promise<CursorPage<SavedPattern>> {
+  const qs = new URLSearchParams({ ontology_id: ontologyId });
+  if (params?.cursor) qs.set("cursor", params.cursor);
+  if (params?.limit) qs.set("limit", String(params.limit));
+  return request(`/query/pattern/saved?${qs.toString()}`);
+}
+
+export async function getSavedPattern(id: string): Promise<SavedPattern> {
+  return request(`/query/pattern/saved/${encodeURIComponent(id)}`);
+}
+
+export async function updateSavedPattern(
+  id: string,
+  req: { name: string; description?: string; pattern_ir: PatternIRJson },
+): Promise<void> {
+  await request(`/query/pattern/saved/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(req),
+  });
+}
+
+export async function deleteSavedPattern(id: string): Promise<void> {
+  await request(`/query/pattern/saved/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+}
+
+// ---------------------------------------------------------------------------
 // QueryIR Execution (visual query builder)
 // ---------------------------------------------------------------------------
 

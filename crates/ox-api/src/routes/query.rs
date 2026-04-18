@@ -13,7 +13,7 @@ use uuid::Uuid;
 use ox_core::pattern_ir::PatternIR;
 use ox_core::query_ir::{QueryIR, QueryResult};
 use ox_core::types::PropertyValue;
-use ox_store::{CursorParams, QueryExecution, QueryExecutionSummary};
+use ox_store::{CursorParams, QueryExecution, QueryExecutionSummary, SavedQueryPattern};
 
 use crate::error::AppError;
 use crate::principal::Principal;
@@ -575,6 +575,234 @@ pub(crate) async fn decompile_pattern(
         pattern_ir,
         editable,
     }))
+}
+
+// ---------------------------------------------------------------------------
+// Saved PatternIR — canvas layout persistence
+//
+// `/pattern/compile` is intentionally canvas-agnostic (drops positions and
+// zoom). This resource persists the *PatternIR itself* so reopening a
+// saved query restores the user's node layout, pan, and zoom without a
+// second layout pass.
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct CreateSavedPatternRequest {
+    /// Unique name within (user, ontology) — UI uses it as a handle.
+    pub name: String,
+    /// Optional free-form note.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Ontology the pattern was built against. The saved pattern is tied
+    /// to an ontology; reopening against a different ontology requires
+    /// the caller to decide how to reconcile unknown labels.
+    pub ontology_id: String,
+    /// The full PatternIR — nodes with positions, edges, filters, and
+    /// layout hints (zoom + pan). QueryIR is computed on demand from
+    /// `pattern_ir.compile()` and does not need to be stored.
+    #[schema(value_type = Object)]
+    pub pattern_ir: PatternIR,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct UpdateSavedPatternRequest {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[schema(value_type = Object)]
+    pub pattern_ir: PatternIR,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct SavedPatternResponse {
+    pub id: Uuid,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub ontology_id: String,
+    #[schema(value_type = Object)]
+    pub pattern_ir: PatternIR,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+impl SavedPatternResponse {
+    fn try_from_row(row: SavedQueryPattern) -> Result<Self, AppError> {
+        let pattern_ir: PatternIR = serde_json::from_value(row.pattern_ir)
+            .map_err(|e| AppError::unprocessable(format!("Stored pattern_ir is malformed: {e}")))?;
+        Ok(Self {
+            id: row.id,
+            name: row.name,
+            description: row.description,
+            ontology_id: row.ontology_id,
+            pattern_ir,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+        })
+    }
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/query/pattern/saved",
+    request_body = CreateSavedPatternRequest,
+    responses(
+        (status = 200, description = "Saved pattern created", body = SavedPatternResponse),
+        (status = 409, description = "Name already exists for (user, ontology)"),
+    ),
+    security(("api_key" = [])),
+    tag = "Query",
+)]
+pub(crate) async fn create_saved_pattern(
+    State(state): State<AppState>,
+    principal: Principal,
+    _ws: WorkspaceContext,
+    Json(req): Json<CreateSavedPatternRequest>,
+) -> Result<Json<ApiResponse<SavedPatternResponse>>, AppError> {
+    let pattern_ir_json = serde_json::to_value(&req.pattern_ir)
+        .map_err(|e| AppError::unprocessable(format!("Failed to serialize pattern_ir: {e}")))?;
+    let now = chrono::Utc::now();
+    let row = SavedQueryPattern {
+        id: Uuid::new_v4(),
+        user_id: principal.id.clone(),
+        ontology_id: req.ontology_id,
+        name: req.name,
+        description: req.description,
+        pattern_ir: pattern_ir_json,
+        created_at: now,
+        updated_at: now,
+    };
+    state.store.create_pattern(&row).await.map_err(AppError::from)?;
+    Ok(ApiResponse::of(SavedPatternResponse::try_from_row(row)?))
+}
+
+#[derive(Deserialize, utoipa::IntoParams)]
+pub struct ListSavedPatternsParams {
+    pub ontology_id: String,
+    pub limit: Option<u32>,
+    pub cursor: Option<String>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/query/pattern/saved",
+    params(ListSavedPatternsParams),
+    responses(
+        (status = 200, description = "Paginated saved patterns", body = Object),
+    ),
+    security(("api_key" = [])),
+    tag = "Query",
+)]
+pub(crate) async fn list_saved_patterns(
+    State(state): State<AppState>,
+    principal: Principal,
+    _ws: WorkspaceContext,
+    Query(params): Query<ListSavedPatternsParams>,
+) -> Result<Json<ApiResponse<Vec<SavedPatternResponse>>>, AppError> {
+    let pagination = CursorParams {
+        limit: params.limit.unwrap_or(50),
+        cursor: params.cursor,
+    };
+    let page = state
+        .store
+        .list_patterns(&principal.id, &params.ontology_id, &pagination)
+        .await
+        .map_err(AppError::from)?;
+    let items = page
+        .items
+        .into_iter()
+        .map(SavedPatternResponse::try_from_row)
+        .collect::<Result<Vec<_>, AppError>>()?;
+    Ok(ApiResponse::page(ox_store::CursorPage {
+        items,
+        next_cursor: page.next_cursor,
+    }))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/query/pattern/saved/{id}",
+    params(("id" = Uuid, Path, description = "Saved pattern ID")),
+    responses(
+        (status = 200, description = "Saved pattern", body = SavedPatternResponse),
+        (status = 404, description = "Not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Query",
+)]
+pub(crate) async fn get_saved_pattern(
+    State(state): State<AppState>,
+    _principal: Principal,
+    _ws: WorkspaceContext,
+    Path(id): Path<Uuid>,
+) -> Result<Json<ApiResponse<SavedPatternResponse>>, AppError> {
+    let row = state
+        .store
+        .get_pattern(id)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::not_found("Saved pattern"))?;
+    Ok(ApiResponse::of(SavedPatternResponse::try_from_row(row)?))
+}
+
+#[utoipa::path(
+    patch,
+    path = "/api/query/pattern/saved/{id}",
+    params(("id" = Uuid, Path, description = "Saved pattern ID")),
+    request_body = UpdateSavedPatternRequest,
+    responses(
+        (status = 204, description = "Updated"),
+        (status = 404, description = "Not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Query",
+)]
+pub(crate) async fn update_saved_pattern(
+    State(state): State<AppState>,
+    _principal: Principal,
+    _ws: WorkspaceContext,
+    Path(id): Path<Uuid>,
+    Json(req): Json<UpdateSavedPatternRequest>,
+) -> Result<StatusCode, AppError> {
+    let pattern_ir_json = serde_json::to_value(&req.pattern_ir)
+        .map_err(|e| AppError::unprocessable(format!("Failed to serialize pattern_ir: {e}")))?;
+    let updated = state
+        .store
+        .update_pattern(id, &req.name, req.description.as_deref(), &pattern_ir_json)
+        .await
+        .map_err(AppError::from)?;
+    if !updated {
+        return Err(AppError::not_found("Saved pattern"));
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[utoipa::path(
+    delete,
+    path = "/api/query/pattern/saved/{id}",
+    params(("id" = Uuid, Path, description = "Saved pattern ID")),
+    responses(
+        (status = 204, description = "Deleted"),
+        (status = 404, description = "Not found"),
+    ),
+    security(("api_key" = [])),
+    tag = "Query",
+)]
+pub(crate) async fn delete_saved_pattern(
+    State(state): State<AppState>,
+    _principal: Principal,
+    _ws: WorkspaceContext,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, AppError> {
+    let deleted = state
+        .store
+        .delete_pattern(id)
+        .await
+        .map_err(AppError::from)?;
+    if !deleted {
+        return Err(AppError::not_found("Saved pattern"));
+    }
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // ---------------------------------------------------------------------------

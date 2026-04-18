@@ -21,6 +21,6 @@ pub use store::{
     ConfigStore, CursorPage, CursorParams, DashboardStore, EmbeddingRetryStore, ExtendResult,
     HealthStore, KnowledgeStore, LineageStore, LoadCheckpointStore, MeteringStore,
     ModelConfigStore, NotificationStore, OntologyStore, PerspectiveStore, PinStore, ProjectStore,
-    PromptTemplateStore, QualityStore, QueryStore, RecipeStore, ReportStore, ScheduledTaskStore,
+    PatternStore, PromptTemplateStore, QualityStore, QueryStore, RecipeStore, ReportStore, ScheduledTaskStore,
     Store, ToolApprovalStore, UserStore, VerificationStore, WorkspaceStore,
 };

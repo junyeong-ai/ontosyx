@@ -161,6 +161,18 @@ pub fn router(state: AppState) -> Router {
         // PatternIR <-> QueryIR transforms (visual query builder)
         .route("/query/pattern/compile", post(query::compile_pattern))
         .route("/query/pattern/decompile", post(query::decompile_pattern))
+        // Saved PatternIR — canvas layout persistence
+        .route("/query/pattern/saved", post(query::create_saved_pattern))
+        .route("/query/pattern/saved", get(query::list_saved_patterns))
+        .route("/query/pattern/saved/{id}", get(query::get_saved_pattern))
+        .route(
+            "/query/pattern/saved/{id}",
+            patch(query::update_saved_pattern),
+        )
+        .route(
+            "/query/pattern/saved/{id}",
+            delete(query::delete_saved_pattern),
+        )
         // Graph search & exploration
         .route("/search", post(query::search_graph))
         .route("/search/expand", post(query::expand_node))

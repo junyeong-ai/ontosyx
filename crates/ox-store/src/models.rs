@@ -379,6 +379,27 @@ pub struct SavedReport {
 }
 
 // ---------------------------------------------------------------------------
+// SavedQueryPattern — canvas-editable PatternIR with layout + zoom preserved
+// ---------------------------------------------------------------------------
+//
+// Unlike `SavedReport` (server-side Cypher templates), the payload here is
+// the raw PatternIR that the visual query builder edits. The compiled
+// QueryIR is reconstructable on demand from `pattern_ir.compile()` so
+// we store only the editable form.
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct SavedQueryPattern {
+    pub id: Uuid,
+    pub user_id: String,
+    pub ontology_id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub pattern_ir: serde_json::Value,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+// ---------------------------------------------------------------------------
 // PendingEmbedding — retry queue for failed embedding operations
 // ---------------------------------------------------------------------------
 
