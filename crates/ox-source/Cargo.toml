@@ -14,6 +14,8 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 csv = { workspace = true }
 mongodb = { workspace = true }
+snowflake-api = { workspace = true }
+arrow = { workspace = true }
 tracing = { workspace = true }
 ignore = { workspace = true }
 tempfile = { workspace = true }
