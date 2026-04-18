@@ -9,6 +9,13 @@ shape (Cypher AST + Rewriter/Validator pipelines, DataSourceAdapter +
 IntrospectionKernel, PatternIR ↔ QueryIR split, GraphCanvas + NVL
 removal), see the commit history from `7b6252e` through `d4f377f`.
 
+For the follow-up deep-refactor wave that hardened the runtime around
+that foundation — `CypherValidator` runtime integration, ontology
+lineage naming, ArcSwap live-refresh, parse-once pipeline, JSONB
+`schema_version` gate, RLS spawn-leak fixes, pluggable trait
+`name()` unification — see the commit history from `110ea1d` through
+`700e03c`.
+
 ## Current foundations
 
 - **Runtime Cypher pipeline.** `ox-runtime::cypher` owns a partial AST

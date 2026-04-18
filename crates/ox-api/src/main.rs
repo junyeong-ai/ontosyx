@@ -1008,7 +1008,8 @@ async fn evaluate_quality_rules(
 
     // Cache the resolved ontology per lineage so a sweep that evaluates
     // many rules against the same ontology only loads + deserialises
-    // once.
+    // once. Cache hits share the same Arc; misses skip lineage-specific
+    // validation but still run safety + workspace-scope.
     let mut ontology_cache: std::collections::HashMap<
         String,
         Option<Arc<ox_core::ontology_ir::OntologyIR>>,
@@ -1019,10 +1020,6 @@ async fn evaluate_quality_rules(
             continue;
         }
 
-        // Resolve the rule's lineage to an OntologyIR snapshot so
-        // `GRAPH_ONTOLOGY` is bound for the OntologyValidator. Cache
-        // hits share the same Arc; misses skip lineage-specific
-        // validation but still run safety + workspace-scope.
         let ontology = match ontology_cache.get(&rule.ontology_lineage_id) {
             Some(cached) => cached.clone(),
             None => {
@@ -1030,12 +1027,39 @@ async fn evaluate_quality_rules(
                     .get_latest_ontology_by_lineage(&rule.ontology_lineage_id)
                     .await
                 {
-                    Ok(Some(saved)) => serde_json::from_value::<ox_core::ontology_ir::OntologyIR>(
-                        saved.ontology_ir,
-                    )
-                    .ok()
-                    .map(Arc::new),
-                    Ok(None) | Err(_) => None,
+                    Ok(Some(saved)) => {
+                        let version = saved.version;
+                        match serde_json::from_value::<ox_core::ontology_ir::OntologyIR>(
+                            saved.ontology_ir,
+                        ) {
+                            Ok(ir) => {
+                                tracing::info!(
+                                    lineage = %rule.ontology_lineage_id,
+                                    version,
+                                    "Quality sweep loaded ontology"
+                                );
+                                Some(Arc::new(ir))
+                            }
+                            Err(e) => {
+                                tracing::warn!(
+                                    lineage = %rule.ontology_lineage_id,
+                                    version,
+                                    error = %e,
+                                    "Quality sweep failed to deserialize ontology; rule runs without label validation"
+                                );
+                                None
+                            }
+                        }
+                    }
+                    Ok(None) => None,
+                    Err(e) => {
+                        tracing::warn!(
+                            lineage = %rule.ontology_lineage_id,
+                            error = %e,
+                            "Quality sweep lineage lookup failed"
+                        );
+                        None
+                    }
                 };
                 ontology_cache.insert(rule.ontology_lineage_id.clone(), fetched.clone());
                 fetched

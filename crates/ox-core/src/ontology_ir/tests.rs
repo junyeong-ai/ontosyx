@@ -563,3 +563,161 @@ fn node_def_deprecation_fields_roundtrip() {
     assert!(back.deprecated_at.is_some());
     assert_eq!(back.replaced_by_id, Some(NodeTypeId::new("n2")));
 }
+
+// ---------------------------------------------------------------------------
+// unknown_labels_in_query — Brain's pre-flight label check
+// ---------------------------------------------------------------------------
+
+fn ecommerce_ontology() -> OntologyIR {
+    use crate::ontology_ir::Cardinality;
+    OntologyIR::new(
+        "ont".into(),
+        "Commerce".into(),
+        LocalizedText::default(),
+        1,
+        vec![
+            NodeTypeDef {
+                id: "n1".into(),
+                label: "Customer".into(),
+                description: LocalizedText::default(),
+                properties: vec![],
+                constraints: vec![],
+                ..Default::default()
+            },
+            NodeTypeDef {
+                id: "n2".into(),
+                label: "Order".into(),
+                description: LocalizedText::default(),
+                properties: vec![],
+                constraints: vec![],
+                ..Default::default()
+            },
+        ],
+        vec![EdgeTypeDef {
+            id: "e1".into(),
+            label: "PLACED".into(),
+            description: LocalizedText::default(),
+            source_node_id: "n1".into(),
+            target_node_id: "n2".into(),
+            properties: vec![],
+            cardinality: Cardinality::OneToMany,
+            ..Default::default()
+        }],
+        vec![],
+    )
+}
+
+fn simple_match_query(node_label: &str, rel_label: Option<&str>) -> crate::query_ir::QueryIR {
+    use crate::query_ir::{GraphPattern, QueryIR, QueryOp, QUERY_IR_SCHEMA_VERSION};
+    let mut patterns = vec![GraphPattern::Node {
+        variable: "n".into(),
+        label: Some(node_label.into()),
+        property_filters: vec![],
+    }];
+    if let Some(r) = rel_label {
+        patterns.push(GraphPattern::Relationship {
+            variable: None,
+            label: Some(r.into()),
+            source: "n".into(),
+            target: "m".into(),
+            direction: crate::types::Direction::Outgoing,
+            property_filters: vec![],
+            var_length: None,
+        });
+        patterns.push(GraphPattern::Node {
+            variable: "m".into(),
+            label: Some(node_label.into()),
+            property_filters: vec![],
+        });
+    }
+    QueryIR {
+        schema_version: QUERY_IR_SCHEMA_VERSION,
+        operation: QueryOp::Match {
+            patterns,
+            filter: None,
+            projections: vec![],
+            optional: false,
+            group_by: vec![],
+        },
+        limit: None,
+        skip: None,
+        order_by: vec![],
+    }
+}
+
+#[test]
+fn unknown_labels_in_query_empty_when_clean() {
+    let ontology = ecommerce_ontology();
+    let query = simple_match_query("Customer", Some("PLACED"));
+    assert!(ontology.unknown_labels_in_query(&query).is_empty());
+}
+
+#[test]
+fn unknown_labels_in_query_flags_node_miss() {
+    let ontology = ecommerce_ontology();
+    let query = simple_match_query("Userr", None); // typo
+    let unknown = ontology.unknown_labels_in_query(&query);
+    assert_eq!(unknown.len(), 1);
+    assert!(unknown[0].contains("Userr"));
+    assert!(unknown[0].starts_with("Node"));
+}
+
+#[test]
+fn unknown_labels_in_query_flags_edge_miss() {
+    let ontology = ecommerce_ontology();
+    let query = simple_match_query("Customer", Some("BOUGHT")); // unknown rel
+    let unknown = ontology.unknown_labels_in_query(&query);
+    assert!(unknown.iter().any(|u| u.contains("BOUGHT") && u.starts_with("Edge")));
+}
+
+#[test]
+fn unknown_labels_in_query_flags_both_independently() {
+    let ontology = ecommerce_ontology();
+    let query = simple_match_query("Userr", Some("BOUGHT"));
+    let unknown = ontology.unknown_labels_in_query(&query);
+    assert!(unknown.len() >= 2);
+    assert!(unknown.iter().any(|u| u.contains("Userr")));
+    assert!(unknown.iter().any(|u| u.contains("BOUGHT")));
+}
+
+// ---------------------------------------------------------------------------
+// schema_version forward-compat gate
+// ---------------------------------------------------------------------------
+
+#[test]
+fn ontology_ir_rejects_future_schema_version() {
+    // Payload tags itself as a version higher than this build supports —
+    // the deserializer must refuse rather than silently drop future
+    // fields it doesn't know how to parse.
+    let blob = serde_json::json!({
+        "schema_version": ONTOLOGY_IR_SCHEMA_VERSION + 1,
+        "id": "ont",
+        "name": "Test",
+        "version": { "number": 1 },
+        "node_types": [],
+        "edge_types": [],
+        "indexes": [],
+    });
+    let err = serde_json::from_value::<OntologyIR>(blob).unwrap_err();
+    let msg = err.to_string();
+    assert!(
+        msg.contains("schema_version") && msg.contains("newer"),
+        "error should name the version skew: {msg}"
+    );
+}
+
+#[test]
+fn ontology_ir_accepts_missing_schema_version_as_current() {
+    // Legacy JSONB rows that predate this field must still load —
+    // serde(default = ...) hands back ONTOLOGY_IR_SCHEMA_VERSION.
+    let blob = serde_json::json!({
+        "id": "ont",
+        "name": "Legacy",
+        "version": { "number": 1 },
+        "node_types": [],
+        "edge_types": [],
+        "indexes": [],
+    });
+    let onto: OntologyIR = serde_json::from_value(blob).expect("legacy payload must parse");
+    assert_eq!(onto.schema_version, ONTOLOGY_IR_SCHEMA_VERSION);
+}
