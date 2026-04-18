@@ -18,8 +18,11 @@ import {
   type OrderByField,
 } from "./ir-builder";
 import { useSuggestions, type Suggestion } from "./use-suggestions";
+import { SavedPatternsMenu } from "./saved-patterns-menu";
+import { toPatternIR, fromPatternIR } from "./saved-pattern-io";
 import { WidgetRenderer } from "@/components/widgets/widget-renderer";
 import { normalizeQueryResult } from "@/lib/api";
+import type { SavedPattern } from "@/lib/api/queries";
 import { toast } from "sonner";
 
 // ---------------------------------------------------------------------------
@@ -56,6 +59,11 @@ export function QueryBuilder() {
   // Counter for alias generation
   const [nodeCounter, setNodeCounter] = useState(0);
   const [edgeCounter, setEdgeCounter] = useState(0);
+
+  // Backend id of the currently-loaded saved pattern. `null` after a
+  // fresh New / Clear — Save then prompts for a name rather than
+  // updating in place.
+  const [currentPatternId, setCurrentPatternId] = useState<string | null>(null);
 
   // Palette tab state
   const [paletteTab, setPaletteTab] = useState<PaletteTab>("nodes");
@@ -388,6 +396,52 @@ export function QueryBuilder() {
     setError(null);
     setNodeCounter(0);
     setEdgeCounter(0);
+    setCurrentPatternId(null);
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Saved pattern IO — thread between builder state and backend PatternIR
+  // ---------------------------------------------------------------------------
+
+  const snapshotPatternIR = useCallback(
+    () => ({
+      pattern_ir: toPatternIR({
+        nodes,
+        edges,
+        returnFields,
+        orderBy,
+        limit,
+      }),
+      fallbackName: nodes[0]?.label
+        ? `${nodes[0].label} pattern`
+        : "Untitled pattern",
+    }),
+    [nodes, edges, returnFields, orderBy, limit],
+  );
+
+  const applyLoadedPattern = useCallback((pattern: SavedPattern) => {
+    const { visual } = fromPatternIR(pattern.pattern_ir as never);
+    setNodes(visual.nodes);
+    setEdges(visual.edges);
+    setReturnFields(visual.returnFields);
+    setOrderBy(visual.orderBy);
+    setLimit(visual.limit);
+    setSelectedId(null);
+    setResult(null);
+    setCompiledCypher(null);
+    setError(null);
+    // Alias generator starts above the max existing alias so new nodes
+    // don't collide with loaded ones.
+    const aliasNum = (alias: string) => {
+      const m = alias.match(/^[a-z]+(\d+)$/);
+      return m ? Number(m[1]) : 0;
+    };
+    const maxNode = visual.nodes.reduce((m, n) => Math.max(m, aliasNum(n.alias)), -1);
+    const maxEdge = visual.edges.reduce((m, e) => Math.max(m, aliasNum(e.alias)), -1);
+    setNodeCounter(maxNode + 1);
+    setEdgeCounter(maxEdge + 1);
+    setCurrentPatternId(pattern.id);
+    toast.success(`Loaded "${pattern.name}"`);
   }, []);
 
   // ---------------------------------------------------------------------------
@@ -425,6 +479,16 @@ export function QueryBuilder() {
               Select Return fields for custom projection, or run to return all
             </span>
           )}
+          <SavedPatternsMenu
+            ontologyId={ontology?.id ?? null}
+            currentId={currentPatternId}
+            getSnapshot={snapshotPatternIR}
+            onLoad={applyLoadedPattern}
+            onCurrentIdCleared={() => setCurrentPatternId(null)}
+            onSaved={(saved) => setCurrentPatternId(saved.id)}
+            onNewPattern={handleClear}
+            disabled={nodes.length === 0}
+          />
           <button
             onClick={handleClear}
             disabled={nodes.length === 0}

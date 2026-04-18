@@ -1,0 +1,354 @@
+// ---------------------------------------------------------------------------
+// saved-pattern-io.ts — convert local visual state ↔ backend PatternIR JSON
+// ---------------------------------------------------------------------------
+//
+// The canvas owns a few UI-ergonomic shapes (PatternNode with `alias`,
+// PatternEdge without `direction`, flat `returnFields`/`orderBy`/`limit`)
+// that don't line up 1:1 with `ox_core::pattern_ir::PatternIR` on the
+// server. These helpers stitch the two sides together:
+//
+//   toPatternIR(local)   — canvas → wire. Each local pattern-filter
+//                          becomes a top-level `PatternFilter.expr` so
+//                          the round-trip preserves the exact predicate.
+//                          Return fields map to `PatternProjection`;
+//                          positions land on `PatternNode.position`.
+//   fromPatternIR(wire)  — wire → canvas. Best-effort: anything the
+//                          round-trip can't express (rare Expr shapes,
+//                          non-outgoing edges) is simply dropped rather
+//                          than crashing the builder on load.
+//
+// Filters/projections/positions all survive; layout_hints (zoom + pan)
+// land on the wire too, so the caller can capture XyFlow viewport state
+// before calling `toPatternIR` and restore it after `fromPatternIR`.
+
+import type {
+  PatternNode,
+  PatternEdge,
+  PatternFilter,
+  ReturnField,
+  FilterOperator,
+  Aggregation,
+  VisualPattern,
+} from "./ir-builder";
+
+// ---------------------------------------------------------------------------
+// Backend wire shapes (match ox_core::pattern_ir serde output)
+// ---------------------------------------------------------------------------
+
+interface WirePosition {
+  x: number;
+  y: number;
+}
+
+interface WireLayoutHints {
+  zoom?: number;
+  pan_x?: number;
+  pan_y?: number;
+}
+
+interface WirePatternNode {
+  id: string;
+  variable: string;
+  label?: string;
+  property_filters?: unknown[];
+  position?: WirePosition;
+}
+
+interface WirePatternEdge {
+  id: string;
+  variable?: string;
+  label?: string;
+  source_node_id: string;
+  target_node_id: string;
+  direction: "outgoing" | "incoming" | "both";
+  property_filters?: unknown[];
+  var_length?: unknown;
+}
+
+interface WireComparisonExpr {
+  kind: "comparison";
+  operator: FilterOperator;
+  left: { kind: "property"; variable: string; field: string };
+  right: { kind: "literal"; value: unknown };
+}
+
+interface WirePatternFilter {
+  id: string;
+  expr: WireComparisonExpr;
+}
+
+interface WireProjectionField {
+  kind: "field";
+  variable: string;
+  field: string;
+  alias?: string;
+}
+
+interface WireProjectionVariable {
+  kind: "variable";
+  variable: string;
+  alias?: string;
+}
+
+interface WireProjectionAggregation {
+  kind: "aggregation";
+  function: Aggregation;
+  argument: { kind: "property"; variable: string; field: string };
+  alias?: string;
+}
+
+type WireProjection =
+  | WireProjectionField
+  | WireProjectionVariable
+  | WireProjectionAggregation;
+
+interface WirePatternProjection {
+  id: string;
+  projection: WireProjection;
+}
+
+export interface WirePatternIR {
+  nodes?: WirePatternNode[];
+  edges?: WirePatternEdge[];
+  filters?: WirePatternFilter[];
+  projections?: WirePatternProjection[];
+  layout_hints?: WireLayoutHints;
+  limit?: number;
+  skip?: number;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function parseFilterValue(raw: string): unknown {
+  if (/^-?\d+(\.\d+)?$/.test(raw)) return Number(raw);
+  if (raw === "true") return true;
+  if (raw === "false") return false;
+  if (
+    (raw.startsWith('"') && raw.endsWith('"')) ||
+    (raw.startsWith("'") && raw.endsWith("'"))
+  ) {
+    return raw.slice(1, -1);
+  }
+  return raw;
+}
+
+function stringifyFilterValue(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value === null || value === undefined) return "";
+  return String(value);
+}
+
+const FILTER_OPERATORS: readonly FilterOperator[] = [
+  "=",
+  "!=",
+  ">",
+  "<",
+  ">=",
+  "<=",
+  "CONTAINS",
+  "STARTS WITH",
+] as const;
+
+function isFilterOperator(value: unknown): value is FilterOperator {
+  return typeof value === "string" && (FILTER_OPERATORS as readonly string[]).includes(value);
+}
+
+const AGGREGATIONS: readonly Aggregation[] = ["count", "sum", "avg", "min", "max"] as const;
+
+function isAggregation(value: unknown): value is Aggregation {
+  return typeof value === "string" && (AGGREGATIONS as readonly string[]).includes(value);
+}
+
+let nextFilterId = 0;
+function freshFilterId(): string {
+  nextFilterId += 1;
+  return `pf-${Date.now()}-${nextFilterId}`;
+}
+
+let nextProjectionId = 0;
+function freshProjectionId(): string {
+  nextProjectionId += 1;
+  return `pp-${Date.now()}-${nextProjectionId}`;
+}
+
+// ---------------------------------------------------------------------------
+// canvas → wire
+// ---------------------------------------------------------------------------
+
+export interface ToPatternIROptions {
+  layoutHints?: WireLayoutHints;
+}
+
+export function toPatternIR(
+  visual: VisualPattern,
+  options: ToPatternIROptions = {},
+): WirePatternIR {
+  const nodes: WirePatternNode[] = visual.nodes.map((n) => ({
+    id: n.id,
+    variable: n.alias,
+    label: n.label,
+    position: n.position ? { x: n.position.x, y: n.position.y } : undefined,
+  }));
+
+  const edges: WirePatternEdge[] = visual.edges.map((e) => ({
+    id: e.id,
+    variable: e.alias,
+    label: e.relType,
+    source_node_id: e.sourceNodeId,
+    target_node_id: e.targetNodeId,
+    // The local canvas always stores an outgoing relationship; the
+    // builder doesn't surface direction as a first-class toggle.
+    direction: "outgoing" as const,
+  }));
+
+  const filters: WirePatternFilter[] = [];
+  const pushFilters = (variable: string, fs: PatternFilter[]) => {
+    for (const f of fs) {
+      filters.push({
+        id: f.id,
+        expr: {
+          kind: "comparison",
+          operator: f.operator,
+          left: { kind: "property", variable, field: f.property },
+          right: { kind: "literal", value: parseFilterValue(f.value) },
+        },
+      });
+    }
+  };
+  for (const n of visual.nodes) pushFilters(n.alias, n.filters);
+  for (const e of visual.edges) pushFilters(e.alias, e.filters);
+
+  const projections: WirePatternProjection[] = visual.returnFields.map((rf) => {
+    if (rf.aggregation) {
+      return {
+        id: freshProjectionId(),
+        projection: {
+          kind: "aggregation",
+          function: rf.aggregation,
+          argument: { kind: "property", variable: rf.alias, field: rf.property },
+          alias: rf.outputAlias,
+        },
+      };
+    }
+    if (rf.property === "*") {
+      return {
+        id: freshProjectionId(),
+        projection: {
+          kind: "variable",
+          variable: rf.alias,
+          alias: rf.outputAlias,
+        },
+      };
+    }
+    return {
+      id: freshProjectionId(),
+      projection: {
+        kind: "field",
+        variable: rf.alias,
+        field: rf.property,
+        alias: rf.outputAlias,
+      },
+    };
+  });
+
+  return {
+    nodes,
+    edges,
+    filters,
+    projections,
+    layout_hints: options.layoutHints ?? {},
+    limit: visual.limit ?? undefined,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// wire → canvas
+// ---------------------------------------------------------------------------
+
+export interface FromPatternIRResult {
+  visual: VisualPattern;
+  layoutHints: WireLayoutHints;
+}
+
+export function fromPatternIR(wire: WirePatternIR): FromPatternIRResult {
+  // ----- Nodes ---------------------------------------------------------
+  const nodes: PatternNode[] = (wire.nodes ?? []).map((n) => ({
+    id: n.id,
+    label: n.label ?? "",
+    alias: n.variable,
+    filters: [],
+    returnProps: [],
+    position: n.position ? { x: n.position.x, y: n.position.y } : undefined,
+  }));
+
+  // ----- Edges ---------------------------------------------------------
+  const edges: PatternEdge[] = (wire.edges ?? []).map((e) => ({
+    id: e.id,
+    sourceNodeId: e.source_node_id,
+    targetNodeId: e.target_node_id,
+    relType: e.label ?? "",
+    alias: e.variable ?? "",
+    filters: [],
+    returnProps: [],
+  }));
+
+  // ----- Filters (distribute back onto their host variable) -----------
+  const nodeByVariable = new Map(nodes.map((n) => [n.alias, n]));
+  const edgeByVariable = new Map(edges.map((e) => [e.alias, e]));
+  for (const f of wire.filters ?? []) {
+    if (!f.expr || f.expr.kind !== "comparison") continue;
+    if (!isFilterOperator(f.expr.operator)) continue;
+    const { variable, field } = f.expr.left;
+    const value = stringifyFilterValue(f.expr.right?.value);
+    const local: PatternFilter = {
+      id: f.id || freshFilterId(),
+      property: field,
+      operator: f.expr.operator,
+      value,
+    };
+    const host = nodeByVariable.get(variable) ?? edgeByVariable.get(variable);
+    if (host) host.filters.push(local);
+  }
+
+  // ----- Return fields -------------------------------------------------
+  const returnFields: ReturnField[] = [];
+  for (const proj of wire.projections ?? []) {
+    const p = proj.projection;
+    if (!p) continue;
+    if (p.kind === "aggregation" && isAggregation(p.function)) {
+      returnFields.push({
+        alias: p.argument?.variable ?? "",
+        property: p.argument?.field ?? "",
+        aggregation: p.function,
+        outputAlias: p.alias,
+      });
+    } else if (p.kind === "variable") {
+      returnFields.push({
+        alias: p.variable,
+        property: "*",
+        aggregation: null,
+        outputAlias: p.alias,
+      });
+    } else if (p.kind === "field") {
+      returnFields.push({
+        alias: p.variable,
+        property: p.field,
+        aggregation: null,
+        outputAlias: p.alias,
+      });
+    }
+  }
+
+  return {
+    visual: {
+      nodes,
+      edges,
+      returnFields,
+      orderBy: [],
+      limit: wire.limit ?? null,
+    },
+    layoutHints: wire.layout_hints ?? {},
+  };
+}
