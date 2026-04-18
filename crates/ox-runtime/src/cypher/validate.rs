@@ -381,61 +381,87 @@ impl CypherValidator for OntologyValidator {
     fn validate(&self, ast: &CypherAst, _ctx: &ValidateContext) -> Vec<ValidationIssue> {
         let mut issues = Vec::new();
 
-        // --- Node labels -----------------------------------------------------
-        for label in ast.node_labels() {
-            if self.ontology.node_by_label(&label).is_none() {
-                issues.push(ValidationIssue::error(
-                    "ontology",
-                    format!("unknown node label `{label}` — not defined in the active ontology"),
-                ));
-            }
-        }
-
-        // --- Relationship types ---------------------------------------------
         let known_edge_labels: HashSet<&str> = self
             .ontology
             .edge_types()
             .iter()
             .map(|e| e.label.as_str())
             .collect();
-        for rel in ast.relationship_types() {
-            if !known_edge_labels.contains(rel.as_str()) {
-                issues.push(ValidationIssue::error(
-                    "ontology",
-                    format!(
-                        "unknown relationship type `{rel}` — not defined in the active ontology"
-                    ),
-                ));
-            }
-        }
 
-        // --- Inline property keys on labelled node patterns -----------------
-        //
-        // `(u:User {email: $e})` — verify `email` is declared on `User`. If a
-        // node pattern carries multiple labels we pass when any label declares
-        // the property (multi-label nodes are a union).
+        // Each unknown identifier is reported once at its first occurrence.
+        // Repeating the same diagnostic for every MATCH that re-uses a bad
+        // label drowns the real issues; holding the dedup set per-pass
+        // keeps the report tight while still pointing the IDE at the
+        // first site it can highlight.
+        let mut seen_unknown_labels: HashSet<String> = HashSet::new();
+        let mut seen_unknown_rels: HashSet<String> = HashSet::new();
+
         for element in ast.pattern_elements() {
-            if let CypherPatternElement::Node(node) = element {
-                if node.labels.is_empty() || node.properties.is_empty() {
-                    continue;
-                }
-                for (key, _) in &node.properties {
-                    if is_system_property(key) {
+            match element {
+                // --- Node pattern: label + inline property keys --------
+                //
+                // `(u:User {email: $e})` — verify `User` is declared and
+                // that `email` is defined on it. A multi-label node is a
+                // union (Cypher semantics), so the property check passes
+                // when any label declares it.
+                CypherPatternElement::Node(node) => {
+                    for label in &node.labels {
+                        if self.ontology.node_by_label(label).is_none()
+                            && seen_unknown_labels.insert(label.clone())
+                        {
+                            issues.push(
+                                ValidationIssue::error(
+                                    "ontology",
+                                    format!(
+                                        "unknown node label `{label}` — not defined in the active ontology"
+                                    ),
+                                )
+                                .with_span(node.span),
+                            );
+                        }
+                    }
+                    if node.labels.is_empty() || node.properties.is_empty() {
                         continue;
                     }
-                    let matched = node.labels.iter().any(|label| {
-                        self.ontology
-                            .node_by_label(label)
-                            .is_some_and(|n| n.properties.iter().any(|p| p.name == *key))
-                    });
-                    if !matched {
-                        let label_list = node.labels.join("/");
-                        issues.push(ValidationIssue::error(
-                            "ontology",
-                            format!(
-                                "property `{key}` not defined on label `{label_list}` in the active ontology"
-                            ),
-                        ));
+                    for (key, _) in &node.properties {
+                        if is_system_property(key) {
+                            continue;
+                        }
+                        let matched = node.labels.iter().any(|label| {
+                            self.ontology
+                                .node_by_label(label)
+                                .is_some_and(|n| n.properties.iter().any(|p| p.name == *key))
+                        });
+                        if !matched {
+                            let label_list = node.labels.join("/");
+                            issues.push(
+                                ValidationIssue::error(
+                                    "ontology",
+                                    format!(
+                                        "property `{key}` not defined on label `{label_list}` in the active ontology"
+                                    ),
+                                )
+                                .with_span(node.span),
+                            );
+                        }
+                    }
+                }
+                // --- Relationship pattern: type -----------------------
+                CypherPatternElement::Relationship(rel) => {
+                    for rel_type in &rel.types {
+                        if !known_edge_labels.contains(rel_type.as_str())
+                            && seen_unknown_rels.insert(rel_type.clone())
+                        {
+                            issues.push(
+                                ValidationIssue::error(
+                                    "ontology",
+                                    format!(
+                                        "unknown relationship type `{rel_type}` — not defined in the active ontology"
+                                    ),
+                                )
+                                .with_span(rel.span),
+                            );
+                        }
                     }
                 }
             }
@@ -744,6 +770,42 @@ mod tests {
             CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
         let r = run(&p, "RETURN 1");
         assert!(!r.has_errors());
+    }
+
+    #[test]
+    fn ontology_errors_carry_spans_for_editor_highlighting() {
+        // Every ontology error must carry a span. A missing span here
+        // would send `None` to the editor and nothing would light up
+        // in the gutter — the whole point of the error is to point the
+        // user at the offending token.
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(&p, "MATCH (u:Userr)-[:BOGUS]->(c:Company) RETURN u");
+        assert!(r.has_errors());
+        for issue in r.errors() {
+            assert!(
+                issue.span.is_some(),
+                "every ontology error must carry a span; offender: {issue:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn ontology_dedupes_repeated_unknown_labels() {
+        // Same unknown label in three different MATCH statements should
+        // produce one error, not three — otherwise the report drowns
+        // in duplicates for a query with a typo that appears repeatedly.
+        let p =
+            CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
+        let r = run(
+            &p,
+            "MATCH (a:Userr) MATCH (b:Userr) MATCH (c:Userr) RETURN a, b, c",
+        );
+        let count = r
+            .errors()
+            .filter(|e| e.message.contains("Userr"))
+            .count();
+        assert_eq!(count, 1, "unknown label should report once: {:?}", r.issues);
     }
 
     const SCOPE_PROP: &str = "_workspace_id";
