@@ -122,7 +122,7 @@ pub(crate) async fn chat_stream(
         compiler: Arc::clone(&state.compiler),
         runtime: state.runtime.clone(),
         store: Arc::clone(&state.store),
-        ontology: Some(ontology),
+        ontology: Some(Arc::new(ontology)),
         user_id: user_id.clone(),
         workspace_id: ws.workspace_id,
         saved_ontology_id: req.saved_ontology_id,

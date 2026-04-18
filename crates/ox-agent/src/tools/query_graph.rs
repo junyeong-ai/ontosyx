@@ -165,9 +165,20 @@ impl SchemaTool for QueryGraphTool {
         };
 
         // Step 3: Execute (timeout: 60s, cancel-aware)
+        //
+        // `GRAPH_ONTOLOGY.scope` hands the runtime a reference to the active
+        // ontology snapshot so its Cypher validator pipeline can reject
+        // unknown labels / relationships / properties before hitting the
+        // driver. The Arc clone is cheap (atomic inc); the runtime sees it
+        // through the task-local, not a parameter, so internal paths
+        // (search, profiler, introspection) that never set the local stay
+        // exempt.
         ctx.progress("executing").started();
         let t3 = std::time::Instant::now();
-        let execute_fut = runtime.execute_query(&compiled.statement, &compiled.params);
+        let execute_fut = ox_runtime::GRAPH_ONTOLOGY.scope(
+            Arc::clone(ontology),
+            runtime.execute_query(&compiled.statement, &compiled.params),
+        );
         let results = tokio::select! {
             timeout_result = tokio::time::timeout(
                 std::time::Duration::from_secs(60),

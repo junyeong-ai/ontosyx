@@ -39,18 +39,18 @@ removal), see the commit history from `7b6252e` through `d4f377f`.
 
 ### Cypher pipelines
 
-- **Wire the CypherValidator into the runtime execution path.** Today
-  the validator infrastructure is proven and tested; Brain still runs a
-  separate `validate_query_labels` on QueryIR. Moving the ontology
-  check to the Cypher layer (right before `pre_execute`) makes the
-  validator the single gate and lets Brain drop its IR-layer
-  duplicate.
-- **Future validators** slot into the same pipeline: `ComplexityValidator`
-  (reject obvious cartesian joins before they hit the DB), `AclValidator`
-  (post-rewrite row-level policy check), `SoftDeleteRewriter` (inject
-  tombstone predicates in the same pipeline position as workspace
-  isolation). The trait surface is intentionally small so adding any
-  of these is "new file, one `impl`, one pipeline registration."
+- **Future validators** slot into the `bolt::pipeline::run_pre_execute`
+  pass: `ComplexityValidator` (reject obvious cartesian joins before
+  they hit the DB), `AclValidator` (post-rewrite row-level policy check),
+  `SoftDeleteRewriter` (inject tombstone predicates in the same pipeline
+  position as workspace isolation). The trait surface is intentionally
+  small so adding any of these is "new file, one `impl`, one pipeline
+  registration."
+- **Warnings / info surface.** `ValidationReport` already carries
+  `Warning` / `Info` levels, but `run_pre_execute` currently drops
+  non-error issues. Once a request-scoped progress channel reaches the
+  runtime, validators can emit lower-severity diagnostics for UI
+  tooltips without blocking execution.
 
 ### Adapter layer
 

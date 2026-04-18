@@ -19,17 +19,26 @@ pub mod profiler;
 pub mod registry;
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use uuid::Uuid;
 
 use ox_core::error::{OxError, OxResult};
+use ox_core::ontology_ir::OntologyIR;
 
 // ---------------------------------------------------------------------------
 // Per-request graph workspace context via task-local
 // ---------------------------------------------------------------------------
 // Set by the workspace middleware. Read by Neo4jRuntime to scope graph queries.
 // Mirrors ox_store::WORKSPACE_ID / SYSTEM_BYPASS for the graph layer.
+//
+// GRAPH_ONTOLOGY carries the active OntologyIR snapshot so the Cypher
+// validator pipeline can flag unknown labels / relationships / properties
+// before a query hits the driver. Internal paths that have no authored
+// query to validate (search, profiler, schema introspection) simply do
+// not set the task-local — the ontology validator is skipped and only
+// safety + workspace-scope passes run.
 // ---------------------------------------------------------------------------
 
 tokio::task_local! {
@@ -37,6 +46,8 @@ tokio::task_local! {
     pub static GRAPH_WORKSPACE_ID: Uuid;
     /// When true, graph queries bypass workspace isolation (system tasks).
     pub static GRAPH_SYSTEM_BYPASS: bool;
+    /// Active ontology snapshot for the OntologyValidator pre-execute gate.
+    pub static GRAPH_ONTOLOGY: Arc<OntologyIR>;
 }
 use ox_core::graph_exploration::{GraphSchemaOverview, NodeExpansion, SearchResultNode};
 use ox_core::query_ir::QueryResult;
@@ -91,7 +102,7 @@ pub trait GraphRuntime: Send + Sync {
         query: &str,
         params: &HashMap<String, PropertyValue>,
     ) -> OxResult<QueryResult> {
-        let (scoped_query, scoped_params) = self.pre_execute(query, params);
+        let (scoped_query, scoped_params) = self.pre_execute(query, params)?;
         let result = self
             .execute_query_raw(&scoped_query, &scoped_params)
             .await?;
@@ -100,15 +111,17 @@ pub trait GraphRuntime: Send + Sync {
 
     /// Pre-process a query before execution (default: identity).
     ///
-    /// Backends override this to inject workspace isolation predicates or
-    /// rewrite parameters. Returns the (possibly modified) query string and
-    /// merged parameter map.
+    /// Backends override this to run the validator → rewriter → validator
+    /// pipeline (safety + ontology gate, workspace-scope rewrite, post-rewrite
+    /// scope gate). A validation failure returns `OxError::Validation` with
+    /// every issue aggregated into one message so the caller (agent / LLM)
+    /// can fix them in a single retry.
     fn pre_execute(
         &self,
         query: &str,
         params: &HashMap<String, PropertyValue>,
-    ) -> (String, HashMap<String, PropertyValue>) {
-        (query.to_string(), params.clone())
+    ) -> OxResult<(String, HashMap<String, PropertyValue>)> {
+        Ok((query.to_string(), params.clone()))
     }
 
     /// Post-process a query result (default: identity).
@@ -149,7 +162,7 @@ pub trait GraphRuntime: Send + Sync {
     /// Backends MUST NOT override this; override `execute_load_raw`
     /// (and optionally `pre_execute`) instead.
     async fn execute_load(&self, query: &str, batch: LoadBatch) -> OxResult<LoadResult> {
-        let (scoped_query, scope_params) = self.pre_execute(query, &HashMap::new());
+        let (scoped_query, scope_params) = self.pre_execute(query, &HashMap::new())?;
         self.execute_load_raw(&scoped_query, &scope_params, batch)
             .await
     }

@@ -48,7 +48,7 @@ pub struct DomainContext {
     pub compiler: Arc<dyn GraphCompiler>,
     pub runtime: Option<Arc<dyn GraphRuntime>>,
     pub store: Arc<dyn Store>,
-    pub ontology: Option<OntologyIR>,
+    pub ontology: Option<Arc<OntologyIR>>,
     pub user_id: String,
     pub workspace_id: uuid::Uuid,
     pub saved_ontology_id: Option<uuid::Uuid>,

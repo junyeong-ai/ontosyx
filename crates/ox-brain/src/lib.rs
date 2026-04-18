@@ -22,7 +22,7 @@ use async_trait::async_trait;
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::Arc;
-use tracing::{info, warn};
+use tracing::info;
 
 use ox_core::error::{OxError, OxResult};
 use ox_core::load_plan::LoadPlan;
@@ -739,32 +739,12 @@ impl QueryTranslator for DefaultBrain {
             }
         };
 
-        // Post-translation validation: reject queries with non-existent labels.
-        let warnings = validate_query_labels(&query_ir, ontology);
-        if !warnings.is_empty() {
-            let available_nodes: Vec<&str> = ontology
-                .node_types()
-                .iter()
-                .map(|n| n.label.as_str())
-                .collect();
-            let available_edges: Vec<&str> = ontology
-                .edge_types()
-                .iter()
-                .map(|e| e.label.as_str())
-                .collect();
-            let msg = format!(
-                "Query references unknown labels: {}. Available node types: [{}]. Available edge types: [{}]",
-                warnings.join("; "),
-                available_nodes.join(", "),
-                available_edges.join(", "),
-            );
-            warn!(%msg, "Rejecting query with invalid labels");
-            return Err(OxError::Validation {
-                field: "query_ir".to_string(),
-                message: msg,
-            });
-        }
-
+        // Label/edge existence is enforced downstream by the Cypher-layer
+        // OntologyValidator in `ox-runtime::cypher`, which runs inside
+        // `GraphRuntime::pre_execute` once the ontology snapshot is bound
+        // to the `GRAPH_ONTOLOGY` task-local. Duplicating that check here
+        // against QueryIR drifted whenever the compiler touched naming;
+        // the Cypher layer is the single source of truth.
         Ok(query_ir)
     }
 
@@ -1079,39 +1059,3 @@ impl LlmMetadata for DefaultBrain {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Query validation — post-translation label checks
-// ---------------------------------------------------------------------------
-
-/// Validate that all node/edge labels in a QueryIR exist in the ontology.
-/// Returns a list of warnings (not errors) for labels that don't match.
-fn validate_query_labels(query: &QueryIR, ontology: &OntologyIR) -> Vec<String> {
-    let node_labels = ox_core::eval::extract_node_labels(query);
-    let edge_labels = ox_core::eval::extract_edge_labels(query);
-
-    let valid_node_labels: std::collections::HashSet<&str> = ontology
-        .node_types()
-        .iter()
-        .map(|n| n.label.as_str())
-        .collect();
-    let valid_edge_labels: std::collections::HashSet<&str> = ontology
-        .edge_types()
-        .iter()
-        .map(|e| e.label.as_str())
-        .collect();
-
-    let mut warnings = Vec::new();
-
-    for label in &node_labels {
-        if !valid_node_labels.contains(label.as_str()) {
-            warnings.push(format!("Node label '{label}' not in ontology"));
-        }
-    }
-    for label in &edge_labels {
-        if !valid_edge_labels.contains(label.as_str()) {
-            warnings.push(format!("Edge label '{label}' not in ontology"));
-        }
-    }
-
-    warnings
-}

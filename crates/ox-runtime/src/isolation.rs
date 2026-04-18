@@ -24,6 +24,13 @@ pub trait GraphIsolationStrategy: Send + Sync {
 
     /// Strategy name (for logging and config).
     fn name(&self) -> &str;
+
+    /// Property name that every graph-touching statement must textually
+    /// reference after `scope` runs, so a post-rewrite validator can gate
+    /// isolation. `Some(prop)` for property-based strategies;
+    /// `None` for connection-level strategies whose isolation is enforced
+    /// outside the Cypher text (e.g. database-per-workspace).
+    fn scope_property(&self) -> Option<&'static str>;
 }
 
 /// A query with injected workspace isolation parameters.
@@ -70,6 +77,10 @@ impl GraphIsolationStrategy for PropertyStrategy {
     fn name(&self) -> &str {
         "property"
     }
+
+    fn scope_property(&self) -> Option<&'static str> {
+        Some(Self::PROPERTY)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -91,6 +102,10 @@ impl GraphIsolationStrategy for DatabaseStrategy {
 
     fn name(&self) -> &str {
         "database"
+    }
+
+    fn scope_property(&self) -> Option<&'static str> {
+        None
     }
 }
 

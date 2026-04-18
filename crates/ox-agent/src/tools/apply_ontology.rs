@@ -79,7 +79,7 @@ impl SchemaTool for ApplyOntologyTool {
         );
 
         // Apply commands sequentially — each command validates against the current state
-        let mut updated = ontology.clone();
+        let mut updated = (**ontology).clone();
         let mut applied_count = 0;
         let mut errors = Vec::new();
 

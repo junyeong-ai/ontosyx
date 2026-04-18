@@ -28,7 +28,7 @@ use ox_core::types::PropertyValue;
 
 use crate::bolt::{
     LoadContext, RetryConfig, bind_params, json_to_property_value, run_batched_load,
-    scope_with_task_locals, truncate_query, validate_identifier, with_retry,
+    run_pre_execute, truncate_query, validate_identifier, with_retry,
 };
 use crate::isolation::GraphIsolationStrategy;
 use crate::{GraphRuntime, LoadBatch, LoadResult, SandboxHandle, TransienceDetector};
@@ -358,8 +358,8 @@ impl GraphRuntime for MemGraphRuntime {
         &self,
         cypher: &str,
         params: &HashMap<String, PropertyValue>,
-    ) -> (String, HashMap<String, PropertyValue>) {
-        scope_with_task_locals(self.isolation.as_deref(), cypher, params)
+    ) -> OxResult<(String, HashMap<String, PropertyValue>)> {
+        run_pre_execute(self.isolation.as_deref(), cypher, params)
     }
 
     async fn execute_query_raw(

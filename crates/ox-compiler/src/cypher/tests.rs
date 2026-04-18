@@ -308,7 +308,7 @@ fn test_korean_ontology_json_round_trip() {
         "고객 should connect to 주문"
     );
     assert!(
-        round.neighbor_labels("주문").iter().any(|l| *l == "상품"),
+        round.neighbor_labels("주문").contains(&"상품"),
         "주문 should connect to 상품 via 포함"
     );
 }

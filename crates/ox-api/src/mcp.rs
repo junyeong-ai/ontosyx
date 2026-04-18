@@ -567,8 +567,11 @@ impl OntosyxMcpServer {
             McpError::internal_error("Graph database not connected".to_string(), None)
         })?;
 
-        let results = runtime
-            .execute_query(&compiled.statement, &compiled.params)
+        let results = ox_runtime::GRAPH_ONTOLOGY
+            .scope(
+                Arc::new(ontology.clone()),
+                runtime.execute_query(&compiled.statement, &compiled.params),
+            )
             .await
             .map_err(|e| McpError::internal_error(format!("Query execution failed: {e}"), None))?;
 

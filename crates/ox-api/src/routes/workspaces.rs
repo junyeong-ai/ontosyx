@@ -317,7 +317,7 @@ pub(crate) async fn update_workspace_locale(
 
     state
         .store
-        .update_workspace_locale(id, &primary.to_string(), &fallback_json)
+        .update_workspace_locale(id, primary.as_ref(), &fallback_json)
         .await
         .map_err(AppError::from)?;
 
