@@ -2,11 +2,18 @@
 // Audit Middleware — automatic audit logging for all mutation endpoints
 // ---------------------------------------------------------------------------
 // Cross-cutting concern: records every POST/PUT/PATCH/DELETE request
-// to the audit log after the handler completes. GET requests are skipped.
+// to the audit log after the handler completes, regardless of outcome.
+// Read-only methods (GET/HEAD/OPTIONS) are skipped.
 //
-// This is applied as a route_layer on the protected router, so it runs
-// inside the auth + workspace context middlewares and has access to
-// AuthClaims and WorkspaceContext in request extensions.
+// Failed mutations are recorded too — without this, an attacker probing
+// for unauthorised endpoints leaves no trace, and a permission-denied
+// event on a sensitive resource is invisible to post-incident forensics.
+// The `success` field on the stored `details` payload distinguishes
+// `2xx/3xx` outcomes from `4xx/5xx` so queries can filter either class.
+//
+// Applied as a route_layer on the protected router: runs inside
+// require_auth + workspace_context, so AuthClaims and WorkspaceContext
+// are available in request extensions.
 // ---------------------------------------------------------------------------
 
 use std::time::Instant;
@@ -23,14 +30,15 @@ use uuid::Uuid;
 use crate::middleware::AuthClaims;
 use crate::state::AppState;
 
-/// Audit middleware — logs all successful mutation requests automatically.
+/// Audit middleware — records every mutation request automatically.
 ///
 /// Runs after require_auth + workspace_context, before the handler response
-/// is sent to the client. Only records 2xx/3xx mutations; skips reads and errors.
+/// returns to the client. Records 2xx/3xx *and* 4xx/5xx mutations; the
+/// `success` field in the stored `details` distinguishes them. Only
+/// read-only methods (GET/HEAD/OPTIONS) are skipped entirely.
 pub async fn audit_log(State(state): State<AppState>, req: Request, next: Next) -> Response {
     let method = req.method().clone();
 
-    // Skip GET/HEAD/OPTIONS — read operations don't need audit
     if matches!(method, Method::GET | Method::HEAD | Method::OPTIONS) {
         return next.run(req).await;
     }
@@ -38,7 +46,6 @@ pub async fn audit_log(State(state): State<AppState>, req: Request, next: Next) 
     let path = req.uri().path().to_string();
     let start = Instant::now();
 
-    // Extract identity from extensions (set by require_auth middleware)
     let user_id = req
         .extensions()
         .get::<AuthClaims>()
@@ -48,15 +55,8 @@ pub async fn audit_log(State(state): State<AppState>, req: Request, next: Next) 
 
     let status = response.status().as_u16();
     let duration_ms = start.elapsed().as_millis() as u64;
+    let success = (200..400).contains(&status);
 
-    // Only audit successful mutations (2xx/3xx)
-    if status >= 400 {
-        return response;
-    }
-
-    // Fire-and-forget audit recording.
-    // Must use spawn_scoped to propagate workspace task-locals (WORKSPACE_ID)
-    // because tokio::spawn loses them and RLS blocks the INSERT.
     let store = state.store.clone();
     let request_id = Uuid::new_v4();
     let action = format!("{} {}", method.as_str(), &path);
@@ -67,8 +67,12 @@ pub async fn audit_log(State(state): State<AppState>, req: Request, next: Next) 
         "path": path,
         "status": status,
         "duration_ms": duration_ms,
+        "success": success,
     });
 
+    // Fire-and-forget. spawn_scoped propagates WORKSPACE_ID into the
+    // spawned future — tokio::spawn would drop it and RLS would reject
+    // the audit INSERT.
     crate::spawn_scoped::spawn_scoped(async move {
         let _ = store
             .record_audit(user_id, &action, &resource_type, None, details)
