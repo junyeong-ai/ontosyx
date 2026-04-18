@@ -54,6 +54,7 @@ pub mod test_fixtures;
 
 // Infrastructure
 pub mod error;
+pub mod graph_label;
 pub mod i18n;
 pub mod prompt_version;
 pub mod types;
@@ -89,6 +90,7 @@ pub mod widget_spec;
 // ---------------------------------------------------------------------------
 
 pub use error::{ErrorContext, OxError};
+pub use graph_label::GraphLabel;
 pub use i18n::{LanguageTag, LocaleError, LocalizedText};
 pub use prompt_version::PromptVersion;
 pub use types::{escape_cypher_identifier, is_valid_graph_identifier, sanitize_variable};
