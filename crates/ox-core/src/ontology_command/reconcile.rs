@@ -241,15 +241,15 @@ pub fn reconcile_refined(
             matched_orig_node_ids.insert(node.id.clone());
             preserved.push(PreservedEntity {
                 id: node.id.to_string(),
-                label: node.label.clone(),
+                label: node.label.to_string(),
                 entity_kind: EntityKind::Node,
             });
         } else if let Some(orig_node) = orig_node_by_label.get(node.label.as_str()) {
             // Label fallback match
             uncertain.push(UncertainMatch {
                 original_id: orig_node.id.to_string(),
-                original_label: orig_node.label.clone(),
-                matched_label: node.label.clone(),
+                original_label: orig_node.label.to_string(),
+                matched_label: node.label.to_string(),
                 match_reason: "matched by label".to_string(),
                 entity_kind: EntityKind::Node,
             });
@@ -261,7 +261,7 @@ pub fn reconcile_refined(
             // New node added by LLM
             generated.push(GeneratedEntity {
                 id: node.id.to_string(),
-                label: node.label.clone(),
+                label: node.label.to_string(),
                 entity_kind: EntityKind::Node,
             });
         }
@@ -272,7 +272,7 @@ pub fn reconcile_refined(
         if !matched_orig_node_ids.contains(&orig_node.id) {
             deleted.push(DeletedEntity {
                 id: orig_node.id.to_string(),
-                label: orig_node.label.clone(),
+                label: orig_node.label.to_string(),
                 entity_kind: EntityKind::Node,
             });
         }
@@ -744,6 +744,7 @@ use super::index_id;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::graph_label::GraphLabel;
     use crate::i18n::LocalizedText;
     use crate::test_fixtures::{ontologies_equal, property, test_ontology};
 
@@ -837,7 +838,7 @@ mod tests {
         refined.node_types.retain(|n| n.id != "n2");
         refined.node_types.push(NodeTypeDef {
             id: "n3".into(),
-            label: "Product".to_string(),
+            label: GraphLabel::new("Product").expect("Product is a valid label"),
             description: LocalizedText::new("A product"),
             properties: vec![property("p4", "product_name")],
             constraints: vec![],

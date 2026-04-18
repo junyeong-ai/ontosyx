@@ -739,7 +739,7 @@ impl OntosyxMcpServer {
                     .collect();
 
                 NodeSummary {
-                    label: n.label.clone(),
+                    label: n.label.to_string(),
                     description: n.description.clone(),
                     properties,
                     constraints,

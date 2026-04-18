@@ -1,9 +1,20 @@
+use crate::graph_label::GraphLabel;
 use crate::i18n::LocalizedText;
 use crate::ontology_ir::{
     Cardinality, ConstraintDef, EdgeTypeDef, IndexDef, NodeConstraint, NodeTypeDef, OntologyIR,
     PropertyDef,
 };
 use crate::types::PropertyType;
+
+/// Build a `GraphLabel` from a compile-time-authored string literal.
+/// Panics at runtime when the literal is invalid, which is caught by
+/// the fixture's own consumers (any test exercising the ontology).
+/// Centralising the `expect` lets the rest of the file stay free of
+/// boilerplate.
+#[allow(clippy::expect_used)]
+fn gl(s: &'static str) -> GraphLabel {
+    GraphLabel::new(s).expect("fixture label literal must satisfy GraphLabel invariants")
+}
 
 /// Create a simple non-nullable string property with the given id and name.
 pub fn property(id: &str, name: &str) -> PropertyDef {
@@ -29,7 +40,7 @@ pub fn test_ontology() -> OntologyIR {
         vec![
             NodeTypeDef {
                 id: "n1".into(),
-                label: "Person".to_string(),
+                label: gl("Person"),
                 description: LocalizedText::new("A person"),
                 properties: vec![property("p1", "name"), property("p2", "age")],
                 constraints: vec![ConstraintDef {
@@ -42,7 +53,7 @@ pub fn test_ontology() -> OntologyIR {
             },
             NodeTypeDef {
                 id: "n2".into(),
-                label: "Company".to_string(),
+                label: gl("Company"),
                 description: LocalizedText::default(),
                 properties: vec![property("p3", "company_name")],
                 constraints: vec![],
@@ -123,7 +134,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
     let node_types = vec![
         NodeTypeDef {
             id: "n-customer".into(),
-            label: "고객".to_string(),
+            label: gl("고객"),
             description: LocalizedText::new("구매 활동의 주체"),
             properties: vec![
                 prop("p-customer-id", "고객번호", PropertyType::String, false),
@@ -141,7 +152,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
         },
         NodeTypeDef {
             id: "n-order".into(),
-            label: "주문".to_string(),
+            label: gl("주문"),
             description: LocalizedText::new("고객이 발행한 주문 건"),
             properties: vec![
                 prop("p-order-id", "주문번호", PropertyType::String, false),
@@ -153,7 +164,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
         },
         NodeTypeDef {
             id: "n-product".into(),
-            label: "상품".to_string(),
+            label: gl("상품"),
             description: LocalizedText::new("판매 가능한 상품 SKU"),
             properties: vec![
                 prop("p-product-id", "상품번호", PropertyType::String, false),
@@ -166,7 +177,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
         },
         NodeTypeDef {
             id: "n-category".into(),
-            label: "카테고리".to_string(),
+            label: gl("카테고리"),
             description: LocalizedText::new("상품 분류"),
             properties: vec![
                 prop("p-category-id", "카테고리번호", PropertyType::String, false),
@@ -177,7 +188,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
         },
         NodeTypeDef {
             id: "n-review".into(),
-            label: "리뷰".to_string(),
+            label: gl("리뷰"),
             description: LocalizedText::new("고객이 작성한 상품 리뷰"),
             properties: vec![
                 prop("p-review-id", "리뷰번호", PropertyType::String, false),
@@ -195,7 +206,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
         },
         NodeTypeDef {
             id: "n-shipment".into(),
-            label: "배송".to_string(),
+            label: gl("배송"),
             description: LocalizedText::new("주문의 배송 상태"),
             properties: vec![
                 prop("p-shipment-id", "배송번호", PropertyType::String, false),
@@ -207,7 +218,7 @@ pub fn korean_ecommerce_ontology() -> OntologyIR {
         },
         NodeTypeDef {
             id: "n-payment".into(),
-            label: "결제수단".to_string(),
+            label: gl("결제수단"),
             description: LocalizedText::new("주문에 사용된 결제 수단"),
             properties: vec![
                 prop("p-payment-id", "결제번호", PropertyType::String, false),

@@ -618,7 +618,7 @@ impl QueryTranslator for DefaultBrain {
             let all_label_strings: Vec<String> = ontology
                 .node_types()
                 .iter()
-                .map(|n| n.label.clone())
+                .map(|n| n.label.to_string())
                 .chain(ontology.edge_types().iter().map(|e| e.label.clone()))
                 .collect();
             let schema = schema_rag::build_progressive_schema(ontology, &all_node_labels);

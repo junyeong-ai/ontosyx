@@ -141,7 +141,8 @@ pub(crate) async fn adopt_graph(
     let name = req
         .name
         .unwrap_or_else(|| "Adopted Graph Ontology".to_string());
-    let ontology = ox_core::graph_audit::ontology_from_graph(&overview, &name);
+    let ontology =
+        ox_core::graph_audit::ontology_from_graph(&overview, &name).map_err(AppError::from)?;
 
     if req.save.unwrap_or(false) {
         let ontology_ir = serde_json::to_value(&ontology)

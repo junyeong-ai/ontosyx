@@ -3,6 +3,7 @@
 //! The e-commerce ontology and its 20 evaluation cases provide a comprehensive
 //! baseline for measuring query translation accuracy across all query categories.
 
+use crate::graph_label::GraphLabel;
 use crate::i18n::LocalizedText;
 use crate::ontology_ir::{
     Cardinality, ConstraintDef, EdgeTypeDef, IndexDef, NodeConstraint, NodeTypeDef, OntologyIR,
@@ -11,6 +12,14 @@ use crate::ontology_ir::{
 use crate::types::PropertyType;
 
 use super::cases::{EvalCase, EvalCategory, ExpectedOp};
+
+/// Build a `GraphLabel` from an inline literal — every call in this
+/// fixture is authored by hand, so a literal that fails validation is
+/// a test-code bug caught by any test exercising the ontology.
+#[allow(clippy::expect_used)]
+fn gl(s: &'static str) -> GraphLabel {
+    GraphLabel::new(s).expect("fixture label literal must satisfy GraphLabel invariants")
+}
 
 // ---------------------------------------------------------------------------
 // Helper
@@ -60,7 +69,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
             // Customer
             NodeTypeDef {
                 id: "node-customer".into(),
-                label: "Customer".to_string(),
+                label: gl("Customer"),
                 description: LocalizedText::new("A registered customer in the platform"),
                 properties: vec![
                     prop(
@@ -93,7 +102,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
             // Order
             NodeTypeDef {
                 id: "node-order".into(),
-                label: "Order".to_string(),
+                label: gl("Order"),
                 description: LocalizedText::new("A purchase order placed by a customer"),
                 properties: vec![
                     prop(
@@ -121,7 +130,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
             // Product
             NodeTypeDef {
                 id: "node-product".into(),
-                label: "Product".to_string(),
+                label: gl("Product"),
                 description: LocalizedText::new("A product available for purchase"),
                 properties: vec![
                     prop(
@@ -154,7 +163,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
             // Category
             NodeTypeDef {
                 id: "node-category".into(),
-                label: "Category".to_string(),
+                label: gl("Category"),
                 description: LocalizedText::new("Product category for classification"),
                 properties: vec![prop(
                     "p-cat-name",
@@ -173,7 +182,7 @@ pub fn ecommerce_ontology() -> OntologyIR {
             // Review
             NodeTypeDef {
                 id: "node-review".into(),
-                label: "Review".to_string(),
+                label: gl("Review"),
                 description: LocalizedText::new("A product review written by a customer"),
                 properties: vec![
                     prop(

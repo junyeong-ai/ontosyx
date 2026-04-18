@@ -411,12 +411,17 @@ fn has_cartesian_product(patterns: &[GraphPattern]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ox_core::GraphLabel;
     use ox_core::LocalizedText;
     use ox_core::ontology_ir::{
         Cardinality, ConstraintDef, EdgeTypeDef, NodeConstraint, NodeTypeDef, PropertyDef,
     };
     use ox_core::query_ir::*;
     use ox_core::types::{Direction, PropertyType};
+
+    fn gl(s: &'static str) -> GraphLabel {
+        GraphLabel::new(s).expect("test label literal must be valid")
+    }
 
     fn empty_ontology() -> OntologyIR {
         OntologyIR::new(
@@ -438,7 +443,7 @@ mod tests {
             1,
             vec![NodeTypeDef {
                 id: "nt1".into(),
-                label: "Person".into(),
+                label: gl("Person"),
                 description: LocalizedText::default(),
                 properties: vec![PropertyDef {
                     id: "p1".into(),

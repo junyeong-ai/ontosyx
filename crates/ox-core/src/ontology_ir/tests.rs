@@ -1,7 +1,13 @@
 use super::*;
+use crate::graph_label::GraphLabel;
 use crate::types::PropertyType;
 
 use crate::i18n::LocalizedText;
+
+fn gl(s: &'static str) -> GraphLabel {
+    GraphLabel::new(s).expect("test label literal must be valid")
+}
+
 fn property(id: &str, name: &str, nullable: bool) -> PropertyDef {
     PropertyDef {
         id: id.into(),
@@ -24,7 +30,7 @@ fn compact_schema_surfaces_localization_cardinality_and_deprecation_hints() {
         1,
         vec![NodeTypeDef {
             id: "n1".into(),
-            label: "Doc".into(),
+            label: gl("Doc"),
             description: LocalizedText::default(),
             properties: vec![
                 PropertyDef {
@@ -101,7 +107,7 @@ fn compact_schema_surfaces_edge_roles_and_deprecation() {
         vec![
             NodeTypeDef {
                 id: "n1".into(),
-                label: "Manager".into(),
+                label: gl("Manager"),
                 description: LocalizedText::default(),
                 properties: vec![],
                 constraints: vec![],
@@ -109,7 +115,7 @@ fn compact_schema_surfaces_edge_roles_and_deprecation() {
             },
             NodeTypeDef {
                 id: "n2".into(),
-                label: "Employee".into(),
+                label: gl("Employee"),
                 description: LocalizedText::default(),
                 properties: vec![],
                 constraints: vec![],
@@ -157,7 +163,7 @@ fn base_ontology() -> OntologyIR {
         1,
         vec![NodeTypeDef {
             id: "node-user".into(),
-            label: "User".to_string(),
+            label: gl("User"),
             description: LocalizedText::default(),
             properties: vec![
                 property("prop-id", "id", false),
@@ -240,7 +246,7 @@ fn has_unique_constraint_works_with_wrapper() {
 
     let node_no_unique = NodeTypeDef {
         id: "n1".into(),
-        label: "Empty".to_string(),
+        label: gl("Empty"),
         description: LocalizedText::default(),
         properties: vec![property("p1", "x", false)],
         constraints: vec![ConstraintDef {
@@ -280,7 +286,7 @@ fn test_validate_duplicate_edge_ids() {
         1,
         vec![NodeTypeDef {
             id: "node-user".into(),
-            label: "User".to_string(),
+            label: gl("User"),
             description: LocalizedText::default(),
             properties: vec![property("prop-id", "id", false)],
             constraints: vec![],
@@ -329,7 +335,7 @@ fn test_validate_self_referencing_edge() {
         1,
         vec![NodeTypeDef {
             id: "node-person".into(),
-            label: "Person".to_string(),
+            label: gl("Person"),
             description: LocalizedText::default(),
             properties: vec![property("prop-name", "name", false)],
             constraints: vec![],
@@ -552,7 +558,7 @@ fn node_def_deprecation_fields_roundtrip() {
     let now = chrono::Utc::now();
     let n = NodeTypeDef {
         id: "n1".into(),
-        label: "LegacyUser".to_string(),
+        label: gl("LegacyUser"),
         deprecated_at: Some(now),
         replaced_by_id: Some(NodeTypeId::new("n2")),
         ..Default::default()
@@ -577,7 +583,7 @@ fn ecommerce_ontology() -> OntologyIR {
         vec![
             NodeTypeDef {
                 id: "n1".into(),
-                label: "Customer".into(),
+                label: gl("Customer"),
                 description: LocalizedText::default(),
                 properties: vec![],
                 constraints: vec![],
@@ -585,7 +591,7 @@ fn ecommerce_ontology() -> OntologyIR {
             },
             NodeTypeDef {
                 id: "n2".into(),
-                label: "Order".into(),
+                label: gl("Order"),
                 description: LocalizedText::default(),
                 properties: vec![],
                 constraints: vec![],

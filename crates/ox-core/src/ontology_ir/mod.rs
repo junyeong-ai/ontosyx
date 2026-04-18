@@ -12,6 +12,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::graph_label::GraphLabel;
+
 // ---------------------------------------------------------------------------
 // OntologyInvariantError — typed invariant violations
 // ---------------------------------------------------------------------------
@@ -28,7 +30,7 @@ pub enum OntologyInvariantError {
     DuplicateNodeTypeId { id: NodeTypeId },
 
     #[error("duplicate node type label: {label}")]
-    DuplicateNodeTypeLabel { label: String },
+    DuplicateNodeTypeLabel { label: GraphLabel },
 
     #[error("duplicate edge type id: {id}")]
     DuplicateEdgeTypeId { id: EdgeTypeId },
@@ -85,7 +87,7 @@ struct OntologyLookup {
     /// node id → index in node_types
     node_id_idx: HashMap<NodeTypeId, usize>,
     /// node label → index in node_types
-    node_label_idx: HashMap<String, usize>,
+    node_label_idx: HashMap<GraphLabel, usize>,
     /// edge id → index in edge_types
     edge_id_idx: HashMap<EdgeTypeId, usize>,
     /// property id → (node_types index, property index within that node)
@@ -729,7 +731,7 @@ impl OntologyIR {
             }
             let props: Vec<&str> = node.properties.iter().map(|p| p.name.as_str()).collect();
             nodes.insert(
-                node.label.clone(),
+                node.label.as_str().to_string(),
                 serde_json::json!({ "properties": props }),
             );
         }
@@ -796,7 +798,10 @@ impl OntologyIR {
                 );
             }
             node_obj.insert("properties".into(), serde_json::Value::Object(props));
-            nodes.insert(node.label.clone(), serde_json::Value::Object(node_obj));
+            nodes.insert(
+                node.label.as_str().to_string(),
+                serde_json::Value::Object(node_obj),
+            );
         }
 
         // Include edges where both source and target are in the selected set

@@ -140,6 +140,7 @@ pub fn resolve_query_bindings(query: &QueryIR, ontology: &OntologyIR) -> Resolve
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::graph_label::GraphLabel;
     use crate::i18n::LocalizedText;
     use crate::ontology_ir::*;
     use crate::query_ir::*;
@@ -154,7 +155,7 @@ mod tests {
             vec![
                 NodeTypeDef {
                     id: "n1".into(),
-                    label: "Person".into(),
+                    label: GraphLabel::new("Person").expect("Person is a valid label"),
                     description: LocalizedText::default(),
                     properties: vec![PropertyDef {
                         id: "p1".into(),
@@ -171,7 +172,7 @@ mod tests {
                 },
                 NodeTypeDef {
                     id: "n2".into(),
-                    label: "Company".into(),
+                    label: GraphLabel::new("Company").expect("Company is a valid label"),
                     description: LocalizedText::default(),
                     properties: vec![PropertyDef {
                         id: "p2".into(),

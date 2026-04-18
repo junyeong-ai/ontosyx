@@ -339,10 +339,15 @@ fn node_deprecation_reason(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ox_core::GraphLabel;
     use ox_core::LocalizedText;
     use ox_core::ontology_ir::{
         EdgeTypeDef, EdgeTypeId, NodeTypeDef, NodeTypeId, PropertyDef, PropertyId,
     };
+
+    fn gl(s: &'static str) -> GraphLabel {
+        GraphLabel::new(s).expect("test label literal must be valid")
+    }
 
     fn test_ontology() -> OntologyIR {
         OntologyIR::new(
@@ -353,7 +358,7 @@ mod tests {
             vec![
                 NodeTypeDef {
                     id: NodeTypeId::new("n1"),
-                    label: "Customer".to_string(),
+                    label: gl("Customer"),
                     description: LocalizedText::new("A customer"),
                     properties: vec![
                         PropertyDef {
@@ -402,7 +407,7 @@ mod tests {
                 },
                 NodeTypeDef {
                     id: NodeTypeId::new("n2"),
-                    label: "Product".to_string(),
+                    label: gl("Product"),
                     description: LocalizedText::default(),
                     properties: vec![
                         PropertyDef {

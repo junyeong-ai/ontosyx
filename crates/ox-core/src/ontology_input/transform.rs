@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use serde::Serialize;
 use tracing::warn;
 
+use crate::graph_label::GraphLabel;
 use crate::ontology_ir::*;
 use crate::source_mapping::SourceMapping;
 
@@ -246,9 +247,12 @@ pub fn normalize(input: OntologyInputIR) -> Result<NormalizeResult, Vec<String>>
 
         node_prop_map.insert(input_node.label.clone(), prop_name_to_id);
 
+        let label = GraphLabel::new(input_node.label.clone())
+            .map_err(|e| vec![format!("Node label '{}' is invalid: {e}", input_node.label)])?;
+
         node_types.push(NodeTypeDef {
             id: node_id,
-            label: input_node.label,
+            label,
             description: input_node.description,
             properties,
             constraints,

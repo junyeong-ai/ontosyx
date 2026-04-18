@@ -471,7 +471,7 @@ pub fn assess_quality(
                 category: QualityGapCategory::MissingDescription,
                 location: QualityGapRef::Node {
                     node_id: node.id.to_string(),
-                    label: node.label.clone(),
+                    label: node.label.to_string(),
                 },
                 issue: format!(
                     "Node '{}' has no description — the query translator lacks context for this entity type.",
@@ -493,7 +493,7 @@ pub fn assess_quality(
                     location: QualityGapRef::NodeProperty {
                         node_id: node.id.to_string(),
                         property_id: prop.id.to_string(),
-                        label: node.label.clone(),
+                        label: node.label.to_string(),
                         property_name: prop.name.clone(),
                     },
                     issue: format!(
@@ -611,7 +611,7 @@ fn detect_orphan_nodes(ontology: &OntologyIR, gaps: &mut Vec<QualityGap>) {
                 category: QualityGapCategory::OrphanNode,
                 location: QualityGapRef::Node {
                     node_id: node.id.to_string(),
-                    label: node.label.clone(),
+                    label: node.label.to_string(),
                 },
                 issue: format!(
                     "Node '{}' has no incoming or outgoing edges — it is disconnected from the rest of the graph.",
@@ -639,7 +639,7 @@ fn detect_property_type_inconsistency(ontology: &OntologyIR, gaps: &mut Vec<Qual
             prop_types
                 .entry(name_lower)
                 .or_default()
-                .push((node.label.clone(), type_str));
+                .push((node.label.to_string(), type_str));
         }
     }
 
@@ -698,7 +698,7 @@ fn detect_hub_nodes(ontology: &OntologyIR, gaps: &mut Vec<QualityGap>) {
                 category: QualityGapCategory::HubNode,
                 location: QualityGapRef::Node {
                     node_id: node.id.to_string(),
-                    label: node.label.clone(),
+                    label: node.label.to_string(),
                 },
                 issue: format!(
                     "Node '{}' has {} edges (threshold: {}). It may be a god-node that is doing too much.",
@@ -728,7 +728,7 @@ fn detect_overloaded_properties(ontology: &OntologyIR, gaps: &mut Vec<QualityGap
             prop_nodes
                 .entry(name_lower)
                 .or_default()
-                .push(node.label.clone());
+                .push(node.label.to_string());
         }
     }
 

@@ -1,8 +1,13 @@
 use super::*;
+use crate::graph_label::GraphLabel;
 use crate::test_fixtures::{ontologies_equal, test_ontology};
 use crate::types::PropertyType;
 
 use crate::i18n::LocalizedText;
+
+fn gl(s: &'static str) -> GraphLabel {
+    GraphLabel::new(s).expect("test label literal must be valid")
+}
 #[test]
 fn add_and_delete_node_roundtrip() {
     let ontology = test_ontology();
@@ -10,7 +15,7 @@ fn add_and_delete_node_roundtrip() {
     // Add a node
     let cmd = OntologyCommand::AddNode {
         id: "n3".into(),
-        label: "Product".to_string(),
+        label: gl("Product"),
         description: LocalizedText::new("A product"),
     };
     let result = cmd.execute(&ontology).unwrap();
@@ -34,7 +39,7 @@ fn rename_node_preserves_edges() {
 
     let cmd = OntologyCommand::RenameNode {
         node_id: "n1".into(),
-        new_label: "Individual".to_string(),
+        new_label: gl("Individual"),
     };
     let result = cmd.execute(&ontology).unwrap();
 
@@ -161,7 +166,7 @@ fn batch_execute_and_inverse() {
         commands: vec![
             OntologyCommand::AddNode {
                 id: "n3".into(),
-                label: "Project".to_string(),
+                label: gl("Project"),
                 description: LocalizedText::default(),
             },
             OntologyCommand::AddEdge {
@@ -173,7 +178,7 @@ fn batch_execute_and_inverse() {
             },
             OntologyCommand::RenameNode {
                 node_id: "n2".into(),
-                new_label: "Organization".to_string(),
+                new_label: gl("Organization"),
             },
         ],
     };
@@ -304,7 +309,7 @@ fn error_on_invalid_references() {
     // Add duplicate node id
     let cmd = OntologyCommand::AddNode {
         id: "n1".into(),
-        label: "Duplicate".to_string(),
+        label: gl("Duplicate"),
         description: LocalizedText::default(),
     };
     assert!(cmd.execute(&ontology).is_err());

@@ -192,8 +192,13 @@ fn mermaid_cardinality(c: &Cardinality) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ox_core::GraphLabel;
     use ox_core::LocalizedText;
     use ox_core::ontology_ir::{Cardinality, EdgeTypeDef, Governance, NodeTypeDef, PropertyDef};
+
+    fn gl(s: &'static str) -> GraphLabel {
+        GraphLabel::new(s).expect("test label literal must be valid")
+    }
 
     fn sample_ontology() -> OntologyIR {
         OntologyIR::new(
@@ -204,7 +209,7 @@ mod tests {
             vec![
                 NodeTypeDef {
                     id: "n1".into(),
-                    label: "Customer".into(),
+                    label: gl("Customer"),
                     description: LocalizedText::default(),
                     properties: vec![PropertyDef {
                         id: "p1".into(),
@@ -225,7 +230,7 @@ mod tests {
                 },
                 NodeTypeDef {
                     id: "n2".into(),
-                    label: "Order".into(),
+                    label: gl("Order"),
                     description: LocalizedText::default(),
                     properties: vec![PropertyDef {
                         id: "p2".into(),
@@ -326,7 +331,7 @@ mod tests {
             1,
             vec![NodeTypeDef {
                 id: "n1".into(),
-                label: "Plain".into(),
+                label: gl("Plain"),
                 description: LocalizedText::default(),
                 properties: vec![],
                 constraints: vec![],

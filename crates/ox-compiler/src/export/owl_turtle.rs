@@ -386,12 +386,17 @@ fn uri_encode(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ox_core::GraphLabel;
     use ox_core::LocalizedText;
     use ox_core::ontology_ir::{
         Cardinality, ConstraintDef, EdgeTypeDef, NodeConstraint, NodeTypeDef, OntologyIR,
         PropertyDef,
     };
     use ox_core::types::PropertyType;
+
+    fn gl(s: &'static str) -> GraphLabel {
+        GraphLabel::new(s).expect("test label literal must be valid")
+    }
 
     fn sample_ontology() -> OntologyIR {
         OntologyIR::new(
@@ -402,7 +407,7 @@ mod tests {
             vec![
                 NodeTypeDef {
                     id: "n1".into(),
-                    label: "Brand".into(),
+                    label: gl("Brand"),
                     description: LocalizedText::new("Cosmetic brand entity"),
                     properties: vec![
                         PropertyDef {
@@ -436,7 +441,7 @@ mod tests {
                 },
                 NodeTypeDef {
                     id: "n2".into(),
-                    label: "Product".into(),
+                    label: gl("Product"),
                     description: LocalizedText::new("A cosmetic product"),
                     properties: vec![PropertyDef {
                         id: "p3".into(),
@@ -626,7 +631,7 @@ mod tests {
             1,
             vec![NodeTypeDef {
                 id: "n1".into(),
-                label: "Box".into(),
+                label: gl("Box"),
                 description: LocalizedText::default(),
                 properties: vec![
                     PropertyDef {

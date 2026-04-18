@@ -251,11 +251,16 @@ fn relationship_field_name(edge_label: &str, related_label: &str, outgoing: bool
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ox_core::GraphLabel;
     use ox_core::LocalizedText;
     use ox_core::ontology_ir::{
         Cardinality, ConstraintDef, EdgeTypeDef, NodeConstraint, NodeTypeDef, OntologyIR,
         PropertyDef,
     };
+
+    fn gl(s: &'static str) -> GraphLabel {
+        GraphLabel::new(s).expect("test label literal must be valid")
+    }
 
     fn sample_ontology() -> OntologyIR {
         OntologyIR::new(
@@ -266,7 +271,7 @@ mod tests {
             vec![
                 NodeTypeDef {
                     id: "n1".into(),
-                    label: "Customer".into(),
+                    label: gl("Customer"),
                     description: LocalizedText::new("A buyer"),
                     properties: vec![
                         PropertyDef {
@@ -300,7 +305,7 @@ mod tests {
                 },
                 NodeTypeDef {
                     id: "n2".into(),
-                    label: "Order".into(),
+                    label: gl("Order"),
                     description: LocalizedText::default(),
                     properties: vec![PropertyDef {
                         id: "p3".into(),

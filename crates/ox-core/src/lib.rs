@@ -56,8 +56,8 @@ pub mod test_fixtures;
 pub mod error;
 pub mod graph_label;
 pub mod i18n;
-pub mod property_key;
 pub mod prompt_version;
+pub mod property_key;
 pub mod types;
 pub mod variable_name;
 
@@ -94,8 +94,8 @@ pub mod widget_spec;
 pub use error::{ErrorContext, OxError};
 pub use graph_label::GraphLabel;
 pub use i18n::{LanguageTag, LocaleError, LocalizedText};
-pub use property_key::PropertyKey;
 pub use prompt_version::PromptVersion;
+pub use property_key::PropertyKey;
 pub use types::{escape_cypher_identifier, is_valid_graph_identifier, sanitize_variable};
 pub use variable_name::VariableName;
 

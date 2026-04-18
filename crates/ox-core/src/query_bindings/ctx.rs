@@ -92,11 +92,11 @@ impl<'a> ResolverCtx<'a> {
         if let Some(node) = self.ontology.node_types.iter().find(|n| n.label == *label) {
             self.var_nodes
                 .entry(variable.to_string())
-                .or_insert_with(|| (node.id.to_string(), node.label.clone()));
+                .or_insert_with(|| (node.id.to_string(), node.label.to_string()));
             self.node_bindings.push(NodeBinding {
                 variable: variable.to_string(),
                 node_id: node.id.to_string(),
-                label: node.label.clone(),
+                label: node.label.to_string(),
                 binding_kind: self.binding_kind,
                 pattern_index: self.pattern_index,
                 scope_path: self.scope_path.clone(),

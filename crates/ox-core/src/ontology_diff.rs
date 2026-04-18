@@ -154,7 +154,7 @@ pub struct DiffSummary {
 pub fn breaking_labels(diff: &OntologyDiff) -> Vec<String> {
     let mut labels = Vec::new();
     for n in &diff.removed_nodes {
-        labels.push(n.label.clone());
+        labels.push(n.label.to_string());
     }
     for e in &diff.removed_edges {
         labels.push(e.label.clone());
@@ -261,7 +261,7 @@ pub fn compute_diff(old: &OntologyIR, new: &OntologyIR) -> OntologyDiff {
             if !changes.is_empty() {
                 modified_nodes.push(NodeDiff {
                     node_id: new_node.id.clone(),
-                    label: new_node.label.clone(),
+                    label: new_node.label.to_string(),
                     changes,
                 });
             }
@@ -350,8 +350,8 @@ fn diff_node(old: &NodeTypeDef, new: &NodeTypeDef) -> (Vec<NodeChange>, usize, u
 
     if old.label != new.label {
         changes.push(NodeChange::LabelChanged {
-            old: old.label.clone(),
-            new: new.label.clone(),
+            old: old.label.to_string(),
+            new: new.label.to_string(),
         });
     }
 
@@ -627,8 +627,13 @@ fn resolve_node_label(ontology: &OntologyIR, node_id: &NodeTypeId) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::graph_label::GraphLabel;
     use crate::i18n::LocalizedText;
     use crate::test_fixtures::{property, test_ontology};
+
+    fn gl(s: &'static str) -> GraphLabel {
+        GraphLabel::new(s).expect("test label literal must be valid")
+    }
 
     #[test]
     fn test_no_changes() {
@@ -651,7 +656,7 @@ mod tests {
         let mut new = old.clone();
         new.node_types.push(NodeTypeDef {
             id: "n3".into(),
-            label: "Product".to_string(),
+            label: gl("Product"),
             description: LocalizedText::new("A product"),
             properties: vec![property("p10", "product_name")],
             constraints: vec![],
@@ -691,7 +696,7 @@ mod tests {
     fn test_modified_node_label() {
         let old = test_ontology();
         let mut new = old.clone();
-        new.node_types[0].label = "Individual".to_string();
+        new.node_types[0].label = gl("Individual");
         new.rebuild_indices().expect("fixture rebuild");
 
         let diff = compute_diff(&old, &new);
@@ -835,7 +840,7 @@ mod tests {
         let mut new = old.clone();
 
         // 1. Rename Person -> Individual
-        new.node_types[0].label = "Individual".to_string();
+        new.node_types[0].label = gl("Individual");
         // 2. Add a property to Person
         new.node_types[0].properties.push(PropertyDef {
             id: "p_email".into(),
@@ -852,7 +857,7 @@ mod tests {
         // 4. Add Product (n3)
         new.node_types.push(NodeTypeDef {
             id: "n3".into(),
-            label: "Product".to_string(),
+            label: gl("Product"),
             description: LocalizedText::default(),
             properties: vec![property("p_prod", "product_name")],
             constraints: vec![],
@@ -891,7 +896,7 @@ mod tests {
         // Add a node with 2 properties
         new.node_types.push(NodeTypeDef {
             id: "n3".into(),
-            label: "Product".to_string(),
+            label: gl("Product"),
             description: LocalizedText::default(),
             properties: vec![property("p10", "product_name"), property("p11", "price")],
             constraints: vec![],
@@ -933,7 +938,7 @@ mod tests {
         // Add n3 and redirect edge target from n2 -> n3
         new.node_types.push(NodeTypeDef {
             id: "n3".into(),
-            label: "Department".to_string(),
+            label: gl("Department"),
             description: LocalizedText::default(),
             properties: vec![property("p10", "dept_name")],
             constraints: vec![],

@@ -1,4 +1,5 @@
 use super::*;
+use crate::graph_label::GraphLabel;
 use crate::i18n::LocalizedText;
 use crate::ontology_ir::{Cardinality, EdgeTypeDef, NodeTypeDef, OntologyIR, PropertyDef};
 use crate::source_mapping::SourceMapping;
@@ -6,6 +7,10 @@ use crate::source_schema::{
     ForeignKeyDef, SourceColumnDef, SourceProfile, SourceSchema, SourceTableDef, TableProfile,
 };
 use crate::types::PropertyType;
+
+fn gl(s: &str) -> GraphLabel {
+    GraphLabel::new(s.to_string()).expect("test label literal must be valid")
+}
 
 fn property(name: &str) -> PropertyDef {
     property_typed(name, PropertyType::String)
@@ -44,7 +49,7 @@ fn flags_unmapped_tables_and_missing_edges() {
         1,
         vec![NodeTypeDef {
             id: "node-user".into(),
-            label: "User".to_string(),
+            label: gl("User"),
             description: LocalizedText::new("users"),
             properties: vec![property("id")],
             constraints: vec![],
@@ -133,7 +138,7 @@ fn flags_missing_fk_edge_when_both_tables_mapped() {
         vec![
             NodeTypeDef {
                 id: "node-user".into(),
-                label: "User".to_string(),
+                label: gl("User"),
                 description: LocalizedText::new("desc"),
                 properties: vec![property("id")],
                 constraints: vec![],
@@ -141,7 +146,7 @@ fn flags_missing_fk_edge_when_both_tables_mapped() {
             },
             NodeTypeDef {
                 id: "node-order".into(),
-                label: "Order".to_string(),
+                label: gl("Order"),
                 description: LocalizedText::new("desc"),
                 properties: vec![property("id")],
                 constraints: vec![],
@@ -213,7 +218,7 @@ fn skips_excluded_tables_from_coverage_checks() {
         1,
         vec![NodeTypeDef {
             id: "node-user".into(),
-            label: "User".to_string(),
+            label: gl("User"),
             description: LocalizedText::new("users"),
             properties: vec![property("id")],
             constraints: vec![],
@@ -281,7 +286,7 @@ fn column_clarifications_suppress_data_observation_gaps() {
         1,
         vec![NodeTypeDef {
             id: "node-store".into(),
-            label: "Store".to_string(),
+            label: gl("Store"),
             description: LocalizedText::new("stores"),
             properties: vec![property("id"), property("type_code"), property("status")],
             constraints: vec![],
@@ -412,7 +417,7 @@ fn junction_table_not_flagged_as_unmapped() {
         vec![
             NodeTypeDef {
                 id: "node-order".into(),
-                label: "Order".to_string(),
+                label: gl("Order"),
                 description: LocalizedText::new("desc"),
                 properties: vec![property("id")],
                 constraints: vec![],
@@ -420,7 +425,7 @@ fn junction_table_not_flagged_as_unmapped() {
             },
             NodeTypeDef {
                 id: "node-product".into(),
-                label: "Product".to_string(),
+                label: gl("Product"),
                 description: LocalizedText::new("desc"),
                 properties: vec![property("id")],
                 constraints: vec![],
@@ -552,7 +557,7 @@ fn flags_orphan_node_with_no_edges() {
         vec![
             NodeTypeDef {
                 id: "node-user".into(),
-                label: "User".to_string(),
+                label: gl("User"),
                 description: LocalizedText::new("desc"),
                 properties: vec![property("id")],
                 constraints: vec![],
@@ -560,7 +565,7 @@ fn flags_orphan_node_with_no_edges() {
             },
             NodeTypeDef {
                 id: "node-product".into(),
-                label: "Product".to_string(),
+                label: gl("Product"),
                 description: LocalizedText::new("desc"),
                 properties: vec![property("id")],
                 constraints: vec![],
@@ -601,7 +606,7 @@ fn no_orphan_when_all_nodes_connected() {
         vec![
             NodeTypeDef {
                 id: "node-user".into(),
-                label: "User".to_string(),
+                label: gl("User"),
                 description: LocalizedText::new("desc"),
                 properties: vec![property("id")],
                 constraints: vec![],
@@ -609,7 +614,7 @@ fn no_orphan_when_all_nodes_connected() {
             },
             NodeTypeDef {
                 id: "node-order".into(),
-                label: "Order".to_string(),
+                label: gl("Order"),
                 description: LocalizedText::new("desc"),
                 properties: vec![property("id")],
                 constraints: vec![],
@@ -648,7 +653,7 @@ fn no_orphan_when_single_node() {
         1,
         vec![NodeTypeDef {
             id: "node-user".into(),
-            label: "User".to_string(),
+            label: gl("User"),
             description: LocalizedText::new("desc"),
             properties: vec![property("id")],
             constraints: vec![],
@@ -682,7 +687,7 @@ fn flags_property_type_inconsistency() {
         vec![
             NodeTypeDef {
                 id: "node-customer".into(),
-                label: "Customer".to_string(),
+                label: gl("Customer"),
                 description: LocalizedText::new("desc"),
                 properties: vec![
                     property("id"),
@@ -693,7 +698,7 @@ fn flags_property_type_inconsistency() {
             },
             NodeTypeDef {
                 id: "node-supplier".into(),
-                label: "Supplier".to_string(),
+                label: gl("Supplier"),
                 description: LocalizedText::new("desc"),
                 properties: vec![
                     property("id"),
@@ -736,7 +741,7 @@ fn no_property_type_inconsistency_when_same_type() {
         vec![
             NodeTypeDef {
                 id: "node-customer".into(),
-                label: "Customer".to_string(),
+                label: gl("Customer"),
                 description: LocalizedText::new("desc"),
                 properties: vec![
                     property("id"),
@@ -747,7 +752,7 @@ fn no_property_type_inconsistency_when_same_type() {
             },
             NodeTypeDef {
                 id: "node-supplier".into(),
-                label: "Supplier".to_string(),
+                label: gl("Supplier"),
                 description: LocalizedText::new("desc"),
                 properties: vec![
                     property("id"),
@@ -789,7 +794,7 @@ fn flags_hub_node_with_many_edges() {
     // Create a node connected to 9 edges (> threshold of 8)
     let mut nodes = vec![NodeTypeDef {
         id: "node-center".into(),
-        label: "Center".to_string(),
+        label: gl("Center"),
         description: LocalizedText::new("desc"),
         properties: vec![property("id")],
         constraints: vec![],
@@ -801,7 +806,7 @@ fn flags_hub_node_with_many_edges() {
         let node_id = format!("node-sat-{i}");
         nodes.push(NodeTypeDef {
             id: node_id.clone().into(),
-            label: format!("Satellite{i}"),
+            label: gl(&format!("Satellite{i}")),
             description: LocalizedText::new("desc"),
             properties: vec![property("id")],
             constraints: vec![],
@@ -849,7 +854,7 @@ fn no_hub_node_under_threshold() {
         vec![
             NodeTypeDef {
                 id: "node-a".into(),
-                label: "NodeA".to_string(),
+                label: gl("NodeA"),
                 description: LocalizedText::new("desc"),
                 properties: vec![property("id")],
                 constraints: vec![],
@@ -857,7 +862,7 @@ fn no_hub_node_under_threshold() {
             },
             NodeTypeDef {
                 id: "node-b".into(),
-                label: "NodeB".to_string(),
+                label: gl("NodeB"),
                 description: LocalizedText::new("desc"),
                 properties: vec![property("id")],
                 constraints: vec![],
@@ -897,7 +902,7 @@ fn flags_overloaded_property_on_many_nodes() {
     let nodes: Vec<_> = (0..4)
         .map(|i| NodeTypeDef {
             id: format!("node-{i}").into(),
-            label: format!("Type{i}"),
+            label: gl(&format!("Type{i}")),
             description: LocalizedText::new("desc"),
             properties: vec![property("id"), property("status")],
             constraints: vec![],
@@ -945,7 +950,7 @@ fn no_overloaded_property_under_threshold() {
     let nodes: Vec<_> = (0..3)
         .map(|i| NodeTypeDef {
             id: format!("node-{i}").into(),
-            label: format!("Type{i}"),
+            label: gl(&format!("Type{i}")),
             description: LocalizedText::new("desc"),
             properties: vec![property("id"), property("name")],
             constraints: vec![],
@@ -999,7 +1004,7 @@ fn flags_self_referential_edge() {
         1,
         vec![NodeTypeDef {
             id: "node-employee".into(),
-            label: "Employee".to_string(),
+            label: gl("Employee"),
             description: LocalizedText::new("desc"),
             properties: vec![property("id")],
             constraints: vec![],
@@ -1038,7 +1043,7 @@ fn no_self_referential_for_normal_edges() {
         vec![
             NodeTypeDef {
                 id: "node-a".into(),
-                label: "NodeA".to_string(),
+                label: gl("NodeA"),
                 description: LocalizedText::new("desc"),
                 properties: vec![property("id")],
                 constraints: vec![],
@@ -1046,7 +1051,7 @@ fn no_self_referential_for_normal_edges() {
             },
             NodeTypeDef {
                 id: "node-b".into(),
-                label: "NodeB".to_string(),
+                label: gl("NodeB"),
                 description: LocalizedText::new("desc"),
                 properties: vec![property("id")],
                 constraints: vec![],
@@ -1090,7 +1095,7 @@ fn well_designed_ontology_has_no_structural_gaps() {
         vec![
             NodeTypeDef {
                 id: "node-customer".into(),
-                label: "Customer".to_string(),
+                label: gl("Customer"),
                 description: LocalizedText::new("A customer who places orders"),
                 properties: vec![property("id"), property("name"), property("email")],
                 constraints: vec![],
@@ -1098,7 +1103,7 @@ fn well_designed_ontology_has_no_structural_gaps() {
             },
             NodeTypeDef {
                 id: "node-order".into(),
-                label: "Order".to_string(),
+                label: gl("Order"),
                 description: LocalizedText::new("An order placed by a customer"),
                 properties: vec![
                     property("id"),
@@ -1110,7 +1115,7 @@ fn well_designed_ontology_has_no_structural_gaps() {
             },
             NodeTypeDef {
                 id: "node-product".into(),
-                label: "Product".to_string(),
+                label: gl("Product"),
                 description: LocalizedText::new("A product available for purchase"),
                 properties: vec![
                     property("id"),

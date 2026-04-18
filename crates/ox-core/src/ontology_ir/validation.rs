@@ -5,6 +5,13 @@ use super::{
     IndexDef, NodeConstraint, NodeTypeDef, NodeTypeId, OntologyIR, PropertyDef, PropertyId,
 };
 
+/// Sentinel label produced by `NodeTypeDef::default()` — a placeholder
+/// that satisfies [`GraphLabel`] invariants but is not a real user
+/// label. Reject it at validate() so a caller that forgot to override
+/// `label: ...` in struct-update syntax gets a clear error instead of
+/// a silent default.
+const NODE_TYPE_LABEL_PLACEHOLDER: &str = "__default_placeholder__";
+
 // ---------------------------------------------------------------------------
 // Validation helpers
 // ---------------------------------------------------------------------------
@@ -189,22 +196,18 @@ impl OntologyIR {
                 errors.push(format!("Duplicate node type id: '{}'", node.id));
             }
 
-            let label = node.label.trim();
-            if label.is_empty() {
-                errors.push("Node type label must not be empty".to_string());
-                continue;
-            }
-
-            // Delegate to `GraphLabel::is_valid` so the validation rule
-            // lives on the newtype that will eventually own the field
-            // (see TODO on `NodeTypeDef.label`). The rule is unchanged;
-            // the indirection means a future tightening of
-            // `GraphLabel` automatically propagates here without a
-            // second edit site.
-            if !GraphLabel::is_valid(label) {
+            // `GraphLabel` already rejects empty / invalid identifiers
+            // at construction time, so validation here reduces to: the
+            // placeholder sentinel (caller forgot to override the
+            // Default::default() label), and duplicate-label detection.
+            let label = node.label.as_str();
+            if label == NODE_TYPE_LABEL_PLACEHOLDER {
                 errors.push(format!(
-                    "Invalid node label '{label}': must contain only alphanumeric characters, underscores, or spaces"
+                    "Node type '{}' has the `Default::default()` placeholder label — \
+                     struct-update callers must override `label` explicitly",
+                    node.id
                 ));
+                continue;
             }
 
             if !seen_node_labels.insert(label.to_string()) {
@@ -378,6 +381,7 @@ impl OntologyIR {
 
 #[cfg(test)]
 mod tests {
+    use crate::graph_label::GraphLabel;
     use crate::i18n::LocalizedText;
     use crate::ontology_ir::*;
     use crate::types::PropertyType;
@@ -403,7 +407,7 @@ mod tests {
             1,
             vec![NodeTypeDef {
                 id: "node-user".into(),
-                label: "User".to_string(),
+                label: GraphLabel::new("User").expect("User is a valid label"),
                 description: LocalizedText::default(),
                 properties: vec![
                     property("prop-id", "id", false),

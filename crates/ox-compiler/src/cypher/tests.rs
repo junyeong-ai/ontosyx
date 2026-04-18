@@ -1,12 +1,17 @@
 use super::CypherCompiler;
 use crate::GraphCompiler;
 
+use ox_core::GraphLabel;
 use ox_core::LocalizedText;
 use ox_core::load_plan::PropertyMapping;
 use ox_core::load_plan::{ConflictStrategy, LoadMode, LoadOp, LoadPlan, LoadStep};
 use ox_core::ontology_ir::*;
 use ox_core::query_ir::*;
 use ox_core::types::*;
+
+fn gl(s: &'static str) -> GraphLabel {
+    GraphLabel::new(s).expect("test label literal must be valid")
+}
 
 #[test]
 fn test_compile_simple_match() {
@@ -116,7 +121,7 @@ fn test_compile_schema_constraints() {
         1,
         vec![NodeTypeDef {
             id: "node-product".into(),
-            label: "Product".to_string(),
+            label: gl("Product"),
             description: LocalizedText::default(),
             properties: vec![
                 PropertyDef {
@@ -1465,7 +1470,7 @@ fn memgraph_dialect_emits_4x_unique_constraint() {
         1,
         vec![NodeTypeDef {
             id: "node-user".into(),
-            label: "User".into(),
+            label: gl("User"),
             description: LocalizedText::default(),
             properties: vec![PropertyDef {
                 id: "prop-email".into(),
@@ -1514,7 +1519,7 @@ fn memgraph_dialect_emits_4x_exists_constraint() {
         1,
         vec![NodeTypeDef {
             id: "node-user".into(),
-            label: "User".into(),
+            label: gl("User"),
             description: LocalizedText::default(),
             properties: vec![PropertyDef {
                 id: "prop-name".into(),
@@ -1555,7 +1560,7 @@ fn memgraph_dialect_skips_node_key_constraint() {
         1,
         vec![NodeTypeDef {
             id: "node-user".into(),
-            label: "User".into(),
+            label: gl("User"),
             description: LocalizedText::default(),
             properties: vec![
                 PropertyDef {
@@ -1610,7 +1615,7 @@ fn memgraph_dialect_uses_short_index_syntax() {
         1,
         vec![NodeTypeDef {
             id: "node-user".into(),
-            label: "User".into(),
+            label: gl("User"),
             description: LocalizedText::default(),
             properties: vec![PropertyDef {
                 id: "prop-name".into(),

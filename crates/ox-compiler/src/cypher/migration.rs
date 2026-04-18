@@ -488,12 +488,17 @@ pub fn compile_data_migration(diff: &OntologyDiff) -> Vec<DataMigrationStep> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ox_core::GraphLabel;
     use ox_core::LocalizedText;
     use ox_core::ontology_diff::compute_diff;
     use ox_core::ontology_ir::{
         Cardinality, ConstraintDef, EdgeTypeDef, IndexDef, NodeConstraint, NodeTypeDef, PropertyDef,
     };
     use ox_core::types::PropertyType;
+
+    fn gl(s: &'static str) -> GraphLabel {
+        GraphLabel::new(s).expect("test label literal must be valid")
+    }
 
     fn property(id: &str, name: &str) -> PropertyDef {
         PropertyDef {
@@ -517,7 +522,7 @@ mod tests {
             vec![
                 NodeTypeDef {
                     id: "n1".into(),
-                    label: "Person".to_string(),
+                    label: gl("Person"),
                     description: LocalizedText::new("A person"),
                     properties: vec![property("p1", "name"), property("p2", "age")],
                     constraints: vec![ConstraintDef {
@@ -530,7 +535,7 @@ mod tests {
                 },
                 NodeTypeDef {
                     id: "n2".into(),
-                    label: "Company".to_string(),
+                    label: gl("Company"),
                     description: LocalizedText::default(),
                     properties: vec![property("p3", "company_name")],
                     constraints: vec![],
@@ -574,7 +579,7 @@ mod tests {
         let mut new = old.clone();
         new.add_node_type(NodeTypeDef {
             id: "n3".into(),
-            label: "Product".to_string(),
+            label: gl("Product"),
             description: LocalizedText::default(),
             properties: vec![property("p10", "sku"), property("p11", "price")],
             constraints: vec![ConstraintDef {
@@ -625,7 +630,7 @@ mod tests {
     fn label_rename_produces_warning() {
         let old = test_ontology();
         let mut new = old.clone();
-        new.node_types_mut()[0].label = "Individual".to_string();
+        new.node_types_mut()[0].label = gl("Individual");
         new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);
@@ -780,7 +785,7 @@ mod tests {
         let mut new = old.clone();
         new.add_node_type(NodeTypeDef {
             id: "n4".into(),
-            label: "Order".to_string(),
+            label: gl("Order"),
             description: LocalizedText::default(),
             properties: vec![property("p20", "order_id")],
             constraints: vec![],
@@ -859,7 +864,7 @@ mod tests {
     fn data_migration_label_rename() {
         let old = test_ontology();
         let mut new = old.clone();
-        new.node_types_mut()[0].label = "Individual".to_string();
+        new.node_types_mut()[0].label = gl("Individual");
         new.rebuild_indices().expect("test fixture rebuild");
 
         let diff = compute_diff(&old, &new);

@@ -98,7 +98,7 @@ pub fn to_exchange_format(
 
             InputNodeTypeDef {
                 id: Some(n.id.to_string()),
-                label: n.label.clone(),
+                label: n.label.to_string(),
                 description: n.description.clone(),
                 source_table: source_mapping.table_for_node(&n.id).map(|s| s.to_string()),
                 properties,

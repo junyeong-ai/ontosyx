@@ -207,7 +207,7 @@ fn detect_drift(schema: &SourceSchema, ontology: &ox_core::ontology_ir::Ontology
         .iter()
         .map(|n| {
             (
-                n.label.clone(),
+                n.label.to_string(),
                 n.source_lineage.as_ref().map(|l| l.table.clone()),
             )
         })
@@ -267,7 +267,7 @@ fn detect_drift(schema: &SourceSchema, ontology: &ox_core::ontology_ir::Ontology
             for prop in &node.properties {
                 if !source_col_names.contains(prop.name.as_str()) {
                     orphaned_properties.push(OrphanedProperty {
-                        node_label: node.label.clone(),
+                        node_label: node.label.to_string(),
                         property_name: prop.name.clone(),
                     });
                 }

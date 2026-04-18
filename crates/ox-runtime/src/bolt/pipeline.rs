@@ -272,12 +272,17 @@ fn ensure_no_errors(report: &ValidationReport) -> OxResult<()> {
 mod tests {
     use super::*;
 
+    use ox_core::GraphLabel;
     use ox_core::i18n::LocalizedText;
     use ox_core::ontology_ir::{Cardinality, EdgeTypeDef, NodeTypeDef, PropertyDef};
     use ox_core::types::PropertyType;
     use uuid::Uuid;
 
     use crate::isolation::{DatabaseStrategy, PropertyStrategy};
+
+    fn gl(s: &'static str) -> GraphLabel {
+        GraphLabel::new(s).expect("test label literal must be valid")
+    }
 
     fn ws_scope<F, R>(body: F) -> R
     where
@@ -302,7 +307,7 @@ mod tests {
             vec![
                 NodeTypeDef {
                     id: "n1".into(),
-                    label: "Person".into(),
+                    label: gl("Person"),
                     description: LocalizedText::default(),
                     properties: vec![PropertyDef {
                         id: "p1".into(),
@@ -319,7 +324,7 @@ mod tests {
                 },
                 NodeTypeDef {
                     id: "n2".into(),
-                    label: "Company".into(),
+                    label: gl("Company"),
                     description: LocalizedText::default(),
                     properties: vec![],
                     constraints: vec![],

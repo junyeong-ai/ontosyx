@@ -282,12 +282,17 @@ fn uri_encode(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ox_core::GraphLabel;
     use ox_core::LocalizedText;
     use ox_core::ontology_ir::{
         Cardinality, ConstraintDef, EdgeTypeDef, NodeConstraint, NodeTypeDef, OntologyIR,
         PropertyDef,
     };
     use ox_core::types::PropertyType;
+
+    fn gl(s: &'static str) -> GraphLabel {
+        GraphLabel::new(s).expect("test label literal must be valid")
+    }
 
     fn sample_ontology() -> OntologyIR {
         OntologyIR::new(
@@ -298,7 +303,7 @@ mod tests {
             vec![
                 NodeTypeDef {
                     id: "n1".into(),
-                    label: "Brand".into(),
+                    label: gl("Brand"),
                     description: LocalizedText::new("Cosmetic brand entity"),
                     properties: vec![
                         PropertyDef {
@@ -332,7 +337,7 @@ mod tests {
                 },
                 NodeTypeDef {
                     id: "n2".into(),
-                    label: "Product".into(),
+                    label: gl("Product"),
                     description: LocalizedText::new("A cosmetic product"),
                     properties: vec![PropertyDef {
                         id: "p3".into(),
@@ -416,7 +421,7 @@ mod tests {
             1,
             vec![NodeTypeDef {
                 id: "n1".into(),
-                label: "Entity".into(),
+                label: gl("Entity"),
                 description: LocalizedText::default(),
                 properties: vec![PropertyDef {
                     id: "p1".into(),
@@ -536,7 +541,7 @@ mod tests {
             vec![
                 NodeTypeDef {
                     id: "n1".into(),
-                    label: "A".into(),
+                    label: gl("A"),
                     description: LocalizedText::default(),
                     properties: vec![],
                     constraints: vec![],
@@ -544,7 +549,7 @@ mod tests {
                 },
                 NodeTypeDef {
                     id: "n2".into(),
-                    label: "B".into(),
+                    label: gl("B"),
                     description: LocalizedText::default(),
                     properties: vec![],
                     constraints: vec![],
@@ -589,7 +594,7 @@ mod tests {
             1,
             vec![NodeTypeDef {
                 id: "n1".into(),
-                label: "Bag".into(),
+                label: gl("Bag"),
                 description: LocalizedText::default(),
                 properties: vec![PropertyDef {
                     id: "p1".into(),
@@ -717,7 +722,7 @@ mod tests {
             vec![
                 NodeTypeDef {
                     id: "n1".into(),
-                    label: "Parent".into(),
+                    label: gl("Parent"),
                     description: LocalizedText::default(),
                     properties: vec![],
                     constraints: vec![],
@@ -725,7 +730,7 @@ mod tests {
                 },
                 NodeTypeDef {
                     id: "n2".into(),
-                    label: "Child".into(),
+                    label: gl("Child"),
                     description: LocalizedText::default(),
                     properties: vec![],
                     constraints: vec![],

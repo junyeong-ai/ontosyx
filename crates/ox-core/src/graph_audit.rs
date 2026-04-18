@@ -11,7 +11,9 @@ use std::collections::BTreeSet;
 use schemars::JsonSchema;
 use serde::Serialize;
 
+use crate::error::OxResult;
 use crate::graph_exploration::GraphSchemaOverview;
+use crate::graph_label::GraphLabel;
 use crate::i18n::LocalizedText;
 use crate::ontology_ir::OntologyIR;
 
@@ -154,7 +156,12 @@ fn map_neo4j_type(neo4j_type: &str) -> crate::types::PropertyType {
 /// Creates node types from graph labels and edge types from relationship patterns.
 /// Includes property information from graph schema introspection.
 /// The resulting ontology matches the actual graph labels, enabling correct AI queries.
-pub fn ontology_from_graph(overview: &GraphSchemaOverview, name: &str) -> OntologyIR {
+///
+/// Returns [`OxError::Validation`] if any graph label or relationship type
+/// violates [`GraphLabel`]'s invariants. In practice Neo4j enforces a
+/// compatible rule, so the error path exists to make an otherwise-silent
+/// type coercion observable.
+pub fn ontology_from_graph(overview: &GraphSchemaOverview, name: &str) -> OxResult<OntologyIR> {
     use crate::ontology_ir::{Cardinality, EdgeTypeDef, NodeTypeDef, PropertyDef};
 
     // Build property lookup: entity_type → Vec<PropertyDef>
@@ -186,18 +193,20 @@ pub fn ontology_from_graph(overview: &GraphSchemaOverview, name: &str) -> Ontolo
         .labels
         .iter()
         .enumerate()
-        .map(|(i, label_stat)| NodeTypeDef {
-            id: format!("n{i}").into(),
-            label: label_stat.label.clone(),
-            description: LocalizedText::new(format!(
-                "{} ({} nodes)",
-                label_stat.label, label_stat.count
-            )),
-            properties: build_props(&overview.node_properties, &label_stat.label),
-            constraints: vec![],
-            ..Default::default()
+        .map(|(i, label_stat)| {
+            Ok::<_, crate::error::OxError>(NodeTypeDef {
+                id: format!("n{i}").into(),
+                label: GraphLabel::new(label_stat.label.clone())?,
+                description: LocalizedText::new(format!(
+                    "{} ({} nodes)",
+                    label_stat.label, label_stat.count
+                )),
+                properties: build_props(&overview.node_properties, &label_stat.label),
+                constraints: vec![],
+                ..Default::default()
+            })
         })
-        .collect();
+        .collect::<OxResult<_>>()?;
 
     // Build node label→id map
     let label_to_id: std::collections::HashMap<&str, &str> = node_types
@@ -232,7 +241,7 @@ pub fn ontology_from_graph(overview: &GraphSchemaOverview, name: &str) -> Ontolo
         })
         .collect();
 
-    OntologyIR::new(
+    Ok(OntologyIR::new(
         uuid::Uuid::new_v4().to_string(),
         name.to_string(),
         LocalizedText::new(format!(
@@ -243,13 +252,14 @@ pub fn ontology_from_graph(overview: &GraphSchemaOverview, name: &str) -> Ontolo
         node_types,
         edge_types,
         vec![],
-    )
+    ))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::graph_exploration::{GraphSchemaOverview, LabelStat, RelationshipPattern};
+    use crate::graph_label::GraphLabel;
     use crate::i18n::LocalizedText;
     use crate::ontology_ir::OntologyIR;
     use crate::ontology_ir::{Cardinality, EdgeTypeDef, NodeTypeDef};
@@ -260,7 +270,7 @@ mod tests {
             .enumerate()
             .map(|(i, label)| NodeTypeDef {
                 id: format!("n{i}").into(),
-                label: label.to_string(),
+                label: GraphLabel::new(*label).expect("test label must be valid"),
                 description: LocalizedText::default(),
                 properties: vec![],
                 constraints: vec![],

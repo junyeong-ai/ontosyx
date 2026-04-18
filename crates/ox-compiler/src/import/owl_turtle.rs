@@ -731,12 +731,17 @@ fn xsd_to_property_type(xsd_iri: &str) -> PropertyType {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ox_core::GraphLabel;
     use ox_core::LocalizedText;
     use ox_core::ontology_ir::{
         Cardinality, ConstraintDef, EdgeTypeDef, NodeConstraint, NodeTypeDef, OntologyIR,
         PropertyDef,
     };
     use ox_core::types::PropertyType;
+
+    fn gl(s: &'static str) -> GraphLabel {
+        GraphLabel::new(s).expect("test label literal must be valid")
+    }
 
     /// Helper: generate OWL Turtle from an OntologyIR using the export module,
     /// then parse it back.
@@ -754,7 +759,7 @@ mod tests {
             vec![
                 NodeTypeDef {
                     id: "n1".into(),
-                    label: "Brand".into(),
+                    label: gl("Brand"),
                     description: LocalizedText::new("Cosmetic brand entity"),
                     properties: vec![
                         PropertyDef {
@@ -788,7 +793,7 @@ mod tests {
                 },
                 NodeTypeDef {
                     id: "n2".into(),
-                    label: "Product".into(),
+                    label: gl("Product"),
                     description: LocalizedText::new("A cosmetic product"),
                     properties: vec![PropertyDef {
                         id: "p3".into(),
@@ -1277,7 +1282,7 @@ mod tests {
             vec![
                 NodeTypeDef {
                     id: "n1".into(),
-                    label: "Person".into(),
+                    label: gl("Person"),
                     description: LocalizedText::default(),
                     properties: vec![],
                     constraints: vec![],
@@ -1285,7 +1290,7 @@ mod tests {
                 },
                 NodeTypeDef {
                     id: "n2".into(),
-                    label: "Company".into(),
+                    label: gl("Company"),
                     description: LocalizedText::default(),
                     properties: vec![],
                     constraints: vec![],

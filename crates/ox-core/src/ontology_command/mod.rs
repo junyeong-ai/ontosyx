@@ -12,6 +12,7 @@ pub use reconcile::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::graph_label::GraphLabel;
 use crate::i18n::LocalizedText;
 use crate::ontology_ir::*;
 use crate::types::{PropertyType, PropertyValue, deserialize_patch_property_value};
@@ -25,7 +26,7 @@ use crate::types::{PropertyType, PropertyValue, deserialize_patch_property_value
 pub enum OntologyCommand {
     AddNode {
         id: NodeTypeId,
-        label: String,
+        label: GraphLabel,
         #[serde(default)]
         description: LocalizedText,
     },
@@ -34,7 +35,7 @@ pub enum OntologyCommand {
     },
     RenameNode {
         node_id: NodeTypeId,
-        new_label: String,
+        new_label: GraphLabel,
     },
     UpdateNodeDescription {
         node_id: NodeTypeId,

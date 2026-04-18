@@ -1,6 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::graph_label::GraphLabel;
 use crate::i18n::LocalizedText;
 use crate::types::{PropertyType, PropertyValue, deserialize_optional_property_value};
 
@@ -139,22 +140,16 @@ impl std::fmt::Display for OntologyVersion {
 // NodeTypeDef
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct NodeTypeDef {
     /// Stable UUID for this node type.
     pub id: NodeTypeId,
     /// Canonical, language-neutral label used as the Neo4j node label and in
-    /// query identifiers. Must satisfy [`crate::types::is_valid_graph_identifier`].
-    ///
-    /// TODO(phase-3-1b): migrate to [`crate::graph_label::GraphLabel`] —
-    /// that newtype already encodes the validation invariant; the
-    /// migration is deferred because roughly 350 struct-literal call
-    /// sites across the workspace need to switch from `.to_string()` /
-    /// `"foo".to_string()` to a fallible constructor path. The
-    /// `GraphLabel` type exists and is serde-transparent, so the
-    /// migration is additive (no wire-format change) — it just takes
-    /// its own sweep.
-    pub label: String,
+    /// query identifiers. The [`GraphLabel`] newtype enforces the
+    /// `is_valid_graph_identifier` invariant at the type level — a
+    /// `NodeTypeDef` cannot exist with a label that would fail Cypher
+    /// emission.
+    pub label: GraphLabel,
     /// Localized display name shown in the UI. Defaults to empty; consumers
     /// typically fall back to `label` when the display name is empty.
     #[serde(default)]
@@ -275,6 +270,35 @@ impl NodeTypeDef {
         self.constraints
             .iter()
             .any(|c| matches!(c.constraint, NodeConstraint::Unique { .. }))
+    }
+}
+
+impl Default for NodeTypeDef {
+    // `GraphLabel` has no `Default` — it refuses to pretend that an
+    // empty or placeholder label is a valid one. But `NodeTypeDef` is
+    // consumed primarily through struct-update syntax
+    // (`NodeTypeDef { id, label, ..Default::default() }`), so the
+    // `label` field slot must be populated with *something* even though
+    // every real caller overwrites it. We construct a placeholder that
+    // satisfies `GraphLabel`'s invariants but is deliberately
+    // un-ontological; a missed override would surface loudly at the
+    // ontology level (`validate()` rejects the sentinel).
+    fn default() -> Self {
+        Self {
+            id: NodeTypeId::default(),
+            #[allow(clippy::expect_used)]
+            label: GraphLabel::new("__default_placeholder__")
+                .expect("placeholder satisfies GraphLabel invariants"),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            properties: Vec::new(),
+            constraints: Vec::new(),
+            parent: None,
+            governance: None,
+            source_lineage: None,
+            deprecated_at: None,
+            replaced_by_id: None,
+        }
     }
 }
 
