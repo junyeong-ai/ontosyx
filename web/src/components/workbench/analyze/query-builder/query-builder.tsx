@@ -26,6 +26,25 @@ import type { SavedPattern } from "@/lib/api/queries";
 import { toast } from "sonner";
 
 // ---------------------------------------------------------------------------
+// Read-only banner labels
+// ---------------------------------------------------------------------------
+// Maps the backend's `ReadOnlyReason.original_op` (Rust `QueryOp`
+// variant name, stable and canonical) to a human label for the
+// locked-canvas banner. The wire value stays untouched — this is a
+// UI-only lookup, and a future variant will appear as its own key
+// here without requiring a backend change.
+const READ_ONLY_REASON_LABELS: Record<string, string> = {
+  Match: "Match query",
+  PathFind: "Path-find query",
+  Aggregate: "Aggregate query",
+  Union: "UNION query",
+  Chain: "Chained query",
+  CallSubquery: "Subquery (CALL)",
+  Mutate: "Mutation (CREATE / MERGE / DELETE)",
+  Analytics: "Analytics query",
+};
+
+// ---------------------------------------------------------------------------
 // QueryBuilder — Main container for visual query building
 // ---------------------------------------------------------------------------
 
@@ -64,6 +83,18 @@ export function QueryBuilder() {
   // fresh New / Clear — Save then prompts for a name rather than
   // updating in place.
   const [currentPatternId, setCurrentPatternId] = useState<string | null>(null);
+
+  // `readOnlyReason.original_op` from the backend's `decompile` when
+  // the saved pattern came from a non-`Match` QueryIR (Aggregate /
+  // Union / Chain / PathFind / Mutate / Analytics / CallSubquery).
+  // Non-null pins the canvas into a read-only state — all edit
+  // affordances (palette drops, filter edits, Clear, Save As, Run)
+  // remain disabled, and a banner names the operation kind so the
+  // user can open the source query text elsewhere instead.
+  //
+  // Clear / New resets it; loading a Match pattern also resets it
+  // (the wire field is absent in that case).
+  const [readOnlyReason, setReadOnlyReason] = useState<string | null>(null);
 
   // Baseline serialised canvas state captured at the last Save / Load.
   // Used as the comparand for the "unsaved changes" dot — we memoise
@@ -410,6 +441,7 @@ export function QueryBuilder() {
     setNodeCounter(0);
     setEdgeCounter(0);
     setCurrentPatternId(null);
+    setReadOnlyReason(null);
     savedBaselineRef.current = null;
   }, []);
 
@@ -445,7 +477,9 @@ export function QueryBuilder() {
   );
 
   const applyLoadedPattern = useCallback((pattern: SavedPattern) => {
-    const { visual, layoutHints } = fromPatternIR(pattern.pattern_ir as never);
+    const { visual, layoutHints, readOnlyReason: reason } = fromPatternIR(
+      pattern.pattern_ir as never,
+    );
     setNodes(visual.nodes);
     setEdges(visual.edges);
     setReturnFields(visual.returnFields);
@@ -455,6 +489,10 @@ export function QueryBuilder() {
     setResult(null);
     setCompiledCypher(null);
     setError(null);
+    // Wire field comes through verbatim. `undefined` → fully editable
+    // canvas; a string locks the canvas into read-only mode with that
+    // QueryOp variant surfaced in the banner.
+    setReadOnlyReason(reason?.original_op ?? null);
     // Alias generator starts above the max existing alias so new nodes
     // don't collide with loaded ones.
     const aliasNum = (alias: string) => {
@@ -532,8 +570,21 @@ export function QueryBuilder() {
     );
   }
 
-  // Run Query is enabled when: has nodes AND (has return fields OR auto-return all)
-  const canRun = nodes.length > 0;
+  // Run Query is enabled when: has nodes AND (has return fields OR
+  // auto-return all) AND the pattern is editable (a non-Match
+  // decompile is shown as read-only — its PatternIR collapsed to an
+  // empty-nodes marker on the backend, so `nodes.length === 0` anyway,
+  // but we gate explicitly so a hypothetical future UX that loads the
+  // raw source text alongside can't accidentally execute the marker).
+  const canRun = nodes.length > 0 && readOnlyReason === null;
+
+  // Human-readable label for the locked-query banner. Keep the
+  // mapping here rather than in the wire type so the UI can be
+  // localised in one place; the wire stays canonical (Rust variant
+  // names).
+  const readOnlyLabel = readOnlyReason
+    ? READ_ONLY_REASON_LABELS[readOnlyReason] ?? readOnlyReason
+    : null;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -575,6 +626,23 @@ export function QueryBuilder() {
           </button>
         </div>
       </div>
+
+      {/* Read-only banner — surfaces when a non-Match QueryIR was
+          decompiled into this PatternIR. The backend collapses such
+          patterns into an empty-nodes marker plus a `readOnlyReason`,
+          which we pass through verbatim. */}
+      {readOnlyLabel && (
+        <div
+          role="alert"
+          className="flex shrink-0 items-center gap-2 border-b border-amber-300 bg-amber-50 px-3 py-1.5 text-[11px] text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+        >
+          <span className="font-semibold">Read-only:</span>
+          <span>
+            {readOnlyLabel} can’t be edited on the canvas. Clear to
+            start a new query, or use the chat to modify it.
+          </span>
+        </div>
+      )}
 
       {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
