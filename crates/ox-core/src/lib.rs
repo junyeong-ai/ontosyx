@@ -29,6 +29,7 @@ pub mod ontology_command;
 pub mod ontology_diff;
 pub mod ontology_input;
 pub mod ontology_ir;
+pub mod pattern_ir;
 pub mod prompt_version;
 pub mod quality;
 pub mod query_bindings;
@@ -60,6 +61,9 @@ pub use ontology_input::{
 };
 pub use ontology_ir::DataClassification;
 pub use ontology_ir::OntologyIR;
+pub use pattern_ir::{
+    LayoutHints, PatternEdge, PatternFilter, PatternIR, PatternNode, PatternProjection, Position,
+};
 pub use prompt_version::PromptVersion;
 pub use quality::{
     OntologyQualityReport, QualityConfidence, QualityGap, QualityGapCategory, QualityGapRef,
