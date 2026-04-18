@@ -77,7 +77,7 @@ export default function PromptsPage() {
 
   if (!isAdmin) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-zinc-500">
+      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
         Admin access required to manage prompts.
       </div>
     );
@@ -99,7 +99,7 @@ export default function PromptsPage() {
           <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
             Prompt Templates
           </h1>
-          <p className="mt-1 text-sm text-zinc-500">
+          <p className="mt-1 text-sm text-muted-foreground">
             Manage versioned prompt templates. Changes take effect on next agent session.
           </p>
         </div>
@@ -107,6 +107,8 @@ export default function PromptsPage() {
         {/* Search + Filter */}
         <div className="mt-4 flex items-center gap-3">
           <SettingsInput
+            label="Search prompts"
+            hideLabel
             type="search"
             placeholder="Search prompts..."
             value={searchInput.value}
@@ -116,6 +118,8 @@ export default function PromptsPage() {
             className="max-w-xs"
           />
           <SettingsSelect
+            label="Status Filter"
+            hideLabel
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as "" | "active" | "inactive")}
           >
@@ -132,7 +136,7 @@ export default function PromptsPage() {
         <div className="mt-5">
           {filtered.length === 0 ? (
             <div className="rounded-xl border border-dashed border-zinc-300 px-6 py-16 text-center dark:border-zinc-700">
-              <p className="text-sm text-zinc-500">No prompt templates found.</p>
+              <p className="text-sm text-muted-foreground">No prompt templates found.</p>
               {search && (
                 <p className="mt-1 text-xs text-zinc-400">
                   Try adjusting your search or filter.
@@ -220,7 +224,7 @@ function PromptCard({
         <span className="shrink-0 text-xs tabular-nums text-zinc-400">
           v{activeVersion.version}
         </span>
-        <span className="flex shrink-0 items-center gap-1.5 text-xs text-zinc-500">
+        <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
           <span
             className={cn(
               "h-2 w-2 rounded-full",
@@ -344,6 +348,8 @@ function PromptCardDetail({
       {/* Version selector + metadata + actions */}
       <div className="flex flex-wrap items-center gap-3">
         <SettingsSelect
+            label="Selected Id"
+            hideLabel
           value={selectedId}
           onChange={(e) => setSelectedId(e.target.value)}
           className="w-auto"

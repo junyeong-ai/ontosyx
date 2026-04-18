@@ -217,7 +217,7 @@ function AddedNodeItem({ node }: { node: NodeTypeDef }) {
         + {node.label}
       </span>
       {node.properties.length > 0 && (
-        <span className="ml-1.5 text-zinc-400 dark:text-zinc-500">
+        <span className="ml-1.5 text-zinc-400">
           ({node.properties.length} properties)
         </span>
       )}
@@ -232,7 +232,7 @@ function RemovedNodeItem({ node }: { node: NodeTypeDef }) {
         - {node.label}
       </span>
       {node.properties.length > 0 && (
-        <span className="ml-1.5 text-zinc-400 dark:text-zinc-500">
+        <span className="ml-1.5 text-zinc-400">
           ({node.properties.length} properties)
         </span>
       )}
@@ -253,7 +253,7 @@ function ModifiedNodeItem({ node }: { node: NodeDiffEntry }) {
         <span className="font-medium text-amber-700 dark:text-amber-300">
           ~ {node.label}
         </span>
-        <span className="ml-1 text-zinc-400 dark:text-zinc-500">
+        <span className="ml-1 text-zinc-400">
           ({node.changes.length} change{node.changes.length > 1 ? "s" : ""})
         </span>
       </button>
@@ -332,7 +332,7 @@ function AddedEdgeItem({ edge }: { edge: EdgeTypeDef }) {
       <span className="font-medium text-emerald-700 dark:text-emerald-300">
         + {edge.label}
       </span>
-      <span className="ml-1.5 text-zinc-400 dark:text-zinc-500">
+      <span className="ml-1.5 text-zinc-400">
         ({edge.source_node_id} &rarr; {edge.target_node_id})
       </span>
     </div>
@@ -345,7 +345,7 @@ function RemovedEdgeItem({ edge }: { edge: EdgeTypeDef }) {
       <span className="font-medium text-red-700 dark:text-red-300">
         - {edge.label}
       </span>
-      <span className="ml-1.5 text-zinc-400 dark:text-zinc-500">
+      <span className="ml-1.5 text-zinc-400">
         ({edge.source_node_id} &rarr; {edge.target_node_id})
       </span>
     </div>
@@ -365,7 +365,7 @@ function ModifiedEdgeItem({ edge }: { edge: EdgeDiffEntry }) {
         <span className="font-medium text-amber-700 dark:text-amber-300">
           ~ {edge.label}
         </span>
-        <span className="ml-1 text-zinc-400 dark:text-zinc-500">
+        <span className="ml-1 text-zinc-400">
           ({edge.changes.length} change{edge.changes.length > 1 ? "s" : ""})
         </span>
       </button>
@@ -468,7 +468,7 @@ function ChangeRow({
 }) {
   return (
     <div className="flex items-baseline gap-1 text-zinc-600 dark:text-zinc-400">
-      <span className="font-medium text-zinc-500 dark:text-zinc-500">{label}:</span>
+      <span className="font-medium text-muted-foreground">{label}:</span>
       <span className="line-through text-red-500/70 dark:text-red-400/70">{old}</span>
       <span className="text-zinc-400 dark:text-zinc-600">&rarr;</span>
       <span className="text-emerald-600 dark:text-emerald-400">{new_val}</span>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import FocusTrap from "focus-trap-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Search01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { searchGraph } from "@/lib/api";
@@ -179,6 +180,13 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
   const hasDataResults = dataHits.length > 0;
 
   return (
+    <FocusTrap
+      focusTrapOptions={{
+        initialFocus: false,
+        allowOutsideClick: true,
+        escapeDeactivates: false,
+      }}
+    >
     <div
       role="dialog"
       aria-modal="true"
@@ -386,5 +394,6 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
         </div>
       </div>
     </div>
+    </FocusTrap>
   );
 }

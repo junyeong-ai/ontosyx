@@ -431,7 +431,7 @@ export function ChatPanel() {
                   </button>
                 </div>
               ) : (
-                <p className="mt-1.5 max-w-sm text-sm text-zinc-500">
+                <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">
                   {ontology
                     ? `Ask questions, edit the ontology, or explore your knowledge graph with ${ontology.node_types.length} node types.`
                     : workspaceMode === "analyze"

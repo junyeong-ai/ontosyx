@@ -175,7 +175,7 @@ export function RevisionHistoryPanel({
         }
       }}
     >
-      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300">
+      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-zinc-700 dark:hover:text-zinc-300">
         Revision History
       </summary>
       <div className="mt-2">
@@ -192,12 +192,12 @@ export function RevisionHistoryPanel({
           </div>
         )}
         {diffLoading && (
-          <div className="mb-2 flex items-center gap-2 py-1 text-xs text-zinc-500">
+          <div className="mb-2 flex items-center gap-2 py-1 text-xs text-muted-foreground">
             <Spinner size="xs" /> Computing diff...
           </div>
         )}
         {revisionsLoading ? (
-          <div className="flex items-center gap-2 py-2 text-xs text-zinc-500">
+          <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
             <Spinner size="xs" /> Loading revisions...
           </div>
         ) : revisions.length === 0 ? (
@@ -220,7 +220,7 @@ export function RevisionHistoryPanel({
                   <span className="font-mono font-medium">
                     Rev {rev.revision}
                   </span>
-                  <span className="text-zinc-400 dark:text-zinc-500">
+                  <span className="text-zinc-400">
                     {new Date(rev.created_at).toLocaleString(undefined, {
                       month: "short",
                       day: "numeric",
@@ -229,7 +229,7 @@ export function RevisionHistoryPanel({
                       minute: "2-digit",
                     })}
                   </span>
-                  <span className="text-zinc-400 dark:text-zinc-500">
+                  <span className="text-zinc-400">
                     {rev.node_count}N, {rev.edge_count}E
                   </span>
                 </div>

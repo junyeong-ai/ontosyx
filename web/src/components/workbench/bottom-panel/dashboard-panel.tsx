@@ -84,7 +84,7 @@ export function DashboardPanel() {
       {dashboards.length === 0 ? (
         <div className="flex flex-1 items-center justify-center">
           <div className="text-center">
-            <p className="text-sm text-zinc-500">No dashboards yet</p>
+            <p className="text-sm text-muted-foreground">No dashboards yet</p>
             <p className="mt-1 text-xs text-zinc-400">
               Create a dashboard to save and monitor your queries and analyses.
             </p>
@@ -102,7 +102,7 @@ export function DashboardPanel() {
                   {d.name}
                 </h3>
                 {d.description && (
-                  <p className="mt-0.5 text-xs text-zinc-500">{d.description}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{d.description}</p>
                 )}
                 <p className="mt-0.5 text-[10px] text-zinc-400">
                   Updated {new Date(d.updated_at).toLocaleDateString()}

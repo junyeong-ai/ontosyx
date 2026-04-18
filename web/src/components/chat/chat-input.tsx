@@ -89,7 +89,7 @@ export function ChatInput({
             disabled={disabled}
             className={cn(
               "w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 pr-12",
-              "text-sm placeholder:text-zinc-500",
+              "text-sm placeholder:text-muted-foreground",
               "focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50",
               "dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100",
               "dark:focus:border-emerald-400 dark:focus:bg-zinc-900 dark:focus:ring-emerald-400/50",
@@ -101,7 +101,7 @@ export function ChatInput({
             <Tooltip content={disabledReason}>
               <button
                 disabled
-                className="absolute right-2.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg bg-zinc-200 text-zinc-400 dark:bg-zinc-700 dark:text-zinc-500"
+                className="absolute right-2.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg bg-zinc-200 text-zinc-400 dark:bg-zinc-700"
                 aria-label={disabledReason}
               >
                 <HugeiconsIcon icon={ArrowUp01Icon} className="h-3.5 w-3.5" size="100%" strokeWidth={2.5} />
@@ -115,7 +115,7 @@ export function ChatInput({
                 "absolute right-2.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg transition-all",
                 canSend
                   ? "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
-                  : "bg-zinc-200 text-zinc-400 dark:bg-zinc-700 dark:text-zinc-500",
+                  : "bg-zinc-200 text-zinc-400 dark:bg-zinc-700",
               )}
               aria-label="Send message"
             >

@@ -500,7 +500,7 @@ export function WorkflowActions({
           <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
             {project.title ?? "Untitled Project"}
           </h3>
-          <p className="mt-0.5 text-xs text-zinc-500">
+          <p className="mt-0.5 text-xs text-muted-foreground">
             {project.source_config.source_type} · rev {project.revision}
           </p>
         </div>
@@ -598,7 +598,7 @@ export function WorkflowActions({
           {/* Enhance section */}
           <div className="space-y-1.5">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Enhance</p>
-            <p className="text-[10px] text-zinc-500">
+            <p className="text-[10px] text-muted-foreground">
               Press <kbd className="rounded bg-zinc-200 px-1 py-0.5 font-mono text-[9px] dark:bg-zinc-700">⌘K</kbd> to edit or refine with AI
             </p>
             <Button
@@ -920,7 +920,7 @@ function GraphAuditSection({ ontologyId }: { ontologyId: string }) {
             }`}>
               {report.sync_status === "synced" ? "Synced" : report.sync_status === "partial" ? "Partial" : "Unsynced"}
             </span>
-            <span className="text-[10px] text-zinc-500">{report.sync_percentage}% match</span>
+            <span className="text-[10px] text-muted-foreground">{report.sync_percentage}% match</span>
           </div>
 
           {/* Matched */}

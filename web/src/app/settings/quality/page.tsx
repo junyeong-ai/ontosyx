@@ -290,7 +290,7 @@ export default function QualitySettingsPage() {
             </button>
             <button
               onClick={openCreate}
-              className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+              className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800"
             >
               Create Rule
             </button>
@@ -312,13 +312,13 @@ export default function QualitySettingsPage() {
           <div className="text-2xl font-bold text-red-700 dark:text-red-400">
             {failed}
           </div>
-          <div className="text-xs text-red-600 dark:text-red-500">Failing</div>
+          <div className="text-xs text-red-700 dark:text-red-300">Failing</div>
         </div>
         <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900">
           <div className="text-2xl font-bold text-zinc-700 dark:text-zinc-300">
             {pending}
           </div>
-          <div className="text-xs text-zinc-500">Not Yet Evaluated</div>
+          <div className="text-xs text-muted-foreground">Not Yet Evaluated</div>
         </div>
       </div>
 
@@ -337,10 +337,10 @@ export default function QualitySettingsPage() {
       )}
 
       {/* Rules table */}
-      <div className="mt-6 overflow-x-auto -mx-6 px-6">
+      <div className="mt-6 overflow-x-auto -mx-6 px-6" tabIndex={0} role="region" aria-label="Table data — scroll horizontally">
         <table className="w-full min-w-[900px] text-sm">
           <thead>
-            <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-zinc-500 dark:border-zinc-700">
+            <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-muted-foreground dark:border-zinc-700">
               <th className="py-3 pr-6">Rule</th>
               <th className="py-3 pr-6">Type</th>
               <th className="py-3 pr-6">Target</th>
@@ -360,12 +360,12 @@ export default function QualitySettingsPage() {
                 <td className="py-3 pr-6 font-medium text-zinc-900 dark:text-zinc-100">
                   {d.name}
                 </td>
-                <td className="py-3 pr-6 text-zinc-500">{d.rule_type}</td>
-                <td className="py-3 pr-6 text-zinc-500">
+                <td className="py-3 pr-6 text-muted-foreground">{d.rule_type}</td>
+                <td className="py-3 pr-6 text-muted-foreground">
                   {d.target_label}
                   {d.target_property ? `.${d.target_property}` : ""}
                 </td>
-                <td className="py-3 pr-6 text-zinc-500">{d.threshold}%</td>
+                <td className="py-3 pr-6 text-muted-foreground">{d.threshold}%</td>
                 <td className="py-3 pr-6">
                   <SeverityBadge severity={d.severity} />
                 </td>
@@ -380,7 +380,7 @@ export default function QualitySettingsPage() {
                     <span className="text-red-600 dark:text-red-400">Fail</span>
                   )}
                 </td>
-                <td className="py-3 pr-6 text-zinc-500">
+                <td className="py-3 pr-6 text-muted-foreground">
                   {d.latest_value !== null
                     ? `${d.latest_value.toFixed(1)}%`
                     : "-"}
@@ -396,7 +396,7 @@ export default function QualitySettingsPage() {
                     </button>
                     <button
                       onClick={() => openEdit(d)}
-                      className="rounded px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                      className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
                     >
                       Edit
                     </button>
@@ -495,7 +495,7 @@ function RuleForm({
       <div className="grid grid-cols-2 gap-3">
         {/* Name */}
         <div className="col-span-2">
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Name
           </label>
           <input
@@ -510,10 +510,12 @@ function RuleForm({
 
         {/* Rule type */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Rule Type
           </label>
           <SettingsSelect
+            label="Rule Type"
+            hideLabel
             value={form.rule_type}
             onChange={(e) => update("rule_type", { rule_type: e.target.value })}
           >
@@ -527,10 +529,12 @@ function RuleForm({
 
         {/* Severity */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Severity
           </label>
           <SettingsSelect
+            label="Severity"
+            hideLabel
             value={form.severity}
             onChange={(e) => update("severity", { severity: e.target.value })}
           >
@@ -544,7 +548,7 @@ function RuleForm({
 
         {/* Target label */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Target Label
           </label>
           <input
@@ -559,7 +563,7 @@ function RuleForm({
 
         {/* Target property */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Target Property{" "}
             <span className="normal-case text-zinc-400">(optional)</span>
           </label>
@@ -573,7 +577,7 @@ function RuleForm({
 
         {/* Threshold */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Threshold (%)
           </label>
           <input
@@ -591,7 +595,7 @@ function RuleForm({
         {/* Cypher check — only for custom type */}
         {form.rule_type === "custom" && (
           <div className="col-span-2">
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Cypher Check
             </label>
             <textarea
@@ -622,7 +626,7 @@ function RuleForm({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-md px-3 py-1.5 text-xs text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          className="rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
         >
           Cancel
         </button>

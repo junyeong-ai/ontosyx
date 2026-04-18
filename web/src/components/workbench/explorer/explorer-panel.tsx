@@ -328,7 +328,7 @@ export function ExplorerPanel({ gaps }: { gaps: QualityGap[] }) {
           <>
             <button
               onClick={toggleFindings}
-              className="flex w-full items-center gap-1 px-2 py-1.5 font-semibold uppercase tracking-wider text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-900"
+              className="flex w-full items-center gap-1 px-2 py-1.5 font-semibold uppercase tracking-wider text-muted-foreground hover:bg-zinc-50 dark:hover:bg-zinc-900"
             >
               {findingsOpen ? <HugeiconsIcon icon={ArrowDown01Icon} className="h-3 w-3" size="100%" /> : <HugeiconsIcon icon={ArrowRight01Icon} className="h-3 w-3" size="100%" />}
               Source Findings ({sourceFindings.length})
@@ -338,7 +338,7 @@ export function ExplorerPanel({ gaps }: { gaps: QualityGap[] }) {
                 {sourceFindings.map((gap, i) => (
                   <div
                     key={i}
-                    className="flex items-start gap-2 px-4 py-1.5 text-[10px] text-zinc-500"
+                    className="flex items-start gap-2 px-4 py-1.5 text-[10px] text-muted-foreground"
                   >
                     <span
                       className={cn(
@@ -447,7 +447,7 @@ function VirtualizedTree({
               {row.kind === "section-header" ? (
                 <button
                   onClick={row.section === "nodes" ? toggleNodes : toggleEdges}
-                  className="flex w-full items-center gap-1 px-2 py-1.5 font-semibold uppercase tracking-wider text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                  className="flex w-full items-center gap-1 px-2 py-1.5 font-semibold uppercase tracking-wider text-muted-foreground hover:bg-zinc-50 dark:hover:bg-zinc-900"
                 >
                   <HugeiconsIcon
                     icon={row.open ? ArrowDown01Icon : ArrowRight01Icon}

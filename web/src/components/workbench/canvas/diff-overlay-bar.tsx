@@ -145,7 +145,7 @@ export function DiffOverlayBar() {
           )}
           <button
             onClick={handleDismiss}
-            className="ml-1 rounded-md px-2 py-0.5 text-zinc-500 hover:bg-white/50 hover:text-zinc-700 dark:hover:bg-zinc-800/50"
+            className="ml-1 rounded-md px-2 py-0.5 text-muted-foreground hover:bg-white/50 hover:text-zinc-700 dark:hover:bg-zinc-800/50"
           >
             Dismiss
           </button>

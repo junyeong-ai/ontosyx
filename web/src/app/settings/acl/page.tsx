@@ -216,7 +216,7 @@ export default function AclSettingsPage() {
       case "allow":
         return "text-emerald-600 dark:text-emerald-400";
       default:
-        return "text-zinc-500";
+        return "text-muted-foreground";
     }
   };
 
@@ -235,7 +235,7 @@ export default function AclSettingsPage() {
         {!formOpen && (
           <button
             onClick={openCreate}
-            className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+            className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800"
           >
             Create Policy
           </button>
@@ -257,10 +257,10 @@ export default function AclSettingsPage() {
       )}
 
       {/* Policies table */}
-      <div className="mt-6 overflow-x-auto -mx-6 px-6">
+      <div className="mt-6 overflow-x-auto -mx-6 px-6" tabIndex={0} role="region" aria-label="Table data — scroll horizontally">
         <table className="w-full min-w-[960px] text-sm">
           <thead>
-            <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-zinc-500 dark:border-zinc-700">
+            <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-muted-foreground dark:border-zinc-700">
               <th className="py-3 pr-6">Policy</th>
               <th className="py-3 pr-6">Subject</th>
               <th className="py-3 pr-6">Resource</th>
@@ -279,10 +279,10 @@ export default function AclSettingsPage() {
                 <td className="py-3 pr-6 font-medium text-zinc-900 dark:text-zinc-100">
                   {p.name}
                 </td>
-                <td className="py-3 pr-6 text-zinc-500">
+                <td className="py-3 pr-6 text-muted-foreground">
                   {p.subject_type}:{p.subject_value}
                 </td>
-                <td className="py-3 pr-6 text-zinc-500">
+                <td className="py-3 pr-6 text-muted-foreground">
                   {p.resource_value || p.resource_type}
                 </td>
                 <td className={`py-2 font-medium ${actionColor(p.action)}`}>
@@ -293,15 +293,15 @@ export default function AclSettingsPage() {
                     </span>
                   )}
                 </td>
-                <td className="py-3 pr-6 text-zinc-500">
+                <td className="py-3 pr-6 text-muted-foreground">
                   {p.properties?.join(", ") || "all"}
                 </td>
-                <td className="py-3 pr-6 text-zinc-500">{p.priority}</td>
+                <td className="py-3 pr-6 text-muted-foreground">{p.priority}</td>
                 <td className="py-3 pr-6 text-right">
                   <div className="flex items-center justify-end gap-1">
                     <button
                       onClick={() => openEdit(p)}
-                      className="rounded px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                      className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
                     >
                       Edit
                     </button>
@@ -379,7 +379,7 @@ function PolicyForm({
       <div className="grid grid-cols-2 gap-3">
         {/* Name */}
         <div className="col-span-2">
-          <label htmlFor="acl-rule-name" className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label htmlFor="acl-rule-name" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Name
           </label>
           <input
@@ -395,10 +395,12 @@ function PolicyForm({
 
         {/* Subject type */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Subject Type
           </label>
           <SettingsSelect
+            label="Subject Type"
+            hideLabel
             value={form.subject_type}
             onChange={(e) => update("subject_type", { subject_type: e.target.value })}
           >
@@ -412,7 +414,7 @@ function PolicyForm({
 
         {/* Subject value */}
         <div>
-          <label htmlFor="acl-rule-subject-value" className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label htmlFor="acl-rule-subject-value" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Subject Value
           </label>
           <input
@@ -428,10 +430,12 @@ function PolicyForm({
 
         {/* Resource type */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Resource Type
           </label>
           <SettingsSelect
+            label="Resource Type"
+            hideLabel
             value={form.resource_type}
             onChange={(e) => update("resource_type", { resource_type: e.target.value })}
           >
@@ -445,7 +449,7 @@ function PolicyForm({
 
         {/* Resource value */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Resource Value{" "}
             <span className="normal-case text-zinc-400">(optional)</span>
           </label>
@@ -459,10 +463,12 @@ function PolicyForm({
 
         {/* Action */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Action
           </label>
           <SettingsSelect
+            label="Action"
+            hideLabel
             value={form.action}
             onChange={(e) => update("action", { action: e.target.value })}
           >
@@ -476,7 +482,7 @@ function PolicyForm({
 
         {/* Priority */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Priority
           </label>
           <input
@@ -490,7 +496,7 @@ function PolicyForm({
 
         {/* Properties */}
         <div className="col-span-2">
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Properties{" "}
             <span className="normal-case text-zinc-400">
               (comma-separated, leave empty for all)
@@ -507,7 +513,7 @@ function PolicyForm({
         {/* Mask pattern — only for mask action */}
         {form.action === "mask" && (
           <div className="col-span-2">
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Mask Pattern
             </label>
             <input
@@ -537,7 +543,7 @@ function PolicyForm({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-md px-3 py-1.5 text-xs text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          className="rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
         >
           Cancel
         </button>

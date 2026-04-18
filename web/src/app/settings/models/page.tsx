@@ -373,7 +373,7 @@ export default function ModelsSettingsPage() {
         {!configFormOpen && (
           <button
             onClick={openCreateConfig}
-            className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+            className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800"
           >
             Add Model
           </button>
@@ -394,13 +394,13 @@ export default function ModelsSettingsPage() {
           <div className="text-2xl font-bold text-zinc-700 dark:text-zinc-300">
             {configs.filter((c) => !c.enabled).length}
           </div>
-          <div className="text-xs text-zinc-500">Disabled</div>
+          <div className="text-xs text-muted-foreground">Disabled</div>
         </div>
         <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950">
           <div className="text-2xl font-bold text-blue-700 dark:text-blue-400">
             {rules.length}
           </div>
-          <div className="text-xs text-blue-600 dark:text-blue-500">
+          <div className="text-xs text-blue-700 dark:text-blue-300">
             Routing Rules
           </div>
         </div>
@@ -421,10 +421,10 @@ export default function ModelsSettingsPage() {
       )}
 
       {/* Configs table */}
-      <div className="mt-6 overflow-x-auto -mx-6 px-6">
+      <div className="mt-6 overflow-x-auto -mx-6 px-6" tabIndex={0} role="region" aria-label="Model configs">
         <table className="w-full min-w-[640px] text-sm">
           <thead>
-            <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-zinc-500 dark:border-zinc-700">
+            <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-muted-foreground dark:border-zinc-700">
               <th className="py-3 pr-6">Name</th>
               <th className="py-3 pr-6">Provider</th>
               <th className="py-3 pr-6">Model</th>
@@ -442,20 +442,20 @@ export default function ModelsSettingsPage() {
                 <td className="py-3 pr-6 font-medium text-zinc-900 dark:text-zinc-100">
                   {c.name}
                 </td>
-                <td className="py-3 pr-6 text-zinc-500">
+                <td className="py-3 pr-6 text-muted-foreground">
                   <ProviderBadge provider={c.provider} />
                 </td>
-                <td className="py-3 pr-6 font-mono text-xs text-zinc-500">
+                <td className="py-3 pr-6 font-mono text-xs text-muted-foreground">
                   {c.model_id}
                 </td>
-                <td className="py-3 pr-6 text-zinc-500">{c.priority}</td>
+                <td className="py-3 pr-6 text-muted-foreground">{c.priority}</td>
                 <td className="py-3 pr-6">
                   <button
                     onClick={() => handleToggleEnabled(c)}
                     className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
                       c.enabled
                         ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                        : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-500"
+                        : "bg-zinc-100 text-muted-foreground dark:bg-zinc-800"
                     }`}
                   >
                     {c.enabled ? "On" : "Off"}
@@ -472,7 +472,7 @@ export default function ModelsSettingsPage() {
                     </button>
                     <button
                       onClick={() => openEditConfig(c)}
-                      className="rounded px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                      className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
                     >
                       Edit
                     </button>
@@ -511,7 +511,7 @@ export default function ModelsSettingsPage() {
         {!ruleFormOpen && configs.length > 0 && (
           <button
             onClick={openCreateRule}
-            className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+            className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800"
           >
             Add Rule
           </button>
@@ -532,10 +532,10 @@ export default function ModelsSettingsPage() {
       )}
 
       {/* Rules table */}
-      <div className="mt-6 overflow-x-auto -mx-6 px-6">
+      <div className="mt-6 overflow-x-auto -mx-6 px-6" tabIndex={0} role="region" aria-label="Routing rules">
         <table className="w-full min-w-[640px] text-sm">
           <thead>
-            <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-zinc-500 dark:border-zinc-700">
+            <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-muted-foreground dark:border-zinc-700">
               <th className="py-3 pr-6">Operation</th>
               <th className="py-3 pr-6">Model Config</th>
               <th className="py-3 pr-6">Priority</th>
@@ -552,14 +552,14 @@ export default function ModelsSettingsPage() {
                 <td className="py-3 pr-6 font-medium text-zinc-900 dark:text-zinc-100">
                   {r.operation}
                 </td>
-                <td className="py-3 pr-6 text-zinc-500">{configName(r.model_config_id)}</td>
-                <td className="py-3 pr-6 text-zinc-500">{r.priority}</td>
+                <td className="py-3 pr-6 text-muted-foreground">{configName(r.model_config_id)}</td>
+                <td className="py-3 pr-6 text-muted-foreground">{r.priority}</td>
                 <td className="py-3 pr-6">
                   <span
                     className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
                       r.enabled
                         ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                        : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-500"
+                        : "bg-zinc-100 text-muted-foreground dark:bg-zinc-800"
                     }`}
                   >
                     {r.enabled ? "On" : "Off"}
@@ -569,7 +569,7 @@ export default function ModelsSettingsPage() {
                   <div className="flex items-center justify-end gap-1">
                     <button
                       onClick={() => openEditRule(r)}
-                      className="rounded px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                      className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
                     >
                       Edit
                     </button>
@@ -670,7 +670,7 @@ function ConfigForm({
       <div className="grid grid-cols-2 gap-3">
         {/* Name */}
         <div className="col-span-2">
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Name
           </label>
           <input
@@ -685,10 +685,12 @@ function ConfigForm({
 
         {/* Provider */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Provider
           </label>
           <SettingsSelect
+            label="Provider"
+            hideLabel
             value={form.provider}
             onChange={(e) => update("provider", { provider: e.target.value })}
             className={errors.provider ? "border-red-400 dark:border-red-600" : ""}
@@ -704,7 +706,7 @@ function ConfigForm({
 
         {/* Model ID */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Model ID
           </label>
           <input
@@ -719,7 +721,7 @@ function ConfigForm({
 
         {/* Max Tokens */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Max Tokens
           </label>
           <input
@@ -734,7 +736,7 @@ function ConfigForm({
 
         {/* Temperature */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Temperature{" "}
             <span className="normal-case text-zinc-400">(optional)</span>
           </label>
@@ -753,7 +755,7 @@ function ConfigForm({
 
         {/* Timeout */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Timeout (secs)
           </label>
           <input
@@ -767,7 +769,7 @@ function ConfigForm({
 
         {/* Priority */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Priority
           </label>
           <input
@@ -780,7 +782,7 @@ function ConfigForm({
 
         {/* API Key Env */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             API Key Env Var{" "}
             <span className="normal-case text-zinc-400">(optional)</span>
           </label>
@@ -794,7 +796,7 @@ function ConfigForm({
 
         {/* Base URL */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Base URL{" "}
             <span className="normal-case text-zinc-400">(optional)</span>
           </label>
@@ -808,7 +810,7 @@ function ConfigForm({
 
         {/* Region */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Region{" "}
             <span className="normal-case text-zinc-400">(optional)</span>
           </label>
@@ -822,7 +824,7 @@ function ConfigForm({
 
         {/* Cost per 1M Input */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Cost / 1M Input{" "}
             <span className="normal-case text-zinc-400">(USD)</span>
           </label>
@@ -839,7 +841,7 @@ function ConfigForm({
 
         {/* Cost per 1M Output */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Cost / 1M Output{" "}
             <span className="normal-case text-zinc-400">(USD)</span>
           </label>
@@ -856,7 +858,7 @@ function ConfigForm({
 
         {/* Daily Budget */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Daily Budget{" "}
             <span className="normal-case text-zinc-400">(USD)</span>
           </label>
@@ -894,7 +896,7 @@ function ConfigForm({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-md px-3 py-1.5 text-xs text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          className="rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
         >
           Cancel
         </button>
@@ -948,10 +950,12 @@ function RuleForm({
       <div className="grid grid-cols-2 gap-3">
         {/* Operation */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Operation
           </label>
           <SettingsSelect
+            label="Operation"
+            hideLabel
             value={form.operation}
             onChange={(e) => update({ operation: e.target.value })}
           >
@@ -965,10 +969,12 @@ function RuleForm({
 
         {/* Model Config */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Model Config
           </label>
           <SettingsSelect
+            label="Model Config Id"
+            hideLabel
             value={form.model_config_id}
             onChange={(e) => update({ model_config_id: e.target.value })}
           >
@@ -982,7 +988,7 @@ function RuleForm({
 
         {/* Priority */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Priority
           </label>
           <input
@@ -1016,7 +1022,7 @@ function RuleForm({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-md px-3 py-1.5 text-xs text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          className="rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
         >
           Cancel
         </button>

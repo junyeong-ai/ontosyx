@@ -54,7 +54,7 @@ export function InsightsPanel() {
 
   if (error) {
     return (
-      <div className="px-4 py-8 text-center text-sm text-zinc-500">
+      <div className="px-4 py-8 text-center text-sm text-muted-foreground">
         {error}
       </div>
     );
@@ -66,7 +66,7 @@ export function InsightsPanel() {
         <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
           Available Analyses
         </h2>
-        <p className="mt-0.5 text-xs text-zinc-500">
+        <p className="mt-0.5 text-xs text-muted-foreground">
           Pre-built analysis recipes you can run against your ontology data.
         </p>
 

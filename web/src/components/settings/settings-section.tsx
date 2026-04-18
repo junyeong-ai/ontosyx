@@ -19,11 +19,11 @@ export function SettingsSection({
     <div className={cn(className)}>
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
+          <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
             {title}
-          </h1>
+          </h2>
           {description && (
-            <p className="mt-1 text-sm text-zinc-500">{description}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{description}</p>
           )}
         </div>
         {actions && <div className="flex items-center gap-2">{actions}</div>}

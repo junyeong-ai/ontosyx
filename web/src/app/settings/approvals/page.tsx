@@ -59,7 +59,7 @@ export default function ApprovalsSettingsPage() {
       case "approved": return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400";
       case "rejected": return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
       case "expired": return "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400";
-      default: return "bg-zinc-100 text-zinc-500";
+      default: return "bg-zinc-100 text-muted-foreground";
     }
   };
 
@@ -88,7 +88,7 @@ export default function ApprovalsSettingsPage() {
                   <div className="font-medium text-zinc-900 dark:text-zinc-100">
                     {a.action_type.replace(/_/g, " ")}
                   </div>
-                  <div className="text-xs text-zinc-500">
+                  <div className="text-xs text-muted-foreground">
                     {a.resource_type} {a.resource_id.slice(0, 8)}... | Expires{" "}
                     {new Date(a.expires_at).toLocaleDateString()}
                   </div>
@@ -96,7 +96,7 @@ export default function ApprovalsSettingsPage() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleReview(a.id, true)}
-                    className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+                    className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800"
                   >
                     Approve
                   </button>
@@ -120,7 +120,7 @@ export default function ApprovalsSettingsPage() {
         </h2>
         <table className="mt-2 w-full text-sm">
           <thead>
-            <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-zinc-500 dark:border-zinc-700">
+            <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-muted-foreground dark:border-zinc-700">
               <th className="py-3 pr-6">Action</th>
               <th className="py-3 pr-6">Resource</th>
               <th className="py-3 pr-6">Status</th>
@@ -133,7 +133,7 @@ export default function ApprovalsSettingsPage() {
                 <td className="py-3 pr-6 text-zinc-900 dark:text-zinc-100">
                   {a.action_type.replace(/_/g, " ")}
                 </td>
-                <td className="py-3 pr-6 text-zinc-500">
+                <td className="py-3 pr-6 text-muted-foreground">
                   {a.resource_type} {a.resource_id.slice(0, 8)}...
                 </td>
                 <td className="py-3 pr-6">
@@ -141,7 +141,7 @@ export default function ApprovalsSettingsPage() {
                     {a.status}
                   </span>
                 </td>
-                <td className="py-3 pr-6 text-zinc-500">
+                <td className="py-3 pr-6 text-muted-foreground">
                   {new Date(a.created_at).toLocaleDateString()}
                 </td>
               </tr>

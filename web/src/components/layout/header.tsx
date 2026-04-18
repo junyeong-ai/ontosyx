@@ -10,11 +10,19 @@ import { UserMenu } from "@/components/layout/user-menu";
 // Unified Header — [Branding] | [ContextSelector] [ContextBadge] | [Spacer] | [ModeActions] | [UserMenu]
 // ---------------------------------------------------------------------------
 
+/**
+ * App branding rendered as the document's `<h1>`. Every client route
+ * mounts this component, so using `<h1>` here ensures axe's
+ * `page-has-heading-one` rule passes without sprinkling visually-hidden
+ * headings into individual pages. Visual weight stays identical thanks
+ * to the typography utilities; screen readers announce it as the main
+ * landmark heading for the app.
+ */
 function AppBranding() {
   return (
-    <span className="text-sm font-semibold tracking-tight text-zinc-800 dark:text-zinc-200">
+    <h1 className="m-0 text-sm font-semibold tracking-tight text-zinc-800 dark:text-zinc-200">
       Ontosyx
-    </span>
+    </h1>
   );
 }
 

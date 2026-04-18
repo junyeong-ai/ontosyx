@@ -46,6 +46,24 @@ export async function fetchWithTimeout(
   }
 }
 
+/**
+ * One-shot fetch with two narrow retry cases that MUST live below the
+ * TanStack layer:
+ *
+ * 1. **429 Too Many Requests** — honours the `Retry-After` header via a
+ *    low-level wait before re-sending. The upper query layer cannot see
+ *    the header, so retrying here is the only way to respect rate-limit
+ *    guidance.
+ * 2. **Network abort / DOMException** — surfaces as an Error so the
+ *    caller (and ultimately TanStack) sees a consistent thrown error
+ *    shape rather than a rejected fetch Promise.
+ *
+ * 5xx responses are intentionally NOT retried here. Retrying at both
+ * this layer and the TanStack `queries.retry` callback would compound
+ * (up to 5 × 2 attempts per user request) and flatten a server outage
+ * into a slow cascade of backed-off failures. Let TanStack own server-
+ * error retries so the policy is observable in one place.
+ */
 export async function fetchWithRetry(
   url: string,
   options: RetryOptions = {},
@@ -57,35 +75,29 @@ export async function fetchWithRetry(
     try {
       const response = await fetchWithTimeout(url, fetchOptions);
 
-      // Retry on 429 Too Many Requests
-      if (response.status === 429) {
-        lastError = new Error(`HTTP 429`);
-        if (attempt < maxRetries) {
-          const retryAfter = response.headers.get("retry-after");
-          const waitMs = retryAfter
-            ? (parseInt(retryAfter, 10) || 2) * 1000
-            : Math.min(1000 * 2 ** attempt, 8000);
-          await new Promise((r) => setTimeout(r, waitMs));
-        }
+      // 429 — honour Retry-After before retrying.
+      if (response.status === 429 && attempt < maxRetries) {
+        const retryAfter = response.headers.get("retry-after");
+        const waitMs = retryAfter
+          ? (parseInt(retryAfter, 10) || 2) * 1000
+          : Math.min(1000 * 2 ** attempt, 8000);
+        await new Promise((r) => setTimeout(r, waitMs));
         continue;
       }
 
-      // Don't retry other client errors (4xx)
-      if (response.ok || (response.status >= 400 && response.status < 500)) {
-        return response;
-      }
-      // Server error — retry
-      lastError = new Error(`HTTP ${response.status}`);
+      // Everything else (2xx, 4xx, 5xx, and the final 429) is returned
+      // as-is. `requestInternal` wraps non-2xx in `ApiError` and TanStack
+      // decides whether to retry based on `ApiError.status`.
+      return response;
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         lastError = new Error("Request timed out");
       } else {
         lastError = err as Error;
       }
-    }
-
-    if (attempt < maxRetries) {
-      await new Promise((r) => setTimeout(r, 100 * Math.pow(2, attempt)));
+      if (attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, 100 * Math.pow(2, attempt)));
+      }
     }
   }
 
@@ -97,14 +109,27 @@ export async function fetchWithRetry(
 // ---------------------------------------------------------------------------
 
 export class ApiError extends Error {
+  /** HTTP status code from the failing response, or 0 when unknown
+   * (network error, aborted request, non-HTTP throw). Prefer this over
+   * regex-matching the message string when deciding retry eligibility. */
+  status: number;
   type?: string;
   details?: unknown;
 
-  constructor(message: string, options?: { type?: string; details?: unknown }) {
+  constructor(
+    message: string,
+    options?: { status?: number; type?: string; details?: unknown },
+  ) {
     super(message);
     this.name = "ApiError";
+    this.status = options?.status ?? 0;
     this.type = options?.type;
     this.details = options?.details;
+  }
+
+  /** Non-retryable client error (4xx). */
+  isClientError(): boolean {
+    return this.status >= 400 && this.status < 500;
   }
 }
 
@@ -143,6 +168,7 @@ async function requestInternal<T>(
     throw new ApiError(
       body.error?.message ?? body.error ?? `API error ${res.status}`,
       {
+        status: res.status,
         type: body.error?.type,
         details: body.error?.details,
       },

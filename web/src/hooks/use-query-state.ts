@@ -105,13 +105,6 @@ export function useQueryState<T>(
   }, [rawUrlValue, key]);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    // Cancel any pending write on unmount so we don't call router after
-    // the component is gone.
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, []);
 
   const writeToUrl = useCallback(
     (next: T) => {
@@ -132,6 +125,24 @@ export function useQueryState<T>(
     },
     [key, pathname, router, searchParams, defaultValue, serialize],
   );
+
+  // Cancel any pending debounced write on unmount OR pathname change.
+  //
+  // Why cancel (not flush): the effect cleanup captures the PREVIOUS
+  // `writeToUrl` closure, which bakes in the *old* pathname. Flushing
+  // would call `router.replace(oldPath?q=...)` after Next.js has already
+  // committed to the new path, snapping the user back to the route they
+  // just left. Dropping the last ~200ms of keystrokes is the lesser evil
+  // — callers that need guaranteed URL persistence should pass
+  // `debounceMs: 0` for synchronous writes.
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
+    };
+  }, [pathname]);
 
   const setValue = useCallback(
     (next: T) => {

@@ -343,7 +343,7 @@ export function ExploreLayout() {
               <div>
                 <div className="mb-1.5 flex items-center gap-1.5">
                   <HugeiconsIcon icon={DatabaseIcon} className="h-3 w-3 text-zinc-400" size="100%" />
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                     Node Labels
                   </span>
                 </div>
@@ -374,7 +374,7 @@ export function ExploreLayout() {
               {/* Relationship patterns */}
               {overview.relationships.length > 0 && (
                 <div>
-                  <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                  <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                     Relationship Patterns
                   </div>
                   <div className="space-y-0.5">
@@ -385,7 +385,7 @@ export function ExploreLayout() {
                       >
                         <span className="font-medium text-zinc-600 dark:text-zinc-400">{rel.from_label}</span>
                         <span className="text-zinc-400">→</span>
-                        <span className="font-mono text-zinc-500">{rel.rel_type}</span>
+                        <span className="font-mono text-muted-foreground">{rel.rel_type}</span>
                         <span className="text-zinc-400">→</span>
                         <span className="font-medium text-zinc-600 dark:text-zinc-400">{rel.to_label}</span>
                         <span className="ml-auto tabular-nums text-zinc-400">{rel.count.toLocaleString()}</span>
@@ -499,7 +499,7 @@ export function ExploreLayout() {
                     "flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] transition-colors",
                     i === breadcrumb.length - 1
                       ? "bg-emerald-100 font-medium text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400"
-                      : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300",
+                      : "text-muted-foreground hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300",
                   )}
                 >
                   <span className="text-[9px] text-zinc-400">
@@ -539,7 +539,7 @@ export function ExploreLayout() {
       <div className="flex h-full w-80 shrink-0 flex-col border-l border-zinc-200 dark:border-zinc-800">
         {/* Properties section */}
         <div className="flex h-7 items-center border-b border-zinc-200 px-3 dark:border-zinc-800">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Properties
           </span>
         </div>
@@ -580,7 +580,7 @@ export function ExploreLayout() {
               {/* Relationships section */}
               {groupedRelationships.length > 0 && (
                 <div className="border-t border-zinc-100 pt-3 dark:border-zinc-800">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                     Relationships
                   </span>
                   <div className="mt-2 space-y-1.5">

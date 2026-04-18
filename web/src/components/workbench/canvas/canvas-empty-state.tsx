@@ -22,7 +22,7 @@ export function CanvasEmptyState() {
         </div>
         <div className="text-center">
           <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">Ready to Design</h2>
-          <p className="mt-1.5 max-w-md text-sm text-zinc-500">
+          <p className="mt-1.5 max-w-md text-sm text-zinc-600 dark:text-zinc-400">
             Review the analysis in the Workflow panel below, then click <strong>Design Ontology</strong> to generate your knowledge graph schema.
           </p>
         </div>
@@ -47,7 +47,7 @@ export function CanvasEmptyState() {
       </div>
       <div className="text-center">
         <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">Start Designing</h2>
-        <p className="mt-1.5 max-w-md text-sm text-zinc-500">
+        <p className="mt-1.5 max-w-md text-sm text-zinc-600 dark:text-zinc-400">
           Create a project from a data source or import an existing ontology to begin designing your knowledge graph.
         </p>
       </div>

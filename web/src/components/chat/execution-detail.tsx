@@ -179,7 +179,7 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
 
         {/* Ontology info */}
         <Section title="Ontology">
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-muted-foreground">
             {execution.ontology_id} v{execution.ontology_version}
           </p>
         </Section>

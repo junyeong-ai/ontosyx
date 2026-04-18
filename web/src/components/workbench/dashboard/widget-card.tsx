@@ -118,7 +118,7 @@ export function WidgetCard({ widget, selected, refreshKey, onClick }: WidgetCard
       {widget.parameters && widget.parameters.length > 0 && (
         <div className="flex flex-wrap gap-1.5 border-b border-zinc-100 px-3 py-1.5 dark:border-zinc-800">
           {widget.parameters.map((p) => (
-            <label key={p.name} className="flex items-center gap-1 text-[10px] text-zinc-500">
+            <label key={p.name} className="flex items-center gap-1 text-[10px] text-muted-foreground">
               <span>{p.label ?? p.name}:</span>
               <input
                 type={p.type === "number" ? "number" : "text"}

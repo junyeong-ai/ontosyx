@@ -89,7 +89,7 @@ export function TimelineWidget({ spec, data }: TimelineWidgetProps) {
                 )}
               />
               {/* Date */}
-              <p className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500">
+              <p className="text-[10px] font-medium text-zinc-400">
                 {formatDate(evt.date)}
               </p>
               {/* Label */}

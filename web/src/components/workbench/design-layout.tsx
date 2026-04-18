@@ -99,7 +99,7 @@ export function DesignLayout() {
               <Panel defaultSize="18%" minSize="10%" maxSize="35%">
                 <div className="flex h-full flex-col border-r border-zinc-200 dark:border-zinc-800">
                   <div className="flex h-7 items-center justify-between border-b border-zinc-200 px-2 dark:border-zinc-800">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                       Explorer
                     </span>
                     <button onClick={toggleExplorer} className="text-zinc-400 hover:text-zinc-600">
@@ -125,7 +125,7 @@ export function DesignLayout() {
                   className="absolute left-2 top-2 z-10 rounded-md border border-zinc-200 bg-white p-1 shadow-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900"
                   aria-label="Show Explorer"
                 >
-                  <HugeiconsIcon icon={PanelLeftIcon} className="h-3.5 w-3.5 text-zinc-500" size="100%" />
+                  <HugeiconsIcon icon={PanelLeftIcon} className="h-3.5 w-3.5 text-muted-foreground" size="100%" />
                 </button>
               )}
               {hasContent && (
@@ -147,7 +147,7 @@ export function DesignLayout() {
                   className="absolute right-2 top-2 z-10 rounded-md border border-zinc-200 bg-white p-1 shadow-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900"
                   aria-label="Show Inspector"
                 >
-                  <HugeiconsIcon icon={PanelRightIcon} className="h-3.5 w-3.5 text-zinc-500" size="100%" />
+                  <HugeiconsIcon icon={PanelRightIcon} className="h-3.5 w-3.5 text-muted-foreground" size="100%" />
                 </button>
               )}
               <ErrorBoundary name="Canvas">
@@ -162,7 +162,7 @@ export function DesignLayout() {
               <Panel defaultSize="22%" minSize="15%" maxSize="40%">
                 <div className="flex h-full flex-col border-l border-zinc-200 dark:border-zinc-800">
                   <div className="flex h-7 items-center justify-between border-b border-zinc-200 px-2 dark:border-zinc-800">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                       Inspector
                     </span>
                     <button onClick={toggleInspector} className="text-zinc-400 hover:text-zinc-600">

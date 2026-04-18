@@ -105,14 +105,14 @@ export default function WorkspaceSettingsPage() {
             <FormInput
               value={workspace?.slug ?? ""}
               readOnly
-              className="bg-zinc-50 font-mono text-zinc-500 dark:bg-zinc-800/50 dark:text-zinc-500"
+              className="bg-zinc-50 font-mono text-muted-foreground dark:bg-zinc-800/50"
             />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
               Created
             </label>
-            <p className="text-sm text-zinc-500">
+            <p className="text-sm text-muted-foreground">
               {workspace?.created_at
                 ? new Date(workspace.created_at).toLocaleDateString()
                 : "-"}

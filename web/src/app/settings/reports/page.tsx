@@ -117,16 +117,18 @@ export default function ReportsPage() {
       <h1 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
         Saved Reports
       </h1>
-      <p className="mt-1 text-sm text-zinc-500">
+      <p className="mt-1 text-sm text-muted-foreground">
         Parameterized query templates that can be executed on demand.
       </p>
 
       {/* Ontology filter */}
       <div className="mt-4">
-        <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+        <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Ontology
         </label>
         <SettingsSelect
+            label="Ontology Filter"
+            hideLabel
           value={ontologyFilter}
           onChange={(e) => {
             setOntologyFilter(e.target.value);
@@ -318,7 +320,7 @@ function ReportDetail({
       {editing ? (
         <div className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50/30 p-4 dark:border-emerald-800 dark:bg-emerald-950/10">
           <div>
-            <label htmlFor="edit-report-title" className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+            <label htmlFor="edit-report-title" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Title
             </label>
             <input
@@ -329,7 +331,7 @@ function ReportDetail({
             />
           </div>
           <div>
-            <label htmlFor="edit-report-description" className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+            <label htmlFor="edit-report-description" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Description
             </label>
             <textarea
@@ -341,7 +343,7 @@ function ReportDetail({
             />
           </div>
           <div>
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Query Template
             </label>
             <textarea
@@ -352,10 +354,12 @@ function ReportDetail({
             />
           </div>
           <div>
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Widget Type
             </label>
             <SettingsSelect
+            label="Edit Widget Type"
+            hideLabel
               value={editWidgetType}
               onChange={(e) => setEditWidgetType(e.target.value)}
             >
@@ -368,7 +372,7 @@ function ReportDetail({
             </SettingsSelect>
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Public
             </label>
             <button
@@ -396,7 +400,7 @@ function ReportDetail({
         <>
           {report.description && (
             <div>
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Description
               </label>
               <p className="mt-0.5 text-sm text-zinc-700 dark:text-zinc-300">
@@ -406,7 +410,7 @@ function ReportDetail({
           )}
 
           <div>
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Query Template
             </label>
             <pre className="mt-1 max-h-48 overflow-auto rounded-md bg-zinc-900 p-3 text-xs text-emerald-400">
@@ -416,7 +420,7 @@ function ReportDetail({
 
           {report.widget_type && (
             <div>
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Widget Type
               </label>
               <span className="ml-2 rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
@@ -427,7 +431,7 @@ function ReportDetail({
 
           {/* Parameters + execute */}
           <div>
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Parameters
             </label>
             {report.parameters.length === 0 ? (
@@ -497,7 +501,7 @@ function ReportDetail({
           {/* Results */}
           {result && (
             <div>
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Results ({result.rows.length} rows)
               </label>
               <div className="mt-1 max-h-64 overflow-auto rounded-md border border-zinc-200 dark:border-zinc-700">
@@ -604,7 +608,7 @@ function ReportCreateForm({
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="mt-4 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+        className="mt-4 rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800"
       >
         New Report
       </button>
@@ -634,7 +638,7 @@ function ReportCreateForm({
 
       <div className="space-y-3">
         <div>
-          <label htmlFor="new-report-title" className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label htmlFor="new-report-title" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Title
           </label>
           <input
@@ -648,7 +652,7 @@ function ReportCreateForm({
         </div>
 
         <div>
-          <label htmlFor="new-report-description" className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label htmlFor="new-report-description" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Description
           </label>
           <textarea
@@ -662,7 +666,7 @@ function ReportCreateForm({
         </div>
 
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Query Template
           </label>
           <textarea
@@ -676,7 +680,7 @@ function ReportCreateForm({
         </div>
 
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Parameters (JSON)
           </label>
           <textarea
@@ -692,10 +696,12 @@ function ReportCreateForm({
         </div>
 
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Widget Type
           </label>
           <SettingsSelect
+            label="Widget Type"
+            hideLabel
             value={widgetType}
             onChange={(e) => setWidgetType(e.target.value)}
           >
@@ -709,7 +715,7 @@ function ReportCreateForm({
         </div>
 
         <div className="flex items-center gap-2">
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Public
           </label>
           <button

@@ -418,7 +418,7 @@ export function QueryBuilder() {
           <button
             onClick={handleClear}
             disabled={nodes.length === 0}
-            className="rounded px-2 py-0.5 text-[10px] font-medium text-zinc-500 transition-colors hover:bg-zinc-100 disabled:opacity-40 dark:hover:bg-zinc-800"
+            className="rounded px-2 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-zinc-100 disabled:opacity-40 dark:hover:bg-zinc-800"
           >
             Clear
           </button>

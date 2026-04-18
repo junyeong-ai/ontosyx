@@ -83,7 +83,7 @@ export function SourceHistorySection({ entries }: { entries: SourceHistoryEntry[
               <span className="min-w-0 truncate font-medium">
                 {entry.schema_name ?? entry.url ?? "inline"}
               </span>
-              <span className="ml-auto shrink-0 text-zinc-400 dark:text-zinc-500">
+              <span className="ml-auto shrink-0 text-zinc-400">
                 {new Date(entry.added_at).toLocaleDateString()}
               </span>
             </div>

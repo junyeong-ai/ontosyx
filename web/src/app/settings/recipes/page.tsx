@@ -113,7 +113,7 @@ export default function RecipesPage() {
       <h1 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
         Analysis Recipes
       </h1>
-      <p className="mt-1 text-sm text-zinc-500">
+      <p className="mt-1 text-sm text-muted-foreground">
         Reusable data analysis algorithms. The agent searches these before writing custom code.
       </p>
 
@@ -256,6 +256,8 @@ function RecipeDetail({
         <div className="flex items-center gap-2">
           {isAdmin && (
             <SettingsSelect
+            label="Status"
+            hideLabel
               value={recipe.status}
               onChange={(e) =>
                 onStatusChange(recipe.id, e.target.value as RecipeStatus)
@@ -293,7 +295,7 @@ function RecipeDetail({
       )}
 
       <div>
-        <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+        <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Description
         </label>
         <p className="mt-0.5 text-sm text-zinc-700 dark:text-zinc-300">
@@ -302,7 +304,7 @@ function RecipeDetail({
       </div>
 
       <div>
-        <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+        <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Required Columns
         </label>
         <div className="mt-0.5 flex flex-wrap gap-1">
@@ -319,7 +321,7 @@ function RecipeDetail({
 
       {recipe.output_description && (
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Output
           </label>
           <p className="mt-0.5 text-sm text-zinc-700 dark:text-zinc-300">
@@ -329,7 +331,7 @@ function RecipeDetail({
       )}
 
       <div>
-        <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+        <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Code Template
         </label>
         <pre className="mt-1 max-h-80 overflow-auto rounded-md bg-zinc-900 p-3 text-xs text-emerald-400">
@@ -339,7 +341,7 @@ function RecipeDetail({
 
       {recipe.parameters && Object.keys(recipe.parameters).length > 0 && (
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Parameters
           </label>
           <pre className="mt-1 rounded-md bg-zinc-50 p-2 text-xs text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">
@@ -365,7 +367,7 @@ function VersionHistory({
   return (
     <div className="rounded-lg border border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
       <div className="border-b border-zinc-200 px-3 py-2 dark:border-zinc-700">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Version History
         </span>
       </div>
@@ -434,7 +436,7 @@ function VersionRow({
         <div className="border-t border-zinc-200 bg-white px-3 py-3 dark:border-zinc-700 dark:bg-zinc-950">
           <div className="space-y-2">
             <div>
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Description
               </label>
               <p className="text-xs text-zinc-600 dark:text-zinc-400">
@@ -442,7 +444,7 @@ function VersionRow({
               </p>
             </div>
             <div>
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Algorithm
               </label>
               <p className="text-xs text-zinc-600 dark:text-zinc-400">
@@ -450,7 +452,7 @@ function VersionRow({
               </p>
             </div>
             <div>
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Code
               </label>
               <pre className="mt-0.5 max-h-40 overflow-auto rounded-md bg-zinc-900 p-2 text-[10px] text-emerald-400">
@@ -525,7 +527,7 @@ function RecipeCreateForm({
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="mt-4 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+        className="mt-4 rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800"
       >
         New Recipe
       </button>
@@ -552,7 +554,7 @@ function RecipeCreateForm({
 
       <div className="space-y-3">
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Name
           </label>
           <input
@@ -565,7 +567,7 @@ function RecipeCreateForm({
         </div>
 
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Description
           </label>
           <textarea
@@ -578,10 +580,12 @@ function RecipeCreateForm({
         </div>
 
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Algorithm Type
           </label>
           <SettingsSelect
+            label="Algorithm Type"
+            hideLabel
             value={algorithmType}
             onChange={(e) => setAlgorithmType(e.target.value)}
           >
@@ -594,7 +598,7 @@ function RecipeCreateForm({
         </div>
 
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Code Template
           </label>
           <textarea
@@ -608,7 +612,7 @@ function RecipeCreateForm({
         </div>
 
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Required Columns
           </label>
           <input
@@ -620,7 +624,7 @@ function RecipeCreateForm({
         </div>
 
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Output Description
           </label>
           <input

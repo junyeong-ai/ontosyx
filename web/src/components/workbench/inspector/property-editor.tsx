@@ -114,7 +114,7 @@ export function AddPropertyForm({
           <option value="duration">duration</option>
           <option value="bytes">bytes</option>
         </select>
-        <label className="flex items-center gap-1 text-[10px] text-zinc-500">
+        <label className="flex items-center gap-1 text-[10px] text-muted-foreground">
           <input
             type="checkbox"
             checked={nullable}
@@ -133,7 +133,7 @@ export function AddPropertyForm({
         </button>
         <button
           onClick={onClose}
-          className="rounded px-2.5 py-1 text-[10px] text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          className="rounded px-2.5 py-1 text-[10px] text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
         >
           Cancel
         </button>

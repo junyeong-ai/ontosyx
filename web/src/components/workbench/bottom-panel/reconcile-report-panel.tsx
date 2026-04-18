@@ -55,7 +55,7 @@ export function ReconcileReportPanel({
 
       <div className="mt-2 space-y-1.5">
         {report.preserved_ids.length > 0 && (
-          <p className="text-zinc-500">
+          <p className="text-muted-foreground">
             <span className="font-medium text-emerald-600">✓ Preserved:</span>{" "}
             {report.preserved_ids.length} entities
           </p>

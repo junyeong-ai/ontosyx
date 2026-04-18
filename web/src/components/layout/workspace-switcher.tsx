@@ -42,7 +42,7 @@ const ROLE_COLORS: Record<string, string> = {
   member:
     "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
   viewer:
-    "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-500",
+    "bg-zinc-100 text-muted-foreground dark:bg-zinc-800",
 };
 
 export function WorkspaceSwitcher() {

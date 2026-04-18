@@ -73,7 +73,7 @@ export function ProjectWorkflow({
                     "flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-bold",
                     i <= currentStepIndex
                       ? "bg-emerald-500 text-white"
-                      : "bg-zinc-200 text-zinc-400 dark:bg-zinc-700 dark:text-zinc-500",
+                      : "bg-zinc-200 text-zinc-400 dark:bg-zinc-700",
                   )}
                 >
                   {i + 1}
@@ -83,7 +83,7 @@ export function ProjectWorkflow({
                     "text-[9px] font-medium capitalize",
                     i <= currentStepIndex
                       ? "text-emerald-600 dark:text-emerald-400"
-                      : "text-zinc-400 dark:text-zinc-500",
+                      : "text-zinc-400",
                   )}
                 >
                   {step === "analyzed" ? "Analyze" : step === "designed" ? "Design" : "Complete"}
@@ -105,17 +105,17 @@ export function ProjectWorkflow({
 
         {/* Contextual status guide */}
         {project.status === "analyzed" && (
-          <p className="px-2 text-xs text-zinc-500">
+          <p className="px-2 text-xs text-muted-foreground">
             Review the analysis results and resolve PII/Clarification decisions, then click Design Ontology.
           </p>
         )}
         {project.status === "designed" && (
-          <p className="px-2 text-xs text-zinc-500">
+          <p className="px-2 text-xs text-muted-foreground">
             Review the ontology on the canvas. Use ⌘K to edit, then Complete &amp; Save when ready.
           </p>
         )}
         {project.status === "completed" && (
-          <p className="px-2 text-xs text-zinc-500">
+          <p className="px-2 text-xs text-muted-foreground">
             Ontology saved. Use Analyze mode to query, or Fork to create a new version.
           </p>
         )}
@@ -141,7 +141,7 @@ export function ProjectWorkflow({
         {project.quality_report && (
           <div className="rounded-lg border border-zinc-200 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Quality
               </h4>
               <span
@@ -174,7 +174,7 @@ export function ProjectWorkflow({
               })()}
             </div>
             {/* Guidance */}
-            <p className="mt-2 text-[10px] text-zinc-500">
+            <p className="mt-2 text-[10px] text-muted-foreground">
               {project.quality_report.confidence === "high" && "\u2713 High confidence — ready to finalize."}
               {project.quality_report.confidence === "medium" && "Consider refining with \u2318K before completing."}
               {project.quality_report.confidence === "low" && "\u26a0 Low confidence — review quality gaps before proceeding."}
@@ -204,7 +204,7 @@ export function ProjectWorkflow({
         {/* Analysis review */}
         {report && !isCompleted && (
           <details ref={analysisRef} open={!isDesigned}>
-            <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300">
+            <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-zinc-700 dark:hover:text-zinc-300">
               Analysis Review
               <span className="ml-2 text-[10px] font-normal normal-case text-zinc-400">
                 {decisions.unresolvedPiiCount + decisions.unresolvedClarificationCount > 0

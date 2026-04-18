@@ -101,7 +101,7 @@ export function AddWidgetButton({
       {/* Trigger button */}
       <button
         onClick={() => setOpen(true)}
-        className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-zinc-300 py-6 text-xs text-zinc-500 transition-colors hover:border-emerald-400 hover:text-emerald-600 dark:border-zinc-700 dark:hover:border-emerald-600"
+        className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-zinc-300 py-6 text-xs text-muted-foreground transition-colors hover:border-emerald-400 hover:text-emerald-600 dark:border-zinc-700 dark:hover:border-emerald-600"
       >
         <HugeiconsIcon icon={PlusSignIcon} className="h-4 w-4" size="100%" />
         Add Widget
@@ -123,14 +123,14 @@ export function AddWidgetButton({
             <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
               Add Widget
             </h3>
-            <p className="mt-1 text-xs text-zinc-500">
+            <p className="mt-1 text-xs text-muted-foreground">
               Create a new dashboard widget from a Cypher query.
             </p>
 
             <div className="mt-4 space-y-4">
               {/* Title */}
               <div>
-                <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Title
                 </label>
                 <input
@@ -144,7 +144,7 @@ export function AddWidgetButton({
 
               {/* Widget type */}
               <div>
-                <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Type
                 </label>
                 <select
@@ -162,7 +162,7 @@ export function AddWidgetButton({
 
               {/* Templates */}
               <div>
-                <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Templates
                 </label>
                 <div className="mt-1 flex flex-wrap gap-1.5">
@@ -181,7 +181,7 @@ export function AddWidgetButton({
 
               {/* Cypher query */}
               <div>
-                <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Cypher Query
                 </label>
                 <textarea

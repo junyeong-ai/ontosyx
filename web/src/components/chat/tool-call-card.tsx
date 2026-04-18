@@ -86,7 +86,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
 
           {/* Result summary */}
           {parsedResult?.summary && (
-            <span className="ml-1 text-[10px] text-zinc-400 dark:text-zinc-500">
+            <span className="ml-1 text-[10px] text-zinc-400">
               {parsedResult.summary}
             </span>
           )}
@@ -152,7 +152,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
                 {STEP_LABELS[step.step] ?? step.step}
               </span>
               {step.durationMs != null && (
-                <span className="text-[10px] tabular-nums text-zinc-400 dark:text-zinc-500">
+                <span className="text-[10px] tabular-nums text-zinc-400">
                   {step.durationMs < 100 ? "<0.1s" : `${(step.durationMs / 1000).toFixed(1)}s`}
                 </span>
               )}

@@ -32,7 +32,7 @@ function ParamField({
 
   return (
     <div>
-      <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+      <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
         {name}
         {def.description && (
           <span className="ml-1 font-normal normal-case text-zinc-400">
@@ -164,7 +164,7 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
             <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
               {recipe.name}
             </h2>
-            <p className="mt-0.5 text-xs text-zinc-500 line-clamp-1">
+            <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">
               {recipe.description}
             </p>
           </div>
@@ -183,7 +183,7 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
           {/* Parameters */}
           {paramEntries.length > 0 && (
             <div className="space-y-2">
-              <h3 className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+              <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Parameters
               </h3>
               {paramEntries.map(([name, def]) => (
@@ -200,7 +200,7 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
 
           {/* Data Source */}
           <div className="space-y-2">
-            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Data Source
             </h3>
             <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
@@ -226,7 +226,7 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
           {/* Result */}
           {resultText && (
             <div>
-              <h3 className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+              <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Result
               </h3>
               <pre className="mt-1 max-h-60 overflow-auto rounded-md bg-zinc-50 p-3 text-xs text-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">

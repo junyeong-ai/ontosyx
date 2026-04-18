@@ -82,7 +82,7 @@ export function KnowledgePanel() {
           >
             <div className="flex items-center gap-2">
               <span className={cn("h-1.5 w-1.5 rounded-full", STATUS_DOT[entry.status] ?? STATUS_DOT.draft)} />
-              <span className="text-[10px] font-medium text-zinc-500 uppercase">{entry.kind}</span>
+              <span className="text-[10px] font-medium text-muted-foreground uppercase">{entry.kind}</span>
               <span className="ml-auto text-[9px] tabular-nums text-zinc-400">
                 {(entry.confidence * 100).toFixed(0)}%
               </span>

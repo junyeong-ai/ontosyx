@@ -341,7 +341,7 @@ function MappingRow({
         {mapping.graph_property}
       </code>
       {mapping.transform && (
-        <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] text-zinc-500 dark:bg-zinc-800 dark:text-zinc-500">
+        <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] text-muted-foreground dark:bg-zinc-800">
           {mapping.transform}
         </span>
       )}
@@ -423,19 +423,19 @@ export default function LineageSettingsPage() {
                 <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
                   {totalLabels}
                 </div>
-                <div className="text-xs text-zinc-500">Graph Labels</div>
+                <div className="text-xs text-muted-foreground">Graph Labels</div>
               </div>
               <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
                 <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
                   {totalSources}
                 </div>
-                <div className="text-xs text-zinc-500">Source Tables</div>
+                <div className="text-xs text-muted-foreground">Source Tables</div>
               </div>
               <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
                 <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
                   {formatNumber(totalRecords)}
                 </div>
-                <div className="text-xs text-zinc-500">Total Records</div>
+                <div className="text-xs text-muted-foreground">Total Records</div>
               </div>
             </div>
 
@@ -445,7 +445,7 @@ export default function LineageSettingsPage() {
                 <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-3">
                   Column Mappings
                 </h2>
-                <p className="text-xs text-zinc-500 mb-4">
+                <p className="text-xs text-muted-foreground mb-4">
                   Source columns mapped to graph properties during data loading.
                   Click a mapping to expand column-level details.
                 </p>
@@ -477,7 +477,7 @@ export default function LineageSettingsPage() {
               <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-700">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-zinc-200 bg-zinc-50 text-left text-xs font-medium uppercase text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/50">
+                    <tr className="border-b border-zinc-200 bg-zinc-50 text-left text-xs font-medium uppercase text-muted-foreground dark:border-zinc-700 dark:bg-zinc-800/50">
                       <th className="py-3 pr-6">Label</th>
                       <th className="py-3 pr-6">Source</th>
                       <th className="py-3 pr-6 text-right">Records</th>
@@ -505,15 +505,15 @@ export default function LineageSettingsPage() {
                             {e.graph_label}
                           </div>
                         </td>
-                        <td className="py-3 pr-6 text-zinc-500">
+                        <td className="py-3 pr-6 text-muted-foreground">
                           <span className="font-mono text-xs">
                             {e.source_table || e.source_name}
                           </span>
                         </td>
-                        <td className="py-3 pr-6 text-right text-zinc-500">
+                        <td className="py-3 pr-6 text-right text-muted-foreground">
                           {formatNumber(e.record_count)}
                         </td>
-                        <td className="py-3 pr-6 text-right text-zinc-500 text-xs">
+                        <td className="py-3 pr-6 text-right text-muted-foreground text-xs">
                           {formatDate(e.started_at)}
                         </td>
                         <td className="py-3 pr-6 text-right">

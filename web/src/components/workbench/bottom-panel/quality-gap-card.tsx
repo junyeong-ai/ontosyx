@@ -127,7 +127,7 @@ export function QualityGapCard({
         <span className={severityBadgeClass(gap.severity)}>
           {gap.severity}
         </span>
-        <span className="text-[10px] text-zinc-500">
+        <span className="text-[10px] text-muted-foreground">
           {formatGapLocation(gap.location)}
         </span>
         <span className="ml-auto flex items-center gap-1.5">

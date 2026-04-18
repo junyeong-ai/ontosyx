@@ -95,7 +95,7 @@ export default function KnowledgePage() {
   const staleCount = entries.filter((e) => e.status === "stale").length;
 
   if (!isAdmin) {
-    return <div className="flex h-full items-center justify-center text-sm text-zinc-500">Admin access required.</div>;
+    return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Admin access required.</div>;
   }
 
   return (
@@ -105,7 +105,7 @@ export default function KnowledgePage() {
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Knowledge Base</h1>
-            <p className="mt-1 text-sm text-zinc-500">
+            <p className="mt-1 text-sm text-muted-foreground">
               Learned corrections from query failures and admin-created hints.
             </p>
           </div>
@@ -132,14 +132,18 @@ export default function KnowledgePage() {
 
         {/* Filters */}
         <div className="mt-4 flex items-center gap-3">
-          <SettingsSelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <SettingsSelect
+            label="Status Filter"
+            hideLabel value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="">All status</option>
             <option value="approved">Approved</option>
             <option value="draft">Draft</option>
             <option value="stale">Stale</option>
             <option value="deprecated">Deprecated</option>
           </SettingsSelect>
-          <SettingsSelect value={kindFilter} onChange={(e) => setKindFilter(e.target.value)}>
+          <SettingsSelect
+            label="Kind Filter"
+            hideLabel value={kindFilter} onChange={(e) => setKindFilter(e.target.value)}>
             <option value="">All kinds</option>
             <option value="correction">Correction</option>
             <option value="hint">Hint</option>
@@ -153,7 +157,7 @@ export default function KnowledgePage() {
             <div className="flex justify-center py-16"><Spinner /></div>
           ) : entries.length === 0 ? (
             <div className="rounded-xl border border-dashed border-zinc-300 px-6 py-16 text-center dark:border-zinc-700">
-              <p className="text-sm text-zinc-500">No knowledge entries yet.</p>
+              <p className="text-sm text-muted-foreground">No knowledge entries yet.</p>
               <p className="mt-1 text-xs text-zinc-400">
                 Entries are auto-created when the agent recovers from query failures, or manually as hints.
               </p>
@@ -220,7 +224,7 @@ function EntryCard({
         </span>
 
         {/* Status dot + label */}
-        <span className="flex shrink-0 items-center gap-1.5 text-xs text-zinc-500">
+        <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
           <span className={cn("h-2 w-2 rounded-full", s.dot)} />
           {s.label}
         </span>
@@ -255,7 +259,7 @@ function EntryCard({
         <div className="border-t border-zinc-100 px-4 pb-4 pt-3 dark:border-zinc-800">
           {/* Meta + Actions row */}
           <div className="flex items-center justify-between">
-            <div className="text-xs text-zinc-500">
+            <div className="text-xs text-muted-foreground">
               {entry.ontology_name} v{entry.ontology_version_min}+
               <span className="mx-1.5 text-zinc-300 dark:text-zinc-700">·</span>
               Confidence <strong className="text-zinc-700 dark:text-zinc-300">{(entry.confidence * 100).toFixed(0)}%</strong>

@@ -364,7 +364,7 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
             <button
               type="button"
               onClick={() => toggleCategory(category)}
-              className="flex w-full items-center gap-1.5 py-1 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+              className="flex w-full items-center gap-1.5 py-1 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-zinc-700 dark:hover:text-zinc-300"
             >
               <span
                 className={cn(

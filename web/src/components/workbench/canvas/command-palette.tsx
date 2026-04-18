@@ -147,7 +147,7 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
                 >
                   <span>{cmd.label}</span>
                   {cmd.shortcut && (
-                    <kbd className="ml-3 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-mono text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500">
+                    <kbd className="ml-3 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-mono text-zinc-400 dark:bg-zinc-800">
                       {cmd.shortcut}
                     </kbd>
                   )}

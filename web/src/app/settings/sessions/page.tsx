@@ -184,7 +184,7 @@ export default function SessionsPage() {
       <h1 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
         Agent Sessions
       </h1>
-      <p className="mt-1 text-sm text-zinc-500">
+      <p className="mt-1 text-sm text-muted-foreground">
         Audit trail of agent executions with event replay.
       </p>
 
@@ -208,6 +208,8 @@ export default function SessionsPage() {
           className="max-w-xs"
         />
         <SettingsSelect
+            label="Model Filter"
+            hideLabel
           value={modelFilter}
           onChange={(e) => setModelFilter(e.target.value)}
           className="max-w-[200px]"
@@ -354,7 +356,7 @@ function ConversationView({
           {msg.role === "user" ? (
             <div className="flex justify-end">
               <div className="max-w-[80%] rounded-lg bg-zinc-100 px-3 py-2 dark:bg-zinc-800">
-                <p className="mb-1 text-[10px] font-semibold text-zinc-500">User</p>
+                <p className="mb-1 text-[10px] font-semibold text-muted-foreground">User</p>
                 <p className="whitespace-pre-wrap text-xs text-zinc-700 dark:text-zinc-300">
                   {msg.content}
                 </p>
@@ -364,7 +366,7 @@ function ConversationView({
             <div className="flex justify-start">
               <div className="max-w-[80%] space-y-2">
                 <div className="rounded-lg border border-zinc-200 bg-white px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900">
-                  <p className="mb-1 text-[10px] font-semibold text-zinc-500">Assistant</p>
+                  <p className="mb-1 text-[10px] font-semibold text-muted-foreground">Assistant</p>
                   {msg.content && (
                     <p className="whitespace-pre-wrap text-xs text-zinc-700 dark:text-zinc-300">
                       {msg.content}

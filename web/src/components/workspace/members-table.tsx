@@ -16,7 +16,7 @@ const ROLE_COLORS: Record<string, string> = {
   owner: "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400",
   admin: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-400",
   member: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
-  viewer: "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-500",
+  viewer: "bg-zinc-100 text-muted-foreground dark:bg-zinc-800",
 };
 
 const ROLES = ["admin", "member", "viewer"];
@@ -132,7 +132,7 @@ export function MembersTable({ wsId, members, onReload }: Props) {
       <div className="mt-3">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-zinc-500 dark:border-zinc-700">
+            <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-muted-foreground dark:border-zinc-700">
               <th className="py-2">User</th>
               <th className="py-2">Role</th>
               <th className="py-2">Joined</th>
@@ -171,7 +171,7 @@ export function MembersTable({ wsId, members, onReload }: Props) {
                     </select>
                   )}
                 </td>
-                <td className="py-2 text-zinc-500">
+                <td className="py-2 text-muted-foreground">
                   {m.joined_at
                     ? new Date(m.joined_at).toLocaleDateString()
                     : "-"}
@@ -188,7 +188,7 @@ export function MembersTable({ wsId, members, onReload }: Props) {
                         </button>
                         <button
                           onClick={() => setConfirmRemove(null)}
-                          className="rounded px-2 py-0.5 text-[10px] text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                          className="rounded px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
                         >
                           Cancel
                         </button>

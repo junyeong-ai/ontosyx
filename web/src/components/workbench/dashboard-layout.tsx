@@ -263,7 +263,7 @@ export function DashboardLayout() {
           {/* Cross-filter badge bar */}
           {Object.keys(dashboardFilters).length > 0 && (
             <div className="flex items-center gap-2 border-b border-zinc-200 px-4 py-2 dark:border-zinc-800">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Filters:</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Filters:</span>
               {Object.entries(dashboardFilters).map(([key, value]) => (
                 <button
                   key={key}
@@ -330,7 +330,7 @@ export function DashboardLayout() {
       <Panel defaultSize="25%" minSize="15%" maxSize="40%">
         <div className="flex h-full flex-col border-l border-zinc-200 dark:border-zinc-800">
           <div className="flex h-10 shrink-0 items-center border-b border-zinc-200 px-3 dark:border-zinc-800">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Widget Inspector
             </span>
           </div>
@@ -424,7 +424,7 @@ function CreateDashboardDialog({
         </h3>
         <div className="mt-3 space-y-3">
           <div>
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Name
             </label>
             <input
@@ -440,7 +440,7 @@ function CreateDashboardDialog({
             />
           </div>
           <div>
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Description
             </label>
             <textarea
@@ -455,7 +455,7 @@ function CreateDashboardDialog({
         <div className="mt-4 flex justify-end gap-2">
           <button
             onClick={onCancel}
-            className="rounded-md px-3 py-1.5 text-xs text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            className="rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
           >
             Cancel
           </button>

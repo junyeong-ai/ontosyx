@@ -30,12 +30,8 @@ export const queryDefaults: DefaultOptions = {
     // Retry other errors twice with exponential backoff (TanStack default
     // delay is sufficient).
     retry: (failureCount, error) => {
-      if (error instanceof ApiError) {
-        const message = error.message ?? "";
-        // Heuristic: ApiError with a 4xx-looking message is not retryable.
-        if (/\b4\d{2}\b/.test(message) || error.type === "not_found" || error.type === "forbidden") {
-          return false;
-        }
+      if (error instanceof ApiError && error.isClientError()) {
+        return false;
       }
       return failureCount < 2;
     },

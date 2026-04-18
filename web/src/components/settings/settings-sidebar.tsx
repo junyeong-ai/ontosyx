@@ -105,7 +105,7 @@ export function SettingsSidebar() {
       <nav className="flex flex-col overflow-y-auto px-2 pb-4 pt-2">
         {visibleGroups.map((group) => (
           <div key={group.title} className="flex flex-col gap-0.5">
-            <span className="mt-4 mb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+            <span className="mt-4 mb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
               {group.title}
             </span>
             {group.items.map((item) => {

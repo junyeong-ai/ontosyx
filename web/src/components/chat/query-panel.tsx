@@ -56,7 +56,7 @@ export function QueryPanel() {
         <div className="mx-auto max-w-4xl">
           <div className="flex items-center justify-between pb-3">
             <div className="flex items-center gap-2">
-              <HugeiconsIcon icon={CommandLineIcon} className="h-4 w-4 text-zinc-500" size="100%" />
+              <HugeiconsIcon icon={CommandLineIcon} className="h-4 w-4 text-muted-foreground" size="100%" />
               <h2 className="text-sm font-semibold">Raw Query</h2>
             </div>
             <Button
@@ -122,9 +122,9 @@ export function QueryPanel() {
           {!result && !error && (
             <div className="flex h-64 flex-col items-center justify-center text-center">
               <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-100 dark:bg-zinc-800">
-                <HugeiconsIcon icon={CommandLineIcon} className="h-6 w-6 text-zinc-400 dark:text-zinc-500" size="100%" />
+                <HugeiconsIcon icon={CommandLineIcon} className="h-6 w-6 text-zinc-400" size="100%" />
               </div>
-              <p className="text-sm text-zinc-500">
+              <p className="text-sm text-muted-foreground">
                 Write a Cypher query and hit Execute
               </p>
             </div>

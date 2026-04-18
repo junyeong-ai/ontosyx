@@ -245,7 +245,7 @@ export default function NotificationsSettingsPage() {
         {!formOpen && (
           <button
             onClick={openCreate}
-            className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+            className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800"
           >
             Add Channel
           </button>
@@ -269,13 +269,13 @@ export default function NotificationsSettingsPage() {
 
       {/* Channels table */}
       <div className="mt-6">
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Channels
         </h2>
         <div className="overflow-x-auto -mx-6 px-6">
           <table className="w-full min-w-[640px] text-sm">
             <thead>
-              <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-zinc-500 dark:border-zinc-700">
+              <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-muted-foreground dark:border-zinc-700">
                 <th className="py-3 pr-6">Name</th>
                 <th className="py-3 pr-6">Type</th>
                 <th className="py-3 pr-6">Events</th>
@@ -292,10 +292,10 @@ export default function NotificationsSettingsPage() {
                   <td className="py-3 pr-6 font-medium text-zinc-900 dark:text-zinc-100">
                     {ch.name}
                   </td>
-                  <td className="py-3 pr-6 text-zinc-500">
+                  <td className="py-3 pr-6 text-muted-foreground">
                     <ChannelTypeBadge type={ch.channel_type} />
                   </td>
-                  <td className="py-3 pr-6 text-zinc-500">
+                  <td className="py-3 pr-6 text-muted-foreground">
                     <div className="flex flex-wrap gap-1">
                       {ch.events.map((ev) => (
                         <span
@@ -324,7 +324,7 @@ export default function NotificationsSettingsPage() {
                       </button>
                       <button
                         onClick={() => openEdit(ch)}
-                        className="rounded px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                        className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
                       >
                         Edit
                       </button>
@@ -353,7 +353,7 @@ export default function NotificationsSettingsPage() {
 
       {/* Recent notifications log */}
       <div className="mt-8">
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Recent Notifications
         </h2>
         {logs.length === 0 ? (
@@ -362,7 +362,7 @@ export default function NotificationsSettingsPage() {
           <div className="overflow-x-auto -mx-6 px-6">
             <table className="w-full min-w-[640px] text-sm">
               <thead>
-                <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-zinc-500 dark:border-zinc-700">
+                <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-muted-foreground dark:border-zinc-700">
                   <th className="py-3 pr-6">Time</th>
                   <th className="py-3 pr-6">Event</th>
                   <th className="py-3 pr-6">Subject</th>
@@ -376,10 +376,10 @@ export default function NotificationsSettingsPage() {
                     key={log.id}
                     className="border-b border-zinc-100 dark:border-zinc-800"
                   >
-                    <td className="py-3 pr-6 text-zinc-500 whitespace-nowrap">
+                    <td className="py-3 pr-6 text-muted-foreground whitespace-nowrap">
                       {new Date(log.created_at).toLocaleString()}
                     </td>
-                    <td className="py-3 pr-6 text-zinc-500">
+                    <td className="py-3 pr-6 text-muted-foreground">
                       <span className="inline-flex rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
                         {log.event_type}
                       </span>
@@ -501,7 +501,7 @@ function ChannelForm({
       <div className="grid grid-cols-2 gap-3">
         {/* Name */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Name
           </label>
           <input
@@ -518,10 +518,12 @@ function ChannelForm({
 
         {/* Channel type */}
         <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Channel Type
           </label>
           <SettingsSelect
+            label="Channel Type"
+            hideLabel
             value={form.channel_type}
             onChange={(e) =>
               update("channel_type", { channel_type: e.target.value })
@@ -538,7 +540,7 @@ function ChannelForm({
 
         {/* Webhook URL */}
         <div className="col-span-2">
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Webhook URL
           </label>
           <input
@@ -559,7 +561,7 @@ function ChannelForm({
 
         {/* Events */}
         <div className="col-span-2">
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Events
           </label>
           <div className="mt-1 flex flex-wrap gap-3">
@@ -601,7 +603,7 @@ function ChannelForm({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-md px-3 py-1.5 text-xs text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          className="rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
         >
           Cancel
         </button>

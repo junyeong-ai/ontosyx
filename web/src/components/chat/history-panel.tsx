@@ -46,14 +46,14 @@ export function HistoryPanel() {
         <Tabs.List className="flex border-b border-zinc-200 dark:border-zinc-800">
           <Tabs.Tab
             value="recent"
-            className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium outline-none transition-colors text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 data-[active]:border-b-2 data-[active]:border-emerald-600 data-[active]:text-emerald-700 dark:data-[active]:text-emerald-400"
+            className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium outline-none transition-colors text-muted-foreground hover:text-zinc-700 dark:hover:text-zinc-300 data-[active]:border-b-2 data-[active]:border-emerald-600 data-[active]:text-emerald-700 dark:data-[active]:text-emerald-400"
           >
             <HugeiconsIcon icon={Clock01Icon} className="h-3.5 w-3.5" size="100%" />
             Recent
           </Tabs.Tab>
           <Tabs.Tab
             value="pinned"
-            className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium outline-none transition-colors text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 data-[active]:border-b-2 data-[active]:border-emerald-600 data-[active]:text-emerald-700 dark:data-[active]:text-emerald-400"
+            className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium outline-none transition-colors text-muted-foreground hover:text-zinc-700 dark:hover:text-zinc-300 data-[active]:border-b-2 data-[active]:border-emerald-600 data-[active]:text-emerald-700 dark:data-[active]:text-emerald-400"
           >
             <HugeiconsIcon icon={PinIcon} className="h-3.5 w-3.5" size="100%" />
             Pinned

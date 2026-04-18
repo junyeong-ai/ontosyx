@@ -59,7 +59,7 @@ function VerificationBadge({
     return (
       <button
         onClick={onVerify}
-        className="rounded border border-zinc-200 px-2 py-0.5 text-[10px] text-zinc-500 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+        className="rounded border border-zinc-200 px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
       >
         Verify
       </button>
@@ -188,7 +188,7 @@ export function NodeDetail({
             value={node.description ?? ""}
             placeholder="Add description..."
             onSave={handleUpdateDescription}
-            className="flex-1 text-zinc-500"
+            className="flex-1 text-muted-foreground"
           />
           {canEdit && (
             <AiAssistButton
@@ -411,7 +411,7 @@ export function EdgeDetail({
             value={edge.description ?? ""}
             placeholder="Add description..."
             onSave={handleUpdateDescription}
-            className="flex-1 text-zinc-500"
+            className="flex-1 text-muted-foreground"
           />
           {canEdit && (
             <AiAssistButton
@@ -428,7 +428,7 @@ export function EdgeDetail({
             onDismiss={dismissDesc}
           />
         )}
-        <p className="mt-1 text-zinc-500">
+        <p className="mt-1 text-muted-foreground">
           {src} → {tgt}
         </p>
         {edge.cardinality && (

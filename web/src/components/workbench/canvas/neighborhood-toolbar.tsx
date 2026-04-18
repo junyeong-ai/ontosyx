@@ -12,7 +12,7 @@ export function NeighborhoodToolbar() {
 
   return (
     <div className="absolute top-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2 py-1 shadow-md dark:border-zinc-700 dark:bg-zinc-900">
-      <span className="mr-2 text-xs text-zinc-500">Neighborhood</span>
+      <span className="mr-2 text-xs text-muted-foreground">Neighborhood</span>
       {([1, 2, 3] as const).map((d) => (
         <button
           key={d}
@@ -20,7 +20,7 @@ export function NeighborhoodToolbar() {
           className={`rounded px-2 py-0.5 text-xs font-medium transition-colors ${
             depth === d
               ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300"
-              : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              : "text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
           }`}
         >
           {d}-hop
@@ -28,7 +28,7 @@ export function NeighborhoodToolbar() {
       ))}
       <button
         onClick={() => setNeighborhoodFocus(null)}
-        className="ml-1 rounded px-2 py-0.5 text-xs font-medium text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+        className="ml-1 rounded px-2 py-0.5 text-xs font-medium text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
       >
         All
       </button>

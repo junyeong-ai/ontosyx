@@ -137,7 +137,7 @@ function GroupedSection({
 
   return (
     <div>
-      <h4 className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+      <h4 className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
         {title}
       </h4>
       <div className="space-y-1">
@@ -453,7 +453,7 @@ export function AnalysisReviewSection({
           <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
             Analysis Review
           </p>
-          <p className="mt-0.5 text-[10px] text-zinc-500">
+          <p className="mt-0.5 text-[10px] text-muted-foreground">
             {report.schema_stats.table_count} tables, {report.schema_stats.column_count} columns,{" "}
             {report.schema_stats.declared_fk_count} FKs · Remaining: {unresolvedPiiCount} PII,{" "}
             {unresolvedClarificationCount} clarifications
@@ -491,7 +491,7 @@ export function AnalysisReviewSection({
       {/* Progress bar */}
       {totalItems > 0 && (
         <div>
-          <div className="mb-1 flex items-center justify-between text-[10px] text-zinc-500">
+          <div className="mb-1 flex items-center justify-between text-[10px] text-muted-foreground">
             <span>{progressPercent}% resolved ({totalResolved}/{totalItems})</span>
             <span className="text-zinc-400">{totalUnresolved} remaining</span>
           </div>
@@ -531,7 +531,7 @@ export function AnalysisReviewSection({
             placeholder="Filter by table name..."
             className="flex-1 border-none bg-transparent text-[10px] text-zinc-700 outline-none placeholder:text-zinc-500 dark:text-zinc-200 dark:placeholder:text-zinc-500"
           />
-          <span className="whitespace-nowrap text-[10px] font-medium text-zinc-500">
+          <span className="whitespace-nowrap text-[10px] font-medium text-muted-foreground">
             {totalUnresolved}/{totalItems} unresolved
           </span>
         </div>
@@ -567,7 +567,7 @@ export function AnalysisReviewSection({
 
       {/* Repo summary */}
       {report.repo_summary && (
-        <div className="text-[10px] text-zinc-500">
+        <div className="text-[10px] text-muted-foreground">
           Repo: {report.repo_summary.status} · {report.repo_summary.files_analyzed}/{report.repo_summary.files_requested} files
           {report.repo_summary.enums_found > 0 && ` · ${report.repo_summary.enums_found} enums`}
         </div>
@@ -697,7 +697,7 @@ export function AnalysisReviewSection({
                 <p className="text-[10px] font-medium text-zinc-700 dark:text-zinc-200">
                   {column.table}.{column.column}
                 </p>
-                <p className="text-[10px] text-zinc-500">{column.clarification_prompt}</p>
+                <p className="text-[10px] text-muted-foreground">{column.clarification_prompt}</p>
                 {column.repo_suggestion && (
                   <div className="mt-0.5 flex items-center gap-1.5">
                     <span className="text-[10px] text-emerald-600">{column.repo_suggestion.suggested_values}</span>

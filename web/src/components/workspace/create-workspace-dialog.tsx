@@ -128,7 +128,7 @@ export function CreateWorkspaceDialog({ open, onOpenChange }: Props) {
         <div className="mt-6 flex justify-end gap-2">
           <button
             onClick={() => onOpenChange(false)}
-            className="rounded-md px-3 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
           >
             Cancel
           </button>

@@ -266,7 +266,7 @@ export function PerspectiveSwitcher({
             ) : (
               <button
                 onClick={() => setShowSaveAs(true)}
-                className="w-full px-3 py-1.5 text-left text-[10px] text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                className="w-full px-3 py-1.5 text-left text-[10px] text-muted-foreground hover:bg-zinc-50 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
               >
                 Save as...
               </button>

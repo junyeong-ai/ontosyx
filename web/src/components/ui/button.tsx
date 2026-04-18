@@ -9,8 +9,10 @@ type Size = "xs" | "sm" | "md" | "lg" | "icon" | "icon-sm";
 const variantStyles: Record<Variant, string> = {
   default:
     "bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200",
+  // emerald-700 on white ≈ 5.65:1 (WCAG AA). emerald-600 (the prior
+   // value) is 3.65:1 at 12px, which axe flags on every small button.
   primary:
-    "bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700",
+    "bg-emerald-700 text-white hover:bg-emerald-800 dark:bg-emerald-700 dark:hover:bg-emerald-800",
   ghost: "hover:bg-zinc-100 dark:hover:bg-zinc-800",
   outline:
     "border border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800",

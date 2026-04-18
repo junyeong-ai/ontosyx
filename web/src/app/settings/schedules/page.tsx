@@ -84,7 +84,7 @@ export default function SchedulesPage() {
       <h1 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
         Scheduled Tasks
       </h1>
-      <p className="mt-1 text-sm text-zinc-500">
+      <p className="mt-1 text-sm text-muted-foreground">
         Manage recurring analysis tasks. Tasks execute recipes on a cron
         schedule.
       </p>
@@ -99,25 +99,25 @@ export default function SchedulesPage() {
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
-                <th className="py-3 pr-6 font-semibold text-zinc-500">
+                <th className="py-3 pr-6 font-semibold text-muted-foreground">
                   Description
                 </th>
-                <th className="py-3 pr-6 font-semibold text-zinc-500">
+                <th className="py-3 pr-6 font-semibold text-muted-foreground">
                   Cron
                 </th>
-                <th className="py-3 pr-6 font-semibold text-zinc-500">
+                <th className="py-3 pr-6 font-semibold text-muted-foreground">
                   Status
                 </th>
-                <th className="py-3 pr-6 font-semibold text-zinc-500">
+                <th className="py-3 pr-6 font-semibold text-muted-foreground">
                   Last Run
                 </th>
-                <th className="py-3 pr-6 font-semibold text-zinc-500">
+                <th className="py-3 pr-6 font-semibold text-muted-foreground">
                   Next Run
                 </th>
-                <th className="py-3 pr-6 font-semibold text-zinc-500">
+                <th className="py-3 pr-6 font-semibold text-muted-foreground">
                   Enabled
                 </th>
-                <th className="py-3 pr-6 font-semibold text-zinc-500" />
+                <th className="py-3 pr-6 font-semibold text-muted-foreground" />
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
@@ -129,13 +129,13 @@ export default function SchedulesPage() {
                   <td className="py-3 pr-6 text-zinc-700 dark:text-zinc-300">
                     {task.description ?? task.recipe_id.slice(0, 8)}
                   </td>
-                  <td className="py-3 pr-6 font-mono text-zinc-500">
+                  <td className="py-3 pr-6 font-mono text-muted-foreground">
                     {task.cron_expression}
                   </td>
                   <td className="py-3 pr-6">
                     {task.last_status ? (
                       <span
-                        className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${STATUS_BADGE[task.last_status] ?? "bg-zinc-100 text-zinc-500"}`}
+                        className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${STATUS_BADGE[task.last_status] ?? "bg-zinc-100 text-muted-foreground"}`}
                       >
                         {task.last_status}
                       </span>
@@ -143,12 +143,12 @@ export default function SchedulesPage() {
                       <span className="text-zinc-400">--</span>
                     )}
                   </td>
-                  <td className="py-3 pr-6 text-zinc-500">
+                  <td className="py-3 pr-6 text-muted-foreground">
                     {task.last_run_at
                       ? new Date(task.last_run_at).toLocaleString()
                       : "--"}
                   </td>
-                  <td className="py-3 pr-6 text-zinc-500">
+                  <td className="py-3 pr-6 text-muted-foreground">
                     {new Date(task.next_run_at).toLocaleString()}
                   </td>
                   <td className="py-3 pr-6">

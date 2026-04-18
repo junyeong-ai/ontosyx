@@ -62,6 +62,8 @@ export default function UsageSettingsPage() {
           </p>
         </div>
         <SettingsSelect
+            label="Days"
+            hideLabel
           value={days}
           onChange={(e) => setDays(Number(e.target.value))}
         >
@@ -81,19 +83,19 @@ export default function UsageSettingsPage() {
               <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
                 {formatTokens(totalTokens)}
               </div>
-              <div className="text-xs text-zinc-500">Total Tokens</div>
+              <div className="text-xs text-muted-foreground">Total Tokens</div>
             </div>
             <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
               <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
                 {totalRequests.toLocaleString()}
               </div>
-              <div className="text-xs text-zinc-500">Requests</div>
+              <div className="text-xs text-muted-foreground">Requests</div>
             </div>
             <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
               <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
                 ${totalCost.toFixed(4)}
               </div>
-              <div className="text-xs text-zinc-500">Estimated Cost</div>
+              <div className="text-xs text-muted-foreground">Estimated Cost</div>
             </div>
           </div>
 
@@ -101,7 +103,7 @@ export default function UsageSettingsPage() {
           <div className="mt-6">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-zinc-500 dark:border-zinc-700">
+                <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-muted-foreground dark:border-zinc-700">
                   <th className="py-3 pr-6">Resource Type</th>
                   <th className="py-3 pr-6 text-right">Input Tokens</th>
                   <th className="py-3 pr-6 text-right">Output Tokens</th>
@@ -115,16 +117,16 @@ export default function UsageSettingsPage() {
                     <td className="py-3 pr-6 font-medium text-zinc-900 dark:text-zinc-100">
                       {u.resource_type}
                     </td>
-                    <td className="py-3 pr-6 text-right text-zinc-500">
+                    <td className="py-3 pr-6 text-right text-muted-foreground">
                       {formatTokens(u.total_input_tokens)}
                     </td>
-                    <td className="py-3 pr-6 text-right text-zinc-500">
+                    <td className="py-3 pr-6 text-right text-muted-foreground">
                       {formatTokens(u.total_output_tokens)}
                     </td>
-                    <td className="py-3 pr-6 text-right text-zinc-500">
+                    <td className="py-3 pr-6 text-right text-muted-foreground">
                       {u.request_count.toLocaleString()}
                     </td>
-                    <td className="py-3 pr-6 text-right text-zinc-500">
+                    <td className="py-3 pr-6 text-right text-muted-foreground">
                       ${u.total_cost_usd.toFixed(4)}
                     </td>
                   </tr>

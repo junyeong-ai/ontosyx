@@ -254,7 +254,7 @@ export function ExploreGraphView({ focusedNode, neighbors, schemaOverview, onNod
   // Empty state
   if (nodes.length === 0 && !error) {
     return (
-      <div className="flex h-full items-center justify-center text-zinc-500 text-sm">
+      <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
         {focusedNode ? "No neighbors found" : "Loading graph schema..."}
       </div>
     );
@@ -267,14 +267,14 @@ export function ExploreGraphView({ focusedNode, neighbors, schemaOverview, onNod
 
       {/* Loading overlay */}
       {!nvlReady && !error && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-zinc-500 text-sm">
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-muted-foreground text-sm">
           Loading graph...
         </div>
       )}
 
       {/* Error fallback */}
       {error && (
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 text-zinc-500 text-sm">
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground text-sm">
           <p>{error}</p>
           <p className="text-xs text-zinc-600">Try refreshing the page</p>
         </div>

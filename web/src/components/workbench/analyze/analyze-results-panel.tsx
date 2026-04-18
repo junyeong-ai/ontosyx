@@ -146,7 +146,7 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
           )}
           <button
             onClick={() => setPinOpen(!pinOpen)}
-            className="cursor-pointer rounded px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 transition-colors hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950 dark:hover:text-emerald-400"
+            className="cursor-pointer rounded px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950 dark:hover:text-emerald-400"
             title="Pin to Dashboard"
           >
             Pin
@@ -161,7 +161,7 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
       )}
       {/* Step timings — separate line below header for readability */}
       {parsed?.step_timings && parsed.step_timings.length > 0 && (
-        <div className="flex flex-wrap gap-x-3 gap-y-0.5 px-3 pb-2 pt-1 text-[10px] text-zinc-400 dark:text-zinc-500">
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 px-3 pb-2 pt-1 text-[10px] text-zinc-400">
           {parsed.step_timings.map((st) => {
             const label = STEP_TIMING_LABELS[st.step] ?? st.step;
             const ms = st.duration_ms;
@@ -320,7 +320,7 @@ function AnalysisResultBlock({ raw }: { raw?: string }) {
         <pre className="max-h-80 overflow-auto rounded-md bg-zinc-900 p-3 text-xs text-emerald-400 leading-relaxed">
           {display}
           {!expanded && isLarge && (
-            <span className="text-zinc-500">{"\n... "}({formatted.length.toLocaleString()} chars)</span>
+            <span className="text-muted-foreground">{"\n... "}({formatted.length.toLocaleString()} chars)</span>
           )}
         </pre>
         {isLarge && (
@@ -358,7 +358,7 @@ function JsonPreview({ raw }: { raw?: string }) {
       <pre className="max-h-80 overflow-auto rounded-md bg-zinc-900 p-3 text-xs text-emerald-400 leading-relaxed">
         {display}
         {!expanded && isLarge && (
-          <span className="text-zinc-500">{"\n... "}({formatted.length.toLocaleString()} chars)</span>
+          <span className="text-muted-foreground">{"\n... "}({formatted.length.toLocaleString()} chars)</span>
         )}
       </pre>
       {isLarge && (

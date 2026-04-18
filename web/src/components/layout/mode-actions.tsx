@@ -152,7 +152,7 @@ function DesignActions() {
       )}
       {ontology && (
         <Popover open={exportMenuOpen} onOpenChange={setExportMenuOpen}>
-          <PopoverTrigger aria-label="Export Ontology" className="inline-flex h-7 w-7 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300">
+          <PopoverTrigger aria-label="Export Ontology" className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300">
             <HugeiconsIcon icon={Download04Icon} className="h-3.5 w-3.5" size="100%" />
           </PopoverTrigger>
           <PopoverContent className="z-50 w-48 rounded-lg border border-zinc-200 bg-white p-1 shadow-lg data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 transition-all dark:border-zinc-700 dark:bg-zinc-900">

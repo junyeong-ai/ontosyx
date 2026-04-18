@@ -138,7 +138,7 @@ function DesignSelector() {
                   <span className="flex-1 truncate text-zinc-700 dark:text-zinc-300">
                     {p.title || p.id.slice(0, 8)}
                   </span>
-                  <span className="rounded bg-zinc-100 px-1 text-[9px] text-zinc-500 dark:bg-zinc-800">
+                  <span className="rounded bg-zinc-100 px-1 text-[9px] text-muted-foreground dark:bg-zinc-800">
                     {p.status}
                   </span>
                 </button>
@@ -370,7 +370,7 @@ function DashboardSelector() {
                     setIsCreateOpen(false);
                     setNewName("");
                   }}
-                  className="rounded-md px-2.5 py-1 text-[11px] text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  className="rounded-md px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 >
                   Cancel
                 </button>

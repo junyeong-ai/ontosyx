@@ -76,7 +76,7 @@ export function FunnelWidget({ spec, data }: FunnelWidgetProps) {
               <div className="flex flex-1 flex-col items-center">
                 {/* Conversion arrow */}
                 {conversionRate && (
-                  <div className="mb-0.5 text-[10px] font-medium text-zinc-400 dark:text-zinc-500">
+                  <div className="mb-0.5 text-[10px] font-medium text-zinc-400">
                     {conversionRate}%
                   </div>
                 )}

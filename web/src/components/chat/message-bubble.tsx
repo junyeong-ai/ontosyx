@@ -230,7 +230,7 @@ function SuggestedFollowups({ content, onSend }: { content: string; onSend?: (te
           onClick={() => handleClick(q)}
           className="block w-full text-left text-sm text-emerald-400 hover:text-emerald-300 hover:underline"
         >
-          <span className="mr-2 text-zinc-500">{i + 1}.</span>
+          <span className="mr-2 text-muted-foreground">{i + 1}.</span>
           {q}
         </button>
       ))}

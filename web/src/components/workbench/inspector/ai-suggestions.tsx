@@ -143,7 +143,7 @@ export function AiSuggestionList({
           </button>
           <button
             onClick={onDismiss}
-            className="rounded px-2 py-0.5 text-[10px] text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            className="rounded px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
           >
             Dismiss
           </button>

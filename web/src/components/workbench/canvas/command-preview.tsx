@@ -45,7 +45,7 @@ export function CommandPreview({
             No structural changes needed.
           </p>
           {explanation && (
-            <p className="mt-1.5 text-xs leading-relaxed text-zinc-500">
+            <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
               {explanation}
             </p>
           )}
@@ -53,7 +53,7 @@ export function CommandPreview({
         <div className="flex justify-end border-t border-zinc-100 px-4 py-2.5 dark:border-zinc-800">
           <button
             onClick={onCancel}
-            className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
           >
             <HugeiconsIcon icon={Cancel01Icon} className="h-3 w-3" size="100%" />
             Close
@@ -132,7 +132,7 @@ export function CommandPreview({
           <button
             onClick={() => toggleAll(false)}
             disabled={noneChecked}
-            className="rounded px-2 py-0.5 text-[10px] font-medium text-zinc-500 hover:bg-zinc-100 disabled:opacity-30 dark:hover:bg-zinc-800"
+            className="rounded px-2 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-zinc-100 disabled:opacity-30 dark:hover:bg-zinc-800"
           >
             Deselect All
           </button>
@@ -184,7 +184,7 @@ export function CommandPreview({
       <div className="flex items-center justify-end gap-2 border-t border-zinc-100 px-4 py-2.5 dark:border-zinc-800">
         <button
           onClick={onCancel}
-          className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
         >
           <HugeiconsIcon
             icon={Cancel01Icon}
@@ -196,7 +196,7 @@ export function CommandPreview({
         <button
           onClick={handleApply}
           disabled={noneChecked}
-          className="flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+          className="flex items-center gap-1 rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800 disabled:opacity-50"
         >
           <HugeiconsIcon
             icon={Tick01Icon}

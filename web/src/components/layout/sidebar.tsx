@@ -74,7 +74,7 @@ function PanelToggle({
           "flex h-9 w-full items-center justify-center transition-colors",
           active
             ? "text-zinc-600 dark:text-zinc-300"
-            : "text-zinc-400 hover:text-zinc-500 dark:hover:text-zinc-400",
+            : "text-zinc-400 hover:text-muted-foreground dark:hover:text-zinc-400",
         )}
       >
         <HugeiconsIcon icon={icon} className="h-4 w-4" size="100%" />
@@ -92,7 +92,7 @@ export function Sidebar() {
   const toggleInspector = useAppStore((s) => s.toggleInspector);
 
   return (
-    <aside role="navigation" aria-label="Main navigation" className="flex h-full w-12 flex-col border-r border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/50">
+    <nav aria-label="Main navigation" className="flex h-full w-12 flex-col border-r border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/50">
       {/* Logo */}
       <div className="flex h-11 items-center justify-center border-b border-zinc-200 dark:border-zinc-800">
         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 shadow-sm">
@@ -164,6 +164,6 @@ export function Sidebar() {
           </Link>
         </Tooltip>
       </div>
-    </aside>
+    </nav>
   );
 }

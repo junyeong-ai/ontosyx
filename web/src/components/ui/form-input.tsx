@@ -46,83 +46,81 @@ const inputBase =
   "w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs transition-colors focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/50 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-emerald-400 dark:focus:ring-emerald-400/50";
 
 const labelBase =
-  "text-[10px] font-semibold uppercase tracking-wider text-zinc-500";
+  "text-[10px] font-semibold uppercase tracking-wider text-muted-foreground";
 
-interface SettingsInputProps extends InputHTMLAttributes<HTMLInputElement> {
-  label?: string;
+/**
+ * Shared shape for the labelled settings controls. `label` is REQUIRED
+ * so every control has an accessible name. Pass `hideLabel` for designs
+ * that prefer no visible caption (e.g. toolbar filters); the label is
+ * then visually hidden via `sr-only` but still announced by screen
+ * readers. The components use **implicit label association** — the
+ * outer `<label>` wraps the control — so we do NOT need to thread an
+ * `id`/`htmlFor` pair through every caller. Same pattern as `FormField`.
+ */
+interface LabelledFieldProps {
+  label: string;
+  hideLabel?: boolean;
 }
 
+function FieldLabelText({
+  label,
+  hideLabel,
+}: LabelledFieldProps) {
+  return (
+    <span className={cn("block", labelBase, hideLabel && "sr-only")}>
+      {label}
+    </span>
+  );
+}
+
+type SettingsInputProps = InputHTMLAttributes<HTMLInputElement> & LabelledFieldProps;
+
 export const SettingsInput = forwardRef<HTMLInputElement, SettingsInputProps>(
-  ({ label, className, id, ...props }, ref) => {
-    const inputId = id ?? label?.toLowerCase().replace(/\s+/g, "-");
-    const input = (
+  ({ label, hideLabel, className, ...props }, ref) => (
+    <label className="block">
+      <FieldLabelText label={label} hideLabel={hideLabel} />
       <input
         ref={ref}
-        id={inputId}
         className={cn(inputBase, className)}
         {...props}
       />
-    );
-    if (!label) return input;
-    return (
-      <div>
-        <label htmlFor={inputId} className={labelBase}>
-          {label}
-        </label>
-        {input}
-      </div>
-    );
-  },
+    </label>
+  ),
 );
 
 SettingsInput.displayName = "SettingsInput";
 
-interface SettingsTextareaProps
-  extends TextareaHTMLAttributes<HTMLTextAreaElement> {
-  label?: string;
-}
+type SettingsTextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> &
+  LabelledFieldProps;
 
 export const SettingsTextarea = forwardRef<
   HTMLTextAreaElement,
   SettingsTextareaProps
->(({ label, className, id, ...props }, ref) => {
-  const inputId = id ?? label?.toLowerCase().replace(/\s+/g, "-");
-  const textarea = (
+>(({ label, hideLabel, className, ...props }, ref) => (
+  <label className="block">
+    <FieldLabelText label={label} hideLabel={hideLabel} />
     <textarea
       ref={ref}
-      id={inputId}
       className={cn(inputBase, className)}
       {...props}
     />
-  );
-  if (!label) return textarea;
-  return (
-    <div>
-      <label htmlFor={inputId} className={labelBase}>
-        {label}
-      </label>
-      {textarea}
-    </div>
-  );
-});
+  </label>
+));
 
 SettingsTextarea.displayName = "SettingsTextarea";
 
-interface SettingsSelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
-  label?: string;
-  children: React.ReactNode;
-}
+type SettingsSelectProps = SelectHTMLAttributes<HTMLSelectElement> &
+  LabelledFieldProps & { children: React.ReactNode };
 
 export const SettingsSelect = forwardRef<
   HTMLSelectElement,
   SettingsSelectProps
->(({ label, className, children, id, ...props }, ref) => {
-  const inputId = id ?? label?.toLowerCase().replace(/\s+/g, "-");
-  const select = (
+>(({ label, hideLabel, className, children, ...props }, ref) => (
+  <label className="block">
+    <FieldLabelText label={label} hideLabel={hideLabel} />
     <div className="relative">
       <select
         ref={ref}
-        id={inputId}
         className={cn(inputBase, "appearance-none pr-8", className)}
         {...props}
       >
@@ -134,7 +132,7 @@ export const SettingsSelect = forwardRef<
           height="10"
           viewBox="0 0 10 10"
           fill="none"
-          className="text-zinc-500 dark:text-zinc-400"
+          className="text-muted-foreground"
         >
           <path
             d="M2.5 3.75L5 6.25L7.5 3.75"
@@ -146,17 +144,8 @@ export const SettingsSelect = forwardRef<
         </svg>
       </span>
     </div>
-  );
-  if (!label) return select;
-  return (
-    <div>
-      <label htmlFor={inputId} className={labelBase}>
-        {label}
-      </label>
-      {select}
-    </div>
-  );
-});
+  </label>
+));
 
 SettingsSelect.displayName = "SettingsSelect";
 

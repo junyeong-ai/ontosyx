@@ -18,7 +18,7 @@ export function Section({
   return (
     <div className="border-b border-zinc-200 dark:border-zinc-800">
       <div className="flex items-center justify-between bg-zinc-50 px-3 py-1 dark:bg-zinc-900">
-        <span className="font-semibold uppercase tracking-wider text-zinc-500">
+        <span className="font-semibold uppercase tracking-wider text-muted-foreground">
           {title}
         </span>
         {action && <div className="flex items-center gap-0.5">{action}</div>}

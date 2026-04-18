@@ -79,7 +79,7 @@ export function KeyboardShortcutsDialog() {
               </div>
             ))}
           </div>
-          <p className="mt-3 text-center text-[10px] text-zinc-400">Press \u2318/ to toggle this dialog</p>
+          <p className="mt-3 text-center text-[10px] text-zinc-400">Press ⌘/ to toggle this dialog</p>
         </div>
       </div>
     </FocusTrap>

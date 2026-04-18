@@ -331,10 +331,10 @@ export function CreateProjectForm({
 
   return (
     <div>
-      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
         New Design Project
       </h3>
-      <p className="mb-3 text-xs text-zinc-400">
+      <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
         Create a project to analyze your data source and design an ontology.
         Fields marked with <span className="text-red-500">*</span> are required.
       </p>

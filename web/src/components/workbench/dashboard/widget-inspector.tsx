@@ -70,7 +70,7 @@ export function WidgetInspector({ widget, dashboardId, onUpdated }: WidgetInspec
   return (
     <div className="space-y-4">
       <div>
-        <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+        <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Title
         </label>
         <input
@@ -80,7 +80,7 @@ export function WidgetInspector({ widget, dashboardId, onUpdated }: WidgetInspec
         />
       </div>
       <div>
-        <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+        <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Chart Type
         </label>
         <select
@@ -96,7 +96,7 @@ export function WidgetInspector({ widget, dashboardId, onUpdated }: WidgetInspec
         </select>
       </div>
       <div>
-        <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+        <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Cypher Query
         </label>
         <textarea
@@ -108,7 +108,7 @@ export function WidgetInspector({ widget, dashboardId, onUpdated }: WidgetInspec
         />
       </div>
       <div>
-        <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+        <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Auto-Refresh (seconds)
         </label>
         <input
@@ -122,7 +122,7 @@ export function WidgetInspector({ widget, dashboardId, onUpdated }: WidgetInspec
         <p className="mt-0.5 text-[10px] text-zinc-400">0 = no auto-refresh</p>
       </div>
       <div>
-        <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+        <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           KPI Thresholds
         </label>
         <div className="mt-0.5 grid grid-cols-2 gap-2">

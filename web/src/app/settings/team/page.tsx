@@ -168,7 +168,7 @@ export default function TeamPage() {
                             {member.name ?? member.email}
                           </span>
                           {isMe && (
-                            <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] text-zinc-500 dark:bg-zinc-800">
+                            <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] text-muted-foreground dark:bg-zinc-800">
                               you
                             </span>
                           )}
@@ -181,6 +181,8 @@ export default function TeamPage() {
                         {isAdmin && !isMe ? (
                           <div className="relative">
                             <SettingsSelect
+            label="Role"
+            hideLabel
                               value={member.role}
                               onChange={(e) =>
                                 handleRoleChange(member.id, e.target.value)

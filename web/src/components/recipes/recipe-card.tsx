@@ -127,7 +127,7 @@ export function RecipeCard({
                 className="inline-flex items-center gap-1 rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
               >
                 <span className="font-medium">{name}</span>
-                <span className="text-zinc-400 dark:text-zinc-500">
+                <span className="text-zinc-400">
                   {String(def.default)}
                 </span>
               </span>
@@ -143,7 +143,7 @@ export function RecipeCard({
             e.stopPropagation();
             onRun(recipe);
           }}
-          className="mt-3 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 transition-colors"
+          className="mt-3 rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800 transition-colors"
         >
           {actionLabel}
         </button>

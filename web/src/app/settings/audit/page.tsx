@@ -56,6 +56,8 @@ export default function AuditSettingsPage() {
           </p>
         </div>
         <SettingsSelect
+            label="Days"
+            hideLabel
           value={days}
           onChange={(e) => setDays(Number(e.target.value))}
         >
@@ -70,10 +72,10 @@ export default function AuditSettingsPage() {
           <Spinner />
         </div>
       ) : (
-        <div className="mt-6 overflow-x-auto -mx-6 px-6">
+        <div className="mt-6 overflow-x-auto -mx-6 px-6" tabIndex={0} role="region" aria-label="Table data — scroll horizontally">
           <table className="w-full min-w-[640px] text-sm">
             <thead>
-              <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-zinc-500 dark:border-zinc-700">
+              <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-muted-foreground dark:border-zinc-700">
                 <th className="py-3 pr-6">Action</th>
                 <th className="py-3 pr-6">Resource Type</th>
                 <th className="py-3 pr-6">Resource ID</th>
@@ -90,7 +92,7 @@ export default function AuditSettingsPage() {
                   <td className="py-3 pr-6 font-medium text-zinc-900 dark:text-zinc-100">
                     {formatAction(entry.action)}
                   </td>
-                  <td className="py-3 pr-6 text-zinc-500">
+                  <td className="py-3 pr-6 text-muted-foreground">
                     {entry.resource_type}
                   </td>
                   <td className="py-3 pr-6 font-mono text-xs text-zinc-400">
@@ -107,7 +109,7 @@ export default function AuditSettingsPage() {
                         : entry.user_id
                       : "system"}
                   </td>
-                  <td className="py-3 pr-6 text-right text-zinc-500">
+                  <td className="py-3 pr-6 text-right text-muted-foreground">
                     {new Date(entry.created_at).toLocaleString(undefined, {
                       month: "short",
                       day: "numeric",

@@ -20,7 +20,7 @@ export function EmptyState({ icon, title, description, hint, action, secondaryAc
       <div>
         <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{title}</p>
         {description && (
-          <p className="mt-1 text-xs text-zinc-500">{description}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{description}</p>
         )}
       </div>
       {(action || secondaryAction) && (

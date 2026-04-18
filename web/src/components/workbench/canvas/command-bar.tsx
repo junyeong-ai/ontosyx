@@ -472,7 +472,7 @@ export function CommandBar() {
             disabled={loading || phase.type === "preview"}
             aria-label="Enter command"
             className={cn(
-              "flex-1 bg-transparent text-sm text-zinc-800 outline-none placeholder:text-zinc-500",
+              "flex-1 bg-transparent text-sm text-zinc-800 outline-none placeholder:text-muted-foreground",
               "dark:text-zinc-200 dark:placeholder:text-zinc-500",
             )}
           />
@@ -482,7 +482,7 @@ export function CommandBar() {
             <button
               onClick={handleSubmit}
               disabled={mode === "refine" && !canRefine}
-              className="flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+              className="flex items-center gap-1 rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800 disabled:opacity-50"
             >
               <HugeiconsIcon
                 icon={Tick01Icon}
