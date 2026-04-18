@@ -10,6 +10,12 @@
 //!
 //! Design choices:
 //!
+//! - **Parse once.** The incoming text is parsed into a `CypherAst` a
+//!   single time; both validator pipelines and the rewriter operate on
+//!   the AST directly. The final render happens after the post-rewrite
+//!   gate passes. This matches the triple-surface design documented in
+//!   `ox-runtime::cypher`: one parse feeds three consumers.
+//!
 //! - **Validator → rewriter → validator ordering.** Safety and ontology
 //!   errors must surface before workspace rewriting mutates the query,
 //!   so the caller sees the author's original text in diagnostics. The
@@ -26,6 +32,14 @@
 //!   the ontology validator — that's how server-internal paths
 //!   (`search_nodes`, profiler, introspection) bypass the gate without
 //!   each caller having to remember to do so.
+//!
+//! - **No silent isolation bypass.** If a strategy declares a
+//!   `scope_property` (i.e. workspace isolation must show up in the
+//!   rewritten text) but no `GRAPH_WORKSPACE_ID` is bound and we're
+//!   not in system-bypass mode, the pipeline refuses to execute. The
+//!   previous version passed the query through unchanged in that
+//!   edge case — a workspace-isolation failure masquerading as a
+//!   no-op.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -37,22 +51,21 @@ use ox_core::ontology_ir::OntologyIR;
 use ox_core::types::PropertyValue;
 
 use crate::cypher::{
-    CypherValidatorPipeline, OntologyValidator, SafetyValidator, ValidateContext,
-    ValidationReport, WorkspaceScopeValidator,
+    CypherAst, CypherValidatorPipeline, OntologyValidator, SafetyValidator, ValidateContext,
+    ValidationReport, WorkspaceScopeValidator, parse,
 };
 use crate::isolation::GraphIsolationStrategy;
 use crate::{GRAPH_ONTOLOGY, GRAPH_SYSTEM_BYPASS, GRAPH_WORKSPACE_ID};
 
 /// Run the full pre-execute pipeline for a Cypher statement.
 ///
-/// Steps:
+/// Steps (one parse, three passes):
 /// 1. Validate (safety always; ontology iff `GRAPH_ONTOLOGY` is set).
-/// 2. Apply the isolation strategy's `scope` — a no-op for
+/// 2. Apply the isolation strategy's `scope_ast` — a no-op for
 ///    `DatabaseStrategy`; injects workspace predicates for
 ///    `PropertyStrategy`.
-/// 3. Validate the rewritten query against the post-rewrite scope gate
-///    (iff the strategy exposes a scope property and we're not in system
-///    bypass).
+/// 3. Validate the rewritten AST against the post-rewrite scope gate
+///    (iff the strategy exposes a scope property).
 ///
 /// The function is the single home for the per-request policy; both
 /// Neo4j and Memgraph just delegate. A new Bolt backend gets safety,
@@ -62,30 +75,63 @@ pub(crate) fn run_pre_execute(
     cypher: &str,
     params: &HashMap<String, PropertyValue>,
 ) -> OxResult<(String, HashMap<String, PropertyValue>)> {
-    let workspace_id = GRAPH_WORKSPACE_ID
-        .try_with(|id| id.to_string())
-        .unwrap_or_default();
+    let workspace_id = GRAPH_WORKSPACE_ID.try_with(|id| id.to_string()).ok();
     let system_bypass = GRAPH_SYSTEM_BYPASS.try_with(|b| *b).unwrap_or(false);
     let ontology = GRAPH_ONTOLOGY.try_with(Arc::clone).ok();
 
+    // Parse once; every pipeline pass below operates on the AST.
+    let ast = parse(cypher);
+    let ws_id_str = workspace_id.as_deref().unwrap_or("");
+
     // --- Step 1: pre-rewrite validation ----------------------------------
-    run_pre_rewrite_validation(cypher, &workspace_id, ontology.as_deref())?;
+    run_pre_rewrite_validation(&ast, ws_id_str, ontology.as_deref())?;
 
     // --- Step 2: rewrite (workspace-scope) -------------------------------
-    let (rewritten, merged_params) = apply_isolation(strategy, cypher, params, system_bypass);
+    //
+    // A strategy declaring `scope_property` requires workspace isolation.
+    // Running without `GRAPH_WORKSPACE_ID` (outside system-bypass) would
+    // silently leak across workspaces — refuse up front rather than
+    // discovering it via the post-rewrite gate.
+    let (scoped_ast, merged_params) = if system_bypass {
+        (ast, params.clone())
+    } else if let Some(strategy) = strategy {
+        match workspace_id.as_deref() {
+            Some(ws) => {
+                let scoped = strategy.scope_ast(ast, ws);
+                let mut merged = params.clone();
+                for (key, value) in scoped.params {
+                    merged.insert(key, PropertyValue::String(value));
+                }
+                (scoped.ast, merged)
+            }
+            None if strategy.scope_property().is_some() => {
+                return Err(OxError::Runtime {
+                    message: format!(
+                        "Graph isolation strategy `{}` requires GRAPH_WORKSPACE_ID, \
+                         but no workspace is bound. Set the workspace middleware or \
+                         run under system-bypass.",
+                        strategy.name()
+                    ),
+                });
+            }
+            None => (ast, params.clone()),
+        }
+    } else {
+        (ast, params.clone())
+    };
 
     // --- Step 3: post-rewrite validation ---------------------------------
     if !system_bypass
         && let Some(prop) = strategy.and_then(|s| s.scope_property())
     {
-        run_post_rewrite_validation(&rewritten, &workspace_id, prop)?;
+        run_post_rewrite_validation(&scoped_ast, ws_id_str, prop)?;
     }
 
-    Ok((rewritten, merged_params))
+    Ok((scoped_ast.render(), merged_params))
 }
 
 fn run_pre_rewrite_validation(
-    cypher: &str,
+    ast: &CypherAst,
     workspace_id: &str,
     ontology: Option<&OntologyIR>,
 ) -> OxResult<()> {
@@ -93,19 +139,19 @@ fn run_pre_rewrite_validation(
     if let Some(onto) = ontology {
         pipeline = pipeline.with(OntologyValidator::new(onto.clone()));
     }
-    let report = pipeline.run(cypher, &ValidateContext::new(workspace_id));
+    let report = pipeline.run_ast(ast, &ValidateContext::new(workspace_id));
     log_non_errors(&report, "pre-rewrite", workspace_id);
     ensure_no_errors(&report)
 }
 
 fn run_post_rewrite_validation(
-    rewritten: &str,
+    ast: &CypherAst,
     workspace_id: &str,
     scope_property: &'static str,
 ) -> OxResult<()> {
     let pipeline =
         CypherValidatorPipeline::new().with(WorkspaceScopeValidator::new(scope_property));
-    let report = pipeline.run(rewritten, &ValidateContext::new(workspace_id));
+    let report = pipeline.run_ast(ast, &ValidateContext::new(workspace_id));
     log_non_errors(&report, "post-rewrite", workspace_id);
     ensure_no_errors(&report)
 }
@@ -134,29 +180,6 @@ fn log_non_errors(report: &ValidationReport, phase: &str, workspace_id: &str) {
             "Cypher validator info",
         );
     }
-}
-
-fn apply_isolation(
-    strategy: Option<&dyn GraphIsolationStrategy>,
-    cypher: &str,
-    params: &HashMap<String, PropertyValue>,
-    system_bypass: bool,
-) -> (String, HashMap<String, PropertyValue>) {
-    let Some(strategy) = strategy else {
-        return (cypher.to_string(), params.clone());
-    };
-    if system_bypass {
-        return (cypher.to_string(), params.clone());
-    }
-    let Ok(ws_id) = GRAPH_WORKSPACE_ID.try_with(|id| id.to_string()) else {
-        return (cypher.to_string(), params.clone());
-    };
-    let scoped = strategy.scope(cypher, &ws_id);
-    let mut merged = params.clone();
-    for (key, value) in scoped.params {
-        merged.insert(key.to_string(), PropertyValue::String(value));
-    }
-    (scoped.query, merged)
 }
 
 /// Collapse every `Error`-level issue into a single `OxError::Validation`
@@ -194,7 +217,7 @@ mod tests {
     use ox_core::types::PropertyType;
     use uuid::Uuid;
 
-    use crate::isolation::PropertyStrategy;
+    use crate::isolation::{DatabaseStrategy, PropertyStrategy};
 
     fn ws_scope<F, R>(body: F) -> R
     where
@@ -320,8 +343,6 @@ mod tests {
 
     #[test]
     fn skips_ontology_validation_without_task_local() {
-        // Unknown label passes when no ontology is in scope — internal
-        // paths (search, profiler) rely on this.
         let params = HashMap::new();
         let strategy = PropertyStrategy;
         let result = ws_scope(|| {
@@ -376,28 +397,6 @@ mod tests {
     }
 
     #[test]
-    fn log_non_errors_does_not_block_execution() {
-        // A ValidationReport carrying only Warnings + Infos should not
-        // convert into an OxError. `ensure_no_errors` is what gates the
-        // pipeline, and `log_non_errors` is a side-effect emitter —
-        // double-check the split here so a future validator that emits
-        // non-Error issues doesn't silently break execution.
-        use crate::cypher::{ValidationIssue, ValidationReport};
-
-        let report = ValidationReport {
-            issues: vec![
-                ValidationIssue::warning("hypothetical-advisory", "use LIMIT for big reads"),
-                ValidationIssue::info("hypothetical-hint", "consider indexing :Person(name)"),
-            ],
-        };
-        // log_non_errors is internal — call it directly to ensure it
-        // tolerates a non-empty Warning / Info set without panicking.
-        log_non_errors(&report, "pre-rewrite", "ws-123");
-        // And the error gate sees no Errors so execution continues.
-        assert!(ensure_no_errors(&report).is_ok());
-    }
-
-    #[test]
     fn post_rewrite_scope_gate_passes_after_rewriter_injection() {
         let params = HashMap::new();
         let strategy = PropertyStrategy;
@@ -410,5 +409,58 @@ mod tests {
         })
         .expect("valid query must pass");
         assert!(rewritten.contains("_workspace_id"));
+    }
+
+    #[test]
+    fn log_non_errors_does_not_block_execution() {
+        use crate::cypher::{ValidationIssue, ValidationReport};
+
+        let report = ValidationReport {
+            issues: vec![
+                ValidationIssue::warning("hypothetical-advisory", "use LIMIT for big reads"),
+                ValidationIssue::info("hypothetical-hint", "consider indexing :Person(name)"),
+            ],
+        };
+        log_non_errors(&report, "pre-rewrite", "ws-123");
+        assert!(ensure_no_errors(&report).is_ok());
+    }
+
+    #[test]
+    fn refuses_execution_when_strategy_requires_scope_but_no_workspace_id() {
+        // PropertyStrategy declares scope_property = Some("_workspace_id").
+        // Without GRAPH_WORKSPACE_ID bound and no system-bypass, passing
+        // the query through unchanged would leak across workspaces.
+        // The pipeline must refuse.
+        let params = HashMap::new();
+        let strategy = PropertyStrategy;
+        let err = run_pre_execute(
+            Some(&strategy as &dyn GraphIsolationStrategy),
+            "MATCH (p:Person) RETURN p",
+            &params,
+        )
+        .expect_err("missing GRAPH_WORKSPACE_ID must block property-strategy execution");
+        match err {
+            OxError::Runtime { message } => {
+                assert!(
+                    message.contains("GRAPH_WORKSPACE_ID"),
+                    "error should mention the missing local: {message}"
+                );
+            }
+            other => panic!("expected Runtime error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn allows_execution_without_workspace_id_for_database_strategy() {
+        // DatabaseStrategy doesn't inject into the text (isolation lives
+        // at the connection layer), so missing GRAPH_WORKSPACE_ID is fine.
+        let params = HashMap::new();
+        let strategy = DatabaseStrategy;
+        let result = run_pre_execute(
+            Some(&strategy as &dyn GraphIsolationStrategy),
+            "MATCH (p:Person) RETURN p",
+            &params,
+        );
+        assert!(result.is_ok(), "database strategy passthrough: {result:?}");
     }
 }

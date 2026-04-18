@@ -82,17 +82,23 @@ impl CypherRewriterPipeline {
         self.rewriters.is_empty()
     }
 
-    /// Parse `input`, apply every rewriter in order, render back to
-    /// source. The round-trip is lossless for queries no rewriter
-    /// touches — our workspace rewriter only mutates text it
-    /// explicitly injects, so user-authored whitespace and comments
-    /// survive.
-    pub fn run(&self, input: &str, ctx: &RewriteContext) -> String {
-        let mut ast = parse(input);
+    /// Apply every rewriter in order over `ast`. Returns the mutated
+    /// AST so the caller can either render it back to source or pass
+    /// it through a subsequent pipeline (e.g., post-rewrite
+    /// validation) without re-parsing.
+    pub fn run_ast(&self, mut ast: CypherAst, ctx: &RewriteContext) -> CypherAst {
         for rewriter in &self.rewriters {
             ast = rewriter.rewrite(ast, ctx);
         }
-        ast.render()
+        ast
+    }
+
+    /// Parse `input`, apply every rewriter in order, render back to
+    /// source. Thin wrapper over [`Self::run_ast`] for callers that
+    /// only hold text — the runtime path uses `run_ast` directly so a
+    /// single parse feeds both rewriter and validator pipelines.
+    pub fn run(&self, input: &str, ctx: &RewriteContext) -> String {
+        self.run_ast(parse(input), ctx).render()
     }
 }
 
