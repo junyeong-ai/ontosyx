@@ -50,9 +50,7 @@ fn default_collaboration_config() -> CollaborationConfig {
 }
 
 fn default_memory_config() -> MemoryConfig {
-    MemoryConfig {
-        bg_concurrency: default_memory_bg_concurrency(),
-    }
+    MemoryConfig {}
 }
 
 /// Embedding model configuration for semantic memory.
@@ -267,19 +265,12 @@ fn default_cypher_high_priority_names() -> Vec<String> {
     ]
 }
 
-/// Semantic memory (pgvector / embedding) tuning.
-#[derive(Debug, Deserialize, Clone)]
-pub struct MemoryConfig {
-    /// Concurrent fire-and-forget DB updates allowed during memory
-    /// access-timestamp refresh (default: 8). Raise if the PG pool
-    /// keeps spare capacity; lower if you see `acquire` back-pressure.
-    #[serde(default = "default_memory_bg_concurrency")]
-    pub bg_concurrency: usize,
-}
-
-fn default_memory_bg_concurrency() -> usize {
-    8
-}
+/// Semantic memory (pgvector / embedding) tuning. Currently empty —
+/// retained as a placeholder so future knobs (embedding batch size,
+/// index-rebuild cadence) land under a stable `[memory]` TOML section
+/// without forcing another config migration.
+#[derive(Debug, Deserialize, Clone, Default)]
+pub struct MemoryConfig {}
 
 /// Realtime collaboration (WebSocket + broadcast) tuning.
 #[derive(Debug, Deserialize, Clone)]
@@ -553,7 +544,6 @@ impl OxConfig {
             .set_default("otel.endpoint", "http://localhost:4317")?
             .set_default("otel.service_name", "ontosyx")?
             .set_default("collaboration.broadcast_buffer", 256_i64)?
-            .set_default("memory.bg_concurrency", 8_i64)?
             .set_default("cypher.max_auto_indices", 20_i64)?
             .set_default(
                 "cypher.high_priority_names",

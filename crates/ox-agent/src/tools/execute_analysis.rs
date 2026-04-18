@@ -154,10 +154,28 @@ impl SchemaTool for ExecuteAnalysisTool {
             duration_ms: duration_ms as i64,
             created_at: Utc::now(),
         };
+        // Capture the workspace context BEFORE spawning: tokio::spawn
+        // detaches from the current task-local scope, so a raw spawn
+        // here would acquire a DB connection with no `app.workspace_id`
+        // set and the INSERT would silently fail the RLS gate. Propagate
+        // either SYSTEM_BYPASS (system tasks) or WORKSPACE_ID into the
+        // spawned future explicitly.
         let store = Arc::clone(&self.store);
+        let system_bypass = ox_store::SYSTEM_BYPASS.try_with(|b| *b).unwrap_or(false);
+        let workspace_id = ox_store::WORKSPACE_ID.try_with(|id| *id).ok();
         tokio::spawn(async move {
-            if let Err(e) = store.create_analysis_result(&analysis_result).await {
-                warn!(error = %e, "Failed to cache analysis result");
+            let run = async move {
+                if let Err(e) = store.create_analysis_result(&analysis_result).await {
+                    warn!(error = %e, "Failed to cache analysis result");
+                }
+            };
+            if system_bypass {
+                ox_store::SYSTEM_BYPASS.scope(true, run).await;
+            } else if let Some(ws_id) = workspace_id {
+                ox_store::WORKSPACE_ID.scope(ws_id, run).await;
+            } else {
+                // No workspace context — the store write would be denied
+                // anyway. Skip instead of logging per-request noise.
             }
         });
 

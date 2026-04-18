@@ -39,7 +39,6 @@ async fn main() -> anyhow::Result<()> {
 
     // Initialize tunables owned by non-api crates before any of their
     // code paths can lazily default them.
-    ox_memory::vector::pgvector::init_bg_concurrency(config.memory.bg_concurrency);
     ox_compiler::cypher::schema::init_auto_index_config(
         ox_compiler::cypher::schema::AutoIndexConfig {
             max_indices: config.cypher.max_auto_indices,
@@ -894,9 +893,16 @@ async fn main() -> anyhow::Result<()> {
                         break;
                     }
                     _ = interval.tick() => {
-                        ox_store::SYSTEM_BYPASS.scope(true, async {
+                        // The sweep may run Cypher via runtime.execute_query
+                        // (custom rules) — that path expects BOTH the
+                        // store task-local (for RLS on saved_ontologies /
+                        // quality_* tables) AND the graph task-local (for
+                        // run_pre_execute's workspace_scope gate). Scope
+                        // both so every downstream hop sees a consistent
+                        // system-bypass.
+                        ox_store::SYSTEM_BYPASS.scope(true, ox_runtime::GRAPH_SYSTEM_BYPASS.scope(true, async {
                             evaluate_quality_rules(&quality_store, &quality_runtime).await;
-                        }).await;
+                        })).await;
                     }
                 }
             }
