@@ -9,6 +9,7 @@
 )]
 
 mod bolt;
+pub mod cypher;
 pub mod enrichment;
 pub mod isolation;
 pub mod memgraph;
