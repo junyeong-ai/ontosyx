@@ -16,7 +16,7 @@ pub struct VectorHit {
     pub content: String,
     /// Cosine similarity score (0.0 to 1.0).
     pub score: f32,
-    /// Structured metadata (source, ontology_id, session_id, etc.).
+    /// Structured metadata (source, ontology_lineage_id, session_id, etc.).
     pub metadata: Value,
 }
 
@@ -26,7 +26,7 @@ pub struct VectorHit {
 /// the JSONB `metadata` column in the `memory_entries` table.
 #[derive(Debug, Default, Clone)]
 pub struct MemoryFilter {
-    pub ontology_id: Option<String>,
+    pub ontology_lineage_id: Option<String>,
     pub source: Option<String>,
     pub session_id: Option<String>,
 }
@@ -65,11 +65,11 @@ pub trait VectorStore: Send + Sync {
         top_k: usize,
         filter: &MemoryFilter,
     ) -> OxResult<Vec<VectorHit>> {
-        // Fallback: build a Value filter from ontology_id only (matches legacy path).
+        // Fallback: build a Value filter from ontology_lineage_id only (matches legacy path).
         let json_filter = filter
-            .ontology_id
+            .ontology_lineage_id
             .as_deref()
-            .map(|id| serde_json::json!({"ontology_id": id}));
+            .map(|id| serde_json::json!({"ontology_lineage_id": id}));
         self.search(embedding, top_k, json_filter.as_ref()).await
     }
 

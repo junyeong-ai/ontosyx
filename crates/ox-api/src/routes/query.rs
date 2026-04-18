@@ -662,7 +662,7 @@ pub struct CreateSavedPatternRequest {
     /// Ontology the pattern was built against. The saved pattern is tied
     /// to an ontology; reopening against a different ontology requires
     /// the caller to decide how to reconcile unknown labels.
-    pub ontology_id: String,
+    pub ontology_lineage_id: String,
     /// The full PatternIR — nodes with positions, edges, filters, and
     /// layout hints (zoom + pan). QueryIR is computed on demand from
     /// `pattern_ir.compile()` and does not need to be stored.
@@ -685,7 +685,7 @@ pub struct SavedPatternResponse {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    pub ontology_id: String,
+    pub ontology_lineage_id: String,
     #[schema(value_type = Object)]
     pub pattern_ir: PatternIR,
     pub created_at: chrono::DateTime<chrono::Utc>,
@@ -700,7 +700,7 @@ impl SavedPatternResponse {
             id: row.id,
             name: row.name,
             description: row.description,
-            ontology_id: row.ontology_id,
+            ontology_lineage_id: row.ontology_lineage_id,
             pattern_ir,
             created_at: row.created_at,
             updated_at: row.updated_at,
@@ -731,7 +731,7 @@ pub(crate) async fn create_saved_pattern(
     let row = SavedQueryPattern {
         id: Uuid::new_v4(),
         user_id: principal.id.clone(),
-        ontology_id: req.ontology_id,
+        ontology_lineage_id: req.ontology_lineage_id,
         name: req.name,
         description: req.description,
         pattern_ir: pattern_ir_json,
@@ -744,7 +744,7 @@ pub(crate) async fn create_saved_pattern(
 
 #[derive(Deserialize, utoipa::IntoParams)]
 pub struct ListSavedPatternsParams {
-    pub ontology_id: String,
+    pub ontology_lineage_id: String,
     pub limit: Option<u32>,
     pub cursor: Option<String>,
 }
@@ -771,7 +771,7 @@ pub(crate) async fn list_saved_patterns(
     };
     let page = state
         .store
-        .list_patterns(&principal.id, &params.ontology_id, &pagination)
+        .list_patterns(&principal.id, &params.ontology_lineage_id, &pagination)
         .await
         .map_err(AppError::from)?;
     let items = page

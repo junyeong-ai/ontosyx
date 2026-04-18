@@ -20,7 +20,7 @@ use crate::state::AppState;
 #[derive(Deserialize)]
 pub struct ScheduleCreateRequest {
     pub cron_expression: String,
-    pub ontology_id: Option<String>,
+    pub ontology_lineage_id: Option<String>,
     pub description: Option<String>,
     pub webhook_url: Option<String>,
 }
@@ -53,7 +53,7 @@ pub(crate) async fn create_schedule(
     let task = ScheduledTask {
         id: Uuid::new_v4(),
         recipe_id,
-        ontology_id: req.ontology_id,
+        ontology_lineage_id: req.ontology_lineage_id,
         cron_expression: req.cron_expression,
         description: req.description,
         enabled: true,

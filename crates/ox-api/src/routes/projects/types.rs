@@ -29,7 +29,7 @@ pub enum ProjectOrigin {
         repo_source: Option<ox_core::repo_insights::RepoSource>,
     },
     BaseOntology {
-        base_ontology_id: Uuid,
+        base_saved_ontology_id: Uuid,
     },
 }
 

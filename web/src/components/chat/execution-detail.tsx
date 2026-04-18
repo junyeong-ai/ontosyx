@@ -68,7 +68,7 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
     const currentOntology = useAppStore.getState().ontology;
     if (!currentOntology) return;
 
-    if (currentOntology.id !== execution.ontology_id) {
+    if (currentOntology.id !== execution.ontology_lineage_id) {
       toast.warning(
         "This query was executed on a different ontology version. Highlights may not match the current graph.",
         { duration: 5000 },
@@ -180,7 +180,7 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
         {/* Ontology info */}
         <Section title="Ontology">
           <p className="text-xs text-muted-foreground">
-            {execution.ontology_id} v{execution.ontology_version}
+            {execution.ontology_lineage_id} v{execution.ontology_version}
           </p>
         </Section>
       </div>

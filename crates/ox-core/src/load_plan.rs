@@ -36,8 +36,8 @@ pub enum LoadMode {
 pub struct LoadPlan {
     /// Unique identifier
     pub id: String,
-    /// Reference to the OntologyIR this plan targets
-    pub ontology_id: String,
+    /// Lineage identifier (OntologyIR.id) the plan targets.
+    pub ontology_lineage_id: String,
     /// Ontology version this plan was generated for
     pub ontology_version: u32,
     /// Description of the data source

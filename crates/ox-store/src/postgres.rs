@@ -202,7 +202,7 @@ impl QueryStore for PostgresStore {
     async fn create_query_execution(&self, exec: &QueryExecution) -> OxResult<()> {
         sqlx::query(
             "INSERT INTO query_executions
-             (id, user_id, question, ontology_id, ontology_version,
+             (id, user_id, question, ontology_lineage_id, ontology_version,
               saved_ontology_id, ontology_snapshot,
               query_ir, compiled_target, compiled_query,
               results, widget, explanation, model, execution_time_ms,
@@ -212,7 +212,7 @@ impl QueryStore for PostgresStore {
         .bind(exec.id)
         .bind(&exec.user_id)
         .bind(&exec.question)
-        .bind(&exec.ontology_id)
+        .bind(&exec.ontology_lineage_id)
         .bind(exec.ontology_version)
         .bind(exec.saved_ontology_id)
         .bind(&exec.ontology_snapshot)
@@ -239,7 +239,7 @@ impl QueryStore for PostgresStore {
     ) -> OxResult<Option<QueryExecution>> {
         // Resolve ontology_snapshot via JOIN when saved_ontology_id is set
         sqlx::query_as::<_, QueryExecution>(
-            "SELECT qe.id, qe.user_id, qe.question, qe.ontology_id, qe.ontology_version,
+            "SELECT qe.id, qe.user_id, qe.question, qe.ontology_lineage_id, qe.ontology_version,
                     qe.saved_ontology_id,
                     COALESCE(qe.ontology_snapshot, so.ontology_ir) AS ontology_snapshot,
                     qe.query_ir, qe.compiled_target, qe.compiled_query,
@@ -264,7 +264,7 @@ impl QueryStore for PostgresStore {
         let limit = pagination.effective_limit();
         let fetch_limit = limit + 1;
 
-        let query = "SELECT id, question, ontology_id, ontology_version,
+        let query = "SELECT id, question, ontology_lineage_id, ontology_version,
                             compiled_target, model, execution_time_ms,
                             jsonb_array_length(COALESCE(results->'rows', '[]'::jsonb))::bigint AS row_count,
                             widget IS NOT NULL AS has_widget,
@@ -1665,13 +1665,13 @@ impl ReportStore for PostgresStore {
     async fn create_report(&self, r: &SavedReport) -> OxResult<()> {
         sqlx::query(
             "INSERT INTO saved_reports
-             (id, user_id, ontology_id, title, description, query_template,
+             (id, user_id, ontology_lineage_id, title, description, query_template,
               parameters, widget_type, is_public, created_at, updated_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
         )
         .bind(r.id)
         .bind(&r.user_id)
-        .bind(&r.ontology_id)
+        .bind(&r.ontology_lineage_id)
         .bind(&r.title)
         .bind(&r.description)
         .bind(&r.query_template)
@@ -1697,7 +1697,7 @@ impl ReportStore for PostgresStore {
     async fn list_reports(
         &self,
         user_id: &str,
-        ontology_id: &str,
+        ontology_lineage_id: &str,
         pagination: &CursorParams,
     ) -> OxResult<CursorPage<SavedReport>> {
         let limit = pagination.effective_limit();
@@ -1707,13 +1707,13 @@ impl ReportStore for PostgresStore {
             Some((cursor_ts, cursor_id)) => sqlx::query_as::<_, SavedReport>(
                 "SELECT * FROM saved_reports
                      WHERE (user_id = $1 OR is_public = true)
-                       AND ontology_id = $2
+                       AND ontology_lineage_id = $2
                        AND (updated_at, id) < ($3, $4)
                      ORDER BY updated_at DESC, id DESC
                      LIMIT $5",
             )
             .bind(user_id)
-            .bind(ontology_id)
+            .bind(ontology_lineage_id)
             .bind(cursor_ts)
             .bind(cursor_id)
             .bind(fetch_limit)
@@ -1723,12 +1723,12 @@ impl ReportStore for PostgresStore {
             None => sqlx::query_as::<_, SavedReport>(
                 "SELECT * FROM saved_reports
                      WHERE (user_id = $1 OR is_public = true)
-                       AND ontology_id = $2
+                       AND ontology_lineage_id = $2
                      ORDER BY updated_at DESC, id DESC
                      LIMIT $3",
             )
             .bind(user_id)
-            .bind(ontology_id)
+            .bind(ontology_lineage_id)
             .bind(fetch_limit)
             .fetch_all(&self.pool)
             .await
@@ -1787,13 +1787,13 @@ impl PatternStore for PostgresStore {
     async fn create_pattern(&self, p: &SavedQueryPattern) -> OxResult<()> {
         sqlx::query(
             "INSERT INTO saved_query_patterns
-             (id, user_id, ontology_id, name, description, pattern_ir,
+             (id, user_id, ontology_lineage_id, name, description, pattern_ir,
               created_at, updated_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
         )
         .bind(p.id)
         .bind(&p.user_id)
-        .bind(&p.ontology_id)
+        .bind(&p.ontology_lineage_id)
         .bind(&p.name)
         .bind(&p.description)
         .bind(&p.pattern_ir)
@@ -1818,7 +1818,7 @@ impl PatternStore for PostgresStore {
     async fn list_patterns(
         &self,
         user_id: &str,
-        ontology_id: &str,
+        ontology_lineage_id: &str,
         pagination: &CursorParams,
     ) -> OxResult<CursorPage<SavedQueryPattern>> {
         let limit = pagination.effective_limit();
@@ -1828,13 +1828,13 @@ impl PatternStore for PostgresStore {
             Some((cursor_ts, cursor_id)) => sqlx::query_as::<_, SavedQueryPattern>(
                 "SELECT * FROM saved_query_patterns
                      WHERE user_id = $1
-                       AND ontology_id = $2
+                       AND ontology_lineage_id = $2
                        AND (updated_at, id) < ($3, $4)
                      ORDER BY updated_at DESC, id DESC
                      LIMIT $5",
             )
             .bind(user_id)
-            .bind(ontology_id)
+            .bind(ontology_lineage_id)
             .bind(cursor_ts)
             .bind(cursor_id)
             .bind(fetch_limit)
@@ -1844,12 +1844,12 @@ impl PatternStore for PostgresStore {
             None => sqlx::query_as::<_, SavedQueryPattern>(
                 "SELECT * FROM saved_query_patterns
                      WHERE user_id = $1
-                       AND ontology_id = $2
+                       AND ontology_lineage_id = $2
                      ORDER BY updated_at DESC, id DESC
                      LIMIT $3",
             )
             .bind(user_id)
-            .bind(ontology_id)
+            .bind(ontology_lineage_id)
             .bind(fetch_limit)
             .fetch_all(&self.pool)
             .await
@@ -1899,12 +1899,12 @@ impl PatternStore for PostgresStore {
 impl AnalysisResultStore for PostgresStore {
     async fn create_analysis_result(&self, r: &AnalysisResult) -> OxResult<()> {
         sqlx::query(
-            "INSERT INTO analysis_results (id, recipe_id, ontology_id, input_hash, output, duration_ms, created_at)
+            "INSERT INTO analysis_results (id, recipe_id, ontology_lineage_id, input_hash, output, duration_ms, created_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7)",
         )
         .bind(r.id)
         .bind(r.recipe_id)
-        .bind(&r.ontology_id)
+        .bind(&r.ontology_lineage_id)
         .bind(&r.input_hash)
         .bind(&r.output)
         .bind(r.duration_ms)
@@ -1991,13 +1991,13 @@ impl AnalysisResultStore for PostgresStore {
 impl ScheduledTaskStore for PostgresStore {
     async fn create_scheduled_task(&self, t: &ScheduledTask) -> OxResult<()> {
         sqlx::query(
-            "INSERT INTO scheduled_tasks (id, recipe_id, ontology_id, cron_expression, description,
+            "INSERT INTO scheduled_tasks (id, recipe_id, ontology_lineage_id, cron_expression, description,
              enabled, next_run_at, webhook_url, created_by, created_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
         )
         .bind(t.id)
         .bind(t.recipe_id)
-        .bind(&t.ontology_id)
+        .bind(&t.ontology_lineage_id)
         .bind(&t.cron_expression)
         .bind(&t.description)
         .bind(t.enabled)
@@ -2276,13 +2276,13 @@ fn to_ox_error(e: sqlx::Error) -> OxError {
 impl AgentSessionStore for PostgresStore {
     async fn create_agent_session(&self, s: &AgentSession) -> OxResult<()> {
         sqlx::query(
-            "INSERT INTO agent_sessions (id, user_id, ontology_id, prompt_hash, tool_schema_hash,
+            "INSERT INTO agent_sessions (id, user_id, ontology_lineage_id, prompt_hash, tool_schema_hash,
              model_id, model_config, user_message, created_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
         )
         .bind(s.id)
         .bind(&s.user_id)
-        .bind(&s.ontology_id)
+        .bind(&s.ontology_lineage_id)
         .bind(&s.prompt_hash)
         .bind(&s.tool_schema_hash)
         .bind(&s.model_id)
@@ -2313,7 +2313,7 @@ impl AgentSessionStore for PostgresStore {
 
     async fn get_agent_session(&self, id: Uuid) -> OxResult<Option<AgentSession>> {
         sqlx::query_as(
-            "SELECT id, user_id, ontology_id, prompt_hash, tool_schema_hash,
+            "SELECT id, user_id, ontology_lineage_id, prompt_hash, tool_schema_hash,
                     model_id, model_config, user_message, final_text,
                     created_at, completed_at
              FROM agent_sessions WHERE id = $1",
@@ -2342,7 +2342,7 @@ impl AgentSessionStore for PostgresStore {
                         message: "Invalid cursor".into(),
                     })?;
                 sqlx::query_as(
-                    "SELECT id, user_id, ontology_id, prompt_hash, tool_schema_hash,
+                    "SELECT id, user_id, ontology_lineage_id, prompt_hash, tool_schema_hash,
                             model_id, model_config, user_message, final_text,
                             created_at, completed_at
                      FROM agent_sessions WHERE user_id = $1 AND created_at < $2
@@ -2358,7 +2358,7 @@ impl AgentSessionStore for PostgresStore {
                 })?
             }
             None => sqlx::query_as(
-                "SELECT id, user_id, ontology_id, prompt_hash, tool_schema_hash,
+                "SELECT id, user_id, ontology_lineage_id, prompt_hash, tool_schema_hash,
                             model_id, model_config, user_message, final_text,
                             created_at, completed_at
                      FROM agent_sessions WHERE user_id = $1
@@ -2698,14 +2698,14 @@ impl VerificationStore for PostgresStore {
     async fn verify_element(&self, v: &ElementVerification) -> OxResult<Uuid> {
         let row: (Uuid,) = sqlx::query_as(
             "INSERT INTO ontology_verifications
-             (ontology_id, element_id, element_kind, verified_by, review_notes)
+             (ontology_lineage_id, element_id, element_kind, verified_by, review_notes)
              VALUES ($1, $2, $3, $4, $5)
-             ON CONFLICT (ontology_id, element_id, verified_by)
+             ON CONFLICT (ontology_lineage_id, element_id, verified_by)
                 WHERE invalidated_at IS NULL
              DO UPDATE SET review_notes = EXCLUDED.review_notes
              RETURNING id",
         )
-        .bind(&v.ontology_id)
+        .bind(&v.ontology_lineage_id)
         .bind(&v.element_id)
         .bind(&v.element_kind)
         .bind(v.verified_by)
@@ -2716,17 +2716,17 @@ impl VerificationStore for PostgresStore {
         Ok(row.0)
     }
 
-    async fn get_verifications(&self, ontology_id: &str) -> OxResult<Vec<ElementVerification>> {
+    async fn get_verifications(&self, ontology_lineage_id: &str) -> OxResult<Vec<ElementVerification>> {
         sqlx::query_as(
-            "SELECT v.id, v.ontology_id, v.element_id, v.element_kind,
+            "SELECT v.id, v.ontology_lineage_id, v.element_id, v.element_kind,
                     v.verified_by, COALESCE(u.name, u.email) AS verified_by_name,
                     v.review_notes, v.invalidated_at, v.invalidation_reason, v.created_at
              FROM ontology_verifications v
              LEFT JOIN users u ON u.id = v.verified_by
-             WHERE v.ontology_id = $1 AND v.invalidated_at IS NULL
+             WHERE v.ontology_lineage_id = $1 AND v.invalidated_at IS NULL
              ORDER BY v.created_at DESC",
         )
-        .bind(ontology_id)
+        .bind(ontology_lineage_id)
         .fetch_all(&self.pool)
         .await
         .map_err(to_ox_error)
@@ -2734,18 +2734,18 @@ impl VerificationStore for PostgresStore {
 
     async fn invalidate_for_elements(
         &self,
-        ontology_id: &str,
+        ontology_lineage_id: &str,
         element_ids: &[&str],
         reason: &str,
     ) -> OxResult<u64> {
         let result = sqlx::query(
             "UPDATE ontology_verifications
              SET invalidated_at = NOW(), invalidation_reason = $3
-             WHERE ontology_id = $1
+             WHERE ontology_lineage_id = $1
                AND element_id = ANY($2)
                AND invalidated_at IS NULL",
         )
-        .bind(ontology_id)
+        .bind(ontology_lineage_id)
         .bind(element_ids)
         .bind(reason)
         .execute(&self.pool)
@@ -2756,17 +2756,17 @@ impl VerificationStore for PostgresStore {
 
     async fn delete_verification(
         &self,
-        ontology_id: &str,
+        ontology_lineage_id: &str,
         element_id: &str,
         user_id: Uuid,
     ) -> OxResult<bool> {
         let result = sqlx::query(
             "UPDATE ontology_verifications
              SET invalidated_at = NOW(), invalidation_reason = 'manually_revoked'
-             WHERE ontology_id = $1 AND element_id = $2 AND verified_by = $3
+             WHERE ontology_lineage_id = $1 AND element_id = $2 AND verified_by = $3
                AND invalidated_at IS NULL",
         )
-        .bind(ontology_id)
+        .bind(ontology_lineage_id)
         .bind(element_id)
         .bind(user_id)
         .execute(&self.pool)
@@ -3458,11 +3458,13 @@ impl QualityStore for PostgresStore {
     async fn create_quality_rule(&self, rule: &QualityRule) -> OxResult<()> {
         sqlx::query(
             "INSERT INTO quality_rules
-             (id, name, description, rule_type, target_label, target_property,
-              threshold, cypher_check, severity, is_active, created_by)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+             (id, ontology_lineage_id, name, description, rule_type, target_label,
+              target_property, threshold, cypher_check, severity, is_active,
+              created_by)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
         )
         .bind(rule.id)
+        .bind(&rule.ontology_lineage_id)
         .bind(&rule.name)
         .bind(&rule.description)
         .bind(&rule.rule_type)
@@ -3487,26 +3489,38 @@ impl QualityStore for PostgresStore {
             .map_err(to_ox_error)
     }
 
-    async fn list_quality_rules(&self, target_label: Option<&str>) -> OxResult<Vec<QualityRule>> {
-        if let Some(label) = target_label {
-            sqlx::query_as(
-                "SELECT * FROM quality_rules
-                 WHERE target_label = $1
-                 ORDER BY severity DESC, name",
-            )
-            .bind(label)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(to_ox_error)
-        } else {
-            sqlx::query_as(
-                "SELECT * FROM quality_rules
-                 ORDER BY severity DESC, name",
-            )
-            .fetch_all(&self.pool)
-            .await
-            .map_err(to_ox_error)
+    async fn list_quality_rules(
+        &self,
+        ontology_lineage_id: Option<&str>,
+        target_label: Option<&str>,
+    ) -> OxResult<Vec<QualityRule>> {
+        // Build the WHERE clause dynamically — RLS on workspace_id is
+        // always applied by the pool-level session var, so only the
+        // optional lineage + label filters need per-call parameters.
+        let mut conditions = Vec::new();
+        if ontology_lineage_id.is_some() {
+            conditions.push(format!("ontology_lineage_id = ${}", conditions.len() + 1));
         }
+        if target_label.is_some() {
+            conditions.push(format!("target_label = ${}", conditions.len() + 1));
+        }
+        let where_clause = if conditions.is_empty() {
+            String::new()
+        } else {
+            format!("WHERE {}", conditions.join(" AND "))
+        };
+        let sql = format!(
+            "SELECT * FROM quality_rules {where_clause} ORDER BY severity DESC, name"
+        );
+
+        let mut query = sqlx::query_as::<_, QualityRule>(&sql);
+        if let Some(lineage) = ontology_lineage_id {
+            query = query.bind(lineage);
+        }
+        if let Some(label) = target_label {
+            query = query.bind(label);
+        }
+        query.fetch_all(&self.pool).await.map_err(to_ox_error)
     }
 
     async fn update_quality_rule(

@@ -60,7 +60,7 @@ export default function ReportsPage() {
   useEffect(() => {
     if (!ontologyFilter) return;
     setLoading(true);
-    listReports({ ontology_id: ontologyFilter })
+    listReports({ ontology_lineage_id: ontologyFilter })
       .then((page) => setReports(page.items))
       .catch(() => toast.error("Failed to load reports"))
       .finally(() => setLoading(false));
@@ -587,7 +587,7 @@ function ReportCreateForm({
     try {
       const parameters = parseParameterInput(paramInput);
       await onSubmit({
-        ontology_id: ontologyId,
+        ontology_lineage_id: ontologyId,
         title: title.trim(),
         description: description.trim() || undefined,
         query_template: queryTemplate,

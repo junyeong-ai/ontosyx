@@ -25,6 +25,10 @@ use crate::workspace::WorkspaceContext;
 pub struct CreateRuleRequest {
     pub name: String,
     pub rule_type: String,
+    /// Ontology lineage this rule is scoped to. Required so two ontologies
+    /// in the same workspace that share a label name don't collapse each
+    /// other's rules.
+    pub ontology_lineage_id: String,
     pub target_label: String,
     pub target_property: Option<String>,
     pub threshold: Option<f64>,
@@ -41,6 +45,9 @@ pub struct UpdateRuleRequest {
 
 #[derive(Deserialize)]
 pub struct ListRulesParams {
+    /// Optional lineage filter — when present, only rules scoped to this
+    /// ontology lineage are returned.
+    pub ontology_lineage_id: Option<String>,
     pub target_label: Option<String>,
 }
 
@@ -64,6 +71,7 @@ pub(crate) async fn create_rule(
     let rule = QualityRule {
         id: Uuid::new_v4(),
         workspace_id: ws.workspace_id,
+        ontology_lineage_id: req.ontology_lineage_id,
         name: req.name,
         description: None,
         rule_type: req.rule_type,
@@ -97,7 +105,10 @@ pub(crate) async fn list_rules(
 ) -> Result<Json<ApiResponse<Vec<QualityRule>>>, AppError> {
     let rules = state
         .store
-        .list_quality_rules(params.target_label.as_deref())
+        .list_quality_rules(
+            params.ontology_lineage_id.as_deref(),
+            params.target_label.as_deref(),
+        )
         .await
         .map_err(AppError::from)?;
 
@@ -294,7 +305,7 @@ pub(crate) async fn execute_all_rules(
 
     let rules = state
         .store
-        .list_quality_rules(None)
+        .list_quality_rules(None, None)
         .await
         .map_err(AppError::from)?;
 

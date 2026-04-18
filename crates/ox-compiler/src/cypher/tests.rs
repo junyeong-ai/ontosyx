@@ -373,7 +373,7 @@ fn test_compile_load_plan() {
     let compiler = CypherCompiler::neo4j();
     let plan = LoadPlan {
         id: "test-load".to_string(),
-        ontology_id: "test".to_string(),
+        ontology_lineage_id: "test".to_string(),
         ontology_version: 1,
         mode: LoadMode::Full,
         source: ox_core::load_plan::DataSourceSpec::Csv {
@@ -828,7 +828,7 @@ fn test_compile_load_edge_upsert() {
     let compiler = CypherCompiler::neo4j();
     let plan = LoadPlan {
         id: "test-edge-load".to_string(),
-        ontology_id: "test".to_string(),
+        ontology_lineage_id: "test".to_string(),
         ontology_version: 1,
         mode: LoadMode::Full,
         source: DataSourceSpec::Csv {
@@ -891,7 +891,7 @@ fn test_compile_load_merge_non_null() {
     let compiler = CypherCompiler::neo4j();
     let plan = LoadPlan {
         id: "test-merge-nonnull".to_string(),
-        ontology_id: "test".to_string(),
+        ontology_lineage_id: "test".to_string(),
         ontology_version: 1,
         mode: LoadMode::Full,
         source: DataSourceSpec::Csv {

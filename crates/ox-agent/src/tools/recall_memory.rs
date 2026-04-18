@@ -34,7 +34,7 @@ pub struct RecallMemoryInput {
     pub source: Option<String>,
     /// Filter results to current ontology scope.
     #[serde(default)]
-    pub ontology_id: Option<String>,
+    pub ontology_lineage_id: Option<String>,
     /// Maximum number of results (default 5, max 20).
     #[serde(default = "default_top_k")]
     pub top_k: usize,
@@ -63,7 +63,7 @@ pub struct RecallMemoryTool {
     pub memory: Arc<MemoryStore>,
     /// Current ontology scope — automatically applied as a filter so that
     /// memory recall doesn't leak results from unrelated ontologies.
-    pub ontology_id: Option<String>,
+    pub ontology_lineage_id: Option<String>,
 }
 
 #[async_trait]
@@ -83,11 +83,11 @@ impl SchemaTool for RecallMemoryTool {
         let hits = match input.mode {
             SearchMode::Semantic => {
                 // Merge tool-level ontology scope with any per-request overrides.
-                let effective_ontology_id =
-                    input.ontology_id.as_deref().or(self.ontology_id.as_deref());
+                let effective_ontology_lineage_id =
+                    input.ontology_lineage_id.as_deref().or(self.ontology_lineage_id.as_deref());
 
                 let filter = MemoryFilter {
-                    ontology_id: effective_ontology_id.map(String::from),
+                    ontology_lineage_id: effective_ontology_lineage_id.map(String::from),
                     source: input.source.clone(),
                     session_id: None,
                 };

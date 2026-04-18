@@ -120,16 +120,16 @@ impl VectorStore for PgVectorStore {
     ) -> OxResult<Vec<VectorHit>> {
         let vector_str = Self::format_vector(embedding);
 
-        // Extract ontology_id filter for scoped search
+        // Extract ontology_lineage_id filter for scoped search
         let ontology_filter = filter
-            .and_then(|f| f.get("ontology_id"))
+            .and_then(|f| f.get("ontology_lineage_id"))
             .and_then(|v| v.as_str());
 
         let rows: Vec<(String, String, f64, Value)> = if let Some(ont_id) = ontology_filter {
             sqlx::query_as(
                 "SELECT id, content, 1 - (embedding <=> $1::vector) AS score, metadata
                  FROM memory_entries
-                 WHERE metadata->>'ontology_id' = $3
+                 WHERE metadata->>'ontology_lineage_id' = $3
                  ORDER BY embedding <=> $1::vector
                  LIMIT $2",
             )
@@ -196,8 +196,8 @@ impl VectorStore for PgVectorStore {
         let mut conditions = Vec::new();
         let mut param_idx = 3u32; // $1 = embedding, $2 = limit
 
-        if filter.ontology_id.is_some() {
-            conditions.push(format!("metadata->>'ontology_id' = ${param_idx}"));
+        if filter.ontology_lineage_id.is_some() {
+            conditions.push(format!("metadata->>'ontology_lineage_id' = ${param_idx}"));
             param_idx += 1;
         }
         if filter.source.is_some() {
@@ -227,7 +227,7 @@ impl VectorStore for PgVectorStore {
             .bind(top_k as i64);
 
         // Bind filter params in the same order as the WHERE conditions.
-        if let Some(ref oid) = filter.ontology_id {
+        if let Some(ref oid) = filter.ontology_lineage_id {
             query = query.bind(oid);
         }
         if let Some(ref src) = filter.source {
@@ -339,8 +339,8 @@ impl VectorStore for PgVectorStore {
         let mut conditions = Vec::new();
         let mut param_idx = 1u32;
 
-        if filter.ontology_id.is_some() {
-            conditions.push(format!("metadata->>'ontology_id' = ${param_idx}"));
+        if filter.ontology_lineage_id.is_some() {
+            conditions.push(format!("metadata->>'ontology_lineage_id' = ${param_idx}"));
             param_idx += 1;
         }
         if filter.source.is_some() {
@@ -364,7 +364,7 @@ impl VectorStore for PgVectorStore {
         let mut query = sqlx::query(&sql);
 
         // Bind filter params in the same order as the WHERE conditions.
-        if let Some(ref oid) = filter.ontology_id {
+        if let Some(ref oid) = filter.ontology_lineage_id {
             query = query.bind(oid);
         }
         if let Some(ref src) = filter.source {

@@ -22,7 +22,7 @@ pub struct VerifyElementRequest {
 pub(crate) async fn verify_element(
     State(state): State<AppState>,
     principal: Principal,
-    Path(ontology_id): Path<String>,
+    Path(ontology_lineage_id): Path<String>,
     Json(req): Json<VerifyElementRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     if !matches!(req.element_kind.as_str(), "node" | "edge" | "property") {
@@ -40,7 +40,7 @@ pub(crate) async fn verify_element(
 
     let verification = ElementVerification {
         id: Uuid::new_v4(),
-        ontology_id: ontology_id.clone(),
+        ontology_lineage_id: ontology_lineage_id.clone(),
         element_id: req.element_id,
         element_kind: req.element_kind,
         verified_by: user.id,
@@ -64,11 +64,11 @@ pub(crate) async fn verify_element(
 pub(crate) async fn list_verifications(
     State(state): State<AppState>,
     _principal: Principal,
-    Path(ontology_id): Path<String>,
+    Path(ontology_lineage_id): Path<String>,
 ) -> Result<Json<ApiResponse<Vec<ElementVerification>>>, AppError> {
     let verifications = state
         .store
-        .get_verifications(&ontology_id)
+        .get_verifications(&ontology_lineage_id)
         .await
         .map_err(AppError::from)?;
     Ok(ApiResponse::of(verifications))
@@ -78,7 +78,7 @@ pub(crate) async fn list_verifications(
 pub(crate) async fn delete_verification(
     State(state): State<AppState>,
     principal: Principal,
-    Path((ontology_id, element_id)): Path<(String, String)>,
+    Path((ontology_lineage_id, element_id)): Path<(String, String)>,
 ) -> Result<StatusCode, AppError> {
     let user = state
         .store
@@ -89,7 +89,7 @@ pub(crate) async fn delete_verification(
 
     state
         .store
-        .delete_verification(&ontology_id, &element_id, user.id)
+        .delete_verification(&ontology_lineage_id, &element_id, user.id)
         .await
         .map_err(AppError::from)?;
     Ok(StatusCode::NO_CONTENT)

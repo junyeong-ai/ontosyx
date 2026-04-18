@@ -23,7 +23,7 @@ use crate::state::AppState;
 
 #[derive(Deserialize)]
 pub struct ReportCreateRequest {
-    pub ontology_id: String,
+    pub ontology_lineage_id: String,
     pub title: String,
     pub description: Option<String>,
     pub query_template: String,
@@ -54,7 +54,7 @@ pub(crate) async fn create_report(
     let report = SavedReport {
         id: Uuid::new_v4(),
         user_id: principal.id.clone(),
-        ontology_id: req.ontology_id,
+        ontology_lineage_id: req.ontology_lineage_id,
         title: req.title,
         description: req.description,
         query_template: req.query_template,
@@ -75,12 +75,12 @@ pub(crate) async fn create_report(
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/reports?ontology_id=... — list reports for an ontology
+// GET /api/reports?ontology_lineage_id=... — list reports for an ontology
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize)]
 pub struct ReportListParams {
-    pub ontology_id: String,
+    pub ontology_lineage_id: String,
     #[serde(default)]
     pub limit: Option<u32>,
     pub cursor: Option<String>,
@@ -97,7 +97,7 @@ pub(crate) async fn list_reports(
     };
     let page = state
         .store
-        .list_reports(&principal.id, &query.ontology_id, &pagination)
+        .list_reports(&principal.id, &query.ontology_lineage_id, &pagination)
         .await
         .map_err(AppError::from)?;
     Ok(ApiResponse::page(page))

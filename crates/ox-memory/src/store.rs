@@ -29,7 +29,7 @@ pub enum MemorySource {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemoryMetadata {
     pub source: MemorySource,
-    pub ontology_id: Option<String>,
+    pub ontology_lineage_id: Option<String>,
     pub session_id: Option<String>,
     pub created_at: DateTime<Utc>,
 }
@@ -128,13 +128,13 @@ impl MemoryStore {
 
     /// Search for related memories using semantic similarity.
     ///
-    /// When `ontology_id` is provided, results are scoped to that ontology.
+    /// When `ontology_lineage_id` is provided, results are scoped to that ontology.
     pub async fn search(
         &self,
         query: &str,
         source_hint: Option<&MemorySource>,
         top_k: usize,
-        ontology_id: Option<&str>,
+        ontology_lineage_id: Option<&str>,
     ) -> OxResult<Vec<MemoryHit>> {
         let instruction = instructions::search(source_hint);
         let embedding = self
@@ -142,7 +142,7 @@ impl MemoryStore {
             .embed(query, instruction, EmbeddingRole::Query)
             .await?;
 
-        let filter = ontology_id.map(|id| serde_json::json!({"ontology_id": id}));
+        let filter = ontology_lineage_id.map(|id| serde_json::json!({"ontology_lineage_id": id}));
         let hits = self
             .vectors
             .search(&embedding, top_k, filter.as_ref())
@@ -167,7 +167,7 @@ impl MemoryStore {
     /// Search for related memories using semantic similarity with structured metadata filters.
     ///
     /// This complements `search()` by accepting a typed `MemoryFilter` that can
-    /// filter by `ontology_id`, `source`, and `session_id` simultaneously.
+    /// filter by `ontology_lineage_id`, `source`, and `session_id` simultaneously.
     pub async fn search_filtered(
         &self,
         query: &str,
@@ -234,9 +234,9 @@ impl MemoryStore {
     }
 
     /// Delete all memory entries for a specific ontology.
-    pub async fn cleanup_by_ontology(&self, ontology_id: &str) -> OxResult<u64> {
+    pub async fn cleanup_by_ontology(&self, ontology_lineage_id: &str) -> OxResult<u64> {
         let filter = MemoryFilter {
-            ontology_id: Some(ontology_id.to_string()),
+            ontology_lineage_id: Some(ontology_lineage_id.to_string()),
             ..Default::default()
         };
         self.vectors.cleanup_by_filter(&filter).await

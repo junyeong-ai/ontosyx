@@ -16,10 +16,13 @@ pub struct QueryExecution {
     pub id: Uuid,
     pub user_id: String,
     pub question: String,
-    /// Ontology identifier at execution time
-    pub ontology_id: String,
+    /// Lineage identifier (OntologyIR.id) at execution time. Stable
+    /// across revisions of the same ontology — used for grouping
+    /// executions under one ontology even when its version changes.
+    pub ontology_lineage_id: String,
     pub ontology_version: i32,
-    /// FK to saved_ontologies — when set, ontology_snapshot is NULL (resolved via JOIN)
+    /// FK to saved_ontologies — pinned version snapshot. When set,
+    /// ontology_snapshot is NULL (resolved via JOIN).
     pub saved_ontology_id: Option<Uuid>,
     /// Full OntologyIR snapshot (NULL when saved_ontology_id is set)
     pub ontology_snapshot: Option<serde_json::Value>,
@@ -47,7 +50,7 @@ pub struct QueryExecution {
 pub struct QueryExecutionSummary {
     pub id: Uuid,
     pub question: String,
-    pub ontology_id: String,
+    pub ontology_lineage_id: String,
     pub ontology_version: i32,
     pub compiled_target: String,
     pub model: String,
@@ -311,7 +314,7 @@ pub struct AnalysisRecipe {
 pub struct AnalysisResult {
     pub id: Uuid,
     pub recipe_id: Option<Uuid>,
-    pub ontology_id: Option<String>,
+    pub ontology_lineage_id: Option<String>,
     pub input_hash: String,
     pub output: serde_json::Value,
     pub duration_ms: i64,
@@ -326,7 +329,7 @@ pub struct AnalysisResult {
 pub struct ScheduledTask {
     pub id: Uuid,
     pub recipe_id: Uuid,
-    pub ontology_id: Option<String>,
+    pub ontology_lineage_id: Option<String>,
     pub cron_expression: String,
     pub description: Option<String>,
     pub enabled: bool,
@@ -367,7 +370,7 @@ pub struct DashboardWidget {
 pub struct SavedReport {
     pub id: Uuid,
     pub user_id: String,
-    pub ontology_id: String,
+    pub ontology_lineage_id: String,
     pub title: String,
     pub description: Option<String>,
     pub query_template: String,
@@ -391,7 +394,7 @@ pub struct SavedReport {
 pub struct SavedQueryPattern {
     pub id: Uuid,
     pub user_id: String,
-    pub ontology_id: String,
+    pub ontology_lineage_id: String,
     pub name: String,
     pub description: Option<String>,
     pub pattern_ir: serde_json::Value,
@@ -421,7 +424,7 @@ pub struct PendingEmbedding {
 pub struct AgentSession {
     pub id: Uuid,
     pub user_id: String,
-    pub ontology_id: Option<String>,
+    pub ontology_lineage_id: Option<String>,
     pub prompt_hash: String,
     pub tool_schema_hash: String,
     pub model_id: String,
@@ -480,7 +483,7 @@ pub struct PromptTemplateRow {
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct ElementVerification {
     pub id: Uuid,
-    pub ontology_id: String,
+    pub ontology_lineage_id: String,
     pub element_id: String,
     pub element_kind: String,
     pub verified_by: Uuid,
@@ -619,6 +622,11 @@ pub struct ApprovalRequest {
 pub struct QualityRule {
     pub id: Uuid,
     pub workspace_id: Uuid,
+    /// Lineage the rule is scoped to. Two ontologies in the same
+    /// workspace that share a label (e.g., both have `Person`) keep
+    /// their quality rules distinct because the evaluator filters by
+    /// this field before running each sweep.
+    pub ontology_lineage_id: String,
     pub name: String,
     pub description: Option<String>,
     pub rule_type: String,

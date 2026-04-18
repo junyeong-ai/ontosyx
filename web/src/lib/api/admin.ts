@@ -227,12 +227,12 @@ export async function createReport(
 }
 
 export async function listReports(params: {
-  ontology_id: string;
+  ontology_lineage_id: string;
   limit?: number;
   cursor?: string;
 }): Promise<CursorPage<SavedReport>> {
   const qs = new URLSearchParams();
-  qs.set("ontology_id", params.ontology_id);
+  qs.set("ontology_lineage_id", params.ontology_lineage_id);
   if (params.limit) qs.set("limit", String(params.limit));
   if (params.cursor) qs.set("cursor", params.cursor);
   return request(`/reports?${qs.toString()}`);

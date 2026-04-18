@@ -47,13 +47,13 @@ const MAX_DESCRIBED_PROPS_PER_EDGE: usize = 10;
 /// Index an ontology's schema into the vector store for RAG-based query translation.
 /// Each node becomes a natural language embedding with its properties and connections.
 ///
-/// Idempotent: existing entries for the same ontology_id are replaced via upsert.
-pub async fn index_ontology_schema(memory: &MemoryStore, ontology: &OntologyIR, ontology_id: &str) {
+/// Idempotent: existing entries for the same ontology_lineage_id are replaced via upsert.
+pub async fn index_ontology_schema(memory: &MemoryStore, ontology: &OntologyIR, ontology_lineage_id: &str) {
     // Use ontology.id (internal IR ID) for consistency with discover_schema lookups.
-    // The caller may pass saved_ontology_id, but discovery falls back to ontology.id
-    // when Brain.ontology_id is None (the common case in Analyze mode).
+    // The caller may pass saved_ontology_lineage_id, but discovery falls back to ontology.id
+    // when Brain.ontology_lineage_id is None (the common case in Analyze mode).
     let effective_id = if ontology.id.is_empty() {
-        ontology_id
+        ontology_lineage_id
     } else {
         &ontology.id
     };
@@ -67,21 +67,21 @@ pub async fn index_ontology_schema(memory: &MemoryStore, ontology: &OntologyIR, 
             content: description,
             metadata: MemoryMetadata {
                 source: MemorySource::Schema,
-                ontology_id: Some(effective_id.to_string()),
+                ontology_lineage_id: Some(effective_id.to_string()),
                 session_id: None,
                 created_at: chrono::Utc::now(),
             },
         };
 
         if let Err(e) = memory.store(entry).await {
-            warn!(ontology_id, node_id, error = %e, "Failed to index schema node");
+            warn!(ontology_lineage_id, node_id, error = %e, "Failed to index schema node");
             continue;
         }
         indexed += 1;
     }
 
     info!(
-        ontology_id = effective_id,
+        ontology_lineage_id = effective_id,
         total, indexed, "Schema indexing complete"
     );
 }
@@ -99,11 +99,11 @@ pub async fn discover_schema(
     memory: &MemoryStore,
     ontology: &OntologyIR,
     question: &str,
-    ontology_id: &str,
+    ontology_lineage_id: &str,
 ) -> (String, Vec<String>) {
     // Step 1: Vector search for semantically related schema nodes
     let filter = MemoryFilter {
-        ontology_id: Some(ontology_id.to_string()),
+        ontology_lineage_id: Some(ontology_lineage_id.to_string()),
         source: Some("schema".to_string()),
         ..Default::default()
     };
@@ -120,7 +120,7 @@ pub async fn discover_schema(
     };
 
     // Filter by minimum score
-    let prefix = format!("schema_{ontology_id}_");
+    let prefix = format!("schema_{ontology_lineage_id}_");
     let relevant_ids: Vec<&str> = hits
         .iter()
         .filter(|h| h.score >= MIN_SCHEMA_SCORE)

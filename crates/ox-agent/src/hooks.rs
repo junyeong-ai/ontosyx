@@ -31,7 +31,7 @@ static EMBEDDING_SEMAPHORE: std::sync::LazyLock<Arc<Semaphore>> =
 /// - Failed embeddings are enqueued for retry when a retry store is available.
 pub struct EmbeddingHook {
     memory: Arc<MemoryStore>,
-    ontology_id: Option<String>,
+    ontology_lineage_id: Option<String>,
     retry_store: Option<Arc<dyn ox_store::EmbeddingRetryStore>>,
 }
 
@@ -39,19 +39,19 @@ impl EmbeddingHook {
     pub fn new(memory: Arc<MemoryStore>) -> Self {
         Self {
             memory,
-            ontology_id: None,
+            ontology_lineage_id: None,
             retry_store: None,
         }
     }
 
-    pub fn with_ontology_id(
+    pub fn with_ontology_lineage_id(
         memory: Arc<MemoryStore>,
-        ontology_id: Option<String>,
+        ontology_lineage_id: Option<String>,
         retry_store: Option<Arc<dyn ox_store::EmbeddingRetryStore>>,
     ) -> Self {
         Self {
             memory,
-            ontology_id,
+            ontology_lineage_id,
             retry_store,
         }
     }
@@ -63,7 +63,7 @@ impl EmbeddingHook {
         memory: &Arc<MemoryStore>,
         content: String,
         source: MemorySource,
-        ontology_id: Option<String>,
+        ontology_lineage_id: Option<String>,
         session_id: Option<String>,
         retry_store: Option<&Arc<dyn ox_store::EmbeddingRetryStore>>,
         context_scope: Option<branchforge::SharedContextScope>,
@@ -75,9 +75,9 @@ impl EmbeddingHook {
         let memory = Arc::clone(memory);
         let retry_store = retry_store.cloned();
 
-        // Content-hash ID for deduplication (includes ontology_id to avoid cross-ontology collisions)
+        // Content-hash ID for deduplication (includes ontology_lineage_id to avoid cross-ontology collisions)
         let mut hasher = Sha256::new();
-        if let Some(ref oid) = ontology_id {
+        if let Some(ref oid) = ontology_lineage_id {
             hasher.update(oid.as_bytes());
         }
         hasher.update(content.as_bytes());
@@ -85,7 +85,7 @@ impl EmbeddingHook {
 
         let metadata = MemoryMetadata {
             source,
-            ontology_id,
+            ontology_lineage_id,
             session_id,
             created_at: Utc::now(),
         };
@@ -231,7 +231,7 @@ impl Hook for EmbeddingHook {
         {
             let output_text = tool_result.text();
             if let Some((content, source)) = Self::extract_tool_content(tool_name, &output_text) {
-                let ontology_id = self.ontology_id.clone();
+                let ontology_lineage_id = self.ontology_lineage_id.clone();
                 let session_id = if ctx.session_id.is_empty() {
                     None
                 } else {
@@ -241,7 +241,7 @@ impl Hook for EmbeddingHook {
                     &self.memory,
                     content,
                     source,
-                    ontology_id,
+                    ontology_lineage_id,
                     session_id,
                     self.retry_store.as_ref(),
                     ctx.context_scope.clone(),

@@ -57,11 +57,11 @@ pub(crate) async fn create_project(
     let now = Utc::now();
 
     let project = match req.origin {
-        ProjectOrigin::BaseOntology { base_ontology_id } => {
+        ProjectOrigin::BaseOntology { base_saved_ontology_id } => {
             // --- From existing ontology ---
             let saved = state
                 .store
-                .get_saved_ontology(base_ontology_id)
+                .get_saved_ontology(base_saved_ontology_id)
                 .await
                 .map_err(AppError::from)?
                 .ok_or_else(AppError::ontology_not_found)?;

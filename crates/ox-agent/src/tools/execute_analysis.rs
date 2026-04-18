@@ -143,7 +143,7 @@ impl SchemaTool for ExecuteAnalysisTool {
         let analysis_result = AnalysisResult {
             id: Uuid::new_v4(),
             recipe_id,
-            ontology_id: None,
+            ontology_lineage_id: None,
             input_hash,
             output: serde_json::json!({
                 "stdout": output.stdout,

@@ -186,7 +186,7 @@ pub(crate) async fn chat_stream(
     let audit_session = AgentSession {
         id: audit_session_id,
         user_id: user_id.clone(),
-        ontology_id: req.ontology.id.clone().into(),
+        ontology_lineage_id: req.ontology.id.clone().into(),
         prompt_hash,
         tool_schema_hash,
         model_id: model_id.clone(),

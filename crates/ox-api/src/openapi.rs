@@ -323,7 +323,7 @@ pub struct QueryExecution {
     pub id: uuid::Uuid,
     pub user_id: String,
     pub question: String,
-    pub ontology_id: String,
+    pub ontology_lineage_id: String,
     pub ontology_version: i32,
     pub saved_ontology_id: Option<uuid::Uuid>,
     pub ontology_snapshot: Option<serde_json::Value>,
@@ -346,7 +346,7 @@ pub struct QueryExecution {
 pub struct QueryExecutionSummary {
     pub id: uuid::Uuid,
     pub question: String,
-    pub ontology_id: String,
+    pub ontology_lineage_id: String,
     pub ontology_version: i32,
     pub compiled_target: String,
     pub model: String,

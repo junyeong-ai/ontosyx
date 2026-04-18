@@ -61,7 +61,7 @@ export interface PromptTemplate {
 export interface AgentSession {
   id: string;
   user_id: string;
-  ontology_id: string | null;
+  ontology_lineage_id: string | null;
   prompt_hash: string;
   tool_schema_hash: string;
   model_id: string;
@@ -111,7 +111,7 @@ export interface ReportParameter {
 export interface SavedReport {
   id: string;
   user_id: string;
-  ontology_id: string;
+  ontology_lineage_id: string;
   title: string;
   description: string | null;
   query_template: string;
@@ -123,7 +123,7 @@ export interface SavedReport {
 }
 
 export interface ReportCreateRequest {
-  ontology_id: string;
+  ontology_lineage_id: string;
   title: string;
   description?: string;
   query_template: string;
@@ -148,7 +148,7 @@ export type ScheduledTaskStatus = "completed" | "error" | "running";
 export interface ScheduledTask {
   id: string;
   recipe_id: string;
-  ontology_id: string | null;
+  ontology_lineage_id: string | null;
   cron_expression: string;
   description: string | null;
   enabled: boolean;
@@ -162,7 +162,7 @@ export interface ScheduledTask {
 
 export interface ScheduleCreateRequest {
   cron_expression: string;
-  ontology_id?: string;
+  ontology_lineage_id?: string;
   description?: string;
   webhook_url?: string;
 }

@@ -862,7 +862,7 @@ export interface components {
         };
         ExecuteFromIrRequest: {
             /** @description Optional ontology ID for context (used during deserialization). */
-            ontology_id?: string | null;
+            ontology_lineage_id?: string | null;
             /** @description The QueryIR to compile and execute. */
             query_ir: Record<string, never>;
         };
@@ -1057,7 +1057,7 @@ export interface components {
             source: components["schemas"]["ProjectSource"];
         } | {
             /** Format: uuid */
-            base_ontology_id: string;
+            base_saved_ontology_id: string;
             /** @enum {string} */
             origin_type: "base_ontology";
         };
@@ -1221,7 +1221,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             model: string;
-            ontology_id: string;
+            ontology_lineage_id: string;
             ontology_snapshot?: unknown;
             /** Format: int32 */
             ontology_version: number;
@@ -1245,7 +1245,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             model: string;
-            ontology_id: string;
+            ontology_lineage_id: string;
             /** Format: int32 */
             ontology_version: number;
             question: string;

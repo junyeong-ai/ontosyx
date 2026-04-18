@@ -191,7 +191,7 @@ export async function adoptGraph(
 
 export async function reindexSchema(
   ontologyId: string,
-): Promise<{ ontology_id: string; nodes_indexed: number }> {
+): Promise<{ ontology_lineage_id: string; nodes_indexed: number }> {
   return request(`/ontology/${encodeURIComponent(ontologyId)}/reindex`, {
     method: "POST",
   });

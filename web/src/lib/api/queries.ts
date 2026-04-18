@@ -190,7 +190,7 @@ export interface SavedPattern {
   id: string;
   name: string;
   description?: string;
-  ontology_id: string;
+  ontology_lineage_id: string;
   pattern_ir: PatternIRJson;
   created_at: string;
   updated_at: string;
@@ -199,7 +199,7 @@ export interface SavedPattern {
 export async function createSavedPattern(req: {
   name: string;
   description?: string;
-  ontology_id: string;
+  ontology_lineage_id: string;
   pattern_ir: PatternIRJson;
 }): Promise<SavedPattern> {
   return request<SavedPattern>("/query/pattern/saved", {
@@ -212,7 +212,7 @@ export async function listSavedPatterns(
   ontologyId: string,
   params?: { cursor?: string; limit?: number },
 ): Promise<CursorPage<SavedPattern>> {
-  const qs = new URLSearchParams({ ontology_id: ontologyId });
+  const qs = new URLSearchParams({ ontology_lineage_id: ontologyId });
   if (params?.cursor) qs.set("cursor", params.cursor);
   if (params?.limit) qs.set("limit", String(params.limit));
   return request(`/query/pattern/saved?${qs.toString()}`);

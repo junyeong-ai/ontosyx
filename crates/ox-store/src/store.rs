@@ -493,7 +493,7 @@ pub trait ReportStore: Send + Sync {
     async fn list_reports(
         &self,
         user_id: &str,
-        ontology_id: &str,
+        ontology_lineage_id: &str,
         pagination: &CursorParams,
     ) -> OxResult<CursorPage<SavedReport>>;
     async fn update_report(
@@ -523,7 +523,7 @@ pub trait PatternStore: Send + Sync {
     async fn list_patterns(
         &self,
         user_id: &str,
-        ontology_id: &str,
+        ontology_lineage_id: &str,
         pagination: &CursorParams,
     ) -> OxResult<CursorPage<SavedQueryPattern>>;
     async fn update_pattern(
@@ -560,16 +560,16 @@ pub trait EmbeddingRetryStore: Send + Sync {
 #[async_trait]
 pub trait VerificationStore: Send + Sync {
     async fn verify_element(&self, v: &ElementVerification) -> OxResult<Uuid>;
-    async fn get_verifications(&self, ontology_id: &str) -> OxResult<Vec<ElementVerification>>;
+    async fn get_verifications(&self, ontology_lineage_id: &str) -> OxResult<Vec<ElementVerification>>;
     async fn invalidate_for_elements(
         &self,
-        ontology_id: &str,
+        ontology_lineage_id: &str,
         element_ids: &[&str],
         reason: &str,
     ) -> OxResult<u64>;
     async fn delete_verification(
         &self,
-        ontology_id: &str,
+        ontology_lineage_id: &str,
         element_id: &str,
         user_id: Uuid,
     ) -> OxResult<bool>;
@@ -781,7 +781,11 @@ pub trait ApprovalStore: Send + Sync {
 pub trait QualityStore: Send + Sync {
     async fn create_quality_rule(&self, rule: &QualityRule) -> OxResult<()>;
     async fn get_quality_rule(&self, id: Uuid) -> OxResult<Option<QualityRule>>;
-    async fn list_quality_rules(&self, target_label: Option<&str>) -> OxResult<Vec<QualityRule>>;
+    async fn list_quality_rules(
+        &self,
+        ontology_lineage_id: Option<&str>,
+        target_label: Option<&str>,
+    ) -> OxResult<Vec<QualityRule>>;
     async fn update_quality_rule(
         &self,
         id: Uuid,

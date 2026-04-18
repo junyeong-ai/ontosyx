@@ -97,7 +97,7 @@ export type CreateProjectRequest =
   | {
       title?: string;
       origin_type: "base_ontology";
-      base_ontology_id: string;
+      base_saved_ontology_id: string;
     };
 
 export interface UpdateDecisionsRequest {
@@ -400,7 +400,7 @@ export interface ProjectLoadPlanResponse {
 
 export interface LoadPlan {
   id: string;
-  ontology_id: string;
+  ontology_lineage_id: string;
   ontology_version: number;
   source: unknown;
   steps: LoadStep[];

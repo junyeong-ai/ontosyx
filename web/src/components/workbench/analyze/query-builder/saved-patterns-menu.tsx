@@ -138,7 +138,7 @@ export function SavedPatternsMenu({
     try {
       const saved = await createSavedPattern({
         name: name.trim(),
-        ontology_id: ontologyId,
+        ontology_lineage_id: ontologyId,
         pattern_ir,
       });
       toast.success(`Saved "${saved.name}"`);
@@ -167,7 +167,7 @@ export function SavedPatternsMenu({
     try {
       const saved = await createSavedPattern({
         name: name.trim(),
-        ontology_id: ontologyId,
+        ontology_lineage_id: ontologyId,
         pattern_ir,
       });
       toast.success(`Saved "${saved.name}"`);

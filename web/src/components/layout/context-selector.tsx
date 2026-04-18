@@ -153,7 +153,7 @@ function DesignSelector() {
                       try {
                         const forked = await createProject({
                           origin_type: "base_ontology",
-                          base_ontology_id: p.saved_ontology_id!,
+                          base_saved_ontology_id: p.saved_ontology_id!,
                           title: `${p.title || "Untitled"} (fork)`,
                         });
                         setActiveProject(forked);

@@ -281,7 +281,7 @@ pub struct DefaultBrain {
     /// the entire ontology JSON (~120K tokens → ~2K tokens).
     memory: Option<Arc<ox_memory::MemoryStore>>,
     /// Ontology ID for scoping schema RAG searches.
-    ontology_id: Option<String>,
+    ontology_lineage_id: Option<String>,
     /// Optional knowledge store for failure-driven learning.
     /// When available, `translate_query` injects learned corrections.
     knowledge_store: Option<Arc<dyn ox_store::KnowledgeStore>>,
@@ -300,7 +300,7 @@ impl DefaultBrain {
             prompts,
             default_model,
             memory: None,
-            ontology_id: None,
+            ontology_lineage_id: None,
             knowledge_store: None,
         }
     }
@@ -309,10 +309,10 @@ impl DefaultBrain {
     pub fn with_memory(
         mut self,
         memory: Arc<ox_memory::MemoryStore>,
-        ontology_id: Option<String>,
+        ontology_lineage_id: Option<String>,
     ) -> Self {
         self.memory = Some(memory);
-        self.ontology_id = ontology_id;
+        self.ontology_lineage_id = ontology_lineage_id;
         self
     }
 
@@ -607,7 +607,7 @@ impl QueryTranslator for DefaultBrain {
             .filter(|_| ontology.node_types().len() > schema_rag::FULL_SCHEMA_NODE_THRESHOLD);
 
         let (ontology_json, discovered_labels) = if let Some(memory) = rag_memory {
-            let oid = self.ontology_id.as_deref().unwrap_or(&ontology.id);
+            let oid = self.ontology_lineage_id.as_deref().unwrap_or(&ontology.id);
             schema_rag::discover_schema(memory, ontology, question, oid).await
         } else {
             let all_node_labels: Vec<&str> = ontology
@@ -636,7 +636,7 @@ impl QueryTranslator for DefaultBrain {
             knowledge_rag::discover_knowledge(
                 kb.as_ref(),
                 &label_refs,
-                self.ontology_id.as_deref().unwrap_or(&ontology.name),
+                self.ontology_lineage_id.as_deref().unwrap_or(&ontology.name),
                 ontology.version.number as i32,
                 8,
             )

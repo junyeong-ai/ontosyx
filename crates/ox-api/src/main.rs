@@ -820,7 +820,7 @@ async fn main() -> anyhow::Result<()> {
                                                 let analysis_result = ox_store::AnalysisResult {
                                                     id: uuid::Uuid::new_v4(),
                                                     recipe_id: Some(task.recipe_id),
-                                                    ontology_id: None,
+                                                    ontology_lineage_id: None,
                                                     input_hash: String::new(),
                                                     output: serde_json::json!({
                                                         "stdout": result.stdout,
@@ -992,7 +992,7 @@ async fn evaluate_quality_rules(
         None => return, // No graph runtime, skip
     };
 
-    let rules = match store.list_quality_rules(None).await {
+    let rules = match store.list_quality_rules(None, None).await {
         Ok(r) => r,
         Err(e) => {
             tracing::warn!(error = %e, "Failed to list quality rules");

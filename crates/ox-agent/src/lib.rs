@@ -162,7 +162,10 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
         if let Some(mem) = memory {
             builder = builder.tool(RecallMemoryTool {
                 memory: Arc::clone(mem),
-                ontology_id: domain.saved_ontology_id.map(|id| id.to_string()),
+                // Pass the lineage (OntologyIR.id), not the saved-row UUID.
+                // Memory entries are filtered by `ontology_lineage_id` so a
+                // UUID-shaped string would never match.
+                ontology_lineage_id: domain.ontology.as_ref().map(|o| o.id.clone()),
             });
         }
         builder = builder.tool(SearchRecipesTool {
@@ -194,12 +197,16 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
 
         // Embedding hook for long-term memory
         if let Some(mem) = memory {
-            let ontology_id = domain.saved_ontology_id.map(|id| id.to_string());
+            // Embed content with the lineage so later RAG filters hit it.
+            // Previously passed `saved_ontology_id.to_string()` — a UUID
+            // that never matched the lineage-string field it was compared
+            // against (silent mismatch). Fixed during the lineage rename.
+            let ontology_lineage_id = domain.ontology.as_ref().map(|o| o.id.clone());
             let retry_store: Option<Arc<dyn ox_store::EmbeddingRetryStore>> =
                 Some(Arc::clone(&domain.store) as Arc<dyn ox_store::EmbeddingRetryStore>);
-            builder = builder.hook(EmbeddingHook::with_ontology_id(
+            builder = builder.hook(EmbeddingHook::with_ontology_lineage_id(
                 Arc::clone(mem),
-                ontology_id,
+                ontology_lineage_id,
                 retry_store,
             ));
         }

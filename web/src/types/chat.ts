@@ -70,7 +70,7 @@ export interface QueryExecution {
   id: string;
   user_id: string;
   question: string;
-  ontology_id: string;
+  ontology_lineage_id: string;
   ontology_version: number;
   saved_ontology_id: string | null;
   /** Resolved ontology snapshot (inline or via saved_ontology JOIN) */
@@ -96,7 +96,7 @@ export type QueryFeedback = "positive" | "negative";
 export interface QueryExecutionSummary {
   id: string;
   question: string;
-  ontology_id: string;
+  ontology_lineage_id: string;
   ontology_version: number;
   compiled_target: string;
   model: string;

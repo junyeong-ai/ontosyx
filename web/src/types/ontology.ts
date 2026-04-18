@@ -210,7 +210,7 @@ export interface PromptInfo {
 
 export interface ElementVerification {
   id: string;
-  ontology_id: string;
+  ontology_lineage_id: string;
   element_id: string;
   element_kind: "node" | "edge" | "property";
   verified_by: string;
