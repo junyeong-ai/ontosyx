@@ -1822,13 +1822,11 @@ impl PatternStore for PostgresStore {
     }
 
     async fn get_pattern(&self, id: Uuid) -> OxResult<Option<SavedQueryPattern>> {
-        sqlx::query_as::<_, SavedQueryPattern>(
-            "SELECT * FROM saved_query_patterns WHERE id = $1",
-        )
-        .bind(id)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(to_ox_error)
+        sqlx::query_as::<_, SavedQueryPattern>("SELECT * FROM saved_query_patterns WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(to_ox_error)
     }
 
     async fn list_patterns(
@@ -2690,7 +2688,11 @@ impl PromptTemplateStore for PostgresStore {
         Ok(result.rows_affected() > 0)
     }
 
-    async fn update_prompt_template_active_only(&self, name: &str, exclude_id: Uuid) -> OxResult<()> {
+    async fn update_prompt_template_active_only(
+        &self,
+        name: &str,
+        exclude_id: Uuid,
+    ) -> OxResult<()> {
         sqlx::query(
             "UPDATE prompt_templates SET is_active = false WHERE name = $1 AND id != $2 AND is_active = true",
         )
@@ -2732,7 +2734,10 @@ impl VerificationStore for PostgresStore {
         Ok(row.0)
     }
 
-    async fn get_verifications(&self, ontology_lineage_id: &str) -> OxResult<Vec<ElementVerification>> {
+    async fn get_verifications(
+        &self,
+        ontology_lineage_id: &str,
+    ) -> OxResult<Vec<ElementVerification>> {
         sqlx::query_as(
             "SELECT v.id, v.ontology_lineage_id, v.element_id, v.element_kind,
                     v.verified_by, COALESCE(u.name, u.email) AS verified_by_name,
@@ -3128,13 +3133,16 @@ impl crate::store::ApiKeyStore for PostgresStore {
         label: &str,
         workspace_id: Option<Uuid>,
         created_by: &str,
+        role: &str,
     ) -> OxResult<(crate::models::ApiKey, String)> {
         // 256 bits of CSPRNG entropy. Plaintext is shown to the caller
         // exactly once; only the SHA-256 hash is persisted, so a leaked
         // DB row cannot be used to authenticate.
         let plaintext = crate::secret_token::generate_hex(32);
         let key_hash = crate::secret_token::secret_hash_sha256(plaintext.as_bytes());
-        let row = self.insert_api_key(label, workspace_id, created_by, &key_hash).await?;
+        let row = self
+            .insert_api_key(label, workspace_id, created_by, &key_hash, role)
+            .await?;
         Ok((row, plaintext))
     }
 
@@ -3144,13 +3152,15 @@ impl crate::store::ApiKeyStore for PostgresStore {
         workspace_id: Option<Uuid>,
         created_by: &str,
         key_hash: &[u8],
+        role: &str,
     ) -> OxResult<crate::models::ApiKey> {
         let id = Uuid::new_v4();
         let created_at = chrono::Utc::now();
 
         sqlx::query(
-            "INSERT INTO api_keys (id, label, key_hash, created_by, workspace_id, created_at)
-             VALUES ($1, $2, $3, $4, $5, $6)",
+            "INSERT INTO api_keys \
+               (id, label, key_hash, created_by, workspace_id, created_at, role) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7)",
         )
         .bind(id)
         .bind(label)
@@ -3158,6 +3168,7 @@ impl crate::store::ApiKeyStore for PostgresStore {
         .bind(created_by)
         .bind(workspace_id)
         .bind(created_at)
+        .bind(role)
         .execute(&self.pool)
         .await
         .map_err(to_ox_error)?;
@@ -3168,6 +3179,7 @@ impl crate::store::ApiKeyStore for PostgresStore {
             key_hash: key_hash.to_vec(),
             created_by: created_by.to_string(),
             workspace_id,
+            role: role.to_string(),
             created_at,
             revoked_at: None,
         })
@@ -3175,8 +3187,8 @@ impl crate::store::ApiKeyStore for PostgresStore {
 
     async fn find_api_key_by_hash(&self, hash: &[u8]) -> OxResult<Option<crate::models::ApiKey>> {
         sqlx::query_as::<_, crate::models::ApiKey>(
-            "SELECT id, label, key_hash, created_by, workspace_id, created_at, revoked_at
-             FROM api_keys
+            "SELECT id, label, key_hash, created_by, workspace_id, role, created_at, revoked_at \
+             FROM api_keys \
              WHERE key_hash = $1 AND revoked_at IS NULL",
         )
         .bind(hash)
@@ -3187,9 +3199,9 @@ impl crate::store::ApiKeyStore for PostgresStore {
 
     async fn list_api_keys(&self) -> OxResult<Vec<crate::models::ApiKey>> {
         sqlx::query_as::<_, crate::models::ApiKey>(
-            "SELECT id, label, key_hash, created_by, workspace_id, created_at, revoked_at
-             FROM api_keys
-             WHERE revoked_at IS NULL
+            "SELECT id, label, key_hash, created_by, workspace_id, role, created_at, revoked_at \
+             FROM api_keys \
+             WHERE revoked_at IS NULL \
              ORDER BY created_at DESC",
         )
         .fetch_all(&self.pool)
@@ -3198,11 +3210,13 @@ impl crate::store::ApiKeyStore for PostgresStore {
     }
 
     async fn update_api_key_revoked(&self, id: Uuid) -> OxResult<bool> {
-        let res = sqlx::query("UPDATE api_keys SET revoked_at = NOW() WHERE id = $1 AND revoked_at IS NULL")
-            .bind(id)
-            .execute(&self.pool)
-            .await
-            .map_err(to_ox_error)?;
+        let res = sqlx::query(
+            "UPDATE api_keys SET revoked_at = NOW() WHERE id = $1 AND revoked_at IS NULL",
+        )
+        .bind(id)
+        .execute(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
         Ok(res.rows_affected() > 0)
     }
 }
@@ -3525,9 +3539,8 @@ impl QualityStore for PostgresStore {
         } else {
             format!("WHERE {}", conditions.join(" AND "))
         };
-        let sql = format!(
-            "SELECT * FROM quality_rules {where_clause} ORDER BY severity DESC, name"
-        );
+        let sql =
+            format!("SELECT * FROM quality_rules {where_clause} ORDER BY severity DESC, name");
 
         let mut query = sqlx::query_as::<_, QualityRule>(&sql);
         if let Some(lineage) = ontology_lineage_id {

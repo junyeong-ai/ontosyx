@@ -1,7 +1,4 @@
-#![cfg_attr(
-    test,
-    allow(clippy::unwrap_used, clippy::panic, clippy::unreachable)
-)]
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::panic, clippy::unreachable))]
 // Binary entrypoint: startup-time `expect` on infrastructure (OTLP,
 // Prometheus, signal handlers) is idiomatic — failing fast is the correct
 // behavior when the process cannot initialize. The library crate
@@ -30,7 +27,10 @@ use ox_source::registry::AdapterRegistry;
 use ox_api::config::OxConfig;
 use ox_api::middleware::RateLimiter;
 use ox_api::state::{AppState, Timeouts};
-use ox_api::{collaboration, mcp, middleware, model_router, openapi, routes, schedule, sso, state, system_config};
+use ox_api::{
+    collaboration, mcp, middleware, model_router, openapi, routes, schedule, sso, state,
+    system_config,
+};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -261,6 +261,11 @@ async fn main() -> anyhow::Result<()> {
                                 None,
                                 "system:bootstrap",
                                 &hash,
+                                // Bootstrap needs full access to create the
+                                // first workspace / additional keys. All
+                                // other keys default to `viewer` at the DB
+                                // level and must be escalated deliberately.
+                                "admin",
                             )
                             .await
                         {
@@ -274,9 +279,7 @@ async fn main() -> anyhow::Result<()> {
                     }
                     Ok(_) => {
                         // Table is non-empty; ignore the bootstrap value.
-                        tracing::info!(
-                            "OX_AUTH__BOOTSTRAP_KEY ignored — api_keys already seeded"
-                        );
+                        tracing::info!("OX_AUTH__BOOTSTRAP_KEY ignored — api_keys already seeded");
                     }
                     Err(e) => {
                         tracing::warn!(error = %e, "Could not check api_keys for bootstrap seed");
@@ -507,8 +510,17 @@ async fn main() -> anyhow::Result<()> {
             Default::default(),
         );
 
-        tracing::info!("MCP server enabled at /mcp");
-        Some(Router::new().nest_service("/mcp", mcp_service))
+        // MCP endpoint sits behind the same `require_auth` gate as the
+        // regular API surface: Bearer JWT or `x-api-key` header is the
+        // minimum ticket to reach the session manager. The inner rate
+        // limiter and `forbidden_cypher_keyword` heuristic remain as
+        // defense-in-depth, but they are no longer the only gate —
+        // an unauthenticated caller is rejected at 401 before the
+        // StreamableHttpService ever sees the request.
+        tracing::info!("MCP server enabled at /mcp (auth required)");
+        Some(Router::new().nest_service("/mcp", mcp_service).route_layer(
+            axum::middleware::from_fn_with_state(state.clone(), middleware::require_auth),
+        ))
     } else {
         tracing::info!("MCP server disabled");
         None
@@ -1079,7 +1091,10 @@ async fn evaluate_quality_rules(
             None => eval_fut.await,
         };
 
-        if !matches!(rule.rule_type.as_str(), "completeness" | "uniqueness" | "custom") {
+        if !matches!(
+            rule.rule_type.as_str(),
+            "completeness" | "uniqueness" | "custom"
+        ) {
             continue;
         }
 

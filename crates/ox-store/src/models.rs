@@ -540,6 +540,11 @@ pub struct ApiKey {
     pub key_hash: Vec<u8>,
     pub created_by: String,
     pub workspace_id: Option<Uuid>,
+    /// Role granted to any caller presenting this key. Enforced at the
+    /// DB layer (CHECK constraint) to exactly one of `admin`, `designer`,
+    /// or `viewer`. The auth middleware copies this into the synthetic
+    /// JWT claim instead of the previous hard-coded `"admin"`.
+    pub role: String,
     pub created_at: DateTime<Utc>,
     pub revoked_at: Option<DateTime<Utc>>,
 }

@@ -467,7 +467,11 @@ pub trait PromptTemplateStore: Send + Sync {
     ) -> OxResult<()>;
     async fn delete_prompt_template(&self, id: Uuid) -> OxResult<bool>;
     /// Deactivate all versions of a prompt with the given name except `exclude_id`.
-    async fn update_prompt_template_active_only(&self, name: &str, exclude_id: Uuid) -> OxResult<()>;
+    async fn update_prompt_template_active_only(
+        &self,
+        name: &str,
+        exclude_id: Uuid,
+    ) -> OxResult<()>;
 }
 
 // ---------------------------------------------------------------------------
@@ -571,7 +575,10 @@ pub trait EmbeddingRetryStore: Send + Sync {
 #[async_trait]
 pub trait VerificationStore: Send + Sync {
     async fn verify_element(&self, v: &ElementVerification) -> OxResult<Uuid>;
-    async fn get_verifications(&self, ontology_lineage_id: &str) -> OxResult<Vec<ElementVerification>>;
+    async fn get_verifications(
+        &self,
+        ontology_lineage_id: &str,
+    ) -> OxResult<Vec<ElementVerification>>;
     async fn invalidate_for_elements(
         &self,
         ontology_lineage_id: &str,
@@ -1007,11 +1014,16 @@ pub trait ApiKeyStore: Send + Sync {
     /// Create a new API key with a server-generated plaintext. The
     /// plaintext is returned to the caller exactly once; only the
     /// SHA-256 hash is persisted.
+    ///
+    /// `role` must be one of `admin`, `designer`, or `viewer` — the DB
+    /// CHECK constraint rejects any other value. Prefer `viewer` as the
+    /// default for automation keys and escalate deliberately.
     async fn create_api_key(
         &self,
         label: &str,
         workspace_id: Option<Uuid>,
         created_by: &str,
+        role: &str,
     ) -> OxResult<(ApiKey, String)>;
 
     /// Insert an API key whose hash is already computed by the caller.
@@ -1024,6 +1036,7 @@ pub trait ApiKeyStore: Send + Sync {
         workspace_id: Option<Uuid>,
         created_by: &str,
         key_hash: &[u8],
+        role: &str,
     ) -> OxResult<ApiKey>;
 
     /// Look up an API key by SHA-256 hash. Returns `None` if the key is
@@ -1137,6 +1150,6 @@ impl<T> Store for T where
         + LoadCheckpointStore
         + HealthStore
         + NotificationStore
-    + ApiKeyStore
+        + ApiKeyStore
 {
 }

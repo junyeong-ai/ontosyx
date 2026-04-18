@@ -130,11 +130,7 @@ pub async fn require_auth(
     }
 
     // Try DB-backed API key
-    if let Some(presented) = req
-        .headers()
-        .get("x-api-key")
-        .and_then(|v| v.to_str().ok())
-    {
+    if let Some(presented) = req.headers().get("x-api-key").and_then(|v| v.to_str().ok()) {
         use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
         hasher.update(presented.as_bytes());
@@ -154,12 +150,18 @@ pub async fn require_auth(
                 // so the long-`exp` claim doesn't matter today, but a
                 // 1h cap means any future caller that caches `AuthClaims`
                 // still respects DB revocation within an hour.
+                //
+                // `role` comes from the DB row (Phase 1 migration 0010).
+                // The CHECK constraint already restricts the column to
+                // `admin | designer | viewer`, so this copy is safe to
+                // embed in the synthetic JWT claim without further
+                // validation.
                 let now = chrono::Utc::now().timestamp() as usize;
                 let claims = AuthClaims {
                     sub: format!("apikey:{label}"),
                     email: format!("{label}@apikey.ontosyx.local"),
                     name: Some(format!("API Key: {label}")),
-                    role: "admin".to_string(),
+                    role: key.role.clone(),
                     iss: "ontosyx-api-key".to_string(),
                     iat: now,
                     exp: now + 3600,

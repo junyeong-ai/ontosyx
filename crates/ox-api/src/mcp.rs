@@ -354,8 +354,11 @@ fn to_json_text(value: &impl Serialize) -> Result<String, McpError> {
 /// formatting quirks (`detach delete`, `\nMERGE\n`) all trip the gate
 /// while harmless substrings (`creator`, `setting`, comments) do not.
 /// This is a heuristic — a determined attacker could likely sneak past
-/// it — but the cost/benefit makes it the right gate for the MCP raw
-/// Cypher tool, which has no role-based authorization.
+/// it — but it runs as inner defense-in-depth behind `require_auth`
+/// (outer HTTP gate) and the read-only runtime role (innermost DB
+/// gate). Once the Cypher `SafetyValidator` moves to a guaranteed
+/// pre-execute pass on the MCP path, this heuristic becomes redundant
+/// and can be removed.
 fn forbidden_cypher_keyword(q: &str) -> Option<&'static str> {
     const WRITE_KEYWORDS: &[&str] = &[
         "CREATE", "MERGE", "DELETE", "SET", "REMOVE", "DROP", "FOREACH", "LOAD",
@@ -393,7 +396,10 @@ mod tests {
             forbidden_cypher_keyword("MATCH (n) DETACH DELETE n"),
             Some("DELETE")
         );
-        assert_eq!(forbidden_cypher_keyword("CREATE (a:Person)"), Some("CREATE"));
+        assert_eq!(
+            forbidden_cypher_keyword("CREATE (a:Person)"),
+            Some("CREATE")
+        );
         assert_eq!(
             forbidden_cypher_keyword("MERGE (a:Person {name: 'x'})"),
             Some("MERGE")
@@ -510,12 +516,7 @@ impl OntosyxMcpServer {
         Parameters(params): Parameters<ExportParams>,
     ) -> Result<CallToolResult, McpError> {
         self.limiter.check()?;
-        with_call_timeout(
-            "ontosyx_export",
-            self.call_timeout,
-            self.do_export(params),
-        )
-        .await
+        with_call_timeout("ontosyx_export", self.call_timeout, self.do_export(params)).await
     }
 
     #[tool(
@@ -886,9 +887,7 @@ impl OntosyxMcpServer {
         // the OntologyValidator runs. No name → raw path (safety +
         // workspace-scope only).
         let ontology = match &params.ontology_name {
-            Some(name) => Some(Arc::new(
-                load_ontology(self.store.as_ref(), name).await?,
-            )),
+            Some(name) => Some(Arc::new(load_ontology(self.store.as_ref(), name).await?)),
             None => None,
         };
 
