@@ -23,7 +23,7 @@ All `structured_completion` calls use `SystemPrompt::Blocks` with `CacheTtl::One
 
 ## Query Translation Pipeline
 
-`translate_query()` follows a 3-tier fallback: MatchQueryIR (structured) → QueryIR (JSON mode) → retry with error context. Each tier emits `ctx.progress()` events for real-time visibility.
+`translate_query()` follows a 3-tier fallback: StructuredMatchQuery (structured output, the LLM-oriented shape of `QueryOp::Match`) → QueryIR (JSON mode) → retry with error context. Each tier emits `ctx.progress()` events for real-time visibility.
 
 After a QueryIR lands, a **pre-flight label check** (`OntologyIR::unknown_labels_in_query`) scans the extracted label set against the active ontology. If any label is unknown, Brain retries once with a `correction` template variable listing the offending labels — the LLM self-corrects more than 90% of the time on re-prompt. If the retry still produces unknowns, Brain returns the bad QueryIR and lets the runtime's `OntologyValidator` issue the deterministic rejection (the agent sees the error through the tool-result path and can loop).
 

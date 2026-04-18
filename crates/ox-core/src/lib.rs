@@ -24,7 +24,7 @@ pub mod graph_audit;
 pub mod graph_exploration;
 pub mod i18n;
 pub mod load_plan;
-pub mod match_query_ir;
+pub mod structured_match_query;
 pub mod ontology_command;
 pub mod ontology_diff;
 pub mod ontology_input;
@@ -46,7 +46,7 @@ pub use design_project::{DesignProjectStatus, SourceConfig, SourceHistoryEntry, 
 pub use error::{ErrorContext, OxError};
 pub use i18n::{LanguageTag, LocaleError, LocalizedText};
 pub use load_plan::{LoadMode, LoadPlan};
-pub use match_query_ir::MatchQueryIR;
+pub use structured_match_query::StructuredMatchQuery;
 pub use ontology_command::{
     CommandResult, EntityKind, MatchDecision, OntologyCommand, PropertyPatch, ReconcileConfidence,
     ReconcileReport, ReconcileResult, UncertainMatch,

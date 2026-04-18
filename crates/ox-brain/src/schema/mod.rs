@@ -30,19 +30,22 @@ mod tests {
     }
 
     #[test]
-    fn match_query_ir_within_structured_output_limits() {
-        let schema = schemars::schema_for!(ox_core::match_query_ir::MatchQueryIR);
+    fn structured_match_query_within_structured_output_limits() {
+        let schema =
+            schemars::schema_for!(ox_core::structured_match_query::StructuredMatchQuery);
         let value = schema.to_value();
         let optional = count_optional_params(&value);
         let total = count_total_properties(&value);
-        eprintln!("MatchQueryIR optional params: {optional}, total properties: {total}");
+        eprintln!(
+            "StructuredMatchQuery optional params: {optional}, total properties: {total}"
+        );
         assert!(
             optional <= 24,
-            "MatchQueryIR has {optional} optional params (limit 24)"
+            "StructuredMatchQuery has {optional} optional params (limit 24)"
         );
         assert!(
             total <= 50,
-            "MatchQueryIR has {total} total properties (limit 50)"
+            "StructuredMatchQuery has {total} total properties (limit 50)"
         );
     }
 }

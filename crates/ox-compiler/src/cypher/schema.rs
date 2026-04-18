@@ -81,10 +81,7 @@ pub struct IndexStats {
     pub truncated: usize,
 }
 
-pub(crate) fn compile_node_constraints(
-    node: &NodeTypeDef,
-    dialect: CypherDialect,
-) -> Vec<String> {
+pub(crate) fn compile_node_constraints(node: &NodeTypeDef, dialect: CypherDialect) -> Vec<String> {
     let mut stmts = Vec::new();
     let label = &node.label;
     let escaped_label = escape_identifier(label);
@@ -280,9 +277,7 @@ pub(super) fn compile_index(
             similarity,
         } => {
             if dialect == CypherDialect::Memgraph {
-                tracing::info!(
-                    "Memgraph dialect: VECTOR index skipped (unsupported)",
-                );
+                tracing::info!("Memgraph dialect: VECTOR index skipped (unsupported)",);
                 return None;
             }
             let label = escape_identifier(ontology.node_label(node_id).unwrap_or("UNKNOWN"));

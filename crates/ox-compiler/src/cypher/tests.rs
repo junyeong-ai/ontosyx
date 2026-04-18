@@ -1540,9 +1540,7 @@ fn memgraph_dialect_emits_4x_exists_constraint() {
 
     let stmts = compiler.compile_schema(&ontology).unwrap();
     assert!(
-        stmts
-            .iter()
-            .any(|s| s.contains("ASSERT EXISTS (n.`name`)")),
+        stmts.iter().any(|s| s.contains("ASSERT EXISTS (n.`name`)")),
         "expected Memgraph 4.x EXISTS, got: {stmts:?}"
     );
 }
@@ -1633,9 +1631,7 @@ fn memgraph_dialect_uses_short_index_syntax() {
 
     let stmts = compiler.compile_schema(&ontology).unwrap();
     assert!(
-        stmts
-            .iter()
-            .any(|s| s == "CREATE INDEX ON :`User`(`name`)"),
+        stmts.iter().any(|s| s == "CREATE INDEX ON :`User`(`name`)"),
         "expected Memgraph short index syntax, got: {stmts:?}"
     );
     // Neo4j 5.x `CREATE INDEX IF NOT EXISTS FOR (n:...) ON (n.x)`

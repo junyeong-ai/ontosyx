@@ -655,16 +655,16 @@ impl QueryTranslator for DefaultBrain {
         vars.insert("ontology", ontology_json.as_str());
         vars.insert("knowledge", knowledge_context.as_str());
 
-        // Phase 3: Primary LLM call (MatchQueryIR structured output)
+        // Phase 3: Primary LLM call (StructuredMatchQuery structured output)
         ctx.progress("llm_primary").started();
         let t_llm = std::time::Instant::now();
         let query_ir = match self
-            .call_structured::<ox_core::MatchQueryIR>(
+            .call_structured::<ox_core::StructuredMatchQuery>(
                 "translate_match_query",
                 Some("1.0.0"),
                 "translate_match_query",
                 &vars,
-                "Translating to MatchQueryIR (structured output)",
+                "Translating to StructuredMatchQuery (structured output)",
             )
             .await
             .and_then(|match_ir| match_ir.into_query_ir())
@@ -672,7 +672,7 @@ impl QueryTranslator for DefaultBrain {
             Ok(qir) => {
                 ctx.progress("llm_primary")
                     .completed(t_llm.elapsed().as_millis() as u64);
-                info!("MatchQueryIR structured output succeeded");
+                info!("StructuredMatchQuery structured output succeeded");
                 qir
             }
             Err(match_err) => {
@@ -684,7 +684,7 @@ impl QueryTranslator for DefaultBrain {
                 let t_fallback = std::time::Instant::now();
                 info!(
                     error = %match_err,
-                    "MatchQueryIR path failed, falling back to full QueryIR"
+                    "StructuredMatchQuery path failed, falling back to full QueryIR"
                 );
                 let result: OxResult<QueryIR> = self
                     .call_structured(
