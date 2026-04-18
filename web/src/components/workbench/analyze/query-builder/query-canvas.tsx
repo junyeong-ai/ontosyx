@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState } from "react";
 import {
   ReactFlowProvider,
   useReactFlow,
@@ -11,6 +11,7 @@ import {
   type NodeMouseHandler,
   type EdgeMouseHandler,
   type OnNodesChange,
+  type Viewport,
   BaseEdge,
   EdgeLabelRenderer,
   getSmoothStepPath,
@@ -189,6 +190,18 @@ export interface QueryCanvasProps {
 }
 
 /**
+ * Imperative handle exposing the canvas's viewport. Used by the query
+ * builder to snapshot the current zoom / pan into a saved pattern and
+ * restore it when a pattern is loaded. Keeps XyFlow's ReactFlow
+ * provider encapsulated inside the canvas (the parent never has to
+ * import `useReactFlow`).
+ */
+export interface QueryCanvasHandle {
+  getViewport: () => Viewport;
+  setViewport: (viewport: Viewport) => void;
+}
+
+/**
  * Default grid position for a freshly added node whose drop coordinates
  * weren't provided (e.g. user clicked the palette item instead of dragging).
  * Nodes are laid out in a simple 3-column grid until the user re-arranges.
@@ -199,7 +212,10 @@ function defaultGridPosition(index: number): { x: number; y: number } {
   return { x: 80 + col * 220, y: 40 + row * 140 };
 }
 
-function QueryCanvasInner(props: QueryCanvasProps) {
+const QueryCanvasInner = forwardRef<QueryCanvasHandle, QueryCanvasProps>(function QueryCanvasInner(
+  props,
+  ref,
+) {
   const {
     nodes,
     edges,
@@ -216,6 +232,19 @@ function QueryCanvasInner(props: QueryCanvasProps) {
 
   const reactFlow = useReactFlow();
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+
+  // Expose viewport getters/setters to the parent so it can round-trip
+  // zoom + pan through saved patterns. Depends on `useReactFlow`, which
+  // requires us to be inside the `ReactFlowProvider` — hence the handle
+  // is wired here rather than on the outer `QueryCanvas` export.
+  useImperativeHandle(
+    ref,
+    () => ({
+      getViewport: () => reactFlow.getViewport(),
+      setViewport: (vp: Viewport) => reactFlow.setViewport(vp),
+    }),
+    [reactFlow],
+  );
 
   // Derive the shared interaction policy (context menu + Delete/Backspace +
   // Escape) from the canvas's own selection state. `selectedTarget` is
@@ -474,17 +503,23 @@ function QueryCanvasInner(props: QueryCanvasProps) {
       )}
     </div>
   );
-}
+});
 
 /**
  * Public entry point — wraps the canvas in a ReactFlowProvider so
  * `useReactFlow` (for `screenToFlowPosition` on drops) can hook into
  * the instance. The provider is cheap; each QueryCanvas gets its own.
+ *
+ * Forwards `ref` to the inner canvas so callers can snapshot / restore
+ * the XyFlow viewport (see `QueryCanvasHandle`).
  */
-export function QueryCanvas(props: QueryCanvasProps) {
+export const QueryCanvas = forwardRef<QueryCanvasHandle, QueryCanvasProps>(function QueryCanvas(
+  props,
+  ref,
+) {
   return (
     <ReactFlowProvider>
-      <QueryCanvasInner {...props} />
+      <QueryCanvasInner {...props} ref={ref} />
     </ReactFlowProvider>
   );
-}
+});

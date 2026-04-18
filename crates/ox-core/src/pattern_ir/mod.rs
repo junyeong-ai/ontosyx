@@ -35,7 +35,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::query_ir::{
-    Expr, GraphPattern, LogicalOp, Projection, PropertyFilter, QueryIR, QueryOp, VarLength,
+    Expr, GraphPattern, LogicalOp, OrderClause, Projection, PropertyFilter, QueryIR, QueryOp,
+    VarLength,
 };
 use crate::types::Direction;
 
@@ -74,6 +75,10 @@ pub struct PatternIR {
     /// SKIP clause — round-trips with QueryIR.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skip: Option<usize>,
+    /// ORDER BY clauses. Round-trip with QueryIR so a saved canvas
+    /// reopens with the same sort order the user configured.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub order_by: Vec<OrderClause>,
 }
 
 /// A single node on the canvas. `id` is the UI identity (stable across
@@ -219,7 +224,7 @@ impl PatternIR {
             },
             limit: self.limit,
             skip: self.skip,
-            order_by: Vec::new(),
+            order_by: self.order_by.clone(),
         }
     }
 }
@@ -359,6 +364,7 @@ impl PatternIR {
             layout_hints: LayoutHints::default(),
             limit: query.limit,
             skip: query.skip,
+            order_by: query.order_by.clone(),
         }
     }
 }
@@ -620,6 +626,48 @@ mod tests {
         assert_eq!(query.skip, Some(5));
     }
 
+    #[test]
+    fn compile_and_decompile_preserve_order_by() {
+        use crate::query_ir::SortDirection;
+
+        let order = OrderClause {
+            projection: Projection::Field {
+                variable: "p".into(),
+                field: "age".into(),
+                alias: None,
+            },
+            direction: SortDirection::Desc,
+        };
+        let pattern = PatternIR {
+            nodes: vec![PatternNode {
+                id: "n1".into(),
+                variable: "p".into(),
+                label: Some("Person".into()),
+                property_filters: Vec::new(),
+                position: None,
+            }],
+            order_by: vec![order],
+            ..Default::default()
+        };
+
+        // compile keeps the sort spec on the QueryIR.
+        let query = pattern.compile();
+        assert_eq!(query.order_by.len(), 1);
+        matches!(query.order_by[0].direction, SortDirection::Desc);
+
+        // And decompile carries it back onto PatternIR so a saved
+        // pattern reopens with the user's sort intact.
+        let back = PatternIR::decompile(&query);
+        assert_eq!(back.order_by.len(), 1);
+        match &back.order_by[0].projection {
+            Projection::Field { variable, field, .. } => {
+                assert_eq!(variable, "p");
+                assert_eq!(field, "age");
+            }
+            other => panic!("expected Projection::Field, got {other:?}"),
+        }
+    }
+
     // --- decompile ------------------------------------------------------
 
     #[test]
@@ -856,6 +904,7 @@ mod tests {
             },
             limit: Some(10),
             skip: None,
+            order_by: Vec::new(),
         };
 
         let query = original.compile();

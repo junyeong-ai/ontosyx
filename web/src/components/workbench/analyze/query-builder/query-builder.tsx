@@ -5,7 +5,7 @@ import { useAppStore } from "@/lib/store";
 import { executeFromIr } from "@/lib/api/queries";
 import type { NodeTypeDef, EdgeTypeDef, PropertyDef, QueryResult } from "@/types/api";
 import { PatternPalette, type PaletteTab } from "./pattern-palette";
-import { QueryCanvas } from "./query-canvas";
+import { QueryCanvas, type QueryCanvasHandle } from "./query-canvas";
 import { FilterEditor } from "./filter-editor";
 import { ReturnSelector } from "./return-selector";
 import {
@@ -64,6 +64,10 @@ export function QueryBuilder() {
   // fresh New / Clear — Save then prompts for a name rather than
   // updating in place.
   const [currentPatternId, setCurrentPatternId] = useState<string | null>(null);
+
+  // Imperative handle on the canvas — used to snapshot / restore the
+  // XyFlow viewport (zoom + pan) when saving / loading patterns.
+  const canvasRef = useRef<QueryCanvasHandle>(null);
 
   // Palette tab state
   const [paletteTab, setPaletteTab] = useState<PaletteTab>("nodes");
@@ -404,23 +408,29 @@ export function QueryBuilder() {
   // ---------------------------------------------------------------------------
 
   const snapshotPatternIR = useCallback(
-    () => ({
-      pattern_ir: toPatternIR({
-        nodes,
-        edges,
-        returnFields,
-        orderBy,
-        limit,
-      }),
-      fallbackName: nodes[0]?.label
-        ? `${nodes[0].label} pattern`
-        : "Untitled pattern",
-    }),
+    () => {
+      // Capture the current viewport so zoom + pan survive a reload.
+      // `getViewport` is only available after the canvas has mounted;
+      // an unmounted ref safely collapses to `undefined` via the
+      // optional chain, which toPatternIR treats as "no layout hints".
+      const vp = canvasRef.current?.getViewport();
+      return {
+        pattern_ir: toPatternIR(
+          { nodes, edges, returnFields, orderBy, limit },
+          vp
+            ? { layoutHints: { zoom: vp.zoom, pan_x: vp.x, pan_y: vp.y } }
+            : {},
+        ),
+        fallbackName: nodes[0]?.label
+          ? `${nodes[0].label} pattern`
+          : "Untitled pattern",
+      };
+    },
     [nodes, edges, returnFields, orderBy, limit],
   );
 
   const applyLoadedPattern = useCallback((pattern: SavedPattern) => {
-    const { visual } = fromPatternIR(pattern.pattern_ir as never);
+    const { visual, layoutHints } = fromPatternIR(pattern.pattern_ir as never);
     setNodes(visual.nodes);
     setEdges(visual.edges);
     setReturnFields(visual.returnFields);
@@ -441,6 +451,22 @@ export function QueryBuilder() {
     setNodeCounter(maxNode + 1);
     setEdgeCounter(maxEdge + 1);
     setCurrentPatternId(pattern.id);
+    // Restore viewport after React renders the new nodes. Without the
+    // rAF delay the canvas has no bounds yet and XyFlow snaps back to
+    // (0, 0, 1) before the user's zoom can take effect.
+    if (
+      layoutHints.zoom !== undefined ||
+      layoutHints.pan_x !== undefined ||
+      layoutHints.pan_y !== undefined
+    ) {
+      requestAnimationFrame(() => {
+        canvasRef.current?.setViewport({
+          zoom: layoutHints.zoom ?? 1,
+          x: layoutHints.pan_x ?? 0,
+          y: layoutHints.pan_y ?? 0,
+        });
+      });
+    }
     toast.success(`Loaded "${pattern.name}"`);
   }, []);
 
@@ -528,6 +554,7 @@ export function QueryBuilder() {
           {/* Canvas */}
           <div className="min-h-[240px] flex-1 overflow-hidden p-3">
             <QueryCanvas
+              ref={canvasRef}
               nodes={nodes}
               edges={edges}
               nodeTypes={nodeTypes}

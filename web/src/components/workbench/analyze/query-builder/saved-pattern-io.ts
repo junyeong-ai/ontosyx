@@ -26,6 +26,7 @@ import type {
   PatternEdge,
   PatternFilter,
   ReturnField,
+  OrderByField,
   FilterOperator,
   Aggregation,
   VisualPattern,
@@ -107,6 +108,15 @@ interface WirePatternProjection {
   projection: WireProjection;
 }
 
+/** QueryIR's `OrderClause` wire shape. `projection` wraps any
+ *  `Projection` variant; the UI only emits `field` so that's what we
+ *  serialize, but decoding accepts any shape and falls back to the
+ *  first variable when the shape is unknown. */
+interface WireOrderClause {
+  projection: WireProjection;
+  direction: "asc" | "desc";
+}
+
 export interface WirePatternIR {
   nodes?: WirePatternNode[];
   edges?: WirePatternEdge[];
@@ -115,6 +125,7 @@ export interface WirePatternIR {
   layout_hints?: WireLayoutHints;
   limit?: number;
   skip?: number;
+  order_by?: WireOrderClause[];
 }
 
 // ---------------------------------------------------------------------------
@@ -253,6 +264,15 @@ export function toPatternIR(
     };
   });
 
+  const order_by: WireOrderClause[] = visual.orderBy.map((o) => ({
+    projection: {
+      kind: "field",
+      variable: o.alias,
+      field: o.property,
+    },
+    direction: o.direction,
+  }));
+
   return {
     nodes,
     edges,
@@ -260,6 +280,7 @@ export function toPatternIR(
     projections,
     layout_hints: options.layoutHints ?? {},
     limit: visual.limit ?? undefined,
+    order_by,
   };
 }
 
@@ -341,12 +362,29 @@ export function fromPatternIR(wire: WirePatternIR): FromPatternIRResult {
     }
   }
 
+  // ----- Order by ------------------------------------------------------
+  const orderBy: OrderByField[] = [];
+  for (const clause of wire.order_by ?? []) {
+    const direction = clause.direction === "desc" ? "desc" : "asc";
+    const p = clause.projection;
+    if (!p) continue;
+    if (p.kind === "field") {
+      orderBy.push({ alias: p.variable, property: p.field, direction });
+    } else if (p.kind === "variable") {
+      // A "variable" projection sorts by the whole node; surface as
+      // alias + "*" so the UI's order-by picker recognises it.
+      orderBy.push({ alias: p.variable, property: "*", direction });
+    }
+    // Aggregation-direction sort has no canvas representation yet —
+    // drop silently so a saved pattern with such a clause still loads.
+  }
+
   return {
     visual: {
       nodes,
       edges,
       returnFields,
-      orderBy: [],
+      orderBy,
       limit: wire.limit ?? null,
     },
     layoutHints: wire.layout_hints ?? {},
