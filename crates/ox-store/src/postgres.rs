@@ -2717,14 +2717,16 @@ impl ToolApprovalStore for PostgresStore {
 impl WorkspaceStore for PostgresStore {
     async fn create_workspace(&self, w: &Workspace) -> OxResult<()> {
         sqlx::query(
-            "INSERT INTO workspaces (id, name, slug, owner_id, settings)
-             VALUES ($1, $2, $3, $4, $5)",
+            "INSERT INTO workspaces (id, name, slug, owner_id, settings, primary_locale, locale_fallback)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)",
         )
         .bind(w.id)
         .bind(&w.name)
         .bind(&w.slug)
         .bind(w.owner_id)
         .bind(&w.settings)
+        .bind(&w.primary_locale)
+        .bind(&w.locale_fallback)
         .execute(&self.pool)
         .await
         .map_err(to_ox_error)?;
@@ -2790,6 +2792,27 @@ impl WorkspaceStore for PostgresStore {
             .await
             .map_err(to_ox_error)?;
         Ok(result.rows_affected() > 0)
+    }
+
+    async fn update_workspace_locale(
+        &self,
+        id: Uuid,
+        primary_locale: &str,
+        locale_fallback: &serde_json::Value,
+    ) -> OxResult<()> {
+        sqlx::query(
+            "UPDATE workspaces
+                SET primary_locale = $2,
+                    locale_fallback = $3
+              WHERE id = $1",
+        )
+        .bind(id)
+        .bind(primary_locale)
+        .bind(locale_fallback)
+        .execute(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        Ok(())
     }
 
     async fn add_workspace_member(

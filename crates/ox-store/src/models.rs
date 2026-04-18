@@ -92,6 +92,13 @@ pub struct Workspace {
     pub owner_id: Uuid,
     pub settings: serde_json::Value,
     pub created_at: DateTime<Utc>,
+    /// Workspace's canonical UI / LLM locale (BCP 47). Always lowercase;
+    /// enforced by `workspaces_primary_locale_check` at the DB layer.
+    pub primary_locale: String,
+    /// Ordered fallback chain (JSON array of BCP 47 tags, non-empty) used
+    /// by `LocalizedText::resolve`. Validated by
+    /// `workspaces_locale_fallback_check`.
+    pub locale_fallback: serde_json::Value,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -435,9 +442,13 @@ pub struct PromptTemplateRow {
     pub created_by: String,
     pub created_at: DateTime<Utc>,
     pub is_active: bool,
-    /// Workspace this override belongs to. `None` = global template
-    /// (visible to every workspace as the fallback).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Workspace this override belongs to. `null` on the wire = global
+    /// template (visible to every workspace as the fallback). The field
+    /// is always emitted — a missing field and `null` mean different
+    /// things to generated clients, and the OpenAPI schema (see
+    /// `ox_api::openapi::PromptTemplateRow`) declares this as
+    /// `Option<Uuid>` present in every response.
+    #[serde(default)]
     pub workspace_id: Option<Uuid>,
 }
 
