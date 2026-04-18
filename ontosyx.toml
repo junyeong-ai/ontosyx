@@ -42,8 +42,10 @@ dimensions = 1024                               # auto-detected from model, used
 
 [auth]
 jwt_secret = "6V0qPK4eNUqKmOOYITF/pgtf0eAr2wLGjAM9NMmB+bY="
-api_key = "dev-api-key-ontosyx"
 session_hours = 168              # 7 days (matches frontend JWT expiry)
+# First-boot bootstrap: set OX_AUTH__BOOTSTRAP_KEY at startup to seed
+# one row into `api_keys` when the table is empty. Rotate immediately
+# via POST /api/admin/api-keys after first login.
 
 [[auth.providers]]
 name = "google"
