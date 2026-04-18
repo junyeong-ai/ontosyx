@@ -11,6 +11,8 @@ use ox_core::types::PropertyType;
 ///   - UNIQUE constraint -> sh:maxCount 1
 ///   - NodeKey constraint -> sh:minCount 1 + sh:maxCount 1
 ///   - non-nullable property -> sh:minCount 1
+///   - explicit min_count/max_count → sh:minCount/sh:maxCount (overrides nullability default)
+///   - deprecated_at on node/edge/property → owl:deprecated true (annotation)
 pub fn generate_shacl(ontology: &OntologyIR) -> String {
     let mut out = String::new();
 
@@ -20,6 +22,8 @@ pub fn generate_shacl(ontology: &OntologyIR) -> String {
     out.push_str("@prefix sh:   <http://www.w3.org/ns/shacl#> .\n");
     out.push_str("@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .\n");
     out.push_str("@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n");
+    // owl: needed for owl:deprecated annotations on shapes / property blocks.
+    out.push_str("@prefix owl:  <http://www.w3.org/2002/07/owl#> .\n");
     out.push_str(&format!("@prefix :     <{base_ns}#> .\n"));
     out.push('\n');
 
@@ -60,6 +64,9 @@ pub fn generate_shacl(ontology: &OntologyIR) -> String {
             "    rdfs:label {} ;\n",
             turtle_literal(&format!("{} shape", node.label)),
         ));
+        if node.deprecated_at.is_some() {
+            out.push_str("    owl:deprecated true ;\n");
+        }
         if let Some(desc) = node.description.present() {
             out.push_str(&format!("    rdfs:comment {} ;\n", turtle_literal(desc)));
         }
@@ -79,36 +86,38 @@ pub fn generate_shacl(ontology: &OntologyIR) -> String {
             let is_unique = unique_prop_ids.contains(prop.id.as_ref());
             let is_node_key = node_key_prop_ids.contains(prop.id.as_ref());
 
-            out.push_str("    sh:property [\n");
-            out.push_str(&format!("        sh:path :{} ;\n", local_name(&prop.name),));
-            out.push_str(&format!(
-                "        sh:datatype {} ;\n",
-                xsd_type(&prop.property_type),
-            ));
-            out.push_str(&format!(
-                "        sh:name {} ;\n",
-                turtle_literal(&prop.name),
-            ));
+            // Resolve effective cardinality bounds.
+            // Explicit `min_count` / `max_count` override the nullability /
+            // constraint defaults so an ontology designer can pin a
+            // 0..N or 2..5 list-property without changing the constraint set.
+            let effective_min = prop.min_count.or_else(|| {
+                (!prop.nullable || is_node_key).then_some(1)
+            });
+            let effective_max = prop
+                .max_count
+                .or_else(|| (is_unique || is_node_key).then_some(1));
+
+            // Build the property block as a list of (key, value) lines so
+            // the trailing-semicolon discipline is centralised in `emit_block`.
+            let mut lines: Vec<String> = Vec::new();
+            lines.push(format!("sh:path :{}", local_name(&prop.name)));
+            lines.push(format!("sh:datatype {}", xsd_type(&prop.property_type)));
+            lines.push(format!("sh:name {}", turtle_literal(&prop.name)));
             if let Some(desc) = prop.description.present() {
-                out.push_str(&format!(
-                    "        sh:description {} ;\n",
-                    turtle_literal(desc),
-                ));
+                lines.push(format!("sh:description {}", turtle_literal(desc)));
+            }
+            if let Some(min) = effective_min {
+                lines.push(format!("sh:minCount {min}"));
+            }
+            if let Some(max) = effective_max {
+                lines.push(format!("sh:maxCount {max}"));
+            }
+            if prop.deprecated_at.is_some() {
+                lines.push("owl:deprecated true".into());
             }
 
-            // Cardinality from nullability and constraints
-            if !prop.nullable || is_node_key {
-                out.push_str("        sh:minCount 1 ;\n");
-            }
-            if is_unique || is_node_key {
-                // Last property in the block — no trailing semicolon
-                out.push_str("        sh:maxCount 1\n");
-            } else {
-                // Remove trailing " ;\n" from the last line and close without semicolon
-                let len = out.len();
-                out.truncate(len - 3); // remove " ;\n"
-                out.push('\n');
-            }
+            out.push_str("    sh:property [\n");
+            emit_block(&mut out, &lines);
             out.push_str(&format!("    ]{terminator}\n"));
         }
 
@@ -119,28 +128,20 @@ pub fn generate_shacl(ontology: &OntologyIR) -> String {
             let is_last = i == edges_for_node.len() - 1;
             let terminator = if is_last { " ." } else { " ;" };
 
-            out.push_str("    sh:property [\n");
-            out.push_str(&format!("        sh:path :{} ;\n", local_name(&edge.label),));
-            out.push_str(&format!("        sh:class :{tgt_class} ;\n"));
-            out.push_str(&format!(
-                "        sh:name {} ;\n",
-                turtle_literal(&edge.label),
-            ));
+            let mut lines: Vec<String> = Vec::new();
+            lines.push(format!("sh:path :{}", local_name(&edge.label)));
+            lines.push(format!("sh:class :{tgt_class}"));
+            lines.push(format!("sh:name {}", turtle_literal(&edge.label)));
             if let Some(desc) = edge.description.present() {
-                out.push_str(&format!(
-                    "        sh:description {} ;\n",
-                    turtle_literal(desc),
-                ));
+                lines.push(format!("sh:description {}", turtle_literal(desc)));
+            }
+            push_edge_cardinality(&mut lines, &edge.cardinality);
+            if edge.deprecated_at.is_some() {
+                lines.push("owl:deprecated true".into());
             }
 
-            // Cardinality constraints from edge
-            emit_edge_cardinality(&mut out, &edge.cardinality);
-
-            // Remove trailing " ;\n" from the last constraint line
-            let len = out.len();
-            out.truncate(len - 3);
-            out.push('\n');
-
+            out.push_str("    sh:property [\n");
+            emit_block(&mut out, &lines);
             out.push_str(&format!("    ]{terminator}\n"));
         }
 
@@ -158,25 +159,39 @@ pub fn generate_shacl(ontology: &OntologyIR) -> String {
     out
 }
 
-/// Emit sh:minCount/sh:maxCount for an edge based on its cardinality.
+/// Emit a Turtle predicate-list block where every line gets ` ;` terminator
+/// except the last, which gets none. Centralises the trailing-semicolon
+/// discipline so callers don't have to truncate.
+///
+/// Each entry should be a bare `predicate object` string (no leading
+/// whitespace, no terminator). The block writes them all indented by 8
+/// spaces, ending with `\n` after the final line so the closing bracket
+/// can sit on its own line.
+fn emit_block(out: &mut String, lines: &[String]) {
+    let last = lines.len().saturating_sub(1);
+    for (i, line) in lines.iter().enumerate() {
+        let suffix = if i == last { "" } else { " ;" };
+        out.push_str(&format!("        {line}{suffix}\n"));
+    }
+}
+
+/// Push edge-cardinality lines into a property-block line list.
 ///
 /// The cardinality describes source→target multiplicity:
 ///   - OneToOne:   source has exactly 1 target  → minCount 1, maxCount 1
 ///   - ManyToOne:  each source has 1 target      → minCount 1, maxCount 1
-///   - OneToMany:  source can have many targets   → (no upper bound)
-///   - ManyToMany: no cardinality constraints     → (no constraints)
-fn emit_edge_cardinality(out: &mut String, card: &Cardinality) {
+///   - OneToMany:  source can have many targets   → minCount 1 (no upper bound)
+///   - ManyToMany: no cardinality constraints
+fn push_edge_cardinality(lines: &mut Vec<String>, card: &Cardinality) {
     match card {
         Cardinality::OneToOne | Cardinality::ManyToOne => {
-            out.push_str("        sh:minCount 1 ;\n");
-            out.push_str("        sh:maxCount 1 ;\n");
+            lines.push("sh:minCount 1".into());
+            lines.push("sh:maxCount 1".into());
         }
         Cardinality::OneToMany => {
-            out.push_str("        sh:minCount 1 ;\n");
+            lines.push("sh:minCount 1".into());
         }
-        Cardinality::ManyToMany => {
-            // No cardinality constraints
-        }
+        Cardinality::ManyToMany => {}
     }
 }
 
@@ -530,6 +545,119 @@ mod tests {
         let edge_block = &ttl[edge_start..edge_block_end];
         assert!(!edge_block.contains("sh:minCount"));
         assert!(!edge_block.contains("sh:maxCount"));
+    }
+
+    #[test]
+    fn test_owl_prefix_emitted() {
+        let ttl = generate_shacl(&sample_ontology());
+        assert!(
+            ttl.contains("@prefix owl:"),
+            "owl: prefix is required for owl:deprecated annotations: {ttl}"
+        );
+    }
+
+    #[test]
+    fn test_explicit_min_max_count_overrides_nullability_default() {
+        let ontology = OntologyIR::new(
+            "mc-test".into(),
+            "MinMax".into(),
+            LocalizedText::default(),
+            1,
+            vec![NodeTypeDef {
+                id: "n1".into(),
+                label: "Bag".into(),
+                description: LocalizedText::default(),
+                properties: vec![PropertyDef {
+                    id: "p1".into(),
+                    name: "tags".into(),
+                    property_type: PropertyType::String,
+                    nullable: true,
+                    default_value: None,
+                    description: LocalizedText::default(),
+                    classification: None,
+                    min_count: Some(2),
+                    max_count: Some(5),
+                    ..Default::default()
+                }],
+                constraints: vec![],
+                ..Default::default()
+            }],
+            vec![],
+            vec![],
+        );
+        let ttl = generate_shacl(&ontology);
+        let prop_start = ttl.find("sh:path :tags").unwrap();
+        let block_end = ttl[prop_start..].find(']').unwrap() + prop_start;
+        let block = &ttl[prop_start..block_end];
+        assert!(
+            block.contains("sh:minCount 2"),
+            "explicit min_count=2 should appear, got: {block}"
+        );
+        assert!(
+            block.contains("sh:maxCount 5"),
+            "explicit max_count=5 should appear, got: {block}"
+        );
+    }
+
+    #[test]
+    fn test_deprecated_node_shape_carries_owl_annotation() {
+        let mut ontology = sample_ontology();
+        // Mark `Brand` deprecated.
+        let brand_idx = ontology
+            .node_types()
+            .iter()
+            .position(|n| n.label == "Brand")
+            .unwrap();
+        ontology
+            .update_node_type(&"n1".into(), |n| {
+                let _ = brand_idx;
+                n.deprecated_at = Some(chrono::Utc::now());
+            })
+            .unwrap();
+        let ttl = generate_shacl(&ontology);
+        let shape_start = ttl.find(":BrandShape").unwrap();
+        let shape_end = ttl[shape_start..].find(" .").unwrap() + shape_start;
+        let shape = &ttl[shape_start..shape_end];
+        assert!(
+            shape.contains("owl:deprecated true"),
+            "deprecated node shape should carry owl:deprecated true: {shape}"
+        );
+    }
+
+    #[test]
+    fn test_deprecated_property_block_carries_owl_annotation() {
+        let mut ontology = sample_ontology();
+        ontology
+            .update_node_type(&"n1".into(), |n| {
+                n.properties[0].deprecated_at = Some(chrono::Utc::now());
+            })
+            .unwrap();
+        let ttl = generate_shacl(&ontology);
+        let prop_start = ttl.find("sh:path :name").unwrap();
+        let block_end = ttl[prop_start..].find(']').unwrap() + prop_start;
+        let block = &ttl[prop_start..block_end];
+        assert!(
+            block.contains("owl:deprecated true"),
+            "deprecated property block should carry owl:deprecated true: {block}"
+        );
+    }
+
+    #[test]
+    fn test_deprecated_edge_block_carries_owl_annotation() {
+        let mut ontology = sample_ontology();
+        ontology
+            .update_edge_type(&"e1".into(), |e| {
+                e.deprecated_at = Some(chrono::Utc::now());
+            })
+            .unwrap();
+        let ttl = generate_shacl(&ontology);
+        let edge_start = ttl.find("sh:path :MANUFACTURED_BY").unwrap();
+        let block_end = ttl[edge_start..].find(']').unwrap() + edge_start;
+        let block = &ttl[edge_start..block_end];
+        assert!(
+            block.contains("owl:deprecated true"),
+            "deprecated edge block should carry owl:deprecated true: {block}"
+        );
     }
 
     #[test]

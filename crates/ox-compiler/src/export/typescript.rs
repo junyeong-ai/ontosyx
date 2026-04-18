@@ -1,10 +1,15 @@
-use ox_core::ontology_ir::OntologyIR;
+use ox_core::ontology_ir::{EdgeTypeDef, NodeTypeDef, OntologyIR, PropertyDef};
 use ox_core::types::PropertyType;
 
 /// Generate TypeScript type definitions from an OntologyIR.
 ///
 /// Produces interface declarations for each node type and edge type,
 /// with property types mapped to their TypeScript equivalents.
+///
+/// Phase A semantic fields surface in JSDoc:
+/// - `deprecated_at` → `@deprecated [reason]` in the entity / field doc.
+/// - `replaced_by_id` is resolved against the ontology so the reason
+///   names the successor inline.
 pub fn generate_typescript(ontology: &OntologyIR) -> String {
     let mut lines: Vec<String> = Vec::new();
 
@@ -17,45 +22,16 @@ pub fn generate_typescript(ontology: &OntologyIR) -> String {
 
     // --- Node type interfaces ---
     for node in ontology.node_types() {
-        if let Some(desc) = node.description.present() {
-            lines.push(format!("/** {} */", desc));
-        }
+        push_doc_block(
+            &mut lines,
+            "",
+            node.description.present(),
+            node_deprecation_reason(node, ontology).as_deref(),
+        );
         lines.push(format!("export interface {} {{", ts_safe_name(&node.label)));
 
         for prop in &node.properties {
-            let ts_type = ts_type(&prop.property_type);
-            let comment = ts_type_comment(&prop.property_type);
-            let desc_comment = prop
-                .description
-                .present()
-                .map(|d| format!("  // {d}"))
-                .unwrap_or_default();
-            let full_comment = if !comment.is_empty() && !desc_comment.is_empty() {
-                format!(
-                    "  // {comment} \u{2014} {}",
-                    desc_comment.trim_start_matches("  // ")
-                )
-            } else if !comment.is_empty() {
-                format!("  // {comment}")
-            } else {
-                desc_comment
-            };
-
-            if prop.nullable {
-                lines.push(format!(
-                    "  {}?: {};{}",
-                    ts_field_name(&prop.name),
-                    ts_type,
-                    full_comment
-                ));
-            } else {
-                lines.push(format!(
-                    "  {}: {};{}",
-                    ts_field_name(&prop.name),
-                    ts_type,
-                    full_comment
-                ));
-            }
+            push_property_field(&mut lines, prop, ontology);
         }
 
         lines.push("}".to_string());
@@ -73,49 +49,23 @@ pub fn generate_typescript(ontology: &OntologyIR) -> String {
             .map(|n| n.label.as_str())
             .unwrap_or("Unknown");
 
-        lines.push(format!(
-            "/** Edge: {} -[{}]-> {} */",
-            source_label, edge.label, target_label
-        ));
+        let edge_summary = format!(
+            "Edge: {source_label} -[{edge_label}]-> {target_label}",
+            edge_label = edge.label
+        );
+        push_doc_block(
+            &mut lines,
+            "",
+            Some(edge_summary.as_str()),
+            edge_deprecation_reason(edge, ontology).as_deref(),
+        );
         let iface_name = format!("{}Edge", ts_safe_name(&edge.label));
         lines.push(format!("export interface {iface_name} {{"));
         lines.push("  source_id: string;".to_string());
         lines.push("  target_id: string;".to_string());
 
         for prop in &edge.properties {
-            let ts_type = ts_type(&prop.property_type);
-            let comment = ts_type_comment(&prop.property_type);
-            let desc_comment = prop
-                .description
-                .present()
-                .map(|d| format!("  // {d}"))
-                .unwrap_or_default();
-            let full_comment = if !comment.is_empty() && !desc_comment.is_empty() {
-                format!(
-                    "  // {comment} \u{2014} {}",
-                    desc_comment.trim_start_matches("  // ")
-                )
-            } else if !comment.is_empty() {
-                format!("  // {comment}")
-            } else {
-                desc_comment
-            };
-
-            if prop.nullable {
-                lines.push(format!(
-                    "  {}?: {};{}",
-                    ts_field_name(&prop.name),
-                    ts_type,
-                    full_comment
-                ));
-            } else {
-                lines.push(format!(
-                    "  {}: {};{}",
-                    ts_field_name(&prop.name),
-                    ts_type,
-                    full_comment
-                ));
-            }
+            push_property_field(&mut lines, prop, ontology);
         }
 
         lines.push("}".to_string());
@@ -123,6 +73,87 @@ pub fn generate_typescript(ontology: &OntologyIR) -> String {
     }
 
     lines.join("\n")
+}
+
+/// Emit a JSDoc block prefixed with `indent` (e.g. "  " for fields). Skips
+/// the block entirely when there is no description and no deprecation.
+fn push_doc_block(
+    lines: &mut Vec<String>,
+    indent: &str,
+    description: Option<&str>,
+    deprecation_reason: Option<&str>,
+) {
+    match (description, deprecation_reason) {
+        (None, None) => {}
+        (Some(d), None) => lines.push(format!("{indent}/** {d} */")),
+        (None, Some(r)) => lines.push(format!("{indent}/** @deprecated {r} */")),
+        (Some(d), Some(r)) => {
+            lines.push(format!("{indent}/**"));
+            lines.push(format!("{indent} * {d}"));
+            lines.push(format!("{indent} * @deprecated {r}"));
+            lines.push(format!("{indent} */"));
+        }
+    }
+}
+
+/// Render a property as one or more TS lines (optional JSDoc + the field).
+fn push_property_field(lines: &mut Vec<String>, prop: &PropertyDef, ontology: &OntologyIR) {
+    let dep_reason = property_deprecation_reason(prop, ontology);
+    push_doc_block(lines, "  ", prop.description.present(), dep_reason.as_deref());
+
+    let ts_type_str = ts_type(&prop.property_type);
+    let inline_hint = ts_type_comment(&prop.property_type);
+    let trailing_hint = if inline_hint.is_empty() {
+        String::new()
+    } else {
+        format!("  // {inline_hint}")
+    };
+
+    let optionality = if prop.nullable { "?" } else { "" };
+    lines.push(format!(
+        "  {name}{optionality}: {ts_type_str};{trailing_hint}",
+        name = ts_field_name(&prop.name),
+    ));
+}
+
+/// Resolve a property's deprecation reason against the ontology. Returns
+/// `Some` only when the property is deprecated.
+fn property_deprecation_reason(prop: &PropertyDef, ontology: &OntologyIR) -> Option<String> {
+    prop.deprecated_at?;
+    let reason = match &prop.replaced_by_id {
+        Some(id) => match ontology.property_by_id(id.as_ref()) {
+            Some((_, replacement)) => format!("Replaced by `{}`", replacement.name),
+            None => "Deprecated".into(),
+        },
+        None => "Deprecated".into(),
+    };
+    Some(reason)
+}
+
+/// Resolve an edge's deprecation reason against the ontology.
+fn edge_deprecation_reason(edge: &EdgeTypeDef, ontology: &OntologyIR) -> Option<String> {
+    edge.deprecated_at?;
+    let reason = match &edge.replaced_by_id {
+        Some(id) => match ontology.edge_by_id(id.as_ref()) {
+            Some(replacement) => format!("Replaced by `{}`", replacement.label),
+            None => "Deprecated".into(),
+        },
+        None => "Deprecated".into(),
+    };
+    Some(reason)
+}
+
+/// Resolve a node's deprecation reason against the ontology.
+fn node_deprecation_reason(node: &NodeTypeDef, ontology: &OntologyIR) -> Option<String> {
+    node.deprecated_at?;
+    let reason = match &node.replaced_by_id {
+        Some(id) => match ontology.node_by_id(id.as_ref()) {
+            Some(replacement) => format!("Replaced by `{}`", replacement.label),
+            None => "Deprecated".into(),
+        },
+        None => "Deprecated".into(),
+    };
+    Some(reason)
 }
 
 fn ts_type(pt: &PropertyType) -> String {
@@ -362,5 +393,58 @@ mod tests {
 
         assert!(output.contains("// Auto-generated by Ontosyx"));
         assert!(output.contains("// Ontology: TestOntology v1"));
+    }
+
+    #[test]
+    fn deprecated_property_emits_jsdoc_with_replacement() {
+        let mut ontology = test_ontology();
+        // Mark Customer.email as deprecated, replaced by `id`.
+        ontology
+            .update_node_type(&NodeTypeId::new("n1"), |n| {
+                n.properties[1].deprecated_at = Some(chrono::Utc::now());
+                n.properties[1].replaced_by_id = Some(PropertyId::new("p1"));
+            })
+            .unwrap();
+        let output = generate_typescript(&ontology);
+        assert!(
+            output.contains("@deprecated Replaced by `id`"),
+            "expected JSDoc @deprecated with successor name: {output}"
+        );
+    }
+
+    #[test]
+    fn deprecated_node_emits_jsdoc_block_above_interface() {
+        let mut ontology = test_ontology();
+        ontology
+            .update_node_type(&NodeTypeId::new("n1"), |n| {
+                n.deprecated_at = Some(chrono::Utc::now());
+                n.replaced_by_id = Some(NodeTypeId::new("n2"));
+            })
+            .unwrap();
+        let output = generate_typescript(&ontology);
+        // The doc block must precede the `export interface Customer` line.
+        let interface_idx = output.find("export interface Customer {").unwrap();
+        let doc_block_idx = output.find("@deprecated Replaced by `Product`").unwrap();
+        assert!(
+            doc_block_idx < interface_idx,
+            "JSDoc @deprecated must appear above the interface: {output}"
+        );
+    }
+
+    #[test]
+    fn deprecated_edge_emits_jsdoc_block_above_interface() {
+        let mut ontology = test_ontology();
+        ontology
+            .update_edge_type(&EdgeTypeId::new("e1"), |e| {
+                e.deprecated_at = Some(chrono::Utc::now());
+            })
+            .unwrap();
+        let output = generate_typescript(&ontology);
+        let interface_idx = output.find("export interface PurchasedEdge {").unwrap();
+        let dep_idx = output.find("@deprecated Deprecated").unwrap();
+        assert!(
+            dep_idx < interface_idx,
+            "JSDoc @deprecated must appear above the edge interface: {output}"
+        );
     }
 }

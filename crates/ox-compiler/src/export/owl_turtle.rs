@@ -15,10 +15,13 @@ pub fn generate_owl_turtle(ontology: &OntologyIR) -> String {
     let base_ns = format!("http://ontosyx.io/ontology/{}", uri_encode(&ontology.name));
 
     // --- Prefixes ---
-    out.push_str("@prefix owl:  <http://www.w3.org/2002/07/owl#> .\n");
-    out.push_str("@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n");
-    out.push_str("@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .\n");
-    out.push_str(&format!("@prefix :     <{base_ns}#> .\n"));
+    out.push_str("@prefix owl:     <http://www.w3.org/2002/07/owl#> .\n");
+    out.push_str("@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .\n");
+    out.push_str("@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .\n");
+    // dcterms is used for `dcterms:isReplacedBy`, the standard way to point
+    // a deprecated entity at its successor. owl:replacedBy is non-standard.
+    out.push_str("@prefix dcterms: <http://purl.org/dc/terms/> .\n");
+    out.push_str(&format!("@prefix :        <{base_ns}#> .\n"));
     out.push('\n');
 
     // --- Ontology declaration ---
@@ -50,10 +53,18 @@ pub fn generate_owl_turtle(ontology: &OntologyIR) -> String {
             turtle_literal(&node.label),
         ));
         if let Some(desc) = node.description.present() {
-            let len = out.len();
-            out.truncate(len - 3);
-            out.push_str(" ;\n");
-            out.push_str(&format!("    rdfs:comment {} .\n", turtle_literal(desc)));
+            chain_triple(&mut out, &format!("rdfs:comment {}", turtle_literal(desc)));
+        }
+        if node.deprecated_at.is_some() {
+            chain_triple(&mut out, "owl:deprecated true");
+        }
+        if let Some(replaced_by) = &node.replaced_by_id
+            && let Some(label) = ontology.node_label(replaced_by.as_ref())
+        {
+            chain_triple(
+                &mut out,
+                &format!("dcterms:isReplacedBy :{}", local_name(label)),
+            );
         }
         out.push('\n');
     }
@@ -79,10 +90,22 @@ pub fn generate_owl_turtle(ontology: &OntologyIR) -> String {
         out.push_str(&format!("    rdfs:domain :{src_class} ;\n"));
         out.push_str(&format!("    rdfs:range :{tgt_class} .\n"));
         if let Some(desc) = edge.description.present() {
-            let len = out.len();
-            out.truncate(len - 3);
-            out.push_str(" ;\n");
-            out.push_str(&format!("    rdfs:comment {} .\n", turtle_literal(desc)));
+            chain_triple(&mut out, &format!("rdfs:comment {}", turtle_literal(desc)));
+        }
+        if edge.deprecated_at.is_some() {
+            chain_triple(&mut out, "owl:deprecated true");
+        }
+        if let Some(replaced_by) = &edge.replaced_by_id
+            && let Some(replacement) =
+                ontology.edge_types().iter().find(|e| &e.id == replaced_by)
+        {
+            chain_triple(
+                &mut out,
+                &format!(
+                    "dcterms:isReplacedBy :{}",
+                    local_name(&replacement.label)
+                ),
+            );
         }
         out.push('\n');
 
@@ -158,16 +181,106 @@ pub fn generate_owl_turtle(ontology: &OntologyIR) -> String {
                 xsd_type(&prop.property_type),
             ));
             if let Some(desc) = prop.description.present() {
-                let len = out.len();
-                out.truncate(len - 3);
-                out.push_str(" ;\n");
-                out.push_str(&format!("    rdfs:comment {} .\n", turtle_literal(desc)));
+                chain_triple(&mut out, &format!("rdfs:comment {}", turtle_literal(desc)));
+            }
+            if prop.deprecated_at.is_some() {
+                chain_triple(&mut out, "owl:deprecated true");
+            }
+            // replaced_by_id on a property points to another property within
+            // the same node — resolve via the ontology's property index.
+            if let Some(replaced_by) = &prop.replaced_by_id
+                && let Some((_, replacement)) = ontology.property_by_id(replaced_by.as_ref())
+            {
+                let replacement_dp =
+                    format!("{class_id}_{}", local_name(&replacement.name));
+                chain_triple(
+                    &mut out,
+                    &format!("dcterms:isReplacedBy :{replacement_dp}"),
+                );
             }
             out.push('\n');
+
+            // Cardinality restriction on the owning class — only emit when
+            // the designer explicitly pinned a bound. Defaults stay as plain
+            // `owl:DatatypeProperty` so we don't pollute the schema with
+            // implicit `0..n` restrictions on every property.
+            if prop.min_count.is_some() || prop.max_count.is_some() {
+                emit_property_cardinality_restriction(
+                    &mut out,
+                    &class_id,
+                    &dp_id,
+                    prop.min_count,
+                    prop.max_count,
+                );
+            }
         }
     }
 
     out
+}
+
+/// Append a triple to an entity definition that currently ends with ` .\n`.
+/// Replaces the terminal `.` with a `;`, then writes the new triple as the
+/// new terminator. Centralises the trailing-dot juggling so callers can
+/// chain annotations (description, deprecation, replacement) without each
+/// of them duplicating the truncate dance.
+fn chain_triple(out: &mut String, predicate_value: &str) {
+    if !out.ends_with(" .\n") {
+        // Programmer error — caller invoked us on a buffer that doesn't
+        // currently terminate an entity. Skip rather than panic so a
+        // mistake in one annotation does not corrupt the whole export.
+        return;
+    }
+    let len = out.len();
+    out.truncate(len - 3);
+    out.push_str(" ;\n");
+    out.push_str(&format!("    {predicate_value} .\n"));
+}
+
+/// Emit an OWL cardinality restriction tying a class to a property's min/max
+/// count. Either bound may be absent; both absent means the caller should
+/// not have invoked us.
+fn emit_property_cardinality_restriction(
+    out: &mut String,
+    class_id: &str,
+    prop_id: &str,
+    min: Option<u32>,
+    max: Option<u32>,
+) {
+    out.push_str(&format!(":{class_id} rdfs:subClassOf [\n"));
+    out.push_str("    a owl:Restriction ;\n");
+    out.push_str(&format!("    owl:onProperty :{prop_id} ;\n"));
+    match (min, max) {
+        (Some(m), Some(n)) if m == n => {
+            // Exact cardinality is the OWL idiom for `min == max`.
+            out.push_str(&format!(
+                "    owl:cardinality \"{m}\"^^xsd:nonNegativeInteger\n"
+            ));
+        }
+        (Some(m), Some(n)) => {
+            out.push_str(&format!(
+                "    owl:minCardinality \"{m}\"^^xsd:nonNegativeInteger ;\n"
+            ));
+            out.push_str(&format!(
+                "    owl:maxCardinality \"{n}\"^^xsd:nonNegativeInteger\n"
+            ));
+        }
+        (Some(m), None) => {
+            out.push_str(&format!(
+                "    owl:minCardinality \"{m}\"^^xsd:nonNegativeInteger\n"
+            ));
+        }
+        (None, Some(n)) => {
+            out.push_str(&format!(
+                "    owl:maxCardinality \"{n}\"^^xsd:nonNegativeInteger\n"
+            ));
+        }
+        (None, None) => {
+            // Defensive: if both bounds are absent, emit no restriction body.
+            // Caller guards against this, so the block stays empty.
+        }
+    }
+    out.push_str("] .\n\n");
 }
 
 /// Emit OWL cardinality restrictions for edges.
@@ -392,6 +505,139 @@ mod tests {
         assert!(ttl.contains(":Brand_name a owl:DatatypeProperty , owl:FunctionalProperty"));
         // founded_year has no unique constraint, should NOT be functional
         assert!(ttl.contains(":Brand_founded_year a owl:DatatypeProperty ;"));
+    }
+
+    #[test]
+    fn deprecated_class_carries_owl_deprecated_and_replacement() {
+        let mut ontology = sample_ontology();
+        ontology
+            .update_node_type(&"n1".into(), |n| {
+                n.deprecated_at = Some(chrono::Utc::now());
+                n.replaced_by_id = Some("n2".into());
+            })
+            .unwrap();
+        let ttl = generate_owl_turtle(&ontology);
+        // The Brand class definition should carry both annotations.
+        let brand_start = ttl.find(":Brand a owl:Class").unwrap();
+        // Walk to the trailing `.` of the entity definition.
+        let brand_end = ttl[brand_start..]
+            .find(" .\n")
+            .map(|i| brand_start + i)
+            .unwrap();
+        let brand_block = &ttl[brand_start..brand_end];
+        assert!(
+            brand_block.contains("owl:deprecated true"),
+            "Brand should carry owl:deprecated true: {brand_block}"
+        );
+        assert!(
+            brand_block.contains("dcterms:isReplacedBy :Product"),
+            "Brand should point at successor via dcterms:isReplacedBy: {brand_block}"
+        );
+        assert!(
+            ttl.contains("@prefix dcterms:"),
+            "dcterms prefix must be declared when isReplacedBy appears"
+        );
+    }
+
+    #[test]
+    fn deprecated_object_property_carries_owl_deprecated() {
+        let mut ontology = sample_ontology();
+        ontology
+            .update_edge_type(&"e1".into(), |e| {
+                e.deprecated_at = Some(chrono::Utc::now());
+            })
+            .unwrap();
+        let ttl = generate_owl_turtle(&ontology);
+        let prop_start = ttl.find(":MANUFACTURED_BY a owl:ObjectProperty").unwrap();
+        let prop_end = ttl[prop_start..]
+            .find(" .\n")
+            .map(|i| prop_start + i)
+            .unwrap();
+        let prop_block = &ttl[prop_start..prop_end];
+        assert!(
+            prop_block.contains("owl:deprecated true"),
+            "deprecated edge should carry owl:deprecated true: {prop_block}"
+        );
+    }
+
+    #[test]
+    fn deprecated_datatype_property_carries_owl_deprecated() {
+        let mut ontology = sample_ontology();
+        ontology
+            .update_node_type(&"n1".into(), |n| {
+                n.properties[0].deprecated_at = Some(chrono::Utc::now());
+            })
+            .unwrap();
+        let ttl = generate_owl_turtle(&ontology);
+        let dp_start = ttl.find(":Brand_name a owl:DatatypeProperty").unwrap();
+        let dp_end = ttl[dp_start..]
+            .find(" .\n")
+            .map(|i| dp_start + i)
+            .unwrap();
+        let dp_block = &ttl[dp_start..dp_end];
+        assert!(
+            dp_block.contains("owl:deprecated true"),
+            "deprecated datatype property should carry owl:deprecated true: {dp_block}"
+        );
+    }
+
+    #[test]
+    fn property_min_max_count_emits_cardinality_restriction() {
+        let ontology = OntologyIR::new(
+            "card-test".into(),
+            "CardTest".into(),
+            LocalizedText::default(),
+            1,
+            vec![NodeTypeDef {
+                id: "n1".into(),
+                label: "Box".into(),
+                description: LocalizedText::default(),
+                properties: vec![
+                    PropertyDef {
+                        id: "p1".into(),
+                        name: "exact".into(),
+                        property_type: PropertyType::String,
+                        nullable: true,
+                        default_value: None,
+                        description: LocalizedText::default(),
+                        classification: None,
+                        min_count: Some(3),
+                        max_count: Some(3),
+                        ..Default::default()
+                    },
+                    PropertyDef {
+                        id: "p2".into(),
+                        name: "ranged".into(),
+                        property_type: PropertyType::String,
+                        nullable: true,
+                        default_value: None,
+                        description: LocalizedText::default(),
+                        classification: None,
+                        min_count: Some(1),
+                        max_count: Some(5),
+                        ..Default::default()
+                    },
+                ],
+                constraints: vec![],
+                ..Default::default()
+            }],
+            vec![],
+            vec![],
+        );
+        let ttl = generate_owl_turtle(&ontology);
+        // Equal min == max collapses to owl:cardinality.
+        assert!(
+            ttl.contains("owl:onProperty :Box_exact")
+                && ttl.contains("owl:cardinality \"3\""),
+            "exact bound should emit owl:cardinality, got: {ttl}"
+        );
+        // Distinct bounds expand to owl:minCardinality + owl:maxCardinality.
+        assert!(
+            ttl.contains("owl:onProperty :Box_ranged")
+                && ttl.contains("owl:minCardinality \"1\"")
+                && ttl.contains("owl:maxCardinality \"5\""),
+            "range bound should emit min + max cardinality: {ttl}"
+        );
     }
 
     #[test]

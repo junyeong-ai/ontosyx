@@ -74,8 +74,10 @@ pub fn generate_python(ontology: &OntologyIR) -> String {
         lines.push(format!("class {}:", py_class_name(&node.label)));
 
         let default_desc = format!("{} node type", node.label);
-        let docstring = node.description.present().unwrap_or(&default_desc);
-        lines.push(format!("    \"\"\"{}\"\"\"", docstring));
+        let summary = node.description.present().unwrap_or(&default_desc);
+        let class_dep = node_deprecation_reason(node, ontology);
+        let field_deps = collect_field_deprecations(&node.properties, ontology);
+        push_dataclass_docstring(&mut lines, summary, class_dep.as_deref(), &field_deps);
 
         emit_properties(&mut lines, &node.properties);
         lines.push(String::new());
@@ -96,10 +98,11 @@ pub fn generate_python(ontology: &OntologyIR) -> String {
         lines.push("@dataclass".to_string());
         let class_name = format!("{}Edge", py_class_name(&edge.label));
         lines.push(format!("class {class_name}:"));
-        lines.push(format!(
-            "    \"\"\"Edge: {} -> {}\"\"\"",
-            source_label, target_label
-        ));
+
+        let summary = format!("Edge: {source_label} -> {target_label}");
+        let class_dep = edge_deprecation_reason(edge, ontology);
+        let field_deps = collect_field_deprecations(&edge.properties, ontology);
+        push_dataclass_docstring(&mut lines, &summary, class_dep.as_deref(), &field_deps);
 
         // source_id and target_id are always required, placed first
         lines.push("    source_id: str".to_string());
@@ -236,6 +239,98 @@ fn py_field_name(name: &str) -> String {
             }
         })
         .collect()
+}
+
+/// Build a dataclass docstring carrying optional class-level deprecation
+/// and a list of deprecated field hints. Python's dataclass field
+/// metadata is awkward to surface via runtime decorators on Optional
+/// fields, so the docstring is the most reliable artefact for both
+/// generated docs and IDE tooltips.
+fn push_dataclass_docstring(
+    lines: &mut Vec<String>,
+    summary: &str,
+    class_deprecation: Option<&str>,
+    field_deprecations: &[(String, String)],
+) {
+    let summary_line = match class_deprecation {
+        Some(reason) => format!("[DEPRECATED] {summary} ({reason})"),
+        None => summary.to_string(),
+    };
+
+    if field_deprecations.is_empty() {
+        lines.push(format!("    \"\"\"{summary_line}\"\"\""));
+        return;
+    }
+
+    lines.push("    \"\"\"".to_string());
+    lines.push(format!("    {summary_line}"));
+    lines.push(String::new());
+    lines.push("    Deprecated fields:".to_string());
+    for (name, reason) in field_deprecations {
+        lines.push(format!("    - `{name}`: {reason}"));
+    }
+    lines.push("    \"\"\"".to_string());
+}
+
+/// Collect (field_name, reason) pairs for every deprecated property.
+fn collect_field_deprecations(
+    properties: &[ox_core::ontology_ir::PropertyDef],
+    ontology: &OntologyIR,
+) -> Vec<(String, String)> {
+    properties
+        .iter()
+        .filter_map(|p| {
+            property_deprecation_reason(p, ontology)
+                .map(|reason| (p.name.clone(), reason))
+        })
+        .collect()
+}
+
+/// Resolve a property's deprecation reason against the ontology (matches the
+/// shape used by the TypeScript / GraphQL exports for consistency).
+fn property_deprecation_reason(
+    prop: &ox_core::ontology_ir::PropertyDef,
+    ontology: &OntologyIR,
+) -> Option<String> {
+    prop.deprecated_at?;
+    let reason = match &prop.replaced_by_id {
+        Some(id) => match ontology.property_by_id(id.as_ref()) {
+            Some((_, replacement)) => format!("Replaced by `{}`", replacement.name),
+            None => "Deprecated".into(),
+        },
+        None => "Deprecated".into(),
+    };
+    Some(reason)
+}
+
+fn edge_deprecation_reason(
+    edge: &ox_core::ontology_ir::EdgeTypeDef,
+    ontology: &OntologyIR,
+) -> Option<String> {
+    edge.deprecated_at?;
+    let reason = match &edge.replaced_by_id {
+        Some(id) => match ontology.edge_by_id(id.as_ref()) {
+            Some(replacement) => format!("Replaced by `{}`", replacement.label),
+            None => "Deprecated".into(),
+        },
+        None => "Deprecated".into(),
+    };
+    Some(reason)
+}
+
+fn node_deprecation_reason(
+    node: &ox_core::ontology_ir::NodeTypeDef,
+    ontology: &OntologyIR,
+) -> Option<String> {
+    node.deprecated_at?;
+    let reason = match &node.replaced_by_id {
+        Some(id) => match ontology.node_by_id(id.as_ref()) {
+            Some(replacement) => format!("Replaced by `{}`", replacement.label),
+            None => "Deprecated".into(),
+        },
+        None => "Deprecated".into(),
+    };
+    Some(reason)
 }
 
 // ---------------------------------------------------------------------------
@@ -406,6 +501,58 @@ mod tests {
         assert!(output.contains("from dataclasses import dataclass, field"));
         assert!(output.contains("from datetime import datetime"));
         assert!(output.contains("from typing import Optional"));
+    }
+
+    #[test]
+    fn deprecated_node_marks_docstring_with_replacement() {
+        let mut ontology = test_ontology();
+        ontology
+            .update_node_type(&NodeTypeId::new("n1"), |n| {
+                n.deprecated_at = Some(chrono::Utc::now());
+                n.replaced_by_id = Some(NodeTypeId::new("n2"));
+            })
+            .unwrap();
+        let output = generate_python(&ontology);
+        assert!(
+            output.contains("[DEPRECATED] A customer (Replaced by `Product`)"),
+            "expected class docstring to carry deprecation reason: {output}"
+        );
+    }
+
+    #[test]
+    fn deprecated_property_appears_in_docstring_section() {
+        let mut ontology = test_ontology();
+        ontology
+            .update_node_type(&NodeTypeId::new("n1"), |n| {
+                // Mark `email` as deprecated, replaced by `id`.
+                n.properties[1].deprecated_at = Some(chrono::Utc::now());
+                n.properties[1].replaced_by_id = Some(PropertyId::new("p1"));
+            })
+            .unwrap();
+        let output = generate_python(&ontology);
+        assert!(
+            output.contains("Deprecated fields:"),
+            "expected dedicated docstring section: {output}"
+        );
+        assert!(
+            output.contains("- `email`: Replaced by `id`"),
+            "expected field deprecation entry: {output}"
+        );
+    }
+
+    #[test]
+    fn deprecated_edge_marks_edge_docstring() {
+        let mut ontology = test_ontology();
+        ontology
+            .update_edge_type(&EdgeTypeId::new("e1"), |e| {
+                e.deprecated_at = Some(chrono::Utc::now());
+            })
+            .unwrap();
+        let output = generate_python(&ontology);
+        assert!(
+            output.contains("[DEPRECATED] Edge: Customer -> Product (Deprecated)"),
+            "expected edge docstring to be marked: {output}"
+        );
     }
 
     #[test]
