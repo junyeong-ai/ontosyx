@@ -75,6 +75,9 @@ snowflake-api = "0.12"
 # Arrow — snowflake-api returns query results as Arrow RecordBatches; we
 # parse them directly rather than round-tripping through JSON.
 arrow = "55"
+# BigQuery client — Application Default Credentials first, service-account
+# JSON file fallback. Default features use rustls.
+gcp-bigquery-client = "0.22"
 
 # LLM
 reqwest = { version = "0.13", features = ["json", "stream"] }
