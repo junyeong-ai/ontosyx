@@ -52,9 +52,9 @@ use ox_core::types::PropertyValue;
 
 use crate::cypher::{
     CypherAst, CypherValidatorPipeline, OntologyValidator, SafetyValidator, ValidateContext,
-    ValidationReport, WorkspaceScopeValidator, parse,
+    ValidationReport, parse,
 };
-use crate::isolation::GraphIsolationStrategy;
+use crate::isolation::{GraphIsolationStrategy, ScopedAst};
 use crate::{GRAPH_ONTOLOGY, GRAPH_SYSTEM_BYPASS, GRAPH_WORKSPACE_ID};
 
 /// Run the full pre-execute pipeline for a Cypher statement.
@@ -92,17 +92,29 @@ pub(crate) fn run_pre_execute(
     // Running without `GRAPH_WORKSPACE_ID` (outside system-bypass) would
     // silently leak across workspaces — refuse up front rather than
     // discovering it via the post-rewrite gate.
-    let (scoped_ast, merged_params) = if system_bypass {
-        (ast, params.clone())
+    let (scoped, merged_params) = if system_bypass {
+        (
+            ScopedAst {
+                ast,
+                params: Vec::new(),
+                modified_statements: 0,
+            },
+            params.clone(),
+        )
     } else if let Some(strategy) = strategy {
         match workspace_id.as_deref() {
             Some(ws) => {
-                let scoped = strategy.scope_ast(ast, ws);
+                let scoped = strategy
+                    .scope_ast(ast, ws)
+                    .map_err(|e| OxError::Validation {
+                        field: "cypher_query".to_string(),
+                        message: format!("Query validation failed:\n  [rewrite] {e}"),
+                    })?;
                 let mut merged = params.clone();
-                for (key, value) in scoped.params {
-                    merged.insert(key, PropertyValue::String(value));
+                for (key, value) in &scoped.params {
+                    merged.insert(key.clone(), PropertyValue::String(value.clone()));
                 }
-                (scoped.ast, merged)
+                (scoped, merged)
             }
             None if strategy.scope_property().is_some() => {
                 return Err(OxError::Runtime {
@@ -114,18 +126,62 @@ pub(crate) fn run_pre_execute(
                     ),
                 });
             }
-            None => (ast, params.clone()),
+            None => (
+                ScopedAst {
+                    ast,
+                    params: Vec::new(),
+                    modified_statements: 0,
+                },
+                params.clone(),
+            ),
         }
     } else {
-        (ast, params.clone())
+        (
+            ScopedAst {
+                ast,
+                params: Vec::new(),
+                modified_statements: 0,
+            },
+            params.clone(),
+        )
     };
 
-    // --- Step 3: post-rewrite validation ---------------------------------
-    if !system_bypass && let Some(prop) = strategy.and_then(|s| s.scope_property()) {
-        run_post_rewrite_validation(&scoped_ast, ws_id_str, prop)?;
+    // --- Step 3: post-rewrite scope check --------------------------------
+    //
+    // Replaces the old substring-based `WorkspaceScopeValidator`. When a
+    // strategy declares a `scope_property` and at least one statement
+    // actually touches graph data, the rewriter's cumulative
+    // `modified_statements` must be non-zero — otherwise the pass
+    // silently skipped injection and the query would execute without
+    // isolation. Scalar queries (`RETURN 1`) legitimately yield zero
+    // modifications and no graph-touching statements, so they pass.
+    if !system_bypass
+        && let Some(prop) = strategy.and_then(|s| s.scope_property())
+        && query_touches_graph(&scoped.ast)
+        && scoped.modified_statements == 0
+    {
+        return Err(OxError::Validation {
+            field: "cypher_query".to_string(),
+            message: format!(
+                "Query validation failed:\n  [workspace-scope] rewriter applied no isolation but the query touches graph data; expected injection of `{prop}`",
+            ),
+        });
     }
 
-    Ok((scoped_ast.render(), merged_params))
+    Ok((scoped.ast.render(), merged_params))
+}
+
+/// Does the AST contain at least one statement that reads or writes
+/// graph data? The post-rewrite isolation check uses this to decide
+/// whether zero modifications is a bug (some statement needed scoping
+/// and didn't get it) or benign (nothing to scope, e.g. `RETURN 1`).
+fn query_touches_graph(ast: &CypherAst) -> bool {
+    ast.statements.iter().any(|statement| {
+        statement
+            .clauses
+            .iter()
+            .any(|c| c.kind.has_patterns() || c.kind.is_write())
+    })
 }
 
 fn run_pre_rewrite_validation(
@@ -139,18 +195,6 @@ fn run_pre_rewrite_validation(
     }
     let report = pipeline.run_ast(ast, &ValidateContext::new(workspace_id));
     log_non_errors(&report, "pre-rewrite", workspace_id);
-    ensure_no_errors(&report)
-}
-
-fn run_post_rewrite_validation(
-    ast: &CypherAst,
-    workspace_id: &str,
-    scope_property: &'static str,
-) -> OxResult<()> {
-    let pipeline =
-        CypherValidatorPipeline::new().with(WorkspaceScopeValidator::new(scope_property));
-    let report = pipeline.run_ast(ast, &ValidateContext::new(workspace_id));
-    log_non_errors(&report, "post-rewrite", workspace_id);
     ensure_no_errors(&report)
 }
 

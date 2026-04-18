@@ -6,7 +6,7 @@
 //! ordered pipeline + context) on purpose — the two pipelines plug
 //! into the same place in a query's life cycle.
 //!
-//! Three validators land here:
+//! Two validators land here:
 //!
 //! - [`SafetyValidator`]: blocks destructive statements that lack a
 //!   WHERE-bound scope (unrestricted DELETE / DETACH DELETE / REMOVE)
@@ -16,9 +16,14 @@
 //!   type, and inline property key referenced in a pattern is defined
 //!   on the active [`OntologyIR`]. Catches LLM hallucinations
 //!   (`(u:Userr)` typos, invented properties) before they hit the DB.
-//! - [`WorkspaceScopeValidator`]: a post-rewrite gate. Every statement
-//!   that touches graph data must textually reference the
-//!   workspace-scope property — otherwise isolation silently failed.
+//!
+//! The old post-rewrite `WorkspaceScopeValidator` is gone. Its substring
+//! probe ("does the rewritten text contain the scope property?") was a
+//! weak approximation; the real check lives in
+//! `bolt::pipeline::run_pre_execute`, which inspects
+//! `ScopedAst.modified_statements` — a structural count produced by the
+//! rewriter itself. Structural beats textual: a user-authored literal
+//! `RETURN "_workspace_id"` no longer satisfies the gate by accident.
 //!
 //! The intended full flow for an LLM-generated query:
 //!
@@ -26,7 +31,7 @@
 //! parse → validate (safety + ontology)
 //!   → if errors, reject
 //!   → else rewrite (workspace-scope + future ACL / soft-delete)
-//!   → validate (workspace-scope gate)
+//!   → check rewriter.modified_statements vs query_touches_graph
 //!   → execute
 //! ```
 //!
@@ -449,63 +454,6 @@ fn is_system_property(key: &str) -> bool {
 }
 
 // ---------------------------------------------------------------------------
-// WorkspaceScopeValidator
-// ---------------------------------------------------------------------------
-
-/// Post-rewrite gate: every statement that touches graph data must
-/// reference the workspace-scope property. If it doesn't, the rewriter
-/// silently failed to inject isolation — a catastrophic bug worth
-/// surfacing as a hard error before the query hits the DB.
-///
-/// Statements that genuinely have no graph surface (e.g. `RETURN 1`,
-/// `UNWIND [1,2,3] AS x RETURN x`) are scope-neutral and pass — there's
-/// no node or relationship for the rewriter to scope.
-#[derive(Debug, Clone)]
-pub struct WorkspaceScopeValidator {
-    pub property: &'static str,
-}
-
-impl WorkspaceScopeValidator {
-    pub const fn new(property: &'static str) -> Self {
-        Self { property }
-    }
-}
-
-impl CypherValidator for WorkspaceScopeValidator {
-    fn name(&self) -> &str {
-        "workspace-scope"
-    }
-
-    fn validate(&self, ast: &CypherAst, _ctx: &ValidateContext) -> Vec<ValidationIssue> {
-        let mut issues = Vec::new();
-        for (i, statement) in ast.statements.iter().enumerate() {
-            let touches_graph = statement
-                .clauses
-                .iter()
-                .any(|c| c.kind.has_patterns() || c.kind.is_write());
-            if !touches_graph {
-                continue;
-            }
-            let mentions_scope = statement
-                .clauses
-                .iter()
-                .any(|c| c.text.contains(self.property));
-            if !mentions_scope {
-                issues.push(ValidationIssue::error(
-                    "workspace-scope",
-                    format!(
-                        "statement #{n} does not reference `{prop}` — workspace isolation was not applied",
-                        n = i + 1,
-                        prop = self.property,
-                    ),
-                ));
-            }
-        }
-        issues
-    }
-}
-
-// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -798,70 +746,7 @@ mod tests {
         assert!(!r.has_errors());
     }
 
-    // =====================================================================
-    // WorkspaceScopeValidator tests
-    // =====================================================================
-
     const SCOPE_PROP: &str = "_workspace_id";
-
-    #[test]
-    fn scope_validator_flags_missing_scope_on_read() {
-        let p = CypherValidatorPipeline::new().with(WorkspaceScopeValidator::new(SCOPE_PROP));
-        let r = run(&p, "MATCH (n:Person) RETURN n");
-        assert!(r.has_errors(), "unscoped read must fail scope gate");
-    }
-
-    #[test]
-    fn scope_validator_flags_missing_scope_on_create() {
-        let p = CypherValidatorPipeline::new().with(WorkspaceScopeValidator::new(SCOPE_PROP));
-        let r = run(&p, "CREATE (n:Person {name: 'Alice'})");
-        assert!(r.has_errors());
-    }
-
-    #[test]
-    fn scope_validator_passes_after_workspace_rewrite() {
-        // The whole point: rewrite then validate must pass.
-        let rewriter =
-            CypherRewriterPipeline::new().with(WorkspaceScopeRewriter::new(SCOPE_PROP, "_ws_id"));
-        let scoped = rewriter.run("MATCH (n:Person) RETURN n", &RewriteContext::new("ws"));
-        let validator =
-            CypherValidatorPipeline::new().with(WorkspaceScopeValidator::new(SCOPE_PROP));
-        let r = validator.run(&scoped, &ValidateContext::new("ws"));
-        assert!(
-            !r.has_errors(),
-            "post-rewrite must pass scope gate: {scoped} => {:?}",
-            r.issues
-        );
-    }
-
-    #[test]
-    fn scope_validator_passes_non_graph_statement() {
-        let p = CypherValidatorPipeline::new().with(WorkspaceScopeValidator::new(SCOPE_PROP));
-        let r = run(&p, "RETURN 1");
-        assert!(!r.has_errors(), "no graph surface → no scope required");
-    }
-
-    #[test]
-    fn scope_validator_checks_each_union_fragment_independently() {
-        // One fragment scoped, the other not. Expect exactly one issue.
-        let raw = "MATCH (a:A) WHERE a._workspace_id = $x RETURN a UNION MATCH (b:B) RETURN b";
-        let p = CypherValidatorPipeline::new().with(WorkspaceScopeValidator::new(SCOPE_PROP));
-        let r = run(&p, raw);
-        assert_eq!(r.errors().count(), 1, "{:?}", r.issues);
-    }
-
-    #[test]
-    fn scope_validator_error_references_statement_index() {
-        let raw = "MATCH (a:A) WHERE a._workspace_id = $x RETURN a UNION MATCH (b:B) RETURN b";
-        let p = CypherValidatorPipeline::new().with(WorkspaceScopeValidator::new(SCOPE_PROP));
-        let r = run(&p, raw);
-        let err = r.errors().next().unwrap();
-        assert!(
-            err.message.contains("#2"),
-            "error should name statement #2: {}",
-            err.message
-        );
-    }
 
     // =====================================================================
     // Pipeline composition + report surface
@@ -961,10 +846,10 @@ mod tests {
     fn validator_name_appears_in_debug() {
         let p = CypherValidatorPipeline::new()
             .with(SafetyValidator::new())
-            .with(WorkspaceScopeValidator::new(SCOPE_PROP));
+            .with(OntologyValidator::new(person_company_ontology()));
         let dbg = format!("{p:?}");
         assert!(dbg.contains("safety"));
-        assert!(dbg.contains("workspace-scope"));
+        assert!(dbg.contains("ontology"));
     }
 
     // =====================================================================
@@ -981,18 +866,22 @@ mod tests {
         let pre_report = pre.run(query, &ValidateContext::new("ws"));
         assert!(!pre_report.has_errors(), "{:?}", pre_report.issues);
 
-        // Rewrite: inject workspace scope.
+        // Rewrite: inject workspace scope. The rewriter's
+        // `modified_statements` count is what the runtime checks after
+        // this pass — the old textual `WorkspaceScopeValidator` is gone.
         let rewriter =
             CypherRewriterPipeline::new().with(WorkspaceScopeRewriter::new(SCOPE_PROP, "_ws_id"));
-        let scoped = rewriter.run(query, &RewriteContext::new("ws-123"));
-
-        // Post-rewrite: scope gate.
-        let post = CypherValidatorPipeline::new().with(WorkspaceScopeValidator::new(SCOPE_PROP));
-        let post_report = post.run(&scoped, &ValidateContext::new("ws"));
+        let rewritten = rewriter
+            .run_ast(parse(query), &RewriteContext::new("ws-123"))
+            .expect("workspace-scope rewriter has no failure cases");
         assert!(
-            !post_report.has_errors(),
-            "{scoped} => {:?}",
-            post_report.issues
+            rewritten.modified_statements >= 1,
+            "a graph-touching query must produce at least one modified statement"
+        );
+        let scoped = rewritten.ast.render();
+        assert!(
+            scoped.contains("_workspace_id = $_ws_id"),
+            "rewritten query should carry the scope predicate: {scoped}"
         );
     }
 

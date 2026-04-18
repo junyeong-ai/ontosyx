@@ -1,9 +1,11 @@
 //! Cypher rewriter pipeline.
 //!
 //! A rewriter takes a parsed [`CypherAst`] and returns a (possibly
-//! modified) AST. Multiple rewriters compose through
-//! [`CypherRewriterPipeline`]: each pass observes the previous passes'
-//! output and either no-ops or injects its own transformation.
+//! modified) AST wrapped in [`RewrittenAst`] — or a [`RewriteError`] if
+//! the pass refuses the query. Multiple rewriters compose through
+//! [`CypherRewriterPipeline`]: each pass observes the previous pass's
+//! output and either no-ops or injects its own transformation. The
+//! pipeline short-circuits on the first error.
 //!
 //! Landing here first: [`WorkspaceScopeRewriter`], which injects the
 //! workspace isolation predicate / SET clause that `scope_cypher` used
@@ -11,6 +13,13 @@
 //! concern (ACL filtering, soft-delete tombstones, temporal `as_of`,
 //! query cost injection) needs the same rewrite surface, factoring the
 //! trait out now avoids forking the pattern five times later.
+//!
+//! The `Result`-returning trait signature is deliberate: a future pass
+//! (e.g. an `AclRewriter` that finds an unrepresentable policy, or a
+//! `SoftDeleteRewriter` that sees an unsupported construct) must have
+//! a clean way to reject a query. Returning an unchanged AST for those
+//! cases would be a silent isolation failure — the same class of bug
+//! substring-based rewriters used to hide.
 
 use std::fmt;
 
@@ -19,6 +28,39 @@ use crate::cypher::ast::{
 };
 use crate::cypher::parse;
 use crate::cypher::token::Span;
+
+/// Errors a rewriter can raise when it refuses to transform a query.
+#[derive(Debug, Clone)]
+pub enum RewriteError {
+    /// The pass recognised a construct but cannot handle it safely.
+    /// Example: an ACL rewriter encountering a `CALL { ... }` subquery
+    /// whose body it can't drill into.
+    UnsupportedConstruct {
+        rewriter: String,
+        span: Option<Span>,
+        hint: String,
+    },
+    /// A policy-level refusal: the query is syntactically representable
+    /// but the pass's own rules forbid it. Example: a future temporal
+    /// rewriter rejecting an `as_of` query that points before the
+    /// earliest snapshot.
+    PolicyDenied { rewriter: String, reason: String },
+}
+
+impl fmt::Display for RewriteError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RewriteError::UnsupportedConstruct { rewriter, hint, .. } => {
+                write!(f, "[{rewriter}] unsupported construct: {hint}")
+            }
+            RewriteError::PolicyDenied { rewriter, reason } => {
+                write!(f, "[{rewriter}] policy denied: {reason}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for RewriteError {}
 
 /// Per-request context passed to every rewriter. Intentionally minimal:
 /// a rewriter that needs more data (e.g. an ACL snapshot, an ontology
@@ -37,25 +79,55 @@ impl RewriteContext {
     }
 }
 
+/// Output of a single rewrite pass, carrying metadata the pipeline and
+/// validators downstream need in order to make their own decisions
+/// without re-inspecting the AST.
+///
+/// `modified_statements` lets the isolation post-check replace the old
+/// substring gate: if a strategy declared a `scope_property` but the
+/// cumulative count across all passes is zero, no isolation landed and
+/// execution is refused. Future passes can piggy-back their own
+/// metadata here rather than forking the return type.
+#[derive(Debug, Clone)]
+pub struct RewrittenAst {
+    pub ast: CypherAst,
+    /// Number of statements this pass actually touched. A passthrough
+    /// rewriter returns `0`; a rewriter that injected on 3 of 4 UNION
+    /// fragments returns `3`.
+    pub modified_statements: u32,
+}
+
+impl RewrittenAst {
+    /// Wrap an unchanged AST (passthrough rewriter, idempotent no-op).
+    pub fn passthrough(ast: CypherAst) -> Self {
+        Self {
+            ast,
+            modified_statements: 0,
+        }
+    }
+}
+
 /// A single Cypher rewrite pass.
 ///
 /// `rewrite` takes ownership of the AST so the caller can't accidentally
-/// fan out two passes that see inconsistent state.
+/// fan out two passes that see inconsistent state. A `Result` return
+/// lets a pass reject a query it can't handle safely — the alternatives
+/// (panic, return unchanged AST, mutate shared state) all hide bugs.
 pub trait CypherRewriter: Send + Sync {
     /// Identifier used in logs and diagnostic messages.
     fn name(&self) -> &str;
 
-    /// Produce a new AST reflecting this rewriter's transformation. The
-    /// default behaviour (return input unchanged) makes no-op rewriters
-    /// trivial to implement.
-    fn rewrite(&self, ast: CypherAst, ctx: &RewriteContext) -> CypherAst;
+    /// Produce a new AST reflecting this rewriter's transformation, or
+    /// a [`RewriteError`] if the pass refuses the query.
+    fn rewrite(&self, ast: CypherAst, ctx: &RewriteContext) -> Result<RewrittenAst, RewriteError>;
 }
 
 /// Ordered collection of rewriters.
 ///
 /// Execution is strictly sequential — each pass sees the output of the
 /// previous one. Rewriters that commute should still be registered in a
-/// deterministic order so the final query is reproducible.
+/// deterministic order so the final query is reproducible. The pipeline
+/// short-circuits on the first `Err`.
 #[derive(Default)]
 pub struct CypherRewriterPipeline {
     rewriters: Vec<Box<dyn CypherRewriter>>,
@@ -66,7 +138,7 @@ impl CypherRewriterPipeline {
         Self::default()
     }
 
-    /// Append a rewriter. Returns `&mut self` so pipelines can be built
+    /// Append a rewriter. Returns `self` so pipelines can be built
     /// fluently: `pipeline.with(a).with(b).with(c)`.
     pub fn with(mut self, rewriter: impl CypherRewriter + 'static) -> Self {
         self.rewriters.push(Box::new(rewriter));
@@ -83,22 +155,32 @@ impl CypherRewriterPipeline {
     }
 
     /// Apply every rewriter in order over `ast`. Returns the mutated
-    /// AST so the caller can either render it back to source or pass
-    /// it through a subsequent pipeline (e.g., post-rewrite
-    /// validation) without re-parsing.
-    pub fn run_ast(&self, mut ast: CypherAst, ctx: &RewriteContext) -> CypherAst {
+    /// AST plus the sum of `modified_statements` across every pass
+    /// (saturating at `u32::MAX`). The runtime uses the sum to decide
+    /// whether isolation landed without re-inspecting the final AST.
+    pub fn run_ast(
+        &self,
+        mut ast: CypherAst,
+        ctx: &RewriteContext,
+    ) -> Result<RewrittenAst, RewriteError> {
+        let mut modified_total: u32 = 0;
         for rewriter in &self.rewriters {
-            ast = rewriter.rewrite(ast, ctx);
+            let out = rewriter.rewrite(ast, ctx)?;
+            ast = out.ast;
+            modified_total = modified_total.saturating_add(out.modified_statements);
         }
-        ast
+        Ok(RewrittenAst {
+            ast,
+            modified_statements: modified_total,
+        })
     }
 
     /// Parse `input`, apply every rewriter in order, render back to
     /// source. Thin wrapper over [`Self::run_ast`] for callers that
     /// only hold text — the runtime path uses `run_ast` directly so a
     /// single parse feeds both rewriter and validator pipelines.
-    pub fn run(&self, input: &str, ctx: &RewriteContext) -> String {
-        self.run_ast(parse(input), ctx).render()
+    pub fn run(&self, input: &str, ctx: &RewriteContext) -> Result<String, RewriteError> {
+        Ok(self.run_ast(parse(input), ctx)?.ast.render())
     }
 }
 
@@ -152,24 +234,35 @@ impl CypherRewriter for WorkspaceScopeRewriter {
         "workspace-scope"
     }
 
-    fn rewrite(&self, mut ast: CypherAst, _ctx: &RewriteContext) -> CypherAst {
+    fn rewrite(
+        &self,
+        mut ast: CypherAst,
+        _ctx: &RewriteContext,
+    ) -> Result<RewrittenAst, RewriteError> {
+        let mut modified: u32 = 0;
         for statement in &mut ast.statements {
-            self.inject_read_scope(statement);
-            self.inject_write_scope(statement);
+            let read_changed = self.inject_read_scope(statement);
+            let write_changed = self.inject_write_scope(statement);
+            if read_changed || write_changed {
+                modified = modified.saturating_add(1);
+            }
         }
-        ast
+        Ok(RewrittenAst {
+            ast,
+            modified_statements: modified,
+        })
     }
 }
 
 impl WorkspaceScopeRewriter {
-    fn inject_read_scope(&self, statement: &mut CypherStatement) {
+    fn inject_read_scope(&self, statement: &mut CypherStatement) -> bool {
         if self.statement_references_property(statement) {
-            return;
+            return false;
         }
         let Some((match_idx, var)) = first_variable_in_clause(statement, |k| {
             matches!(k, ClauseKind::Match | ClauseKind::OptionalMatch)
         }) else {
-            return;
+            return false;
         };
         let condition = format!("{var}.{} = ${}", self.property, self.param_name);
 
@@ -185,9 +278,10 @@ impl WorkspaceScopeRewriter {
             };
             statement.clauses.insert(match_idx + 1, where_clause);
         }
+        true
     }
 
-    fn inject_write_scope(&self, statement: &mut CypherStatement) {
+    fn inject_write_scope(&self, statement: &mut CypherStatement) -> bool {
         // Writes may appear in multiple CREATE / MERGE clauses in one
         // statement (e.g. two CREATEs separated by a MATCH). Each needs
         // its own SET unless the user's own SET already mentions the
@@ -200,6 +294,7 @@ impl WorkspaceScopeRewriter {
             .map(|(i, _)| i)
             .collect();
 
+        let mut any_injected = false;
         for create_idx in create_indices {
             let var = match first_variable_in_clause_at(statement, create_idx) {
                 Some(v) => v,
@@ -230,7 +325,9 @@ impl WorkspaceScopeRewriter {
                 };
                 statement.clauses.insert(create_idx + 1, set_clause);
             }
+            any_injected = true;
         }
+        any_injected
     }
 
     /// Does any clause in the statement already mention `self.property`?
@@ -386,7 +483,9 @@ mod tests {
     fn rewrite(query: &str) -> String {
         let pipeline = CypherRewriterPipeline::new()
             .with(WorkspaceScopeRewriter::new("_workspace_id", "_ws_id"));
-        pipeline.run(query, &RewriteContext::new("ws-123"))
+        pipeline
+            .run(query, &RewriteContext::new("ws-123"))
+            .expect("workspace-scope rewriter has no failure cases")
     }
 
     // --- Regression coverage for the pre-existing isolation surface ---
@@ -615,7 +714,9 @@ mod tests {
     #[test]
     fn rewrite_with_no_rewriters_is_identity() {
         let pipeline = CypherRewriterPipeline::new();
-        let out = pipeline.run("MATCH (n) RETURN n", &RewriteContext::new("ws"));
+        let out = pipeline
+            .run("MATCH (n) RETURN n", &RewriteContext::new("ws"))
+            .expect("no-op pipeline cannot fail");
         assert_eq!(out, "MATCH (n) RETURN n");
     }
 
@@ -629,15 +730,28 @@ mod tests {
             fn name(&self) -> &str {
                 "tag-where"
             }
-            fn rewrite(&self, mut ast: CypherAst, _: &RewriteContext) -> CypherAst {
+            fn rewrite(
+                &self,
+                mut ast: CypherAst,
+                _: &RewriteContext,
+            ) -> Result<RewrittenAst, RewriteError> {
+                let mut touched = 0u32;
                 for stmt in &mut ast.statements {
+                    let mut stmt_touched = false;
                     for clause in &mut stmt.clauses {
                         if clause.kind == ClauseKind::Where {
                             clause.text = format!("/*B*/{}", clause.text);
+                            stmt_touched = true;
                         }
                     }
+                    if stmt_touched {
+                        touched = touched.saturating_add(1);
+                    }
                 }
-                ast
+                Ok(RewrittenAst {
+                    ast,
+                    modified_statements: touched,
+                })
             }
         }
         struct TagMatch;
@@ -645,22 +759,37 @@ mod tests {
             fn name(&self) -> &str {
                 "tag-match"
             }
-            fn rewrite(&self, mut ast: CypherAst, _: &RewriteContext) -> CypherAst {
+            fn rewrite(
+                &self,
+                mut ast: CypherAst,
+                _: &RewriteContext,
+            ) -> Result<RewrittenAst, RewriteError> {
+                let mut touched = 0u32;
                 for stmt in &mut ast.statements {
+                    let mut stmt_touched = false;
                     for clause in &mut stmt.clauses {
                         if clause.kind == ClauseKind::Match {
                             clause.text = format!("/*A*/{}", clause.text);
+                            stmt_touched = true;
                         }
                     }
+                    if stmt_touched {
+                        touched = touched.saturating_add(1);
+                    }
                 }
-                ast
+                Ok(RewrittenAst {
+                    ast,
+                    modified_statements: touched,
+                })
             }
         }
         let pipeline = CypherRewriterPipeline::new().with(TagMatch).with(TagWhere);
-        let out = pipeline.run(
-            "MATCH (n) WHERE n.a = 1 RETURN n",
-            &RewriteContext::new("ws"),
-        );
+        let out = pipeline
+            .run(
+                "MATCH (n) WHERE n.a = 1 RETURN n",
+                &RewriteContext::new("ws"),
+            )
+            .expect("tag rewriters cannot fail");
         let a = out.find("/*A*/").unwrap();
         let b = out.find("/*B*/").unwrap();
         assert!(a < b, "MATCH tag must appear before WHERE tag: {out}");
@@ -671,11 +800,42 @@ mod tests {
         let pipeline = CypherRewriterPipeline::new()
             .with(WorkspaceScopeRewriter::new("_workspace_id", "_ws_id"))
             .with(WorkspaceScopeRewriter::new("_workspace_id", "_ws_id"));
-        let out = pipeline.run("MATCH (n:Person) RETURN n", &RewriteContext::new("ws-123"));
+        let out = pipeline
+            .run("MATCH (n:Person) RETURN n", &RewriteContext::new("ws-123"))
+            .expect("workspace-scope rewriter has no failure cases");
         assert_eq!(
             out.matches("_workspace_id = $_ws_id").count(),
             1,
             "two passes must not double-inject: {out}",
+        );
+    }
+
+    #[test]
+    fn workspace_scope_counts_modified_statements_across_union() {
+        let pipeline = CypherRewriterPipeline::new()
+            .with(WorkspaceScopeRewriter::new("_workspace_id", "_ws_id"));
+        let result = pipeline
+            .run_ast(
+                parse("MATCH (a:A) RETURN a UNION MATCH (b:B) RETURN b"),
+                &RewriteContext::new("ws-123"),
+            )
+            .expect("pipeline succeeds");
+        assert_eq!(
+            result.modified_statements, 2,
+            "both UNION fragments should be counted as scoped"
+        );
+    }
+
+    #[test]
+    fn workspace_scope_zero_modifications_for_non_graph_query() {
+        let pipeline = CypherRewriterPipeline::new()
+            .with(WorkspaceScopeRewriter::new("_workspace_id", "_ws_id"));
+        let result = pipeline
+            .run_ast(parse("RETURN 1"), &RewriteContext::new("ws-123"))
+            .expect("pipeline succeeds");
+        assert_eq!(
+            result.modified_statements, 0,
+            "scalar query has nothing to scope; count stays 0"
         );
     }
 }

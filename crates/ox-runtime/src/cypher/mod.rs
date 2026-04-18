@@ -36,9 +36,12 @@ pub use ast::{
     NodePattern, RelDirection, RelationshipPattern, UnionKind,
 };
 pub use parse::parse;
-pub use rewrite::{CypherRewriter, CypherRewriterPipeline, RewriteContext, WorkspaceScopeRewriter};
+pub use rewrite::{
+    CypherRewriter, CypherRewriterPipeline, RewriteContext, RewriteError, RewrittenAst,
+    WorkspaceScopeRewriter,
+};
 pub use token::{CypherToken, Span, TokenKind, tokenize};
 pub use validate::{
     CypherValidator, CypherValidatorPipeline, IssueLevel, OntologyValidator, SafetyValidator,
-    ValidateContext, ValidationIssue, ValidationReport, WorkspaceScopeValidator,
+    ValidateContext, ValidationIssue, ValidationReport,
 };

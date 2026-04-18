@@ -12,7 +12,9 @@
 // where isolation lives at the connection layer) return it unchanged.
 // ---------------------------------------------------------------------------
 
-use crate::cypher::{CypherAst, CypherRewriterPipeline, RewriteContext, WorkspaceScopeRewriter};
+use crate::cypher::{
+    CypherAst, CypherRewriterPipeline, RewriteContext, RewriteError, WorkspaceScopeRewriter,
+};
 
 /// Strategy for isolating graph data between workspaces.
 ///
@@ -27,29 +29,45 @@ pub trait GraphIsolationStrategy: Send + Sync {
     /// - MATCH patterns get WHERE filters (read isolation)
     /// - CREATE/MERGE patterns get SET clauses (write ownership)
     /// - Mixed queries get both transformations
-    fn scope_ast(&self, ast: CypherAst, workspace_id: &str) -> ScopedAst;
+    ///
+    /// Returns `Err(RewriteError)` if the underlying rewriter pipeline
+    /// refuses the query. Today's strategies never refuse (property-
+    /// strategy is purely additive; database-strategy is passthrough),
+    /// but an ACL- or soft-delete-extended strategy will need to —
+    /// and that needs to surface cleanly, not silently.
+    fn scope_ast(&self, ast: CypherAst, workspace_id: &str) -> Result<ScopedAst, RewriteError>;
 
     /// Strategy name (for logging and config).
     fn name(&self) -> &str;
 
     /// Property name that every graph-touching statement must textually
-    /// reference after `scope_ast` runs, so a post-rewrite validator can
-    /// gate isolation. `Some(prop)` for property-based strategies;
-    /// `None` for connection-level strategies whose isolation is enforced
-    /// outside the Cypher text (e.g. database-per-workspace).
+    /// reference after `scope_ast` runs, so the runtime can gate
+    /// isolation via `ScopedAst.modified_statements` instead of the
+    /// old substring probe. `Some(prop)` for property-based
+    /// strategies; `None` for connection-level strategies whose
+    /// isolation is enforced outside the Cypher text (e.g.
+    /// database-per-workspace).
     fn scope_property(&self) -> Option<&'static str>;
 }
 
-/// An AST with any bind-parameters the strategy introduced during rewriting.
+/// An AST with any bind-parameters the strategy introduced during
+/// rewriting, plus the cumulative `modified_statements` count from the
+/// underlying rewriter pipeline.
 ///
 /// `params` uses owned `String` keys so future strategies aren't
 /// constrained to compile-time constants for parameter names (the
 /// original `&'static str` worked for today's two strategies but
 /// would break an ACL strategy that derives parameter names from
 /// per-request policy).
+///
+/// `modified_statements` lets the runtime refuse a query whose
+/// declared `scope_property` requires isolation but whose rewriter
+/// left every statement untouched — the case the old substring-based
+/// `WorkspaceScopeValidator` was built to catch.
 pub struct ScopedAst {
     pub ast: CypherAst,
     pub params: Vec<(String, String)>,
+    pub modified_statements: u32,
 }
 
 // ---------------------------------------------------------------------------
@@ -77,16 +95,17 @@ impl PropertyStrategy {
 }
 
 impl GraphIsolationStrategy for PropertyStrategy {
-    fn scope_ast(&self, ast: CypherAst, workspace_id: &str) -> ScopedAst {
+    fn scope_ast(&self, ast: CypherAst, workspace_id: &str) -> Result<ScopedAst, RewriteError> {
         let pipeline = CypherRewriterPipeline::new().with(WorkspaceScopeRewriter::new(
             Self::PROPERTY,
             Self::PARAM_NAME,
         ));
-        let scoped = pipeline.run_ast(ast, &RewriteContext::new(workspace_id));
-        ScopedAst {
-            ast: scoped,
+        let rewritten = pipeline.run_ast(ast, &RewriteContext::new(workspace_id))?;
+        Ok(ScopedAst {
+            ast: rewritten.ast,
             params: vec![(Self::PARAM_NAME.to_string(), workspace_id.to_string())],
-        }
+            modified_statements: rewritten.modified_statements,
+        })
     }
 
     fn name(&self) -> &str {
@@ -108,11 +127,12 @@ impl GraphIsolationStrategy for PropertyStrategy {
 pub struct DatabaseStrategy;
 
 impl GraphIsolationStrategy for DatabaseStrategy {
-    fn scope_ast(&self, ast: CypherAst, _workspace_id: &str) -> ScopedAst {
-        ScopedAst {
+    fn scope_ast(&self, ast: CypherAst, _workspace_id: &str) -> Result<ScopedAst, RewriteError> {
+        Ok(ScopedAst {
             ast,
             params: vec![],
-        }
+            modified_statements: 0,
+        })
     }
 
     fn name(&self) -> &str {
@@ -134,7 +154,9 @@ mod tests {
     use crate::cypher::parse;
 
     fn scope_text(strategy: &dyn GraphIsolationStrategy, query: &str, ws: &str) -> ScopedAst {
-        strategy.scope_ast(parse(query), ws)
+        strategy
+            .scope_ast(parse(query), ws)
+            .expect("built-in strategies never fail")
     }
 
     // --- PropertyStrategy scope tests ---
