@@ -6,7 +6,7 @@ use chrono::Utc;
 use dashmap::DashMap;
 use sha2::{Digest, Sha256};
 use tokio::sync::Semaphore;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 use ox_memory::{MemoryEntry, MemoryMetadata, MemorySource, MemoryStore};
@@ -59,6 +59,13 @@ impl EmbeddingHook {
     /// Embed content asynchronously in background — never blocks caller.
     /// Uses content hash as entry ID for automatic deduplication.
     /// Failed embeddings are enqueued for retry when a retry store is provided.
+    ///
+    /// `context_scope` is **required**: memory writes hit workspace-scoped
+    /// RLS-protected tables, so the spawned future needs a scope that carries
+    /// `WORKSPACE_ID` / `SYSTEM_BYPASS` across `tokio::spawn`. Callers that
+    /// don't have a scope must not call this function — the type signature
+    /// enforces that invariant rather than letting the INSERT fail silently
+    /// inside the pool's `before_acquire` hook.
     pub fn embed_async(
         memory: &Arc<MemoryStore>,
         content: String,
@@ -66,7 +73,7 @@ impl EmbeddingHook {
         ontology_lineage_id: Option<String>,
         session_id: Option<String>,
         retry_store: Option<&Arc<dyn ox_store::EmbeddingRetryStore>>,
-        context_scope: Option<branchforge::SharedContextScope>,
+        context_scope: branchforge::SharedContextScope,
     ) {
         if content.trim().is_empty() {
             return;
@@ -91,45 +98,36 @@ impl EmbeddingHook {
         };
 
         tokio::spawn(async move {
-            let embed_fut = async {
-                let _permit = match EMBEDDING_SEMAPHORE.try_acquire() {
-                    Ok(p) => p,
-                    Err(_) => {
-                        warn!("Embedding semaphore full — skipping");
-                        return;
-                    }
-                };
-                let content_clone = content.clone();
-                let metadata_json = serde_json::to_value(&metadata).unwrap_or_default();
-                let entry = MemoryEntry {
-                    id: entry_id.clone(),
-                    content,
-                    metadata,
-                };
-                match memory.store(entry).await {
-                    Ok(()) => info!(id = %entry_id, "Embedded in memory"),
-                    Err(e) => {
-                        warn!(id = %entry_id, error = %e, "Memory embedding failed");
-                        if let Some(store) = retry_store {
-                            let _ = store
-                                .create_pending_embedding(&content_clone, &metadata_json)
-                                .await;
+            let _ = context_scope
+                .wrap_tool_future(Box::pin(async move {
+                    let _permit = match EMBEDDING_SEMAPHORE.try_acquire() {
+                        Ok(p) => p,
+                        Err(_) => {
+                            warn!("Embedding semaphore full — skipping");
+                            return branchforge::ToolResult::success("");
+                        }
+                    };
+                    let content_clone = content.clone();
+                    let metadata_json = serde_json::to_value(&metadata).unwrap_or_default();
+                    let entry = MemoryEntry {
+                        id: entry_id.clone(),
+                        content,
+                        metadata,
+                    };
+                    match memory.store(entry).await {
+                        Ok(()) => info!(id = %entry_id, "Embedded in memory"),
+                        Err(e) => {
+                            warn!(id = %entry_id, error = %e, "Memory embedding failed");
+                            if let Some(store) = retry_store {
+                                let _ = store
+                                    .create_pending_embedding(&content_clone, &metadata_json)
+                                    .await;
+                            }
                         }
                     }
-                }
-            };
-
-            // Wrap with context scope if available (propagates workspace task-locals)
-            if let Some(scope) = context_scope {
-                let _ = scope
-                    .wrap_tool_future(Box::pin(async move {
-                        embed_fut.await;
-                        branchforge::ToolResult::success("")
-                    }))
-                    .await;
-            } else {
-                embed_fut.await;
-            }
+                    branchforge::ToolResult::success("")
+                }))
+                .await;
         });
     }
 
@@ -231,6 +229,21 @@ impl Hook for EmbeddingHook {
         {
             let output_text = tool_result.text();
             if let Some((content, source)) = Self::extract_tool_content(tool_name, &output_text) {
+                let Some(scope) = ctx.context_scope.clone() else {
+                    // Missing workspace scope means the branchforge runtime
+                    // invoked this hook outside a tool-execution context —
+                    // i.e. a configuration bug in the caller, not a runtime
+                    // condition we can silently recover from. Log at error
+                    // level so monitoring picks it up, and skip this
+                    // invocation instead of writing a row that would either
+                    // get rejected by RLS or, worse, land in the wrong
+                    // workspace if app.workspace_id happens to leak in.
+                    error!(
+                        tool = %tool_name,
+                        "EmbeddingHook invoked without context_scope — skipping embed to avoid cross-workspace leak"
+                    );
+                    return Ok(HookOutput::allow());
+                };
                 let ontology_lineage_id = self.ontology_lineage_id.clone();
                 let session_id = if ctx.session_id.is_empty() {
                     None
@@ -244,7 +257,7 @@ impl Hook for EmbeddingHook {
                     ontology_lineage_id,
                     session_id,
                     self.retry_store.as_ref(),
-                    ctx.context_scope.clone(),
+                    scope,
                 );
             }
         }
@@ -368,8 +381,7 @@ impl RecoveryDetectionHook {
     /// Periodic cleanup: remove entries older than the configured
     /// `session_window_minutes`.
     fn cleanup_stale_sessions(&self) {
-        let cutoff =
-            Utc::now() - chrono::Duration::minutes(self.config.session_window_minutes);
+        let cutoff = Utc::now() - chrono::Duration::minutes(self.config.session_window_minutes);
         self.session_outcomes
             .retain(|_, outcomes| outcomes.last().is_some_and(|o| o.timestamp > cutoff));
         // Dedup tracker shadows session_outcomes — drop entries for
@@ -432,9 +444,10 @@ fn extract_cypher_labels(query: &str) -> std::collections::HashSet<String> {
                 }
                 if end > start
                     && let Ok(label) = std::str::from_utf8(&bytes[start..end])
-                    && label.chars().next().is_some_and(|c| {
-                        c.is_alphabetic() || c == '_' || !c.is_ascii()
-                    })
+                    && label
+                        .chars()
+                        .next()
+                        .is_some_and(|c| c.is_alphabetic() || c == '_' || !c.is_ascii())
                 {
                     labels.insert(label.to_string());
                 }
@@ -677,30 +690,39 @@ impl Hook for RecoveryDetectionHook {
                         updated_at: Utc::now(),
                     };
 
-                    // Non-blocking: best-effort persistence
-                    let store = Arc::clone(&self.knowledge_store);
-                    // Persist with workspace context (required for RLS).
-                    // Without context_scope, the INSERT would fail because
-                    // app.workspace_id session var is not set on the connection.
-                    if let Some(scope) = ctx.context_scope.clone() {
-                        tokio::spawn(async move {
-                            let _ = scope
-                                .wrap_tool_future(Box::pin(async move {
-                                    match store.create_knowledge_entry(&entry).await {
-                                        Ok(()) => info!(
-                                            ontology = %entry.ontology_name,
-                                            "Knowledge correction from recovery detection"
-                                        ),
-                                        Err(e) => {
-                                            warn!(error = %e, "Failed to save recovery correction")
+                    // Non-blocking knowledge persistence. `create_knowledge_entry`
+                    // writes to a workspace-scoped RLS table, so the spawned
+                    // future needs a scope carrying WORKSPACE_ID. Missing scope
+                    // is a configuration bug — log at error level and skip
+                    // this persistence, but keep the surrounding cleanup work
+                    // running (it's idempotent and doesn't depend on scope).
+                    match ctx.context_scope.clone() {
+                        Some(scope) => {
+                            let store = Arc::clone(&self.knowledge_store);
+                            tokio::spawn(async move {
+                                let _ = scope
+                                    .wrap_tool_future(Box::pin(async move {
+                                        match store.create_knowledge_entry(&entry).await {
+                                            Ok(()) => info!(
+                                                ontology = %entry.ontology_name,
+                                                "Knowledge correction from recovery detection"
+                                            ),
+                                            Err(e) => warn!(
+                                                error = %e,
+                                                "Failed to save recovery correction"
+                                            ),
                                         }
-                                    }
-                                    branchforge::ToolResult::success("")
-                                }))
-                                .await;
-                        });
-                    } else {
-                        warn!("Cannot persist recovery correction: no workspace context scope");
+                                        branchforge::ToolResult::success("")
+                                    }))
+                                    .await;
+                            });
+                        }
+                        None => {
+                            error!(
+                                session_id = %session_id,
+                                "RecoveryDetectionHook invoked without context_scope — skipping knowledge persist"
+                            );
+                        }
                     }
 
                     // Clean stale session memories (poisoned by failed queries)
@@ -846,14 +868,16 @@ mod tests {
         // `_internal`, `_migration_tag`, etc. are valid internal label
         // conventions that the previous extractor refused to accept.
         let labels = extract_cypher_labels("MATCH (n:_internal) RETURN n");
-        assert_eq!(labels, std::collections::HashSet::from(["_internal".into()]));
+        assert_eq!(
+            labels,
+            std::collections::HashSet::from(["_internal".into()])
+        );
     }
 
     #[test]
     fn extract_cypher_labels_nested_map_literal() {
         // Nested map — the inner `:` should stay suppressed too.
-        let labels =
-            extract_cypher_labels(r#"MATCH (n:Person {meta: {k: "v"}}) RETURN n"#);
+        let labels = extract_cypher_labels(r#"MATCH (n:Person {meta: {k: "v"}}) RETURN n"#);
         assert_eq!(labels, std::collections::HashSet::from(["Person".into()]));
     }
 

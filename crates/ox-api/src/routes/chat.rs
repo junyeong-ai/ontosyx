@@ -372,7 +372,7 @@ pub(crate) async fn chat_stream(
                                             ontology_id_for_stream.clone(),
                                             Some(result.session_id.clone()),
                                             None, // session summaries: no retry
-                                            Some(ws_scope_for_stream.clone()),
+                                            ws_scope_for_stream.clone(),
                                         );
                                     }
 
