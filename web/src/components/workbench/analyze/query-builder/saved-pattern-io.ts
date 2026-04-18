@@ -125,6 +125,20 @@ interface WireOrderClause {
  *  back to the default on the backend. */
 export const PATTERN_IR_SCHEMA_VERSION = 1;
 
+/** Why a decompiled PatternIR is not editable on the canvas — mirrors
+ *  the Rust `pattern_ir::ReadOnlyReason`. `Some` when the backend's
+ *  `decompile` ran against a non-`Match` QueryIR operation that the
+ *  canvas can't round-trip; `undefined` for freshly-built patterns
+ *  and for `Match` decompiles (the common editable case).
+ *
+ *  `original_op` is the Rust `QueryOp` variant name (`"Aggregate"`,
+ *  `"Union"`, `"PathFind"`, etc.). The UI maps these to localised
+ *  labels for the "not editable: <op>" banner; the wire value stays
+ *  canonical so a server-side rename flags up at deserialization. */
+export interface WireReadOnlyReason {
+  original_op: string;
+}
+
 export interface WirePatternIR {
   schema_version?: number;
   nodes?: WirePatternNode[];
@@ -135,6 +149,10 @@ export interface WirePatternIR {
   limit?: number;
   skip?: number;
   order_by?: WireOrderClause[];
+  /** Present only when the server decompiled a non-`Match` QueryIR.
+   *  The UI must gate edit actions on its absence — an empty
+   *  `nodes` array no longer implies "blank canvas" on its own. */
+  read_only_reason?: WireReadOnlyReason;
 }
 
 // ---------------------------------------------------------------------------
@@ -281,6 +299,11 @@ export function toPatternIR(
 export interface FromPatternIRResult {
   visual: VisualPattern;
   layoutHints: WireLayoutHints;
+  /** Pass-through of the wire-level `read_only_reason`. The canvas
+   *  disables edit affordances when this is defined; the query-builder
+   *  shell renders a "not editable: <op>" banner using the stored
+   *  Rust variant name. */
+  readOnlyReason?: WireReadOnlyReason;
 }
 
 export function fromPatternIR(wire: WirePatternIR): FromPatternIRResult {
@@ -376,5 +399,6 @@ export function fromPatternIR(wire: WirePatternIR): FromPatternIRResult {
       limit: wire.limit ?? null,
     },
     layoutHints: wire.layout_hints ?? {},
+    readOnlyReason: wire.read_only_reason,
   };
 }

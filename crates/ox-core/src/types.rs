@@ -495,9 +495,20 @@ pub fn escape_cypher_identifier(name: &str) -> String {
     format!("`{}`", name.replace('`', "``"))
 }
 
-/// Check whether a string is safe to use as a graph identifier (label or property name).
-/// Allows alphanumeric characters, underscores, and spaces (common in business labels).
-/// Rejects backticks, semicolons, braces, and other characters that could cause injection.
+/// Check whether a string is safe to use as a graph identifier (label or
+/// property name). Allows alphanumeric characters (including Unicode
+/// letters and digits), underscores, and spaces (common in business
+/// labels). Rejects backticks, semicolons, braces, and other
+/// characters that could cause Cypher injection.
+///
+/// This function is the source-of-truth rule for
+/// [`crate::graph_label::GraphLabel`] and
+/// [`crate::property_key::PropertyKey`] — both newtypes delegate here
+/// via their `is_valid` / `new` surfaces. New call sites that are
+/// about to introduce a label or property key should construct the
+/// corresponding newtype instead of calling this predicate directly;
+/// the newtype makes the invariant part of the type, not a convention
+/// readers must re-check at each use.
 pub fn is_valid_graph_identifier(name: &str) -> bool {
     if name.is_empty() {
         return false;
@@ -511,8 +522,12 @@ pub fn is_valid_graph_identifier(name: &str) -> bool {
 /// Returns `None` for invalid/nonsensical names:
 /// - empty string, `"null"`, `"-"`, or names not starting with a letter/underscore.
 ///
-/// Used in both MatchQueryIR conversion and Cypher pattern compilation
-/// to ensure consistent handling of LLM-generated variable names.
+/// Used by `StructuredMatchQuery` conversion and Cypher pattern
+/// compilation to drop LLM-hallucinated variable placeholders. The
+/// same rule is encoded as the [`crate::variable_name::VariableName`]
+/// newtype's validator; new call sites that construct a variable
+/// name should go through `VariableName::new` instead of calling this
+/// function directly.
 pub fn sanitize_variable(v: &str) -> Option<&str> {
     if v.is_empty()
         || v == "null"
