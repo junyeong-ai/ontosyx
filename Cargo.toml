@@ -22,15 +22,18 @@ license = "MIT"
 too_many_arguments = "allow"
 items_after_test_module = "allow"
 
-# Phase 1.7 — correctness gates.
-# `warn` for now so we can triage existing violations; promote to `deny`
-# after Phase 1.1 sweep. Test modules are exempted per-crate via
+# Correctness gates — promoted from `warn` to `deny` after the Phase 1.7
+# sweep closed out the last in-tree violations. Test modules are
+# exempted per-crate via
 # `#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]`.
-unwrap_used = "warn"
-expect_used = "warn"
-panic = "warn"
-unreachable = "warn"
-dbg_macro = "warn"
+# Binaries with legitimate startup-time `expect`s (e.g. `ox-api::main`
+# initializing OTLP / Prometheus) opt out with a targeted
+# `#![allow(clippy::expect_used)]` on the binary crate.
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+unreachable = "deny"
+dbg_macro = "deny"
 
 [workspace.dependencies]
 # Internal crates
