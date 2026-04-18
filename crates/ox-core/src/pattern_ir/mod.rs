@@ -54,6 +54,50 @@ fn default_pattern_ir_schema_version() -> u32 {
     PATTERN_IR_SCHEMA_VERSION
 }
 
+/// Why a decompiled PatternIR is not editable on the canvas.
+///
+/// `compile` is lossless for every `QueryIR::Match` shape, so `decompile`
+/// of a `Match` always produces a fully editable canvas. Non-`Match`
+/// operations (`Aggregate`, `Union`, `Chain`, `PathFind`, `Mutate`,
+/// `Analytics`, `CallSubquery`) can't be round-tripped through the
+/// canvas structure — instead of collapsing them to an empty canvas
+/// (which the UI used to mistake for "this query has no nodes yet")
+/// the decompiler now returns a `ReadOnlyReason` so the UI can render
+/// a clear "not editable: Aggregate query" state.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct ReadOnlyReason {
+    /// The QueryIR operation variant this PatternIR was decompiled
+    /// from, spelled as the Rust variant name (`"Aggregate"`,
+    /// `"Union"`, ...). The frontend maps this to localised labels;
+    /// the backend keeps the canonical identifier here.
+    pub original_op: String,
+}
+
+impl ReadOnlyReason {
+    /// Name the variant of `op` as it appears in Rust source, for use
+    /// as [`Self::original_op`]. Centralised so a rename of any variant
+    /// doesn't drift between the decompile path and callers that
+    /// build a `ReadOnlyReason` from scratch (tests, fixtures).
+    pub fn name_query_op(op: &QueryOp) -> &'static str {
+        match op {
+            QueryOp::Match { .. } => "Match",
+            QueryOp::PathFind { .. } => "PathFind",
+            QueryOp::Aggregate { .. } => "Aggregate",
+            QueryOp::Union { .. } => "Union",
+            QueryOp::Chain { .. } => "Chain",
+            QueryOp::CallSubquery { .. } => "CallSubquery",
+            QueryOp::Mutate { .. } => "Mutate",
+            QueryOp::Analytics { .. } => "Analytics",
+        }
+    }
+
+    pub fn from_query_op(op: &QueryOp) -> Self {
+        Self {
+            original_op: Self::name_query_op(op).to_string(),
+        }
+    }
+}
+
 /// Root of the canvas representation. Each component (nodes, edges,
 /// filters, projections) is a flat list with stable per-entry ids so a
 /// frontend can address them individually in edit operations.
@@ -92,6 +136,23 @@ pub struct PatternIR {
     /// reopens with the same sort order the user configured.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub order_by: Vec<OrderClause>,
+    /// `Some(_)` when this PatternIR came out of `decompile` for a
+    /// QueryIR operation the canvas can't round-trip. `None` on a
+    /// `Match` decompile and on a freshly built `PatternIR::default()`.
+    /// The UI must gate every edit action on `is_editable()` — an
+    /// empty nodes list no longer implies "blank canvas".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub read_only_reason: Option<ReadOnlyReason>,
+}
+
+impl PatternIR {
+    /// `true` when the canvas may accept edits. `false` when this
+    /// PatternIR was produced by decompiling a QueryIR operation the
+    /// canvas can't represent — the UI must render a read-only view
+    /// surfacing `read_only_reason.original_op`.
+    pub fn is_editable(&self) -> bool {
+        self.read_only_reason.is_none()
+    }
 }
 
 // `Default` is a manual impl so `schema_version` starts at the correct
@@ -110,6 +171,7 @@ impl Default for PatternIR {
             limit: None,
             skip: None,
             order_by: Vec::new(),
+            read_only_reason: None,
         }
     }
 }
@@ -304,7 +366,19 @@ impl PatternIR {
                 projections,
                 ..
             } => (patterns.as_slice(), filter.as_ref(), projections.as_slice()),
-            _ => return Self::default(),
+            other => {
+                // Non-Match operations can't be represented on the canvas.
+                // Return a read-only marker with the op name so the UI
+                // renders "not editable: <op>" instead of a blank canvas
+                // that the user might mistake for a new-query starting
+                // point. Any limit / skip / order_by on the source query
+                // is dropped: without nodes to attach them to, they'd be
+                // meaningless in the canvas view.
+                return Self {
+                    read_only_reason: Some(ReadOnlyReason::from_query_op(other)),
+                    ..Self::default()
+                };
+            }
         };
 
         let mut nodes: Vec<PatternNode> = Vec::new();
@@ -401,6 +475,7 @@ impl PatternIR {
             limit: query.limit,
             skip: query.skip,
             order_by: query.order_by.clone(),
+            read_only_reason: None,
         }
     }
 }
@@ -923,6 +998,88 @@ mod tests {
         let pattern = PatternIR::decompile(&query);
         assert!(pattern.nodes.is_empty());
         assert!(pattern.edges.is_empty());
+        // The structural gap is now self-describing: the decompiled
+        // PatternIR says *why* it's empty via `read_only_reason`, so
+        // the UI renders "not editable: PathFind" instead of mistaking
+        // it for a blank new-query canvas.
+        assert_eq!(
+            pattern
+                .read_only_reason
+                .as_ref()
+                .map(|r| r.original_op.as_str()),
+            Some("PathFind"),
+        );
+        assert!(
+            !pattern.is_editable(),
+            "non-Match decompile must not be editable"
+        );
+    }
+
+    #[test]
+    fn decompile_match_is_editable() {
+        // Sanity: the common case still produces an editable canvas.
+        let query = QueryIR {
+            schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Match {
+                patterns: vec![GraphPattern::Node {
+                    variable: "n".into(),
+                    label: Some("Person".into()),
+                    property_filters: Vec::new(),
+                }],
+                filter: None,
+                projections: Vec::new(),
+                optional: false,
+                group_by: Vec::new(),
+            },
+            limit: None,
+            skip: None,
+            order_by: Vec::new(),
+        };
+        let pattern = PatternIR::decompile(&query);
+        assert!(pattern.read_only_reason.is_none());
+        assert!(pattern.is_editable());
+    }
+
+    #[test]
+    fn default_pattern_ir_is_editable() {
+        // A freshly constructed (blank) PatternIR must stay editable —
+        // read_only_reason is exclusively a decompile output, never the
+        // starting state of a new canvas.
+        assert!(PatternIR::default().is_editable());
+    }
+
+    #[test]
+    fn read_only_reason_names_every_non_match_op() {
+        // Pin the string → variant mapping so a `QueryOp` rename
+        // immediately fails this test instead of silently drifting.
+        use crate::query_ir::{NodeRef, PathAlgorithm};
+
+        let dummy_match = QueryOp::Match {
+            patterns: Vec::new(),
+            filter: None,
+            projections: Vec::new(),
+            optional: false,
+            group_by: Vec::new(),
+        };
+        assert_eq!(ReadOnlyReason::name_query_op(&dummy_match), "Match");
+
+        let path = QueryOp::PathFind {
+            start: NodeRef {
+                variable: "s".into(),
+                label: None,
+                property_filters: Vec::new(),
+            },
+            end: NodeRef {
+                variable: "e".into(),
+                label: None,
+                property_filters: Vec::new(),
+            },
+            edge_types: Vec::new(),
+            direction: Direction::Outgoing,
+            max_depth: None,
+            algorithm: PathAlgorithm::ShortestPath,
+        };
+        assert_eq!(ReadOnlyReason::name_query_op(&path), "PathFind");
     }
 
     // --- roundtrip ------------------------------------------------------
@@ -967,6 +1124,7 @@ mod tests {
             limit: Some(10),
             skip: None,
             order_by: Vec::new(),
+            read_only_reason: None,
         };
 
         let query = original.compile();
