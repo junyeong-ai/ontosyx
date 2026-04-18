@@ -17,7 +17,6 @@
 
 use async_trait::async_trait;
 use sqlx::postgres::{PgPool, PgPoolOptions};
-use std::time::Duration;
 use tracing::{info, warn};
 
 use ox_core::error::{OxError, OxResult};
@@ -42,9 +41,6 @@ fn is_blob_type(data_type: &str) -> bool {
 /// Baseline enum threshold: columns at or below this are definite enums
 /// (collect every distinct value as a sample).
 const DEFINITE_ENUM_CARDINALITY: i64 = 30;
-/// Connection pool bounds.
-const POOL_MAX_CONNECTIONS: u32 = 10;
-const POOL_ACQUIRE_TIMEOUT_SECS: u64 = 10;
 
 pub struct PostgresAdapter {
     pool: PgPool,
@@ -52,10 +48,24 @@ pub struct PostgresAdapter {
 }
 
 impl PostgresAdapter {
+    /// Connect with the default [`crate::AdapterConfig`]. Shorthand for
+    /// [`Self::connect_with_config`] when the caller is happy with the
+    /// historical `10 connections / 10s acquire timeout` envelope.
     pub async fn connect(url: &str, schema_name: &str) -> OxResult<Self> {
+        Self::connect_with_config(url, schema_name, crate::AdapterConfig::default()).await
+    }
+
+    /// Connect with operator-supplied pool bounds and timeouts. Used by
+    /// workloads that need a higher pool ceiling or a tighter timeout
+    /// envelope than the defaults.
+    pub async fn connect_with_config(
+        url: &str,
+        schema_name: &str,
+        config: crate::AdapterConfig,
+    ) -> OxResult<Self> {
         let pool = PgPoolOptions::new()
-            .max_connections(POOL_MAX_CONNECTIONS)
-            .acquire_timeout(Duration::from_secs(POOL_ACQUIRE_TIMEOUT_SECS))
+            .max_connections(config.pool_max_connections)
+            .acquire_timeout(config.acquire_timeout)
             .connect(url)
             .await
             .map_err(|e| OxError::Runtime {

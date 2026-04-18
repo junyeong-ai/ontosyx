@@ -24,7 +24,6 @@
 //! cache + TTL is the right level at which to invalidate.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::time::Duration;
 
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -42,10 +41,6 @@ use crate::DataSourceAdapter;
 const DEFAULT_SAMPLE_SIZE: u64 = 100;
 /// Maximum distinct values per column to retain as samples.
 const MAX_DISTINCT_VALUES: usize = 30;
-/// Connection timeout for the MongoDB client.
-const CONNECT_TIMEOUT_SECS: u64 = 10;
-/// Server selection timeout.
-const SERVER_SELECTION_TIMEOUT_SECS: u64 = 10;
 
 pub struct MongoAdapter {
     client: mongodb::Client,
@@ -84,14 +79,27 @@ impl MongoAdapter {
         database: &str,
         sample_size: u64,
     ) -> OxResult<Self> {
+        Self::connect_with_config(uri, database, sample_size, crate::AdapterConfig::default())
+            .await
+    }
+
+    /// Connect with operator-supplied timeouts (MongoDB driver maps only
+    /// the `mongo_connect_timeout` and `mongo_server_selection_timeout`
+    /// fields of [`crate::AdapterConfig`]; pool size comes from the URI).
+    pub async fn connect_with_config(
+        uri: &str,
+        database: &str,
+        sample_size: u64,
+        config: crate::AdapterConfig,
+    ) -> OxResult<Self> {
         let mut options = ClientOptions::parse(uri)
             .await
             .map_err(|e| OxError::Runtime {
                 message: format!("Failed to parse MongoDB connection string: {e}"),
             })?;
 
-        options.connect_timeout = Some(Duration::from_secs(CONNECT_TIMEOUT_SECS));
-        options.server_selection_timeout = Some(Duration::from_secs(SERVER_SELECTION_TIMEOUT_SECS));
+        options.connect_timeout = Some(config.mongo_connect_timeout);
+        options.server_selection_timeout = Some(config.mongo_server_selection_timeout);
         options.server_api = Some(ServerApi::builder().version(ServerApiVersion::V1).build());
         options.app_name = Some("ontosyx-introspector".to_string());
 

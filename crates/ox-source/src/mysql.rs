@@ -19,7 +19,6 @@
 
 use async_trait::async_trait;
 use sqlx::mysql::{MySqlPool, MySqlPoolOptions};
-use std::time::Duration;
 use tracing::{info, warn};
 
 use ox_core::error::{OxError, OxResult};
@@ -29,9 +28,6 @@ use crate::DataSourceAdapter;
 
 /// Maximum distinct values to collect per column as samples.
 const MAX_DISTINCT_VALUES: i64 = 30;
-/// Introspection pool size; doubles as an implicit concurrency ceiling.
-const POOL_MAX_CONNECTIONS: u32 = 10;
-const POOL_ACQUIRE_TIMEOUT_SECS: u64 = 10;
 
 pub struct MysqlAdapter {
     pool: MySqlPool,
@@ -40,10 +36,20 @@ pub struct MysqlAdapter {
 }
 
 impl MysqlAdapter {
+    /// Connect with the default [`AdapterConfig`].
     pub async fn connect(url: &str, schema_name: &str) -> OxResult<Self> {
+        Self::connect_with_config(url, schema_name, crate::AdapterConfig::default()).await
+    }
+
+    /// Connect with operator-supplied pool bounds and timeouts.
+    pub async fn connect_with_config(
+        url: &str,
+        schema_name: &str,
+        config: crate::AdapterConfig,
+    ) -> OxResult<Self> {
         let pool = MySqlPoolOptions::new()
-            .max_connections(POOL_MAX_CONNECTIONS)
-            .acquire_timeout(Duration::from_secs(POOL_ACQUIRE_TIMEOUT_SECS))
+            .max_connections(config.pool_max_connections)
+            .acquire_timeout(config.acquire_timeout)
             .connect(url)
             .await
             .map_err(|e| OxError::Runtime {

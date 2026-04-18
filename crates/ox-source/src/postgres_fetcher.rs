@@ -1,15 +1,12 @@
 use async_trait::async_trait;
 use sqlx::postgres::{PgPool, PgPoolOptions, PgRow};
 use sqlx::{Column, Row};
-use std::time::Duration;
 use tracing::info;
 
 use ox_core::error::{OxError, OxResult};
 
+use crate::AdapterConfig;
 use crate::fetcher::{DataSourceFetcher, SourceRow};
-
-const POOL_MAX_CONNECTIONS: u32 = 10;
-const POOL_ACQUIRE_TIMEOUT_SECS: u64 = 10;
 
 /// Fetches data from a PostgreSQL source for graph loading.
 ///
@@ -21,11 +18,20 @@ pub struct PostgresFetcher {
 }
 
 impl PostgresFetcher {
-    /// Connect to a PostgreSQL source database.
+    /// Connect with the default [`AdapterConfig`].
     pub async fn connect(url: &str, schema_name: &str) -> OxResult<Self> {
+        Self::connect_with_config(url, schema_name, AdapterConfig::default()).await
+    }
+
+    /// Connect with operator-supplied pool bounds and timeouts.
+    pub async fn connect_with_config(
+        url: &str,
+        schema_name: &str,
+        config: AdapterConfig,
+    ) -> OxResult<Self> {
         let pool = PgPoolOptions::new()
-            .max_connections(POOL_MAX_CONNECTIONS)
-            .acquire_timeout(Duration::from_secs(POOL_ACQUIRE_TIMEOUT_SECS))
+            .max_connections(config.pool_max_connections)
+            .acquire_timeout(config.acquire_timeout)
             .connect(url)
             .await
             .map_err(|e| OxError::Runtime {
