@@ -1,5 +1,5 @@
 use crate::graph_label::GraphLabel;
-use crate::types::is_valid_graph_identifier;
+use crate::property_key::PropertyKey;
 
 use super::{
     IndexDef, NodeConstraint, NodeTypeDef, NodeTypeId, OntologyIR, PropertyDef, PropertyId,
@@ -38,7 +38,10 @@ fn validate_property_defs(
             continue;
         }
 
-        if !is_valid_graph_identifier(name) {
+        // Same delegation pattern as the label check below: route the
+        // rule through the newtype that will eventually own the
+        // field. See TODO on `PropertyDef.name`.
+        if !PropertyKey::is_valid(name) {
             errors.push(format!(
                 "{owner_kind} '{owner_label}' has invalid property name '{name}': must contain only alphanumeric characters, underscores, or spaces"
             ));
