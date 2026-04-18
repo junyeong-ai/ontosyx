@@ -487,7 +487,7 @@ impl OntologyCommand {
 
                 // Build reverse patch from current values before applying
                 let reverse_patch = PropertyPatch {
-                    name: patch.name.as_ref().map(|_| prop.name.clone()),
+                    name: patch.name.as_ref().map(|_| prop.name.to_string()),
                     property_type: patch
                         .property_type
                         .as_ref()
@@ -500,9 +500,12 @@ impl OntologyCommand {
                     description: patch.description.as_ref().map(|_| prop.description.clone()),
                 };
 
-                // Apply patch
+                // Apply patch. Name updates flow through
+                // `PropertyKey::new` so an invalid user-supplied name
+                // is rejected here rather than slipping into the IR.
                 if let Some(name) = &patch.name {
-                    prop.name = name.clone();
+                    prop.name = crate::property_key::PropertyKey::new(name.clone())
+                        .map_err(|e| format!("property '{property_id}': invalid name: {e}"))?;
                 }
                 if let Some(pt) = &patch.property_type {
                     prop.property_type = pt.clone();

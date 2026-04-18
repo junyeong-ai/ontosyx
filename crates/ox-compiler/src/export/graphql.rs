@@ -253,6 +253,7 @@ mod tests {
     use super::*;
     use ox_core::GraphLabel;
     use ox_core::LocalizedText;
+    use ox_core::PropertyKey;
     use ox_core::ontology_ir::{
         Cardinality, ConstraintDef, EdgeTypeDef, NodeConstraint, NodeTypeDef, OntologyIR,
         PropertyDef,
@@ -262,6 +263,9 @@ mod tests {
         GraphLabel::new(s).expect("test label literal must be valid")
     }
 
+    fn pk(s: &'static str) -> PropertyKey {
+        PropertyKey::new(s).expect("test property name literal must be valid")
+    }
     fn sample_ontology() -> OntologyIR {
         OntologyIR::new(
             "g-test".into(),
@@ -276,7 +280,7 @@ mod tests {
                     properties: vec![
                         PropertyDef {
                             id: "p1".into(),
-                            name: "id".into(),
+                            name: pk("id"),
                             property_type: PropertyType::String,
                             nullable: false,
                             default_value: None,
@@ -286,7 +290,7 @@ mod tests {
                         },
                         PropertyDef {
                             id: "p2".into(),
-                            name: "email".into(),
+                            name: pk("email"),
                             property_type: PropertyType::String,
                             nullable: true,
                             default_value: None,
@@ -309,7 +313,7 @@ mod tests {
                     description: LocalizedText::default(),
                     properties: vec![PropertyDef {
                         id: "p3".into(),
-                        name: "total".into(),
+                        name: pk("total"),
                         property_type: PropertyType::Float,
                         nullable: false,
                         default_value: None,

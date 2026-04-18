@@ -725,7 +725,7 @@ impl OntosyxMcpServer {
                     .properties
                     .iter()
                     .map(|p| PropertySummary {
-                        name: p.name.clone(),
+                        name: p.name.to_string(),
                         property_type: format!("{:?}", p.property_type),
                         nullable: p.nullable,
                         description: p.description.clone(),

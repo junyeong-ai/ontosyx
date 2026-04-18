@@ -490,6 +490,7 @@ mod tests {
     use super::*;
     use ox_core::GraphLabel;
     use ox_core::LocalizedText;
+    use ox_core::PropertyKey;
     use ox_core::ontology_diff::compute_diff;
     use ox_core::ontology_ir::{
         Cardinality, ConstraintDef, EdgeTypeDef, IndexDef, NodeConstraint, NodeTypeDef, PropertyDef,
@@ -500,10 +501,13 @@ mod tests {
         GraphLabel::new(s).expect("test label literal must be valid")
     }
 
+    fn pk(s: &'static str) -> PropertyKey {
+        PropertyKey::new(s).expect("test property name literal must be valid")
+    }
     fn property(id: &str, name: &str) -> PropertyDef {
         PropertyDef {
             id: id.into(),
-            name: name.to_string(),
+            name: PropertyKey::new(name).expect("test property name is valid"),
             property_type: PropertyType::String,
             nullable: false,
             default_value: None,
@@ -655,7 +659,7 @@ mod tests {
         let mut new = old.clone();
         new.node_types_mut()[0].properties.push(PropertyDef {
             id: "p_new".into(),
-            name: "email".to_string(),
+            name: pk("email"),
             property_type: PropertyType::String,
             nullable: false,
             default_value: None,
@@ -821,7 +825,7 @@ mod tests {
         // Add two properties that both generate CREATE INDEX
         new.node_types_mut()[0].properties.push(PropertyDef {
             id: "px".into(),
-            name: "email".to_string(),
+            name: pk("email"),
             property_type: PropertyType::String,
             nullable: false,
             default_value: None,
@@ -831,7 +835,7 @@ mod tests {
         });
         new.node_types_mut()[0].properties.push(PropertyDef {
             id: "py".into(),
-            name: "phone".to_string(),
+            name: pk("phone"),
             property_type: PropertyType::String,
             nullable: false,
             default_value: None,
@@ -895,7 +899,7 @@ mod tests {
         let mut new = old.clone();
         new.node_types_mut()[0].properties.push(PropertyDef {
             id: "p_new".into(),
-            name: "status".to_string(),
+            name: pk("status"),
             property_type: PropertyType::String,
             nullable: false,
             default_value: Some(ox_core::types::PropertyValue::String("active".to_string())),
@@ -933,7 +937,7 @@ mod tests {
         let mut new = old.clone();
         new.node_types_mut()[0].properties.push(PropertyDef {
             id: "p_new".into(),
-            name: "nickname".to_string(),
+            name: pk("nickname"),
             property_type: PropertyType::String,
             nullable: true,
             default_value: None,
@@ -959,7 +963,7 @@ mod tests {
         let mut new = old.clone();
         new.node_types_mut()[0].properties.push(PropertyDef {
             id: "p_new".into(),
-            name: "email".to_string(),
+            name: pk("email"),
             property_type: PropertyType::String,
             nullable: false,
             default_value: None,

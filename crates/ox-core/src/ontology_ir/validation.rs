@@ -1,5 +1,3 @@
-use crate::property_key::PropertyKey;
-
 use super::{
     IndexDef, NodeConstraint, NodeTypeDef, NodeTypeId, OntologyIR, PropertyDef, PropertyId,
 };
@@ -37,21 +35,17 @@ fn validate_property_defs(
             ));
         }
 
-        let name = property.name.trim();
-        if name.is_empty() {
+        // `PropertyKey` enforces the non-empty / Cypher-safe invariants
+        // at construction; only the placeholder sentinel and duplicate
+        // detection need checking here.
+        let name = property.name.as_str();
+        if name == LABEL_PLACEHOLDER {
             errors.push(format!(
-                "{owner_kind} '{owner_label}' has a property with an empty name"
+                "{owner_kind} '{owner_label}' has a property with the \
+                 `Default::default()` placeholder name — struct-update \
+                 callers must override `name` explicitly"
             ));
             continue;
-        }
-
-        // Same delegation pattern as the label check below: route the
-        // rule through the newtype that will eventually own the
-        // field. See TODO on `PropertyDef.name`.
-        if !PropertyKey::is_valid(name) {
-            errors.push(format!(
-                "{owner_kind} '{owner_label}' has invalid property name '{name}': must contain only alphanumeric characters, underscores, or spaces"
-            ));
         }
 
         if !seen_names.insert(name.to_string()) {
@@ -383,12 +377,13 @@ mod tests {
     use crate::graph_label::GraphLabel;
     use crate::i18n::LocalizedText;
     use crate::ontology_ir::*;
+    use crate::property_key::PropertyKey;
     use crate::types::PropertyType;
 
     fn property(id: &str, name: &str, nullable: bool) -> PropertyDef {
         PropertyDef {
             id: id.into(),
-            name: name.to_string(),
+            name: PropertyKey::new(name).expect("test property name must be valid"),
             property_type: PropertyType::String,
             nullable,
             default_value: None,

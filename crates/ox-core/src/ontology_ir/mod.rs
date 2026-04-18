@@ -772,7 +772,7 @@ impl OntologyIR {
                 let nullable = if p.nullable { ", nullable" } else { "" };
                 let hints = property_hints(p);
                 props.insert(
-                    p.name.clone(),
+                    p.name.to_string(),
                     serde_json::Value::String(
                         format!("{}{}{} {}", p.property_type, nullable, hints, desc)
                             .trim()
@@ -855,7 +855,7 @@ impl OntologyIR {
                 }
                 if !edge.properties.is_empty() {
                     let props: Vec<String> =
-                        edge.properties.iter().map(|p| p.name.clone()).collect();
+                        edge.properties.iter().map(|p| p.name.to_string()).collect();
                     edge_obj.insert("properties".into(), serde_json::json!(props));
                 }
                 edges.insert(

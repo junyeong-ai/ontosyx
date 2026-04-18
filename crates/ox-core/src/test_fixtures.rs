@@ -4,6 +4,7 @@ use crate::ontology_ir::{
     Cardinality, ConstraintDef, EdgeTypeDef, IndexDef, NodeConstraint, NodeTypeDef, OntologyIR,
     PropertyDef,
 };
+use crate::property_key::PropertyKey;
 use crate::types::PropertyType;
 
 /// Build a `GraphLabel` from a compile-time-authored string literal.
@@ -16,11 +17,17 @@ fn gl(s: &'static str) -> GraphLabel {
     GraphLabel::new(s).expect("fixture label literal must satisfy GraphLabel invariants")
 }
 
+/// Counterpart to `gl` for property keys.
+#[allow(clippy::expect_used)]
+fn pk(s: &str) -> PropertyKey {
+    PropertyKey::new(s).expect("fixture property name must satisfy PropertyKey invariants")
+}
+
 /// Create a simple non-nullable string property with the given id and name.
 pub fn property(id: &str, name: &str) -> PropertyDef {
     PropertyDef {
         id: id.into(),
-        name: name.to_string(),
+        name: pk(name),
         property_type: PropertyType::String,
         nullable: false,
         default_value: None,
@@ -107,7 +114,7 @@ pub fn ontologies_equal(a: &OntologyIR, b: &OntologyIR) -> bool {
 fn prop(id: &str, name: &str, property_type: PropertyType, nullable: bool) -> PropertyDef {
     PropertyDef {
         id: id.into(),
-        name: name.to_string(),
+        name: pk(name),
         property_type,
         nullable,
         default_value: None,

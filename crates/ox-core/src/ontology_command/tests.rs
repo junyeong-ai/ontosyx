@@ -1,5 +1,6 @@
 use super::*;
 use crate::graph_label::GraphLabel;
+use crate::property_key::PropertyKey;
 use crate::test_fixtures::{ontologies_equal, test_ontology};
 use crate::types::PropertyType;
 
@@ -7,6 +8,10 @@ use crate::i18n::LocalizedText;
 
 fn gl(s: &'static str) -> GraphLabel {
     GraphLabel::new(s).expect("test label literal must be valid")
+}
+
+fn pk(s: &str) -> PropertyKey {
+    PropertyKey::new(s).expect("test property name literal must be valid")
 }
 #[test]
 fn add_and_delete_node_roundtrip() {
@@ -100,7 +105,7 @@ fn add_delete_property() {
     // Add property to node n2
     let new_prop = PropertyDef {
         id: "p4".into(),
-        name: "industry".to_string(),
+        name: pk("industry"),
         property_type: PropertyType::String,
         nullable: true,
         default_value: None,
@@ -133,7 +138,7 @@ fn add_delete_property() {
     // Also test AddProperty on an edge
     let edge_prop = PropertyDef {
         id: "ep2".into(),
-        name: "role".to_string(),
+        name: pk("role"),
         property_type: PropertyType::String,
         nullable: true,
         default_value: None,

@@ -494,7 +494,7 @@ pub fn assess_quality(
                         node_id: node.id.to_string(),
                         property_id: prop.id.to_string(),
                         label: node.label.to_string(),
-                        property_name: prop.name.clone(),
+                        property_name: prop.name.to_string(),
                     },
                     issue: format!(
                         "{}.{} has no description — the query translator cannot determine valid values or format.",
@@ -540,7 +540,7 @@ pub fn assess_quality(
                         edge_id: edge.id.to_string(),
                         property_id: prop.id.to_string(),
                         label: edge.label.to_string(),
-                        property_name: prop.name.clone(),
+                        property_name: prop.name.to_string(),
                     },
                     issue: format!(
                         "[{}].{} has no description — the query translator cannot determine valid values or format.",

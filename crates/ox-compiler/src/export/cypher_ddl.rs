@@ -206,7 +206,7 @@ fn resolve_prop_name(node: &NodeTypeDef, prop_id: &str) -> Option<String> {
     node.properties
         .iter()
         .find(|p| p.id == prop_id)
-        .map(|p| p.name.clone())
+        .map(|p| p.name.to_string())
 }
 
 fn resolve_prop_names(
@@ -219,7 +219,7 @@ fn resolve_prop_names(
             node.properties
                 .iter()
                 .find(|p| p.id == *pid)
-                .map(|p| p.name.clone())
+                .map(|p| p.name.to_string())
         })
         .collect()
 }

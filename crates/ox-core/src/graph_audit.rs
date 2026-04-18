@@ -16,6 +16,7 @@ use crate::graph_exploration::GraphSchemaOverview;
 use crate::graph_label::GraphLabel;
 use crate::i18n::LocalizedText;
 use crate::ontology_ir::OntologyIR;
+use crate::property_key::PropertyKey;
 
 /// Sync status between ontology and graph data.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq, JsonSchema)]
@@ -170,20 +171,29 @@ pub fn ontology_from_graph(overview: &GraphSchemaOverview, name: &str) -> OxResu
             schemas
                 .iter()
                 .filter(|p| p.entity_type == label)
-                .map(|p| PropertyDef {
-                    id: format!("p_{label}_{}", p.property_name).into(),
-                    name: p.property_name.clone(),
-                    property_type: map_neo4j_type(
-                        p.property_types
-                            .first()
-                            .map(|s| s.as_str())
-                            .unwrap_or("STRING"),
-                    ),
-                    nullable: !p.mandatory,
-                    default_value: None,
-                    description: LocalizedText::default(),
-                    classification: None,
-                    ..Default::default()
+                .filter_map(|p| {
+                    // Skip properties whose introspected name fails
+                    // `PropertyKey` validation — Neo4j in principle
+                    // accepts a wider set than the Cypher identifier
+                    // rule, so the minority case where a key can't be
+                    // round-tripped becomes an orphaned property in the
+                    // adopted ontology rather than a hard failure.
+                    let name = PropertyKey::new(p.property_name.clone()).ok()?;
+                    Some(PropertyDef {
+                        id: format!("p_{label}_{}", p.property_name).into(),
+                        name,
+                        property_type: map_neo4j_type(
+                            p.property_types
+                                .first()
+                                .map(|s| s.as_str())
+                                .unwrap_or("STRING"),
+                        ),
+                        nullable: !p.mandatory,
+                        default_value: None,
+                        description: LocalizedText::default(),
+                        classification: None,
+                        ..Default::default()
+                    })
                 })
                 .collect()
         };

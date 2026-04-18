@@ -240,6 +240,7 @@ mod tests {
     use super::*;
     use ox_core::GraphLabel;
     use ox_core::LocalizedText;
+    use ox_core::PropertyKey;
     use ox_core::ontology_ir::{
         EdgeTypeDef, EdgeTypeId, NodeTypeDef, NodeTypeId, PropertyDef, PropertyId,
     };
@@ -248,6 +249,9 @@ mod tests {
         GraphLabel::new(s).expect("test label literal must be valid")
     }
 
+    fn pk(s: &'static str) -> PropertyKey {
+        PropertyKey::new(s).expect("test property name literal must be valid")
+    }
     fn test_ontology() -> OntologyIR {
         OntologyIR::new(
             "test-id".to_string(),
@@ -262,7 +266,7 @@ mod tests {
                     properties: vec![
                         PropertyDef {
                             id: PropertyId::new("p1"),
-                            name: "id".to_string(),
+                            name: pk("id"),
                             property_type: PropertyType::String,
                             nullable: false,
                             default_value: None,
@@ -272,7 +276,7 @@ mod tests {
                         },
                         PropertyDef {
                             id: PropertyId::new("p2"),
-                            name: "email".to_string(),
+                            name: pk("email"),
                             property_type: PropertyType::String,
                             nullable: false,
                             default_value: None,
@@ -282,7 +286,7 @@ mod tests {
                         },
                         PropertyDef {
                             id: PropertyId::new("p3"),
-                            name: "phone".to_string(),
+                            name: pk("phone"),
                             property_type: PropertyType::String,
                             nullable: true,
                             default_value: None,
@@ -292,7 +296,7 @@ mod tests {
                         },
                         PropertyDef {
                             id: PropertyId::new("p4"),
-                            name: "created_at".to_string(),
+                            name: pk("created_at"),
                             property_type: PropertyType::DateTime,
                             nullable: false,
                             default_value: None,
@@ -311,7 +315,7 @@ mod tests {
                     properties: vec![
                         PropertyDef {
                             id: PropertyId::new("p5"),
-                            name: "id".to_string(),
+                            name: pk("id"),
                             property_type: PropertyType::String,
                             nullable: false,
                             default_value: None,
@@ -321,7 +325,7 @@ mod tests {
                         },
                         PropertyDef {
                             id: PropertyId::new("p6"),
-                            name: "price".to_string(),
+                            name: pk("price"),
                             property_type: PropertyType::Float,
                             nullable: false,
                             default_value: None,
@@ -331,7 +335,7 @@ mod tests {
                         },
                         PropertyDef {
                             id: PropertyId::new("p7"),
-                            name: "tags".to_string(),
+                            name: pk("tags"),
                             property_type: PropertyType::List {
                                 element: Box::new(PropertyType::String),
                             },
@@ -354,7 +358,7 @@ mod tests {
                 target_node_id: NodeTypeId::new("n2"),
                 properties: vec![PropertyDef {
                     id: PropertyId::new("ep1"),
-                    name: "quantity".to_string(),
+                    name: pk("quantity"),
                     property_type: PropertyType::Int,
                     nullable: false,
                     default_value: None,

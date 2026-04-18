@@ -268,7 +268,7 @@ fn detect_drift(schema: &SourceSchema, ontology: &ox_core::ontology_ir::Ontology
                 if !source_col_names.contains(prop.name.as_str()) {
                     orphaned_properties.push(OrphanedProperty {
                         node_label: node.label.to_string(),
-                        property_name: prop.name.clone(),
+                        property_name: prop.name.to_string(),
                     });
                 }
             }

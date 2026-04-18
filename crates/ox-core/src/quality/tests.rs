@@ -22,7 +22,7 @@ fn property_typed(name: &str, property_type: PropertyType) -> PropertyDef {
     let seq = COUNTER.fetch_add(1, Ordering::Relaxed);
     PropertyDef {
         id: format!("prop-{name}-{seq}").into(),
-        name: name.to_string(),
+        name: crate::property_key::PropertyKey::new(name).expect("test property name is valid"),
         property_type,
         nullable: false,
         default_value: None,

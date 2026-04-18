@@ -536,6 +536,7 @@ fn is_system_property(key: &str) -> bool {
 mod tests {
     use super::*;
     use ox_core::GraphLabel;
+    use ox_core::PropertyKey;
     use ox_core::i18n::LocalizedText;
     use ox_core::ontology_ir::{Cardinality, EdgeTypeDef, NodeTypeDef, PropertyDef};
     use ox_core::types::PropertyType;
@@ -544,6 +545,10 @@ mod tests {
 
     fn gl(s: &'static str) -> GraphLabel {
         GraphLabel::new(s).expect("test label literal must be valid")
+    }
+
+    fn pk(s: &'static str) -> PropertyKey {
+        PropertyKey::new(s).expect("test property name literal must be valid")
     }
 
     // --- Fixtures --------------------------------------------------------
@@ -562,7 +567,7 @@ mod tests {
                     properties: vec![
                         PropertyDef {
                             id: "p1".into(),
-                            name: "name".into(),
+                            name: pk("name"),
                             property_type: PropertyType::String,
                             nullable: false,
                             default_value: None,
@@ -572,7 +577,7 @@ mod tests {
                         },
                         PropertyDef {
                             id: "p2".into(),
-                            name: "age".into(),
+                            name: pk("age"),
                             property_type: PropertyType::Int,
                             nullable: true,
                             default_value: None,
@@ -590,7 +595,7 @@ mod tests {
                     description: LocalizedText::default(),
                     properties: vec![PropertyDef {
                         id: "p3".into(),
-                        name: "title".into(),
+                        name: pk("title"),
                         property_type: PropertyType::String,
                         nullable: false,
                         default_value: None,

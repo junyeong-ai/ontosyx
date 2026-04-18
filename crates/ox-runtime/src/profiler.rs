@@ -247,7 +247,7 @@ async fn next_bounded<T>(
 }
 
 fn property_names(props: &[ox_core::ontology_ir::PropertyDef]) -> Vec<String> {
-    props.iter().map(|p| p.name.clone()).collect()
+    props.iter().map(|p| p.name.to_string()).collect()
 }
 
 // ---------------------------------------------------------------------------

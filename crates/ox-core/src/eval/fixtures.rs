@@ -9,6 +9,7 @@ use crate::ontology_ir::{
     Cardinality, ConstraintDef, EdgeTypeDef, IndexDef, NodeConstraint, NodeTypeDef, OntologyIR,
     PropertyDef,
 };
+use crate::property_key::PropertyKey;
 use crate::types::PropertyType;
 
 use super::cases::{EvalCase, EvalCategory, ExpectedOp};
@@ -21,6 +22,11 @@ fn gl(s: &'static str) -> GraphLabel {
     GraphLabel::new(s).expect("fixture label literal must satisfy GraphLabel invariants")
 }
 
+#[allow(clippy::expect_used)]
+fn pk(s: &str) -> PropertyKey {
+    PropertyKey::new(s).expect("fixture property name must satisfy PropertyKey invariants")
+}
+
 // ---------------------------------------------------------------------------
 // Helper
 // ---------------------------------------------------------------------------
@@ -28,7 +34,7 @@ fn gl(s: &'static str) -> GraphLabel {
 fn prop(id: &str, name: &str, ty: PropertyType, desc: Option<&str>) -> PropertyDef {
     PropertyDef {
         id: id.into(),
-        name: name.to_string(),
+        name: pk(name),
         property_type: ty,
         nullable: false,
         default_value: None,
@@ -41,7 +47,7 @@ fn prop(id: &str, name: &str, ty: PropertyType, desc: Option<&str>) -> PropertyD
 fn nullable_prop(id: &str, name: &str, ty: PropertyType, desc: Option<&str>) -> PropertyDef {
     PropertyDef {
         id: id.into(),
-        name: name.to_string(),
+        name: pk(name),
         property_type: ty,
         nullable: true,
         default_value: None,

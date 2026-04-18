@@ -562,14 +562,14 @@ fn reconcile_properties_for_owners(
             if orig_prop_ids.contains(&*prop.id) {
                 preserved.push(PreservedEntity {
                     id: prop.id.to_string(),
-                    label: prop.name.clone(),
+                    label: prop.name.to_string(),
                     entity_kind: kind,
                 });
             } else if let Some(orig_prop) = orig_prop_by_name.get(prop.name.as_str()) {
                 uncertain.push(UncertainMatch {
                     original_id: orig_prop.id.to_string(),
-                    original_label: orig_prop.name.clone(),
-                    matched_label: prop.name.clone(),
+                    original_label: orig_prop.name.to_string(),
+                    matched_label: prop.name.to_string(),
                     match_reason: "matched by property name".to_string(),
                     entity_kind: kind,
                 });
@@ -577,7 +577,7 @@ fn reconcile_properties_for_owners(
             } else {
                 generated.push(GeneratedEntity {
                     id: prop.id.to_string(),
-                    label: prop.name.clone(),
+                    label: prop.name.to_string(),
                     entity_kind: kind,
                 });
             }
@@ -618,7 +618,7 @@ fn diff_properties(
             let mut has_changes = false;
 
             if orig_prop.name != ref_prop.name {
-                patch.name = Some(ref_prop.name.clone());
+                patch.name = Some(ref_prop.name.to_string());
                 has_changes = true;
             }
             if orig_prop.property_type != ref_prop.property_type {

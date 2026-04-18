@@ -3,6 +3,7 @@ use crate::GraphCompiler;
 
 use ox_core::GraphLabel;
 use ox_core::LocalizedText;
+use ox_core::PropertyKey;
 use ox_core::load_plan::PropertyMapping;
 use ox_core::load_plan::{ConflictStrategy, LoadMode, LoadOp, LoadPlan, LoadStep};
 use ox_core::ontology_ir::*;
@@ -13,6 +14,9 @@ fn gl(s: &'static str) -> GraphLabel {
     GraphLabel::new(s).expect("test label literal must be valid")
 }
 
+fn pk(s: &'static str) -> PropertyKey {
+    PropertyKey::new(s).expect("test property name literal must be valid")
+}
 #[test]
 fn test_compile_simple_match() {
     let compiler = CypherCompiler::neo4j();
@@ -126,7 +130,7 @@ fn test_compile_schema_constraints() {
             properties: vec![
                 PropertyDef {
                     id: "prop-sku".into(),
-                    name: "sku".to_string(),
+                    name: pk("sku"),
                     property_type: PropertyType::String,
                     nullable: false,
                     default_value: None,
@@ -136,7 +140,7 @@ fn test_compile_schema_constraints() {
                 },
                 PropertyDef {
                     id: "prop-name".into(),
-                    name: "name".to_string(),
+                    name: pk("name"),
                     property_type: PropertyType::String,
                     nullable: false,
                     default_value: None,
@@ -1474,7 +1478,7 @@ fn memgraph_dialect_emits_4x_unique_constraint() {
             description: LocalizedText::default(),
             properties: vec![PropertyDef {
                 id: "prop-email".into(),
-                name: "email".into(),
+                name: pk("email"),
                 property_type: PropertyType::String,
                 nullable: false,
                 default_value: None,
@@ -1523,7 +1527,7 @@ fn memgraph_dialect_emits_4x_exists_constraint() {
             description: LocalizedText::default(),
             properties: vec![PropertyDef {
                 id: "prop-name".into(),
-                name: "name".into(),
+                name: pk("name"),
                 property_type: PropertyType::String,
                 nullable: false,
                 default_value: None,
@@ -1565,7 +1569,7 @@ fn memgraph_dialect_skips_node_key_constraint() {
             properties: vec![
                 PropertyDef {
                     id: "prop-first".into(),
-                    name: "first".into(),
+                    name: pk("first"),
                     property_type: PropertyType::String,
                     nullable: false,
                     default_value: None,
@@ -1575,7 +1579,7 @@ fn memgraph_dialect_skips_node_key_constraint() {
                 },
                 PropertyDef {
                     id: "prop-last".into(),
-                    name: "last".into(),
+                    name: pk("last"),
                     property_type: PropertyType::String,
                     nullable: false,
                     default_value: None,
@@ -1619,7 +1623,7 @@ fn memgraph_dialect_uses_short_index_syntax() {
             description: LocalizedText::default(),
             properties: vec![PropertyDef {
                 id: "prop-name".into(),
-                name: "name".into(),
+                name: pk("name"),
                 property_type: PropertyType::String,
                 nullable: false,
                 default_value: None,

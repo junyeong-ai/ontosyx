@@ -85,7 +85,7 @@ pub fn to_exchange_format(
                 .iter()
                 .map(|p| InputPropertyDef {
                     id: Some(p.id.to_string()),
-                    name: p.name.clone(),
+                    name: p.name.to_string(),
                     property_type: p.property_type.clone(),
                     nullable: p.nullable,
                     default_value: p.default_value.clone(),
@@ -121,7 +121,7 @@ pub fn to_exchange_format(
                 .iter()
                 .map(|p| InputPropertyDef {
                     id: Some(p.id.to_string()),
-                    name: p.name.clone(),
+                    name: p.name.to_string(),
                     property_type: p.property_type.clone(),
                     nullable: p.nullable,
                     default_value: p.default_value.clone(),

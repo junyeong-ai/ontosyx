@@ -524,7 +524,7 @@ fn diff_properties(
         if let Some(old_prop) = old_map.get(&*new_prop.id) {
             let changes = diff_single_property(old_prop, new_prop);
             if !changes.is_empty() {
-                results.push(PropDiffResult::Modified(new_prop.name.clone(), changes));
+                results.push(PropDiffResult::Modified(new_prop.name.to_string(), changes));
             }
         }
     }
@@ -629,10 +629,15 @@ mod tests {
     use super::*;
     use crate::graph_label::GraphLabel;
     use crate::i18n::LocalizedText;
+    use crate::property_key::PropertyKey;
     use crate::test_fixtures::{property, test_ontology};
 
     fn gl(s: &'static str) -> GraphLabel {
         GraphLabel::new(s).expect("test label literal must be valid")
+    }
+
+    fn pk(s: &'static str) -> PropertyKey {
+        PropertyKey::new(s).expect("test property name literal must be valid")
     }
 
     #[test]
@@ -718,7 +723,7 @@ mod tests {
         let mut new = old.clone();
         new.node_types[0].properties.push(PropertyDef {
             id: "p_new".into(),
-            name: "email".to_string(),
+            name: pk("email"),
             property_type: PropertyType::String,
             nullable: true,
             default_value: None,
@@ -844,7 +849,7 @@ mod tests {
         // 2. Add a property to Person
         new.node_types[0].properties.push(PropertyDef {
             id: "p_email".into(),
-            name: "email".to_string(),
+            name: pk("email"),
             property_type: PropertyType::String,
             nullable: true,
             default_value: None,
@@ -984,7 +989,7 @@ mod tests {
         // Add a property to the WORKS_AT edge
         new.edge_types[0].properties.push(PropertyDef {
             id: "ep2".into(),
-            name: "role".to_string(),
+            name: pk("role"),
             property_type: PropertyType::String,
             nullable: true,
             default_value: None,

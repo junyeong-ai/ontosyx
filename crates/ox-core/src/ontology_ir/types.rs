@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::graph_label::GraphLabel;
 use crate::i18n::LocalizedText;
+use crate::property_key::PropertyKey;
 use crate::types::{PropertyType, PropertyValue, deserialize_optional_property_value};
 
 // ---------------------------------------------------------------------------
@@ -415,8 +416,11 @@ pub struct PropertyDef {
     /// Stable UUID for this property.
     pub id: PropertyId,
     /// Canonical, language-neutral property name (e.g. "name", "price",
-    /// "created_at"). Used as the Neo4j property key.
-    pub name: String,
+    /// "created_at"). Used as the Neo4j property key. [`PropertyKey`]
+    /// enforces the `is_valid_graph_identifier` invariant at the type
+    /// level — a PropertyDef cannot exist with a name that would fail
+    /// Cypher emission.
+    pub name: PropertyKey,
     /// Localized display name shown in the UI.
     #[serde(default)]
     pub display_name: LocalizedText,
@@ -474,10 +478,16 @@ pub struct PropertyDef {
 }
 
 impl Default for PropertyDef {
+    // Same sentinel strategy as the label defaults: the name slot
+    // needs a populated `PropertyKey` because struct-update syntax
+    // is the primary consumer, and a missed override shows up at
+    // validate() time via the placeholder check.
     fn default() -> Self {
         Self {
             id: PropertyId::default(),
-            name: String::new(),
+            #[allow(clippy::expect_used)]
+            name: PropertyKey::new("__default_placeholder__")
+                .expect("placeholder satisfies PropertyKey invariants"),
             display_name: LocalizedText::default(),
             property_type: PropertyType::String,
             nullable: false,

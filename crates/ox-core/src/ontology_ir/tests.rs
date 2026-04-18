@@ -1,5 +1,6 @@
 use super::*;
 use crate::graph_label::GraphLabel;
+use crate::property_key::PropertyKey;
 use crate::types::PropertyType;
 
 use crate::i18n::LocalizedText;
@@ -8,10 +9,14 @@ fn gl(s: &'static str) -> GraphLabel {
     GraphLabel::new(s).expect("test label literal must be valid")
 }
 
+fn pk(s: &str) -> PropertyKey {
+    PropertyKey::new(s).expect("test property name literal must be valid")
+}
+
 fn property(id: &str, name: &str, nullable: bool) -> PropertyDef {
     PropertyDef {
         id: id.into(),
-        name: name.to_string(),
+        name: pk(name),
         property_type: PropertyType::String,
         nullable,
         default_value: None,
@@ -35,7 +40,7 @@ fn compact_schema_surfaces_localization_cardinality_and_deprecation_hints() {
             properties: vec![
                 PropertyDef {
                     id: "p-title".into(),
-                    name: "title".into(),
+                    name: pk("title"),
                     property_type: PropertyType::String,
                     nullable: false,
                     default_value: None,
@@ -47,7 +52,7 @@ fn compact_schema_surfaces_localization_cardinality_and_deprecation_hints() {
                 },
                 PropertyDef {
                     id: "p-tags".into(),
-                    name: "tags".into(),
+                    name: pk("tags"),
                     property_type: PropertyType::List {
                         element: Box::new(PropertyType::String),
                     },
@@ -61,7 +66,7 @@ fn compact_schema_surfaces_localization_cardinality_and_deprecation_hints() {
                 },
                 PropertyDef {
                     id: "p-old".into(),
-                    name: "legacy_field".into(),
+                    name: pk("legacy_field"),
                     property_type: PropertyType::String,
                     nullable: true,
                     default_value: None,
@@ -500,7 +505,7 @@ fn edge_def_default_has_new_fields_unset() {
 fn property_def_roundtrip_with_cardinality_and_localized() {
     let p = PropertyDef {
         id: "p1".into(),
-        name: "categories".to_string(),
+        name: pk("categories"),
         property_type: PropertyType::List {
             element: Box::new(PropertyType::String),
         },
@@ -522,7 +527,7 @@ fn property_def_roundtrip_with_cardinality_and_localized() {
 fn property_def_omits_new_optional_fields_when_unset() {
     let p = PropertyDef {
         id: "p1".into(),
-        name: "name".to_string(),
+        name: pk("name"),
         property_type: PropertyType::String,
         ..Default::default()
     };

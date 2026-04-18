@@ -143,6 +143,7 @@ mod tests {
     use crate::graph_label::GraphLabel;
     use crate::i18n::LocalizedText;
     use crate::ontology_ir::*;
+    use crate::property_key::PropertyKey;
     use crate::query_ir::*;
     use crate::types::{Direction, PropertyType, PropertyValue};
 
@@ -159,7 +160,7 @@ mod tests {
                     description: LocalizedText::default(),
                     properties: vec![PropertyDef {
                         id: "p1".into(),
-                        name: "name".into(),
+                        name: PropertyKey::new("name").expect("name is valid"),
                         property_type: PropertyType::String,
                         nullable: false,
                         default_value: None,
@@ -176,7 +177,7 @@ mod tests {
                     description: LocalizedText::default(),
                     properties: vec![PropertyDef {
                         id: "p2".into(),
-                        name: "title".into(),
+                        name: PropertyKey::new("title").expect("title is valid"),
                         property_type: PropertyType::String,
                         nullable: false,
                         default_value: None,

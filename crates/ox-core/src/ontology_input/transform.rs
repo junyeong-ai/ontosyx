@@ -106,23 +106,36 @@ pub fn normalize(input: OntologyInputIR) -> Result<NormalizeResult, Vec<String>>
         let properties: Vec<PropertyDef> = input_node
             .properties
             .iter()
-            .map(|p| {
+            .filter_map(|p| {
                 let prop_id: PropertyId = ensure_id(p.id.clone()).into();
+                let name = match crate::property_key::PropertyKey::new(p.name.clone()) {
+                    Ok(n) => n,
+                    Err(err) => {
+                        norm_warn!(
+                            "dropped_property",
+                            format!(
+                                "Node '{}': dropping property — invalid name '{}': {err}",
+                                input_node.label, p.name
+                            )
+                        );
+                        return None;
+                    }
+                };
                 prop_name_to_id.push((p.name.clone(), prop_id.clone()));
                 // Extract source_column into SourceMapping
                 if let Some(col) = &p.source_column {
                     source_mapping.set_column(&node_id, &prop_id, col.clone());
                 }
-                PropertyDef {
+                Some(PropertyDef {
                     id: prop_id,
-                    name: p.name.clone(),
+                    name,
                     property_type: p.property_type.clone(),
                     nullable: p.nullable,
                     default_value: p.default_value.clone(),
                     description: p.description.clone(),
                     classification: None,
                     ..Default::default()
-                }
+                })
             })
             .collect();
 
@@ -313,18 +326,34 @@ pub fn normalize(input: OntologyInputIR) -> Result<NormalizeResult, Vec<String>>
                 }
             };
 
+            let edge_label_for_warnings = e.label.clone();
             let properties = e
                 .properties
                 .into_iter()
-                .map(|p| PropertyDef {
-                    id: ensure_id(p.id).into(),
-                    name: p.name,
-                    property_type: p.property_type,
-                    nullable: p.nullable,
-                    default_value: p.default_value,
-                    description: p.description,
-                    classification: None,
-                    ..Default::default()
+                .filter_map(|p| {
+                    let name = match crate::property_key::PropertyKey::new(p.name.clone()) {
+                        Ok(n) => n,
+                        Err(err) => {
+                            norm_warn!(
+                                "dropped_property",
+                                format!(
+                                    "Edge '{}': dropping property — invalid name '{}': {err}",
+                                    edge_label_for_warnings, p.name
+                                )
+                            );
+                            return None;
+                        }
+                    };
+                    Some(PropertyDef {
+                        id: ensure_id(p.id).into(),
+                        name,
+                        property_type: p.property_type,
+                        nullable: p.nullable,
+                        default_value: p.default_value,
+                        description: p.description,
+                        classification: None,
+                        ..Default::default()
+                    })
                 })
                 .collect();
 
