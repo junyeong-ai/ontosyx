@@ -158,6 +158,9 @@ pub fn router(state: AppState) -> Router {
         .route("/query/raw", post(query::raw_query))
         // QueryIR-based query (visual query builder)
         .route("/query/from-ir", post(query::execute_from_ir))
+        // PatternIR <-> QueryIR transforms (visual query builder)
+        .route("/query/pattern/compile", post(query::compile_pattern))
+        .route("/query/pattern/decompile", post(query::decompile_pattern))
         // Graph search & exploration
         .route("/search", post(query::search_graph))
         .route("/search/expand", post(query::expand_node))

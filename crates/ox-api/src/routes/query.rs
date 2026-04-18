@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{error, info};
 use uuid::Uuid;
 
+use ox_core::pattern_ir::PatternIR;
 use ox_core::query_ir::{QueryIR, QueryResult};
 use ox_core::types::PropertyValue;
 use ox_store::{CursorParams, QueryExecution, QueryExecutionSummary};
@@ -476,6 +477,103 @@ pub(crate) async fn execute_from_ir(
         compiled_target: target,
         result: results,
         widget_hint,
+    }))
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/query/pattern/compile — lower a canvas PatternIR to QueryIR
+//
+// Pure transformation — no DB, no LLM. The visual query builder calls this
+// after the user finishes editing to produce the compiled QueryIR that
+// `/api/query/from-ir` will execute.
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct PatternCompileRequest {
+    /// The canvas PatternIR to lower.
+    #[schema(value_type = Object)]
+    pub pattern_ir: PatternIR,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct PatternCompileResponse {
+    /// The lowered QueryIR, ready to execute via `/api/query/from-ir`.
+    #[schema(value_type = Object)]
+    pub query_ir: QueryIR,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/query/pattern/compile",
+    request_body = PatternCompileRequest,
+    responses(
+        (status = 200, description = "Compiled QueryIR", body = PatternCompileResponse),
+    ),
+    security(("api_key" = [])),
+    tag = "Query",
+)]
+pub(crate) async fn compile_pattern(
+    _principal: Principal,
+    _ws: WorkspaceContext,
+    Json(req): Json<PatternCompileRequest>,
+) -> Result<Json<ApiResponse<PatternCompileResponse>>, AppError> {
+    Ok(ApiResponse::of(PatternCompileResponse {
+        query_ir: req.pattern_ir.compile(),
+    }))
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/query/pattern/decompile — reconstruct a canvas view from a QueryIR
+//
+// Pure transformation — no DB, no LLM. Best-effort: non-Match operations
+// (PathFind, Union, Chain, …) yield an empty PatternIR. The UI detects
+// that shape and shows "this query can't be edited visually" rather than
+// a blank canvas the user will mistake for a fresh query.
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct PatternDecompileRequest {
+    /// The QueryIR to reconstruct onto the canvas.
+    #[schema(value_type = Object)]
+    pub query_ir: QueryIR,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct PatternDecompileResponse {
+    /// The reconstructed PatternIR. Positions are always `None` — the
+    /// UI runs its own layout pass before rendering.
+    #[schema(value_type = Object)]
+    pub pattern_ir: PatternIR,
+    /// `true` iff the source QueryIR was a `Match` operation and
+    /// therefore fully representable on the canvas. `false` for
+    /// PathFind / Union / Chain / Aggregate / CallSubquery / Mutate /
+    /// Analytics — the UI should surface a "read-only" indicator.
+    pub editable: bool,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/query/pattern/decompile",
+    request_body = PatternDecompileRequest,
+    responses(
+        (status = 200, description = "Reconstructed PatternIR", body = PatternDecompileResponse),
+    ),
+    security(("api_key" = [])),
+    tag = "Query",
+)]
+pub(crate) async fn decompile_pattern(
+    _principal: Principal,
+    _ws: WorkspaceContext,
+    Json(req): Json<PatternDecompileRequest>,
+) -> Result<Json<ApiResponse<PatternDecompileResponse>>, AppError> {
+    let editable = matches!(
+        req.query_ir.operation,
+        ox_core::query_ir::QueryOp::Match { .. }
+    );
+    let pattern_ir = PatternIR::decompile(&req.query_ir);
+    Ok(ApiResponse::of(PatternDecompileResponse {
+        pattern_ir,
+        editable,
     }))
 }
 

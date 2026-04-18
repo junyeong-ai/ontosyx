@@ -100,6 +100,8 @@ impl Modify for SecurityAddon {
         // Query
         query::raw_query,
         query::execute_from_ir,
+        query::compile_pattern,
+        query::decompile_pattern,
         query::list_executions,
         query::get_execution,
         // Projects — lifecycle
