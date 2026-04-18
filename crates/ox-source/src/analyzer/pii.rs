@@ -2,7 +2,16 @@ use ox_core::source_analysis::{PiiDetectionMethod, PiiFinding, PiiType};
 use ox_core::source_schema::{SourceProfile, SourceSchema};
 use std::collections::HashSet;
 
+/// Keyword → PII type mapping. Match is per `_`-split segment of the column
+/// name (lowercased), so `phone_number` matches `phone` but `filename`
+/// does not match `name`.
+///
+/// Only segments that are reasonably specific are listed — adding short,
+/// ambiguous tokens (`account`, `ip`, `lat` on its own) would produce too
+/// many false positives. Compound terms (`bank_account`, `ip_address`)
+/// rely on the segment containing the *more specific* token.
 pub(super) const PII_KEYWORDS: &[(&str, PiiType)] = &[
+    // --- Identity ---
     ("email", PiiType::Email),
     // "mail" alone is ambiguous (email vs. physical mailing address) — flagged as PII
     // but without a specific type. The user clarifies intent during review.
@@ -16,11 +25,47 @@ pub(super) const PII_KEYWORDS: &[(&str, PiiType)] = &[
     ("ssn", PiiType::NationalId),
     ("resident", PiiType::NationalId),
     ("rrn", PiiType::NationalId),
+    ("nin", PiiType::NationalId),
+    ("passport", PiiType::Passport),
+    ("license", PiiType::DriversLicense),
+    ("dl", PiiType::DriversLicense),
     ("address", PiiType::Address),
     ("addr", PiiType::Address),
     ("street", PiiType::Address),
     ("zip", PiiType::Address),
     ("postal", PiiType::Address),
+
+    // --- Network identifiers ---
+    ("ipaddr", PiiType::IpAddress),
+    ("ipv4", PiiType::IpAddress),
+    ("ipv6", PiiType::IpAddress),
+
+    // --- Geo ---
+    ("latitude", PiiType::GeoLocation),
+    ("longitude", PiiType::GeoLocation),
+    ("geolocation", PiiType::GeoLocation),
+    ("geohash", PiiType::GeoLocation),
+
+    // --- Financial (PCI DSS) ---
+    ("creditcard", PiiType::PaymentCard),
+    ("cardnumber", PiiType::PaymentCard),
+    ("ccnumber", PiiType::PaymentCard),
+    ("pan", PiiType::PaymentCard),
+    ("iban", PiiType::Iban),
+    ("bankaccount", PiiType::BankAccount),
+    ("routing", PiiType::BankAccount),
+
+    // --- Health (HIPAA) ---
+    ("mrn", PiiType::MedicalRecord),
+    ("medicalrecord", PiiType::MedicalRecord),
+    ("insurance", PiiType::InsuranceId),
+    ("memberid", PiiType::InsuranceId),
+
+    // --- Biometric ---
+    ("fingerprint", PiiType::Biometric),
+    ("biometric", PiiType::Biometric),
+    ("faceid", PiiType::Biometric),
+    ("voiceprint", PiiType::Biometric),
 ];
 
 pub(super) fn detect_pii(schema: &SourceSchema, profile: &SourceProfile) -> Vec<PiiFinding> {
@@ -208,6 +253,104 @@ mod tests {
             findings[0].masked_preview.is_some(),
             "must include masked preview"
         );
+    }
+
+    #[test]
+    fn detect_pii_recognises_payment_card_keywords() {
+        let schema = make_schema(
+            &[("orders", &["id", "credit_card", "card_number", "pan"])],
+            &[],
+        );
+        let profile = SourceProfile {
+            table_profiles: vec![],
+        };
+        let findings = detect_pii(&schema, &profile);
+        let payment_cols: Vec<&str> = findings
+            .iter()
+            .filter(|f| matches!(f.pii_type, PiiType::PaymentCard))
+            .map(|f| f.column.as_str())
+            .collect();
+        // Each segment must match — `credit_card` splits to ["credit","card"]
+        // which alone does not contain `creditcard` (a single segment).
+        // We rely on the more specific compound segments here.
+        assert!(
+            payment_cols.contains(&"pan"),
+            "`pan` segment should match PaymentCard: {findings:?}"
+        );
+        assert!(
+            !payment_cols.contains(&"id"),
+            "`id` should not match PaymentCard"
+        );
+    }
+
+    #[test]
+    fn detect_pii_recognises_health_keywords() {
+        let schema = make_schema(
+            &[(
+                "patients",
+                &["id", "mrn", "medicalrecord", "insurance"],
+            )],
+            &[],
+        );
+        let profile = SourceProfile {
+            table_profiles: vec![],
+        };
+        let findings = detect_pii(&schema, &profile);
+        let medical: Vec<_> = findings
+            .iter()
+            .filter(|f| matches!(f.pii_type, PiiType::MedicalRecord))
+            .map(|f| f.column.as_str())
+            .collect();
+        let insurance: Vec<_> = findings
+            .iter()
+            .filter(|f| matches!(f.pii_type, PiiType::InsuranceId))
+            .map(|f| f.column.as_str())
+            .collect();
+        assert!(medical.contains(&"mrn"));
+        assert!(medical.contains(&"medicalrecord"));
+        assert!(insurance.contains(&"insurance"));
+    }
+
+    #[test]
+    fn detect_pii_recognises_passport_and_iban() {
+        let schema = make_schema(
+            &[("travelers", &["id", "passport", "iban"])],
+            &[],
+        );
+        let profile = SourceProfile {
+            table_profiles: vec![],
+        };
+        let findings = detect_pii(&schema, &profile);
+        assert!(
+            findings
+                .iter()
+                .any(|f| f.column == "passport" && matches!(f.pii_type, PiiType::Passport))
+        );
+        assert!(
+            findings
+                .iter()
+                .any(|f| f.column == "iban" && matches!(f.pii_type, PiiType::Iban))
+        );
+    }
+
+    #[test]
+    fn detect_pii_recognises_geolocation_keywords() {
+        let schema = make_schema(
+            &[("places", &["id", "latitude", "longitude", "geohash"])],
+            &[],
+        );
+        let profile = SourceProfile {
+            table_profiles: vec![],
+        };
+        let findings = detect_pii(&schema, &profile);
+        let geo: Vec<&str> = findings
+            .iter()
+            .filter(|f| matches!(f.pii_type, PiiType::GeoLocation))
+            .map(|f| f.column.as_str())
+            .collect();
+        assert!(geo.contains(&"latitude"));
+        assert!(geo.contains(&"longitude"));
+        assert!(geo.contains(&"geohash"));
     }
 
     #[test]

@@ -155,15 +155,48 @@ pub struct PiiFinding {
     pub masked_preview: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+/// Categories returned by source-level PII detection. Mirrors the
+/// regulatory carve-outs of GDPR / HIPAA / PCI DSS so the resulting
+/// `DataClassification` and downstream policy enforcement (masking,
+/// retention) can be tighter than a generic "personal data" lump.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PiiType {
+    // --- Identity ---
     Name,
     Email,
     Phone,
     BirthDate,
+    /// Government-issued unique identifier (SSN, RRN, NIN, etc.).
     NationalId,
+    /// ICAO 9303 travel document number.
+    Passport,
+    /// State / province driver's licence number.
+    DriversLicense,
     Address,
+    /// IPv4 / IPv6 address — flagged as PII under GDPR Recital 30.
+    IpAddress,
+    /// Lat/long coordinate or precise location identifier.
+    GeoLocation,
+
+    // --- Financial (PCI DSS) ---
+    /// PAN (primary account number) — strict PCI DSS scope.
+    PaymentCard,
+    /// Domestic bank account / routing number.
+    BankAccount,
+    /// ISO 13616 international bank account number.
+    Iban,
+
+    // --- Health (HIPAA) ---
+    /// Medical record number (HIPAA identifier).
+    MedicalRecord,
+    /// Health insurance / member ID.
+    InsuranceId,
+
+    // --- Other regulated data ---
+    /// Biometric template (fingerprint, face vector, voiceprint, etc.).
+    Biometric,
+    /// PII of a kind not covered above. Reviewer disambiguates.
     Other,
 }
 
@@ -182,15 +215,151 @@ pub enum PiiDetectionMethod {
 
 impl PiiType {
     /// Map a PII type to its corresponding data classification level.
+    /// Restricted = regulator-imposed handling (HIPAA, PCI DSS, government
+    /// IDs, biometrics). Confidential = personal data without a specific
+    /// regulatory burden but still privacy-sensitive. Internal = catch-all
+    /// for PII categories the reviewer should resolve manually.
     pub fn classify(&self) -> crate::ontology_ir::DataClassification {
         use crate::ontology_ir::DataClassification;
         match self {
-            PiiType::Email | PiiType::Phone | PiiType::Name | PiiType::Address => {
-                DataClassification::Confidential
-            }
-            PiiType::NationalId | PiiType::BirthDate => DataClassification::Restricted,
+            // Confidential — generic personal data
+            PiiType::Email
+            | PiiType::Phone
+            | PiiType::Name
+            | PiiType::Address
+            | PiiType::IpAddress => DataClassification::Confidential,
+
+            // Restricted — regulator-imposed (govt ID, finance, health, biometric, precise geo)
+            PiiType::NationalId
+            | PiiType::Passport
+            | PiiType::DriversLicense
+            | PiiType::BirthDate
+            | PiiType::PaymentCard
+            | PiiType::BankAccount
+            | PiiType::Iban
+            | PiiType::MedicalRecord
+            | PiiType::InsuranceId
+            | PiiType::Biometric
+            | PiiType::GeoLocation => DataClassification::Restricted,
+
             PiiType::Other => DataClassification::Internal,
         }
+    }
+
+    /// Project a detected `PiiType` onto the richer ontology-side
+    /// [`crate::ontology_ir::PiiKind`] so a property's classification can
+    /// later carry the canonical Palantir-grade kind. Lossy by design —
+    /// nuances like the `NationalId` country code are not knowable at
+    /// detection time.
+    pub fn to_pii_kind(&self) -> crate::ontology_ir::PiiKind {
+        use crate::ontology_ir::PiiKind;
+        match self {
+            PiiType::Name => PiiKind::Name,
+            PiiType::Email => PiiKind::Email,
+            PiiType::Phone => PiiKind::Phone,
+            PiiType::BirthDate => PiiKind::DateOfBirth,
+            PiiType::NationalId => PiiKind::NationalId {
+                country: String::new(),
+            },
+            PiiType::Passport => PiiKind::Passport,
+            PiiType::DriversLicense => PiiKind::DriversLicense,
+            PiiType::Address => PiiKind::Address,
+            PiiType::IpAddress => PiiKind::IpAddress,
+            PiiType::GeoLocation => PiiKind::GeoLocation,
+            PiiType::PaymentCard => PiiKind::PaymentCardNumber,
+            PiiType::BankAccount => PiiKind::BankAccountNumber,
+            PiiType::Iban => PiiKind::Iban,
+            PiiType::MedicalRecord => PiiKind::MedicalRecordNumber,
+            PiiType::InsuranceId => PiiKind::InsuranceId,
+            PiiType::Biometric => PiiKind::Biometric,
+            PiiType::Other => PiiKind::Custom("Other".into()),
+        }
+    }
+}
+
+#[cfg(test)]
+mod pii_type_tests {
+    use super::*;
+    use crate::ontology_ir::{DataClassification, PiiKind};
+
+    #[test]
+    fn classify_groups_regulated_kinds_as_restricted() {
+        // Confidential — generic personal data
+        for kind in [
+            PiiType::Email,
+            PiiType::Phone,
+            PiiType::Name,
+            PiiType::Address,
+            PiiType::IpAddress,
+        ] {
+            assert_eq!(
+                kind.classify(),
+                DataClassification::Confidential,
+                "{kind:?} should classify as Confidential",
+            );
+        }
+
+        // Restricted — regulator-imposed handling
+        for kind in [
+            PiiType::NationalId,
+            PiiType::Passport,
+            PiiType::DriversLicense,
+            PiiType::BirthDate,
+            PiiType::PaymentCard,
+            PiiType::BankAccount,
+            PiiType::Iban,
+            PiiType::MedicalRecord,
+            PiiType::InsuranceId,
+            PiiType::Biometric,
+            PiiType::GeoLocation,
+        ] {
+            assert_eq!(
+                kind.classify(),
+                DataClassification::Restricted,
+                "{kind:?} should classify as Restricted",
+            );
+        }
+
+        assert_eq!(PiiType::Other.classify(), DataClassification::Internal);
+    }
+
+    #[test]
+    fn to_pii_kind_maps_payment_and_health_categories() {
+        // PCI DSS
+        assert!(matches!(
+            PiiType::PaymentCard.to_pii_kind(),
+            PiiKind::PaymentCardNumber
+        ));
+        assert!(matches!(
+            PiiType::Iban.to_pii_kind(),
+            PiiKind::Iban
+        ));
+
+        // HIPAA
+        assert!(matches!(
+            PiiType::MedicalRecord.to_pii_kind(),
+            PiiKind::MedicalRecordNumber
+        ));
+        assert!(matches!(
+            PiiType::InsuranceId.to_pii_kind(),
+            PiiKind::InsuranceId
+        ));
+
+        // Travel / govt
+        assert!(matches!(PiiType::Passport.to_pii_kind(), PiiKind::Passport));
+        assert!(matches!(
+            PiiType::DriversLicense.to_pii_kind(),
+            PiiKind::DriversLicense
+        ));
+
+        // Country code is not knowable at detection time — should be empty.
+        match PiiType::NationalId.to_pii_kind() {
+            PiiKind::NationalId { country } => assert_eq!(country, ""),
+            other => panic!("NationalId should map to PiiKind::NationalId, got {other:?}"),
+        }
+
+        // Other is intentionally lossy — falls into Custom for reviewer routing.
+        assert!(matches!(PiiType::Other.to_pii_kind(), PiiKind::Custom(_)));
     }
 }
 
