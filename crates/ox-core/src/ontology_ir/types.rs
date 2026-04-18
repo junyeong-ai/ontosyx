@@ -633,10 +633,12 @@ pub enum IndexDef {
         node_id: NodeTypeId,
         property_ids: Vec<PropertyId>,
     },
-    /// Full-text search index
+    /// Full-text search index. `name` is a Cypher-quoted identifier
+    /// (Neo4j FULLTEXT index names follow the same rules as labels),
+    /// so the type-level guarantee on [`GraphLabel`] applies here too.
     FullText {
         id: String,
-        name: String,
+        name: GraphLabel,
         node_id: NodeTypeId,
         property_ids: Vec<PropertyId>,
     },

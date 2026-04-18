@@ -339,14 +339,14 @@ impl OntologyIR {
                     node_id,
                     property_ids,
                 } => {
-                    if name.trim().is_empty() {
-                        errors.push("Full-text index name must not be empty".to_string());
-                    }
+                    // `GraphLabel` rejects empty / invalid names at
+                    // construction, so nothing left to check here
+                    // except the target node / property references.
                     validate_index_target(
                         &self.node_types,
                         node_id,
                         property_ids,
-                        name,
+                        name.as_str(),
                         &mut errors,
                     );
                 }

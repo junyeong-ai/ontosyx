@@ -165,7 +165,7 @@ pub fn to_exchange_format(
                 property_ids,
             } => InputIndexDef::FullText {
                 id: Some(id.clone()),
-                name: name.clone(),
+                name: name.to_string(),
                 label: resolve_node_label(node_id),
                 properties: property_ids
                     .iter()

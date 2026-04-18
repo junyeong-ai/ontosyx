@@ -436,6 +436,16 @@ pub fn normalize(input: OntologyInputIR) -> Result<NormalizeResult, Vec<String>>
                 let prop_refs: Vec<&str> = properties.iter().map(|s| s.as_str()).collect();
                 let (node_id, property_ids) =
                     resolve_index(&label, &prop_refs, &format!("fulltext '{}'", name))?;
+                let name = match GraphLabel::new(name.clone()) {
+                    Ok(n) => n,
+                    Err(err) => {
+                        norm_warn!(
+                            "dropped_index",
+                            format!("Full-text index '{name}': dropping — invalid name: {err}")
+                        );
+                        return None;
+                    }
+                };
                 Some(IndexDef::FullText {
                     id: ensure_id(id),
                     name,
