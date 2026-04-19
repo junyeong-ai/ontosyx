@@ -200,6 +200,81 @@
         "expired": "Expired"
       }
     },
+    "acl": {
+      "title": "Access Control",
+      "description": "Fine-grained ABAC policies for column-level masking and property-level deny on graph data.",
+      "createPolicy": "Create Policy",
+      "updatePolicy": "Update Policy",
+      "creating": "Creating...",
+      "updating": "Updating...",
+      "cancel": "Cancel",
+      "edit": "Edit",
+      "delete": "Delete",
+      "deleting": "...",
+      "newPolicyHeading": "New Policy",
+      "editPolicyHeading": "Edit Policy",
+      "emptyState": "No ACL policies configured",
+      "allProperties": "all",
+      "required": "Required",
+      "loadError": "Failed to load ACL policies",
+      "createdToast": "Policy created",
+      "updatedToast": "Policy updated",
+      "deletedToast": "Policy deleted",
+      "createError": "Failed to create policy",
+      "updateError": "Failed to update policy",
+      "deleteError": "Failed to delete policy",
+      "deleteConfirmTitle": "Delete ACL policy '{name}'?",
+      "deleteConfirmDescription": "This action cannot be undone. The access control policy will be permanently removed.",
+      "column": {
+        "policy": "Policy",
+        "subject": "Subject",
+        "resource": "Resource",
+        "action": "Action",
+        "properties": "Properties",
+        "priority": "Priority",
+        "actions": "Actions"
+      },
+      "field": {
+        "name": "Name",
+        "subjectType": "Subject Type",
+        "subjectValue": "Subject Value",
+        "resourceType": "Resource Type",
+        "resourceValue": "Resource Value",
+        "resourceValueHint": "Resource Value <hint>(optional)</hint>",
+        "action": "Action",
+        "priority": "Priority",
+        "properties": "Properties",
+        "propertiesHint": "Properties <hint>(comma-separated, leave empty for all)</hint>",
+        "maskPattern": "Mask Pattern"
+      },
+      "placeholder": {
+        "name": "e.g. Mask PII for viewers",
+        "subjectValue": "e.g. viewer, admin",
+        "resourceValue": "e.g. Customer",
+        "properties": "e.g. email, phone",
+        "maskPattern": "e.g. ***"
+      },
+      "subjectType": {
+        "role": "role",
+        "workspace_role": "workspace role",
+        "user": "user"
+      },
+      "resourceType": {
+        "node_label": "node label",
+        "edge_label": "edge label",
+        "all": "all"
+      },
+      "actionLabel": {
+        "mask": "mask",
+        "deny": "deny",
+        "allow": "allow"
+      },
+      "actionBadge": {
+        "mask": "MASK",
+        "deny": "DENY",
+        "allow": "ALLOW"
+      }
+    },
     "team": {
       "title": "Team",
       "description": "Manage team members and their roles.",
@@ -411,6 +486,90 @@
         "failed": "Failed",
         "partial": "Partial"
       }
+    },
+    "notifications": {
+      "title": "Notifications",
+      "description": "Configure webhook channels to receive notifications when quality rules are evaluated.",
+      "loadError": "Failed to load notification settings",
+      "addChannel": "Add Channel",
+      "channelsHeading": "Channels",
+      "recentHeading": "Recent Notifications",
+      "emptyChannels": "No notification channels configured",
+      "emptyLogs": "No notifications sent yet.",
+      "column": {
+        "name": "Name",
+        "type": "Type",
+        "events": "Events",
+        "enabled": "Enabled",
+        "actions": "Actions",
+        "time": "Time",
+        "event": "Event",
+        "subject": "Subject",
+        "status": "Status",
+        "error": "Error"
+      },
+      "action": {
+        "test": "Test",
+        "testing": "...",
+        "edit": "Edit",
+        "delete": "Delete",
+        "deleting": "..."
+      },
+      "channelType": {
+        "slack_webhook": "Slack Webhook",
+        "generic_webhook": "Generic Webhook",
+        "slack_webhookShort": "Slack",
+        "generic_webhookShort": "Webhook"
+      },
+      "event": {
+        "quality_rule_failed": "Quality Rule Failed",
+        "quality_rule_passed": "Quality Rule Passed"
+      },
+      "status": {
+        "sent": "Sent",
+        "failed": "Failed"
+      },
+      "form": {
+        "newTitle": "New Channel",
+        "editTitle": "Edit Channel",
+        "cancel": "Cancel",
+        "name": "Name",
+        "namePlaceholder": "e.g. Slack #alerts",
+        "channelType": "Channel Type",
+        "webhookUrl": "Webhook URL",
+        "urlPlaceholderSlack": "https://hooks.slack.com/services/...",
+        "urlPlaceholderGeneric": "https://example.com/webhook",
+        "events": "Events",
+        "create": "Create Channel",
+        "creating": "Creating...",
+        "update": "Update Channel",
+        "updating": "Updating..."
+      },
+      "validation": {
+        "required": "Required",
+        "invalidUrl": "Invalid URL",
+        "selectEvent": "Select at least one event"
+      },
+      "toast": {
+        "created": "Channel created",
+        "updated": "Channel updated",
+        "createError": "Failed to create channel",
+        "updateError": "Failed to update channel",
+        "deleted": "Channel deleted",
+        "deleteError": "Failed to delete channel",
+        "enabled": "Channel enabled",
+        "disabled": "Channel disabled",
+        "toggleError": "Failed to toggle channel",
+        "testSuccess": "Test notification sent successfully",
+        "testFailed": "Test failed: {error}",
+        "testError": "Failed to send test notification",
+        "unknownError": "Unknown error"
+      },
+      "deleteConfirm": {
+        "title": "Delete notification channel '{name}'?",
+        "description": "This action cannot be undone. The channel and its delivery log will be permanently removed."
+      },
+      "emptyErrorCell": "-"
     },
     "workspace": {
       "title": "Workspace Settings",

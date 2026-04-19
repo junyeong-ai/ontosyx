@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Spinner } from "@/components/ui/spinner";
 import { SettingsSelect, SettingsSwitch } from "@/components/ui/form-input";
@@ -17,18 +18,31 @@ import {
 } from "@/lib/api/notifications";
 
 // ---------------------------------------------------------------------------
-// Constants
+// Constants & type guards
 // ---------------------------------------------------------------------------
 
-const CHANNEL_TYPES = [
-  { value: "slack_webhook", label: "Slack Webhook" },
-  { value: "generic_webhook", label: "Generic Webhook" },
-] as const;
+const CHANNEL_TYPE_VALUES = ["slack_webhook", "generic_webhook"] as const;
+type KnownChannelType = (typeof CHANNEL_TYPE_VALUES)[number];
 
-const EVENT_TYPES = [
-  { value: "quality_rule_failed", label: "Quality Rule Failed" },
-  { value: "quality_rule_passed", label: "Quality Rule Passed" },
+function isKnownChannelType(s: string): s is KnownChannelType {
+  return s === "slack_webhook" || s === "generic_webhook";
+}
+
+const EVENT_TYPE_VALUES = [
+  "quality_rule_failed",
+  "quality_rule_passed",
 ] as const;
+type KnownEventType = (typeof EVENT_TYPE_VALUES)[number];
+
+function isKnownEventType(s: string): s is KnownEventType {
+  return s === "quality_rule_failed" || s === "quality_rule_passed";
+}
+
+type KnownStatus = "sent" | "failed";
+
+function isKnownStatus(s: string): s is KnownStatus {
+  return s === "sent" || s === "failed";
+}
 
 type ChannelFormValues = {
   name: string;
@@ -49,6 +63,7 @@ const EMPTY_FORM: ChannelFormValues = {
 // ---------------------------------------------------------------------------
 
 export default function NotificationsSettingsPage() {
+  const t = useTranslations("settings.notifications");
   const [channels, setChannels] = useState<NotificationChannel[]>([]);
   const [logs, setLogs] = useState<NotificationLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,11 +84,11 @@ export default function NotificationsSettingsPage() {
       setChannels(ch);
       setLogs(lg);
     } catch {
-      toast.error("Failed to load notification settings");
+      toast.error(t("loadError"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     load();
@@ -112,22 +127,23 @@ export default function NotificationsSettingsPage() {
   const clearError = (field: string) => {
     if (errors[field])
       setErrors((prev) => {
-        const { [field]: _, ...rest } = prev;
-        return rest;
+        const next = { ...prev };
+        delete next[field];
+        return next;
       });
   };
 
   // ---- Validate ----
   const validate = (): boolean => {
     const e: Record<string, string> = {};
-    if (!form.name.trim()) e.name = "Required";
-    if (!form.url.trim()) e.url = "Required";
+    if (!form.name.trim()) e.name = t("validation.required");
+    if (!form.url.trim()) e.url = t("validation.required");
     try {
       new URL(form.url.trim());
     } catch {
-      if (form.url.trim()) e.url = "Invalid URL";
+      if (form.url.trim()) e.url = t("validation.invalidUrl");
     }
-    if (form.events.length === 0) e.events = "Select at least one event";
+    if (form.events.length === 0) e.events = t("validation.selectEvent");
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -145,7 +161,7 @@ export default function NotificationsSettingsPage() {
           config: { url: form.url.trim() },
           events: form.events,
         });
-        toast.success("Channel updated");
+        toast.success(t("toast.updated"));
       } else {
         await createChannel({
           name: form.name.trim(),
@@ -153,14 +169,12 @@ export default function NotificationsSettingsPage() {
           config: { url: form.url.trim() },
           events: form.events,
         });
-        toast.success("Channel created");
+        toast.success(t("toast.created"));
       }
       cancelForm();
       await load();
     } catch {
-      toast.error(
-        editingId ? "Failed to update channel" : "Failed to create channel",
-      );
+      toast.error(editingId ? t("toast.updateError") : t("toast.createError"));
     } finally {
       setSaving(false);
     }
@@ -170,19 +184,18 @@ export default function NotificationsSettingsPage() {
   const handleDelete = async (id: string) => {
     const ch = channels.find((c) => c.id === id);
     const ok = await confirm({
-      title: `Delete notification channel '${ch?.name ?? id}'?`,
-      description:
-        "This action cannot be undone. The channel and its delivery log will be permanently removed.",
+      title: t("deleteConfirm.title", { name: ch?.name ?? id }),
+      description: t("deleteConfirm.description"),
       variant: "danger",
     });
     if (!ok) return;
     setDeletingId(id);
     try {
       await deleteChannel(id);
-      toast.success("Channel deleted");
+      toast.success(t("toast.deleted"));
       await load();
     } catch {
-      toast.error("Failed to delete channel");
+      toast.error(t("toast.deleteError"));
     } finally {
       setDeletingId(null);
     }
@@ -192,10 +205,10 @@ export default function NotificationsSettingsPage() {
   const handleToggle = async (ch: NotificationChannel) => {
     try {
       await updateChannel(ch.id, { enabled: !ch.enabled });
-      toast.success(ch.enabled ? "Channel disabled" : "Channel enabled");
+      toast.success(ch.enabled ? t("toast.disabled") : t("toast.enabled"));
       await load();
     } catch {
-      toast.error("Failed to toggle channel");
+      toast.error(t("toast.toggleError"));
     }
   };
 
@@ -205,13 +218,17 @@ export default function NotificationsSettingsPage() {
     try {
       const result = await testChannel(id);
       if (result.success) {
-        toast.success("Test notification sent successfully");
+        toast.success(t("toast.testSuccess"));
       } else {
-        toast.error(`Test failed: ${result.error ?? "Unknown error"}`);
+        toast.error(
+          t("toast.testFailed", {
+            error: result.error ?? t("toast.unknownError"),
+          }),
+        );
       }
       await load();
     } catch {
-      toast.error("Failed to send test notification");
+      toast.error(t("toast.testError"));
     } finally {
       setTestingId(null);
     }
@@ -228,6 +245,9 @@ export default function NotificationsSettingsPage() {
     clearError("events");
   };
 
+  const eventLabel = (ev: string) =>
+    isKnownEventType(ev) ? t(`event.${ev}`) : ev;
+
   if (loading) return <Spinner />;
 
   return (
@@ -235,11 +255,10 @@ export default function NotificationsSettingsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-            Notifications
+            {t("title")}
           </h1>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            Configure webhook channels to receive notifications when quality
-            rules are evaluated.
+          <p className="mt-1 text-sm text-zinc-500 dark:text-muted-foreground">
+            {t("description")}
           </p>
         </div>
         {!formOpen && (
@@ -247,7 +266,7 @@ export default function NotificationsSettingsPage() {
             onClick={openCreate}
             className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800"
           >
-            Add Channel
+            {t("addChannel")}
           </button>
         )}
       </div>
@@ -270,17 +289,17 @@ export default function NotificationsSettingsPage() {
       {/* Channels table */}
       <div className="mt-6">
         <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Channels
+          {t("channelsHeading")}
         </h2>
         <div className="overflow-x-auto -mx-6 px-6">
           <table className="w-full min-w-[640px] text-sm">
             <thead>
               <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-muted-foreground dark:border-zinc-700">
-                <th className="py-3 pr-6">Name</th>
-                <th className="py-3 pr-6">Type</th>
-                <th className="py-3 pr-6">Events</th>
-                <th className="py-3 pr-6">Enabled</th>
-                <th className="py-3 pr-6 text-right">Actions</th>
+                <th className="py-3 pr-6">{t("column.name")}</th>
+                <th className="py-3 pr-6">{t("column.type")}</th>
+                <th className="py-3 pr-6">{t("column.events")}</th>
+                <th className="py-3 pr-6">{t("column.enabled")}</th>
+                <th className="py-3 pr-6 text-right">{t("column.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -300,9 +319,9 @@ export default function NotificationsSettingsPage() {
                       {ch.events.map((ev) => (
                         <span
                           key={ev}
-                          className="inline-flex rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                          className="inline-flex rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground"
                         >
-                          {ev}
+                          {eventLabel(ev)}
                         </span>
                       ))}
                     </div>
@@ -320,20 +339,24 @@ export default function NotificationsSettingsPage() {
                         disabled={testingId === ch.id}
                         className="rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-50 dark:text-blue-400 dark:hover:bg-blue-950"
                       >
-                        {testingId === ch.id ? "..." : "Test"}
+                        {testingId === ch.id
+                          ? t("action.testing")
+                          : t("action.test")}
                       </button>
                       <button
                         onClick={() => openEdit(ch)}
                         className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
                       >
-                        Edit
+                        {t("action.edit")}
                       </button>
                       <button
                         onClick={() => handleDelete(ch.id)}
                         disabled={deletingId === ch.id}
                         className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 dark:hover:bg-red-950"
                       >
-                        {deletingId === ch.id ? "..." : "Delete"}
+                        {deletingId === ch.id
+                          ? t("action.deleting")
+                          : t("action.delete")}
                       </button>
                     </div>
                   </td>
@@ -341,8 +364,8 @@ export default function NotificationsSettingsPage() {
               ))}
               {channels.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-zinc-400">
-                    No notification channels configured
+                  <td colSpan={5} className="py-8 text-center text-muted-foreground">
+                    {t("emptyChannels")}
                   </td>
                 </tr>
               )}
@@ -354,20 +377,20 @@ export default function NotificationsSettingsPage() {
       {/* Recent notifications log */}
       <div className="mt-8">
         <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Recent Notifications
+          {t("recentHeading")}
         </h2>
         {logs.length === 0 ? (
-          <p className="text-sm text-zinc-400">No notifications sent yet.</p>
+          <p className="text-sm text-muted-foreground">{t("emptyLogs")}</p>
         ) : (
           <div className="overflow-x-auto -mx-6 px-6">
             <table className="w-full min-w-[640px] text-sm">
               <thead>
                 <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-muted-foreground dark:border-zinc-700">
-                  <th className="py-3 pr-6">Time</th>
-                  <th className="py-3 pr-6">Event</th>
-                  <th className="py-3 pr-6">Subject</th>
-                  <th className="py-3 pr-6">Status</th>
-                  <th className="py-3 pr-6">Error</th>
+                  <th className="py-3 pr-6">{t("column.time")}</th>
+                  <th className="py-3 pr-6">{t("column.event")}</th>
+                  <th className="py-3 pr-6">{t("column.subject")}</th>
+                  <th className="py-3 pr-6">{t("column.status")}</th>
+                  <th className="py-3 pr-6">{t("column.error")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -380,8 +403,8 @@ export default function NotificationsSettingsPage() {
                       {new Date(log.created_at).toLocaleString()}
                     </td>
                     <td className="py-3 pr-6 text-muted-foreground">
-                      <span className="inline-flex rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
-                        {log.event_type}
+                      <span className="inline-flex rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground">
+                        {eventLabel(log.event_type)}
                       </span>
                     </td>
                     <td className="py-3 pr-6 font-medium text-zinc-900 dark:text-zinc-100">
@@ -390,8 +413,8 @@ export default function NotificationsSettingsPage() {
                     <td className="py-3 pr-6">
                       <StatusBadge status={log.status} />
                     </td>
-                    <td className="py-3 pr-6 text-zinc-400 text-xs max-w-48 truncate">
-                      {log.error ?? "-"}
+                    <td className="py-3 pr-6 text-muted-foreground text-xs max-w-48 truncate">
+                      {log.error ?? t("emptyErrorCell")}
                     </td>
                   </tr>
                 ))}
@@ -409,16 +432,14 @@ export default function NotificationsSettingsPage() {
 // ---------------------------------------------------------------------------
 
 function ChannelTypeBadge({ type }: { type: string }) {
-  const label =
-    type === "slack_webhook"
-      ? "Slack"
-      : type === "generic_webhook"
-        ? "Webhook"
-        : type;
+  const t = useTranslations("settings.notifications");
+  const label = isKnownChannelType(type)
+    ? t(`channelType.${type}Short`)
+    : type;
   const color =
     type === "slack_webhook"
       ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
-      : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400";
+      : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground";
 
   return (
     <span
@@ -434,18 +455,20 @@ function ChannelTypeBadge({ type }: { type: string }) {
 // ---------------------------------------------------------------------------
 
 function StatusBadge({ status }: { status: string }) {
+  const t = useTranslations("settings.notifications");
+  const label = isKnownStatus(status) ? t(`status.${status}`) : status;
   const color =
     status === "sent"
       ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
       : status === "failed"
         ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-        : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400";
+        : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground";
 
   return (
     <span
       className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${color}`}
     >
-      {status}
+      {label}
     </span>
   );
 }
@@ -475,6 +498,7 @@ function ChannelForm({
   onSubmit: (e: React.FormEvent) => void;
   onCancel: () => void;
 }) {
+  const t = useTranslations("settings.notifications");
   const update = (field: string, patch: Partial<ChannelFormValues>) => {
     setForm((prev) => ({ ...prev, ...patch }));
     clearError(field);
@@ -487,14 +511,14 @@ function ChannelForm({
     >
       <div className="mb-3 flex items-center justify-between">
         <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-          {isEditing ? "Edit Channel" : "New Channel"}
+          {isEditing ? t("form.editTitle") : t("form.newTitle")}
         </span>
         <button
           type="button"
           onClick={onCancel}
-          className="text-xs text-zinc-400 hover:text-zinc-600"
+          className="text-xs text-muted-foreground hover:text-zinc-600"
         >
-          Cancel
+          {t("form.cancel")}
         </button>
       </div>
 
@@ -502,12 +526,12 @@ function ChannelForm({
         {/* Name */}
         <div>
           <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Name
+            {t("form.name")}
           </label>
           <input
             value={form.name}
             onChange={(e) => update("name", { name: e.target.value })}
-            placeholder="e.g. Slack #alerts"
+            placeholder={t("form.namePlaceholder")}
             required
             className={`mt-0.5 w-full rounded-md border bg-white px-3 py-1.5 text-xs dark:bg-zinc-900 ${errors.name ? "border-red-400 dark:border-red-600" : "border-zinc-200 dark:border-zinc-700"}`}
           />
@@ -519,10 +543,10 @@ function ChannelForm({
         {/* Channel type */}
         <div>
           <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Channel Type
+            {t("form.channelType")}
           </label>
           <SettingsSelect
-            label="Channel Type"
+            label={t("form.channelType")}
             hideLabel
             value={form.channel_type}
             onChange={(e) =>
@@ -530,9 +554,9 @@ function ChannelForm({
             }
             disabled={isEditing}
           >
-            {CHANNEL_TYPES.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
+            {CHANNEL_TYPE_VALUES.map((value) => (
+              <option key={value} value={value}>
+                {t(`channelType.${value}`)}
               </option>
             ))}
           </SettingsSelect>
@@ -541,15 +565,15 @@ function ChannelForm({
         {/* Webhook URL */}
         <div className="col-span-2">
           <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Webhook URL
+            {t("form.webhookUrl")}
           </label>
           <input
             value={form.url}
             onChange={(e) => update("url", { url: e.target.value })}
             placeholder={
               form.channel_type === "slack_webhook"
-                ? "https://hooks.slack.com/services/..."
-                : "https://example.com/webhook"
+                ? t("form.urlPlaceholderSlack")
+                : t("form.urlPlaceholderGeneric")
             }
             required
             className={`mt-0.5 w-full rounded-md border bg-white px-3 py-1.5 text-xs font-mono dark:bg-zinc-900 ${errors.url ? "border-red-400 dark:border-red-600" : "border-zinc-200 dark:border-zinc-700"}`}
@@ -562,21 +586,21 @@ function ChannelForm({
         {/* Events */}
         <div className="col-span-2">
           <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Events
+            {t("form.events")}
           </label>
           <div className="mt-1 flex flex-wrap gap-3">
-            {EVENT_TYPES.map((ev) => (
+            {EVENT_TYPE_VALUES.map((value) => (
               <label
-                key={ev.value}
+                key={value}
                 className="flex items-center gap-1.5 text-xs text-zinc-700 dark:text-zinc-300"
               >
                 <input
                   type="checkbox"
-                  checked={form.events.includes(ev.value)}
-                  onChange={() => toggleEvent(ev.value)}
+                  checked={form.events.includes(value)}
+                  onChange={() => toggleEvent(value)}
                   className="rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500 dark:border-zinc-600"
                 />
-                {ev.label}
+                {t(`event.${value}`)}
               </label>
             ))}
           </div>
@@ -594,18 +618,18 @@ function ChannelForm({
         >
           {saving
             ? isEditing
-              ? "Updating..."
-              : "Creating..."
+              ? t("form.updating")
+              : t("form.creating")
             : isEditing
-              ? "Update Channel"
-              : "Create Channel"}
+              ? t("form.update")
+              : t("form.create")}
         </button>
         <button
           type="button"
           onClick={onCancel}
           className="rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
         >
-          Cancel
+          {t("form.cancel")}
         </button>
       </div>
     </form>
