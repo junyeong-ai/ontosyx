@@ -123,6 +123,57 @@
         "cost": "Cost"
       }
     },
+    "providers": {
+      "title": "Providers",
+      "description": "Provider configuration is managed via {configFile} and environment variables.",
+      "loadError": "Failed to load",
+      "serviceStatus": "Service Status",
+      "llm": {
+        "title": "LLM Provider",
+        "description": "Language model used for ontology design, query translation, and explanations",
+        "provider": "Provider",
+        "model": "Model"
+      },
+      "postgres": {
+        "title": "PostgreSQL",
+        "description": "Application state database (projects, ontologies, query history)"
+      },
+      "graph": {
+        "title": "Graph Database",
+        "description": "Graph database for ontology queries and data exploration"
+      },
+      "status": {
+        "ok": "Healthy",
+        "degraded": "Degraded",
+        "unavailable": "Unavailable",
+        "connected": "Connected"
+      }
+    },
+    "schedules": {
+      "title": "Scheduled Tasks",
+      "description": "Manage recurring analysis tasks. Tasks execute recipes on a cron schedule.",
+      "loadError": "Failed to load scheduled tasks",
+      "empty": "No scheduled tasks. Tasks are created when you schedule a recipe from the Recipes page.",
+      "enabledToast": "Task enabled",
+      "disabledToast": "Task paused",
+      "updateError": "Failed to update task",
+      "deleteError": "Failed to delete task",
+      "deletedToast": "Task deleted",
+      "deleteConfirm": {
+        "title": "Delete scheduled task '{name}'?",
+        "description": "This action cannot be undone. The scheduled task will be permanently removed."
+      },
+      "enableAria": "Enable task",
+      "disableAria": "Disable task",
+      "column": {
+        "description": "Description",
+        "cron": "Cron",
+        "status": "Status",
+        "lastRun": "Last Run",
+        "nextRun": "Next Run",
+        "enabled": "Enabled"
+      }
+    },
     "approvals": {
       "title": "Approval Queue",
       "description": "Review and approve schema deployments and other gated operations.",

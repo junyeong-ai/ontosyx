@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -21,6 +22,8 @@ const STATUS_BADGE: Record<string, string> = {
 };
 
 export default function SchedulesPage() {
+  const t = useTranslations("settings.schedules");
+  const commonT = useTranslations("common");
   const [tasks, setTasks] = useState<ScheduledTask[]>([]);
   const [loading, setLoading] = useState(true);
   const confirm = useConfirm();
@@ -28,46 +31,49 @@ export default function SchedulesPage() {
   useEffect(() => {
     listScheduledTasks()
       .then((items) => setTasks(items))
-      .catch(() => toast.error("Failed to load scheduled tasks"))
+      .catch(() => toast.error(t("loadError")))
       .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleToggle = async (task: ScheduledTask) => {
     const newEnabled = !task.enabled;
     // Optimistic update
     setTasks((prev) =>
-      prev.map((t) => (t.id === task.id ? { ...t, enabled: newEnabled } : t)),
+      prev.map((tt) => (tt.id === task.id ? { ...tt, enabled: newEnabled } : tt)),
     );
     try {
       await updateScheduledTask(task.id, { enabled: newEnabled });
-      toast.success(newEnabled ? "Task enabled" : "Task paused");
+      toast.success(newEnabled ? t("enabledToast") : t("disabledToast"));
     } catch {
       // Revert
       setTasks((prev) =>
-        prev.map((t) =>
-          t.id === task.id ? { ...t, enabled: task.enabled } : t,
+        prev.map((tt) =>
+          tt.id === task.id ? { ...tt, enabled: task.enabled } : tt,
         ),
       );
-      toast.error("Failed to update task");
+      toast.error(t("updateError"));
     }
   };
 
   const handleDelete = async (id: string) => {
-    const task = tasks.find((t) => t.id === id);
+    const task = tasks.find((tt) => tt.id === id);
     const ok = await confirm({
-      title: `Delete scheduled task '${task?.description ?? id}'?`,
-      description: "This action cannot be undone. The scheduled task will be permanently removed.",
+      title: t("deleteConfirm.title", {
+        name: task?.description ?? id,
+      }),
+      description: t("deleteConfirm.description"),
       variant: "danger",
     });
     if (!ok) return;
     const snapshot = tasks;
-    setTasks((prev) => prev.filter((t) => t.id !== id));
+    setTasks((prev) => prev.filter((tt) => tt.id !== id));
     try {
       await deleteScheduledTask(id);
-      toast.success("Task deleted");
+      toast.success(t("deletedToast"));
     } catch {
       setTasks(snapshot);
-      toast.error("Failed to delete task");
+      toast.error(t("deleteError"));
     }
   };
 
@@ -82,17 +88,15 @@ export default function SchedulesPage() {
   return (
     <div>
       <h1 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
-        Scheduled Tasks
+        {t("title")}
       </h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Manage recurring analysis tasks. Tasks execute recipes on a cron
-        schedule.
+        {t("description")}
       </p>
 
       {tasks.length === 0 ? (
-        <p className="mt-6 text-sm text-zinc-400">
-          No scheduled tasks. Tasks are created when you schedule a recipe from
-          the Recipes page.
+        <p className="mt-6 text-sm text-muted-foreground">
+          {t("empty")}
         </p>
       ) : (
         <div className="mt-6 overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
@@ -100,22 +104,22 @@ export default function SchedulesPage() {
             <thead>
               <tr className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
                 <th className="py-3 pr-6 font-semibold text-muted-foreground">
-                  Description
+                  {t("column.description")}
                 </th>
                 <th className="py-3 pr-6 font-semibold text-muted-foreground">
-                  Cron
+                  {t("column.cron")}
                 </th>
                 <th className="py-3 pr-6 font-semibold text-muted-foreground">
-                  Status
+                  {t("column.status")}
                 </th>
                 <th className="py-3 pr-6 font-semibold text-muted-foreground">
-                  Last Run
+                  {t("column.lastRun")}
                 </th>
                 <th className="py-3 pr-6 font-semibold text-muted-foreground">
-                  Next Run
+                  {t("column.nextRun")}
                 </th>
                 <th className="py-3 pr-6 font-semibold text-muted-foreground">
-                  Enabled
+                  {t("column.enabled")}
                 </th>
                 <th className="py-3 pr-6 font-semibold text-muted-foreground" />
               </tr>
@@ -140,7 +144,7 @@ export default function SchedulesPage() {
                         {task.last_status}
                       </span>
                     ) : (
-                      <span className="text-zinc-400">--</span>
+                      <span className="text-muted-foreground">--</span>
                     )}
                   </td>
                   <td className="py-3 pr-6 text-muted-foreground">
@@ -160,7 +164,7 @@ export default function SchedulesPage() {
                           : "bg-zinc-300 dark:bg-zinc-600"
                       }`}
                       aria-label={
-                        task.enabled ? "Disable task" : "Enable task"
+                        task.enabled ? t("disableAria") : t("enableAria")
                       }
                     >
                       <span
@@ -175,7 +179,7 @@ export default function SchedulesPage() {
                       onClick={() => handleDelete(task.id)}
                       className="rounded-md px-2 py-1 text-[10px] font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
                     >
-                      Delete
+                      {commonT("delete")}
                     </button>
                   </td>
                 </tr>

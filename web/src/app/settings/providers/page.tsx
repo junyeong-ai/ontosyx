@@ -1,10 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useTranslations } from "next-intl";
 import { getHealth, type HealthResponse } from "@/lib/api";
 import { Spinner } from "@/components/ui/spinner";
 
+type KnownOverallStatus = "ok" | "degraded" | "unavailable";
+function isKnownOverall(s: string): s is KnownOverallStatus {
+  return s === "ok" || s === "degraded" || s === "unavailable";
+}
+
 export default function ProvidersPage() {
+  const t = useTranslations("settings.providers");
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -12,8 +19,12 @@ export default function ProvidersPage() {
   useEffect(() => {
     getHealth()
       .then(setHealth)
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"))
+      .catch((err) => setError(err instanceof Error ? err.message : t("loadError")))
       .finally(() => setLoading(false));
+    // t is stable across renders (it's memoised by next-intl) so omitting
+    // it from deps is fine; adding it causes an infinite reload on some
+    // i18n hot-reload setups.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (loading) {
@@ -27,14 +38,16 @@ export default function ProvidersPage() {
   return (
     <div>
       <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-        Providers
+        {t("title")}
       </h1>
-      <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-        Provider configuration is managed via{" "}
-        <code className="rounded bg-zinc-200 px-1 py-0.5 text-xs dark:bg-zinc-800">
-          ontosyx.toml
-        </code>{" "}
-        and environment variables.
+      <p className="mt-1 text-sm text-zinc-500 dark:text-muted-foreground">
+        {t.rich("description", {
+          configFile: () => (
+            <code className="rounded bg-zinc-200 px-1 py-0.5 text-xs dark:bg-zinc-800">
+              ontosyx.toml
+            </code>
+          ),
+        })}
       </p>
 
       {error && (
@@ -50,11 +63,11 @@ export default function ProvidersPage() {
             <div className="border-b border-zinc-100 px-6 py-4 dark:border-zinc-800">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                  Service Status
+                  {t("serviceStatus")}
                 </h2>
                 <StatusBadge status={health.status} />
               </div>
-              <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+              <p className="mt-0.5 text-xs text-zinc-500 dark:text-muted-foreground">
                 {health.service} v{health.version}
               </p>
             </div>
@@ -64,20 +77,19 @@ export default function ProvidersPage() {
           <section className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
             <div className="border-b border-zinc-100 px-6 py-4 dark:border-zinc-800">
               <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                LLM Provider
+                {t("llm.title")}
               </h2>
-              <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-                Language model used for ontology design, query translation, and
-                explanations
+              <p className="mt-0.5 text-xs text-zinc-500 dark:text-muted-foreground">
+                {t("llm.description")}
               </p>
             </div>
             <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
               <ProviderRow
-                label="Provider"
+                label={t("llm.provider")}
                 value={health.components.llm.provider}
               />
               <ProviderRow
-                label="Model"
+                label={t("llm.model")}
                 value={health.components.llm.model}
               />
             </div>
@@ -89,10 +101,10 @@ export default function ProvidersPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                    PostgreSQL
+                    {t("postgres.title")}
                   </h2>
-                  <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-                    Application state database (projects, ontologies, query history)
+                  <p className="mt-0.5 text-xs text-zinc-500 dark:text-muted-foreground">
+                    {t("postgres.description")}
                   </p>
                 </div>
                 <ComponentBadge status={health.components.postgres} />
@@ -108,10 +120,10 @@ export default function ProvidersPage() {
                   <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                     {health.components.graph_backend && health.components.graph_backend !== "none"
                       ? health.components.graph_backend
-                      : "Graph Database"}
+                      : t("graph.title")}
                   </h2>
-                  <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-                    Graph database for ontology queries and data exploration
+                  <p className="mt-0.5 text-xs text-zinc-500 dark:text-muted-foreground">
+                    {t("graph.description")}
                   </p>
                 </div>
                 <ComponentBadge status={health.components.neo4j} />
@@ -125,6 +137,7 @@ export default function ProvidersPage() {
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const t = useTranslations("settings.providers.status");
   const styles =
     status === "ok"
       ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
@@ -132,12 +145,10 @@ function StatusBadge({ status }: { status: string }) {
         ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
         : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
 
-  const label =
-    status === "ok"
-      ? "Healthy"
-      : status === "degraded"
-        ? "Degraded"
-        : "Unavailable";
+  // Translated label for the three statuses the service reports; any
+  // other value falls back to the raw string so we still surface the
+  // backend's state rather than a blank pill.
+  const label = isKnownOverall(status) ? t(status) : status;
 
   return (
     <span
@@ -158,6 +169,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function ComponentBadge({ status }: { status: string }) {
+  const t = useTranslations("settings.providers.status");
   const isOk = status === "ok";
   return (
     <span
@@ -172,7 +184,7 @@ function ComponentBadge({ status }: { status: string }) {
           isOk ? "bg-emerald-500" : "bg-red-500"
         }`}
       />
-      {isOk ? "Connected" : "Unavailable"}
+      {isOk ? t("connected") : t("unavailable")}
     </span>
   );
 }
@@ -180,7 +192,7 @@ function ComponentBadge({ status }: { status: string }) {
 function ProviderRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between px-6 py-3">
-      <span className="text-sm text-zinc-500 dark:text-zinc-400">
+      <span className="text-sm text-zinc-500 dark:text-muted-foreground">
         {label}
       </span>
       <span className="max-w-[320px] truncate text-right font-mono text-sm text-zinc-900 dark:text-zinc-100">

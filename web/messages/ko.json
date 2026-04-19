@@ -123,6 +123,57 @@
         "cost": "비용"
       }
     },
+    "providers": {
+      "title": "제공자",
+      "description": "제공자 설정은 {configFile} 및 환경 변수로 관리됩니다.",
+      "loadError": "불러오지 못했습니다",
+      "serviceStatus": "서비스 상태",
+      "llm": {
+        "title": "LLM 제공자",
+        "description": "온톨로지 설계, 쿼리 번역, 설명에 사용되는 언어 모델",
+        "provider": "제공자",
+        "model": "모델"
+      },
+      "postgres": {
+        "title": "PostgreSQL",
+        "description": "애플리케이션 상태 데이터베이스 (프로젝트, 온톨로지, 쿼리 이력)"
+      },
+      "graph": {
+        "title": "그래프 데이터베이스",
+        "description": "온톨로지 쿼리 및 데이터 탐색용 그래프 데이터베이스"
+      },
+      "status": {
+        "ok": "정상",
+        "degraded": "성능 저하",
+        "unavailable": "사용 불가",
+        "connected": "연결됨"
+      }
+    },
+    "schedules": {
+      "title": "예약된 작업",
+      "description": "반복 분석 작업을 관리합니다. 작업은 cron 일정에 따라 레시피를 실행합니다.",
+      "loadError": "예약된 작업을 불러오지 못했습니다",
+      "empty": "예약된 작업이 없습니다. 레시피 페이지에서 레시피를 예약하면 이곳에 표시됩니다.",
+      "enabledToast": "작업 활성화됨",
+      "disabledToast": "작업 일시 중지됨",
+      "updateError": "작업을 업데이트하지 못했습니다",
+      "deleteError": "작업을 삭제하지 못했습니다",
+      "deletedToast": "작업 삭제됨",
+      "deleteConfirm": {
+        "title": "예약된 작업 '{name}'을(를) 삭제하시겠습니까?",
+        "description": "이 작업은 되돌릴 수 없으며, 예약된 작업이 영구적으로 제거됩니다."
+      },
+      "enableAria": "작업 활성화",
+      "disableAria": "작업 비활성화",
+      "column": {
+        "description": "설명",
+        "cron": "Cron",
+        "status": "상태",
+        "lastRun": "마지막 실행",
+        "nextRun": "다음 실행",
+        "enabled": "활성"
+      }
+    },
     "approvals": {
       "title": "승인 대기열",
       "description": "스키마 배포 및 기타 승인 대상 작업을 검토·승인합니다.",
