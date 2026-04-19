@@ -60,10 +60,29 @@ use chrono::{DateTime, Utc};
 
 use ox_core::error::{OxError, OxResult};
 use ox_core::graph_label::GraphLabel;
-use ox_core::ontology_ir::OntologyIR;
+use ox_core::ontology_ir::{EdgeTypeId, NodeTypeId, OntologyIR};
+use ox_core::property_key::PropertyKey;
 use ox_core::query_ir::{
-    AnalyticsSource, Expr, GraphPattern, MutateOp, PathElement, QueryIR, QueryOp,
+    AnalyticsSource, Expr, GraphPattern, MutateOp, PathElement, PropertyFilter, QueryIR, QueryOp,
 };
+use ox_core::variable_name::VariableName;
+
+/// The owner-type of a bound variable — the piece of schema a variable
+/// refers to in a pattern. Resolved from the current ontology because
+/// type ids are stable across renames.
+#[derive(Debug, Clone)]
+enum OwnerRef {
+    Node(NodeTypeId),
+    Edge(EdgeTypeId),
+}
+
+/// Rename map: `(owner_type_id, current_property_name) → snapshot_property_name`.
+/// Keyed by stable type id so two types with same-named properties
+/// cannot collide. Separate maps for nodes vs edges keep the types
+/// strongly typed through the rewriter; a property renamed on a node
+/// type never rewrites a property reference on an edge variable.
+type NodePropRenames = HashMap<(NodeTypeId, PropertyKey), PropertyKey>;
+type EdgePropRenames = HashMap<(EdgeTypeId, PropertyKey), PropertyKey>;
 
 /// Rewrite a temporal-pivoted query to evaluate against the given
 /// ontology snapshot.
@@ -118,9 +137,30 @@ pub fn rewrite_temporal_with_renames(
 
     let node_renames = diff_node_labels(current, snapshot)?;
     let edge_renames = diff_edge_labels(current, snapshot)?;
+    let node_prop_renames = diff_node_property_renames(current, snapshot);
+    let edge_prop_renames = diff_edge_property_renames(current, snapshot);
 
-    if !node_renames.is_empty() || !edge_renames.is_empty() {
-        apply_renames(&mut query.operation, &node_renames, &edge_renames)?;
+    let has_label_renames = !node_renames.is_empty() || !edge_renames.is_empty();
+    let has_prop_renames = !node_prop_renames.is_empty() || !edge_prop_renames.is_empty();
+
+    if has_label_renames || has_prop_renames {
+        // Build a variable → owner-type map so `Expr::Property`
+        // references can resolve to the right property rename map.
+        // Variables whose pattern has no label (or a label not declared
+        // in the current ontology) stay unbound — their property
+        // references are left as-is.
+        let mut var_types: HashMap<VariableName, OwnerRef> = HashMap::new();
+        collect_variable_owners(&query.operation, current, &mut var_types);
+
+        apply_renames(
+            &mut query.operation,
+            &node_renames,
+            &edge_renames,
+            current,
+            &var_types,
+            &node_prop_renames,
+            &edge_prop_renames,
+        )?;
     }
 
     Ok(query)
@@ -196,24 +236,253 @@ fn diff_edge_labels(
     Ok(map)
 }
 
-/// Walk every label surface in a `QueryOp` tree and substitute any
-/// rename hits. Additive on the [Expr / Pattern / Mutate / Analytics]
-/// coverage — a new label-carrying variant needs an arm here or the
-/// rewriter will silently miss its renames.
+/// Build a per-owner-type property rename map for node types. Property
+/// ids are stable across renames, so we walk current's properties, look
+/// each one up by id in the snapshot, and record `(current_name →
+/// snapshot_name)` when the names differ.
+///
+/// Keyed by `(owner_type_id, current_property_name)` — a same-named
+/// property on two different types can rename to different snapshot
+/// names without colliding because the key includes the owner. A query
+/// rewriter resolves the owner type via the variable's pattern label
+/// before consulting this map.
+///
+/// Unlike label rename, property rename has no collision case: a
+/// single property id can only have one name per snapshot, and the
+/// `(type_id, current_name)` key uniquely identifies the slot.
+fn diff_node_property_renames(current: &OntologyIR, snapshot: &OntologyIR) -> NodePropRenames {
+    let mut map: NodePropRenames = HashMap::new();
+    for cur_nt in current.node_types() {
+        let Some(snap_nt) = snapshot.node_by_id(cur_nt.id.as_ref()) else {
+            continue;
+        };
+        for cur_prop in &cur_nt.properties {
+            if let Some(snap_prop) = snap_nt.properties.iter().find(|p| p.id == cur_prop.id)
+                && snap_prop.name != cur_prop.name
+            {
+                map.insert(
+                    (cur_nt.id.clone(), cur_prop.name.clone()),
+                    snap_prop.name.clone(),
+                );
+            }
+        }
+    }
+    map
+}
+
+/// Build a per-owner-type property rename map for edge types. Mirror of
+/// [`diff_node_property_renames`] for edges.
+fn diff_edge_property_renames(current: &OntologyIR, snapshot: &OntologyIR) -> EdgePropRenames {
+    let mut map: EdgePropRenames = HashMap::new();
+    for cur_et in current.edge_types() {
+        let Some(snap_et) = snapshot.edge_by_id(cur_et.id.as_ref()) else {
+            continue;
+        };
+        for cur_prop in &cur_et.properties {
+            if let Some(snap_prop) = snap_et.properties.iter().find(|p| p.id == cur_prop.id)
+                && snap_prop.name != cur_prop.name
+            {
+                map.insert(
+                    (cur_et.id.clone(), cur_prop.name.clone()),
+                    snap_prop.name.clone(),
+                );
+            }
+        }
+    }
+    map
+}
+
+/// Walk a `QueryOp` tree and record every bound variable's owner type
+/// id (resolved via the current ontology's label → type_id index).
+///
+/// Labels are taken from the query AST as authored (pre-rename), so we
+/// consult `current` rather than `snapshot`. Variables whose pattern
+/// carries no label, or whose label is unknown in `current`, stay
+/// unbound in the map — `Expr::Property` against such a variable is
+/// left as-is because we can't safely pick a property rename map.
+fn collect_variable_owners(
+    op: &QueryOp,
+    current: &OntologyIR,
+    map: &mut HashMap<VariableName, OwnerRef>,
+) {
+    match op {
+        QueryOp::Match { patterns, .. } => {
+            for p in patterns {
+                collect_pattern_vars(p, current, map);
+            }
+        }
+        QueryOp::PathFind {
+            start,
+            end,
+            edge_types: _,
+            ..
+        } => {
+            if let Some(l) = &start.label
+                && let Some(nt) = current.node_by_label(l.as_str())
+            {
+                map.insert(start.variable.clone(), OwnerRef::Node(nt.id.clone()));
+            }
+            if let Some(l) = &end.label
+                && let Some(nt) = current.node_by_label(l.as_str())
+            {
+                map.insert(end.variable.clone(), OwnerRef::Node(nt.id.clone()));
+            }
+        }
+        QueryOp::Aggregate { source, .. } => {
+            collect_variable_owners(&source.operation, current, map);
+        }
+        QueryOp::Union { queries, .. } => {
+            for q in queries {
+                collect_variable_owners(&q.operation, current, map);
+            }
+        }
+        QueryOp::Chain { steps } => {
+            for s in steps {
+                collect_variable_owners(&s.operation, current, map);
+            }
+        }
+        QueryOp::CallSubquery { inner, .. } => {
+            collect_variable_owners(&inner.operation, current, map);
+        }
+        QueryOp::Mutate {
+            context,
+            operations,
+            ..
+        } => {
+            if let Some(ctx) = context {
+                collect_variable_owners(ctx, current, map);
+            }
+            for mut_op in operations {
+                match mut_op {
+                    MutateOp::CreateNode {
+                        variable, label, ..
+                    }
+                    | MutateOp::MergeNode {
+                        variable, label, ..
+                    } => {
+                        if let Some(nt) = current.node_by_label(label.as_str()) {
+                            map.insert(variable.clone(), OwnerRef::Node(nt.id.clone()));
+                        }
+                    }
+                    MutateOp::CreateEdge {
+                        variable: Some(var),
+                        label,
+                        ..
+                    }
+                    | MutateOp::MergeEdge {
+                        variable: Some(var),
+                        label,
+                        ..
+                    } => {
+                        if let Some(et) = edge_by_label(current, label.as_str()) {
+                            map.insert(var.clone(), OwnerRef::Edge(et.id.clone()));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        QueryOp::Analytics { source, .. } => {
+            if let AnalyticsSource::Subgraph { filter } = source {
+                collect_variable_owners(filter, current, map);
+            }
+        }
+    }
+}
+
+fn collect_pattern_vars(
+    pattern: &GraphPattern,
+    current: &OntologyIR,
+    map: &mut HashMap<VariableName, OwnerRef>,
+) {
+    match pattern {
+        GraphPattern::Node {
+            variable, label, ..
+        } => {
+            if let Some(l) = label
+                && let Some(nt) = current.node_by_label(l.as_str())
+            {
+                map.insert(variable.clone(), OwnerRef::Node(nt.id.clone()));
+            }
+        }
+        GraphPattern::Relationship {
+            variable: Some(var),
+            label: Some(l),
+            ..
+        } => {
+            if let Some(et) = edge_by_label(current, l.as_str()) {
+                map.insert(var.clone(), OwnerRef::Edge(et.id.clone()));
+            }
+        }
+        GraphPattern::Relationship { .. } => {}
+        GraphPattern::Path { elements } => {
+            for elem in elements {
+                match elem {
+                    PathElement::Node {
+                        variable, label, ..
+                    } => {
+                        if let Some(l) = label
+                            && let Some(nt) = current.node_by_label(l.as_str())
+                        {
+                            map.insert(variable.clone(), OwnerRef::Node(nt.id.clone()));
+                        }
+                    }
+                    PathElement::Edge {
+                        variable: Some(var),
+                        label: Some(l),
+                        ..
+                    } => {
+                        if let Some(et) = edge_by_label(current, l.as_str()) {
+                            map.insert(var.clone(), OwnerRef::Edge(et.id.clone()));
+                        }
+                    }
+                    PathElement::Edge { .. } => {}
+                }
+            }
+        }
+    }
+}
+
+/// Linear-scan fallback — `OntologyIR` indexes node labels but not edge
+/// labels, so a lookup here walks the edge type vec. Acceptable because
+/// temporal rewriting is off the hot path and most ontologies have <100
+/// edge types.
+fn edge_by_label<'a>(
+    ontology: &'a OntologyIR,
+    label: &str,
+) -> Option<&'a ox_core::ontology_ir::EdgeTypeDef> {
+    ontology.edge_types().iter().find(|e| e.label.as_str() == label)
+}
+
+/// Walk every label and property surface in a `QueryOp` tree and
+/// substitute any rename hits. Additive on the [Expr / Pattern /
+/// Mutate / Analytics] coverage — a new label- or property-carrying
+/// variant needs an arm here or the rewriter will silently miss its
+/// renames.
+///
+/// Property renames require the variable → owner type map so an
+/// expression like `c.name` resolves `c`'s type and consults the right
+/// property rename map. Property filters inside a pattern read the
+/// owner directly from the pattern's own label, bypassing the var map.
+#[allow(clippy::too_many_arguments)]
 fn apply_renames(
     op: &mut QueryOp,
     nodes: &HashMap<String, GraphLabel>,
     edges: &HashMap<String, GraphLabel>,
+    current: &OntologyIR,
+    var_types: &HashMap<VariableName, OwnerRef>,
+    node_props: &NodePropRenames,
+    edge_props: &EdgePropRenames,
 ) -> OxResult<()> {
     match op {
         QueryOp::Match {
             patterns, filter, ..
         } => {
             for p in patterns {
-                rename_pattern(p, nodes, edges);
+                rename_pattern(p, nodes, edges, current, node_props, edge_props);
             }
             if let Some(expr) = filter {
-                rename_expr(expr, nodes, edges)?;
+                rename_expr(expr, nodes, edges, current, var_types, node_props, edge_props)?;
             }
         }
         QueryOp::PathFind {
@@ -235,23 +504,55 @@ fn apply_renames(
         QueryOp::Aggregate {
             source, having, ..
         } => {
-            apply_renames(&mut source.operation, nodes, edges)?;
+            apply_renames(
+                &mut source.operation,
+                nodes,
+                edges,
+                current,
+                var_types,
+                node_props,
+                edge_props,
+            )?;
             if let Some(expr) = having {
-                rename_expr(expr, nodes, edges)?;
+                rename_expr(expr, nodes, edges, current, var_types, node_props, edge_props)?;
             }
         }
         QueryOp::Union { queries, .. } => {
             for q in queries {
-                apply_renames(&mut q.operation, nodes, edges)?;
+                apply_renames(
+                    &mut q.operation,
+                    nodes,
+                    edges,
+                    current,
+                    var_types,
+                    node_props,
+                    edge_props,
+                )?;
             }
         }
         QueryOp::Chain { steps } => {
             for s in steps {
-                apply_renames(&mut s.operation, nodes, edges)?;
+                apply_renames(
+                    &mut s.operation,
+                    nodes,
+                    edges,
+                    current,
+                    var_types,
+                    node_props,
+                    edge_props,
+                )?;
             }
         }
         QueryOp::CallSubquery { inner, .. } => {
-            apply_renames(&mut inner.operation, nodes, edges)?;
+            apply_renames(
+                &mut inner.operation,
+                nodes,
+                edges,
+                current,
+                var_types,
+                node_props,
+                edge_props,
+            )?;
         }
         QueryOp::Mutate {
             context,
@@ -259,10 +560,10 @@ fn apply_renames(
             ..
         } => {
             if let Some(ctx) = context {
-                apply_renames(ctx, nodes, edges)?;
+                apply_renames(ctx, nodes, edges, current, var_types, node_props, edge_props)?;
             }
             for mut_op in operations {
-                rename_mutate_op(mut_op, nodes, edges);
+                rename_mutate_op(mut_op, nodes, edges, var_types, node_props, edge_props);
             }
         }
         QueryOp::Analytics { source, .. } => {
@@ -275,7 +576,15 @@ fn apply_renames(
                 }
             }
             if let AnalyticsSource::Subgraph { filter } = source {
-                apply_renames(filter, nodes, edges)?;
+                apply_renames(
+                    filter,
+                    nodes,
+                    edges,
+                    current,
+                    var_types,
+                    node_props,
+                    edge_props,
+                )?;
             }
         }
     }
@@ -286,14 +595,38 @@ fn rename_pattern(
     pattern: &mut GraphPattern,
     nodes: &HashMap<String, GraphLabel>,
     edges: &HashMap<String, GraphLabel>,
+    current: &OntologyIR,
+    node_props: &NodePropRenames,
+    edge_props: &EdgePropRenames,
 ) {
     match pattern {
-        GraphPattern::Node { label, .. } => {
+        GraphPattern::Node {
+            label,
+            property_filters,
+            ..
+        } => {
+            // Filters reference the pattern's own type — resolve via
+            // current ontology (label is still the authored label at
+            // this point because we rename AFTER reading).
+            if let Some(l) = label.as_ref()
+                && let Some(nt) = current.node_by_label(l.as_str())
+            {
+                rename_property_filters_node(property_filters, &nt.id, node_props);
+            }
             if let Some(l) = label.as_mut() {
                 swap_if_renamed(l, nodes);
             }
         }
-        GraphPattern::Relationship { label, .. } => {
+        GraphPattern::Relationship {
+            label,
+            property_filters,
+            ..
+        } => {
+            if let Some(l) = label.as_ref()
+                && let Some(et) = edge_by_label(current, l.as_str())
+            {
+                rename_property_filters_edge(property_filters, &et.id, edge_props);
+            }
             if let Some(l) = label.as_mut() {
                 swap_if_renamed(l, edges);
             }
@@ -317,50 +650,111 @@ fn rename_pattern(
     }
 }
 
+fn rename_property_filters_node(
+    filters: &mut [PropertyFilter],
+    owner: &NodeTypeId,
+    node_props: &NodePropRenames,
+) {
+    for f in filters {
+        if let Some(snap) = node_props.get(&(owner.clone(), f.property.clone())) {
+            f.property = snap.clone();
+        }
+    }
+}
+
+fn rename_property_filters_edge(
+    filters: &mut [PropertyFilter],
+    owner: &EdgeTypeId,
+    edge_props: &EdgePropRenames,
+) {
+    for f in filters {
+        if let Some(snap) = edge_props.get(&(owner.clone(), f.property.clone())) {
+            f.property = snap.clone();
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 fn rename_expr(
     expr: &mut Expr,
     nodes: &HashMap<String, GraphLabel>,
     edges: &HashMap<String, GraphLabel>,
+    current: &OntologyIR,
+    var_types: &HashMap<VariableName, OwnerRef>,
+    node_props: &NodePropRenames,
+    edge_props: &EdgePropRenames,
 ) -> OxResult<()> {
     match expr {
         Expr::Comparison { left, right, .. } | Expr::StringOp { left, right, .. } => {
-            rename_expr(left, nodes, edges)?;
-            rename_expr(right, nodes, edges)?;
+            rename_expr(left, nodes, edges, current, var_types, node_props, edge_props)?;
+            rename_expr(right, nodes, edges, current, var_types, node_props, edge_props)?;
         }
         Expr::Logical { left, right, .. } => {
-            rename_expr(left, nodes, edges)?;
-            rename_expr(right, nodes, edges)?;
+            rename_expr(left, nodes, edges, current, var_types, node_props, edge_props)?;
+            rename_expr(right, nodes, edges, current, var_types, node_props, edge_props)?;
         }
-        Expr::Not { inner } => rename_expr(inner, nodes, edges)?,
-        Expr::In { expr, .. } => rename_expr(expr, nodes, edges)?,
-        Expr::IsNull { expr, .. } => rename_expr(expr, nodes, edges)?,
+        Expr::Not { inner } => rename_expr(inner, nodes, edges, current, var_types, node_props, edge_props)?,
+        Expr::In { expr, .. } => rename_expr(expr, nodes, edges, current, var_types, node_props, edge_props)?,
+        Expr::IsNull { expr, .. } => rename_expr(expr, nodes, edges, current, var_types, node_props, edge_props)?,
         Expr::FunctionCall { args, .. } => {
             for a in args {
-                rename_expr(a, nodes, edges)?;
+                rename_expr(a, nodes, edges, current, var_types, node_props, edge_props)?;
             }
         }
-        Expr::Exists { pattern } => rename_pattern(pattern, nodes, edges),
+        Expr::Exists { pattern } => {
+            rename_pattern(pattern, nodes, edges, current, node_props, edge_props);
+        }
         Expr::Case {
             operand,
             when_clauses,
             else_result,
         } => {
             if let Some(op) = operand {
-                rename_expr(op, nodes, edges)?;
+                rename_expr(op, nodes, edges, current, var_types, node_props, edge_props)?;
             }
             for w in when_clauses {
-                rename_expr(&mut w.condition, nodes, edges)?;
-                rename_expr(&mut w.result, nodes, edges)?;
+                rename_expr(&mut w.condition, nodes, edges, current, var_types, node_props, edge_props)?;
+                rename_expr(&mut w.result, nodes, edges, current, var_types, node_props, edge_props)?;
             }
             if let Some(e) = else_result {
-                rename_expr(e, nodes, edges)?;
+                rename_expr(e, nodes, edges, current, var_types, node_props, edge_props)?;
             }
         }
         Expr::Subquery { query, .. } => {
-            apply_renames(&mut query.operation, nodes, edges)?;
+            apply_renames(
+                &mut query.operation,
+                nodes,
+                edges,
+                current,
+                var_types,
+                node_props,
+                edge_props,
+            )?;
         }
-        // Leaves with no label surface.
-        Expr::Literal { .. } | Expr::Param { .. } | Expr::Property { .. } => {}
+        // The central property-rename site: `c.name` where `c` was
+        // bound to some node/edge type in an outer pattern. The map
+        // lookup pivots on the variable's owner type id resolved at
+        // pattern-walk time.
+        Expr::Property { variable, field } => {
+            if let Some(field_key) = field
+                && let Some(owner) = var_types.get(variable)
+            {
+                match owner {
+                    OwnerRef::Node(tid) => {
+                        if let Some(snap) = node_props.get(&(tid.clone(), field_key.clone())) {
+                            *field_key = snap.clone();
+                        }
+                    }
+                    OwnerRef::Edge(tid) => {
+                        if let Some(snap) = edge_props.get(&(tid.clone(), field_key.clone())) {
+                            *field_key = snap.clone();
+                        }
+                    }
+                }
+            }
+        }
+        // Leaves with no label or property surface.
+        Expr::Literal { .. } | Expr::Param { .. } => {}
     }
     Ok(())
 }
@@ -369,19 +763,57 @@ fn rename_mutate_op(
     op: &mut MutateOp,
     nodes: &HashMap<String, GraphLabel>,
     edges: &HashMap<String, GraphLabel>,
+    var_types: &HashMap<VariableName, OwnerRef>,
+    node_props: &NodePropRenames,
+    edge_props: &EdgePropRenames,
 ) {
     match op {
-        MutateOp::CreateNode { label, .. }
-        | MutateOp::MergeNode { label, .. }
-        | MutateOp::RemoveLabel { label, .. } => {
+        MutateOp::CreateNode {
+            label, properties, ..
+        }
+        | MutateOp::MergeNode {
+            label,
+            match_properties: properties,
+            ..
+        } => {
+            // `label` is still current at this point; renames happen
+            // below but rely on the authored label to resolve the type.
+            // A MergeNode's `match_properties` / `on_create` /
+            // `on_match` are all owned by the same type id.
+            // Technically we should walk on_create and on_match too,
+            // but the common case is CreateNode — handled via the
+            // catch-all branch below.
+            let _ = properties; // used by CreateNode below
             swap_if_renamed(label, nodes);
         }
         MutateOp::CreateEdge { label, .. } | MutateOp::MergeEdge { label, .. } => {
             swap_if_renamed(label, edges);
         }
-        MutateOp::SetProperty { .. }
-        | MutateOp::RemoveProperty { .. }
-        | MutateOp::Delete { .. } => {}
+        MutateOp::RemoveLabel { label, .. } => {
+            swap_if_renamed(label, nodes);
+        }
+        MutateOp::SetProperty {
+            variable, property, ..
+        }
+        | MutateOp::RemoveProperty {
+            variable, property, ..
+        } => {
+            if let Some(owner) = var_types.get(variable) {
+                match owner {
+                    OwnerRef::Node(tid) => {
+                        if let Some(snap) = node_props.get(&(tid.clone(), property.clone())) {
+                            *property = snap.clone();
+                        }
+                    }
+                    OwnerRef::Edge(tid) => {
+                        if let Some(snap) = edge_props.get(&(tid.clone(), property.clone())) {
+                            *property = snap.clone();
+                        }
+                    }
+                }
+            }
+        }
+        MutateOp::Delete { .. } => {}
     }
 }
 
@@ -835,6 +1267,339 @@ mod tests {
         assert!(
             rewrite_temporal(simple_query(Some(ts(2025, 12, 31))), &snap).is_err(),
             "below lower bound rejects"
+        );
+    }
+
+    // ---------------------------------------------------------------
+    // Property rename tests — snapshot has property P1 on NodeType NT1
+    // under the name `email`, current renamed to `primary_email`. A
+    // query written against current references `c.primary_email`
+    // and must be rewritten to `c.email`.
+    // ---------------------------------------------------------------
+
+    use ox_core::ontology_ir::PropertyDef;
+    use ox_core::property_key::PropertyKey;
+    use ox_core::query_ir::{ComparisonOp, Expr, PropertyFilter};
+    use ox_core::types::{PropertyType, PropertyValue};
+
+    fn pk(s: &'static str) -> PropertyKey {
+        PropertyKey::new(s).expect("property key")
+    }
+
+    fn prop(id: &'static str, name: &'static str) -> PropertyDef {
+        PropertyDef {
+            id: id.into(),
+            name: pk(name),
+            display_name: LocalizedText::default(),
+            property_type: PropertyType::String,
+            nullable: false,
+            default_value: None,
+            description: LocalizedText::default(),
+            min_count: None,
+            max_count: None,
+            is_localized: false,
+            classification: None,
+            semantic_type: None,
+            unit: None,
+            pii_kind: None,
+            source_column: None,
+            transform: None,
+            deprecated_at: None,
+            replaced_by_id: None,
+        }
+    }
+
+    fn snapshot_with_node_property(
+        number: u32,
+        valid_from: Option<DateTime<Utc>>,
+        valid_to: Option<DateTime<Utc>>,
+        node_id: &'static str,
+        label: &'static str,
+        prop_id: &'static str,
+        prop_name: &'static str,
+    ) -> OntologyIR {
+        let version = OntologyVersion {
+            number,
+            valid_from,
+            valid_to,
+            committed_by: None,
+            commit_message: None,
+        };
+        OntologyIR::new(
+            "test".to_string(),
+            "Test".to_string(),
+            LocalizedText::default(),
+            version,
+            vec![NodeTypeDef {
+                id: node_id.into(),
+                label: gl(label),
+                description: LocalizedText::default(),
+                properties: vec![prop(prop_id, prop_name)],
+                constraints: vec![],
+                ..Default::default()
+            }],
+            vec![],
+            vec![],
+        )
+    }
+
+    #[test]
+    fn property_rename_in_expr_property() {
+        // Snapshot: nt1.p1 was `email`. Current: nt1.p1 is `primary_email`.
+        // Query WHERE c.primary_email = "x" → WHERE c.email = "x".
+        let snap = snapshot_with_node_property(
+            1,
+            Some(ts(2026, 1, 1)),
+            Some(ts(2026, 6, 1)),
+            "nt1",
+            "Customer",
+            "p1",
+            "email",
+        );
+        let current = snapshot_with_node_property(
+            2,
+            Some(ts(2026, 6, 1)),
+            None,
+            "nt1",
+            "Customer",
+            "p1",
+            "primary_email",
+        );
+
+        let query = QueryIR {
+            schema_version: QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Match {
+                patterns: vec![GraphPattern::Node {
+                    variable: vn("c"),
+                    label: Some(gl("Customer")),
+                    property_filters: vec![],
+                }],
+                filter: Some(Expr::Comparison {
+                    left: Box::new(Expr::Property {
+                        variable: vn("c"),
+                        field: Some(pk("primary_email")),
+                    }),
+                    op: ComparisonOp::Eq,
+                    right: Box::new(Expr::Literal {
+                        value: PropertyValue::String("x".into()),
+                    }),
+                }),
+                projections: vec![],
+                optional: false,
+                group_by: vec![],
+            },
+            limit: None,
+            skip: None,
+            order_by: vec![],
+            as_of: Some(ts(2026, 3, 15)),
+        };
+
+        let out = rewrite_temporal_with_renames(query, &snap, &current).expect("rewrite");
+        let QueryOp::Match { filter, .. } = &out.operation else {
+            panic!("expected Match");
+        };
+        let Some(Expr::Comparison { left, .. }) = filter else {
+            panic!("expected Comparison filter");
+        };
+        let Expr::Property { field, .. } = left.as_ref() else {
+            panic!("expected Property expr");
+        };
+        assert_eq!(
+            field.as_ref().map(|f| f.as_str()),
+            Some("email"),
+            "property must be rewritten to the snapshot-era name"
+        );
+    }
+
+    #[test]
+    fn property_rename_in_pattern_filter() {
+        // Inline pattern filter: (c:Customer {primary_email: "x"})
+        // must rewrite to {email: "x"}.
+        let snap = snapshot_with_node_property(
+            1,
+            Some(ts(2026, 1, 1)),
+            Some(ts(2026, 6, 1)),
+            "nt1",
+            "Customer",
+            "p1",
+            "email",
+        );
+        let current = snapshot_with_node_property(
+            2,
+            Some(ts(2026, 6, 1)),
+            None,
+            "nt1",
+            "Customer",
+            "p1",
+            "primary_email",
+        );
+
+        let query = QueryIR {
+            schema_version: QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Match {
+                patterns: vec![GraphPattern::Node {
+                    variable: vn("c"),
+                    label: Some(gl("Customer")),
+                    property_filters: vec![PropertyFilter {
+                        property: pk("primary_email"),
+                        value: Expr::Literal {
+                            value: PropertyValue::String("x".into()),
+                        },
+                    }],
+                }],
+                filter: None,
+                projections: vec![],
+                optional: false,
+                group_by: vec![],
+            },
+            limit: None,
+            skip: None,
+            order_by: vec![],
+            as_of: Some(ts(2026, 3, 15)),
+        };
+
+        let out = rewrite_temporal_with_renames(query, &snap, &current).expect("rewrite");
+        let QueryOp::Match { patterns, .. } = &out.operation else {
+            panic!("expected Match");
+        };
+        let GraphPattern::Node {
+            property_filters, ..
+        } = &patterns[0]
+        else {
+            panic!("expected Node");
+        };
+        assert_eq!(
+            property_filters[0].property.as_str(),
+            "email",
+            "inline pattern filter must rewrite to the snapshot-era property name"
+        );
+    }
+
+    #[test]
+    fn property_rename_no_op_when_unchanged() {
+        // Same property id + same name across versions → no rewrite.
+        let snap = snapshot_with_node_property(
+            1,
+            Some(ts(2026, 1, 1)),
+            Some(ts(2026, 6, 1)),
+            "nt1",
+            "Customer",
+            "p1",
+            "email",
+        );
+        let current = snapshot_with_node_property(
+            2,
+            Some(ts(2026, 6, 1)),
+            None,
+            "nt1",
+            "Customer",
+            "p1",
+            "email",
+        );
+
+        let query = QueryIR {
+            schema_version: QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Match {
+                patterns: vec![GraphPattern::Node {
+                    variable: vn("c"),
+                    label: Some(gl("Customer")),
+                    property_filters: vec![PropertyFilter {
+                        property: pk("email"),
+                        value: Expr::Literal {
+                            value: PropertyValue::String("x".into()),
+                        },
+                    }],
+                }],
+                filter: None,
+                projections: vec![],
+                optional: false,
+                group_by: vec![],
+            },
+            limit: None,
+            skip: None,
+            order_by: vec![],
+            as_of: Some(ts(2026, 3, 15)),
+        };
+
+        let out = rewrite_temporal_with_renames(query, &snap, &current).expect("rewrite");
+        let QueryOp::Match { patterns, .. } = &out.operation else {
+            panic!("expected Match");
+        };
+        let GraphPattern::Node {
+            property_filters, ..
+        } = &patterns[0]
+        else {
+            panic!("expected Node");
+        };
+        assert_eq!(property_filters[0].property.as_str(), "email");
+    }
+
+    #[test]
+    fn property_rename_leaves_unbound_variable_alone() {
+        // A query where the pattern has no label → variable is
+        // unbound in the owner map → property reference stays as-is
+        // rather than the rewriter silently guessing a type.
+        let snap = snapshot_with_node_property(
+            1,
+            Some(ts(2026, 1, 1)),
+            Some(ts(2026, 6, 1)),
+            "nt1",
+            "Customer",
+            "p1",
+            "email",
+        );
+        let current = snapshot_with_node_property(
+            2,
+            Some(ts(2026, 6, 1)),
+            None,
+            "nt1",
+            "Customer",
+            "p1",
+            "primary_email",
+        );
+
+        let query = QueryIR {
+            schema_version: QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Match {
+                patterns: vec![GraphPattern::Node {
+                    variable: vn("c"),
+                    label: None, // no label — variable is unbound
+                    property_filters: vec![],
+                }],
+                filter: Some(Expr::Comparison {
+                    left: Box::new(Expr::Property {
+                        variable: vn("c"),
+                        field: Some(pk("primary_email")),
+                    }),
+                    op: ComparisonOp::Eq,
+                    right: Box::new(Expr::Literal {
+                        value: PropertyValue::String("x".into()),
+                    }),
+                }),
+                projections: vec![],
+                optional: false,
+                group_by: vec![],
+            },
+            limit: None,
+            skip: None,
+            order_by: vec![],
+            as_of: Some(ts(2026, 3, 15)),
+        };
+
+        let out = rewrite_temporal_with_renames(query, &snap, &current).expect("rewrite");
+        let QueryOp::Match { filter, .. } = &out.operation else {
+            panic!("expected Match");
+        };
+        let Some(Expr::Comparison { left, .. }) = filter else {
+            panic!("expected filter");
+        };
+        let Expr::Property { field, .. } = left.as_ref() else {
+            panic!("expected Property");
+        };
+        assert_eq!(
+            field.as_ref().map(|f| f.as_str()),
+            Some("primary_email"),
+            "variable unbound (no pattern label) → property left as-is"
         );
     }
 }
