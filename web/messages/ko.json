@@ -505,7 +505,6 @@
       "deleting": "...",
       "newPolicyHeading": "새 정책",
       "editPolicyHeading": "정책 편집",
-      "emptyState": "등록된 ACL 정책이 없습니다",
       "allProperties": "전체",
       "required": "필수",
       "loadError": "ACL 정책을 불러오지 못했습니다",
@@ -565,7 +564,8 @@
         "mask": "MASK",
         "deny": "DENY",
         "allow": "ALLOW"
-      }
+      },
+      "empty": "등록된 ACL 정책이 없습니다"
     },
     "team": {
       "title": "팀",

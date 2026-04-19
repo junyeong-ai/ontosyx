@@ -505,7 +505,6 @@
       "deleting": "...",
       "newPolicyHeading": "New Policy",
       "editPolicyHeading": "Edit Policy",
-      "emptyState": "No ACL policies configured",
       "allProperties": "all",
       "required": "Required",
       "loadError": "Failed to load ACL policies",
@@ -565,7 +564,8 @@
         "mask": "MASK",
         "deny": "DENY",
         "allow": "ALLOW"
-      }
+      },
+      "empty": "No ACL policies configured"
     },
     "team": {
       "title": "Team",

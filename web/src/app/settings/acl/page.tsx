@@ -349,7 +349,7 @@ export default function AclSettingsPage() {
             {policies.length === 0 && (
               <tr>
                 <td colSpan={7} className="py-8 text-center text-muted-foreground">
-                  {t("emptyState")}
+                  {t("empty")}
                 </td>
               </tr>
             )}
