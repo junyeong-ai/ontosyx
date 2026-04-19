@@ -59,6 +59,52 @@ jobs:
           command: check
           arguments: --all-features
 
+  # ---------------------------------------------------------------------------
+  # RLS enforcement — runs the `#[ignore]`-gated tests in
+  # `crates/ox-store/tests/rls_enforcement.rs` against a live Postgres.
+  #
+  # These tests validate that `0004_rls.sql` actually isolates workspaces
+  # at the row level. They can only run with a real DB connection, so we
+  # keep them out of the default `cargo test` and gate them behind this
+  # dedicated job. A missing or mis-applied RLS policy fails this job and
+  # blocks the PR via the `summary` aggregator.
+  # ---------------------------------------------------------------------------
+  rls:
+    name: RLS Enforcement
+    runs-on: ubuntu-latest
+    needs: lint
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ontosyx_app
+          POSTGRES_PASSWORD: ontosyx-dev
+          POSTGRES_DB: ontosyx
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ontosyx_app"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      OX_TEST_DATABASE_URL: postgres://ontosyx_app:ontosyx-dev@localhost:5432/ontosyx
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: ./.github/actions/install-onnxruntime
+
+      - name: Run RLS enforcement tests
+        # `--ignored` opts into the DB-live tests; the default `cargo test`
+        # still skips them on machines without a Postgres fixture. The
+        # migration tests live in the same crate so we run them in the
+        # same job.
+        run: |
+          cargo test -p ox-store --test rls_enforcement -- --ignored --nocapture
+          cargo test -p ox-store --test migration_0007 -- --ignored --nocapture
+
   udeps:
     # Advisory-only: reports unused deps. Not a gate until the baseline is clean.
     # Flip `continue-on-error: false` once `cargo udeps` reports no false positives.
@@ -92,10 +138,12 @@ jobs:
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      - name: ESLint
+      - name: ESLint (max-warnings=0)
+        # `pnpm lint` resolves to `eslint --max-warnings=0`; any new warning
+        # fails this job and blocks the PR via the `summary` aggregator.
         run: pnpm lint
       - name: Type check
-        run: pnpm exec tsc --noEmit
+        run: pnpm typecheck
       - name: Vitest
         run: pnpm test
       - name: Build
@@ -234,7 +282,7 @@ jobs:
     # Label-gated jobs (e2e-korean, token-regression, frontend-e2e,
     # bench-regression, udeps) are NOT required — they only run on demand.
     # `security` only runs on `push`, so it's conditionally inspected below.
-    needs: [lint, test, deny, frontend, docker, openapi-drift]
+    needs: [lint, test, deny, frontend, docker, openapi-drift, rls]
     if: always()
     steps:
       - name: Aggregate status
@@ -244,7 +292,7 @@ jobs:
         # `failure` and `cancelled` still exit non-zero.
         run: |
           fail=0
-          for job in lint test deny frontend docker openapi-drift; do
+          for job in lint test deny frontend docker openapi-drift rls; do
             case "$job" in
               lint)          result="${{ needs.lint.result }}" ;;
               test)          result="${{ needs.test.result }}" ;;
@@ -252,6 +300,7 @@ jobs:
               frontend)      result="${{ needs.frontend.result }}" ;;
               docker)        result="${{ needs.docker.result }}" ;;
               openapi-drift) result="${{ needs.openapi-drift.result }}" ;;
+              rls)           result="${{ needs.rls.result }}" ;;
             esac
             echo "$job=$result"
             if [ "$result" != "success" ] && [ "$result" != "skipped" ]; then
