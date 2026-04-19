@@ -161,7 +161,7 @@ export default function ModelsSettingsPage() {
   };
 
   const clearConfigError = (field: string) => {
-    if (configErrors[field]) setConfigErrors((prev) => { const { [field]: _, ...rest } = prev; return rest; });
+    if (configErrors[field]) setConfigErrors((prev) => { const next = { ...prev }; delete next[field]; return next; });
   };
 
   const validateConfig = (): boolean => {
@@ -366,7 +366,7 @@ export default function ModelsSettingsPage() {
           <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
             Model Configurations
           </h1>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+          <p className="mt-1 text-sm text-zinc-500 dark:text-muted-foreground">
             Configure LLM providers, models, cost limits, and test connectivity.
           </p>
         </div>
@@ -489,7 +489,7 @@ export default function ModelsSettingsPage() {
             ))}
             {configs.length === 0 && (
               <tr>
-                <td colSpan={6} className="py-8 text-center text-zinc-400">
+                <td colSpan={6} className="py-8 text-center text-muted-foreground">
                   No model configurations
                 </td>
               </tr>
@@ -504,7 +504,7 @@ export default function ModelsSettingsPage() {
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
             Routing Rules
           </h2>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+          <p className="mt-1 text-sm text-zinc-500 dark:text-muted-foreground">
             Map operations to specific model configurations by priority.
           </p>
         </div>
@@ -586,7 +586,7 @@ export default function ModelsSettingsPage() {
             ))}
             {rules.length === 0 && (
               <tr>
-                <td colSpan={5} className="py-8 text-center text-zinc-400">
+                <td colSpan={5} className="py-8 text-center text-muted-foreground">
                   No routing rules configured
                 </td>
               </tr>
@@ -610,7 +610,7 @@ function ProviderBadge({ provider }: { provider: string }) {
         ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
         : provider === "bedrock"
           ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-          : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400";
+          : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground";
 
   return (
     <span
@@ -661,7 +661,7 @@ function ConfigForm({
         <button
           type="button"
           onClick={onCancel}
-          className="text-xs text-zinc-400 hover:text-zinc-600"
+          className="text-xs text-muted-foreground hover:text-zinc-600"
         >
           Cancel
         </button>
@@ -738,7 +738,7 @@ function ConfigForm({
         <div>
           <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Temperature{" "}
-            <span className="normal-case text-zinc-400">(optional)</span>
+            <span className="normal-case text-muted-foreground">(optional)</span>
           </label>
           <input
             type="number"
@@ -784,7 +784,7 @@ function ConfigForm({
         <div>
           <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             API Key Env Var{" "}
-            <span className="normal-case text-zinc-400">(optional)</span>
+            <span className="normal-case text-muted-foreground">(optional)</span>
           </label>
           <input
             value={form.api_key_env}
@@ -798,7 +798,7 @@ function ConfigForm({
         <div>
           <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Base URL{" "}
-            <span className="normal-case text-zinc-400">(optional)</span>
+            <span className="normal-case text-muted-foreground">(optional)</span>
           </label>
           <input
             value={form.base_url}
@@ -812,7 +812,7 @@ function ConfigForm({
         <div>
           <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Region{" "}
-            <span className="normal-case text-zinc-400">(optional)</span>
+            <span className="normal-case text-muted-foreground">(optional)</span>
           </label>
           <input
             value={form.region}
@@ -826,7 +826,7 @@ function ConfigForm({
         <div>
           <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Cost / 1M Input{" "}
-            <span className="normal-case text-zinc-400">(USD)</span>
+            <span className="normal-case text-muted-foreground">(USD)</span>
           </label>
           <input
             type="number"
@@ -843,7 +843,7 @@ function ConfigForm({
         <div>
           <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Cost / 1M Output{" "}
-            <span className="normal-case text-zinc-400">(USD)</span>
+            <span className="normal-case text-muted-foreground">(USD)</span>
           </label>
           <input
             type="number"
@@ -860,7 +860,7 @@ function ConfigForm({
         <div>
           <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Daily Budget{" "}
-            <span className="normal-case text-zinc-400">(USD)</span>
+            <span className="normal-case text-muted-foreground">(USD)</span>
           </label>
           <input
             type="number"
@@ -941,7 +941,7 @@ function RuleForm({
         <button
           type="button"
           onClick={onCancel}
-          className="text-xs text-zinc-400 hover:text-zinc-600"
+          className="text-xs text-muted-foreground hover:text-zinc-600"
         >
           Cancel
         </button>

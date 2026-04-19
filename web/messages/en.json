@@ -74,9 +74,11 @@
     "workspaceSwitcher": {
       "defaultLabel": "Workspace",
       "noWorkspaces": "No workspaces",
-      "loadError": "Failed to load workspaces",
       "newWorkspace": "New Workspace",
-      "workspaceSettings": "Workspace Settings"
+      "workspaceSettings": "Workspace Settings",
+      "toast": {
+        "loadFailed": "Failed to load workspaces"
+      }
     },
     "contextBadge": {
       "nodesEdges": "{nodes}N · {edges}E",
@@ -85,8 +87,6 @@
     "contextSelector": {
       "newProject": "New Project",
       "noProjects": "No projects",
-      "loadProjectsError": "Failed to load projects",
-      "loadProjectError": "Failed to load project",
       "noProject": "No project",
       "guardSwitchProject": "Switch Project",
       "guardNewProject": "New Project",
@@ -94,25 +94,29 @@
       "guardImportOntology": "Import Ontology",
       "forkTitle": "Fork -- create new project from this ontology",
       "forkAria": "Fork project",
-      "forkedToast": "Project forked",
       "forkedDescription": "From: {title}",
-      "forkFailed": "Fork failed",
-      "unknownError": "Unknown error",
       "loadingOntology": "Loading ontology...",
-      "loadOntologyFailed": "Failed to load ontology",
       "noSavedOntology": "No saved ontology",
       "switchToDesign": "Switch to Design",
       "selectDashboard": "Select dashboard",
       "noDashboards": "No dashboards",
-      "loadDashboardsError": "Failed to load dashboards",
       "newDashboard": "New Dashboard",
       "dashboardNamePlaceholder": "Dashboard name",
       "cancel": "Cancel",
       "create": "Create",
-      "dashboardCreatedToast": "Dashboard created",
-      "dashboardCreateError": "Failed to create dashboard",
       "publicBadge": "public",
-      "untitledProject": "Untitled"
+      "untitledProject": "Untitled",
+      "toast": {
+        "forkFailed": "Fork failed",
+        "unknownError": "Unknown error",
+        "loadProjectsFailed": "Failed to load projects",
+        "loadProjectFailed": "Failed to load project",
+        "loadDashboardsFailed": "Failed to load dashboards",
+        "loadOntologyFailed": "Failed to load ontology",
+        "dashboardCreated": "Dashboard created",
+        "dashboardCreateFailed": "Failed to create dashboard",
+        "forked": "Project forked"
+      }
     },
     "modeActions": {
       "importTooltip": "Import Ontology (JSON, OWL/Turtle)",
@@ -126,7 +130,6 @@
       "auditFailed": "Audit failed",
       "importInvalid": "Invalid ontology: missing node_types/edge_types",
       "importWarning": "Import completed with warnings",
-      "importedToast": "Ontology imported",
       "importedDescription": "{nodes}N, {edges}E",
       "importFailed": "Import failed",
       "exportJson": "JSON",
@@ -136,7 +139,10 @@
       "exportOwl": "OWL/Turtle",
       "exportShacl": "SHACL Shapes",
       "exportTypescript": "TypeScript Types",
-      "exportPython": "Python Dataclasses"
+      "exportPython": "Python Dataclasses",
+      "toast": {
+        "imported": "Ontology imported"
+      }
     }
   },
   "widget": {
@@ -166,8 +172,8 @@
     },
     "errorBoundary": {
       "title": "Widget rendering failed",
-      "unknownError": "Unknown error",
-      "retry": "Retry"
+      "retry": "Retry",
+      "unknownError": "Unknown error"
     },
     "table": {
       "rowsAndColumns": "{rows, plural, one {# row} other {# rows}} · {columns, plural, one {# column} other {# columns}}",
@@ -283,9 +289,6 @@
     "cancel": "Cancel",
     "create": "Create",
     "creating": "Creating...",
-    "createdToast": "Workspace created",
-    "createFailed": "Failed to create workspace",
-    "unknownError": "Unknown error",
     "members": {
       "heading": "Members",
       "add": "Add Member",
@@ -312,6 +315,11 @@
         "memberAddError": "Failed to add member",
         "loadUsersError": "Failed to load users"
       }
+    },
+    "toast": {
+      "created": "Workspace created",
+      "createFailed": "Failed to create workspace",
+      "unknownError": "Unknown error"
     }
   },
   "settings": {
@@ -386,7 +394,6 @@
     "audit": {
       "title": "Audit Log",
       "description": "Track user actions, resource changes, and system events.",
-      "loadError": "Failed to load audit log",
       "empty": "No audit entries for the selected period",
       "column": {
         "action": "Action",
@@ -395,12 +402,14 @@
         "user": "User",
         "date": "Date"
       },
-      "systemUser": "system"
+      "systemUser": "system",
+      "toast": {
+        "loadFailed": "Failed to load audit log"
+      }
     },
     "usage": {
       "title": "Usage & Metering",
       "description": "LLM token usage, compute costs, and request volumes.",
-      "loadError": "Failed to load usage data",
       "empty": "No usage data for the selected period",
       "summary": {
         "totalTokens": "Total Tokens",
@@ -413,12 +422,14 @@
         "outputTokens": "Output Tokens",
         "requests": "Requests",
         "cost": "Cost"
+      },
+      "toast": {
+        "loadFailed": "Failed to load usage data"
       }
     },
     "providers": {
       "title": "Providers",
       "description": "Provider configuration is managed via {configFile} and environment variables.",
-      "loadError": "Failed to load",
       "serviceStatus": "Service Status",
       "llm": {
         "title": "LLM Provider",
@@ -439,18 +450,15 @@
         "degraded": "Degraded",
         "unavailable": "Unavailable",
         "connected": "Connected"
+      },
+      "toast": {
+        "loadFailed": "Failed to load"
       }
     },
     "schedules": {
       "title": "Scheduled Tasks",
       "description": "Manage recurring analysis tasks. Tasks execute recipes on a cron schedule.",
-      "loadError": "Failed to load scheduled tasks",
       "empty": "No scheduled tasks. Tasks are created when you schedule a recipe from the Recipes page.",
-      "enabledToast": "Task enabled",
-      "disabledToast": "Task paused",
-      "updateError": "Failed to update task",
-      "deleteError": "Failed to delete task",
-      "deletedToast": "Task deleted",
       "deleteConfirm": {
         "title": "Delete scheduled task '{name}'?",
         "description": "This action cannot be undone. The scheduled task will be permanently removed."
@@ -464,15 +472,19 @@
         "lastRun": "Last Run",
         "nextRun": "Next Run",
         "enabled": "Enabled"
+      },
+      "toast": {
+        "loadFailed": "Failed to load scheduled tasks",
+        "enabled": "Task enabled",
+        "disabled": "Task paused",
+        "updateFailed": "Failed to update task",
+        "deleteFailed": "Failed to delete task",
+        "deleted": "Task deleted"
       }
     },
     "approvals": {
       "title": "Approval Queue",
       "description": "Review and approve schema deployments and other gated operations.",
-      "loadError": "Failed to load approvals",
-      "reviewError": "Failed to review approval",
-      "approvedToast": "Approved",
-      "rejectedToast": "Rejected",
       "approve": "Approve",
       "reject": "Reject",
       "pendingHeading": "Pending ({count})",
@@ -490,6 +502,12 @@
         "approved": "Approved",
         "rejected": "Rejected",
         "expired": "Expired"
+      },
+      "toast": {
+        "loadFailed": "Failed to load approvals",
+        "reviewFailed": "Failed to review approval",
+        "approved": "Approved",
+        "rejected": "Rejected"
       }
     },
     "acl": {
@@ -507,13 +525,6 @@
       "editPolicyHeading": "Edit Policy",
       "allProperties": "all",
       "required": "Required",
-      "loadError": "Failed to load ACL policies",
-      "createdToast": "Policy created",
-      "updatedToast": "Policy updated",
-      "deletedToast": "Policy deleted",
-      "createError": "Failed to create policy",
-      "updateError": "Failed to update policy",
-      "deleteError": "Failed to delete policy",
       "deleteConfirmTitle": "Delete ACL policy '{name}'?",
       "deleteConfirmDescription": "This action cannot be undone. The access control policy will be permanently removed.",
       "column": {
@@ -565,7 +576,16 @@
         "deny": "DENY",
         "allow": "ALLOW"
       },
-      "empty": "No ACL policies configured"
+      "empty": "No ACL policies configured",
+      "toast": {
+        "loadFailed": "Failed to load ACL policies",
+        "created": "Policy created",
+        "updated": "Policy updated",
+        "deleted": "Policy deleted",
+        "createFailed": "Failed to create policy",
+        "updateFailed": "Failed to update policy",
+        "deleteFailed": "Failed to delete policy"
+      }
     },
     "team": {
       "title": "Team",
@@ -573,8 +593,6 @@
       "authRequired": "Team management is available when authentication is enabled.",
       "rolesHeading": "Roles",
       "membersHeading": "Members",
-      "loadError": "Failed to load users",
-      "updateRoleError": "Failed to update role",
       "changeRoleAria": "Change role for {name}",
       "roleSelectLabel": "Role",
       "you": "you",
@@ -591,21 +609,18 @@
       "addingMembers": {
         "heading": "Adding Members",
         "description": "Users are automatically added on first login via SSO. Share the platform URL with your team members and ask them to sign in with their Google account."
+      },
+      "toast": {
+        "loadFailed": "Failed to load users",
+        "updateRoleFailed": "Failed to update role"
       }
     },
     "knowledge": {
       "title": "Knowledge Base",
       "description": "Learned corrections from query failures and admin-created hints.",
       "adminOnly": "Admin access required.",
-      "loadError": "Failed to load knowledge entries",
-      "statusChanged": "Status changed to {status}",
-      "statusError": "Failed to update status",
       "deleteConfirmTitle": "Delete knowledge entry '{title}'?",
       "deleteConfirmDescription": "This action cannot be undone. The knowledge entry will be permanently removed.",
-      "deletedToast": "Deleted",
-      "deleteError": "Delete failed",
-      "bulkDeprecated": "{count} deprecated",
-      "bulkError": "Failed",
       "reviewStale": "Review {count} stale",
       "statusFilterLabel": "Status Filter",
       "kindFilterLabel": "Kind Filter",
@@ -634,18 +649,20 @@
         "draft": "Draft",
         "stale": "Stale",
         "deprecated": "Deprecated"
+      },
+      "toast": {
+        "loadFailed": "Failed to load knowledge entries",
+        "statusChanged": "Status changed to {status}",
+        "statusChangeFailed": "Failed to update status",
+        "deleted": "Deleted",
+        "deleteFailed": "Delete failed",
+        "bulkDeprecated": "{count} deprecated",
+        "bulkFailed": "Failed"
       }
     },
     "system": {
       "title": "System Settings",
       "description": "Runtime-tunable configuration stored in the database.",
-      "loadError": "Failed to load configuration",
-      "unknownError": "Unknown error",
-      "invalidValue": "Invalid value for {key}",
-      "mustBeNonNegativeInt": "Must be a non-negative integer",
-      "mustBeNumber": "Must be a valid number",
-      "updatedToast": "Updated {count} {count, plural, one {setting} other {settings}}",
-      "saveError": "Failed to save configuration",
       "modified": "modified",
       "unsavedChanges": "{count, plural, one {# unsaved change} other {# unsaved changes}}",
       "discard": "Discard",
@@ -676,13 +693,21 @@
           "label": "Lifecycle",
           "description": "WIP project archival and cleanup settings"
         }
+      },
+      "toast": {
+        "loadFailed": "Failed to load configuration",
+        "unknownError": "Unknown error",
+        "invalidValue": "Invalid value for {key}",
+        "mustBeNonNegativeInt": "Must be a non-negative integer",
+        "mustBeNumber": "Must be a valid number",
+        "updated": "Updated {count} {count, plural, one {setting} other {settings}}",
+        "saveFailed": "Failed to save configuration"
       }
     },
     "prompts": {
       "title": "Prompt Templates",
       "description": "Manage versioned prompt templates. Changes take effect on next agent session.",
       "adminOnly": "Admin access required to manage prompts.",
-      "loadError": "Failed to load prompts",
       "searchPlaceholder": "Search prompts...",
       "searchLabel": "Search prompts",
       "statusFilterLabel": "Status Filter",
@@ -701,23 +726,22 @@
       "delete": "Delete",
       "save": "Save",
       "saving": "Saving...",
-      "updatedToast": "Prompt updated",
-      "saveError": "Save failed",
       "deleteConfirmTitle": "Delete version v{version}?",
       "deleteConfirmDescription": "This will permanently delete version v{version} of \"{name}\". This action cannot be undone.",
       "deleteConfirmLabel": "Delete",
-      "deletedToast": "Version v{version} deleted",
-      "deleteError": "Delete failed",
-      "versionCreatedToast": "Version v{version} created",
-      "versionCreateError": "Failed to create version"
+      "toast": {
+        "loadFailed": "Failed to load prompts",
+        "updated": "Prompt updated",
+        "saveFailed": "Save failed",
+        "deleted": "Version v{version} deleted",
+        "deleteFailed": "Delete failed",
+        "versionCreated": "Version v{version} created",
+        "versionCreateFailed": "Failed to create version"
+      }
     },
     "sessions": {
       "title": "Agent Sessions",
       "description": "Audit trail of agent executions with event replay.",
-      "loadError": "Failed to load sessions",
-      "loadMoreError": "Failed to load more sessions",
-      "eventsError": "Failed to load events",
-      "messagesError": "Failed to load messages",
       "stats": {
         "total": "Total Sessions",
         "completed": "Completed",
@@ -737,20 +761,25 @@
       "deleteConfirmTitle": "Delete session",
       "deleteConfirmDescription": "This will permanently delete the session and all its events. This cannot be undone.",
       "deleteConfirmLabel": "Delete",
-      "deletedToast": "Session deleted",
-      "deleteError": "Failed to delete session",
       "detailHeading": "Session Detail",
       "viewConversation": "Conversation",
       "viewEvents": "Events",
       "hashLine": "prompt_hash: {prompt}... · tool_hash: {tool}...",
       "noMessages": "No messages.",
       "roleUser": "User",
-      "roleAssistant": "Assistant"
+      "roleAssistant": "Assistant",
+      "toast": {
+        "loadFailed": "Failed to load sessions",
+        "loadMoreFailed": "Failed to load more sessions",
+        "eventsLoadFailed": "Failed to load events",
+        "messagesLoadFailed": "Failed to load messages",
+        "deleted": "Session deleted",
+        "deleteFailed": "Failed to delete session"
+      }
     },
     "lineage": {
       "title": "Data Lineage",
       "description": "Trace how source data flows into your knowledge graph.",
-      "loadError": "Failed to load lineage data",
       "summary": {
         "labels": "Graph Labels",
         "sources": "Source Tables",
@@ -777,12 +806,14 @@
         "running": "Running",
         "failed": "Failed",
         "partial": "Partial"
+      },
+      "toast": {
+        "loadFailed": "Failed to load lineage data"
       }
     },
     "notifications": {
       "title": "Notifications",
       "description": "Configure webhook channels to receive notifications when quality rules are evaluated.",
-      "loadError": "Failed to load notification settings",
       "addChannel": "Add Channel",
       "channelsHeading": "Channels",
       "recentHeading": "Recent Notifications",
@@ -845,17 +876,20 @@
       "toast": {
         "created": "Channel created",
         "updated": "Channel updated",
-        "createError": "Failed to create channel",
-        "updateError": "Failed to update channel",
         "deleted": "Channel deleted",
-        "deleteError": "Failed to delete channel",
         "enabled": "Channel enabled",
         "disabled": "Channel disabled",
         "toggleError": "Failed to toggle channel",
         "testSuccess": "Test notification sent successfully",
         "testFailed": "Test failed: {error}",
         "testError": "Failed to send test notification",
-        "unknownError": "Unknown error"
+        "toast": {
+          "createFailed": "Failed to create channel",
+          "updateFailed": "Failed to update channel",
+          "deleteFailed": "Failed to delete channel",
+          "unknownError": "Unknown error"
+        },
+        "loadFailed": "Failed to load notification settings"
       },
       "deleteConfirm": {
         "title": "Delete notification channel '{name}'?",
@@ -869,9 +903,6 @@
       "save": "Save",
       "saving": "Saving...",
       "noWorkspace": "No workspace selected. Switch to a workspace first.",
-      "loadError": "Failed to load workspace",
-      "updateError": "Failed to update workspace",
-      "updatedToast": "Workspace updated",
       "general": {
         "heading": "General",
         "name": "Name",
@@ -882,20 +913,25 @@
         "heading": "Locale",
         "save": "Save locale",
         "saving": "Saving...",
-        "updatedToast": "Locale updated",
-        "updateError": "Failed to update locale",
         "description": "Primary locale drives the UI and LLM default language. The fallback chain is consulted in order when a requested locale is missing. Both must be BCP 47 tags (e.g., <k>ko</k>, <k>en-us</k>, <k>zh-hant</k>).",
         "primary": "Primary locale",
         "primaryInvalid": "Invalid BCP 47 tag. Use lowercase letters / digits separated by hyphens (2–3 letter primary, optional 2–8 char subtags).",
         "fallback": "Fallback chain (comma-separated)",
-        "fallbackInvalid": "Every entry must be a valid BCP 47 tag and the list must be non-empty."
+        "fallbackInvalid": "Every entry must be a valid BCP 47 tag and the list must be non-empty.",
+        "toast": {
+          "updated": "Locale updated",
+          "updateFailed": "Failed to update locale"
+        }
+      },
+      "toast": {
+        "loadFailed": "Failed to load workspace",
+        "updateFailed": "Failed to update workspace",
+        "updated": "Workspace updated"
       }
     },
     "reports": {
       "title": "Saved Reports",
       "description": "Parameterized query templates that can be executed on demand.",
-      "loadOntologiesError": "Failed to load ontologies",
-      "loadError": "Failed to load reports",
       "ontologyLabel": "Ontology",
       "ontologyFilterLabel": "Ontology Filter",
       "ontologyOption": "{name} (v{version})",
@@ -913,10 +949,14 @@
         "created": "Report created",
         "updated": "Report updated",
         "deleted": "Report deleted",
-        "deleteError": "Delete failed",
-        "updateError": "Update failed",
-        "createError": "Failed to create report",
-        "executeError": "Execution failed"
+        "executeError": "Execution failed",
+        "toast": {
+          "deleteFailed": "Delete failed",
+          "updateFailed": "Update failed",
+          "createFailed": "Failed to create report"
+        },
+        "loadFailed": "Failed to load reports",
+        "loadOntologiesFailed": "Failed to load ontologies"
       },
       "deleteConfirm": {
         "title": "Delete report '{name}'?",
@@ -984,7 +1024,6 @@
     "recipes": {
       "title": "Analysis Recipes",
       "description": "Reusable data analysis algorithms. The agent searches these before writing custom code.",
-      "loadError": "Failed to load recipes",
       "searchPlaceholder": "Search by name or description...",
       "newRecipe": "New Recipe",
       "emptyAll": "No recipes yet. The agent will create recipes when analyses produce useful results.",
@@ -996,11 +1035,14 @@
       "toast": {
         "created": "Recipe created",
         "deleted": "Recipe deleted",
-        "deleteError": "Delete failed",
-        "createError": "Failed to create recipe",
-        "statusChanged": "Status changed to {status}",
-        "statusError": "Failed to update status",
-        "versionsError": "Failed to load version history"
+        "versionsError": "Failed to load version history",
+        "toast": {
+          "deleteFailed": "Delete failed",
+          "createFailed": "Failed to create recipe",
+          "statusChanged": "Status changed to {status}",
+          "statusChangeFailed": "Failed to update status"
+        },
+        "loadFailed": "Failed to load recipes"
       },
       "status": {
         "draft": "Draft",
@@ -1076,16 +1118,17 @@
         "errorPrefix": "[Error] {error}"
       },
       "insightsPanel": {
-        "loadError": "Failed to load analysis recipes.",
         "heading": "Available Analyses",
         "description": "Pre-built analysis recipes you can run against your ontology data.",
-        "emptyApproved": "No approved recipes available yet."
+        "emptyApproved": "No approved recipes available yet.",
+        "toast": {
+          "loadFailed": "Failed to load analysis recipes."
+        }
       }
     },
     "quality": {
       "title": "Quality Rules",
       "description": "Declarative data quality rules evaluated automatically against graph data.",
-      "loadError": "Failed to load quality dashboard",
       "executeAll": "Execute All",
       "executingAll": "Executing...",
       "createRule": "Create Rule",
@@ -1157,15 +1200,18 @@
       "toast": {
         "created": "Rule created",
         "updated": "Rule updated",
-        "createError": "Failed to create rule",
-        "updateError": "Failed to update rule",
         "deleted": "Rule deleted",
-        "deleteError": "Failed to delete rule",
         "executed": "Executed {total} rules: {passed} passed, {failed} failed",
         "executeError": "Failed to execute rule",
         "executeAllError": "Failed to execute rules",
         "rulePassed": "Rule passed ({value}%)",
-        "ruleFailed": "Rule failed ({value}%)"
+        "ruleFailed": "Rule failed ({value}%)",
+        "toast": {
+          "createFailed": "Failed to create rule",
+          "updateFailed": "Failed to update rule",
+          "deleteFailed": "Failed to delete rule"
+        },
+        "loadFailed": "Failed to load quality dashboard"
       },
       "deleteConfirm": {
         "title": "Delete quality rule '{name}'?",
@@ -1204,10 +1250,12 @@
         "untitledSession": "Untitled session",
         "sessionResumed": "Session resumed",
         "resumeFailed": "Failed to resume session",
-        "sessionExpiredToast": "Previous session expired. Starting a new session.",
         "inputDisabledNoOntology": "Load an ontology first",
-        "connectionError": "Connection error: {error}",
-        "rawRowsSummary": "Query returned {count, plural, one {# row} other {# rows}}"
+        "rawRowsSummary": "Query returned {count, plural, one {# row} other {# rows}}",
+        "toast": {
+          "connectionFailed": "Connection error: {error}",
+          "sessionExpired": "Previous session expired. Starting a new session."
+        }
       },
       "execution": {
         "viewAria": "View execution: {question}",
@@ -1236,22 +1284,26 @@
         "removeHelpful": "Remove helpful rating",
         "notHelpful": "Not helpful",
         "removeNotHelpful": "Remove unhelpful rating",
-        "saveError": "Failed to save feedback"
+        "toast": {
+          "saveFailed": "Failed to save feedback"
+        }
       },
       "history": {
         "tabRecent": "Recent",
         "tabPinned": "Pinned",
         "emptyRecent": "No query executions yet",
         "emptyPinned": "No pinned results yet",
-        "loadHistoryError": "Failed to load history",
-        "loadExecutionError": "Failed to load execution",
-        "loadPinsError": "Failed to load pins",
         "unpinFailed": "Failed to unpin",
-        "unpinnedToast": "Unpinned",
         "loadMore": "Load more",
         "untitledPin": "Untitled pin",
         "viewPinnedAria": "View pinned: {title}",
-        "unpinAria": "Unpin"
+        "unpinAria": "Unpin",
+        "toast": {
+          "unpinned": "Unpinned",
+          "loadHistoryFailed": "Failed to load history",
+          "loadExecutionFailed": "Failed to load execution",
+          "loadPinsFailed": "Failed to load pins"
+        }
       },
       "message": {
         "userAria": "User message",
@@ -1293,10 +1345,12 @@
           "description": "This tool requires your approval before execution.",
           "approve": "Approve",
           "reject": "Reject",
-          "approvedToast": "Tool approved",
-          "rejectedToast": "Tool rejected",
-          "approveError": "Failed to approve",
-          "rejectError": "Failed to reject"
+          "toast": {
+            "approved": "Tool approved",
+            "rejected": "Tool rejected",
+            "approveFailed": "Failed to approve",
+            "rejectFailed": "Failed to reject"
+          }
         },
         "error": {
           "attemptedQuery": "Attempted query:",
@@ -1385,7 +1439,6 @@
         "loadingAnalyzing": "Analyzing structure & generating commands...",
         "loadingRefining": "Refining ontology with additional context...",
         "editFailed": "Edit failed",
-        "unknownError": "Unknown error",
         "noChanges": "No changes needed",
         "noChangesFallback": "The ontology already matches your request.",
         "refineConfirmTitle": "Refine Ontology",
@@ -1395,7 +1448,6 @@
         "refineFailed": "Refine failed",
         "uncertainMatchesTitle": "Refine produced uncertain matches",
         "uncertainMatchesDescription": "{count, plural, one {# match needs review} other {# matches need review}}",
-        "appliedToast": "Applied {count, plural, one {# command} other {# commands}}",
         "appliedDescription": "Use Ctrl+Z to undo individual commands",
         "hintPreview": "Select commands to apply, then click Apply",
         "hintEdit": "Enter to preview commands · Esc to close · Surgical edits with undo support",
@@ -1420,7 +1472,11 @@
           "Good node names are singular nouns — Customer, not Customers",
           "Every node should have a description for better query translation",
           "Unique constraints help the AI generate more precise queries"
-        ]
+        ],
+        "toast": {
+          "unknownError": "Unknown error",
+          "applied": "Applied {count, plural, one {# command} other {# commands}}"
+        }
       },
       "commandPreview": {
         "noChangesTitle": "No structural changes needed.",
@@ -1474,10 +1530,12 @@
         "reject": "Reject",
         "applySuccess": "Reconcile decisions applied",
         "applyFailed": "Failed to apply reconcile decisions",
-        "unknownError": "Unknown error",
         "confidenceLow": "LOW",
         "confidenceMedium": "MEDIUM",
-        "confidenceHigh": "HIGH"
+        "confidenceHigh": "HIGH",
+        "toast": {
+          "unknownError": "Unknown error"
+        }
       },
       "versionDiff": {
         "title": "Version diff",
@@ -1513,7 +1571,6 @@
         "empty": "No dashboards yet",
         "emptyHint": "Create a dashboard to save and monitor your queries and analyses.",
         "created": "Dashboard created",
-        "createFailed": "Failed to create dashboard",
         "deleted": "Dashboard deleted",
         "deleteFailed": "Failed to delete dashboard",
         "loadFailed": "Failed to load dashboards",
@@ -1522,7 +1579,10 @@
         "deleteConfirmLabel": "Delete",
         "updated": "Updated {date}",
         "deleteAria": "Delete dashboard",
-        "defaultName": "Dashboard {number}"
+        "defaultName": "Dashboard {number}",
+        "toast": {
+          "createFailed": "Failed to create dashboard"
+        }
       },
       "reconcile": {
         "title": "Refine Report",
@@ -1628,8 +1688,10 @@
         "creating": "Creating...",
         "createSuccess": "Project created",
         "createSuccessDescription": "Status: {status} (rev {revision})",
-        "createFailed": "Failed to create project",
-        "unknownError": "Unknown error"
+        "toast": {
+          "createFailed": "Failed to create project",
+          "unknownError": "Unknown error"
+        }
       },
       "workflow": {
         "stepAnalyze": "Analyze",
@@ -1705,7 +1767,6 @@
         "extendSuccess": "Source added — review column clarifications for new tables",
         "conflictTitle": "Conflict: project was modified elsewhere",
         "conflictDescription": "Reloading latest version.",
-        "unknownError": "Unknown error",
         "savedHeader": "Ontology Saved",
         "savedDescription": "Ontology is finalized and saved. Use Analyze mode to query, or Fork from the project selector to create a new version.",
         "completedDescription": "Project is completed.",
@@ -1753,6 +1814,9 @@
           "reanalyze": "Reanalyze",
           "extend": "Extend",
           "closeProject": "Close Project"
+        },
+        "toast": {
+          "unknownError": "Unknown error"
         }
       },
       "workflowForms": {
@@ -1825,7 +1889,6 @@
         "restoreDescription": "Restore ontology to revision {revision}? The current ontology will be saved as a snapshot before restoring.",
         "restoreConfirmLabel": "Restore",
         "restoreWarning": "warning",
-        "restoredToast": "Restored to revision {revision}",
         "restoreFailed": "Restore failed",
         "noSchemaChanges": "No schema changes between revisions",
         "migrationPreviewFailed": "Migration preview failed",
@@ -1836,7 +1899,10 @@
         "warnings": "Warnings:",
         "executeMigration": "Execute Migration",
         "dismiss": "Dismiss",
-        "diffFailed": "Failed to compute diff"
+        "diffFailed": "Failed to compute diff",
+        "toast": {
+          "restored": "Restored to revision {revision}"
+        }
       },
       "diff": {
         "noChanges": "No Changes",
@@ -2115,12 +2181,14 @@
         "cancel": "Cancel",
         "submit": "Add Widget",
         "submitting": "Adding...",
-        "addedToast": "Widget added",
-        "addFailedToast": "Failed to add widget",
         "templates": {
           "countByType": "Count by type",
           "topNodes": "Top 10 nodes",
           "relationshipDistribution": "Relationship distribution"
+        },
+        "toast": {
+          "addFailed": "Failed to add widget",
+          "added": "Widget added"
         }
       },
       "widget": {
@@ -2145,8 +2213,10 @@
         "directionBelow": "Alert when below threshold",
         "saveButton": "Save Changes",
         "saving": "Saving...",
-        "updatedToast": "Widget updated",
-        "updateFailedToast": "Failed to update: {error}"
+        "toast": {
+          "updated": "Widget updated",
+          "updateFailed": "Failed to update: {error}"
+        }
       }
     }
   }

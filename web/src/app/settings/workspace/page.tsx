@@ -49,7 +49,7 @@ export default function WorkspaceSettingsPage() {
       setEditFallback((ws.locale_fallback ?? ["ko", "en"]).join(","));
       setMembers(mems);
     } catch {
-      toast.error(t("loadError"));
+      toast.error(t("toast.loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -66,9 +66,9 @@ export default function WorkspaceSettingsPage() {
       const updated = await updateWorkspace(wsId, { name: editName.trim() });
       setWorkspace(updated);
       setWorkspaceName(updated.name);
-      toast.success(t("updatedToast"));
+      toast.success(t("toast.updated"));
     } catch {
-      toast.error(t("updateError"));
+      toast.error(t("toast.updateFailed"));
     } finally {
       setSaving(false);
     }
@@ -98,9 +98,9 @@ export default function WorkspaceSettingsPage() {
       setWorkspace(updated);
       setEditPrimaryLocale(updated.primary_locale);
       setEditFallback((updated.locale_fallback ?? []).join(","));
-      toast.success(t("locale.updatedToast"));
+      toast.success(t("locale.toast.updated"));
     } catch {
-      toast.error(t("locale.updateError"));
+      toast.error(t("locale.toast.updateFailed"));
     } finally {
       setSavingLocale(false);
     }

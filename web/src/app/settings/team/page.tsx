@@ -31,7 +31,7 @@ export default function TeamPage() {
       const page = await listUsers({ limit: 100 });
       setUsers(page.items);
     } catch (e) {
-      setError(e instanceof Error ? e.message : t("loadError"));
+      setError(e instanceof Error ? e.message : t("toast.loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -53,7 +53,7 @@ export default function TeamPage() {
         prev.map((u) => (u.id === updated.id ? updated : u)),
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : t("updateRoleError"));
+      setError(e instanceof Error ? e.message : t("toast.updateRoleFailed"));
     } finally {
       setUpdatingId(null);
     }

@@ -98,7 +98,7 @@ function RecentTab() {
       }
       setNextCursor(page.next_cursor);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("loadHistoryError"));
+      toast.error(err instanceof Error ? err.message : t("toast.loadHistoryFailed"));
     } finally {
       setLoading(false);
     }
@@ -130,7 +130,7 @@ function RecentTab() {
                 const full = await getExecution(item.id);
                 setDetail(full);
               } catch (err) {
-                toast.error(err instanceof Error ? err.message : t("loadExecutionError"));
+                toast.error(err instanceof Error ? err.message : t("toast.loadExecutionFailed"));
               }
             }}
           />
@@ -176,7 +176,7 @@ function PinnedTab() {
       }
       setNextCursor(page.next_cursor);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("loadPinsError"));
+      toast.error(err instanceof Error ? err.message : t("toast.loadPinsFailed"));
     } finally {
       setLoading(false);
     }
@@ -190,7 +190,7 @@ function PinnedTab() {
     try {
       await deletePin(id);
       setItems((prev) => prev.filter((p) => p.id !== id));
-      toast.success(t("unpinnedToast"));
+      toast.success(t("toast.unpinned"));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("unpinFailed"));
     }
@@ -219,7 +219,7 @@ function PinnedTab() {
                   setDetail(full);
                 } catch (err) {
                   toast.error(
-                    err instanceof Error ? err.message : t("loadExecutionError"),
+                    err instanceof Error ? err.message : t("toast.loadExecutionFailed"),
                   );
                 }
               }}

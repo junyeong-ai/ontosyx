@@ -188,7 +188,7 @@ export function CommandBar() {
       });
     } catch (err) {
       toast.error(t("editFailed"), {
-        description: err instanceof Error ? err.message : t("unknownError"),
+        description: err instanceof Error ? err.message : t("toast.unknownError"),
       });
       setPhase({ type: "input" });
     }
@@ -207,7 +207,7 @@ export function CommandBar() {
       for (const cmd of accepted) {
         applyCommand(cmd);
       }
-      toast.success(t("appliedToast", { count: accepted.length }), {
+      toast.success(t("toast.applied", { count: accepted.length }), {
         description: t("appliedDescription"),
       });
       setInput("");
@@ -267,7 +267,7 @@ export function CommandBar() {
         });
       } else {
         toast.error(t("refineFailed"), {
-          description: err instanceof Error ? err.message : t("unknownError"),
+          description: err instanceof Error ? err.message : t("toast.unknownError"),
         });
       }
       setPhase({ type: "input" });

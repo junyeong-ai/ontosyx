@@ -293,8 +293,8 @@ export function CreateProjectForm({
         description: t("createSuccessDescription", { status: project.status, revision: project.revision }),
       });
     } catch (err) {
-      toast.error(t("createFailed"), {
-        description: err instanceof Error ? err.message : t("unknownError"),
+      toast.error(t("toast.createFailed"), {
+        description: err instanceof Error ? err.message : t("toast.unknownError"),
       });
     } finally {
       setLoading(false);

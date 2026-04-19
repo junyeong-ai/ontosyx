@@ -107,7 +107,7 @@ export default function QualitySettingsPage() {
       const data = await request<DashboardEntry[]>("/quality/dashboard");
       setDashboard(data);
     } catch {
-      toast.error(t("loadError"));
+      toast.error(t("toast.loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -200,7 +200,7 @@ export default function QualitySettingsPage() {
       cancelForm();
       await load();
     } catch {
-      toast.error(editingId ? t("toast.updateError") : t("toast.createError"));
+      toast.error(editingId ? t("toast.updateFailed") : t("toast.createFailed"));
     } finally {
       setSaving(false);
     }
@@ -221,7 +221,7 @@ export default function QualitySettingsPage() {
       toast.success(t("toast.deleted"));
       await load();
     } catch {
-      toast.error(t("toast.deleteError"));
+      toast.error(t("toast.deleteFailed"));
     } finally {
       setDeletingId(null);
     }

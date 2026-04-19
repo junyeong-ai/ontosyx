@@ -33,7 +33,7 @@ export function DashboardPanel() {
       { name: t("defaultName", { number: dashboards.length + 1 }) },
       {
         onSuccess: () => toast.success(t("created")),
-        onError: () => toast.error(t("createFailed")),
+        onError: () => toast.error(t("toast.createFailed")),
       },
     );
   };

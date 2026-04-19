@@ -52,15 +52,15 @@ function CreateWorkspaceDialogBody({ onClose }: { onClose: () => void }) {
     setSubmitting(true);
     try {
       const ws = await createWorkspace({ name: trimmed, slug: finalSlug });
-      toast.success(t("createdToast"));
+      toast.success(t("toast.created"));
       onClose();
       setWorkspaceId(ws.id);
       setWorkspaceName(ws.name);
       setWorkspaceRole("owner");
       window.location.reload();
     } catch (err) {
-      toast.error(t("createFailed"), {
-        description: err instanceof Error ? err.message : t("unknownError"),
+      toast.error(t("toast.createFailed"), {
+        description: err instanceof Error ? err.message : t("toast.unknownError"),
       });
       setSubmitting(false);
     }

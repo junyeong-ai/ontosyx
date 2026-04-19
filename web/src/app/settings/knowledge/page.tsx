@@ -68,7 +68,7 @@ export default function KnowledgePage() {
   } = useKnowledgeInfinite(filters);
 
   useEffect(() => {
-    if (isError) toast.error(t("loadError"));
+    if (isError) toast.error(t("toast.loadFailed"));
   }, [isError, t]);
 
   const entries = data?.pages.flatMap((p) => p.items) ?? [];
@@ -83,8 +83,8 @@ export default function KnowledgePage() {
       { id, status },
       {
         onSuccess: () =>
-          toast.success(t("statusChanged", { status: statusLabel(status) })),
-        onError: () => toast.error(t("statusError")),
+          toast.success(t("toast.statusChanged", { status: statusLabel(status) })),
+        onError: () => toast.error(t("toast.statusChangeFailed")),
       },
     );
   };
@@ -100,9 +100,9 @@ export default function KnowledgePage() {
     deleteEntry.mutate(id, {
       onSuccess: () => {
         if (expandedId === id) setExpandedId(null);
-        toast.success(t("deletedToast"));
+        toast.success(t("toast.deleted"));
       },
-      onError: () => toast.error(t("deleteError")),
+      onError: () => toast.error(t("toast.deleteFailed")),
     });
   };
 
@@ -136,10 +136,10 @@ export default function KnowledgePage() {
                   const ids = entries.filter((e) => e.status === "stale").map((e) => e.id);
                   try {
                     await bulkReviewKnowledge(ids, "deprecated");
-                    toast.success(t("bulkDeprecated", { count: ids.length }));
+                    toast.success(t("toast.bulkDeprecated", { count: ids.length }));
                     qc.invalidateQueries({ queryKey: knowledgeKeys.lists() });
                   } catch {
-                    toast.error(t("bulkError"));
+                    toast.error(t("toast.bulkFailed"));
                   }
                 }}
                 className="rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600 transition"

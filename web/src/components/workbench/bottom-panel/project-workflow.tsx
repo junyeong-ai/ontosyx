@@ -50,7 +50,7 @@ export function ProjectWorkflow({
       return true;
     }
     toast.error(label, {
-      description: err instanceof Error ? err.message : tActions("unknownError"),
+      description: err instanceof Error ? err.message : tActions("toast.unknownError"),
     });
     return false;
   }

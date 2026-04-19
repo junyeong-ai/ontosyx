@@ -42,7 +42,7 @@ export function InsightsPanel() {
   if (isError) {
     return (
       <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-        {t("loadError")}
+        {t("toast.loadFailed")}
       </div>
     );
   }

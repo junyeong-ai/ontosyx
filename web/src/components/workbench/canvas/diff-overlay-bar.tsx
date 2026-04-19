@@ -90,7 +90,7 @@ export function DiffOverlayBar() {
       toast.success(t("applySuccess"));
     } catch (err) {
       toast.error(t("applyFailed"), {
-        description: err instanceof Error ? err.message : t("unknownError"),
+        description: err instanceof Error ? err.message : t("toast.unknownError"),
       });
     } finally {
       setApplying(false);

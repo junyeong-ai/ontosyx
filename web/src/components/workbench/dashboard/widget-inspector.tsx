@@ -60,11 +60,11 @@ export function WidgetInspector({ widget, dashboardId, onUpdated }: WidgetInspec
         refresh_interval_secs: refreshSecs !== (widget.refresh_interval_secs ?? 0) ? refreshSecs : undefined,
         thresholds: thresholdsChanged ? thresholds : undefined,
       });
-      toast.success(t("updatedToast"));
+      toast.success(t("toast.updated"));
       onUpdated();
     } catch (err) {
       toast.error(
-        t("updateFailedToast", {
+        t("toast.updateFailed", {
           error: err instanceof Error ? err.message : String(err),
         }),
       );

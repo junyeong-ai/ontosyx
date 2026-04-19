@@ -37,8 +37,8 @@ export default function SystemSettingsPage() {
       setConfig(data);
       setEditedValues({});
     } catch (err) {
-      toast.error(t("loadError"), {
-        description: err instanceof Error ? err.message : t("unknownError"),
+      toast.error(t("toast.loadFailed"), {
+        description: err instanceof Error ? err.message : t("toast.unknownError"),
       });
     } finally {
       setLoading(false);
@@ -85,16 +85,16 @@ export default function SystemSettingsPage() {
       if (entry.data_type === "int") {
         const parsed = Number(value);
         if (!Number.isInteger(parsed) || parsed < 0) {
-          toast.error(t("invalidValue", { key }), {
-            description: t("mustBeNonNegativeInt"),
+          toast.error(t("toast.invalidValue", { key }), {
+            description: t("toast.mustBeNonNegativeInt"),
           });
           return;
         }
       } else if (entry.data_type === "float") {
         const parsed = Number(value);
         if (isNaN(parsed)) {
-          toast.error(t("invalidValue", { key }), {
-            description: t("mustBeNumber"),
+          toast.error(t("toast.invalidValue", { key }), {
+            description: t("toast.mustBeNumber"),
           });
           return;
         }
@@ -106,11 +106,11 @@ export default function SystemSettingsPage() {
     setIsSaving(true);
     try {
       await updateConfig({ updates });
-      toast.success(t("updatedToast", { count: updates.length }));
+      toast.success(t("toast.updated", { count: updates.length }));
       await loadConfig();
     } catch (err) {
-      toast.error(t("saveError"), {
-        description: err instanceof Error ? err.message : t("unknownError"),
+      toast.error(t("toast.saveFailed"), {
+        description: err instanceof Error ? err.message : t("toast.unknownError"),
       });
     } finally {
       setIsSaving(false);

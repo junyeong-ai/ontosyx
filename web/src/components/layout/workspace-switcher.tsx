@@ -63,7 +63,7 @@ export function WorkspaceSwitcher() {
   });
 
   useEffect(() => {
-    if (isError) toast.error(t("loadError"));
+    if (isError) toast.error(t("toast.loadFailed"));
   }, [isError, t]);
 
   // Hydrate cached name/role for current workspace when the list arrives.

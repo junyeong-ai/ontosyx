@@ -132,7 +132,7 @@ export function RevisionHistoryPanel({
         setOntology(resp.project.ontology as OntologyIR);
       }
       loadRevisions();
-      toast.success(t("restoredToast", { revision: rev }));
+      toast.success(t("toast.restored", { revision: rev }));
     } catch (err) {
       if (await onApiError(err, t("restoreFailed"))) return;
     } finally {

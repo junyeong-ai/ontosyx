@@ -34,7 +34,7 @@ export default function AuditSettingsPage() {
       );
       setEntries(data.items);
     } catch {
-      toast.error(t("loadError"));
+      toast.error(t("toast.loadFailed"));
     } finally {
       setLoading(false);
     }

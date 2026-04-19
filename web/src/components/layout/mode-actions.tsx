@@ -108,7 +108,7 @@ function DesignActions() {
 
       setActiveProject(null);
       setOntology(imported);
-      toast.success(t("importedToast"), {
+      toast.success(t("toast.imported"), {
         description: t("importedDescription", {
           nodes: imported.node_types.length,
           edges: imported.edge_types.length,

@@ -78,7 +78,7 @@ function DesignSelector() {
   const projects = data?.items ?? [];
 
   useEffect(() => {
-    if (isError) toast.error(t("loadProjectsError"));
+    if (isError) toast.error(t("toast.loadProjectsFailed"));
   }, [isError, t]);
 
   const handleSelect = async (id: string) => {
@@ -94,7 +94,7 @@ function DesignSelector() {
       }
     } catch (err) {
       console.error("Failed to load project:", err);
-      toast.error(t("loadProjectError"));
+      toast.error(t("toast.loadProjectFailed"));
     }
   };
 
@@ -163,10 +163,10 @@ function DesignSelector() {
                         if (forked.ontology) setOntology(forked.ontology as OntologyIR);
                         setDesignBottomTab("workflow");
                         if (!bottomPanelOpen) toggleBottomPanel();
-                        toast.success(t("forkedToast"), { description: t("forkedDescription", { title: p.title ?? t("untitledProject") }) });
+                        toast.success(t("toast.forked"), { description: t("forkedDescription", { title: p.title ?? t("untitledProject") }) });
                       } catch (err) {
-                        toast.error(t("forkFailed"), {
-                          description: err instanceof Error ? err.message : t("unknownError"),
+                        toast.error(t("toast.forkFailed"), {
+                          description: err instanceof Error ? err.message : t("toast.unknownError"),
                         });
                       }
                     }}
@@ -226,7 +226,7 @@ function AnalyzeSelector() {
         <div className={TRIGGER_CLASS}>
           <HugeiconsIcon icon={Message01Icon} className="h-3.5 w-3.5 text-muted-foreground" size="100%" />
           <span className="text-muted-foreground">
-            {error ? t("loadOntologyFailed") : t("noSavedOntology")}
+            {error ? t("toast.loadOntologyFailed") : t("noSavedOntology")}
           </span>
         </div>
         {!error && (
@@ -288,7 +288,7 @@ function ExploreSelector() {
     <div className={TRIGGER_CLASS}>
       <HugeiconsIcon icon={Search01Icon} className="h-3.5 w-3.5" size="100%" />
       <span className="max-w-[280px] truncate">
-        {ontology?.name || (error ? t("loadOntologyFailed") : t("noSavedOntology"))}
+        {ontology?.name || (error ? t("toast.loadOntologyFailed") : t("noSavedOntology"))}
       </span>
     </div>
   );
@@ -314,7 +314,7 @@ function DashboardSelector() {
   const dashboards = data?.items ?? [];
 
   useEffect(() => {
-    if (open && isError) toast.error(t("loadDashboardsError"));
+    if (open && isError) toast.error(t("toast.loadDashboardsFailed"));
   }, [open, isError, t]);
 
   const createMutation = useCreateDashboard();
@@ -336,9 +336,9 @@ function DashboardSelector() {
           setIsCreateOpen(false);
           setNewName("");
           setOpen(false);
-          toast.success(t("dashboardCreatedToast"));
+          toast.success(t("toast.dashboardCreated"));
         },
-        onError: () => toast.error(t("dashboardCreateError")),
+        onError: () => toast.error(t("toast.dashboardCreateFailed")),
       },
     );
   };

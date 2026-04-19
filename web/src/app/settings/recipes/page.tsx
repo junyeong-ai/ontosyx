@@ -61,7 +61,7 @@ export default function RecipesPage() {
   useEffect(() => {
     listRecipes()
       .then((page) => setRecipes(page.items))
-      .catch(() => toast.error(t("loadError")))
+      .catch(() => toast.error(t("toast.loadFailed")))
       .finally(() => setLoading(false));
   }, [t]);
 
@@ -79,7 +79,7 @@ export default function RecipesPage() {
       if (selectedId === id) setSelectedId(null);
       toast.success(t("toast.deleted"));
     } catch {
-      toast.error(t("toast.deleteError"));
+      toast.error(t("toast.deleteFailed"));
     }
   };
 
@@ -100,7 +100,7 @@ export default function RecipesPage() {
         );
         toast.success(t("toast.statusChanged", { status: t(`status.${status}`) }));
       } catch {
-        toast.error(t("toast.statusError"));
+        toast.error(t("toast.statusChangeFailed"));
       }
     },
     [t],
@@ -551,7 +551,7 @@ function RecipeCreateForm({
       reset();
       setIsOpen(false);
     } catch {
-      toast.error(t("toast.createError"));
+      toast.error(t("toast.createFailed"));
     } finally {
       setIsSaving(false);
     }

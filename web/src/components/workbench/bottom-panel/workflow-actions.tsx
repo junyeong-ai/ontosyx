@@ -243,7 +243,7 @@ export function WorkflowActions({
           await deploySchema(project.id, { dry_run: false });
           toast.success(t("completeWithDeploy"));
         } catch (deployErr) {
-          const msg = deployErr instanceof ApiError ? deployErr.message : t("unknownError");
+          const msg = deployErr instanceof ApiError ? deployErr.message : t("toast.unknownError");
           toast.warning(t("deployFailedPartial", { error: msg }));
         }
       } else {

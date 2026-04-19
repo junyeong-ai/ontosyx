@@ -84,7 +84,7 @@ export default function NotificationsSettingsPage() {
       setChannels(ch);
       setLogs(lg);
     } catch {
-      toast.error(t("loadError"));
+      toast.error(t("toast.loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -174,7 +174,7 @@ export default function NotificationsSettingsPage() {
       cancelForm();
       await load();
     } catch {
-      toast.error(editingId ? t("toast.updateError") : t("toast.createError"));
+      toast.error(editingId ? t("toast.updateFailed") : t("toast.createFailed"));
     } finally {
       setSaving(false);
     }
@@ -195,7 +195,7 @@ export default function NotificationsSettingsPage() {
       toast.success(t("toast.deleted"));
       await load();
     } catch {
-      toast.error(t("toast.deleteError"));
+      toast.error(t("toast.deleteFailed"));
     } finally {
       setDeletingId(null);
     }

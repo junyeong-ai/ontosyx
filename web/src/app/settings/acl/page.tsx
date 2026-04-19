@@ -93,7 +93,7 @@ export default function AclSettingsPage() {
       const data = await request<AclPolicy[]>("/acl/policies");
       setPolicies(data);
     } catch {
-      toast.error(t("loadError"));
+      toast.error(t("toast.loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -183,18 +183,18 @@ export default function AclSettingsPage() {
           method: "PATCH",
           body: JSON.stringify(body),
         });
-        toast.success(t("updatedToast"));
+        toast.success(t("toast.updated"));
       } else {
         await request("/acl/policies", {
           method: "POST",
           body: JSON.stringify(body),
         });
-        toast.success(t("createdToast"));
+        toast.success(t("toast.created"));
       }
       cancelForm();
       await load();
     } catch {
-      toast.error(editingId ? t("updateError") : t("createError"));
+      toast.error(editingId ? t("toast.updateFailed") : t("toast.createFailed"));
     } finally {
       setSaving(false);
     }
@@ -212,10 +212,10 @@ export default function AclSettingsPage() {
     setDeletingId(id);
     try {
       await request(`/acl/policies/${id}`, { method: "DELETE" });
-      toast.success(t("deletedToast"));
+      toast.success(t("toast.deleted"));
       await load();
     } catch {
-      toast.error(t("deleteError"));
+      toast.error(t("toast.deleteFailed"));
     } finally {
       setDeletingId(null);
     }

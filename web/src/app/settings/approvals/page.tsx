@@ -35,7 +35,7 @@ export default function ApprovalsSettingsPage() {
       const data = await request<ApprovalRequest[]>("/approvals");
       setApprovals(Array.isArray(data) ? data : []);
     } catch {
-      toast.error(t("loadError"));
+      toast.error(t("toast.loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -49,10 +49,10 @@ export default function ApprovalsSettingsPage() {
         method: "POST",
         body: JSON.stringify({ approved, notes: null }),
       });
-      toast.success(approved ? t("approvedToast") : t("rejectedToast"));
+      toast.success(approved ? t("toast.approved") : t("toast.rejected"));
       load();
     } catch {
-      toast.error(t("reviewError"));
+      toast.error(t("toast.reviewFailed"));
     }
   };
 

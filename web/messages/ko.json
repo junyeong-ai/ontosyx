@@ -74,9 +74,11 @@
     "workspaceSwitcher": {
       "defaultLabel": "워크스페이스",
       "noWorkspaces": "워크스페이스가 없습니다",
-      "loadError": "워크스페이스를 불러오지 못했습니다",
       "newWorkspace": "새 워크스페이스",
-      "workspaceSettings": "워크스페이스 설정"
+      "workspaceSettings": "워크스페이스 설정",
+      "toast": {
+        "loadFailed": "워크스페이스를 불러오지 못했습니다"
+      }
     },
     "contextBadge": {
       "nodesEdges": "{nodes}N · {edges}E",
@@ -85,8 +87,6 @@
     "contextSelector": {
       "newProject": "새 프로젝트",
       "noProjects": "프로젝트가 없습니다",
-      "loadProjectsError": "프로젝트를 불러오지 못했습니다",
-      "loadProjectError": "프로젝트를 불러오지 못했습니다",
       "noProject": "프로젝트 없음",
       "guardSwitchProject": "프로젝트 전환",
       "guardNewProject": "새 프로젝트",
@@ -94,25 +94,29 @@
       "guardImportOntology": "온톨로지 가져오기",
       "forkTitle": "포크 -- 이 온톨로지로 새 프로젝트 생성",
       "forkAria": "프로젝트 포크",
-      "forkedToast": "프로젝트를 포크했습니다",
       "forkedDescription": "출처: {title}",
-      "forkFailed": "포크에 실패했습니다",
-      "unknownError": "알 수 없는 오류",
       "loadingOntology": "온톨로지를 불러오는 중...",
-      "loadOntologyFailed": "온톨로지를 불러오지 못했습니다",
       "noSavedOntology": "저장된 온톨로지가 없습니다",
       "switchToDesign": "설계 모드로 전환",
       "selectDashboard": "대시보드 선택",
       "noDashboards": "대시보드가 없습니다",
-      "loadDashboardsError": "대시보드를 불러오지 못했습니다",
       "newDashboard": "새 대시보드",
       "dashboardNamePlaceholder": "대시보드 이름",
       "cancel": "취소",
       "create": "만들기",
-      "dashboardCreatedToast": "대시보드를 생성했습니다",
-      "dashboardCreateError": "대시보드를 생성하지 못했습니다",
       "publicBadge": "공개",
-      "untitledProject": "제목 없음"
+      "untitledProject": "제목 없음",
+      "toast": {
+        "forkFailed": "포크에 실패했습니다",
+        "unknownError": "알 수 없는 오류",
+        "loadProjectsFailed": "프로젝트를 불러오지 못했습니다",
+        "loadProjectFailed": "프로젝트를 불러오지 못했습니다",
+        "loadDashboardsFailed": "대시보드를 불러오지 못했습니다",
+        "loadOntologyFailed": "온톨로지를 불러오지 못했습니다",
+        "dashboardCreated": "대시보드를 생성했습니다",
+        "dashboardCreateFailed": "대시보드를 생성하지 못했습니다",
+        "forked": "프로젝트를 포크했습니다"
+      }
     },
     "modeActions": {
       "importTooltip": "온톨로지 가져오기 (JSON, OWL/Turtle)",
@@ -126,7 +130,6 @@
       "auditFailed": "감사에 실패했습니다",
       "importInvalid": "잘못된 온톨로지: node_types/edge_types가 없습니다",
       "importWarning": "가져오기가 경고와 함께 완료되었습니다",
-      "importedToast": "온톨로지를 가져왔습니다",
       "importedDescription": "{nodes}N, {edges}E",
       "importFailed": "가져오기에 실패했습니다",
       "exportJson": "JSON",
@@ -136,7 +139,10 @@
       "exportOwl": "OWL/Turtle",
       "exportShacl": "SHACL Shapes",
       "exportTypescript": "TypeScript 타입",
-      "exportPython": "Python 데이터클래스"
+      "exportPython": "Python 데이터클래스",
+      "toast": {
+        "imported": "온톨로지를 가져왔습니다"
+      }
     }
   },
   "widget": {
@@ -166,8 +172,8 @@
     },
     "errorBoundary": {
       "title": "위젯 렌더링에 실패했습니다",
-      "unknownError": "알 수 없는 오류",
-      "retry": "다시 시도"
+      "retry": "다시 시도",
+      "unknownError": "알 수 없는 오류"
     },
     "table": {
       "rowsAndColumns": "{rows}행 · {columns}열",
@@ -283,9 +289,6 @@
     "cancel": "취소",
     "create": "만들기",
     "creating": "생성 중...",
-    "createdToast": "워크스페이스를 생성했습니다",
-    "createFailed": "워크스페이스 생성에 실패했습니다",
-    "unknownError": "알 수 없는 오류",
     "members": {
       "heading": "멤버",
       "add": "멤버 추가",
@@ -312,6 +315,11 @@
         "memberAddError": "멤버 추가에 실패했습니다",
         "loadUsersError": "사용자를 불러오지 못했습니다"
       }
+    },
+    "toast": {
+      "created": "워크스페이스를 생성했습니다",
+      "createFailed": "워크스페이스 생성에 실패했습니다",
+      "unknownError": "알 수 없는 오류"
     }
   },
   "settings": {
@@ -386,7 +394,6 @@
     "audit": {
       "title": "감사 로그",
       "description": "사용자 동작, 리소스 변경, 시스템 이벤트를 추적합니다.",
-      "loadError": "감사 로그를 불러오지 못했습니다",
       "empty": "선택한 기간에 감사 기록이 없습니다",
       "column": {
         "action": "동작",
@@ -395,12 +402,14 @@
         "user": "사용자",
         "date": "일시"
       },
-      "systemUser": "system"
+      "systemUser": "system",
+      "toast": {
+        "loadFailed": "감사 로그를 불러오지 못했습니다"
+      }
     },
     "usage": {
       "title": "사용량 및 과금",
       "description": "LLM 토큰 사용량, 컴퓨트 비용, 요청량.",
-      "loadError": "사용량 데이터를 불러오지 못했습니다",
       "empty": "선택한 기간에 사용 데이터가 없습니다",
       "summary": {
         "totalTokens": "총 토큰",
@@ -413,12 +422,14 @@
         "outputTokens": "출력 토큰",
         "requests": "요청",
         "cost": "비용"
+      },
+      "toast": {
+        "loadFailed": "사용량 데이터를 불러오지 못했습니다"
       }
     },
     "providers": {
       "title": "제공자",
       "description": "제공자 설정은 {configFile} 및 환경 변수로 관리됩니다.",
-      "loadError": "불러오지 못했습니다",
       "serviceStatus": "서비스 상태",
       "llm": {
         "title": "LLM 제공자",
@@ -439,18 +450,15 @@
         "degraded": "성능 저하",
         "unavailable": "사용 불가",
         "connected": "연결됨"
+      },
+      "toast": {
+        "loadFailed": "불러오지 못했습니다"
       }
     },
     "schedules": {
       "title": "예약된 작업",
       "description": "반복 분석 작업을 관리합니다. 작업은 cron 일정에 따라 레시피를 실행합니다.",
-      "loadError": "예약된 작업을 불러오지 못했습니다",
       "empty": "예약된 작업이 없습니다. 레시피 페이지에서 레시피를 예약하면 이곳에 표시됩니다.",
-      "enabledToast": "작업 활성화됨",
-      "disabledToast": "작업 일시 중지됨",
-      "updateError": "작업을 업데이트하지 못했습니다",
-      "deleteError": "작업을 삭제하지 못했습니다",
-      "deletedToast": "작업 삭제됨",
       "deleteConfirm": {
         "title": "예약된 작업 '{name}'을(를) 삭제하시겠습니까?",
         "description": "이 작업은 되돌릴 수 없으며, 예약된 작업이 영구적으로 제거됩니다."
@@ -464,15 +472,19 @@
         "lastRun": "마지막 실행",
         "nextRun": "다음 실행",
         "enabled": "활성"
+      },
+      "toast": {
+        "loadFailed": "예약된 작업을 불러오지 못했습니다",
+        "enabled": "작업 활성화됨",
+        "disabled": "작업 일시 중지됨",
+        "updateFailed": "작업을 업데이트하지 못했습니다",
+        "deleteFailed": "작업을 삭제하지 못했습니다",
+        "deleted": "작업 삭제됨"
       }
     },
     "approvals": {
       "title": "승인 대기열",
       "description": "스키마 배포 및 기타 승인 대상 작업을 검토·승인합니다.",
-      "loadError": "승인 목록을 불러오지 못했습니다",
-      "reviewError": "승인 처리에 실패했습니다",
-      "approvedToast": "승인됨",
-      "rejectedToast": "거절됨",
       "approve": "승인",
       "reject": "거절",
       "pendingHeading": "대기 중 ({count})",
@@ -490,6 +502,12 @@
         "approved": "승인",
         "rejected": "거절",
         "expired": "만료"
+      },
+      "toast": {
+        "loadFailed": "승인 목록을 불러오지 못했습니다",
+        "reviewFailed": "승인 처리에 실패했습니다",
+        "approved": "승인됨",
+        "rejected": "거절됨"
       }
     },
     "acl": {
@@ -507,13 +525,6 @@
       "editPolicyHeading": "정책 편집",
       "allProperties": "전체",
       "required": "필수",
-      "loadError": "ACL 정책을 불러오지 못했습니다",
-      "createdToast": "정책이 생성되었습니다",
-      "updatedToast": "정책이 수정되었습니다",
-      "deletedToast": "정책이 삭제되었습니다",
-      "createError": "정책 생성에 실패했습니다",
-      "updateError": "정책 수정에 실패했습니다",
-      "deleteError": "정책 삭제에 실패했습니다",
       "deleteConfirmTitle": "ACL 정책 '{name}'을(를) 삭제하시겠습니까?",
       "deleteConfirmDescription": "이 작업은 되돌릴 수 없으며 접근 제어 정책이 영구적으로 제거됩니다.",
       "column": {
@@ -565,7 +576,16 @@
         "deny": "DENY",
         "allow": "ALLOW"
       },
-      "empty": "등록된 ACL 정책이 없습니다"
+      "empty": "등록된 ACL 정책이 없습니다",
+      "toast": {
+        "loadFailed": "ACL 정책을 불러오지 못했습니다",
+        "created": "정책이 생성되었습니다",
+        "updated": "정책이 수정되었습니다",
+        "deleted": "정책이 삭제되었습니다",
+        "createFailed": "정책 생성에 실패했습니다",
+        "updateFailed": "정책 수정에 실패했습니다",
+        "deleteFailed": "정책 삭제에 실패했습니다"
+      }
     },
     "team": {
       "title": "팀",
@@ -573,8 +593,6 @@
       "authRequired": "인증이 활성화된 경우 팀 관리를 사용할 수 있습니다.",
       "rolesHeading": "역할",
       "membersHeading": "구성원",
-      "loadError": "사용자를 불러오지 못했습니다",
-      "updateRoleError": "역할을 업데이트하지 못했습니다",
       "changeRoleAria": "{name} 역할 변경",
       "roleSelectLabel": "역할",
       "you": "나",
@@ -591,21 +609,18 @@
       "addingMembers": {
         "heading": "구성원 추가",
         "description": "사용자는 SSO 첫 로그인 시 자동으로 추가됩니다. 팀 구성원에게 플랫폼 URL을 공유하고 Google 계정으로 로그인하도록 안내하세요."
+      },
+      "toast": {
+        "loadFailed": "사용자를 불러오지 못했습니다",
+        "updateRoleFailed": "역할을 업데이트하지 못했습니다"
       }
     },
     "knowledge": {
       "title": "지식 베이스",
       "description": "쿼리 실패로부터 학습된 보정 및 관리자가 작성한 힌트.",
       "adminOnly": "관리자 권한이 필요합니다.",
-      "loadError": "지식 항목을 불러오지 못했습니다",
-      "statusChanged": "상태가 {status}(으)로 변경되었습니다",
-      "statusError": "상태를 업데이트하지 못했습니다",
       "deleteConfirmTitle": "지식 항목 '{title}'을(를) 삭제하시겠습니까?",
       "deleteConfirmDescription": "이 작업은 되돌릴 수 없으며 지식 항목이 영구적으로 제거됩니다.",
-      "deletedToast": "삭제됨",
-      "deleteError": "삭제에 실패했습니다",
-      "bulkDeprecated": "{count}개 폐기됨",
-      "bulkError": "실패",
       "reviewStale": "오래된 {count}건 검토",
       "statusFilterLabel": "상태 필터",
       "kindFilterLabel": "유형 필터",
@@ -634,18 +649,20 @@
         "draft": "초안",
         "stale": "오래됨",
         "deprecated": "폐기"
+      },
+      "toast": {
+        "loadFailed": "지식 항목을 불러오지 못했습니다",
+        "statusChanged": "상태가 {status}(으)로 변경되었습니다",
+        "statusChangeFailed": "상태를 업데이트하지 못했습니다",
+        "deleted": "삭제됨",
+        "deleteFailed": "삭제에 실패했습니다",
+        "bulkDeprecated": "{count}개 폐기됨",
+        "bulkFailed": "실패"
       }
     },
     "system": {
       "title": "시스템 설정",
       "description": "데이터베이스에 저장되는 런타임 조정 가능 설정.",
-      "loadError": "설정을 불러오지 못했습니다",
-      "unknownError": "알 수 없는 오류",
-      "invalidValue": "{key}의 값이 잘못되었습니다",
-      "mustBeNonNegativeInt": "0 이상의 정수여야 합니다",
-      "mustBeNumber": "유효한 숫자여야 합니다",
-      "updatedToast": "{count}개 설정 업데이트됨",
-      "saveError": "설정을 저장하지 못했습니다",
       "modified": "변경됨",
       "unsavedChanges": "{count}개 미저장 변경",
       "discard": "취소",
@@ -676,13 +693,21 @@
           "label": "수명 주기",
           "description": "WIP 프로젝트 보관 및 정리 설정"
         }
+      },
+      "toast": {
+        "loadFailed": "설정을 불러오지 못했습니다",
+        "unknownError": "알 수 없는 오류",
+        "invalidValue": "{key}의 값이 잘못되었습니다",
+        "mustBeNonNegativeInt": "0 이상의 정수여야 합니다",
+        "mustBeNumber": "유효한 숫자여야 합니다",
+        "updated": "{count}개 설정 업데이트됨",
+        "saveFailed": "설정을 저장하지 못했습니다"
       }
     },
     "prompts": {
       "title": "프롬프트 템플릿",
       "description": "버전 관리된 프롬프트 템플릿을 관리합니다. 변경사항은 다음 에이전트 세션부터 적용됩니다.",
       "adminOnly": "프롬프트 관리에는 관리자 권한이 필요합니다.",
-      "loadError": "프롬프트를 불러오지 못했습니다",
       "searchPlaceholder": "프롬프트 검색…",
       "searchLabel": "프롬프트 검색",
       "statusFilterLabel": "상태 필터",
@@ -701,23 +726,22 @@
       "delete": "삭제",
       "save": "저장",
       "saving": "저장 중…",
-      "updatedToast": "프롬프트가 업데이트되었습니다",
-      "saveError": "저장 실패",
       "deleteConfirmTitle": "v{version} 버전을 삭제하시겠습니까?",
       "deleteConfirmDescription": "\"{name}\"의 v{version} 버전이 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다.",
       "deleteConfirmLabel": "삭제",
-      "deletedToast": "v{version} 버전이 삭제되었습니다",
-      "deleteError": "삭제 실패",
-      "versionCreatedToast": "v{version} 버전이 생성되었습니다",
-      "versionCreateError": "버전 생성에 실패했습니다"
+      "toast": {
+        "loadFailed": "프롬프트를 불러오지 못했습니다",
+        "updated": "프롬프트가 업데이트되었습니다",
+        "saveFailed": "저장 실패",
+        "deleted": "v{version} 버전이 삭제되었습니다",
+        "deleteFailed": "삭제 실패",
+        "versionCreated": "v{version} 버전이 생성되었습니다",
+        "versionCreateFailed": "버전 생성에 실패했습니다"
+      }
     },
     "sessions": {
       "title": "에이전트 세션",
       "description": "이벤트 리플레이가 포함된 에이전트 실행 감사 기록.",
-      "loadError": "세션을 불러오지 못했습니다",
-      "loadMoreError": "추가 세션을 불러오지 못했습니다",
-      "eventsError": "이벤트를 불러오지 못했습니다",
-      "messagesError": "메시지를 불러오지 못했습니다",
       "stats": {
         "total": "총 세션",
         "completed": "완료",
@@ -737,20 +761,25 @@
       "deleteConfirmTitle": "세션 삭제",
       "deleteConfirmDescription": "세션과 모든 이벤트가 영구적으로 삭제됩니다. 되돌릴 수 없습니다.",
       "deleteConfirmLabel": "삭제",
-      "deletedToast": "세션이 삭제되었습니다",
-      "deleteError": "세션 삭제에 실패했습니다",
       "detailHeading": "세션 상세",
       "viewConversation": "대화",
       "viewEvents": "이벤트",
       "hashLine": "prompt_hash: {prompt}… · tool_hash: {tool}…",
       "noMessages": "메시지가 없습니다.",
       "roleUser": "사용자",
-      "roleAssistant": "어시스턴트"
+      "roleAssistant": "어시스턴트",
+      "toast": {
+        "loadFailed": "세션을 불러오지 못했습니다",
+        "loadMoreFailed": "추가 세션을 불러오지 못했습니다",
+        "eventsLoadFailed": "이벤트를 불러오지 못했습니다",
+        "messagesLoadFailed": "메시지를 불러오지 못했습니다",
+        "deleted": "세션이 삭제되었습니다",
+        "deleteFailed": "세션 삭제에 실패했습니다"
+      }
     },
     "lineage": {
       "title": "데이터 리니지",
       "description": "소스 데이터가 지식 그래프로 어떻게 흐르는지 추적합니다.",
-      "loadError": "리니지 데이터를 불러오지 못했습니다",
       "summary": {
         "labels": "그래프 라벨",
         "sources": "소스 테이블",
@@ -777,12 +806,14 @@
         "running": "실행 중",
         "failed": "실패",
         "partial": "부분 완료"
+      },
+      "toast": {
+        "loadFailed": "리니지 데이터를 불러오지 못했습니다"
       }
     },
     "notifications": {
       "title": "알림 설정",
       "description": "품질 규칙이 평가될 때 알림을 받을 웹훅 채널을 구성합니다.",
-      "loadError": "알림 설정을 불러오지 못했습니다",
       "addChannel": "채널 추가",
       "channelsHeading": "채널",
       "recentHeading": "최근 알림",
@@ -845,17 +876,20 @@
       "toast": {
         "created": "채널이 생성되었습니다",
         "updated": "채널이 업데이트되었습니다",
-        "createError": "채널 생성에 실패했습니다",
-        "updateError": "채널 업데이트에 실패했습니다",
         "deleted": "채널이 삭제되었습니다",
-        "deleteError": "채널 삭제에 실패했습니다",
         "enabled": "채널이 활성화되었습니다",
         "disabled": "채널이 비활성화되었습니다",
         "toggleError": "채널 전환에 실패했습니다",
         "testSuccess": "테스트 알림이 전송되었습니다",
         "testFailed": "테스트 실패: {error}",
         "testError": "테스트 알림 전송에 실패했습니다",
-        "unknownError": "알 수 없는 오류"
+        "toast": {
+          "createFailed": "채널 생성에 실패했습니다",
+          "updateFailed": "채널 업데이트에 실패했습니다",
+          "deleteFailed": "채널 삭제에 실패했습니다",
+          "unknownError": "알 수 없는 오류"
+        },
+        "loadFailed": "알림 설정을 불러오지 못했습니다"
       },
       "deleteConfirm": {
         "title": "알림 채널 '{name}'을(를) 삭제하시겠습니까?",
@@ -869,9 +903,6 @@
       "save": "저장",
       "saving": "저장 중…",
       "noWorkspace": "선택된 워크스페이스가 없습니다. 먼저 워크스페이스를 전환하세요.",
-      "loadError": "워크스페이스를 불러오지 못했습니다",
-      "updateError": "워크스페이스를 업데이트하지 못했습니다",
-      "updatedToast": "워크스페이스가 업데이트되었습니다",
       "general": {
         "heading": "일반",
         "name": "이름",
@@ -882,20 +913,25 @@
         "heading": "로캘",
         "save": "로캘 저장",
         "saving": "저장 중…",
-        "updatedToast": "로캘이 업데이트되었습니다",
-        "updateError": "로캘을 업데이트하지 못했습니다",
         "description": "기본 로캘은 UI 및 LLM 기본 언어를 결정합니다. 폴백 체인은 요청된 로캘이 없을 때 순서대로 사용됩니다. 둘 다 BCP 47 태그여야 합니다 (예: <k>ko</k>, <k>en-us</k>, <k>zh-hant</k>).",
         "primary": "기본 로캘",
         "primaryInvalid": "잘못된 BCP 47 태그입니다. 소문자와 숫자를 하이픈으로 구분하여 사용하세요 (기본 2–3자, 선택적 하위 태그 2–8자).",
         "fallback": "폴백 체인 (쉼표로 구분)",
-        "fallbackInvalid": "모든 항목이 유효한 BCP 47 태그여야 하며 목록은 비어 있을 수 없습니다."
+        "fallbackInvalid": "모든 항목이 유효한 BCP 47 태그여야 하며 목록은 비어 있을 수 없습니다.",
+        "toast": {
+          "updated": "로캘이 업데이트되었습니다",
+          "updateFailed": "로캘을 업데이트하지 못했습니다"
+        }
+      },
+      "toast": {
+        "loadFailed": "워크스페이스를 불러오지 못했습니다",
+        "updateFailed": "워크스페이스를 업데이트하지 못했습니다",
+        "updated": "워크스페이스가 업데이트되었습니다"
       }
     },
     "reports": {
       "title": "저장된 리포트",
       "description": "필요할 때 실행할 수 있는 매개변수화된 쿼리 템플릿입니다.",
-      "loadOntologiesError": "온톨로지를 불러오지 못했습니다",
-      "loadError": "리포트를 불러오지 못했습니다",
       "ontologyLabel": "온톨로지",
       "ontologyFilterLabel": "온톨로지 필터",
       "ontologyOption": "{name} (v{version})",
@@ -913,10 +949,14 @@
         "created": "리포트가 생성되었습니다",
         "updated": "리포트가 업데이트되었습니다",
         "deleted": "리포트가 삭제되었습니다",
-        "deleteError": "삭제에 실패했습니다",
-        "updateError": "업데이트에 실패했습니다",
-        "createError": "리포트 생성에 실패했습니다",
-        "executeError": "실행에 실패했습니다"
+        "executeError": "실행에 실패했습니다",
+        "toast": {
+          "deleteFailed": "삭제에 실패했습니다",
+          "updateFailed": "업데이트에 실패했습니다",
+          "createFailed": "리포트 생성에 실패했습니다"
+        },
+        "loadFailed": "리포트를 불러오지 못했습니다",
+        "loadOntologiesFailed": "온톨로지를 불러오지 못했습니다"
       },
       "deleteConfirm": {
         "title": "리포트 '{name}'을(를) 삭제하시겠습니까?",
@@ -984,7 +1024,6 @@
     "recipes": {
       "title": "분석 레시피",
       "description": "재사용 가능한 데이터 분석 알고리즘입니다. 에이전트가 커스텀 코드를 작성하기 전에 레시피를 먼저 검색합니다.",
-      "loadError": "레시피를 불러오지 못했습니다",
       "searchPlaceholder": "이름 또는 설명으로 검색…",
       "newRecipe": "새 레시피",
       "emptyAll": "아직 레시피가 없습니다. 분석 결과가 유용할 때 에이전트가 자동으로 레시피를 생성합니다.",
@@ -996,11 +1035,14 @@
       "toast": {
         "created": "레시피가 생성되었습니다",
         "deleted": "레시피가 삭제되었습니다",
-        "deleteError": "삭제에 실패했습니다",
-        "createError": "레시피 생성에 실패했습니다",
-        "statusChanged": "상태가 {status}(으)로 변경되었습니다",
-        "statusError": "상태를 업데이트하지 못했습니다",
-        "versionsError": "버전 이력을 불러오지 못했습니다"
+        "versionsError": "버전 이력을 불러오지 못했습니다",
+        "toast": {
+          "deleteFailed": "삭제에 실패했습니다",
+          "createFailed": "레시피 생성에 실패했습니다",
+          "statusChanged": "상태가 {status}(으)로 변경되었습니다",
+          "statusChangeFailed": "상태를 업데이트하지 못했습니다"
+        },
+        "loadFailed": "레시피를 불러오지 못했습니다"
       },
       "status": {
         "draft": "초안",
@@ -1076,16 +1118,17 @@
         "errorPrefix": "[오류] {error}"
       },
       "insightsPanel": {
-        "loadError": "분석 레시피를 불러오지 못했습니다.",
         "heading": "사용 가능한 분석",
         "description": "온톨로지 데이터에 바로 실행할 수 있는 사전 정의 분석 레시피입니다.",
-        "emptyApproved": "승인된 레시피가 아직 없습니다."
+        "emptyApproved": "승인된 레시피가 아직 없습니다.",
+        "toast": {
+          "loadFailed": "분석 레시피를 불러오지 못했습니다."
+        }
       }
     },
     "quality": {
       "title": "품질 규칙",
       "description": "그래프 데이터에 자동으로 평가되는 선언적 데이터 품질 규칙입니다.",
-      "loadError": "품질 대시보드를 불러오지 못했습니다",
       "executeAll": "전체 실행",
       "executingAll": "실행 중…",
       "createRule": "규칙 만들기",
@@ -1157,15 +1200,18 @@
       "toast": {
         "created": "규칙이 생성되었습니다",
         "updated": "규칙이 수정되었습니다",
-        "createError": "규칙 생성에 실패했습니다",
-        "updateError": "규칙 수정에 실패했습니다",
         "deleted": "규칙이 삭제되었습니다",
-        "deleteError": "규칙 삭제에 실패했습니다",
         "executed": "{total}개 규칙 실행: {passed}건 통과, {failed}건 실패",
         "executeError": "규칙 실행에 실패했습니다",
         "executeAllError": "규칙 실행에 실패했습니다",
         "rulePassed": "규칙 통과 ({value}%)",
-        "ruleFailed": "규칙 실패 ({value}%)"
+        "ruleFailed": "규칙 실패 ({value}%)",
+        "toast": {
+          "createFailed": "규칙 생성에 실패했습니다",
+          "updateFailed": "규칙 수정에 실패했습니다",
+          "deleteFailed": "규칙 삭제에 실패했습니다"
+        },
+        "loadFailed": "품질 대시보드를 불러오지 못했습니다"
       },
       "deleteConfirm": {
         "title": "품질 규칙 '{name}'을(를) 삭제하시겠습니까?",
@@ -1204,10 +1250,12 @@
         "untitledSession": "제목 없는 세션",
         "sessionResumed": "세션이 재개되었습니다",
         "resumeFailed": "세션을 재개하지 못했습니다",
-        "sessionExpiredToast": "이전 세션이 만료되어 새 세션으로 시작합니다.",
         "inputDisabledNoOntology": "먼저 온톨로지를 불러오세요",
-        "connectionError": "연결 오류: {error}",
-        "rawRowsSummary": "쿼리가 {count}행을 반환했습니다"
+        "rawRowsSummary": "쿼리가 {count}행을 반환했습니다",
+        "toast": {
+          "connectionFailed": "연결 오류: {error}",
+          "sessionExpired": "이전 세션이 만료되어 새 세션으로 시작합니다."
+        }
       },
       "execution": {
         "viewAria": "실행 보기: {question}",
@@ -1236,22 +1284,26 @@
         "removeHelpful": "도움됨 평가 취소",
         "notHelpful": "도움 안 됨",
         "removeNotHelpful": "도움 안 됨 평가 취소",
-        "saveError": "피드백 저장에 실패했습니다"
+        "toast": {
+          "saveFailed": "피드백 저장에 실패했습니다"
+        }
       },
       "history": {
         "tabRecent": "최근",
         "tabPinned": "고정됨",
         "emptyRecent": "아직 쿼리 실행 기록이 없습니다",
         "emptyPinned": "고정된 결과가 없습니다",
-        "loadHistoryError": "이력을 불러오지 못했습니다",
-        "loadExecutionError": "실행을 불러오지 못했습니다",
-        "loadPinsError": "고정 목록을 불러오지 못했습니다",
         "unpinFailed": "고정 해제에 실패했습니다",
-        "unpinnedToast": "고정 해제됨",
         "loadMore": "더 보기",
         "untitledPin": "제목 없는 고정",
         "viewPinnedAria": "고정 항목 보기: {title}",
-        "unpinAria": "고정 해제"
+        "unpinAria": "고정 해제",
+        "toast": {
+          "unpinned": "고정 해제됨",
+          "loadHistoryFailed": "이력을 불러오지 못했습니다",
+          "loadExecutionFailed": "실행을 불러오지 못했습니다",
+          "loadPinsFailed": "고정 목록을 불러오지 못했습니다"
+        }
       },
       "message": {
         "userAria": "사용자 메시지",
@@ -1293,10 +1345,12 @@
           "description": "이 도구는 실행 전 승인이 필요합니다.",
           "approve": "승인",
           "reject": "거절",
-          "approvedToast": "도구가 승인되었습니다",
-          "rejectedToast": "도구가 거절되었습니다",
-          "approveError": "승인에 실패했습니다",
-          "rejectError": "거절에 실패했습니다"
+          "toast": {
+            "approved": "도구가 승인되었습니다",
+            "rejected": "도구가 거절되었습니다",
+            "approveFailed": "승인에 실패했습니다",
+            "rejectFailed": "거절에 실패했습니다"
+          }
         },
         "error": {
           "attemptedQuery": "시도한 쿼리:",
@@ -1385,7 +1439,6 @@
         "loadingAnalyzing": "구조 분석 및 명령 생성 중...",
         "loadingRefining": "추가 컨텍스트로 온톨로지 리파인 중...",
         "editFailed": "편집에 실패했습니다",
-        "unknownError": "알 수 없는 오류",
         "noChanges": "변경할 내용이 없습니다",
         "noChangesFallback": "온톨로지가 이미 요청 내용과 일치합니다.",
         "refineConfirmTitle": "온톨로지 리파인",
@@ -1395,7 +1448,6 @@
         "refineFailed": "리파인에 실패했습니다",
         "uncertainMatchesTitle": "리파인 결과에 불확실한 매치가 있습니다",
         "uncertainMatchesDescription": "검토가 필요한 매치 {count}건",
-        "appliedToast": "명령 {count}개를 적용했습니다",
         "appliedDescription": "개별 명령 실행 취소는 Ctrl+Z",
         "hintPreview": "적용할 명령을 선택한 뒤 적용을 눌러주세요",
         "hintEdit": "Enter로 명령 미리보기 · Esc로 닫기 · 실행 취소 지원",
@@ -1420,7 +1472,11 @@
           "좋은 노드 이름은 단수 명사 — Customers가 아닌 Customer",
           "모든 노드에 설명이 있으면 쿼리 변환 품질이 좋아집니다",
           "유니크 제약은 AI가 더 정확한 쿼리를 생성하도록 도와줍니다"
-        ]
+        ],
+        "toast": {
+          "unknownError": "알 수 없는 오류",
+          "applied": "명령 {count}개를 적용했습니다"
+        }
       },
       "commandPreview": {
         "noChangesTitle": "구조 변경이 필요 없습니다.",
@@ -1474,10 +1530,12 @@
         "reject": "거부",
         "applySuccess": "리콘사일 결정을 적용했습니다",
         "applyFailed": "리콘사일 결정 적용에 실패했습니다",
-        "unknownError": "알 수 없는 오류",
         "confidenceLow": "낮음",
         "confidenceMedium": "보통",
-        "confidenceHigh": "높음"
+        "confidenceHigh": "높음",
+        "toast": {
+          "unknownError": "알 수 없는 오류"
+        }
       },
       "versionDiff": {
         "title": "버전 차이",
@@ -1513,7 +1571,6 @@
         "empty": "대시보드가 없습니다",
         "emptyHint": "대시보드를 만들어 쿼리와 분석 결과를 저장하고 모니터링하세요.",
         "created": "대시보드를 생성했습니다",
-        "createFailed": "대시보드 생성에 실패했습니다",
         "deleted": "대시보드를 삭제했습니다",
         "deleteFailed": "대시보드 삭제에 실패했습니다",
         "loadFailed": "대시보드를 불러오지 못했습니다",
@@ -1522,7 +1579,10 @@
         "deleteConfirmLabel": "삭제",
         "updated": "{date} 업데이트",
         "deleteAria": "대시보드 삭제",
-        "defaultName": "대시보드 {number}"
+        "defaultName": "대시보드 {number}",
+        "toast": {
+          "createFailed": "대시보드 생성에 실패했습니다"
+        }
       },
       "reconcile": {
         "title": "리파인 보고서",
@@ -1628,8 +1688,10 @@
         "creating": "생성 중...",
         "createSuccess": "프로젝트를 생성했습니다",
         "createSuccessDescription": "상태: {status} (rev {revision})",
-        "createFailed": "프로젝트 생성에 실패했습니다",
-        "unknownError": "알 수 없는 오류"
+        "toast": {
+          "createFailed": "프로젝트 생성에 실패했습니다",
+          "unknownError": "알 수 없는 오류"
+        }
       },
       "workflow": {
         "stepAnalyze": "분석",
@@ -1705,7 +1767,6 @@
         "extendSuccess": "소스를 추가했습니다 — 새 테이블의 열 명확화를 검토하세요",
         "conflictTitle": "충돌: 프로젝트가 다른 곳에서 수정되었습니다",
         "conflictDescription": "최신 버전을 다시 불러옵니다.",
-        "unknownError": "알 수 없는 오류",
         "savedHeader": "온톨로지 저장 완료",
         "savedDescription": "온톨로지를 완료하고 저장했습니다. 분석 모드로 질의하거나, 프로젝트 선택기에서 포크해 새 버전을 만들 수 있습니다.",
         "completedDescription": "프로젝트가 완료되었습니다.",
@@ -1753,6 +1814,9 @@
           "reanalyze": "재분석",
           "extend": "확장",
           "closeProject": "프로젝트 닫기"
+        },
+        "toast": {
+          "unknownError": "알 수 없는 오류"
         }
       },
       "workflowForms": {
@@ -1825,7 +1889,6 @@
         "restoreDescription": "리비전 {revision}으로 복원할까요? 복원 전에 현재 온톨로지가 스냅샷으로 저장됩니다.",
         "restoreConfirmLabel": "복원",
         "restoreWarning": "warning",
-        "restoredToast": "리비전 {revision}으로 복원했습니다",
         "restoreFailed": "복원에 실패했습니다",
         "noSchemaChanges": "리비전 간 스키마 변경 사항이 없습니다",
         "migrationPreviewFailed": "마이그레이션 미리보기에 실패했습니다",
@@ -1836,7 +1899,10 @@
         "warnings": "경고:",
         "executeMigration": "마이그레이션 실행",
         "dismiss": "닫기",
-        "diffFailed": "차이를 계산하지 못했습니다"
+        "diffFailed": "차이를 계산하지 못했습니다",
+        "toast": {
+          "restored": "리비전 {revision}으로 복원했습니다"
+        }
       },
       "diff": {
         "noChanges": "변경 없음",
@@ -2115,12 +2181,14 @@
         "cancel": "취소",
         "submit": "위젯 추가",
         "submitting": "추가 중...",
-        "addedToast": "위젯을 추가했습니다",
-        "addFailedToast": "위젯 추가에 실패했습니다",
         "templates": {
           "countByType": "종류별 개수",
           "topNodes": "상위 노드 10개",
           "relationshipDistribution": "관계 분포"
+        },
+        "toast": {
+          "addFailed": "위젯 추가에 실패했습니다",
+          "added": "위젯을 추가했습니다"
         }
       },
       "widget": {
@@ -2145,8 +2213,10 @@
         "directionBelow": "임계값 미만 시 알림",
         "saveButton": "변경 사항 저장",
         "saving": "저장 중...",
-        "updatedToast": "위젯을 수정했습니다",
-        "updateFailedToast": "수정 실패: {error}"
+        "toast": {
+          "updated": "위젯을 수정했습니다",
+          "updateFailed": "수정 실패: {error}"
+        }
       }
     }
   }

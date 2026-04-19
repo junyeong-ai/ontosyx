@@ -34,7 +34,7 @@ export function FeedbackButtons({ executionId }: FeedbackButtonsProps) {
       await setQueryFeedback(executionId, next);
     } catch {
       setFeedback(feedback); // revert on error
-      toast.error(t("saveError"));
+      toast.error(t("toast.saveFailed"));
     } finally {
       setSaving(false);
     }

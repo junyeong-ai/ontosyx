@@ -94,9 +94,9 @@ export function AddWidgetButton({
       onAdded(widget);
       resetForm();
       setOpen(false);
-      toast.success(t("addedToast"));
+      toast.success(t("toast.added"));
     } catch {
-      toast.error(t("addFailedToast"));
+      toast.error(t("toast.addFailed"));
     } finally {
       setIsSaving(false);
     }

@@ -40,7 +40,7 @@ export default function PromptsPage() {
       const data = await listPromptTemplates();
       setTemplates(data);
     } catch {
-      toast.error(t("loadError"));
+      toast.error(t("toast.loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -290,9 +290,9 @@ function PromptCardDetail({
     setIsSaving(true);
     try {
       await onUpdate(selected.id, { content, is_active: isActive });
-      toast.success(t("updatedToast"));
+      toast.success(t("toast.updated"));
     } catch {
-      toast.error(t("saveError"));
+      toast.error(t("toast.saveFailed"));
     } finally {
       setIsSaving(false);
     }
@@ -311,9 +311,9 @@ function PromptCardDetail({
     if (!ok) return;
     try {
       await onDelete(selected.id);
-      toast.success(t("deletedToast", { version: selected.version }));
+      toast.success(t("toast.deleted", { version: selected.version }));
     } catch {
-      toast.error(t("deleteError"));
+      toast.error(t("toast.deleteFailed"));
     }
   };
 
@@ -322,9 +322,9 @@ function PromptCardDetail({
     const newVersion = String(Number.isNaN(current) ? 1 : current + 1);
     try {
       await onNewVersion(name, newVersion, content);
-      toast.success(t("versionCreatedToast", { version: newVersion }));
+      toast.success(t("toast.versionCreated", { version: newVersion }));
     } catch {
-      toast.error(t("versionCreateError"));
+      toast.error(t("toast.versionCreateFailed"));
     }
   };
 

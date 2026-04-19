@@ -66,7 +66,7 @@ export default function ReportsPage() {
           setOntologyFilter(page.items[0].id);
         }
       })
-      .catch(() => toast.error(t("loadOntologiesError")))
+      .catch(() => toast.error(t("toast.loadOntologiesFailed")))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -76,7 +76,7 @@ export default function ReportsPage() {
     setLoading(true);
     listReports({ ontology_lineage_id: ontologyFilter })
       .then((page) => setReports(page.items))
-      .catch(() => toast.error(t("loadError")))
+      .catch(() => toast.error(t("toast.loadFailed")))
       .finally(() => setLoading(false));
   }, [ontologyFilter, t]);
 
@@ -96,7 +96,7 @@ export default function ReportsPage() {
       if (selectedId === id) setSelectedId(null);
       toast.success(t("toast.deleted"));
     } catch {
-      toast.error(t("toast.deleteError"));
+      toast.error(t("toast.deleteFailed"));
     }
   };
 
@@ -112,7 +112,7 @@ export default function ReportsPage() {
       setReports((prev) => prev.map((r) => (r.id === id ? updated : r)));
       toast.success(t("toast.updated"));
     } catch {
-      toast.error(t("toast.updateError"));
+      toast.error(t("toast.updateFailed"));
     }
   };
 
@@ -624,7 +624,7 @@ function ReportCreateForm({
       reset();
       setIsOpen(false);
     } catch {
-      toast.error(t("toast.createError"));
+      toast.error(t("toast.createFailed"));
     } finally {
       setIsSaving(false);
     }

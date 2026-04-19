@@ -70,7 +70,7 @@ export default function SessionsPage() {
         setNextCursor(page.next_cursor);
         setHasMore(page.items.length === PAGE_LIMIT);
       })
-      .catch(() => toast.error(t("loadError")))
+      .catch(() => toast.error(t("toast.loadFailed")))
       .finally(() => setLoading(false));
   }, [t]);
 
@@ -83,7 +83,7 @@ export default function SessionsPage() {
       setNextCursor(page.next_cursor);
       setHasMore(page.items.length === PAGE_LIMIT);
     } catch {
-      toast.error(t("loadMoreError"));
+      toast.error(t("toast.loadMoreFailed"));
     } finally {
       setLoadingMore(false);
     }
@@ -120,7 +120,7 @@ export default function SessionsPage() {
     setEventsLoading(true);
     listAgentEvents(selectedId)
       .then(setEvents)
-      .catch(() => toast.error(t("eventsError")))
+      .catch(() => toast.error(t("toast.eventsLoadFailed")))
       .finally(() => setEventsLoading(false));
   }, [selectedId, t]);
 
@@ -129,7 +129,7 @@ export default function SessionsPage() {
       setMessagesLoading(true);
       fetchSessionMessages(selectedId)
         .then((res) => setMessages(res.messages))
-        .catch(() => toast.error(t("messagesError")))
+        .catch(() => toast.error(t("toast.messagesLoadFailed")))
         .finally(() => setMessagesLoading(false));
     }
   }, [viewMode, selectedId, t]);
@@ -147,9 +147,9 @@ export default function SessionsPage() {
       await deleteSession(sessionId);
       setSessions((prev) => prev.filter((s) => s.id !== sessionId));
       if (selectedId === sessionId) setSelectedId(null);
-      toast.success(t("deletedToast"));
+      toast.success(t("toast.deleted"));
     } catch {
-      toast.error(t("deleteError"));
+      toast.error(t("toast.deleteFailed"));
     }
   };
 

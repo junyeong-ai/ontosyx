@@ -338,7 +338,7 @@ export function ChatPanel() {
               // Session resume failed — clear stale session and restore
               // previous messages as read-only history context.
               setSessionId(null);
-              toast.warning(t("sessionExpiredToast"));
+              toast.warning(t("toast.sessionExpired"));
 
               // Best-effort: fetch previous conversation and prepend as
               // read-only history so the user still sees past context.
@@ -388,7 +388,7 @@ export function ChatPanel() {
         if (controller.signal.aborted) return; // Unmount or cancel — not an error
         updateMessage(assistantId, {
           content: "",
-          error: t("connectionError", { error: err instanceof Error ? err.message : String(err) }),
+          error: t("toast.connectionFailed", { error: err instanceof Error ? err.message : String(err) }),
           isStreaming: false,
         });
       } finally {

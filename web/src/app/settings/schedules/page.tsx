@@ -31,7 +31,7 @@ export default function SchedulesPage() {
   useEffect(() => {
     listScheduledTasks()
       .then((items) => setTasks(items))
-      .catch(() => toast.error(t("loadError")))
+      .catch(() => toast.error(t("toast.loadFailed")))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -44,7 +44,7 @@ export default function SchedulesPage() {
     );
     try {
       await updateScheduledTask(task.id, { enabled: newEnabled });
-      toast.success(newEnabled ? t("enabledToast") : t("disabledToast"));
+      toast.success(newEnabled ? t("toast.enabled") : t("toast.disabled"));
     } catch {
       // Revert
       setTasks((prev) =>
@@ -52,7 +52,7 @@ export default function SchedulesPage() {
           tt.id === task.id ? { ...tt, enabled: task.enabled } : tt,
         ),
       );
-      toast.error(t("updateError"));
+      toast.error(t("toast.updateFailed"));
     }
   };
 
@@ -70,10 +70,10 @@ export default function SchedulesPage() {
     setTasks((prev) => prev.filter((tt) => tt.id !== id));
     try {
       await deleteScheduledTask(id);
-      toast.success(t("deletedToast"));
+      toast.success(t("toast.deleted"));
     } catch {
       setTasks(snapshot);
-      toast.error(t("deleteError"));
+      toast.error(t("toast.deleteFailed"));
     }
   };
 

@@ -19,7 +19,7 @@ export default function ProvidersPage() {
   useEffect(() => {
     getHealth()
       .then(setHealth)
-      .catch((err) => setError(err instanceof Error ? err.message : t("loadError")))
+      .catch((err) => setError(err instanceof Error ? err.message : t("toast.loadFailed")))
       .finally(() => setLoading(false));
     // t is stable across renders (it's memoised by next-intl) so omitting
     // it from deps is fine; adding it causes an infinite reload on some

@@ -176,8 +176,8 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
                 const sessionId = useAppStore.getState().sessionId;
                 if (sessionId) {
                   respondToolReview(sessionId, toolCall.id, true)
-                    .then(() => toast.success(t("hitl.approvedToast")))
-                    .catch(() => toast.error(t("hitl.approveError")));
+                    .then(() => toast.success(t("hitl.toast.approved")))
+                    .catch(() => toast.error(t("hitl.toast.approveFailed")));
                 }
               }}
               className="rounded-md bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700"
@@ -190,8 +190,8 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
                 const sessionId = useAppStore.getState().sessionId;
                 if (sessionId) {
                   respondToolReview(sessionId, toolCall.id, false)
-                    .then(() => toast.info(t("hitl.rejectedToast")))
-                    .catch(() => toast.error(t("hitl.rejectError")));
+                    .then(() => toast.info(t("hitl.toast.rejected")))
+                    .catch(() => toast.error(t("hitl.toast.rejectFailed")));
                 }
               }}
               className="rounded-md border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/30"
