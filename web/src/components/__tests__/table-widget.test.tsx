@@ -13,6 +13,26 @@ vi.mock("@/components/ui/tooltip", async () => {
   };
 });
 
+// `useRouter()` requires a mounted app router; we don't exercise
+// navigation here, so stub it with a no-op to let the component
+// render in jsdom without an <AppRouterContext> provider.
+vi.mock("next/navigation", async () => {
+  const actual = await vi.importActual<typeof import("next/navigation")>(
+    "next/navigation",
+  );
+  return {
+    ...actual,
+    useRouter: () => ({
+      push: () => {},
+      replace: () => {},
+      prefetch: () => {},
+      back: () => {},
+      forward: () => {},
+      refresh: () => {},
+    }),
+  };
+});
+
 describe("TableWidget", () => {
   beforeEach(() => {
     // Reset store-side effects between tests

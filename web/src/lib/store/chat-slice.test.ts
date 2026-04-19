@@ -119,4 +119,75 @@ describe("ChatSlice", () => {
     store.getState().setHighlightedBindings(bindings);
     expect(store.getState().highlightedBindings).toEqual(bindings);
   });
+
+  it("setHighlightedBindings(null) clears the ring highlight", () => {
+    store.getState().setHighlightedBindings({
+      node_bindings: [],
+      edge_bindings: [],
+      property_bindings: [],
+    });
+    expect(store.getState().highlightedBindings).not.toBeNull();
+    store.getState().setHighlightedBindings(null);
+    expect(store.getState().highlightedBindings).toBeNull();
+  });
+
+  it("executionMode has a stable default", () => {
+    // Default is an implementation detail of the slice; assert only that
+    // it's a truthy ExecutionMode so the test doesn't break every time
+    // the product flips between "auto" / "agent" / "direct" defaults.
+    const mode = store.getState().executionMode;
+    expect(typeof mode).toBe("string");
+    expect(mode.length).toBeGreaterThan(0);
+  });
+
+  it("setExecutionMode round-trips", () => {
+    store.getState().setExecutionMode("direct");
+    expect(store.getState().executionMode).toBe("direct");
+    store.getState().setExecutionMode("agent");
+    expect(store.getState().executionMode).toBe("agent");
+    store.getState().setExecutionMode("auto");
+    expect(store.getState().executionMode).toBe("auto");
+  });
+
+  it("setModelOverride persists the caller-chosen model id", () => {
+    expect(store.getState().modelOverride).toBeNull();
+    store.getState().setModelOverride("claude-opus-4-7");
+    expect(store.getState().modelOverride).toBe("claude-opus-4-7");
+    store.getState().setModelOverride(null);
+    expect(store.getState().modelOverride).toBeNull();
+  });
+
+  it("setTokenUsage records cumulative counts", () => {
+    expect(store.getState().tokenUsage).toBeNull();
+    store.getState().setTokenUsage({
+      input_tokens: 100,
+      output_tokens: 200,
+      total_tokens: 300,
+    });
+    expect(store.getState().tokenUsage).toEqual({
+      input_tokens: 100,
+      output_tokens: 200,
+      total_tokens: 300,
+    });
+  });
+
+  it("setSessionId switches conversation scope", () => {
+    expect(store.getState().sessionId).toBeNull();
+    store.getState().setSessionId("sess-1");
+    expect(store.getState().sessionId).toBe("sess-1");
+    store.getState().setSessionId(null);
+    expect(store.getState().sessionId).toBeNull();
+  });
+
+  it("restoreMessages replaces the array wholesale", () => {
+    store.getState().addMessage({ id: "m1", role: "user", content: "Old" });
+    store.getState().restoreMessages([
+      { id: "r1", role: "user", content: "Loaded" },
+      { id: "r2", role: "assistant", content: "Response" },
+    ]);
+    const msgs = store.getState().messages;
+    expect(msgs).toHaveLength(2);
+    expect(msgs[0].id).toBe("r1");
+    expect(msgs[1].content).toBe("Response");
+  });
 });

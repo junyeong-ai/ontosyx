@@ -16,6 +16,28 @@ afterEach(cleanup);
 
 vi.mock("@/lib/use-dark-mode", () => ({ useIsDarkMode: () => false }));
 
+// TableWidget calls `useRouter()` to enable row-click navigation. The
+// a11y test doesn't exercise clicks, but `useRouter` still throws
+// "invariant expected app router to be mounted" without a provider.
+// Mocking it returns a no-op router stub so the semantic markup tests
+// can focus on what they actually cover.
+vi.mock("next/navigation", async () => {
+  const actual = await vi.importActual<typeof import("next/navigation")>(
+    "next/navigation",
+  );
+  return {
+    ...actual,
+    useRouter: () => ({
+      push: () => {},
+      replace: () => {},
+      prefetch: () => {},
+      back: () => {},
+      forward: () => {},
+      refresh: () => {},
+    }),
+  };
+});
+
 describe("TableWidget (a11y)", () => {
   const spec: WidgetSpec = { widget_type: "table", title: "Accounts" };
   const data: QueryResult = {
