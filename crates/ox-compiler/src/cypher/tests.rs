@@ -1654,3 +1654,101 @@ fn memgraph_dialect_uses_short_index_syntax() {
         "Memgraph dialect must not emit Neo4j 5.x index form: {stmts:?}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Named parameter placeholders (Expr::Param)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn named_param_compiles_to_dollar_name() {
+    let compiler = CypherCompiler::neo4j();
+    let query = QueryIR {
+        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        operation: QueryOp::Match {
+            patterns: vec![GraphPattern::Node {
+                variable: vn("p"),
+                label: Some(gl("Person")),
+                property_filters: vec![],
+            }],
+            filter: Some(Expr::Comparison {
+                left: Box::new(Expr::Property {
+                    variable: vn("p"),
+                    field: Some(pk("name")),
+                }),
+                op: ox_core::query_ir::ComparisonOp::Eq,
+                right: Box::new(Expr::Param {
+                    name: "target_name".to_string(),
+                }),
+            }),
+            projections: vec![Projection::Variable {
+                variable: vn("p"),
+                alias: None,
+            }],
+            optional: false,
+            group_by: vec![],
+        },
+        limit: None,
+        skip: None,
+        order_by: vec![],
+    };
+
+    let compiled = compiler.compile_query(&query).unwrap();
+    assert!(
+        compiled.statement.contains("$target_name"),
+        "named param should emit as $name, got: {}",
+        compiled.statement
+    );
+    // Autogen params ($p0, $p1, ...) should not appear since the only
+    // value in the query is a caller-bound parameter, not a literal.
+    assert!(
+        !compiled.statement.contains("$p0"),
+        "no autogen params expected: {}",
+        compiled.statement
+    );
+    // Named param is NOT in the compiled params map — caller binds it.
+    assert!(
+        !compiled.params.contains_key("target_name"),
+        "named params must not enter the autogen params map"
+    );
+}
+
+#[test]
+fn named_param_rejects_injection_shaped_name() {
+    let compiler = CypherCompiler::neo4j();
+    let query = QueryIR {
+        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        operation: QueryOp::Match {
+            patterns: vec![GraphPattern::Node {
+                variable: vn("p"),
+                label: Some(gl("Person")),
+                property_filters: vec![],
+            }],
+            filter: Some(Expr::Comparison {
+                left: Box::new(Expr::Property {
+                    variable: vn("p"),
+                    field: Some(pk("name")),
+                }),
+                op: ox_core::query_ir::ComparisonOp::Eq,
+                right: Box::new(Expr::Param {
+                    name: "bad name } RETURN p //".to_string(),
+                }),
+            }),
+            projections: vec![Projection::Variable {
+                variable: vn("p"),
+                alias: None,
+            }],
+            optional: false,
+            group_by: vec![],
+        },
+        limit: None,
+        skip: None,
+        order_by: vec![],
+    };
+
+    let err = compiler.compile_query(&query).unwrap_err();
+    let msg = format!("{err:?}");
+    assert!(
+        msg.contains("is_valid_graph_identifier"),
+        "compile error should mention validator: {msg}"
+    );
+}

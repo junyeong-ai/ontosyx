@@ -11,7 +11,7 @@ impl ResolverCtx<'_> {
         match expr {
             Expr::Property { variable, field } => {
                 if let Some(field) = field {
-                    self.resolve_variable_property(variable.as_str(), field);
+                    self.resolve_variable_property(variable.as_str(), field.as_str());
                 }
             }
             Expr::Comparison { left, right, .. } => {
@@ -69,7 +69,7 @@ impl ResolverCtx<'_> {
                     self.resolve_expr(els);
                 }
             }
-            Expr::Literal { .. } => {}
+            Expr::Literal { .. } | Expr::Param { .. } => {}
             Expr::Subquery { query, .. } => {
                 // Mirror `Expr::Exists` and `QueryOp::CallSubquery`:
                 // bump `exists_depth` so nested subqueries get
@@ -92,7 +92,7 @@ impl ResolverCtx<'_> {
             Projection::Field {
                 variable, field, ..
             } => {
-                self.resolve_variable_property(variable.as_str(), field);
+                self.resolve_variable_property(variable.as_str(), field.as_str());
             }
             Projection::Variable { .. } | Projection::AllProperties { .. } => {}
             Projection::Expression { expr, .. } => self.resolve_expr(expr),

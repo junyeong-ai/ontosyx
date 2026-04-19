@@ -1,6 +1,6 @@
 use ox_core::error::{OxError, OxResult};
 use ox_core::query_ir::{AggFunction, Expr, OrderClause, Projection, SortDirection};
-use ox_core::types::PropertyValue;
+use ox_core::types::{PropertyValue, is_valid_graph_identifier};
 
 use super::params::{ParamCollector, escape_identifier};
 use super::pattern::compile_pattern;
@@ -9,6 +9,18 @@ use super::query::compile_op;
 pub(super) fn compile_expr(expr: &Expr, pc: &mut ParamCollector) -> OxResult<String> {
     Ok(match expr {
         Expr::Literal { value } => compile_value(value, pc),
+
+        Expr::Param { name } => {
+            if !is_valid_graph_identifier(name) {
+                return Err(OxError::Compilation {
+                    message: format!(
+                        "Expr::Param name `{name}` fails identifier validation — \
+                         parameter names must match is_valid_graph_identifier"
+                    ),
+                });
+            }
+            format!("${name}")
+        }
 
         Expr::Property { variable, field } => match field {
             Some(f) => format!("{variable}.{}", escape_identifier(f)),
