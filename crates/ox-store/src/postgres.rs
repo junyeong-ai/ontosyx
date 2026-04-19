@@ -388,6 +388,30 @@ impl OntologyStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
+    async fn get_ontology_version_at(
+        &self,
+        lineage_id: &str,
+        as_of: chrono::DateTime<chrono::Utc>,
+    ) -> OxResult<Option<SavedOntology>> {
+        // Newest row whose commit time predates `as_of`. Ties on
+        // created_at (two saves at the same instant — unusual but
+        // possible under batch migrations) resolve to the higher
+        // version number so the caller sees the final write of that
+        // tick.
+        sqlx::query_as::<_, SavedOntology>(
+            "SELECT * FROM saved_ontologies
+             WHERE ontology_ir->>'id' = $1
+               AND created_at <= $2
+             ORDER BY created_at DESC, version DESC
+             LIMIT 1",
+        )
+        .bind(lineage_id)
+        .bind(as_of)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(to_ox_error)
+    }
+
     async fn create_standalone_ontology(
         &self,
         name: &str,

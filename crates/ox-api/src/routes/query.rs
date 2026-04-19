@@ -51,6 +51,77 @@ async fn load_ontology_for_raw(
     Ok(Some(Arc::new(ontology)))
 }
 
+/// Resolve `query_ir.as_of` against stored ontology versions and
+/// rewrite the query to the snapshot's label space. Leaves the
+/// request untouched when no temporal pivot is present.
+///
+/// Requires `saved_ontology_id` — the request must identify which
+/// lineage to walk back through. Anonymous raw-IR queries (no saved
+/// ontology) can't pivot because there's no version history to
+/// consult; we reject with a clear 400 rather than silently compile
+/// against an ontology that has nothing to do with the query's
+/// actual schema.
+async fn resolve_temporal(
+    state: &AppState,
+    mut req: ExecuteFromIrRequest,
+) -> Result<ExecuteFromIrRequest, AppError> {
+    let Some(as_of) = req.query_ir.as_of else {
+        return Ok(req);
+    };
+
+    let Some(saved_id) = req.saved_ontology_id else {
+        return Err(AppError::bad_request(
+            "Temporal queries (`as_of`) require `saved_ontology_id` so the \
+             server can resolve the ontology lineage to walk back through.",
+        ));
+    };
+
+    // Pull the current snapshot (what the query's labels refer to) so
+    // we can diff it against the snapshot at as_of for the label-rename
+    // pass.
+    let current_saved = state
+        .store
+        .get_saved_ontology(saved_id)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::not_found("Saved ontology"))?;
+    let current: OntologyIR = serde_json::from_value(current_saved.ontology_ir.clone())
+        .map_err(|e| AppError::unprocessable(format!("Current ontology is malformed: {e}")))?;
+
+    // Extract the lineage id from the current ontology. `ontology_ir.id`
+    // is the stable lineage identifier; every save in the same lineage
+    // carries the same id and monotonically increments `version`.
+    let lineage_id = current_saved
+        .ontology_ir
+        .get("id")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| {
+            AppError::internal("Stored ontology is missing the top-level `id` field")
+        })?
+        .to_string();
+
+    let snapshot_saved = state
+        .store
+        .get_ontology_version_at(&lineage_id, as_of)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| {
+            AppError::bad_request(format!(
+                "No ontology version was live at {as_of} for lineage `{lineage_id}`. \
+                 The lineage's oldest version was committed after the requested timestamp."
+            ))
+        })?;
+    let snapshot: OntologyIR = serde_json::from_value(snapshot_saved.ontology_ir)
+        .map_err(|e| AppError::unprocessable(format!("Snapshot ontology is malformed: {e}")))?;
+
+    let rewritten =
+        ox_compiler::rewrite_temporal_with_renames(req.query_ir, &snapshot, &current).map_err(
+            |e| AppError::unprocessable(format!("Temporal rewrite failed: {e}")),
+        )?;
+    req.query_ir = rewritten;
+    Ok(req)
+}
+
 /// Run `fut` with `GRAPH_ONTOLOGY` bound to `ontology`, or unchanged if
 /// none was supplied. Keeps call-sites free of `Option<Arc<_>>`-aware
 /// branching.
@@ -448,6 +519,18 @@ pub(crate) async fn execute_from_ir(
 ) -> Result<Json<ApiResponse<ExecuteFromIrResponse>>, AppError> {
     let target = state.compiler.name().to_string();
     info!(user_id = %principal.id, target = %target, "QueryIR execution submitted");
+
+    // Step 0: Resolve the temporal pivot, if any. `query_ir.as_of` asks
+    // the compiler to evaluate the query as it would have run at a past
+    // timestamp — we load the ontology snapshot that was live then,
+    // rewrite any renamed labels current→snapshot, and hand the
+    // compiler a QueryIR with as_of cleared.
+    //
+    // Surfaces three distinct failure modes so the UI can present them
+    // individually: (a) no saved_ontology_id supplied, (b) the lineage
+    // predates the requested timestamp, (c) window / rename
+    // inconsistency from the rewriter itself.
+    let req = resolve_temporal(&state, req).await?;
 
     // Step 1: Compile QueryIR → target language
     let compiled = state.compiler.compile_query(&req.query_ir).map_err(|e| {

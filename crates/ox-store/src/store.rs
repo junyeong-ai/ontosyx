@@ -143,6 +143,24 @@ pub trait OntologyStore: Send + Sync {
         lineage_id: &str,
     ) -> OxResult<Option<SavedOntology>>;
 
+    /// Fetch the ontology snapshot that was live at `as_of` for the
+    /// given lineage id.
+    ///
+    /// "Live at" means the newest version whose `created_at <= as_of`.
+    /// A row with `created_at > as_of` is a future version from the
+    /// requested timestamp's perspective and is not eligible. Returns
+    /// `None` when no version predates `as_of` (query asked for a time
+    /// before the lineage was first saved).
+    ///
+    /// The resolver pairs with [`ox_compiler::rewrite_temporal_with_renames`]:
+    /// callers resolve the snapshot here, then pass `(query, snapshot,
+    /// current)` to the rewriter to get a compile-ready QueryIR.
+    async fn get_ontology_version_at(
+        &self,
+        lineage_id: &str,
+        as_of: chrono::DateTime<chrono::Utc>,
+    ) -> OxResult<Option<SavedOntology>>;
+
     /// Save a standalone ontology (not tied to a design project).
     /// Used by Graph Adopt flow to persist adopted ontologies.
     async fn create_standalone_ontology(
