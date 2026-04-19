@@ -24,8 +24,11 @@ mod patterns;
 
 use serde::{Deserialize, Serialize};
 
+use crate::graph_label::GraphLabel;
 use crate::ontology_ir::OntologyIR;
+use crate::property_key::PropertyKey;
 use crate::query_ir::QueryIR;
+use crate::variable_name::VariableName;
 
 use ctx::ResolverCtx;
 
@@ -63,9 +66,9 @@ pub enum ScopeSegment {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeBinding {
-    pub variable: String,
+    pub variable: VariableName,
     pub node_id: String,
-    pub label: String,
+    pub label: GraphLabel,
     pub binding_kind: BindingKind,
     pub pattern_index: usize,
     pub scope_path: Vec<ScopeSegment>,
@@ -73,9 +76,9 @@ pub struct NodeBinding {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EdgeBinding {
-    pub variable: Option<String>,
+    pub variable: Option<VariableName>,
     pub edge_id: String,
-    pub label: String,
+    pub label: GraphLabel,
     pub source_node_id: String,
     pub target_node_id: String,
     pub binding_kind: BindingKind,
@@ -85,8 +88,8 @@ pub struct EdgeBinding {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PropertyBinding {
-    pub owner_variable: Option<String>,
-    pub property_name: String,
+    pub owner_variable: Option<VariableName>,
+    pub property_name: PropertyKey,
     pub property_id: String,
     pub owner_id: String,
     pub binding_kind: BindingKind,

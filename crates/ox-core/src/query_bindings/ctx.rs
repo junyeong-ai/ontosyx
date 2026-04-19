@@ -88,15 +88,29 @@ impl<'a> ResolverCtx<'a> {
     }
 
     /// Bind a graph variable to its ontology node type.
+    ///
+    /// Accepts the raw `&str` forms so callers can pass either a
+    /// `VariableName`/`GraphLabel` (via `.as_str()`) or a raw string
+    /// scratch value. Emits a [`NodeBinding`] using validated newtype
+    /// wrappers — the input strings are already known to be valid
+    /// identifiers by the time we walk the IR.
     pub(super) fn bind_node_variable(&mut self, variable: &str, label: &str) {
         if let Some(node) = self.ontology.node_types.iter().find(|n| n.label == *label) {
             self.var_nodes
                 .entry(variable.to_string())
                 .or_insert_with(|| (node.id.to_string(), node.label.to_string()));
+            // A variable name or label that fails validation at this
+            // point means the caller violated the IR contract (both
+            // should have been validated already). Skip the binding
+            // rather than panic — the query walker continues without a
+            // broken row.
+            let Ok(variable) = crate::variable_name::VariableName::new(variable) else {
+                return;
+            };
             self.node_bindings.push(NodeBinding {
-                variable: variable.to_string(),
+                variable,
                 node_id: node.id.to_string(),
-                label: node.label.to_string(),
+                label: node.label.clone(),
                 binding_kind: self.binding_kind,
                 pattern_index: self.pattern_index,
                 scope_path: self.scope_path.clone(),
@@ -116,9 +130,13 @@ impl<'a> ResolverCtx<'a> {
             && let Some(node) = self.ontology.node_types.iter().find(|n| n.id == *node_id)
             && let Some(prop) = node.properties.iter().find(|p| p.name == property_name)
         {
+            let variable = crate::variable_name::VariableName::new(variable).ok();
+            let Ok(property_name) = crate::property_key::PropertyKey::new(property_name) else {
+                return;
+            };
             self.property_bindings.push(PropertyBinding {
-                owner_variable: Some(variable.to_string()),
-                property_name: property_name.to_string(),
+                owner_variable: variable,
+                property_name,
                 property_id: prop.id.to_string(),
                 owner_id: node_id.clone(),
                 binding_kind,
@@ -133,9 +151,13 @@ impl<'a> ResolverCtx<'a> {
             && let Some(edge) = self.ontology.edge_types.iter().find(|e| e.id == *edge_id)
             && let Some(prop) = edge.properties.iter().find(|p| p.name == property_name)
         {
+            let variable = crate::variable_name::VariableName::new(variable).ok();
+            let Ok(property_name) = crate::property_key::PropertyKey::new(property_name) else {
+                return;
+            };
             self.property_bindings.push(PropertyBinding {
-                owner_variable: Some(variable.to_string()),
-                property_name: property_name.to_string(),
+                owner_variable: variable,
+                property_name,
                 property_id: prop.id.to_string(),
                 owner_id: edge_id.clone(),
                 binding_kind,
@@ -147,7 +169,7 @@ impl<'a> ResolverCtx<'a> {
 
     pub(super) fn resolve_field_ref(&mut self, field_ref: &FieldRef) {
         if let Some(field) = &field_ref.field {
-            self.resolve_variable_property(&field_ref.variable, field);
+            self.resolve_variable_property(field_ref.variable.as_str(), field.as_str());
         }
     }
 }
