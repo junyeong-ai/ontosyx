@@ -10,7 +10,7 @@ pub use migration::DataMigrationStep;
 #[cfg(test)]
 mod tests;
 
-use ox_core::error::OxResult;
+use ox_core::error::{OxError, OxResult};
 use ox_core::load_plan::{LoadPlan, LoadStep};
 use ox_core::ontology_ir::OntologyIR;
 use ox_core::query_ir::QueryIR;
@@ -114,6 +114,21 @@ impl GraphCompiler for CypherCompiler {
     }
 
     fn compile_query(&self, query: &QueryIR) -> OxResult<CompiledQuery> {
+        // Phase 2-2 foundation: the IR now carries a temporal AS-OF field
+        // but the Cypher emitter has no snapshot-resolution path yet. Fail
+        // loudly with a clear message rather than silently ignore the
+        // timestamp and return stale-against-caller-intent results. The
+        // dedicated TemporalRewriter pass (future commit) will consume the
+        // field upstream and hand the compiler a temporally-resolved
+        // QueryIR with `as_of = None`.
+        if query.as_of.is_some() {
+            return Err(OxError::Compilation {
+                message: "temporal AS-OF queries are not yet supported by the Cypher compiler — \
+                          resolve the snapshot via a TemporalRewriter pass before compiling"
+                    .to_string(),
+            });
+        }
+
         let mut parts = Vec::new();
         let mut collector = ParamCollector::new();
 

@@ -521,6 +521,7 @@ mod tests {
             limit: None,
             skip: None,
             order_by: vec![],
+            as_of: None,
         };
         assert_eq!(extract_node_labels(&qir), vec!["Customer".to_string()]);
     }
@@ -561,6 +562,7 @@ mod tests {
             limit: None,
             skip: None,
             order_by: vec![],
+            as_of: None,
         };
         assert_eq!(extract_edge_labels(&qir), vec!["PLACED".to_string()]);
         assert_eq!(

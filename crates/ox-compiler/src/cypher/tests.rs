@@ -67,6 +67,7 @@ fn test_compile_simple_match() {
             },
             direction: SortDirection::Desc,
         }],
+        as_of: None,
     };
 
     let compiled = compiler.compile_query(&query).unwrap();
@@ -112,6 +113,7 @@ fn test_compile_relationship_pattern() {
         limit: None,
         skip: None,
         order_by: vec![],
+        as_of: None,
     };
 
     let compiled = compiler.compile_query(&query).unwrap();
@@ -288,6 +290,7 @@ fn test_korean_ontology_match_query_escapes_labels() {
         limit: Some(10),
         skip: None,
         order_by: vec![],
+        as_of: None,
     };
 
     let compiled = compiler.compile_query(&query).unwrap();
@@ -378,6 +381,7 @@ fn test_compile_merge_node() {
         limit: None,
         skip: None,
         order_by: vec![],
+        as_of: None,
     };
 
     let compiled = compiler.compile_query(&query).unwrap();
@@ -487,6 +491,7 @@ fn test_parameterization_string_values() {
         limit: None,
         skip: None,
         order_by: vec![],
+        as_of: None,
     };
 
     let compiled = compiler.compile_query(&query).unwrap();
@@ -548,6 +553,7 @@ fn test_parameterization_in_clause() {
         limit: None,
         skip: None,
         order_by: vec![],
+        as_of: None,
     };
 
     let compiled = compiler.compile_query(&query).unwrap();
@@ -615,6 +621,7 @@ fn test_parameterization_null_stays_inline() {
         limit: None,
         skip: None,
         order_by: vec![],
+        as_of: None,
     };
 
     let compiled = compiler.compile_query(&query).unwrap();
@@ -659,6 +666,7 @@ fn test_parameterization_date_values() {
         limit: None,
         skip: None,
         order_by: vec![],
+        as_of: None,
     };
 
     let compiled = compiler.compile_query(&query).unwrap();
@@ -719,6 +727,7 @@ fn test_compile_aggregate_query() {
         limit: None,
         skip: None,
         order_by: vec![],
+        as_of: None,
     };
 
     let compiled = compiler.compile_query(&query).unwrap();
@@ -754,6 +763,7 @@ fn test_compile_union_query() {
         limit: None,
         skip: None,
         order_by: vec![],
+        as_of: None,
     };
     let q2 = QueryIR {
         schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
@@ -775,6 +785,7 @@ fn test_compile_union_query() {
         limit: None,
         skip: None,
         order_by: vec![],
+        as_of: None,
     };
 
     let union_query = QueryIR {
@@ -786,6 +797,7 @@ fn test_compile_union_query() {
         limit: None,
         skip: None,
         order_by: vec![],
+        as_of: None,
     };
 
     let compiled = compiler.compile_query(&union_query).unwrap();
@@ -854,6 +866,7 @@ fn test_compile_chain_with_pass_through() {
         limit: Some(20),
         skip: None,
         order_by: vec![],
+        as_of: None,
     };
 
     let compiled = compiler.compile_query(&query).unwrap();
@@ -1054,6 +1067,7 @@ fn test_call_subquery_compilation() {
                             limit: None,
                             skip: None,
                             order_by: vec![],
+                            as_of: None,
                         }),
                         import_variables: vec!["n".to_string()],
                     },
@@ -1063,6 +1077,7 @@ fn test_call_subquery_compilation() {
         limit: None,
         skip: None,
         order_by: vec![],
+        as_of: None,
     };
 
     let compiled = compiler.compile_query(&query).unwrap();
@@ -1121,6 +1136,7 @@ fn test_subquery_expr_count() {
                             limit: None,
                             skip: None,
                             order_by: vec![],
+                            as_of: None,
                         }),
                         import_variables: vec!["n".to_string()],
                     },
@@ -1133,6 +1149,7 @@ fn test_subquery_expr_count() {
         limit: None,
         skip: None,
         order_by: vec![],
+        as_of: None,
     };
 
     let compiled = compiler.compile_query(&query).unwrap();
@@ -1179,12 +1196,14 @@ fn test_call_subquery_standalone() {
                 limit: None,
                 skip: None,
                 order_by: vec![],
+                as_of: None,
             }),
             import_variables: vec![],
         },
         limit: None,
         skip: None,
         order_by: vec![],
+        as_of: None,
     };
 
     let compiled = compiler.compile_query(&query).unwrap();
@@ -1243,6 +1262,7 @@ fn test_collect_list_aggregation() {
         limit: None,
         skip: None,
         order_by: vec![],
+        as_of: None,
     };
 
     let compiled = compiler.compile_query(&query).unwrap();
@@ -1291,6 +1311,7 @@ fn test_compile_shortest_path() {
         limit: None,
         skip: None,
         order_by: vec![],
+        as_of: None,
     };
 
     let compiled = compiler.compile_query(&query).unwrap();
@@ -1332,6 +1353,7 @@ fn test_compile_all_shortest_paths() {
         limit: None,
         skip: None,
         order_by: vec![],
+        as_of: None,
     };
 
     let compiled = compiler.compile_query(&query).unwrap();
@@ -1376,6 +1398,7 @@ fn test_compile_all_paths_variable_length() {
         limit: None,
         skip: None,
         order_by: vec![],
+        as_of: None,
     };
 
     let compiled = compiler.compile_query(&query).unwrap();
@@ -1446,6 +1469,7 @@ fn test_compile_case_expression() {
         limit: None,
         skip: None,
         order_by: vec![],
+        as_of: None,
     };
 
     let compiled = compiler.compile_query(&query).unwrap();
@@ -1656,6 +1680,77 @@ fn memgraph_dialect_uses_short_index_syntax() {
 }
 
 // ---------------------------------------------------------------------------
+// Temporal AS-OF rejection
+// ---------------------------------------------------------------------------
+
+#[test]
+fn temporal_as_of_is_rejected_with_compilation_error() {
+    use chrono::TimeZone;
+
+    let compiler = CypherCompiler::neo4j();
+    let query = QueryIR {
+        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        operation: QueryOp::Match {
+            patterns: vec![GraphPattern::Node {
+                variable: vn("p"),
+                label: Some(gl("Person")),
+                property_filters: vec![],
+            }],
+            filter: None,
+            projections: vec![],
+            optional: false,
+            group_by: vec![],
+        },
+        limit: None,
+        skip: None,
+        order_by: vec![],
+        as_of: Some(
+            chrono::Utc
+                .with_ymd_and_hms(2026, 3, 5, 12, 0, 0)
+                .single()
+                .expect("fixture timestamp"),
+        ),
+    };
+
+    let err = compiler.compile_query(&query).unwrap_err();
+    let msg = format!("{err}");
+    assert!(
+        msg.contains("temporal") && msg.contains("not yet supported"),
+        "expected temporal-rejection error, got: {msg}"
+    );
+}
+
+#[test]
+fn temporal_as_of_none_compiles_normally() {
+    let compiler = CypherCompiler::neo4j();
+    let query = QueryIR {
+        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        operation: QueryOp::Match {
+            patterns: vec![GraphPattern::Node {
+                variable: vn("p"),
+                label: Some(gl("Person")),
+                property_filters: vec![],
+            }],
+            filter: None,
+            projections: vec![Projection::Variable {
+                variable: vn("p"),
+                alias: None,
+            }],
+            optional: false,
+            group_by: vec![],
+        },
+        limit: None,
+        skip: None,
+        order_by: vec![],
+        as_of: None,
+    };
+    // Absence of as_of is the existing hot path; this test pins the
+    // additive field's backwards compatibility.
+    let compiled = compiler.compile_query(&query).expect("compile");
+    assert!(compiled.statement.contains("MATCH (p:`Person`)"));
+}
+
+// ---------------------------------------------------------------------------
 // HAVING filter on Aggregate
 // ---------------------------------------------------------------------------
 
@@ -1678,6 +1773,7 @@ fn aggregate_with_having_emits_with_where_return() {
         limit: None,
         skip: None,
         order_by: vec![],
+        as_of: None,
     };
     let query = QueryIR {
         schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
@@ -1711,6 +1807,7 @@ fn aggregate_with_having_emits_with_where_return() {
         limit: None,
         skip: None,
         order_by: vec![],
+        as_of: None,
     };
 
     let compiled = compiler.compile_query(&query).unwrap();
@@ -1751,6 +1848,7 @@ fn aggregate_without_having_preserves_existing_shape() {
         limit: None,
         skip: None,
         order_by: vec![],
+        as_of: None,
     };
     let query = QueryIR {
         schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
@@ -1774,6 +1872,7 @@ fn aggregate_without_having_preserves_existing_shape() {
         limit: None,
         skip: None,
         order_by: vec![],
+        as_of: None,
     };
     let stmt = compiler.compile_query(&query).unwrap().statement;
     // Without HAVING there's no intermediate WITH/WHERE — the compiler
@@ -1823,6 +1922,7 @@ fn named_param_compiles_to_dollar_name() {
         limit: None,
         skip: None,
         order_by: vec![],
+        as_of: None,
     };
 
     let compiled = compiler.compile_query(&query).unwrap();
@@ -1876,6 +1976,7 @@ fn named_param_rejects_injection_shaped_name() {
         limit: None,
         skip: None,
         order_by: vec![],
+        as_of: None,
     };
 
     let err = compiler.compile_query(&query).unwrap_err();

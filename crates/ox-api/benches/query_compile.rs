@@ -84,6 +84,7 @@ fn bench_simple_match(c: &mut Criterion) {
             },
             direction: SortDirection::Desc,
         }],
+        as_of: None,
     };
 
     c.bench_function("simple_match", |b| {
@@ -146,6 +147,7 @@ fn bench_relationship_traversal(c: &mut Criterion) {
             },
             direction: SortDirection::Desc,
         }],
+        as_of: None,
     };
 
     c.bench_function("relationship_traversal", |b| {
@@ -194,6 +196,7 @@ fn bench_aggregation(c: &mut Criterion) {
         limit: None,
         skip: None,
         order_by: vec![],
+        as_of: None,
     };
 
     let query = QueryIR {
@@ -218,6 +221,7 @@ fn bench_aggregation(c: &mut Criterion) {
         limit: Some(20),
         skip: None,
         order_by: vec![],
+        as_of: None,
     };
 
     c.bench_function("aggregation_group_by", |b| {

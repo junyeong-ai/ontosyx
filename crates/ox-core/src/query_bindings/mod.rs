@@ -258,6 +258,7 @@ mod tests {
             limit: Some(10),
             skip: None,
             order_by: vec![],
+            as_of: None,
         };
 
         let bindings = resolve_query_bindings(&query, &ontology);
@@ -330,6 +331,7 @@ mod tests {
             limit: None,
             skip: None,
             order_by: vec![],
+            as_of: None,
         };
 
         let bindings = resolve_query_bindings(&query, &ontology);
@@ -360,6 +362,7 @@ mod tests {
             limit: None,
             skip: None,
             order_by: vec![],
+            as_of: None,
         };
 
         let bindings = resolve_query_bindings(&query, &ontology);
@@ -395,6 +398,7 @@ mod tests {
             limit: None,
             skip: None,
             order_by: vec![],
+            as_of: None,
         };
 
         let bindings = resolve_query_bindings(&query, &ontology);
@@ -448,6 +452,7 @@ mod tests {
                         limit: None,
                         skip: None,
                         order_by: vec![],
+                        as_of: None,
                     },
                     QueryIR {
                         schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
@@ -469,6 +474,7 @@ mod tests {
                         limit: None,
                         skip: None,
                         order_by: vec![],
+                        as_of: None,
                     },
                 ],
                 all: false,
@@ -476,6 +482,7 @@ mod tests {
             limit: None,
             skip: None,
             order_by: vec![],
+            as_of: None,
         };
 
         let bindings = resolve_query_bindings(&query, &ontology);
@@ -565,6 +572,7 @@ mod tests {
             limit: None,
             skip: None,
             order_by: vec![],
+            as_of: None,
         };
 
         let bindings = resolve_query_bindings(&query, &ontology);
@@ -603,6 +611,7 @@ mod tests {
             limit: None,
             skip: None,
             order_by: vec![],
+            as_of: None,
         };
 
         let bindings = resolve_query_bindings(&query, &ontology);
@@ -653,6 +662,7 @@ mod tests {
             limit: None,
             skip: None,
             order_by: vec![],
+            as_of: None,
         };
         let outer = QueryIR {
             schema_version: crate::query_ir::QUERY_IR_SCHEMA_VERSION,
@@ -663,6 +673,7 @@ mod tests {
             limit: None,
             skip: None,
             order_by: vec![],
+            as_of: None,
         };
 
         let bindings = resolve_query_bindings(&outer, &ontology);

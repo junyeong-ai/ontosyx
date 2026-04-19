@@ -159,6 +159,23 @@ pub struct QueryIR {
     pub skip: Option<usize>,
     /// ORDER BY clauses
     pub order_by: Vec<OrderClause>,
+    /// Temporal AS-OF pivot.
+    ///
+    /// When `Some`, the query evaluates against the ontology version
+    /// that was live at `as_of`, not the latest committed schema. Lets
+    /// Foundry-style "show me how this dashboard looked last Tuesday"
+    /// workflows round-trip through a single saved PatternIR — the UI
+    /// toggles the timestamp, the compiler consults the corresponding
+    /// [`crate::ontology_ir::OntologyVersion`] snapshot, and the live
+    /// graph data is filtered by the same instant.
+    ///
+    /// Compiler support is deferred to a dedicated Temporal pass; today
+    /// the runtime rejects any `as_of`-tagged QueryIR with a clear
+    /// `OxError::Compilation("temporal queries not yet supported")`.
+    /// The field is additive — every existing call site keeps compiling
+    /// because `serde(default)` and `Default` both collapse to `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub as_of: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 impl QueryIR {
@@ -1344,6 +1361,7 @@ mod validate_scope_tests {
             limit: None,
             skip: None,
             order_by: vec![],
+            as_of: None,
         }
     }
 
@@ -1380,6 +1398,7 @@ mod validate_scope_tests {
             limit: None,
             skip: None,
             order_by: vec![],
+            as_of: None,
         };
         ir.validate().expect("scope should resolve");
     }
@@ -1417,6 +1436,7 @@ mod validate_scope_tests {
             limit: None,
             skip: None,
             order_by: vec![],
+            as_of: None,
         };
         match ir.validate() {
             Err(OxError::Validation { field, message }) => {
@@ -1453,6 +1473,7 @@ mod validate_scope_tests {
             limit: None,
             skip: None,
             order_by: vec![],
+            as_of: None,
         };
         ir.validate().expect("importing `p` defined by the Match should pass");
     }
@@ -1479,6 +1500,7 @@ mod validate_scope_tests {
             limit: None,
             skip: None,
             order_by: vec![],
+            as_of: None,
         };
         match ir.validate() {
             Err(OxError::Validation { field, .. }) => {
@@ -1526,6 +1548,7 @@ mod validate_scope_tests {
             limit: None,
             skip: None,
             order_by: vec![],
+            as_of: None,
         };
         ir.validate().expect("relationship endpoints must enter scope");
     }

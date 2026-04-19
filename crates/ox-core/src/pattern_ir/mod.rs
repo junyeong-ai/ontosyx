@@ -334,6 +334,7 @@ impl PatternIR {
             limit: self.limit,
             skip: self.skip,
             order_by: self.order_by.clone(),
+            as_of: None,
         })
     }
 }
@@ -839,6 +840,7 @@ mod tests {
             limit: None,
             skip: None,
             order_by: Vec::new(),
+            as_of: None,
         };
         let pattern = PatternIR::decompile(&query);
         assert_eq!(pattern.nodes.len(), 1);
@@ -884,6 +886,7 @@ mod tests {
             limit: None,
             skip: None,
             order_by: Vec::new(),
+            as_of: None,
         };
         let pattern = PatternIR::decompile(&query);
         assert_eq!(pattern.nodes.len(), 2);
@@ -927,6 +930,7 @@ mod tests {
             limit: None,
             skip: None,
             order_by: Vec::new(),
+            as_of: None,
         };
         let pattern = PatternIR::decompile(&query);
         assert_eq!(pattern.edges.len(), 1);
@@ -960,6 +964,7 @@ mod tests {
             limit: None,
             skip: None,
             order_by: Vec::new(),
+            as_of: None,
         };
         let pattern = PatternIR::decompile(&query);
         assert_eq!(
@@ -992,6 +997,7 @@ mod tests {
             limit: None,
             skip: None,
             order_by: Vec::new(),
+            as_of: None,
         };
         let pattern = PatternIR::decompile(&query);
         assert_eq!(pattern.filters.len(), 1, "OR at root is not split");
@@ -1022,6 +1028,7 @@ mod tests {
             limit: None,
             skip: None,
             order_by: Vec::new(),
+            as_of: None,
         };
         let pattern = PatternIR::decompile(&query);
         assert!(pattern.nodes.is_empty());
@@ -1062,6 +1069,7 @@ mod tests {
             limit: None,
             skip: None,
             order_by: Vec::new(),
+            as_of: None,
         };
         let pattern = PatternIR::decompile(&query);
         assert!(pattern.read_only_reason.is_none());

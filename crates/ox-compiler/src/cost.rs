@@ -500,6 +500,7 @@ mod tests {
             limit: None,
             skip: None,
             order_by: vec![],
+            as_of: None,
         }
     }
 
@@ -680,6 +681,7 @@ mod tests {
             limit: None,
             skip: None,
             order_by: vec![],
+            as_of: None,
         };
         let cost = estimate_cost(&ir, &empty_ontology());
         assert_eq!(cost.optional_match_count, 3);
@@ -711,6 +713,7 @@ mod tests {
             limit: None,
             skip: None,
             order_by: vec![],
+            as_of: None,
         };
         let ir = QueryIR {
             schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
@@ -723,6 +726,7 @@ mod tests {
             limit: None,
             skip: None,
             order_by: vec![],
+            as_of: None,
         };
         let cost = estimate_cost(&ir, &empty_ontology());
         assert!(cost.has_cartesian);

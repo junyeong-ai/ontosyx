@@ -506,6 +506,7 @@ impl StructuredMatchQuery {
             limit: self.limit.map(|v| v as usize),
             skip: self.skip.map(|v| v as usize),
             order_by,
+            as_of: None,
         };
         qir.validate()?;
         Ok(qir)

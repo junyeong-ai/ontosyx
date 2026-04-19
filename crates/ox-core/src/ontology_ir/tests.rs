@@ -653,6 +653,7 @@ fn simple_match_query(node_label: &str, rel_label: Option<&str>) -> crate::query
         limit: None,
         skip: None,
         order_by: vec![],
+        as_of: None,
     }
 }
 

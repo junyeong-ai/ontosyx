@@ -278,6 +278,7 @@ mod tests {
             limit: None,
             skip: None,
             order_by: vec![],
+            as_of: None,
         }
     }
 
