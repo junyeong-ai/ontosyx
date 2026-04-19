@@ -226,6 +226,91 @@
         "description": "Users are automatically added on first login via SSO. Share the platform URL with your team members and ask them to sign in with their Google account."
       }
     },
+    "knowledge": {
+      "title": "Knowledge Base",
+      "description": "Learned corrections from query failures and admin-created hints.",
+      "adminOnly": "Admin access required.",
+      "loadError": "Failed to load knowledge entries",
+      "statusChanged": "Status changed to {status}",
+      "statusError": "Failed to update status",
+      "deleteConfirmTitle": "Delete knowledge entry '{title}'?",
+      "deleteConfirmDescription": "This action cannot be undone. The knowledge entry will be permanently removed.",
+      "deletedToast": "Deleted",
+      "deleteError": "Delete failed",
+      "bulkDeprecated": "{count} deprecated",
+      "bulkError": "Failed",
+      "reviewStale": "Review {count} stale",
+      "statusFilterLabel": "Status Filter",
+      "kindFilterLabel": "Kind Filter",
+      "allStatus": "All status",
+      "allKinds": "All kinds",
+      "entries": "{count} entries",
+      "empty": "No knowledge entries yet.",
+      "emptyHint": "Entries are auto-created when the agent recovers from query failures, or manually as hints.",
+      "loadMore": "Load more (showing {count})",
+      "loading": "Loading...",
+      "ontologyMeta": "{name} v{version}+",
+      "confidence": "Confidence",
+      "usedTimes": "Used {count} times",
+      "approve": "Approve",
+      "deprecate": "Deprecate",
+      "delete": "Delete",
+      "structuredData": "Structured data",
+      "createdBy": "Created by {user}",
+      "reviewed": "Reviewed {date}",
+      "kind": {
+        "correction": "Correction",
+        "hint": "Hint"
+      },
+      "status": {
+        "approved": "Approved",
+        "draft": "Draft",
+        "stale": "Stale",
+        "deprecated": "Deprecated"
+      }
+    },
+    "system": {
+      "title": "System Settings",
+      "description": "Runtime-tunable configuration stored in the database.",
+      "loadError": "Failed to load configuration",
+      "unknownError": "Unknown error",
+      "invalidValue": "Invalid value for {key}",
+      "mustBeNonNegativeInt": "Must be a non-negative integer",
+      "mustBeNumber": "Must be a valid number",
+      "updatedToast": "Updated {count} {count, plural, one {setting} other {settings}}",
+      "saveError": "Failed to save configuration",
+      "modified": "modified",
+      "unsavedChanges": "{count, plural, one {# unsaved change} other {# unsaved changes}}",
+      "discard": "Discard",
+      "save": "Save Changes",
+      "saving": "Saving...",
+      "category": {
+        "llm": {
+          "label": "LLM Parameters",
+          "description": "Language model token limits and temperature settings"
+        },
+        "thresholds": {
+          "label": "Schema Thresholds",
+          "description": "Size thresholds for adaptive processing"
+        },
+        "profiling": {
+          "label": "Profiling",
+          "description": "Graph and schema profiling parameters"
+        },
+        "timeouts": {
+          "label": "Timeouts",
+          "description": "Operation timeout durations (seconds)"
+        },
+        "ui": {
+          "label": "UI / Layout",
+          "description": "ELK graph layout and frontend parameters"
+        },
+        "lifecycle": {
+          "label": "Lifecycle",
+          "description": "WIP project archival and cleanup settings"
+        }
+      }
+    },
     "workspace": {
       "title": "Workspace Settings",
       "description": "Manage workspace details and team members.",

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { getConfig, updateConfig } from "@/lib/api";
 import { useAuth } from "@/lib/use-auth";
 import type { ConfigResponse, ConfigEntry, ConfigUpdateItem } from "@/types/api";
@@ -9,46 +10,25 @@ import { FormInput } from "@/components/ui/form-input";
 import { Spinner } from "@/components/ui/spinner";
 import { TabBar } from "@/components/ui/tab-bar";
 
-// ---------------------------------------------------------------------------
-// Category display metadata
-// ---------------------------------------------------------------------------
-
-const CATEGORY_META: Record<string, { label: string; description: string }> = {
-  llm: {
-    label: "LLM Parameters",
-    description: "Language model token limits and temperature settings",
-  },
-  thresholds: {
-    label: "Schema Thresholds",
-    description: "Size thresholds for adaptive processing",
-  },
-  profiling: {
-    label: "Profiling",
-    description: "Graph and schema profiling parameters",
-  },
-  timeouts: {
-    label: "Timeouts",
-    description: "Operation timeout durations (seconds)",
-  },
-  ui: {
-    label: "UI / Layout",
-    description: "ELK graph layout and frontend parameters",
-  },
-  lifecycle: {
-    label: "Lifecycle",
-    description: "WIP project archival and cleanup settings",
-  },
-};
-
-const CATEGORY_ORDER = ["ui", "llm", "thresholds", "profiling", "timeouts", "lifecycle"];
+const CATEGORY_ORDER = ["ui", "llm", "thresholds", "profiling", "timeouts", "lifecycle"] as const;
+type KnownCategory = (typeof CATEGORY_ORDER)[number];
+function isKnownCategory(c: string): c is KnownCategory {
+  return (CATEGORY_ORDER as readonly string[]).includes(c);
+}
 
 export default function SystemSettingsPage() {
+  const t = useTranslations("settings.system");
   const { isAdmin } = useAuth();
   const [config, setConfig] = useState<ConfigResponse | null>(null);
   const [editedValues, setEditedValues] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<string>(CATEGORY_ORDER[0]);
+
+  const categoryLabel = (c: string) =>
+    isKnownCategory(c) ? t(`category.${c}.label`) : c;
+  const categoryDescription = (c: string) =>
+    isKnownCategory(c) ? t(`category.${c}.description`) : undefined;
 
   const loadConfig = useCallback(async () => {
     setLoading(true);
@@ -57,13 +37,13 @@ export default function SystemSettingsPage() {
       setConfig(data);
       setEditedValues({});
     } catch (err) {
-      toast.error("Failed to load configuration", {
-        description: err instanceof Error ? err.message : "Unknown error",
+      toast.error(t("loadError"), {
+        description: err instanceof Error ? err.message : t("unknownError"),
       });
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     loadConfig();
@@ -78,8 +58,9 @@ export default function SystemSettingsPage() {
 
     setEditedValues((prev) => {
       if (value === original) {
-        const { [ck]: _, ...rest } = prev;
-        return rest;
+        const next = { ...prev };
+        delete next[ck];
+        return next;
       }
       return { ...prev, [ck]: value };
     });
@@ -104,16 +85,16 @@ export default function SystemSettingsPage() {
       if (entry.data_type === "int") {
         const parsed = Number(value);
         if (!Number.isInteger(parsed) || parsed < 0) {
-          toast.error(`Invalid value for ${key}`, {
-            description: "Must be a non-negative integer",
+          toast.error(t("invalidValue", { key }), {
+            description: t("mustBeNonNegativeInt"),
           });
           return;
         }
       } else if (entry.data_type === "float") {
         const parsed = Number(value);
         if (isNaN(parsed)) {
-          toast.error(`Invalid value for ${key}`, {
-            description: "Must be a valid number",
+          toast.error(t("invalidValue", { key }), {
+            description: t("mustBeNumber"),
           });
           return;
         }
@@ -125,13 +106,11 @@ export default function SystemSettingsPage() {
     setIsSaving(true);
     try {
       await updateConfig({ updates });
-      toast.success(
-        `Updated ${updates.length} setting${updates.length > 1 ? "s" : ""}`,
-      );
+      toast.success(t("updatedToast", { count: updates.length }));
       await loadConfig();
     } catch (err) {
-      toast.error("Failed to save configuration", {
-        description: err instanceof Error ? err.message : "Unknown error",
+      toast.error(t("saveError"), {
+        description: err instanceof Error ? err.message : t("unknownError"),
       });
     } finally {
       setIsSaving(false);
@@ -146,7 +125,6 @@ export default function SystemSettingsPage() {
     ? CATEGORY_ORDER.filter((c) => c in config)
     : [];
 
-  // Count edits per category for badge display
   const editCountByCategory = (category: string): number =>
     Object.keys(editedValues).filter((ck) => ck.startsWith(`${category}.`))
       .length;
@@ -154,10 +132,10 @@ export default function SystemSettingsPage() {
   return (
     <div>
       <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-        System Settings
+        {t("title")}
       </h1>
-      <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-        Runtime-tunable configuration stored in the database.
+      <p className="mt-1 text-sm text-zinc-500 dark:text-muted-foreground">
+        {t("description")}
       </p>
 
       {loading ? (
@@ -166,12 +144,11 @@ export default function SystemSettingsPage() {
         </div>
       ) : (
         <>
-          {/* Category tabs */}
           <div className="mt-6 border-b border-zinc-200 dark:border-zinc-800">
             <TabBar
               tabs={categories.map((category) => ({
                 id: category,
-                label: CATEGORY_META[category]?.label ?? category,
+                label: categoryLabel(category),
                 badge: editCountByCategory(category),
               }))}
               activeTab={activeTab}
@@ -179,16 +156,15 @@ export default function SystemSettingsPage() {
             />
           </div>
 
-          {/* Active category content */}
           <div className="mt-4">
             {categories
               .filter((c) => c === activeTab)
               .map((category) => (
                 <ConfigCategory
                   key={category}
-                  category={category}
+                  label={categoryLabel(category)}
+                  description={categoryDescription(category)}
                   entries={config![category]}
-                  meta={CATEGORY_META[category]}
                   getCurrentValue={(entry) =>
                     getCurrentValue(category, entry)
                   }
@@ -199,22 +175,18 @@ export default function SystemSettingsPage() {
               ))}
           </div>
 
-          {/* Sticky footer */}
           <div className="sticky bottom-0 mt-8 flex items-center justify-end gap-2 border-t border-zinc-200 bg-zinc-50 px-0 py-4 dark:border-zinc-800 dark:bg-zinc-950">
             {hasChanges && (
               <span className="mr-auto text-xs text-amber-600 dark:text-amber-400">
-                {Object.keys(editedValues).length} unsaved{" "}
-                {Object.keys(editedValues).length === 1
-                  ? "change"
-                  : "changes"}
+                {t("unsavedChanges", { count: Object.keys(editedValues).length })}
               </span>
             )}
             {hasChanges && (
               <button
                 onClick={handleReset}
-                className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-200 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-200 dark:text-muted-foreground dark:hover:bg-zinc-800"
               >
-                Discard
+                {t("discard")}
               </button>
             )}
             <button
@@ -222,7 +194,7 @@ export default function SystemSettingsPage() {
               disabled={!isAdmin || !hasChanges || isSaving}
               className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isSaving ? "Saving..." : "Save Changes"}
+              {isSaving ? t("saving") : t("save")}
             </button>
           </div>
         </>
@@ -231,22 +203,18 @@ export default function SystemSettingsPage() {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Category Section
-// ---------------------------------------------------------------------------
-
 interface ConfigCategoryProps {
-  category: string;
+  label: string;
+  description?: string;
   entries: ConfigEntry[];
-  meta?: { label: string; description: string };
   getCurrentValue: (entry: ConfigEntry) => string;
   onChange: (key: string, value: string) => void;
 }
 
 function ConfigCategory({
-  category,
+  label,
+  description,
   entries,
-  meta,
   getCurrentValue,
   onChange,
 }: ConfigCategoryProps) {
@@ -254,11 +222,11 @@ function ConfigCategory({
     <section className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
       <div className="border-b border-zinc-100 px-6 py-4 dark:border-zinc-800">
         <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-          {meta?.label ?? category}
+          {label}
         </h2>
-        {meta?.description && (
-          <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-            {meta.description}
+        {description && (
+          <p className="mt-0.5 text-xs text-zinc-500 dark:text-muted-foreground">
+            {description}
           </p>
         )}
       </div>
@@ -276,10 +244,6 @@ function ConfigCategory({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Individual Config Field
-// ---------------------------------------------------------------------------
-
 interface ConfigFieldProps {
   entry: ConfigEntry;
   value: string;
@@ -287,6 +251,7 @@ interface ConfigFieldProps {
 }
 
 function ConfigField({ entry, value, onChange }: ConfigFieldProps) {
+  const t = useTranslations("settings.system");
   const isModified = value !== entry.value;
 
   return (
@@ -296,16 +261,16 @@ function ConfigField({ entry, value, onChange }: ConfigFieldProps) {
           <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
             {formatKeyLabel(entry.key)}
           </span>
-          <span className="rounded bg-zinc-200/60 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400">
+          <span className="rounded bg-zinc-200/60 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-700 dark:text-muted-foreground">
             {entry.data_type}
           </span>
           {isModified && (
             <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-              modified
+              {t("modified")}
             </span>
           )}
         </div>
-        <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+        <p className="mt-0.5 text-xs text-zinc-500 dark:text-muted-foreground">
           {entry.description}
         </p>
       </div>
@@ -327,10 +292,7 @@ function ConfigField({ entry, value, onChange }: ConfigFieldProps) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
+// Config key is snake_case from the backend; `max_tokens` → `Max Tokens`.
 function formatKeyLabel(key: string): string {
   return key
     .split("_")
