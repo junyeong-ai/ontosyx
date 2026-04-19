@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
 import { WIDE_SETTINGS_PAGES } from "@/lib/constants/settings";
 import { cn } from "@/lib/cn";
+import { useIsClient } from "@/lib/use-is-client";
 
 /**
  * Derive a page title from the settings pathname. Runs at render time —
@@ -28,6 +29,7 @@ export default function SettingsLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const t = useTranslations("settings.chrome");
   const isWide = WIDE_SETTINGS_PAGES.has(pathname);
   const pageTitle = deriveTitle(pathname);
 
@@ -37,8 +39,7 @@ export default function SettingsLayout({
   // the `<h1>` rendered on the first paint satisfies the
   // `page-has-heading-one` a11y rule and gives screen readers an anchor
   // during the hydration gap.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useIsClient();
 
   return (
     <div className="flex h-screen bg-zinc-50 dark:bg-zinc-950">
@@ -59,7 +60,7 @@ export default function SettingsLayout({
               human-facing heading via `SettingsSection`, which is now an
               `<h2>` to preserve the page hierarchy. */}
           <h1 className="sr-only">
-            {pageTitle ? `Settings — ${pageTitle}` : "Settings"}
+            {pageTitle ? t("pageTitle", { page: pageTitle }) : t("rootTitle")}
           </h1>
           {mounted ? children : null}
         </div>

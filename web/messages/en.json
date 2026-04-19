@@ -1,0 +1,89 @@
+{
+  "common": {
+    "loading": "Loading…",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "close": "Close",
+    "confirm": "Confirm",
+    "retry": "Retry",
+    "submit": "Submit",
+    "create": "Create",
+    "remove": "Remove",
+    "edit": "Edit",
+    "apply": "Apply",
+    "discard": "Discard",
+    "unknown": "Unknown",
+    "loadingEllipsis": "Loading…"
+  },
+  "auth": {
+    "signIn": "Sign in",
+    "signOut": "Sign out",
+    "signInPrompt": "Sign-in required"
+  },
+  "notFound": {
+    "code": "404",
+    "title": "Page not found",
+    "description": "The address you requested was removed or mistyped.",
+    "hint": "The page you're looking for doesn't exist.",
+    "home": "Home",
+    "homeAria": "Home",
+    "getStarted": "Get started",
+    "getStartedAria": "Get started",
+    "searchTipPrefix": "Not sure where to go? Open the command palette (",
+    "searchTipSuffix": ") to search."
+  },
+  "loading": {
+    "message": "Loading…",
+    "messageAria": "Loading…"
+  },
+  "welcome": {
+    "step1Title": "Connect Your Data",
+    "step1Description": "Link any database — PostgreSQL, MySQL, MongoDB, or upload CSV/JSON files. Ontosyx analyzes your schema automatically.",
+    "step2Title": "Design Your Ontology",
+    "step2Description": "AI designs a knowledge graph from your data structure. Refine nodes, edges, and properties visually on the canvas.",
+    "step3Title": "Discover Insights",
+    "step3Description": "Ask natural language questions to explore multi-hop relationships impossible in traditional SQL. Build dashboards and reports.",
+    "skip": "Skip",
+    "next": "Next",
+    "getStarted": "Get Started"
+  },
+  "locale": {
+    "switcher": "Language",
+    "ko": "한국어",
+    "en": "English"
+  },
+  "settings": {
+    "chrome": {
+      "rootTitle": "Settings",
+      "pageTitle": "Settings — {page}"
+    },
+    "roles": {
+      "admin": "Admin",
+      "designer": "Designer",
+      "viewer": "Viewer"
+    },
+    "profile": {
+      "title": "Profile",
+      "accountDetails": "Account Details",
+      "field": {
+        "name": "Name",
+        "email": "Email",
+        "signInProvider": "Sign-in Provider",
+        "role": "Role"
+      },
+      "signInProviderValue": "Google",
+      "session": {
+        "title": "Session",
+        "description": "Sign out of your current session on this device.",
+        "signOut": "Sign Out"
+      },
+      "notSignedIn": "Not signed in.",
+      "devMode": {
+        "userName": "Developer",
+        "userEmail": "dev@localhost",
+        "notice": "Development mode — no authentication configured. Configure Google OAuth to enable user accounts."
+      }
+    }
+  }
+}

@@ -141,10 +141,8 @@ describe("ChatSlice", () => {
   });
 
   it("setExecutionMode round-trips", () => {
-    store.getState().setExecutionMode("direct");
-    expect(store.getState().executionMode).toBe("direct");
-    store.getState().setExecutionMode("agent");
-    expect(store.getState().executionMode).toBe("agent");
+    store.getState().setExecutionMode("supervised");
+    expect(store.getState().executionMode).toBe("supervised");
     store.getState().setExecutionMode("auto");
     expect(store.getState().executionMode).toBe("auto");
   });
@@ -159,16 +157,8 @@ describe("ChatSlice", () => {
 
   it("setTokenUsage records cumulative counts", () => {
     expect(store.getState().tokenUsage).toBeNull();
-    store.getState().setTokenUsage({
-      input_tokens: 100,
-      output_tokens: 200,
-      total_tokens: 300,
-    });
-    expect(store.getState().tokenUsage).toEqual({
-      input_tokens: 100,
-      output_tokens: 200,
-      total_tokens: 300,
-    });
+    store.getState().setTokenUsage({ input: 100, output: 200 });
+    expect(store.getState().tokenUsage).toEqual({ input: 100, output: 200 });
   });
 
   it("setSessionId switches conversation scope", () => {

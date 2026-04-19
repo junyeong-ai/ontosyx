@@ -1,0 +1,89 @@
+{
+  "common": {
+    "loading": "불러오는 중…",
+    "cancel": "취소",
+    "save": "저장",
+    "delete": "삭제",
+    "close": "닫기",
+    "confirm": "확인",
+    "retry": "다시 시도",
+    "submit": "제출",
+    "create": "만들기",
+    "remove": "제거",
+    "edit": "편집",
+    "apply": "적용",
+    "discard": "버리기",
+    "unknown": "알 수 없음",
+    "loadingEllipsis": "불러오는 중…"
+  },
+  "auth": {
+    "signIn": "로그인",
+    "signOut": "로그아웃",
+    "signInPrompt": "로그인이 필요합니다"
+  },
+  "notFound": {
+    "code": "404",
+    "title": "페이지를 찾을 수 없습니다",
+    "description": "요청하신 주소가 삭제되었거나 잘못 입력된 것 같아요.",
+    "hint": "The page you're looking for doesn't exist.",
+    "home": "홈으로",
+    "homeAria": "홈으로 (Home)",
+    "getStarted": "시작",
+    "getStartedAria": "시작 (Get started)",
+    "searchTipPrefix": "어디로 가야 할지 모르겠다면 명령 팔레트(",
+    "searchTipSuffix": ")를 열어 검색하세요."
+  },
+  "loading": {
+    "message": "불러오는 중…",
+    "messageAria": "불러오는 중… (Loading)"
+  },
+  "welcome": {
+    "step1Title": "데이터 연결",
+    "step1Description": "PostgreSQL, MySQL, MongoDB 등 모든 데이터베이스를 연결하거나 CSV/JSON 파일을 업로드하세요. Ontosyx가 스키마를 자동 분석합니다.",
+    "step2Title": "온톨로지 설계",
+    "step2Description": "AI가 데이터 구조로부터 지식 그래프를 설계합니다. 캔버스에서 노드·엣지·속성을 시각적으로 다듬으세요.",
+    "step3Title": "인사이트 발견",
+    "step3Description": "자연어 질문으로 전통 SQL로는 불가능한 멀티홉 관계를 탐색하세요. 대시보드와 리포트로 공유할 수 있습니다.",
+    "skip": "건너뛰기",
+    "next": "다음",
+    "getStarted": "시작하기"
+  },
+  "locale": {
+    "switcher": "언어",
+    "ko": "한국어",
+    "en": "English"
+  },
+  "settings": {
+    "chrome": {
+      "rootTitle": "설정",
+      "pageTitle": "설정 — {page}"
+    },
+    "roles": {
+      "admin": "관리자",
+      "designer": "디자이너",
+      "viewer": "뷰어"
+    },
+    "profile": {
+      "title": "프로필",
+      "accountDetails": "계정 상세",
+      "field": {
+        "name": "이름",
+        "email": "이메일",
+        "signInProvider": "로그인 제공자",
+        "role": "역할"
+      },
+      "signInProviderValue": "Google",
+      "session": {
+        "title": "세션",
+        "description": "이 기기의 현재 세션에서 로그아웃합니다.",
+        "signOut": "로그아웃"
+      },
+      "notSignedIn": "로그인되어 있지 않습니다.",
+      "devMode": {
+        "userName": "개발자",
+        "userEmail": "dev@localhost",
+        "notice": "개발 모드 — 인증이 구성되지 않았습니다. Google OAuth를 구성하면 사용자 계정을 활성화할 수 있습니다."
+      }
+    }
+  }
+}
