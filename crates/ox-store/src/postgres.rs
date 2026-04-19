@@ -199,6 +199,7 @@ where
 
 #[async_trait]
 impl QueryStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn create_query_execution(&self, exec: &QueryExecution) -> OxResult<()> {
         sqlx::query(
             "INSERT INTO query_executions
@@ -232,6 +233,7 @@ impl QueryStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_query_execution(
         &self,
         user_id: &str,
@@ -256,6 +258,7 @@ impl QueryStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_query_executions(
         &self,
         user_id: &str,
@@ -296,6 +299,7 @@ impl QueryStore for PostgresStore {
         Ok(build_cursor_page(rows, limit, |e| (e.created_at, e.id)))
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn update_query_feedback(
         &self,
         user_id: &str,
@@ -320,6 +324,7 @@ impl QueryStore for PostgresStore {
 
 #[async_trait]
 impl OntologyStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_saved_ontology(&self, id: Uuid) -> OxResult<Option<SavedOntology>> {
         sqlx::query_as::<_, SavedOntology>("SELECT * FROM saved_ontologies WHERE id = $1")
             .bind(id)
@@ -328,6 +333,7 @@ impl OntologyStore for PostgresStore {
             .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_saved_ontologies(
         &self,
         pagination: &CursorParams,
@@ -362,6 +368,7 @@ impl OntologyStore for PostgresStore {
         Ok(build_cursor_page(rows, limit, |o| (o.created_at, o.id)))
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_latest_ontology(&self, name: &str) -> OxResult<Option<SavedOntology>> {
         sqlx::query_as::<_, SavedOntology>(
             "SELECT * FROM saved_ontologies WHERE name = $1 ORDER BY version DESC LIMIT 1",
@@ -372,6 +379,7 @@ impl OntologyStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_latest_ontology_by_lineage(
         &self,
         lineage_id: &str,
@@ -388,6 +396,7 @@ impl OntologyStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_ontology_version_at(
         &self,
         lineage_id: &str,
@@ -412,6 +421,7 @@ impl OntologyStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn create_standalone_ontology(
         &self,
         name: &str,
@@ -432,6 +442,7 @@ impl OntologyStore for PostgresStore {
         Ok(id)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn update_ontology_ir(&self, id: Uuid, ontology_ir: &serde_json::Value) -> OxResult<()> {
         let rows = sqlx::query("UPDATE saved_ontologies SET ontology_ir = $1 WHERE id = $2")
             .bind(ontology_ir)
@@ -455,6 +466,7 @@ impl OntologyStore for PostgresStore {
 
 #[async_trait]
 impl PinStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn create_pin(&self, user_id: &str, item: &PinboardItem) -> OxResult<()> {
         // Verify ownership: query_execution must belong to the principal
         let result = sqlx::query(
@@ -480,6 +492,7 @@ impl PinStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_pins(
         &self,
         user_id: &str,
@@ -521,6 +534,7 @@ impl PinStore for PostgresStore {
         Ok(build_cursor_page(rows, limit, |p| (p.pinned_at, p.id)))
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_pin(&self, user_id: &str, id: Uuid) -> OxResult<bool> {
         let result = sqlx::query(
             "DELETE FROM pinboard_items
@@ -541,6 +555,7 @@ impl PinStore for PostgresStore {
 
 #[async_trait]
 impl ProjectStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn create_design_project(&self, project: &DesignProject) -> OxResult<()> {
         sqlx::query(
             "INSERT INTO design_projects
@@ -571,6 +586,7 @@ impl ProjectStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_design_project(&self, id: Uuid) -> OxResult<Option<DesignProject>> {
         sqlx::query_as::<_, DesignProject>("SELECT * FROM design_projects WHERE id = $1")
             .bind(id)
@@ -579,6 +595,7 @@ impl ProjectStore for PostgresStore {
             .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_design_projects(
         &self,
         pagination: &CursorParams,
@@ -618,6 +635,7 @@ impl ProjectStore for PostgresStore {
         Ok(build_cursor_page(rows, limit, |p| (p.updated_at, p.id)))
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn update_design_options(
         &self,
         id: Uuid,
@@ -639,6 +657,7 @@ impl ProjectStore for PostgresStore {
         check_cas_result(result.rows_affected())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn update_design_result(
         &self,
         id: Uuid,
@@ -664,6 +683,7 @@ impl ProjectStore for PostgresStore {
         check_cas_result(result.rows_affected())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn update_extend_result(
         &self,
         id: Uuid,
@@ -692,6 +712,7 @@ impl ProjectStore for PostgresStore {
         check_cas_result(rows.rows_affected())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn replace_analysis_snapshot(
         &self,
         id: Uuid,
@@ -721,6 +742,7 @@ impl ProjectStore for PostgresStore {
         check_cas_result(result.rows_affected())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn complete_design_project(
         &self,
         project_id: Uuid,
@@ -763,6 +785,7 @@ impl ProjectStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_design_project(&self, id: Uuid) -> OxResult<bool> {
         let result = sqlx::query("DELETE FROM design_projects WHERE id = $1")
             .bind(id)
@@ -772,6 +795,7 @@ impl ProjectStore for PostgresStore {
         Ok(result.rows_affected() > 0)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn archive_stale_projects(&self, max_age_days: i64) -> OxResult<Vec<(Uuid, u64)>> {
         // RETURNING the workspace_id of each affected row, then GROUP
         // BY in SQL — keeps the per-workspace breakdown server-side
@@ -796,6 +820,7 @@ impl ProjectStore for PostgresStore {
         Ok(rows.into_iter().map(|(ws, n)| (ws, n as u64)).collect())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_archived_projects(&self, max_archive_days: i64) -> OxResult<Vec<(Uuid, u64)>> {
         let rows: Vec<(Uuid, i64)> = sqlx::query_as(
             "WITH affected AS (
@@ -817,6 +842,7 @@ impl ProjectStore for PostgresStore {
 
     // --- Ontology Snapshots ---
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn create_ontology_snapshot(
         &self,
         project_id: Uuid,
@@ -841,6 +867,7 @@ impl ProjectStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_ontology_snapshots(
         &self,
         project_id: Uuid,
@@ -872,6 +899,7 @@ impl ProjectStore for PostgresStore {
             .collect())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_ontology_snapshot(
         &self,
         project_id: Uuid,
@@ -895,6 +923,7 @@ impl ProjectStore for PostgresStore {
 
 #[async_trait]
 impl PerspectiveStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn upsert_perspective(&self, p: &WorkbenchPerspective) -> OxResult<()> {
         let mut tx = self.pool.begin().await.map_err(to_ox_error)?;
 
@@ -950,6 +979,7 @@ impl PerspectiveStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_perspective(
         &self,
         user_id: &str,
@@ -968,6 +998,7 @@ impl PerspectiveStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_default_perspective(
         &self,
         user_id: &str,
@@ -986,6 +1017,7 @@ impl PerspectiveStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_best_perspective(
         &self,
         user_id: &str,
@@ -1025,6 +1057,7 @@ impl PerspectiveStore for PostgresStore {
         Ok(topology_match)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_perspectives(
         &self,
         user_id: &str,
@@ -1042,6 +1075,7 @@ impl PerspectiveStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_perspective(&self, user_id: &str, id: Uuid) -> OxResult<bool> {
         let result =
             sqlx::query("DELETE FROM workbench_perspectives WHERE id = $1 AND user_id = $2")
@@ -1060,6 +1094,7 @@ impl PerspectiveStore for PostgresStore {
 
 #[async_trait]
 impl ConfigStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_all_config(&self) -> OxResult<Vec<SystemConfigRow>> {
         sqlx::query_as::<_, SystemConfigRow>(
             "SELECT category, key, value, data_type, description, updated_at
@@ -1071,6 +1106,7 @@ impl ConfigStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_config(&self, key: &str) -> OxResult<Option<String>> {
         let row = sqlx::query_scalar::<_, String>("SELECT value FROM system_config WHERE key = $1")
             .bind(key)
@@ -1080,6 +1116,7 @@ impl ConfigStore for PostgresStore {
         Ok(row)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn update_config(&self, category: &str, key: &str, value: &str) -> OxResult<()> {
         let result = sqlx::query(
             "UPDATE system_config SET value = $3, updated_at = NOW()
@@ -1100,6 +1137,7 @@ impl ConfigStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn update_config_batch(&self, updates: &[(String, String, String)]) -> OxResult<()> {
         let mut tx = self.pool.begin().await.map_err(to_ox_error)?;
 
@@ -1133,6 +1171,7 @@ impl ConfigStore for PostgresStore {
 
 #[async_trait]
 impl UserStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn upsert_user(&self, user: &User) -> OxResult<User> {
         sqlx::query_as::<_, User>(
             "INSERT INTO users (id, email, name, picture, provider, provider_sub, role, created_at, last_login_at)
@@ -1159,6 +1198,7 @@ impl UserStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_user_by_id(&self, id: Uuid) -> OxResult<Option<User>> {
         sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
             .bind(id)
@@ -1167,6 +1207,7 @@ impl UserStore for PostgresStore {
             .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_user_by_provider(
         &self,
         provider: &str,
@@ -1180,6 +1221,7 @@ impl UserStore for PostgresStore {
             .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_users(&self, pagination: &CursorParams) -> OxResult<CursorPage<User>> {
         let limit = pagination.effective_limit();
         let fetch_limit = limit + 1;
@@ -1211,6 +1253,7 @@ impl UserStore for PostgresStore {
         Ok(build_cursor_page(rows, limit, |u| (u.created_at, u.id)))
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn update_user_role(&self, id: Uuid, role: &str) -> OxResult<()> {
         let result = sqlx::query("UPDATE users SET role = $1 WHERE id = $2")
             .bind(role)
@@ -1227,6 +1270,7 @@ impl UserStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_user_count(&self) -> OxResult<i64> {
         let (count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
             .fetch_one(&self.pool)
@@ -1242,6 +1286,7 @@ impl UserStore for PostgresStore {
 
 #[async_trait]
 impl RecipeStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn upsert_recipe(&self, r: &AnalysisRecipe) -> OxResult<()> {
         sqlx::query(
             "INSERT INTO analysis_recipes
@@ -1279,6 +1324,7 @@ impl RecipeStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_recipe(&self, id: Uuid) -> OxResult<Option<AnalysisRecipe>> {
         sqlx::query_as::<_, AnalysisRecipe>("SELECT * FROM analysis_recipes WHERE id = $1")
             .bind(id)
@@ -1287,6 +1333,7 @@ impl RecipeStore for PostgresStore {
             .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_recipes(
         &self,
         pagination: &CursorParams,
@@ -1321,6 +1368,7 @@ impl RecipeStore for PostgresStore {
         Ok(build_cursor_page(rows, limit, |r| (r.created_at, r.id)))
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_recipe(&self, id: Uuid) -> OxResult<bool> {
         let result = sqlx::query("DELETE FROM analysis_recipes WHERE id = $1")
             .bind(id)
@@ -1330,6 +1378,7 @@ impl RecipeStore for PostgresStore {
         Ok(result.rows_affected() > 0)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn update_recipe_status(&self, id: Uuid, status: &str) -> OxResult<()> {
         sqlx::query("UPDATE analysis_recipes SET status = $2 WHERE id = $1")
             .bind(id)
@@ -1340,10 +1389,12 @@ impl RecipeStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn create_recipe_version(&self, recipe: &AnalysisRecipe) -> OxResult<()> {
         self.upsert_recipe(recipe).await
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_recipe_versions(&self, parent_id: Uuid) -> OxResult<Vec<AnalysisRecipe>> {
         sqlx::query_as::<_, AnalysisRecipe>(
             "SELECT * FROM analysis_recipes
@@ -1356,6 +1407,7 @@ impl RecipeStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn upsert_recipes_batch(&self, recipes: &[AnalysisRecipe]) -> OxResult<()> {
         if recipes.is_empty() {
             return Ok(());
@@ -1407,6 +1459,7 @@ impl RecipeStore for PostgresStore {
 
 #[async_trait]
 impl DashboardStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn create_dashboard(&self, d: &Dashboard) -> OxResult<()> {
         sqlx::query(
             "INSERT INTO dashboards (id, workspace_id, user_id, name, description, layout, is_public, share_token, shared_at, share_expires_at, created_at, updated_at)
@@ -1430,6 +1483,7 @@ impl DashboardStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_dashboard(&self, id: Uuid) -> OxResult<Option<Dashboard>> {
         sqlx::query_as::<_, Dashboard>("SELECT * FROM dashboards WHERE id = $1")
             .bind(id)
@@ -1438,6 +1492,7 @@ impl DashboardStore for PostgresStore {
             .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_dashboards(
         &self,
         user_id: &str,
@@ -1505,6 +1560,7 @@ impl DashboardStore for PostgresStore {
         Ok(build_cursor_page(rows, limit, |d| (d.updated_at, d.id)))
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn update_dashboard(
         &self,
         id: Uuid,
@@ -1527,6 +1583,7 @@ impl DashboardStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_dashboard(&self, id: Uuid) -> OxResult<bool> {
         let result = sqlx::query("DELETE FROM dashboards WHERE id = $1")
             .bind(id)
@@ -1536,6 +1593,7 @@ impl DashboardStore for PostgresStore {
         Ok(result.rows_affected() > 0)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn update_dashboard_share_token(
         &self,
         id: Uuid,
@@ -1570,6 +1628,7 @@ impl DashboardStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_dashboard_by_share_token(&self, token: &str) -> OxResult<Option<Dashboard>> {
         // Returns the row even if `share_expires_at` is in the past so the
         // caller can render a 410 Gone instead of a generic 404. The route
@@ -1581,6 +1640,7 @@ impl DashboardStore for PostgresStore {
             .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn create_widget(&self, w: &DashboardWidget) -> OxResult<()> {
         sqlx::query(
             "INSERT INTO dashboard_widgets
@@ -1604,6 +1664,7 @@ impl DashboardStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_widgets(&self, dashboard_id: Uuid) -> OxResult<Vec<DashboardWidget>> {
         sqlx::query_as::<_, DashboardWidget>(
             "SELECT * FROM dashboard_widgets WHERE dashboard_id = $1 ORDER BY created_at",
@@ -1614,6 +1675,7 @@ impl DashboardStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn update_widget(
         &self,
         id: Uuid,
@@ -1644,6 +1706,7 @@ impl DashboardStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn update_widget_result(&self, id: Uuid, result: &serde_json::Value) -> OxResult<()> {
         sqlx::query(
             "UPDATE dashboard_widgets SET last_result = $1, last_refreshed = NOW() WHERE id = $2",
@@ -1656,6 +1719,7 @@ impl DashboardStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_widget(&self, id: Uuid) -> OxResult<bool> {
         let result = sqlx::query("DELETE FROM dashboard_widgets WHERE id = $1")
             .bind(id)
@@ -1665,6 +1729,7 @@ impl DashboardStore for PostgresStore {
         Ok(result.rows_affected() > 0)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn create_widgets_batch(&self, widgets: &[DashboardWidget]) -> OxResult<()> {
         if widgets.is_empty() {
             return Ok(());
@@ -1702,6 +1767,7 @@ impl DashboardStore for PostgresStore {
 
 #[async_trait]
 impl ReportStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn create_report(&self, r: &SavedReport) -> OxResult<()> {
         sqlx::query(
             "INSERT INTO saved_reports
@@ -1726,6 +1792,7 @@ impl ReportStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_report(&self, id: Uuid) -> OxResult<Option<SavedReport>> {
         sqlx::query_as::<_, SavedReport>("SELECT * FROM saved_reports WHERE id = $1")
             .bind(id)
@@ -1734,6 +1801,7 @@ impl ReportStore for PostgresStore {
             .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_reports(
         &self,
         user_id: &str,
@@ -1778,6 +1846,7 @@ impl ReportStore for PostgresStore {
         Ok(build_cursor_page(rows, limit, |r| (r.updated_at, r.id)))
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn update_report(
         &self,
         id: Uuid,
@@ -1808,6 +1877,7 @@ impl ReportStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_report(&self, id: Uuid) -> OxResult<bool> {
         let result = sqlx::query("DELETE FROM saved_reports WHERE id = $1")
             .bind(id)
@@ -1824,6 +1894,7 @@ impl ReportStore for PostgresStore {
 
 #[async_trait]
 impl PatternStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn create_pattern(&self, p: &SavedQueryPattern) -> OxResult<()> {
         sqlx::query(
             "INSERT INTO saved_query_patterns
@@ -1845,6 +1916,7 @@ impl PatternStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_pattern(&self, id: Uuid) -> OxResult<Option<SavedQueryPattern>> {
         sqlx::query_as::<_, SavedQueryPattern>("SELECT * FROM saved_query_patterns WHERE id = $1")
             .bind(id)
@@ -1853,6 +1925,7 @@ impl PatternStore for PostgresStore {
             .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_patterns(
         &self,
         user_id: &str,
@@ -1897,6 +1970,7 @@ impl PatternStore for PostgresStore {
         Ok(build_cursor_page(rows, limit, |r| (r.updated_at, r.id)))
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn update_pattern(
         &self,
         id: Uuid,
@@ -1919,6 +1993,7 @@ impl PatternStore for PostgresStore {
         Ok(result.rows_affected() > 0)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_pattern(&self, id: Uuid) -> OxResult<bool> {
         let result = sqlx::query("DELETE FROM saved_query_patterns WHERE id = $1")
             .bind(id)
@@ -1935,6 +2010,7 @@ impl PatternStore for PostgresStore {
 
 #[async_trait]
 impl AnalysisResultStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn create_analysis_result(&self, r: &AnalysisResult) -> OxResult<()> {
         sqlx::query(
             "INSERT INTO analysis_results (id, recipe_id, ontology_lineage_id, input_hash, output, duration_ms, created_at)
@@ -1955,6 +2031,7 @@ impl AnalysisResultStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_cached_result(
         &self,
         input_hash: &str,
@@ -1984,6 +2061,7 @@ impl AnalysisResultStore for PostgresStore {
         Ok(result)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_analysis_results(
         &self,
         recipe_id: Uuid,
@@ -2002,6 +2080,7 @@ impl AnalysisResultStore for PostgresStore {
         })
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn cleanup_old_results(&self, max_age_days: i64) -> OxResult<Vec<(Uuid, u64)>> {
         let rows: Vec<(Uuid, i64)> = sqlx::query_as(
             "WITH affected AS (
@@ -2027,6 +2106,7 @@ impl AnalysisResultStore for PostgresStore {
 
 #[async_trait]
 impl ScheduledTaskStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn create_scheduled_task(&self, t: &ScheduledTask) -> OxResult<()> {
         sqlx::query(
             "INSERT INTO scheduled_tasks (id, recipe_id, ontology_lineage_id, cron_expression, description,
@@ -2049,6 +2129,7 @@ impl ScheduledTaskStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_scheduled_task(&self, id: Uuid) -> OxResult<Option<ScheduledTask>> {
         sqlx::query_as::<_, ScheduledTask>("SELECT * FROM scheduled_tasks WHERE id = $1")
             .bind(id)
@@ -2057,6 +2138,7 @@ impl ScheduledTaskStore for PostgresStore {
             .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_scheduled_tasks(&self, recipe_id: Option<Uuid>) -> OxResult<Vec<ScheduledTask>> {
         match recipe_id {
             Some(rid) => sqlx::query_as::<_, ScheduledTask>(
@@ -2075,6 +2157,7 @@ impl ScheduledTaskStore for PostgresStore {
         }
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_due_tasks(&self) -> OxResult<Vec<ScheduledTask>> {
         sqlx::query_as::<_, ScheduledTask>(
             "SELECT * FROM scheduled_tasks WHERE enabled = true AND next_run_at <= NOW()",
@@ -2084,6 +2167,7 @@ impl ScheduledTaskStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn update_task_after_run(
         &self,
         id: Uuid,
@@ -2102,6 +2186,7 @@ impl ScheduledTaskStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn update_scheduled_task_enabled(&self, id: Uuid, enabled: bool) -> OxResult<()> {
         sqlx::query("UPDATE scheduled_tasks SET enabled = $2 WHERE id = $1")
             .bind(id)
@@ -2112,6 +2197,7 @@ impl ScheduledTaskStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_scheduled_task(&self, id: Uuid) -> OxResult<bool> {
         let result = sqlx::query("DELETE FROM scheduled_tasks WHERE id = $1")
             .bind(id)
@@ -2128,6 +2214,7 @@ impl ScheduledTaskStore for PostgresStore {
 
 #[async_trait]
 impl HealthStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn health_check(&self) -> bool {
         sqlx::query("SELECT 1").execute(&self.pool).await.is_ok()
     }
@@ -2312,6 +2399,7 @@ fn to_ox_error(e: sqlx::Error) -> OxError {
 
 #[async_trait]
 impl AgentSessionStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn create_agent_session(&self, s: &AgentSession) -> OxResult<()> {
         sqlx::query(
             "INSERT INTO agent_sessions (id, user_id, ontology_lineage_id, prompt_hash, tool_schema_hash,
@@ -2335,6 +2423,7 @@ impl AgentSessionStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn complete_agent_session(&self, id: Uuid, final_text: Option<&str>) -> OxResult<()> {
         sqlx::query(
             "UPDATE agent_sessions SET final_text = $2, completed_at = NOW() WHERE id = $1",
@@ -2349,6 +2438,7 @@ impl AgentSessionStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_agent_session(&self, id: Uuid) -> OxResult<Option<AgentSession>> {
         sqlx::query_as(
             "SELECT id, user_id, ontology_lineage_id, prompt_hash, tool_schema_hash,
@@ -2364,6 +2454,7 @@ impl AgentSessionStore for PostgresStore {
         })
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_agent_sessions(
         &self,
         user_id: &str,
@@ -2414,6 +2505,7 @@ impl AgentSessionStore for PostgresStore {
         Ok(build_cursor_page(items, limit, |s| (s.created_at, s.id)))
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn create_agent_event(&self, e: &AgentEvent) -> OxResult<()> {
         sqlx::query(
             "INSERT INTO agent_events (id, session_id, workspace_id, sequence, event_type, payload, created_at)
@@ -2434,6 +2526,7 @@ impl AgentSessionStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_agent_events(&self, session_id: Uuid) -> OxResult<Vec<AgentEvent>> {
         sqlx::query_as("SELECT * FROM agent_events WHERE session_id = $1 ORDER BY sequence")
             .bind(session_id)
@@ -2444,6 +2537,7 @@ impl AgentSessionStore for PostgresStore {
             })
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_agent_session(&self, id: Uuid) -> OxResult<bool> {
         // Delete events first (explicit rather than relying on CASCADE)
         sqlx::query("DELETE FROM agent_events WHERE session_id = $1")
@@ -2465,6 +2559,7 @@ impl AgentSessionStore for PostgresStore {
         Ok(result.rows_affected() > 0)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn cleanup_old_sessions(&self, retention_days: i64) -> OxResult<Vec<(Uuid, u64)>> {
         // Delete events first (CASCADE would handle this but be explicit)
         sqlx::query(
@@ -2506,6 +2601,7 @@ impl AgentSessionStore for PostgresStore {
 
 #[async_trait]
 impl EmbeddingRetryStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn create_pending_embedding(
         &self,
         content: &str,
@@ -2522,6 +2618,7 @@ impl EmbeddingRetryStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_pending_embeddings(&self, limit: i64) -> OxResult<Vec<PendingEmbedding>> {
         sqlx::query_as(
             "SELECT * FROM pending_embeddings WHERE retry_count < 3 ORDER BY created_at LIMIT $1",
@@ -2534,6 +2631,7 @@ impl EmbeddingRetryStore for PostgresStore {
         })
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn mark_embedding_failed(&self, id: Uuid, error: &str) -> OxResult<()> {
         sqlx::query(
             "UPDATE pending_embeddings SET retry_count = retry_count + 1, last_error = $2 WHERE id = $1",
@@ -2548,6 +2646,7 @@ impl EmbeddingRetryStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_pending_embedding(&self, id: Uuid) -> OxResult<bool> {
         let result = sqlx::query("DELETE FROM pending_embeddings WHERE id = $1")
             .bind(id)
@@ -2566,6 +2665,7 @@ impl EmbeddingRetryStore for PostgresStore {
 
 #[async_trait]
 impl PromptTemplateStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_prompt_templates(&self, active_only: bool) -> OxResult<Vec<PromptTemplateRow>> {
         let rows: Vec<PromptTemplateRow> = if active_only {
             sqlx::query_as(
@@ -2584,6 +2684,7 @@ impl PromptTemplateStore for PostgresStore {
         Ok(rows)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_prompt_template(&self, id: Uuid) -> OxResult<Option<PromptTemplateRow>> {
         sqlx::query_as("SELECT * FROM prompt_templates WHERE id = $1")
             .bind(id)
@@ -2594,6 +2695,7 @@ impl PromptTemplateStore for PostgresStore {
             })
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_active_prompt(&self, name: &str) -> OxResult<Option<PromptTemplateRow>> {
         // Active global template (workspace_id IS NULL). Sort by parsed
         // semver components (CHECK constraint guarantees `<int>.<int>.<int>`)
@@ -2614,6 +2716,7 @@ impl PromptTemplateStore for PostgresStore {
         })
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_active_prompt_for_workspace(
         &self,
         name: &str,
@@ -2652,6 +2755,7 @@ impl PromptTemplateStore for PostgresStore {
         })
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn create_prompt_template(&self, r: &PromptTemplateRow) -> OxResult<()> {
         sqlx::query(
             "INSERT INTO prompt_templates (id, name, version, content, variables, metadata, created_by, created_at, is_active, workspace_id)
@@ -2679,6 +2783,7 @@ impl PromptTemplateStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn update_prompt_template(
         &self,
         id: Uuid,
@@ -2701,6 +2806,7 @@ impl PromptTemplateStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_prompt_template(&self, id: Uuid) -> OxResult<bool> {
         let result = sqlx::query("DELETE FROM prompt_templates WHERE id = $1")
             .bind(id)
@@ -2712,6 +2818,7 @@ impl PromptTemplateStore for PostgresStore {
         Ok(result.rows_affected() > 0)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn update_prompt_template_active_only(
         &self,
         name: &str,
@@ -2737,6 +2844,7 @@ impl PromptTemplateStore for PostgresStore {
 
 #[async_trait]
 impl VerificationStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn verify_element(&self, v: &ElementVerification) -> OxResult<Uuid> {
         let row: (Uuid,) = sqlx::query_as(
             "INSERT INTO ontology_verifications
@@ -2758,6 +2866,7 @@ impl VerificationStore for PostgresStore {
         Ok(row.0)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_verifications(
         &self,
         ontology_lineage_id: &str,
@@ -2777,6 +2886,7 @@ impl VerificationStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn invalidate_for_elements(
         &self,
         ontology_lineage_id: &str,
@@ -2799,6 +2909,7 @@ impl VerificationStore for PostgresStore {
         Ok(result.rows_affected())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_verification(
         &self,
         ontology_lineage_id: &str,
@@ -2827,6 +2938,7 @@ impl VerificationStore for PostgresStore {
 
 #[async_trait]
 impl ToolApprovalStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn create_tool_approval(&self, a: &ToolApproval) -> OxResult<()> {
         sqlx::query(
             "INSERT INTO tool_approvals
@@ -2850,6 +2962,7 @@ impl ToolApprovalStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_tool_approval(
         &self,
         session_id: Uuid,
@@ -2873,6 +2986,7 @@ impl ToolApprovalStore for PostgresStore {
 
 #[async_trait]
 impl WorkspaceStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn create_workspace(&self, w: &Workspace) -> OxResult<()> {
         sqlx::query(
             "INSERT INTO workspaces (id, name, slug, owner_id, settings, primary_locale, locale_fallback)
@@ -2891,6 +3005,7 @@ impl WorkspaceStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_workspace(&self, id: Uuid) -> OxResult<Option<Workspace>> {
         sqlx::query_as("SELECT * FROM workspaces WHERE id = $1")
             .bind(id)
@@ -2899,6 +3014,7 @@ impl WorkspaceStore for PostgresStore {
             .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_workspace_by_slug(&self, slug: &str) -> OxResult<Option<Workspace>> {
         sqlx::query_as("SELECT * FROM workspaces WHERE slug = $1")
             .bind(slug)
@@ -2907,6 +3023,7 @@ impl WorkspaceStore for PostgresStore {
             .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_user_workspaces(&self, user_id: Uuid) -> OxResult<Vec<WorkspaceSummary>> {
         sqlx::query_as(
             "SELECT w.id, w.name, w.slug, w.owner_id, wm.role, w.created_at,
@@ -2921,6 +3038,7 @@ impl WorkspaceStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn update_workspace(
         &self,
         id: Uuid,
@@ -2943,6 +3061,7 @@ impl WorkspaceStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_workspace(&self, id: Uuid) -> OxResult<bool> {
         let result = sqlx::query("DELETE FROM workspaces WHERE id = $1")
             .bind(id)
@@ -2952,6 +3071,7 @@ impl WorkspaceStore for PostgresStore {
         Ok(result.rows_affected() > 0)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn update_workspace_locale(
         &self,
         id: Uuid,
@@ -2973,6 +3093,7 @@ impl WorkspaceStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn add_workspace_member(
         &self,
         workspace_id: Uuid,
@@ -2993,6 +3114,7 @@ impl WorkspaceStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn remove_workspace_member(&self, workspace_id: Uuid, user_id: Uuid) -> OxResult<bool> {
         let result =
             sqlx::query("DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2")
@@ -3004,6 +3126,7 @@ impl WorkspaceStore for PostgresStore {
         Ok(result.rows_affected() > 0)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn update_member_role(
         &self,
         workspace_id: Uuid,
@@ -3028,6 +3151,7 @@ impl WorkspaceStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_member_role(&self, workspace_id: Uuid, user_id: Uuid) -> OxResult<Option<String>> {
         let row: Option<(String,)> = sqlx::query_as(
             "SELECT role FROM workspace_members WHERE workspace_id = $1 AND user_id = $2",
@@ -3040,6 +3164,7 @@ impl WorkspaceStore for PostgresStore {
         Ok(row.map(|r| r.0))
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_workspace_members(&self, workspace_id: Uuid) -> OxResult<Vec<WorkspaceMember>> {
         sqlx::query_as(
             "SELECT workspace_id, user_id, role, joined_at
@@ -3051,6 +3176,7 @@ impl WorkspaceStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_default_workspace(&self, user_id: Uuid) -> OxResult<Option<Workspace>> {
         // Prefer the "default" slug workspace, then fall back to the first joined workspace
         sqlx::query_as(
@@ -3073,6 +3199,7 @@ impl WorkspaceStore for PostgresStore {
 
 #[async_trait]
 impl AuditStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn record_audit(
         &self,
         user_id: Option<Uuid>,
@@ -3085,6 +3212,7 @@ impl AuditStore for PostgresStore {
             .await
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn record_audit_for_workspace(
         &self,
         user_id: Option<Uuid>,
@@ -3110,6 +3238,7 @@ impl AuditStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_audit_events(&self, params: CursorParams) -> OxResult<CursorPage<AuditEntry>> {
         let limit = params.effective_limit();
 
@@ -3251,6 +3380,7 @@ impl crate::store::ApiKeyStore for PostgresStore {
 
 #[async_trait]
 impl MeteringStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn record_usage(
         &self,
         user_id: Option<Uuid>,
@@ -3286,6 +3416,7 @@ impl MeteringStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn usage_summary(
         &self,
         from: chrono::DateTime<chrono::Utc>,
@@ -3317,6 +3448,7 @@ impl MeteringStore for PostgresStore {
 
 #[async_trait]
 impl LineageStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn create_lineage_entry(&self, e: &LineageEntry) -> OxResult<()> {
         sqlx::query(
             "INSERT INTO data_lineage
@@ -3345,6 +3477,7 @@ impl LineageStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn complete_lineage_entry(
         &self,
         id: Uuid,
@@ -3367,6 +3500,7 @@ impl LineageStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_lineage_for_label(&self, graph_label: &str) -> OxResult<Vec<LineageEntry>> {
         sqlx::query_as("SELECT * FROM data_lineage WHERE graph_label = $1 ORDER BY started_at DESC")
             .bind(graph_label)
@@ -3375,6 +3509,7 @@ impl LineageStore for PostgresStore {
             .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_lineage_for_project(&self, project_id: Uuid) -> OxResult<Vec<LineageEntry>> {
         sqlx::query_as("SELECT * FROM data_lineage WHERE project_id = $1 ORDER BY started_at DESC")
             .bind(project_id)
@@ -3383,6 +3518,7 @@ impl LineageStore for PostgresStore {
             .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn lineage_summary(&self) -> OxResult<Vec<LineageSummary>> {
         sqlx::query_as(
             "SELECT
@@ -3408,6 +3544,7 @@ impl LineageStore for PostgresStore {
 
 #[async_trait]
 impl ApprovalStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn create_approval_request(
         &self,
         requester_id: Uuid,
@@ -3432,6 +3569,7 @@ impl ApprovalStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_approval_request(&self, id: Uuid) -> OxResult<Option<ApprovalRequest>> {
         sqlx::query_as("SELECT * FROM approval_requests WHERE id = $1")
             .bind(id)
@@ -3440,6 +3578,7 @@ impl ApprovalStore for PostgresStore {
             .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_pending_approvals(&self, workspace_id: Uuid) -> OxResult<Vec<ApprovalRequest>> {
         sqlx::query_as(
             "SELECT * FROM approval_requests
@@ -3452,6 +3591,7 @@ impl ApprovalStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn review_approval(
         &self,
         id: Uuid,
@@ -3481,6 +3621,7 @@ impl ApprovalStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn expire_old_approvals(&self) -> OxResult<Vec<(Uuid, u64)>> {
         // Strict `<` so a request whose `expires_at == NOW()` is still
         // valid for its last clock tick — matches the share-token
@@ -3509,6 +3650,7 @@ impl ApprovalStore for PostgresStore {
 
 #[async_trait]
 impl QualityStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn create_quality_rule(&self, rule: &QualityRule) -> OxResult<()> {
         sqlx::query(
             "INSERT INTO quality_rules
@@ -3535,6 +3677,7 @@ impl QualityStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_quality_rule(&self, id: Uuid) -> OxResult<Option<QualityRule>> {
         sqlx::query_as("SELECT * FROM quality_rules WHERE id = $1")
             .bind(id)
@@ -3543,6 +3686,7 @@ impl QualityStore for PostgresStore {
             .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_quality_rules(
         &self,
         ontology_lineage_id: Option<&str>,
@@ -3576,6 +3720,7 @@ impl QualityStore for PostgresStore {
         query.fetch_all(&self.pool).await.map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn update_quality_rule(
         &self,
         id: Uuid,
@@ -3604,6 +3749,7 @@ impl QualityStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_quality_rule(&self, id: Uuid) -> OxResult<bool> {
         let result = sqlx::query("DELETE FROM quality_rules WHERE id = $1")
             .bind(id)
@@ -3613,6 +3759,7 @@ impl QualityStore for PostgresStore {
         Ok(result.rows_affected() > 0)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn record_quality_result(&self, result: &QualityResult) -> OxResult<()> {
         sqlx::query(
             "INSERT INTO quality_results (id, rule_id, passed, actual_value, details, evaluated_at)
@@ -3630,6 +3777,7 @@ impl QualityStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_latest_results(&self, rule_id: Uuid, limit: i64) -> OxResult<Vec<QualityResult>> {
         sqlx::query_as(
             "SELECT * FROM quality_results
@@ -3644,6 +3792,7 @@ impl QualityStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_quality_dashboard(&self) -> OxResult<Vec<QualityDashboardEntry>> {
         sqlx::query_as(
             "SELECT qr.id AS rule_id, qr.name, qr.rule_type, qr.target_label,
@@ -3673,6 +3822,7 @@ impl QualityStore for PostgresStore {
 
 #[async_trait]
 impl AclStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn create_acl_policy(&self, p: &AclPolicy) -> OxResult<()> {
         sqlx::query(
             "INSERT INTO acl_policies
@@ -3702,6 +3852,7 @@ impl AclStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_acl_policy(&self, id: Uuid) -> OxResult<Option<AclPolicy>> {
         sqlx::query_as("SELECT * FROM acl_policies WHERE id = $1")
             .bind(id)
@@ -3710,6 +3861,7 @@ impl AclStore for PostgresStore {
             .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_acl_policies(
         &self,
         subject_type: Option<&str>,
@@ -3756,6 +3908,7 @@ impl AclStore for PostgresStore {
         }
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn update_acl_policy(
         &self,
         id: Uuid,
@@ -3791,6 +3944,7 @@ impl AclStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_acl_policy(&self, id: Uuid) -> OxResult<bool> {
         let result = sqlx::query("DELETE FROM acl_policies WHERE id = $1")
             .bind(id)
@@ -3800,6 +3954,7 @@ impl AclStore for PostgresStore {
         Ok(result.rows_affected() > 0)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_effective_policies(
         &self,
         platform_role: &str,
@@ -4067,6 +4222,7 @@ impl crate::store::ModelConfigStore for PostgresStore {
 
 #[async_trait]
 impl KnowledgeStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn create_knowledge_entry(&self, entry: &KnowledgeEntry) -> OxResult<()> {
         sqlx::query(
             "INSERT INTO knowledge_entries (
@@ -4103,6 +4259,7 @@ impl KnowledgeStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_knowledge_entry(&self, id: Uuid) -> OxResult<Option<KnowledgeEntry>> {
         sqlx::query_as::<_, KnowledgeEntry>(
             "SELECT id, workspace_id, ontology_name, ontology_version_min, ontology_version_max,
@@ -4118,6 +4275,7 @@ impl KnowledgeStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn update_knowledge_entry(
         &self,
         id: Uuid,
@@ -4154,6 +4312,7 @@ impl KnowledgeStore for PostgresStore {
         })
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_knowledge_entry(&self, id: Uuid) -> OxResult<bool> {
         let result = sqlx::query("DELETE FROM knowledge_entries WHERE id = $1")
             .bind(id)
@@ -4163,6 +4322,7 @@ impl KnowledgeStore for PostgresStore {
         Ok(result.rows_affected() > 0)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_knowledge_entries(
         &self,
         ontology_name: Option<&str>,
@@ -4214,6 +4374,7 @@ impl KnowledgeStore for PostgresStore {
         Ok(CursorPage { items, next_cursor })
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_active_knowledge(
         &self,
         ontology_name: &str,
@@ -4245,6 +4406,7 @@ impl KnowledgeStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn update_knowledge_status(
         &self,
         id: Uuid,
@@ -4272,6 +4434,7 @@ impl KnowledgeStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn update_knowledge_confidence(&self, id: Uuid, confidence: f64) -> OxResult<()> {
         sqlx::query(
             "UPDATE knowledge_entries SET confidence = $2, updated_at = now() WHERE id = $1",
@@ -4284,6 +4447,7 @@ impl KnowledgeStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn mark_stale_by_labels(
         &self,
         ontology_name: &str,
@@ -4304,6 +4468,7 @@ impl KnowledgeStore for PostgresStore {
         Ok(result.rows_affected())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn record_knowledge_usage(&self, ids: &[Uuid]) -> OxResult<()> {
         sqlx::query(
             "UPDATE knowledge_entries SET use_count = use_count + 1, last_used_at = now()
@@ -4316,6 +4481,7 @@ impl KnowledgeStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn verify_knowledge(&self, id: Uuid, version: i32) -> OxResult<()> {
         sqlx::query(
             "UPDATE knowledge_entries SET version_checked = $2, updated_at = now() WHERE id = $1",
@@ -4328,6 +4494,7 @@ impl KnowledgeStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn search_knowledge_by_labels(
         &self,
         ontology_name: &str,
@@ -4359,6 +4526,7 @@ impl KnowledgeStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn count_knowledge_by_status_kind(&self) -> OxResult<Vec<(String, String, i64)>> {
         sqlx::query_as::<_, (String, String, i64)>(
             "SELECT status, kind, COUNT(*) FROM knowledge_entries GROUP BY status, kind",
@@ -4368,6 +4536,7 @@ impl KnowledgeStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn cleanup_knowledge(&self, older_than_days: i64) -> OxResult<u64> {
         // Auto-deprecate low-confidence entries
         sqlx::query(
@@ -4399,6 +4568,7 @@ impl KnowledgeStore for PostgresStore {
 
 #[async_trait]
 impl LoadCheckpointStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_checkpoint(
         &self,
         project_id: Uuid,
@@ -4417,6 +4587,7 @@ impl LoadCheckpointStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn upsert_checkpoint(&self, c: &LoadCheckpoint) -> OxResult<()> {
         sqlx::query(
             "INSERT INTO load_checkpoints
@@ -4445,6 +4616,7 @@ impl LoadCheckpointStore for PostgresStore {
         Ok(())
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn list_checkpoints(&self, project_id: Uuid) -> OxResult<Vec<LoadCheckpoint>> {
         sqlx::query_as(
             "SELECT * FROM load_checkpoints
@@ -4457,6 +4629,7 @@ impl LoadCheckpointStore for PostgresStore {
         .map_err(to_ox_error)
     }
 
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_checkpoint(&self, id: Uuid) -> OxResult<bool> {
         let result = sqlx::query("DELETE FROM load_checkpoints WHERE id = $1")
             .bind(id)
