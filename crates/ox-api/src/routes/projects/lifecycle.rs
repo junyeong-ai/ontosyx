@@ -523,7 +523,14 @@ pub(crate) async fn complete_project(
                 if !diff.is_empty() {
                     let breaking = ox_core::breaking_labels(&diff);
                     if !breaking.is_empty() {
-                        match store.mark_stale_by_labels(&ontology_name, &breaking).await {
+                        // Postgres binding expects `&[String]`; the
+                        // breaking_labels call returns GraphLabel so we
+                        // unwrap through `.to_string()` at the store
+                        // boundary rather than threading a newtype
+                        // through the sqlx encoder.
+                        let breaking_str: Vec<String> =
+                            breaking.iter().map(|l| l.to_string()).collect();
+                        match store.mark_stale_by_labels(&ontology_name, &breaking_str).await {
                             Ok(count) if count > 0 => {
                                 tracing::info!(
                                     ontology = %ontology_name,

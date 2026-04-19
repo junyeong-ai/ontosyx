@@ -2,7 +2,9 @@ use std::collections::{HashMap, HashSet};
 
 use serde::Serialize;
 
+use crate::graph_label::GraphLabel;
 use crate::ontology_ir::*;
+use crate::property_key::PropertyKey;
 use crate::types::PropertyType;
 
 // ---------------------------------------------------------------------------
@@ -34,7 +36,7 @@ impl OntologyDiff {
 #[derive(Debug, Clone, Serialize)]
 pub struct NodeDiff {
     pub node_id: NodeTypeId,
-    pub label: String,
+    pub label: GraphLabel,
     pub changes: Vec<NodeChange>,
 }
 
@@ -42,8 +44,8 @@ pub struct NodeDiff {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum NodeChange {
     LabelChanged {
-        old: String,
-        new: String,
+        old: GraphLabel,
+        new: GraphLabel,
     },
     DescriptionChanged {
         old: crate::i18n::LocalizedText,
@@ -56,7 +58,7 @@ pub enum NodeChange {
         property: PropertyDef,
     },
     PropertyModified {
-        property_name: String,
+        property_name: PropertyKey,
         changes: Vec<PropertyChange>,
     },
     ConstraintAdded {
@@ -91,7 +93,7 @@ pub enum PropertyChange {
 #[derive(Debug, Clone, Serialize)]
 pub struct EdgeDiff {
     pub edge_id: EdgeTypeId,
-    pub label: String,
+    pub label: GraphLabel,
     pub changes: Vec<EdgeChange>,
 }
 
@@ -99,20 +101,24 @@ pub struct EdgeDiff {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum EdgeChange {
     LabelChanged {
-        old: String,
-        new: String,
+        old: GraphLabel,
+        new: GraphLabel,
     },
     DescriptionChanged {
         old: crate::i18n::LocalizedText,
         new: crate::i18n::LocalizedText,
     },
     SourceChanged {
-        old: String,
-        new: String,
+        /// Source node-type labels identify the endpoint entities, so we
+        /// carry them as `GraphLabel` for identifier validity; the label
+        /// is the user-visible artefact in diff reports rather than the
+        /// internal node id.
+        old: GraphLabel,
+        new: GraphLabel,
     },
     TargetChanged {
-        old: String,
-        new: String,
+        old: GraphLabel,
+        new: GraphLabel,
     },
     CardinalityChanged {
         old: Cardinality,
@@ -125,7 +131,7 @@ pub enum EdgeChange {
         property: PropertyDef,
     },
     PropertyModified {
-        property_name: String,
+        property_name: PropertyKey,
         changes: Vec<PropertyChange>,
     },
 }
@@ -151,13 +157,13 @@ pub struct DiffSummary {
 ///
 /// Breaking: removed nodes/edges, label renames, edge source/target changes.
 /// These invalidate any knowledge referencing the old labels.
-pub fn breaking_labels(diff: &OntologyDiff) -> Vec<String> {
+pub fn breaking_labels(diff: &OntologyDiff) -> Vec<GraphLabel> {
     let mut labels = Vec::new();
     for n in &diff.removed_nodes {
-        labels.push(n.label.to_string());
+        labels.push(n.label.clone());
     }
     for e in &diff.removed_edges {
-        labels.push(e.label.to_string());
+        labels.push(e.label.clone());
     }
     for nd in &diff.modified_nodes {
         for c in &nd.changes {
@@ -184,7 +190,7 @@ pub fn breaking_labels(diff: &OntologyDiff) -> Vec<String> {
 ///
 /// Structural: property removed, property type changed, cardinality changed.
 /// Knowledge referencing these labels gets a version warning in RAG results.
-pub fn structural_labels(diff: &OntologyDiff) -> Vec<String> {
+pub fn structural_labels(diff: &OntologyDiff) -> Vec<GraphLabel> {
     let mut labels = Vec::new();
     for nd in &diff.modified_nodes {
         let has_structural = nd.changes.iter().any(|c| match c {
@@ -261,7 +267,7 @@ pub fn compute_diff(old: &OntologyIR, new: &OntologyIR) -> OntologyDiff {
             if !changes.is_empty() {
                 modified_nodes.push(NodeDiff {
                     node_id: new_node.id.clone(),
-                    label: new_node.label.to_string(),
+                    label: new_node.label.clone(),
                     changes,
                 });
             }
@@ -303,7 +309,7 @@ pub fn compute_diff(old: &OntologyIR, new: &OntologyIR) -> OntologyDiff {
             if !changes.is_empty() {
                 modified_edges.push(EdgeDiff {
                     edge_id: new_edge.id.clone(),
-                    label: new_edge.label.to_string(),
+                    label: new_edge.label.clone(),
                     changes,
                 });
             }
@@ -350,8 +356,8 @@ fn diff_node(old: &NodeTypeDef, new: &NodeTypeDef) -> (Vec<NodeChange>, usize, u
 
     if old.label != new.label {
         changes.push(NodeChange::LabelChanged {
-            old: old.label.to_string(),
-            new: new.label.to_string(),
+            old: old.label.clone(),
+            new: new.label.clone(),
         });
     }
 
@@ -431,8 +437,8 @@ fn diff_edge(
 
     if old.label != new.label {
         changes.push(EdgeChange::LabelChanged {
-            old: old.label.to_string(),
-            new: new.label.to_string(),
+            old: old.label.clone(),
+            new: new.label.clone(),
         });
     }
 
@@ -487,7 +493,7 @@ fn diff_edge(
 enum PropDiffResult {
     Added(PropertyDef),
     Removed(PropertyDef),
-    Modified(String, Vec<PropertyChange>),
+    Modified(PropertyKey, Vec<PropertyChange>),
 }
 
 /// Returns (changes, added_count, removed_count).
@@ -524,7 +530,7 @@ fn diff_properties(
         if let Some(old_prop) = old_map.get(&*new_prop.id) {
             let changes = diff_single_property(old_prop, new_prop);
             if !changes.is_empty() {
-                results.push(PropDiffResult::Modified(new_prop.name.to_string(), changes));
+                results.push(PropDiffResult::Modified(new_prop.name.clone(), changes));
             }
         }
     }
@@ -613,11 +619,32 @@ fn format_constraint(c: &ConstraintDef) -> String {
     }
 }
 
-fn resolve_node_label(ontology: &OntologyIR, node_id: &NodeTypeId) -> String {
-    ontology
-        .node_label(node_id)
-        .unwrap_or(&node_id.0)
-        .to_string()
+/// Resolve a node-type id to its current label for diff reporting.
+///
+/// Falls back to the id as a synthetic `GraphLabel` when the lookup
+/// misses — a dangling node-type id only shows up when the ontology
+/// has been hand-edited to an inconsistent state, and producing a
+/// validation error for a *diff report* would lose the entire
+/// changeset. The id passes `is_valid_graph_identifier` by construction
+/// (it went through `NodeTypeId::new`), so the fallback never panics.
+fn resolve_node_label(ontology: &OntologyIR, node_id: &NodeTypeId) -> GraphLabel {
+    match ontology.node_label(node_id) {
+        Some(label) => GraphLabel::new(label)
+            .unwrap_or_else(|_| GraphLabel::new(&node_id.0).unwrap_or_else(|_| fallback_label())),
+        None => GraphLabel::new(&node_id.0).unwrap_or_else(|_| fallback_label()),
+    }
+}
+
+/// Synthetic placeholder label used only when both the ontology lookup
+/// and the node-type id itself fail `GraphLabel` validation — a state
+/// the ontology validator rejects on ingest. The literal `unknown` is
+/// ASCII-safe so `GraphLabel::new` always accepts it; the `.expect`
+/// only fires if the newtype invariants change, which is caught by the
+/// existing `GraphLabel::new` test suite.
+#[allow(clippy::expect_used)]
+fn fallback_label() -> GraphLabel {
+    GraphLabel::new("unknown")
+        .expect("literal `unknown` must satisfy GraphLabel invariants")
 }
 
 // ---------------------------------------------------------------------------
