@@ -457,6 +457,16 @@ pub enum QueryOp {
         source: Box<QueryIR>,
         group_by: Vec<FieldRef>,
         aggregations: Vec<AggregationExpr>,
+        /// HAVING-style filter applied after aggregation.
+        ///
+        /// Cypher has no HAVING keyword — this compiles to an extra
+        /// `WITH <group-by aliases>, <aggregation aliases> WHERE <expr>`
+        /// chained after the aggregation step. The expression can
+        /// reference aggregation result aliases (e.g. `order_count > 10`)
+        /// or group-by columns; it cannot re-reference raw pattern
+        /// variables that were projected away.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        having: Option<Expr>,
     },
 
     /// UNION of multiple queries

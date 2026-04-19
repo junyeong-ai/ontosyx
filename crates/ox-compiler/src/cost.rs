@@ -718,6 +718,7 @@ mod tests {
                 source: Box::new(inner),
                 group_by: vec![],
                 aggregations: vec![],
+                having: None,
             },
             limit: None,
             skip: None,

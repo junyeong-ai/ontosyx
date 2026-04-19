@@ -85,6 +85,7 @@ impl ResolverCtx<'_> {
                 source,
                 group_by,
                 aggregations,
+                having,
             } => {
                 self.resolve_op(&source.operation);
                 let prev_hint = self.usage_hint;
@@ -99,6 +100,10 @@ impl ResolverCtx<'_> {
                 self.usage_hint = PropertyUsageHint::Aggregation;
                 for agg in aggregations {
                     self.resolve_field_ref(&agg.field);
+                }
+                if let Some(having_expr) = having {
+                    self.usage_hint = PropertyUsageHint::WhereFilter;
+                    self.resolve_expr(having_expr);
                 }
                 self.usage_hint = prev_hint;
             }

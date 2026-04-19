@@ -1656,6 +1656,139 @@ fn memgraph_dialect_uses_short_index_syntax() {
 }
 
 // ---------------------------------------------------------------------------
+// HAVING filter on Aggregate
+// ---------------------------------------------------------------------------
+
+#[test]
+fn aggregate_with_having_emits_with_where_return() {
+    let compiler = CypherCompiler::neo4j();
+    let inner = QueryIR {
+        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        operation: QueryOp::Match {
+            patterns: vec![GraphPattern::Node {
+                variable: vn("c"),
+                label: Some(gl("Customer")),
+                property_filters: vec![],
+            }],
+            filter: None,
+            projections: vec![],
+            optional: false,
+            group_by: vec![],
+        },
+        limit: None,
+        skip: None,
+        order_by: vec![],
+    };
+    let query = QueryIR {
+        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        operation: QueryOp::Aggregate {
+            source: Box::new(inner),
+            group_by: vec![FieldRef {
+                variable: vn("c"),
+                field: Some(pk("country")),
+            }],
+            aggregations: vec![AggregationExpr {
+                function: AggFunction::Count,
+                field: FieldRef {
+                    variable: vn("c"),
+                    field: None,
+                },
+                distinct: false,
+                alias: "customer_count".into(),
+            }],
+            // HAVING customer_count > 10
+            having: Some(Expr::Comparison {
+                left: Box::new(Expr::Property {
+                    variable: vn("customer_count"),
+                    field: None,
+                }),
+                op: ox_core::query_ir::ComparisonOp::Gt,
+                right: Box::new(Expr::Literal {
+                    value: PropertyValue::Int(10),
+                }),
+            }),
+        },
+        limit: None,
+        skip: None,
+        order_by: vec![],
+    };
+
+    let compiled = compiler.compile_query(&query).unwrap();
+    let stmt = &compiled.statement;
+    // Verify the HAVING idiom: WITH alias, agg_alias / WHERE agg_alias > $p0 / RETURN alias, agg_alias
+    assert!(
+        stmt.contains("WITH c.`country` AS `country`, count(c) AS customer_count"),
+        "pre-HAVING WITH should project group-by + aggregation aliases: {stmt}"
+    );
+    assert!(
+        stmt.contains("WHERE customer_count > $p0"),
+        "HAVING compiles as a WHERE on aggregation aliases: {stmt}"
+    );
+    assert!(
+        stmt.contains("RETURN `country`, customer_count"),
+        "RETURN should reference the projected names only: {stmt}"
+    );
+    // Autogen param captures the numeric threshold.
+    assert_eq!(compiled.params.get("p0"), Some(&PropertyValue::Int(10)));
+}
+
+#[test]
+fn aggregate_without_having_preserves_existing_shape() {
+    let compiler = CypherCompiler::neo4j();
+    let inner = QueryIR {
+        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        operation: QueryOp::Match {
+            patterns: vec![GraphPattern::Node {
+                variable: vn("c"),
+                label: Some(gl("Customer")),
+                property_filters: vec![],
+            }],
+            filter: None,
+            projections: vec![],
+            optional: false,
+            group_by: vec![],
+        },
+        limit: None,
+        skip: None,
+        order_by: vec![],
+    };
+    let query = QueryIR {
+        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        operation: QueryOp::Aggregate {
+            source: Box::new(inner),
+            group_by: vec![FieldRef {
+                variable: vn("c"),
+                field: Some(pk("country")),
+            }],
+            aggregations: vec![AggregationExpr {
+                function: AggFunction::Count,
+                field: FieldRef {
+                    variable: vn("c"),
+                    field: None,
+                },
+                distinct: false,
+                alias: "customer_count".into(),
+            }],
+            having: None,
+        },
+        limit: None,
+        skip: None,
+        order_by: vec![],
+    };
+    let stmt = compiler.compile_query(&query).unwrap().statement;
+    // Without HAVING there's no intermediate WITH/WHERE — the compiler
+    // emits a single RETURN with the projections inline.
+    assert!(
+        stmt.contains("RETURN c.`country` AS `country`, count(c) AS customer_count"),
+        "plain aggregate should inline the RETURN, got: {stmt}"
+    );
+    assert!(
+        !stmt.contains("WHERE customer_count"),
+        "no HAVING means no post-aggregation WHERE, got: {stmt}"
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Named parameter placeholders (Expr::Param)
 // ---------------------------------------------------------------------------
 

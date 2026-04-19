@@ -97,6 +97,7 @@ pub(super) fn compile_op(
             source,
             group_by,
             aggregations,
+            having,
         } => {
             // Compile the source query without its own RETURN
             compile_op(&source.operation, parts, pc)?;
@@ -106,16 +107,19 @@ pub(super) fn compile_op(
                 parts.pop();
             }
 
-            let mut return_items = Vec::new();
+            let mut projections = Vec::new();
+            let mut projected_names = Vec::new();
             for g in group_by {
                 let field = if let Some(ref f) = g.field {
                     let expr = format!("{}.{}", g.variable, escape_identifier(f));
-                    // Add alias so ORDER BY can reference by name (e.g. ca.`name` AS name)
-                    format!("{expr} AS {}", escape_identifier(f))
+                    let alias = escape_identifier(f);
+                    projected_names.push(alias.clone());
+                    format!("{expr} AS {alias}")
                 } else {
+                    projected_names.push(g.variable.to_string());
                     g.variable.to_string()
                 };
-                return_items.push(field);
+                projections.push(field);
             }
             for agg in aggregations {
                 let field = if let Some(ref f) = agg.field.field {
@@ -124,9 +128,21 @@ pub(super) fn compile_op(
                     agg.field.variable.to_string()
                 };
                 let func = compile_agg_function(&agg.function, &field, agg.distinct);
-                return_items.push(format!("{func} AS {}", agg.alias));
+                projections.push(format!("{func} AS {}", agg.alias));
+                projected_names.push(agg.alias.clone());
             }
-            parts.push(format!("RETURN {}", return_items.join(", ")));
+
+            // HAVING compiles as an extra `WITH ... WHERE <expr>` step so
+            // the filter runs *after* aggregation. Cypher has no HAVING
+            // keyword; the idiom is `WITH alias, ... WHERE alias > 10`.
+            // Without a HAVING we emit the RETURN directly, same as before.
+            if let Some(having_expr) = having {
+                parts.push(format!("WITH {}", projections.join(", ")));
+                parts.push(format!("WHERE {}", compile_expr(having_expr, pc)?));
+                parts.push(format!("RETURN {}", projected_names.join(", ")));
+            } else {
+                parts.push(format!("RETURN {}", projections.join(", ")));
+            }
         }
 
         QueryOp::Union { queries, all } => {

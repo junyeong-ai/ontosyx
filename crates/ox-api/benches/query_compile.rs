@@ -213,6 +213,7 @@ fn bench_aggregation(c: &mut Criterion) {
                 distinct: false,
                 alias: "total_revenue".into(),
             }],
+            having: None,
         },
         limit: Some(20),
         skip: None,
