@@ -19,5 +19,8 @@ tokio = { workspace = true }
 sha2 = "0.10"
 rand = "0.8"
 
+[dev-dependencies]
+ox-compiler = { workspace = true }
+
 [lints]
 workspace = true

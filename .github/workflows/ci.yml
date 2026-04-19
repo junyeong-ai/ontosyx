@@ -99,11 +99,12 @@ jobs:
       - name: Run RLS enforcement tests
         # `--ignored` opts into the DB-live tests; the default `cargo test`
         # still skips them on machines without a Postgres fixture. The
-        # migration tests live in the same crate so we run them in the
-        # same job.
+        # migration + temporal integration tests live in the same crate
+        # so we run them in the same job.
         run: |
           cargo test -p ox-store --test rls_enforcement -- --ignored --nocapture
           cargo test -p ox-store --test migration_0007 -- --ignored --nocapture
+          cargo test -p ox-store --test temporal_integration -- --ignored --nocapture --test-threads=1
 
   udeps:
     # Advisory-only: reports unused deps. Not a gate until the baseline is clean.

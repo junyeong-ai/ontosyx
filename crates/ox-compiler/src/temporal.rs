@@ -143,26 +143,24 @@ fn diff_node_labels(
         .map(|n| (n.id.as_ref(), &n.label))
         .collect();
 
+    // A second current label collapsing onto an already-mapped
+    // snapshot-label-key would be ambiguous — refuse rather
+    // than pick a winner.
     let mut map: HashMap<String, GraphLabel> = HashMap::new();
     for node in current.node_types() {
         if let Some(snap_label) = snapshot_by_id.get(node.id.as_ref())
             && *snap_label != &node.label
+            && let Some(existing) = map.insert(node.label.to_string(), (*snap_label).clone())
+            && &existing != *snap_label
         {
-            // A second current label collapsing onto an already-mapped
-            // snapshot-label-key would be ambiguous — refuse rather
-            // than pick a winner.
-            if let Some(existing) = map.insert(node.label.to_string(), (*snap_label).clone())
-                && &existing != *snap_label
-            {
-                return Err(OxError::Validation {
-                    field: "node_rename".to_string(),
-                    message: format!(
-                        "ambiguous node rename: current label `{}` maps to both \
-                         `{}` and `{}` in the requested snapshot",
-                        node.label, existing, snap_label
-                    ),
-                });
-            }
+            return Err(OxError::Validation {
+                field: "node_rename".to_string(),
+                message: format!(
+                    "ambiguous node rename: current label `{}` maps to both \
+                     `{}` and `{}` in the requested snapshot",
+                    node.label, existing, snap_label
+                ),
+            });
         }
     }
     Ok(map)
@@ -182,19 +180,17 @@ fn diff_edge_labels(
     for edge in current.edge_types() {
         if let Some(snap_label) = snapshot_by_id.get(edge.id.as_ref())
             && *snap_label != &edge.label
+            && let Some(existing) = map.insert(edge.label.to_string(), (*snap_label).clone())
+            && &existing != *snap_label
         {
-            if let Some(existing) = map.insert(edge.label.to_string(), (*snap_label).clone())
-                && &existing != *snap_label
-            {
-                return Err(OxError::Validation {
-                    field: "edge_rename".to_string(),
-                    message: format!(
-                        "ambiguous edge rename: current label `{}` maps to both \
-                         `{}` and `{}` in the requested snapshot",
-                        edge.label, existing, snap_label
-                    ),
-                });
-            }
+            return Err(OxError::Validation {
+                field: "edge_rename".to_string(),
+                message: format!(
+                    "ambiguous edge rename: current label `{}` maps to both \
+                     `{}` and `{}` in the requested snapshot",
+                    edge.label, existing, snap_label
+                ),
+            });
         }
     }
     Ok(map)
