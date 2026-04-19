@@ -309,7 +309,10 @@ impl RateLimiter {
     ) {
         let limiter = std::sync::Arc::clone(self);
         let interval = limiter.window;
-        tokio::spawn(async move {
+        // `spawn_system` wraps the future in SYSTEM_BYPASS — the cleanup
+        // sweep is in-memory only today, but adopting the shared helper
+        // keeps us honest once the limiter grows a persisted audit log.
+        crate::spawn_scoped::spawn_system(async move {
             let mut ticker = tokio::time::interval(interval);
             ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             loop {
@@ -393,6 +396,7 @@ pub async fn workspace_context(
     use crate::workspace::{WorkspaceContext, WorkspaceRole};
     use ox_runtime::GRAPH_WORKSPACE_ID;
     use ox_store::WORKSPACE_ID;
+    use tracing::Instrument;
 
     // Requires auth claims (must run after require_auth)
     let claims = req
@@ -429,10 +433,19 @@ pub async fn workspace_context(
             workspace_role: WorkspaceRole::Owner,
         };
         req.extensions_mut().insert(ws_ctx);
+        // Tie every downstream log / span to the workspace id so OTLP
+        // traces can bucket latency and error rate per workspace without
+        // manual joins. The field lands on the root request span; child
+        // spans inherit it automatically.
+        let span = tracing::info_span!(
+            "request",
+            workspace_id = %workspace_id,
+            principal = %claims.sub,
+        );
         let response = WORKSPACE_ID
             .scope(
                 workspace_id,
-                GRAPH_WORKSPACE_ID.scope(workspace_id, next.run(req)),
+                GRAPH_WORKSPACE_ID.scope(workspace_id, next.run(req).instrument(span)),
             )
             .await;
         return Ok(response);
@@ -504,10 +517,17 @@ pub async fn workspace_context(
     // Run the handler within the workspace task-local scope.
     // Sets both PG RLS (WORKSPACE_ID) and graph isolation (GRAPH_WORKSPACE_ID)
     // so all queries — relational and graph — are automatically workspace-scoped.
+    // The info_span carries the same identity onto the trace: span fields
+    // are inherited by every child span the handler produces.
+    let span = tracing::info_span!(
+        "request",
+        workspace_id = %workspace_id,
+        user_id = %user_id,
+    );
     let response = WORKSPACE_ID
         .scope(
             workspace_id,
-            GRAPH_WORKSPACE_ID.scope(workspace_id, next.run(req)),
+            GRAPH_WORKSPACE_ID.scope(workspace_id, next.run(req).instrument(span)),
         )
         .await;
 
