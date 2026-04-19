@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * Rendered when the share token returns HTTP 410 Gone — the link was once
  * valid but has since been expired or revoked (Phase 4.10).
@@ -7,10 +9,12 @@
  */
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link04Icon, Home01Icon } from "@hugeicons/core-free-icons";
 
 export default function Expired() {
+  const t = useTranslations("page.sharedDashboard");
   return (
     <div className="flex min-h-dvh items-center justify-center bg-zinc-50 px-4 dark:bg-zinc-950">
       <div className="w-full max-w-md rounded-xl border border-zinc-200 bg-white p-6 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -22,15 +26,14 @@ export default function Expired() {
           />
         </div>
         <h1 className="mt-4 text-base font-semibold text-zinc-900 dark:text-zinc-100">
-          만료된 공유 링크예요
+          {t("expiredTitle")}
         </h1>
-        <p className="mt-1 text-xs text-zinc-400">
-          This share link has expired.
+        <p className="mt-1 text-xs text-muted-foreground">
+          {t("expiredSubtitle")}
         </p>
 
-        <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
-          대시보드 소유자가 공유를 해제했거나, 링크의 유효 기간이 지났습니다.
-          새로운 링크를 요청해 주세요.
+        <p className="mt-4 text-sm text-zinc-600 dark:text-muted-foreground">
+          {t("expiredBody")}
         </p>
 
         <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
@@ -43,7 +46,7 @@ export default function Expired() {
               className="h-3.5 w-3.5"
               size="100%"
             />
-            홈으로 (Home)
+            {t("home")}
           </Link>
         </div>
       </div>

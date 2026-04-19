@@ -1,10 +1,14 @@
 "use client";
 
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { useTranslations } from "next-intl";
 
-interface Props {
+interface BoundaryProps {
   widgetType: string;
   children: ReactNode;
+  titleLabel: string;
+  retryLabel: string;
+  unknownErrorLabel: string;
 }
 
 interface State {
@@ -18,8 +22,8 @@ interface State {
  * If a chart or visualization crashes, only that widget shows a fallback —
  * the rest of the results panel stays intact.
  */
-export class WidgetErrorBoundary extends Component<Props, State> {
-  constructor(props: Props) {
+class WidgetErrorBoundaryInner extends Component<BoundaryProps, State> {
+  constructor(props: BoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
   }
@@ -41,16 +45,16 @@ export class WidgetErrorBoundary extends Component<Props, State> {
       return (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm dark:border-red-900 dark:bg-red-950">
           <p className="font-medium text-red-700 dark:text-red-400">
-            Widget rendering failed
+            {this.props.titleLabel}
           </p>
           <p className="mt-1 text-red-600 dark:text-red-500">
-            {this.state.error?.message ?? "Unknown error"}
+            {this.state.error?.message ?? this.props.unknownErrorLabel}
           </p>
           <button
             onClick={() => this.setState({ hasError: false, error: null })}
             className="mt-2 rounded bg-red-100 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-200 dark:bg-red-900 dark:text-red-300 dark:hover:bg-red-800"
           >
-            Retry
+            {this.props.retryLabel}
           </button>
         </div>
       );
@@ -58,4 +62,27 @@ export class WidgetErrorBoundary extends Component<Props, State> {
 
     return this.props.children;
   }
+}
+
+interface Props {
+  widgetType: string;
+  children: ReactNode;
+}
+
+/**
+ * Wraps the class-based boundary with translated labels resolved at render time.
+ * The boundary itself must stay a class component to intercept render errors.
+ */
+export function WidgetErrorBoundary({ widgetType, children }: Props) {
+  const t = useTranslations("widget.errorBoundary");
+  return (
+    <WidgetErrorBoundaryInner
+      widgetType={widgetType}
+      titleLabel={t("title")}
+      retryLabel={t("retry")}
+      unknownErrorLabel={t("unknownError")}
+    >
+      {children}
+    </WidgetErrorBoundaryInner>
+  );
 }

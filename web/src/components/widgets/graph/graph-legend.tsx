@@ -1,6 +1,7 @@
 "use client";
 
 import { memo } from "react";
+import { useTranslations } from "next-intl";
 
 // ---------------------------------------------------------------------------
 // Legend — type-color mapping + click-to-toggle visibility
@@ -23,6 +24,7 @@ export const Legend = memo(function Legend({
   hiddenTypes,
   onToggleType,
 }: LegendProps) {
+  const t = useTranslations("widget.graph");
   if (typeColorIndex.size <= 1) return null;
   const entries = Array.from(typeColorIndex.entries());
   if (entries.length > 12) return null; // too many types, skip legend
@@ -45,7 +47,7 @@ export const Legend = memo(function Legend({
           <span
             className={`transition-colors ${
               isHidden
-                ? "text-zinc-400 line-through dark:text-zinc-500"
+                ? "text-muted-foreground line-through dark:text-zinc-500"
                 : "text-zinc-600 dark:text-zinc-300"
             }`}
           >
@@ -66,7 +68,7 @@ export const Legend = memo(function Legend({
             type="button"
             onClick={() => onToggleType?.(type)}
             aria-pressed={!isHidden}
-            aria-label={`${isHidden ? "Show" : "Hide"} ${type} nodes`}
+            aria-label={isHidden ? t("legendShowAria", { type }) : t("legendHideAria", { type })}
             className="flex cursor-pointer items-center gap-1 rounded px-0.5 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700"
           >
             {chip}

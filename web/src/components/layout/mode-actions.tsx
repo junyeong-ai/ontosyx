@@ -1,7 +1,9 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useAppStore } from "@/lib/store";
+import { useWorkspaceMode } from "@/lib/use-workspace-mode";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -21,7 +23,7 @@ import type { ExportFormat } from "@/lib/export-utils";
 // ---------------------------------------------------------------------------
 
 export function ModeActions() {
-  const workspaceMode = useAppStore((s) => s.workspaceMode);
+  const workspaceMode = useWorkspaceMode();
 
   if (workspaceMode === "design") {
     return <DesignActions />;
@@ -34,6 +36,8 @@ export function ModeActions() {
 // ---------------------------------------------------------------------------
 
 function DesignActions() {
+  const t = useTranslations("chrome.modeActions");
+  const tSelector = useTranslations("chrome.contextSelector");
   const ontology = useAppStore((s) => s.ontology);
   const setOntology = useAppStore((s) => s.setOntology);
   const setActiveProject = useAppStore((s) => s.setActiveProject);
@@ -48,7 +52,7 @@ function DesignActions() {
   const handleAudit = async () => {
     const ontologyId = activeProject?.saved_ontology_id;
     if (!ontologyId) {
-      toast.error("Save the ontology first to run an audit");
+      toast.error(t("saveOntologyFirst"));
       return;
     }
     setAuditing(true);
@@ -57,12 +61,12 @@ function DesignActions() {
       const matched = report.matched_nodes.length + report.matched_edges.length;
       const orphaned = report.orphan_graph_nodes.length + report.orphan_graph_edges.length;
       const missing = report.missing_graph_nodes.length + report.missing_graph_edges.length;
-      toast.success(`Graph Audit: ${report.sync_percentage}% synced`, {
-        description: `Matched: ${matched} | Orphaned: ${orphaned} | Missing: ${missing}`,
+      toast.success(t("auditResult", { percentage: report.sync_percentage }), {
+        description: t("auditDescription", { matched, orphaned, missing }),
         duration: 8000,
       });
     } catch (err) {
-      toast.error("Audit failed", {
+      toast.error(t("auditFailed"), {
         description: err instanceof Error ? err.message : String(err),
       });
     } finally {
@@ -73,7 +77,7 @@ function DesignActions() {
   const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!(await guardPendingEdits("Import Ontology"))) {
+    if (!(await guardPendingEdits(tSelector("guardImportOntology")))) {
       if (fileRef.current) fileRef.current.value = "";
       return;
     }
@@ -91,12 +95,12 @@ function DesignActions() {
           !Array.isArray(parsed.node_types) ||
           !Array.isArray(parsed.edge_types)
         ) {
-          throw new Error("Invalid ontology: missing node_types/edge_types");
+          throw new Error(t("importInvalid"));
         }
         const result = await normalizeOntology(parsed);
         imported = result.ontology;
         if (result.warnings.length > 0) {
-          toast.warning("Import completed with warnings", {
+          toast.warning(t("importWarning"), {
             description: result.warnings.map((w) => w.message).join("; "),
           });
         }
@@ -104,11 +108,14 @@ function DesignActions() {
 
       setActiveProject(null);
       setOntology(imported);
-      toast.success("Ontology imported", {
-        description: `${imported.node_types.length}N, ${imported.edge_types.length}E`,
+      toast.success(t("importedToast"), {
+        description: t("importedDescription", {
+          nodes: imported.node_types.length,
+          edges: imported.edge_types.length,
+        }),
       });
     } catch (err) {
-      toast.error("Import failed", {
+      toast.error(t("importFailed"), {
         description: err instanceof Error ? err.message : String(err),
       });
     } finally {
@@ -126,19 +133,19 @@ function DesignActions() {
   return (
     <>
       <input ref={fileRef} type="file" accept=".json,.ttl,.owl" className="hidden" onChange={handleFileImport} />
-      <Tooltip content="Import Ontology (JSON, OWL/Turtle)">
-        <Button variant="ghost" size="icon-sm" onClick={() => fileRef.current?.click()} disabled={importing} aria-label="Import Ontology">
+      <Tooltip content={t("importTooltip")}>
+        <Button variant="ghost" size="icon-sm" onClick={() => fileRef.current?.click()} disabled={importing} aria-label={t("importAria")}>
           {importing ? <Spinner size="xs" /> : <HugeiconsIcon icon={Upload04Icon} className="h-3.5 w-3.5" size="100%" />}
         </Button>
       </Tooltip>
       {ontology && (
-        <Tooltip content="Audit Graph">
+        <Tooltip content={t("auditTooltip")}>
           <Button
             variant="ghost"
             size="icon-sm"
             onClick={handleAudit}
             disabled={auditing || !activeProject?.saved_ontology_id}
-            aria-label="Audit Graph"
+            aria-label={t("auditAria")}
           >
             {auditing ? (
               <Spinner size="xs" />
@@ -152,7 +159,7 @@ function DesignActions() {
       )}
       {ontology && (
         <Popover open={exportMenuOpen} onOpenChange={setExportMenuOpen}>
-          <PopoverTrigger aria-label="Export Ontology" className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300">
+          <PopoverTrigger aria-label={t("exportAria")} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300">
             <HugeiconsIcon icon={Download04Icon} className="h-3.5 w-3.5" size="100%" />
           </PopoverTrigger>
           <PopoverContent className="z-50 w-48 rounded-lg border border-zinc-200 bg-white p-1 shadow-lg data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 transition-all dark:border-zinc-700 dark:bg-zinc-900">
@@ -160,50 +167,50 @@ function DesignActions() {
               onClick={() => handleExportFormat("json")}
               className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
             >
-              JSON
+              {t("exportJson")}
             </button>
             <button
               onClick={() => handleExportFormat("cypher")}
               className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
             >
-              Cypher DDL
+              {t("exportCypher")}
             </button>
             <button
               onClick={() => handleExportFormat("mermaid")}
               className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
             >
-              Mermaid Diagram
+              {t("exportMermaid")}
             </button>
             <button
               onClick={() => handleExportFormat("graphql")}
               className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
             >
-              GraphQL Schema
+              {t("exportGraphql")}
             </button>
             <button
               onClick={() => handleExportFormat("owl")}
               className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
             >
-              OWL/Turtle
+              {t("exportOwl")}
             </button>
             <button
               onClick={() => handleExportFormat("shacl")}
               className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
             >
-              SHACL Shapes
+              {t("exportShacl")}
             </button>
             <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />
             <button
               onClick={() => handleExportFormat("typescript")}
               className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
             >
-              TypeScript Types
+              {t("exportTypescript")}
             </button>
             <button
               onClick={() => handleExportFormat("python")}
               className="flex w-full items-center rounded-md px-3 py-1.5 text-left text-xs text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
             >
-              Python Dataclasses
+              {t("exportPython")}
             </button>
           </PopoverContent>
         </Popover>

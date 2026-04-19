@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useAppStore } from "@/lib/store";
+import { useWorkspaceMode } from "@/lib/use-workspace-mode";
 import { cn } from "@/lib/cn";
 import { Tooltip } from "@/components/ui/tooltip";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
@@ -19,36 +22,41 @@ import {
 // ---------------------------------------------------------------------------
 // Activity Bar — VS Code-style icon strip for workspace mode switching
 // ---------------------------------------------------------------------------
+//
+// Phase 2-4: each mode now owns a route segment under `(workbench)`.
+// Sidebar buttons became `<Link>`s so browser back/forward, reloads,
+// deep links, and share URLs all work. Active state derives from the
+// pathname rather than a Zustand boolean.
 
-function ModeButton({
+function ModeLink({
+  href,
   active,
   label,
   icon,
-  onClick,
 }: {
+  href: string;
   active: boolean;
   label: string;
   icon: IconSvgElement;
-  onClick: () => void;
 }) {
   return (
     <Tooltip content={label} side="right">
-      <button
-        onClick={onClick}
+      <Link
+        href={href}
         aria-label={label}
-        aria-pressed={active}
+        aria-current={active ? "page" : undefined}
         className={cn(
           "relative flex h-10 w-full items-center justify-center transition-colors",
           active
             ? "text-emerald-600 dark:text-emerald-400"
-            : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300",
+            : "text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300",
         )}
       >
         {active && (
           <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r-full bg-emerald-500" />
         )}
         <HugeiconsIcon icon={icon} className="h-[18px] w-[18px]" size="100%" />
-      </button>
+      </Link>
     </Tooltip>
   );
 }
@@ -74,7 +82,7 @@ function PanelToggle({
           "flex h-9 w-full items-center justify-center transition-colors",
           active
             ? "text-zinc-600 dark:text-zinc-300"
-            : "text-zinc-400 hover:text-muted-foreground dark:hover:text-zinc-400",
+            : "text-muted-foreground hover:text-muted-foreground dark:hover:text-muted-foreground",
         )}
       >
         <HugeiconsIcon icon={icon} className="h-4 w-4" size="100%" />
@@ -84,15 +92,17 @@ function PanelToggle({
 }
 
 export function Sidebar() {
-  const workspaceMode = useAppStore((s) => s.workspaceMode);
-  const setWorkspaceMode = useAppStore((s) => s.setWorkspaceMode);
+  const t = useTranslations("chrome.sidebar");
+  const workspaceMode = useWorkspaceMode();
+  const pathname = usePathname();
+  const onSettings = pathname?.startsWith("/settings") ?? false;
   const explorerOpen = useAppStore((s) => s.isExplorerOpen);
   const toggleExplorer = useAppStore((s) => s.toggleExplorer);
   const inspectorOpen = useAppStore((s) => s.isInspectorOpen);
   const toggleInspector = useAppStore((s) => s.toggleInspector);
 
   return (
-    <nav aria-label="Main navigation" className="flex h-full w-12 flex-col border-r border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/50">
+    <nav aria-label={t("navAria")} className="flex h-full w-12 flex-col border-r border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/50">
       {/* Logo */}
       <div className="flex h-11 items-center justify-center border-b border-zinc-200 dark:border-zinc-800">
         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 shadow-sm">
@@ -101,30 +111,30 @@ export function Sidebar() {
       </div>
 
       {/* Workspace mode switcher */}
-      <nav className="flex flex-col pt-1" aria-label="Workspace modes">
-        <ModeButton
-          active={workspaceMode === "design"}
-          label="Design"
+      <nav className="flex flex-col pt-1" aria-label={t("modesAria")}>
+        <ModeLink
+          href="/design"
+          active={!onSettings && workspaceMode === "design"}
+          label={t("modeDesign")}
           icon={MagicWand01Icon}
-          onClick={() => setWorkspaceMode("design")}
         />
-        <ModeButton
-          active={workspaceMode === "analyze"}
-          label="Analyze"
+        <ModeLink
+          href="/analyze"
+          active={!onSettings && workspaceMode === "analyze"}
+          label={t("modeAnalyze")}
           icon={Message01Icon}
-          onClick={() => setWorkspaceMode("analyze")}
         />
-        <ModeButton
-          active={workspaceMode === "explore"}
-          label="Explore"
+        <ModeLink
+          href="/explore"
+          active={!onSettings && workspaceMode === "explore"}
+          label={t("modeExplore")}
           icon={Search01Icon}
-          onClick={() => setWorkspaceMode("explore")}
         />
-        <ModeButton
-          active={workspaceMode === "dashboard"}
-          label="Dashboard"
+        <ModeLink
+          href="/dashboard"
+          active={!onSettings && workspaceMode === "dashboard"}
+          label={t("modeDashboard")}
           icon={DashboardSpeed01Icon}
-          onClick={() => setWorkspaceMode("dashboard")}
         />
       </nav>
 
@@ -132,17 +142,17 @@ export function Sidebar() {
       <div className="mx-2 my-1 h-px bg-zinc-200 dark:bg-zinc-700" />
 
       {/* Context-sensitive panel toggles (Design mode only) */}
-      {workspaceMode === "design" && (
-        <nav className="flex flex-col" aria-label="Panel toggles">
+      {!onSettings && workspaceMode === "design" && (
+        <nav className="flex flex-col" aria-label={t("panelTogglesAria")}>
           <PanelToggle
             active={explorerOpen}
-            label={explorerOpen ? "Hide Explorer" : "Show Explorer"}
+            label={explorerOpen ? t("hideExplorer") : t("showExplorer")}
             icon={FolderOpenIcon}
             onClick={toggleExplorer}
           />
           <PanelToggle
             active={inspectorOpen}
-            label={inspectorOpen ? "Hide Inspector" : "Show Inspector"}
+            label={inspectorOpen ? t("hideInspector") : t("showInspector")}
             icon={Layers01Icon}
             onClick={toggleInspector}
           />
@@ -154,11 +164,17 @@ export function Sidebar() {
 
       {/* Settings */}
       <div className="flex flex-col pb-2">
-        <Tooltip content="Settings" side="right">
+        <Tooltip content={t("settingsLabel")} side="right">
           <Link
             href="/settings"
-            className="flex h-10 w-full items-center justify-center text-zinc-400 transition-colors hover:text-zinc-600 dark:hover:text-zinc-300"
-            aria-label="Settings"
+            aria-label={t("settingsLabel")}
+            aria-current={onSettings ? "page" : undefined}
+            className={cn(
+              "flex h-10 w-full items-center justify-center transition-colors",
+              onSettings
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300",
+            )}
           >
             <HugeiconsIcon icon={Settings02Icon} className="h-[18px] w-[18px]" size="100%" />
           </Link>

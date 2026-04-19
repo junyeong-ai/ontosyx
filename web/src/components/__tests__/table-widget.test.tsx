@@ -1,7 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
+import messages from "../../../messages/en.json";
 import { TableWidget } from "@/components/widgets/table-widget";
 import type { QueryResult, WidgetSpec } from "@/types/ontology";
+
+function renderWithIntl(ui: React.ReactElement) {
+  return render(
+    <NextIntlClientProvider locale="en" messages={messages}>
+      {ui}
+    </NextIntlClientProvider>,
+  );
+}
 
 // Base UI Tooltip wraps children via portal in the real app — stub with a
 // pass-through so we don't need Base UI's full provider chain.
@@ -48,7 +58,7 @@ describe("TableWidget", () => {
         { 사용자ID: "U002", 사용자명: "이서연", 이메일: "seo@e.com" },
       ],
     };
-    render(<TableWidget spec={spec} data={data} />);
+    renderWithIntl(<TableWidget spec={spec} data={data} />);
     expect(screen.getByText("사용자 목록")).toBeInTheDocument();
     expect(screen.getByText("김민준")).toBeInTheDocument();
     expect(screen.getByText("이서연")).toBeInTheDocument();
@@ -67,7 +77,7 @@ describe("TableWidget", () => {
       columns: ["사용자ID", "사용자명"],
       rows: [{ 사용자ID: "U001", 사용자명: "김민준" }],
     };
-    render(<TableWidget spec={spec} data={data} />);
+    renderWithIntl(<TableWidget spec={spec} data={data} />);
     expect(screen.getByText("ID")).toBeInTheDocument();
     expect(screen.getByText("이름")).toBeInTheDocument();
   });
@@ -82,7 +92,7 @@ describe("TableWidget", () => {
         { name: "C", score: 20 },
       ],
     };
-    const { container } = render(<TableWidget spec={spec} data={data} />);
+    const { container } = renderWithIntl(<TableWidget spec={spec} data={data} />);
     // Initial order
     const rowsBefore = container.querySelectorAll("tbody tr");
     expect(rowsBefore[0]?.textContent).toContain("A");
@@ -100,7 +110,7 @@ describe("TableWidget", () => {
       value: `row-${i}`,
     }));
     const data: QueryResult = { columns: ["id", "value"], rows };
-    render(<TableWidget spec={spec} data={data} />);
+    renderWithIntl(<TableWidget spec={spec} data={data} />);
     expect(screen.getByText(/250 rows · 2 columns/)).toBeInTheDocument();
     expect(
       screen.getByText(/showing first 200 rows/i),

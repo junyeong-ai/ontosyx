@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 import { WidgetRenderer, viableTypes } from "./widget-renderer";
@@ -22,17 +23,18 @@ interface WidgetWithToolbarProps {
   data: QueryResult;
 }
 
-const WIDGET_OPTIONS: readonly { type: string; icon: IconSvgElement; label: string }[] = [
-  { type: "table", icon: Table01Icon, label: "Table" },
-  { type: "graph", icon: Share01Icon, label: "Graph" },
-  { type: "bar_chart", icon: ChartColumnIcon, label: "Bar Chart" },
-  { type: "combo_chart", icon: Layers01Icon, label: "Combo Chart" },
-  { type: "pie_chart", icon: PieChartIcon, label: "Pie Chart" },
-  { type: "line_chart", icon: ChartLineData01Icon, label: "Line Chart" },
-  { type: "stat_card", icon: HashtagIcon, label: "Stat Card" },
+const WIDGET_OPTIONS: readonly { type: string; icon: IconSvgElement; labelKey: string }[] = [
+  { type: "table", icon: Table01Icon, labelKey: "table" },
+  { type: "graph", icon: Share01Icon, labelKey: "graph" },
+  { type: "bar_chart", icon: ChartColumnIcon, labelKey: "barChart" },
+  { type: "combo_chart", icon: Layers01Icon, labelKey: "comboChart" },
+  { type: "pie_chart", icon: PieChartIcon, labelKey: "pieChart" },
+  { type: "line_chart", icon: ChartLineData01Icon, labelKey: "lineChart" },
+  { type: "stat_card", icon: HashtagIcon, labelKey: "statCard" },
 ];
 
 export function WidgetWithToolbar({ spec, data }: WidgetWithToolbarProps) {
+  const t = useTranslations("widget.toolbar");
   const initialType = spec.widget_type ?? "auto";
   const [activeType, setActiveType] = useState<string>(initialType);
 
@@ -51,22 +53,25 @@ export function WidgetWithToolbar({ spec, data }: WidgetWithToolbarProps) {
       {/* Toolbar */}
       {available.length > 1 && (
         <div className="flex items-center gap-0.5 rounded-lg bg-zinc-100 p-0.5 dark:bg-zinc-800/80 w-fit">
-          {available.map(({ type, icon, label }) => (
-            <Tooltip key={type} content={label}>
-              <button
-                onClick={() => setActiveType(type)}
-                className={cn(
-                  "flex items-center gap-1 rounded-md px-2 py-1 text-xs transition-all",
-                  activeType === type
-                    ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-zinc-100"
-                    : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200",
-                )}
-              >
-                <HugeiconsIcon icon={icon} className="h-3.5 w-3.5" size="100%" />
-                <span className="hidden sm:inline">{label}</span>
-              </button>
-            </Tooltip>
-          ))}
+          {available.map(({ type, icon, labelKey }) => {
+            const label = t(labelKey);
+            return (
+              <Tooltip key={type} content={label}>
+                <button
+                  onClick={() => setActiveType(type)}
+                  className={cn(
+                    "flex items-center gap-1 rounded-md px-2 py-1 text-xs transition-all",
+                    activeType === type
+                      ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-zinc-100"
+                      : "text-zinc-500 hover:text-zinc-700 dark:text-muted-foreground dark:hover:text-zinc-200",
+                  )}
+                >
+                  <HugeiconsIcon icon={icon} className="h-3.5 w-3.5" size="100%" />
+                  <span className="hidden sm:inline">{label}</span>
+                </button>
+              </Tooltip>
+            );
+          })}
         </div>
       )}
 

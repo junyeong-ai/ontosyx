@@ -2,6 +2,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 import { TableWidget } from "./table-widget";
 import { BarChartWidget } from "./bar-chart-widget";
@@ -67,7 +68,7 @@ function looksLikeGraph(data: QueryResult): boolean {
  * Auto-detect the best widget type from data shape.
  * Used as fallback when LLM hint is unavailable.
  */
-function autoDetectWidgetType(data: QueryResult, _spec: WidgetSpec): string {
+function autoDetectWidgetType(data: QueryResult): string {
   const { columns, rows } = data;
   if (!columns.length || !rows.length) return "table";
 
@@ -126,20 +127,22 @@ function autoDetectWidgetType(data: QueryResult, _spec: WidgetSpec): string {
 
 /** Chart types available for user switching. */
 const SWITCHABLE_TYPES = [
-  { value: "table", label: "Table", icon: "≡" },
-  { value: "graph", label: "Graph", icon: "◉" },
-  { value: "bar_chart", label: "Bar", icon: "▐" },
-  { value: "pie_chart", label: "Pie", icon: "◕" },
-  { value: "line_chart", label: "Line", icon: "⌇" },
-  { value: "combo_chart", label: "Combo", icon: "⊞" },
-  { value: "scatter", label: "Scatter", icon: "∴" },
-  { value: "histogram", label: "Hist", icon: "▌" },
-  { value: "stat_card", label: "Stat", icon: "#" },
-  { value: "heatmap", label: "Heat", icon: "▦" },
-  { value: "treemap", label: "Tree", icon: "▣" },
-  { value: "funnel", label: "Funnel", icon: "▽" },
-  { value: "timeline", label: "Time", icon: "│" },
+  { value: "table", labelKey: "typeTable", icon: "≡" },
+  { value: "graph", labelKey: "typeGraph", icon: "◉" },
+  { value: "bar_chart", labelKey: "typeBar", icon: "▐" },
+  { value: "pie_chart", labelKey: "typePie", icon: "◕" },
+  { value: "line_chart", labelKey: "typeLine", icon: "⌇" },
+  { value: "combo_chart", labelKey: "typeCombo", icon: "⊞" },
+  { value: "scatter", labelKey: "typeScatter", icon: "∴" },
+  { value: "histogram", labelKey: "typeHistogram", icon: "▌" },
+  { value: "stat_card", labelKey: "typeStat", icon: "#" },
+  { value: "heatmap", labelKey: "typeHeat", icon: "▦" },
+  { value: "treemap", labelKey: "typeTree", icon: "▣" },
+  { value: "funnel", labelKey: "typeFunnel", icon: "▽" },
+  { value: "timeline", labelKey: "typeTime", icon: "│" },
 ] as const;
+
+type SwitchableTypeKey = (typeof SWITCHABLE_TYPES)[number]["labelKey"];
 
 /** Determine which chart types are viable for given data shape. */
 export function viableTypes(data: QueryResult): Set<string> {
@@ -202,6 +205,7 @@ export function viableTypes(data: QueryResult): Set<string> {
 }
 
 export function WidgetRenderer({ spec, data }: WidgetRendererProps) {
+  const t = useTranslations("widget.renderer");
   let defaultType = resolveWidgetType(spec);
 
   // "none" from LLM means text summary is enough
@@ -209,7 +213,7 @@ export function WidgetRenderer({ spec, data }: WidgetRendererProps) {
 
   // Auto-detect if no explicit type
   if (defaultType === "auto") {
-    defaultType = autoDetectWidgetType(data, spec);
+    defaultType = autoDetectWidgetType(data);
   }
 
   // Normalize "chart" to specific chart type
@@ -249,21 +253,24 @@ export function WidgetRenderer({ spec, data }: WidgetRendererProps) {
     <div className="space-y-1">
       {showSwitcher && (
         <div className="flex gap-0.5 rounded-md bg-zinc-100 p-0.5 dark:bg-zinc-800">
-          {SWITCHABLE_TYPES.filter(({ value }) => viable.has(value)).map(({ value, label, icon }) => (
-            <button
-              key={value}
-              onClick={() => setActiveType(value)}
-              className={cn(
-                "rounded px-2 py-1 text-[10px] font-medium transition-colors",
-                activeType === value
-                  ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-zinc-100"
-                  : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200",
-              )}
-              title={label}
-            >
-              {icon} {label}
-            </button>
-          ))}
+          {SWITCHABLE_TYPES.filter(({ value }) => viable.has(value)).map(({ value, labelKey, icon }) => {
+            const label = t(labelKey satisfies SwitchableTypeKey);
+            return (
+              <button
+                key={value}
+                onClick={() => setActiveType(value)}
+                className={cn(
+                  "rounded px-2 py-1 text-[10px] font-medium transition-colors",
+                  activeType === value
+                    ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-zinc-100"
+                    : "text-zinc-500 hover:text-zinc-700 dark:text-muted-foreground dark:hover:text-zinc-200",
+                )}
+                title={label}
+              >
+                {icon} {label}
+              </button>
+            );
+          })}
         </div>
       )}
       <WidgetErrorBoundary widgetType={activeType}>

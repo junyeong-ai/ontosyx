@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { ContextSelector } from "@/components/layout/context-selector";
 import { ContextBadge } from "@/components/layout/context-badge";
 import { WorkspaceSwitcher } from "@/components/layout/workspace-switcher";
@@ -19,9 +20,10 @@ import { UserMenu } from "@/components/layout/user-menu";
  * landmark heading for the app.
  */
 function AppBranding() {
+  const t = useTranslations("chrome.header");
   return (
     <h1 className="m-0 text-sm font-semibold tracking-tight text-zinc-800 dark:text-zinc-200">
-      Ontosyx
+      {t("appTitle")}
     </h1>
   );
 }

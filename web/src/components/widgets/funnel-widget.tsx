@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { cn } from "@/lib/cn";
+import { useTranslations } from "next-intl";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 import { PALETTE_PRIMARY } from "./chart-utils";
 
@@ -29,6 +29,7 @@ function findColumn(columns: string[], patterns: string[], rows: QueryResult["ro
 }
 
 export function FunnelWidget({ spec, data }: FunnelWidgetProps) {
+  const t = useTranslations("widget.funnel");
   const { columns, rows } = data;
 
   const stageCol = useMemo(
@@ -49,7 +50,7 @@ export function FunnelWidget({ spec, data }: FunnelWidgetProps) {
   }, [rows, stageCol, valueCol]);
 
   if (!stageCol || !valueCol || stages.length === 0) {
-    return <p className="text-xs text-zinc-400">Need stage and value columns for funnel</p>;
+    return <p className="text-xs text-muted-foreground">{t("needColumns")}</p>;
   }
 
   const maxValue = Math.max(...stages.map((s) => s.value), 1);
@@ -57,7 +58,7 @@ export function FunnelWidget({ spec, data }: FunnelWidgetProps) {
   return (
     <div className="space-y-2">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+        <h4 className="text-xs font-semibold text-zinc-600 dark:text-muted-foreground">
           {spec.title}
         </h4>
       )}
@@ -76,7 +77,7 @@ export function FunnelWidget({ spec, data }: FunnelWidgetProps) {
               <div className="flex flex-1 flex-col items-center">
                 {/* Conversion arrow */}
                 {conversionRate && (
-                  <div className="mb-0.5 text-[10px] font-medium text-zinc-400">
+                  <div className="mb-0.5 text-[10px] font-medium text-muted-foreground">
                     {conversionRate}%
                   </div>
                 )}
@@ -104,7 +105,7 @@ export function FunnelWidget({ spec, data }: FunnelWidgetProps) {
           );
         })}
       </div>
-      <p className="text-[10px] text-zinc-400">{stages.length} stages</p>
+      <p className="text-[10px] text-muted-foreground">{t("stagesCount", { count: stages.length })}</p>
     </div>
   );
 }

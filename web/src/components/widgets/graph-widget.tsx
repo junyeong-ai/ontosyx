@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import dynamic from "next/dynamic";
+import { useTranslations } from "next-intl";
 import type { ForceGraphMethods } from "react-force-graph-2d";
 import type {
   QueryResult,
@@ -48,6 +49,7 @@ export const GraphWidget = memo(function GraphWidget({
   spec,
   data,
 }: GraphWidgetProps) {
+  const t = useTranslations("widget.graph");
   const containerRef = useRef<HTMLDivElement>(null);
   // ForceGraphMethods with default generics — our extra fields are accessible
   // through the [others: string]: any index signature on NodeObject/LinkObject.
@@ -249,7 +251,7 @@ export const GraphWidget = memo(function GraphWidget({
   if (!data.rows.length || extracted.nodes.length === 0) {
     return (
       <div className="flex h-48 items-center justify-center rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700">
-        <p className="text-xs text-zinc-400">No graph data to display</p>
+        <p className="text-xs text-muted-foreground">{t("noData")}</p>
       </div>
     );
   }
@@ -257,7 +259,7 @@ export const GraphWidget = memo(function GraphWidget({
   return (
     <div className="space-y-1.5">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+        <h4 className="text-xs font-semibold text-zinc-600 dark:text-muted-foreground">
           {spec.title}
         </h4>
       )}
@@ -269,7 +271,7 @@ export const GraphWidget = memo(function GraphWidget({
           "bg-white dark:bg-zinc-900",
         )}
         role="figure"
-        aria-label={spec.title ? `Graph: ${spec.title}` : "Graph visualization"}
+        aria-label={spec.title ? t("ariaLabelWithTitle", { title: spec.title }) : t("ariaLabel")}
       >
         {containerWidth > 0 && (
           <ForceGraph2D
@@ -325,17 +327,19 @@ export const GraphWidget = memo(function GraphWidget({
       </div>
 
       {/* Footer stats */}
-      <p className="text-[10px] text-zinc-400">
-        {graphData.nodes.length} node{graphData.nodes.length !== 1 ? "s" : ""} ·{" "}
-        {graphData.links.length} edge{graphData.links.length !== 1 ? "s" : ""}
+      <p className="text-[10px] text-muted-foreground">
+        {t("nodesEdges", {
+          nodes: graphData.nodes.length,
+          edges: graphData.links.length,
+        })}
         {typeFilter.isAnyHidden && (
           <span className="ml-1 text-zinc-500">
-            · {extracted.nodes.length - graphData.nodes.length} hidden
+            {t("hiddenCount", { count: extracted.nodes.length - graphData.nodes.length })}
           </span>
         )}
         {isTruncated && (
           <span className="ml-1 text-amber-500">
-            · Showing {extracted.nodes.length} of {extracted.totalNodes} nodes
+            {t("showingTruncated", { shown: extracted.nodes.length, total: extracted.totalNodes })}
           </span>
         )}
       </p>

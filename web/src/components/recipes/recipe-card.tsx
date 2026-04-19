@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import type { AnalysisRecipe, RecipeStatus } from "@/types/api";
 
 // ---------------------------------------------------------------------------
@@ -20,7 +21,7 @@ const ALGO_BADGE: Record<string, string> = {
   regression:
     "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
   custom:
-    "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
+    "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground",
 };
 
 const STATUS_BADGE: Record<RecipeStatus, string> = {
@@ -29,7 +30,7 @@ const STATUS_BADGE: Record<RecipeStatus, string> = {
   approved:
     "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
   deprecated:
-    "bg-zinc-200 text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400",
+    "bg-zinc-200 text-zinc-500 dark:bg-zinc-700 dark:text-muted-foreground",
 };
 
 // ---------------------------------------------------------------------------
@@ -67,14 +68,16 @@ export function RecipeCard({
   recipe,
   compact = false,
   onRun,
-  actionLabel = "Run Analysis",
+  actionLabel,
 }: RecipeCardProps) {
+  const t = useTranslations("settings.recipes.card");
   const params = Object.entries(
     (recipe.parameters ?? {}) as Record<string, ParamDef>,
   );
   const algoKey = recipe.algorithm_type;
   const algoBadge = ALGO_BADGE[algoKey] ?? ALGO_BADGE.custom;
   const iconPath = ALGO_ICON[algoKey] ?? ALGO_ICON.custom;
+  const resolvedActionLabel = actionLabel ?? t("defaultAction");
 
   return (
     <div className="rounded-lg border border-zinc-200 bg-white p-4 transition-shadow hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900">
@@ -87,7 +90,7 @@ export function RecipeCard({
             viewBox="0 0 24 24"
             strokeWidth={1.5}
             stroke="currentColor"
-            className="h-4 w-4 shrink-0 text-zinc-400"
+            className="h-4 w-4 shrink-0 text-muted-foreground"
           >
             <path strokeLinecap="round" strokeLinejoin="round" d={iconPath} />
           </svg>
@@ -110,24 +113,24 @@ export function RecipeCard({
       </div>
 
       {/* Description */}
-      <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2">
+      <p className="mt-1.5 text-xs text-zinc-500 dark:text-muted-foreground line-clamp-2">
         {recipe.description}
       </p>
 
       {/* Parameters (non-compact only) */}
       {!compact && params.length > 0 && (
         <div className="mt-3">
-          <h4 className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-            Parameters
+          <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {t("parameters")}
           </h4>
           <div className="mt-1 flex flex-wrap gap-1.5">
             {params.map(([name, def]) => (
               <span
                 key={name}
-                className="inline-flex items-center gap-1 rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                className="inline-flex items-center gap-1 rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground"
               >
                 <span className="font-medium">{name}</span>
-                <span className="text-zinc-400">
+                <span className="text-muted-foreground">
                   {String(def.default)}
                 </span>
               </span>
@@ -145,7 +148,7 @@ export function RecipeCard({
           }}
           className="mt-3 rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800 transition-colors"
         >
-          {actionLabel}
+          {resolvedActionLabel}
         </button>
       )}
     </div>

@@ -53,10 +53,302 @@
     "ko": "한국어",
     "en": "English"
   },
+  "chrome": {
+    "sidebar": {
+      "navAria": "주 내비게이션",
+      "modesAria": "워크스페이스 모드",
+      "panelTogglesAria": "패널 토글",
+      "modeDesign": "설계",
+      "modeAnalyze": "분석",
+      "modeExplore": "탐색",
+      "modeDashboard": "대시보드",
+      "settingsLabel": "설정",
+      "hideExplorer": "탐색기 숨기기",
+      "showExplorer": "탐색기 표시",
+      "hideInspector": "인스펙터 숨기기",
+      "showInspector": "인스펙터 표시"
+    },
+    "header": {
+      "appTitle": "Ontosyx"
+    },
+    "workspaceSwitcher": {
+      "defaultLabel": "워크스페이스",
+      "noWorkspaces": "워크스페이스가 없습니다",
+      "loadError": "워크스페이스를 불러오지 못했습니다",
+      "newWorkspace": "새 워크스페이스",
+      "workspaceSettings": "워크스페이스 설정"
+    },
+    "contextBadge": {
+      "nodesEdges": "{nodes}N · {edges}E",
+      "widgetCount": "위젯 {count}개"
+    },
+    "contextSelector": {
+      "newProject": "새 프로젝트",
+      "noProjects": "프로젝트가 없습니다",
+      "loadProjectsError": "프로젝트를 불러오지 못했습니다",
+      "loadProjectError": "프로젝트를 불러오지 못했습니다",
+      "noProject": "프로젝트 없음",
+      "guardSwitchProject": "프로젝트 전환",
+      "guardNewProject": "새 프로젝트",
+      "guardForkProject": "프로젝트 포크",
+      "guardImportOntology": "온톨로지 가져오기",
+      "forkTitle": "포크 -- 이 온톨로지로 새 프로젝트 생성",
+      "forkAria": "프로젝트 포크",
+      "forkedToast": "프로젝트를 포크했습니다",
+      "forkedDescription": "출처: {title}",
+      "forkFailed": "포크에 실패했습니다",
+      "unknownError": "알 수 없는 오류",
+      "loadingOntology": "온톨로지를 불러오는 중...",
+      "loadOntologyFailed": "온톨로지를 불러오지 못했습니다",
+      "noSavedOntology": "저장된 온톨로지가 없습니다",
+      "switchToDesign": "설계 모드로 전환",
+      "selectDashboard": "대시보드 선택",
+      "noDashboards": "대시보드가 없습니다",
+      "loadDashboardsError": "대시보드를 불러오지 못했습니다",
+      "newDashboard": "새 대시보드",
+      "dashboardNamePlaceholder": "대시보드 이름",
+      "cancel": "취소",
+      "create": "만들기",
+      "dashboardCreatedToast": "대시보드를 생성했습니다",
+      "dashboardCreateError": "대시보드를 생성하지 못했습니다",
+      "publicBadge": "공개",
+      "untitledProject": "제목 없음"
+    },
+    "modeActions": {
+      "importTooltip": "온톨로지 가져오기 (JSON, OWL/Turtle)",
+      "importAria": "온톨로지 가져오기",
+      "auditTooltip": "그래프 감사",
+      "auditAria": "그래프 감사",
+      "exportAria": "온톨로지 내보내기",
+      "saveOntologyFirst": "감사를 실행하려면 온톨로지를 먼저 저장하세요",
+      "auditResult": "그래프 감사: {percentage}% 동기화됨",
+      "auditDescription": "일치: {matched} | 그래프 전용: {orphaned} | 온톨로지 전용: {missing}",
+      "auditFailed": "감사에 실패했습니다",
+      "importInvalid": "잘못된 온톨로지: node_types/edge_types가 없습니다",
+      "importWarning": "가져오기가 경고와 함께 완료되었습니다",
+      "importedToast": "온톨로지를 가져왔습니다",
+      "importedDescription": "{nodes}N, {edges}E",
+      "importFailed": "가져오기에 실패했습니다",
+      "exportJson": "JSON",
+      "exportCypher": "Cypher DDL",
+      "exportMermaid": "Mermaid 다이어그램",
+      "exportGraphql": "GraphQL 스키마",
+      "exportOwl": "OWL/Turtle",
+      "exportShacl": "SHACL Shapes",
+      "exportTypescript": "TypeScript 타입",
+      "exportPython": "Python 데이터클래스"
+    }
+  },
+  "widget": {
+    "renderer": {
+      "typeTable": "테이블",
+      "typeGraph": "그래프",
+      "typeBar": "막대",
+      "typePie": "원형",
+      "typeLine": "선",
+      "typeCombo": "복합",
+      "typeScatter": "산점도",
+      "typeHistogram": "히스토그램",
+      "typeStat": "지표",
+      "typeHeat": "히트맵",
+      "typeTree": "트리맵",
+      "typeFunnel": "퍼널",
+      "typeTime": "타임라인"
+    },
+    "toolbar": {
+      "table": "테이블",
+      "graph": "그래프",
+      "barChart": "막대 차트",
+      "comboChart": "복합 차트",
+      "pieChart": "원형 차트",
+      "lineChart": "선 차트",
+      "statCard": "지표 카드"
+    },
+    "errorBoundary": {
+      "title": "위젯 렌더링에 실패했습니다",
+      "unknownError": "알 수 없는 오류",
+      "retry": "다시 시도"
+    },
+    "table": {
+      "rowsAndColumns": "{rows}행 · {columns}열",
+      "showingFirst": "· 처음 {count}행 표시 중",
+      "detailPrompt": "{column} = '{value}'인 상세 정보 보기"
+    },
+    "graph": {
+      "noData": "표시할 그래프 데이터가 없습니다",
+      "ariaLabelWithTitle": "그래프: {title}",
+      "ariaLabel": "그래프 시각화",
+      "nodesEdges": "노드 {nodes}개 · 엣지 {edges}개",
+      "hiddenCount": "· {count}개 숨김",
+      "showingTruncated": "· 총 {total}개 중 {shown}개 노드 표시 중",
+      "detailAria": "{label}의 속성",
+      "closeDetail": "상세 패널 닫기",
+      "noProperties": "속성 없음",
+      "legendShowAria": "{type} 노드 표시",
+      "legendHideAria": "{type} 노드 숨기기"
+    },
+    "barChart": {
+      "insufficient": "차트를 그리기에 열이 부족합니다",
+      "ariaLabelWithTitle": "막대 차트: {title} ({count}개 항목)",
+      "ariaLabel": "막대 차트 ({count}개 항목)",
+      "itemsCount": "항목 {count}개"
+    },
+    "pieChart": {
+      "insufficient": "차트를 그리기에 열이 부족합니다"
+    },
+    "lineChart": {
+      "insufficient": "차트를 그리기에 열이 부족합니다",
+      "dataPointsCount": "데이터 포인트 {count}개"
+    },
+    "scatter": {
+      "noData": "데이터가 없습니다",
+      "needTwoNumeric": "숫자 열이 최소 2개 필요합니다",
+      "dataPointsCount": "데이터 포인트 {count}개"
+    },
+    "combo": {
+      "needColumns": "복합 차트는 라벨 열 1개와 숫자 열 2개 이상이 필요합니다",
+      "summary": "{items}개 항목 · 막대 {bars}개{linePart} ({axisMode})",
+      "linePart": " + 선 {count}개",
+      "dualAxis": "이중 축",
+      "grouped": "그룹"
+    },
+    "funnel": {
+      "needColumns": "퍼널에는 단계와 값 열이 필요합니다",
+      "stagesCount": "단계 {count}개"
+    },
+    "heatmap": {
+      "needColumns": "히트맵에는 x, y, 값 열이 필요합니다",
+      "cellsCount": "셀 {count}개"
+    },
+    "histogram": {
+      "noNumericData": "숫자 데이터가 없습니다",
+      "binsCount": "구간 {count}개"
+    },
+    "statCard": {
+      "noData": "데이터가 없습니다"
+    },
+    "timeline": {
+      "needColumns": "타임라인에는 날짜와 이벤트 열이 필요합니다",
+      "eventsCount": "이벤트 {count}개"
+    },
+    "treemap": {
+      "needColumns": "트리맵에는 이름과 값 열이 필요합니다",
+      "itemsCount": "항목 {count}개"
+    }
+  },
+  "page": {
+    "error": {
+      "title": "문제가 발생했어요",
+      "subtitle": "Something went wrong while rendering the page.",
+      "description": "페이지를 불러오는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
+      "refPrefix": "ref:",
+      "tryAgain": "다시 시도",
+      "home": "홈으로",
+      "reportError": "오류 신고",
+      "reportSubject": "[Ontosyx] 오류 리포트",
+      "reportSubjectWithDigest": "[Ontosyx] 오류 리포트: {digest}"
+    },
+    "login": {
+      "appTitle": "Ontosyx",
+      "tagline": "시맨틱 오케스트레이터",
+      "errorTokenExchange": "Google 인증에 실패했습니다. 다시 시도해 주세요.",
+      "errorNotConfigured": "이 서버에는 Google OAuth가 설정되어 있지 않습니다.",
+      "errorGeneric": "인증 오류: {error}",
+      "signInGoogle": "Google로 로그인"
+    },
+    "sharedDashboard": {
+      "loadingMessage": "공유된 대시보드를 불러오는 중…",
+      "notFoundTitle": "존재하지 않는 공유 링크예요",
+      "notFoundSubtitle": "This share link does not exist.",
+      "notFoundBody": "링크가 잘못 입력되었거나, 이미 해제된 링크일 수 있습니다.",
+      "errorTitle": "대시보드를 불러올 수 없습니다",
+      "errorSubtitle": "Could not load the shared dashboard.",
+      "errorBody": "오류: {message}. 잠시 후 다시 시도해 주세요.",
+      "header": "공유된 대시보드 · 읽기 전용",
+      "noWidgets": "위젯이 없습니다.",
+      "expiredTitle": "만료된 공유 링크예요",
+      "expiredSubtitle": "This share link has expired.",
+      "expiredBody": "대시보드 소유자가 공유를 해제했거나, 링크의 유효 기간이 지났습니다. 새로운 링크를 요청해 주세요.",
+      "home": "홈으로"
+    }
+  },
+  "workspaceDialog": {
+    "createTitle": "워크스페이스 생성",
+    "createDescription": "워크스페이스는 팀이 공유하는 환경입니다.",
+    "nameLabel": "이름",
+    "namePlaceholder": "내 워크스페이스",
+    "slugLabel": "슬러그",
+    "slugPlaceholder": "my-workspace",
+    "slugHint": "URL에 사용되는 식별자입니다. 이름에서 자동 생성됩니다.",
+    "cancel": "취소",
+    "create": "만들기",
+    "creating": "생성 중...",
+    "createdToast": "워크스페이스를 생성했습니다",
+    "createFailed": "워크스페이스 생성에 실패했습니다",
+    "unknownError": "알 수 없는 오류",
+    "members": {
+      "heading": "멤버",
+      "add": "멤버 추가",
+      "selectUserPrompt": "추가할 사용자를 선택하세요",
+      "cancel": "취소",
+      "noUsersAvailable": "추가 가능한 사용자가 없습니다",
+      "column": {
+        "user": "사용자",
+        "role": "역할",
+        "joined": "가입일",
+        "actions": "작업"
+      },
+      "ownerBadge": "소유자",
+      "confirmRemove": "확인",
+      "remove": "제거",
+      "noMembers": "멤버가 없습니다",
+      "dateFallback": "-",
+      "toast": {
+        "roleUpdated": "역할이 업데이트되었습니다",
+        "roleUpdateError": "역할 업데이트에 실패했습니다",
+        "memberRemoved": "멤버를 제거했습니다",
+        "memberRemoveError": "멤버 제거에 실패했습니다",
+        "memberAdded": "멤버를 추가했습니다",
+        "memberAddError": "멤버 추가에 실패했습니다",
+        "loadUsersError": "사용자를 불러오지 못했습니다"
+      }
+    }
+  },
   "settings": {
     "chrome": {
       "rootTitle": "설정",
-      "pageTitle": "설정 — {page}"
+      "pageTitle": "설정 — {page}",
+      "backToWorkbench": "워크벤치로 돌아가기",
+      "listDetail": {
+        "emptyDefault": "항목이 없습니다.",
+        "selectPrompt": "상세 내용을 보려면 항목을 선택하세요."
+      },
+      "sidebar": {
+        "organization": "조직",
+        "workspace": "워크스페이스",
+        "team": "팀",
+        "profile": "프로필",
+        "system": "시스템",
+        "systemCategory": "시스템",
+        "providers": "프로바이더",
+        "models": "모델",
+        "usage": "사용량",
+        "notifications": "알림",
+        "data": "데이터",
+        "recipes": "레시피",
+        "reports": "리포트",
+        "schedules": "스케줄",
+        "knowledge": "지식 베이스",
+        "governance": "거버넌스",
+        "qualityRules": "품질 규칙",
+        "accessControl": "접근 제어",
+        "dataLineage": "데이터 계보",
+        "auditLog": "감사 로그",
+        "approvals": "승인 대기열",
+        "development": "개발",
+        "prompts": "프롬프트",
+        "sessions": "세션"
+      }
     },
     "roles": {
       "admin": "관리자",
@@ -763,6 +1055,31 @@
         "outputDescriptionPlaceholder": "레시피가 출력하는 내용 설명",
         "create": "레시피 생성",
         "creating": "생성 중…"
+      },
+      "card": {
+        "defaultAction": "분석 실행",
+        "applyAction": "현재 온톨로지에 적용",
+        "parameters": "파라미터"
+      },
+      "runner": {
+        "parameters": "파라미터",
+        "dataSource": "데이터 소스",
+        "useLastResult": "마지막 쿼리 결과 사용",
+        "cypherPlaceholder": "MATCH (n)-[r]->(m) RETURN n, r, m LIMIT 100",
+        "result": "결과",
+        "cancel": "취소",
+        "close": "닫기",
+        "run": "분석 실행",
+        "prompt": "분석 레시피 \"{name}\"를 다음 파라미터로 실행해 주세요: {params}. {dataSource}",
+        "dataSourceLast": "마지막 쿼리 결과를 데이터 소스로 사용하세요.",
+        "dataSourceQuery": "데이터 소스 쿼리: {query}",
+        "errorPrefix": "[오류] {error}"
+      },
+      "insightsPanel": {
+        "loadError": "분석 레시피를 불러오지 못했습니다.",
+        "heading": "사용 가능한 분석",
+        "description": "온톨로지 데이터에 바로 실행할 수 있는 사전 정의 분석 레시피입니다.",
+        "emptyApproved": "승인된 레시피가 아직 없습니다."
       }
     },
     "quality": {

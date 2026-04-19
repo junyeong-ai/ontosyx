@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import type { AnalysisRecipe } from "@/types/api";
 import { chatStream } from "@/lib/api";
 import { useAppStore } from "@/lib/store";
@@ -35,7 +36,7 @@ function ParamField({
       <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
         {name}
         {def.description && (
-          <span className="ml-1 font-normal normal-case text-zinc-400">
+          <span className="ml-1 font-normal normal-case text-muted-foreground">
             — {def.description}
           </span>
         )}
@@ -78,6 +79,7 @@ interface RecipeRunnerProps {
 }
 
 export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
+  const t = useTranslations("settings.recipes.runner");
   const params = recipe.parameters as Record<string, ParamDef>;
   const paramEntries = Object.entries(params);
 
@@ -118,12 +120,16 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
       .map(([k]) => `${k}=${values[k]}`)
       .join(", ");
     const dataSource = useLastResult
-      ? "Use the last query result as data source."
+      ? t("dataSourceLast")
       : cypherQuery.trim()
-        ? `Data source query: ${cypherQuery.trim()}`
+        ? t("dataSourceQuery", { query: cypherQuery.trim() })
         : "";
 
-    const message = `Run analysis recipe "${recipe.name}" with parameters: ${paramStr}. ${dataSource}`.trim();
+    const message = t("prompt", {
+      name: recipe.name,
+      params: paramStr,
+      dataSource,
+    }).trim();
 
     try {
       await chatStream(
@@ -138,7 +144,7 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
             setResultText((prev) => prev + delta);
           },
           onError(error) {
-            setResultText((prev) => prev + `\n[Error] ${error}`);
+            setResultText((prev) => prev + "\n" + t("errorPrefix", { error }));
           },
         },
         controller.signal,
@@ -148,7 +154,7 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
     } finally {
       setIsRunning(false);
     }
-  }, [ontology, sessionId, savedOntologyId, recipe.name, paramEntries, values, useLastResult, cypherQuery]);
+  }, [ontology, sessionId, savedOntologyId, recipe.name, paramEntries, values, useLastResult, cypherQuery, t]);
 
   const handleCancel = useCallback(() => {
     abortRef.current?.abort();
@@ -170,7 +176,7 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
           </div>
           <button
             onClick={onClose}
-            className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
+            className="rounded-md p-1 text-muted-foreground hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
               <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
@@ -184,7 +190,7 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
           {paramEntries.length > 0 && (
             <div className="space-y-2">
               <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Parameters
+                {t("parameters")}
               </h3>
               {paramEntries.map(([name, def]) => (
                 <ParamField
@@ -201,22 +207,22 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
           {/* Data Source */}
           <div className="space-y-2">
             <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Data Source
+              {t("dataSource")}
             </h3>
-            <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+            <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-muted-foreground">
               <input
                 type="checkbox"
                 checked={useLastResult}
                 onChange={(e) => setUseLastResult(e.target.checked)}
                 className="rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500"
               />
-              Use last query result
+              {t("useLastResult")}
             </label>
             {!useLastResult && (
               <textarea
                 value={cypherQuery}
                 onChange={(e) => setCypherQuery(e.target.value)}
-                placeholder="MATCH (n)-[r]->(m) RETURN n, r, m LIMIT 100"
+                placeholder={t("cypherPlaceholder")}
                 rows={3}
                 className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
               />
@@ -227,7 +233,7 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
           {resultText && (
             <div>
               <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Result
+                {t("result")}
               </h3>
               <pre className="mt-1 max-h-60 overflow-auto rounded-md bg-zinc-50 p-3 text-xs text-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
                 {resultText}
@@ -245,23 +251,23 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
                 onClick={handleCancel}
                 className="rounded-md px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
               >
-                Cancel
+                {t("cancel")}
               </button>
             </>
           ) : (
             <>
               <button
                 onClick={onClose}
-                className="rounded-md px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                className="rounded-md px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 dark:text-muted-foreground dark:hover:bg-zinc-800"
               >
-                Close
+                {t("close")}
               </button>
               <button
                 onClick={handleRun}
                 disabled={!ontology}
                 className="rounded-md bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
               >
-                Run Analysis
+                {t("run")}
               </button>
             </>
           )}

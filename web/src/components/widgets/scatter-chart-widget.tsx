@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 import {
   ScatterChart,
@@ -20,9 +21,10 @@ interface ScatterChartWidgetProps {
 }
 
 export function ScatterChartWidget({ spec, data }: ScatterChartWidgetProps) {
+  const t = useTranslations("widget.scatter");
   const isDark = useIsDarkMode();
   const { columns, rows } = data;
-  if (!rows.length) return <p className="text-xs text-zinc-400">No data</p>;
+  if (!rows.length) return <p className="text-xs text-muted-foreground">{t("noData")}</p>;
 
   // Find numeric columns for x/y/z
   const numericCols = columns.filter(
@@ -31,7 +33,7 @@ export function ScatterChartWidget({ spec, data }: ScatterChartWidgetProps) {
 
   if (numericCols.length < 2)
     return (
-      <p className="text-xs text-zinc-400">Need at least 2 numeric columns</p>
+      <p className="text-xs text-muted-foreground">{t("needTwoNumeric")}</p>
     );
 
   // Validate that spec axis fields are actually numeric columns;
@@ -46,7 +48,7 @@ export function ScatterChartWidget({ spec, data }: ScatterChartWidgetProps) {
   return (
     <div className="space-y-2">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+        <h4 className="text-xs font-semibold text-zinc-600 dark:text-muted-foreground">
           {spec.title}
         </h4>
       )}
@@ -76,7 +78,7 @@ export function ScatterChartWidget({ spec, data }: ScatterChartWidgetProps) {
           </ScatterChart>
         </ResponsiveContainer>
       </div>
-      <p className="text-[10px] text-zinc-400">{rows.length} data points</p>
+      <p className="text-[10px] text-muted-foreground">{t("dataPointsCount", { count: rows.length })}</p>
     </div>
   );
 }

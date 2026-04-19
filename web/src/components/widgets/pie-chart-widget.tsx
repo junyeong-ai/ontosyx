@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useTranslations } from "next-intl";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 import type { PieLabelRenderProps } from "recharts";
 import {
@@ -30,6 +31,7 @@ interface PieChartWidgetProps {
 }
 
 export function PieChartWidget({ spec, data }: PieChartWidgetProps) {
+  const t = useTranslations("widget.pieChart");
   const isDark = useIsDarkMode();
   const labelField = resolveLabelField(spec, data);
   const valueField = resolveValueField(spec, data);
@@ -48,7 +50,7 @@ export function PieChartWidget({ spec, data }: PieChartWidgetProps) {
   );
 
   if (!labelField || !valueField || chartData.length === 0) {
-    return <p className="text-xs text-zinc-400">Insufficient columns for chart</p>;
+    return <p className="text-xs text-muted-foreground">{t("insufficient")}</p>;
   }
 
   const labelFill = pieLabelFill(isDark);
@@ -57,7 +59,7 @@ export function PieChartWidget({ spec, data }: PieChartWidgetProps) {
   return (
     <div className="space-y-2">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+        <h4 className="text-xs font-semibold text-zinc-600 dark:text-muted-foreground">
           {spec.title}
         </h4>
       )}

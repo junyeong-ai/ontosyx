@@ -9,8 +9,18 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import { axe } from "vitest-axe";
+import { NextIntlClientProvider } from "next-intl";
+import messages from "../../../../messages/en.json";
 import { TableWidget } from "@/components/widgets/table-widget";
 import type { QueryResult, WidgetSpec } from "@/types/api";
+
+function renderWithIntl(ui: React.ReactElement) {
+  return render(
+    <NextIntlClientProvider locale="en" messages={messages}>
+      {ui}
+    </NextIntlClientProvider>,
+  );
+}
 
 afterEach(cleanup);
 
@@ -49,7 +59,7 @@ describe("TableWidget (a11y)", () => {
   };
 
   it("renders a semantic <table> with <thead>/<tbody>", () => {
-    const { container } = render(<TableWidget spec={spec} data={data} />);
+    const { container } = renderWithIntl(<TableWidget spec={spec} data={data} />);
     const table = container.querySelector("table");
     expect(table).not.toBeNull();
     expect(table?.querySelector("thead")).not.toBeNull();
@@ -57,14 +67,14 @@ describe("TableWidget (a11y)", () => {
   });
 
   it("gives each header cell scope=col", () => {
-    const { container } = render(<TableWidget spec={spec} data={data} />);
+    const { container } = renderWithIntl(<TableWidget spec={spec} data={data} />);
     const ths = container.querySelectorAll("thead th");
     expect(ths.length).toBeGreaterThan(0);
     ths.forEach((th) => expect(th.getAttribute("scope")).toBe("col"));
   });
 
   it("has no axe violations", async () => {
-    const { container } = render(<TableWidget spec={spec} data={data} />);
+    const { container } = renderWithIntl(<TableWidget spec={spec} data={data} />);
     const results = await axe(container, {
       rules: {
         // aria-sort=none isn't legal in some axe versions; tests for semantics

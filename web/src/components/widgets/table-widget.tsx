@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
 import { useAppStore } from "@/lib/store";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -19,8 +21,10 @@ interface TableWidgetProps {
 type SortDir = "ASC" | "DESC";
 
 export function TableWidget({ spec, data }: TableWidgetProps) {
+  const t = useTranslations("widget.table");
   const [sortCol, setSortCol] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>("ASC");
+  const router = useRouter();
 
   // Use column defs from spec if available, otherwise fall back to data.columns
   const columns = useMemo(() => {
@@ -74,7 +78,7 @@ export function TableWidget({ spec, data }: TableWidgetProps) {
   return (
     <div className="space-y-1.5">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+        <h4 className="text-xs font-semibold text-zinc-600 dark:text-muted-foreground">
           {spec.title}
         </h4>
       )}
@@ -96,7 +100,7 @@ export function TableWidget({ spec, data }: TableWidgetProps) {
                   onClick={() => handleSort(key)}
                   className={cn(
                     "cursor-pointer select-none whitespace-nowrap px-3 py-2 font-semibold",
-                    "text-zinc-600 dark:text-zinc-400",
+                    "text-zinc-600 dark:text-muted-foreground",
                     "hover:bg-zinc-100 dark:hover:bg-zinc-700",
                     "transition-colors",
                     sortCol === key &&
@@ -121,9 +125,10 @@ export function TableWidget({ spec, data }: TableWidgetProps) {
                   const firstCol = columns[0];
                   if (!firstCol) return;
                   const val = row[firstCol.key];
-                  const store = useAppStore.getState();
-                  store.setWorkspaceMode("analyze");
-                  store.setCommandBarInput(`Show details where ${firstCol.key} = '${String(val ?? "")}'`);
+                  useAppStore.getState().setCommandBarInput(
+                    t("detailPrompt", { column: firstCol.key, value: String(val ?? "") }),
+                  );
+                  router.push("/analyze");
                 }}
                 className={cn(
                   "cursor-pointer transition-colors hover:bg-emerald-50 dark:hover:bg-emerald-950/20",
@@ -153,12 +158,11 @@ export function TableWidget({ spec, data }: TableWidgetProps) {
           </tbody>
         </table>
       </div>
-      <p className="text-[10px] text-zinc-400">
-        {data.rows.length} row{data.rows.length !== 1 ? "s" : ""} ·{" "}
-        {columns.length} column{columns.length !== 1 ? "s" : ""}
+      <p className="text-[10px] text-muted-foreground">
+        {t("rowsAndColumns", { rows: data.rows.length, columns: columns.length })}
         {isTruncated && (
           <span className="ml-1 text-amber-500">
-            · Showing first {MAX_VISIBLE_ROWS} rows
+            {t("showingFirst", { count: MAX_VISIBLE_ROWS })}
           </span>
         )}
       </p>

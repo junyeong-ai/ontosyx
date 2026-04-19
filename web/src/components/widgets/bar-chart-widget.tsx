@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useTranslations } from "next-intl";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 import {
   BarChart,
@@ -31,6 +32,7 @@ interface BarChartWidgetProps {
 }
 
 export function BarChartWidget({ spec, data }: BarChartWidgetProps) {
+  const t = useTranslations("widget.barChart");
   const isDark = useIsDarkMode();
   const xField = resolveLabelField(spec, data);
   const yField = resolveValueField(spec, data);
@@ -41,20 +43,20 @@ export function BarChartWidget({ spec, data }: BarChartWidgetProps) {
   );
 
   if (!xField || !yField || chartData.length === 0) {
-    return <p className="text-xs text-zinc-400">Insufficient columns for chart</p>;
+    return <p className="text-xs text-muted-foreground">{t("insufficient")}</p>;
   }
 
   const rotated = chartData.length > CATEGORY_THRESHOLD;
   const tick = axisTickStyle(isDark);
 
   const ariaLabel = spec.title
-    ? `Bar chart: ${spec.title} (${chartData.length} items)`
-    : `Bar chart (${chartData.length} items)`;
+    ? t("ariaLabelWithTitle", { title: spec.title, count: chartData.length })
+    : t("ariaLabel", { count: chartData.length });
 
   return (
     <div className="space-y-2">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+        <h4 className="text-xs font-semibold text-zinc-600 dark:text-muted-foreground">
           {spec.title}
         </h4>
       )}
@@ -97,7 +99,7 @@ export function BarChartWidget({ spec, data }: BarChartWidgetProps) {
           </BarChart>
         </ResponsiveContainer>
       </div>
-      <p className="text-[10px] text-zinc-400">{chartData.length} items</p>
+      <p className="text-[10px] text-muted-foreground">{t("itemsCount", { count: chartData.length })}</p>
     </div>
   );
 }

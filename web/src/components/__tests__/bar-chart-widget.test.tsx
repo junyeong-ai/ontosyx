@@ -1,7 +1,17 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
+import messages from "../../../messages/en.json";
 import { BarChartWidget } from "@/components/widgets/bar-chart-widget";
 import type { QueryResult, WidgetSpec } from "@/types/ontology";
+
+function renderWithIntl(ui: React.ReactElement) {
+  return render(
+    <NextIntlClientProvider locale="en" messages={messages}>
+      {ui}
+    </NextIntlClientProvider>,
+  );
+}
 
 // Mock recharts — jsdom can't lay out SVG, we only care that the data flow works.
 vi.mock("recharts", async () => {
@@ -38,7 +48,7 @@ describe("BarChartWidget", () => {
         { category: "식품", revenue: 280000 },
       ],
     };
-    render(<BarChartWidget spec={spec} data={data} />);
+    renderWithIntl(<BarChartWidget spec={spec} data={data} />);
     expect(screen.getByText("카테고리 매출")).toBeInTheDocument();
     expect(screen.getByTestId("mock-bar-chart")).toHaveAttribute(
       "data-rows",
@@ -50,7 +60,7 @@ describe("BarChartWidget", () => {
   it("shows insufficient-columns message when data is empty", () => {
     const spec: WidgetSpec = { widget_type: "bar_chart" };
     const data: QueryResult = { columns: [], rows: [] };
-    render(<BarChartWidget spec={spec} data={data} />);
+    renderWithIntl(<BarChartWidget spec={spec} data={data} />);
     expect(
       screen.getByText(/insufficient columns for chart/i),
     ).toBeInTheDocument();
@@ -63,7 +73,7 @@ describe("BarChartWidget", () => {
       value: i * 10,
     }));
     const data: QueryResult = { columns: ["name", "value"], rows };
-    render(<BarChartWidget spec={spec} data={data} />);
+    renderWithIntl(<BarChartWidget spec={spec} data={data} />);
     expect(screen.getByText("12 items")).toBeInTheDocument();
   });
 });

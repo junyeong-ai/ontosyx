@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 
@@ -32,12 +33,13 @@ interface StatCardWidgetProps {
 }
 
 export function StatCardWidget({ spec, data }: StatCardWidgetProps) {
+  const t = useTranslations("widget.statCard");
   // For text widget type, just render content as markdown text
   if (spec.widget_type === "text") {
     return (
       <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800/60">
         {spec.title && (
-          <h4 className="mb-2 text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+          <h4 className="mb-2 text-xs font-semibold text-zinc-600 dark:text-muted-foreground">
             {spec.title}
           </h4>
         )}
@@ -50,13 +52,13 @@ export function StatCardWidget({ spec, data }: StatCardWidgetProps) {
 
   const valueCol = spec.data_mapping?.value ?? data.columns[0];
   if (!valueCol)
-    return <p className="text-xs text-zinc-400">No data available</p>;
+    return <p className="text-xs text-muted-foreground">{t("noData")}</p>;
 
   const labelCol = spec.data_mapping?.label as string | undefined;
   const deltaCol = spec.data_mapping?.delta as string | undefined;
 
   const row = data.rows[0];
-  if (!row) return <p className="text-xs text-zinc-400">No data available</p>;
+  if (!row) return <p className="text-xs text-muted-foreground">{t("noData")}</p>;
 
   const value = row[valueCol];
   const label = labelCol
@@ -88,7 +90,7 @@ export function StatCardWidget({ spec, data }: StatCardWidgetProps) {
       <span className={cn("text-2xl font-bold", valueColor)}>
         {formattedValue}
       </span>
-      <span className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+      <span className="mt-1 text-xs text-zinc-500 dark:text-muted-foreground">
         {label}
       </span>
       {delta !== undefined && (
@@ -99,7 +101,7 @@ export function StatCardWidget({ spec, data }: StatCardWidgetProps) {
               ? "text-emerald-600 dark:text-emerald-400"
               : delta < 0
                 ? "text-red-500 dark:text-red-400"
-                : "text-zinc-400",
+                : "text-muted-foreground",
           )}
         >
           {delta > 0 ? "+" : ""}

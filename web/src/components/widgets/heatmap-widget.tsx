@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 
@@ -19,6 +20,7 @@ function heatColor(ratio: number): string {
 }
 
 export function HeatmapWidget({ spec, data }: HeatmapWidgetProps) {
+  const t = useTranslations("widget.heatmap");
   const [hoveredCell, setHoveredCell] = useState<{
     x: string;
     y: string;
@@ -82,7 +84,7 @@ export function HeatmapWidget({ spec, data }: HeatmapWidgetProps) {
   }, [rows, xCol, yCol, valueCol]);
 
   if (!xCol || !yCol || !valueCol || columns.length < 3) {
-    return <p className="text-xs text-zinc-400">Need x, y, and value columns for heatmap</p>;
+    return <p className="text-xs text-muted-foreground">{t("needColumns")}</p>;
   }
 
   const range = max - min || 1;
@@ -90,7 +92,7 @@ export function HeatmapWidget({ spec, data }: HeatmapWidgetProps) {
   return (
     <div className="space-y-2">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+        <h4 className="text-xs font-semibold text-zinc-600 dark:text-muted-foreground">
           {spec.title}
         </h4>
       )}
@@ -101,7 +103,7 @@ export function HeatmapWidget({ spec, data }: HeatmapWidgetProps) {
           {xLabels.map((x) => (
             <div
               key={x}
-              className="flex-1 min-w-[36px] px-0.5 text-center text-[10px] font-medium text-zinc-500 dark:text-zinc-400 truncate"
+              className="flex-1 min-w-[36px] px-0.5 text-center text-[10px] font-medium text-zinc-500 dark:text-muted-foreground truncate"
               title={x}
             >
               {x}
@@ -112,7 +114,7 @@ export function HeatmapWidget({ spec, data }: HeatmapWidgetProps) {
         {yLabels.map((y) => (
           <div key={y} className="flex items-center">
             <div
-              className="w-16 shrink-0 truncate pr-1 text-right text-[10px] font-medium text-zinc-500 dark:text-zinc-400"
+              className="w-16 shrink-0 truncate pr-1 text-right text-[10px] font-medium text-zinc-500 dark:text-muted-foreground"
               title={y}
             >
               {y}
@@ -156,7 +158,7 @@ export function HeatmapWidget({ spec, data }: HeatmapWidgetProps) {
         )}
       </div>
       {/* Legend */}
-      <div className="flex items-center gap-2 text-[10px] text-zinc-400">
+      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
         <span>{min.toLocaleString()}</span>
         <div
           className="h-2 flex-1 rounded-full"
@@ -165,7 +167,7 @@ export function HeatmapWidget({ spec, data }: HeatmapWidgetProps) {
           }}
         />
         <span>{max.toLocaleString()}</span>
-        <span className="ml-2">{rows.length} cells</span>
+        <span className="ml-2">{t("cellsCount", { count: rows.length })}</span>
       </div>
     </div>
   );

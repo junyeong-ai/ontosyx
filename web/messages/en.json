@@ -53,10 +53,302 @@
     "ko": "한국어",
     "en": "English"
   },
+  "chrome": {
+    "sidebar": {
+      "navAria": "Main navigation",
+      "modesAria": "Workspace modes",
+      "panelTogglesAria": "Panel toggles",
+      "modeDesign": "Design",
+      "modeAnalyze": "Analyze",
+      "modeExplore": "Explore",
+      "modeDashboard": "Dashboard",
+      "settingsLabel": "Settings",
+      "hideExplorer": "Hide Explorer",
+      "showExplorer": "Show Explorer",
+      "hideInspector": "Hide Inspector",
+      "showInspector": "Show Inspector"
+    },
+    "header": {
+      "appTitle": "Ontosyx"
+    },
+    "workspaceSwitcher": {
+      "defaultLabel": "Workspace",
+      "noWorkspaces": "No workspaces",
+      "loadError": "Failed to load workspaces",
+      "newWorkspace": "New Workspace",
+      "workspaceSettings": "Workspace Settings"
+    },
+    "contextBadge": {
+      "nodesEdges": "{nodes}N · {edges}E",
+      "widgetCount": "{count, plural, one {# widget} other {# widgets}}"
+    },
+    "contextSelector": {
+      "newProject": "New Project",
+      "noProjects": "No projects",
+      "loadProjectsError": "Failed to load projects",
+      "loadProjectError": "Failed to load project",
+      "noProject": "No project",
+      "guardSwitchProject": "Switch Project",
+      "guardNewProject": "New Project",
+      "guardForkProject": "Fork Project",
+      "guardImportOntology": "Import Ontology",
+      "forkTitle": "Fork -- create new project from this ontology",
+      "forkAria": "Fork project",
+      "forkedToast": "Project forked",
+      "forkedDescription": "From: {title}",
+      "forkFailed": "Fork failed",
+      "unknownError": "Unknown error",
+      "loadingOntology": "Loading ontology...",
+      "loadOntologyFailed": "Failed to load ontology",
+      "noSavedOntology": "No saved ontology",
+      "switchToDesign": "Switch to Design",
+      "selectDashboard": "Select dashboard",
+      "noDashboards": "No dashboards",
+      "loadDashboardsError": "Failed to load dashboards",
+      "newDashboard": "New Dashboard",
+      "dashboardNamePlaceholder": "Dashboard name",
+      "cancel": "Cancel",
+      "create": "Create",
+      "dashboardCreatedToast": "Dashboard created",
+      "dashboardCreateError": "Failed to create dashboard",
+      "publicBadge": "public",
+      "untitledProject": "Untitled"
+    },
+    "modeActions": {
+      "importTooltip": "Import Ontology (JSON, OWL/Turtle)",
+      "importAria": "Import Ontology",
+      "auditTooltip": "Audit Graph",
+      "auditAria": "Audit Graph",
+      "exportAria": "Export Ontology",
+      "saveOntologyFirst": "Save the ontology first to run an audit",
+      "auditResult": "Graph Audit: {percentage}% synced",
+      "auditDescription": "Matched: {matched} | Orphaned: {orphaned} | Missing: {missing}",
+      "auditFailed": "Audit failed",
+      "importInvalid": "Invalid ontology: missing node_types/edge_types",
+      "importWarning": "Import completed with warnings",
+      "importedToast": "Ontology imported",
+      "importedDescription": "{nodes}N, {edges}E",
+      "importFailed": "Import failed",
+      "exportJson": "JSON",
+      "exportCypher": "Cypher DDL",
+      "exportMermaid": "Mermaid Diagram",
+      "exportGraphql": "GraphQL Schema",
+      "exportOwl": "OWL/Turtle",
+      "exportShacl": "SHACL Shapes",
+      "exportTypescript": "TypeScript Types",
+      "exportPython": "Python Dataclasses"
+    }
+  },
+  "widget": {
+    "renderer": {
+      "typeTable": "Table",
+      "typeGraph": "Graph",
+      "typeBar": "Bar",
+      "typePie": "Pie",
+      "typeLine": "Line",
+      "typeCombo": "Combo",
+      "typeScatter": "Scatter",
+      "typeHistogram": "Hist",
+      "typeStat": "Stat",
+      "typeHeat": "Heat",
+      "typeTree": "Tree",
+      "typeFunnel": "Funnel",
+      "typeTime": "Time"
+    },
+    "toolbar": {
+      "table": "Table",
+      "graph": "Graph",
+      "barChart": "Bar Chart",
+      "comboChart": "Combo Chart",
+      "pieChart": "Pie Chart",
+      "lineChart": "Line Chart",
+      "statCard": "Stat Card"
+    },
+    "errorBoundary": {
+      "title": "Widget rendering failed",
+      "unknownError": "Unknown error",
+      "retry": "Retry"
+    },
+    "table": {
+      "rowsAndColumns": "{rows, plural, one {# row} other {# rows}} · {columns, plural, one {# column} other {# columns}}",
+      "showingFirst": "· Showing first {count} rows",
+      "detailPrompt": "Show details where {column} = '{value}'"
+    },
+    "graph": {
+      "noData": "No graph data to display",
+      "ariaLabelWithTitle": "Graph: {title}",
+      "ariaLabel": "Graph visualization",
+      "nodesEdges": "{nodes, plural, one {# node} other {# nodes}} · {edges, plural, one {# edge} other {# edges}}",
+      "hiddenCount": "· {count} hidden",
+      "showingTruncated": "· Showing {shown} of {total} nodes",
+      "detailAria": "Properties of {label}",
+      "closeDetail": "Close detail panel",
+      "noProperties": "No properties",
+      "legendShowAria": "Show {type} nodes",
+      "legendHideAria": "Hide {type} nodes"
+    },
+    "barChart": {
+      "insufficient": "Insufficient columns for chart",
+      "ariaLabelWithTitle": "Bar chart: {title} ({count} items)",
+      "ariaLabel": "Bar chart ({count} items)",
+      "itemsCount": "{count} items"
+    },
+    "pieChart": {
+      "insufficient": "Insufficient columns for chart"
+    },
+    "lineChart": {
+      "insufficient": "Insufficient columns for chart",
+      "dataPointsCount": "{count} data points"
+    },
+    "scatter": {
+      "noData": "No data",
+      "needTwoNumeric": "Need at least 2 numeric columns",
+      "dataPointsCount": "{count} data points"
+    },
+    "combo": {
+      "needColumns": "Combo chart requires a label column and 2+ numeric columns",
+      "summary": "{items} items · {bars, plural, one {# bar} other {# bars}}{linePart} ({axisMode})",
+      "linePart": " + {count, plural, one {# line} other {# lines}}",
+      "dualAxis": "dual axis",
+      "grouped": "grouped"
+    },
+    "funnel": {
+      "needColumns": "Need stage and value columns for funnel",
+      "stagesCount": "{count, plural, one {# stage} other {# stages}}"
+    },
+    "heatmap": {
+      "needColumns": "Need x, y, and value columns for heatmap",
+      "cellsCount": "{count} cells"
+    },
+    "histogram": {
+      "noNumericData": "No numeric data",
+      "binsCount": "{count} bins"
+    },
+    "statCard": {
+      "noData": "No data available"
+    },
+    "timeline": {
+      "needColumns": "Need date and event columns for timeline",
+      "eventsCount": "{count, plural, one {# event} other {# events}}"
+    },
+    "treemap": {
+      "needColumns": "Need name and value columns for treemap",
+      "itemsCount": "{count} items"
+    }
+  },
+  "page": {
+    "error": {
+      "title": "Something went wrong",
+      "subtitle": "Something went wrong while rendering the page.",
+      "description": "An error occurred while loading the page. Please try again in a moment.",
+      "refPrefix": "ref:",
+      "tryAgain": "Try again",
+      "home": "Home",
+      "reportError": "Report error",
+      "reportSubject": "[Ontosyx] Error report",
+      "reportSubjectWithDigest": "[Ontosyx] Error report: {digest}"
+    },
+    "login": {
+      "appTitle": "Ontosyx",
+      "tagline": "The Semantic Orchestrator",
+      "errorTokenExchange": "Failed to authenticate with Google. Please try again.",
+      "errorNotConfigured": "Google OAuth is not configured on this server.",
+      "errorGeneric": "Authentication error: {error}",
+      "signInGoogle": "Sign in with Google"
+    },
+    "sharedDashboard": {
+      "loadingMessage": "Loading the shared dashboard…",
+      "notFoundTitle": "This share link does not exist",
+      "notFoundSubtitle": "This share link does not exist.",
+      "notFoundBody": "The link may have been typed incorrectly, or it may have already been revoked.",
+      "errorTitle": "Could not load the dashboard",
+      "errorSubtitle": "Could not load the shared dashboard.",
+      "errorBody": "Error: {message}. Please try again in a moment.",
+      "header": "Shared dashboard · read-only",
+      "noWidgets": "No widgets.",
+      "expiredTitle": "This share link has expired",
+      "expiredSubtitle": "This share link has expired.",
+      "expiredBody": "The dashboard owner may have revoked sharing, or the link's validity period has passed. Please request a new link.",
+      "home": "Home"
+    }
+  },
+  "workspaceDialog": {
+    "createTitle": "Create Workspace",
+    "createDescription": "A workspace is a shared environment for your team.",
+    "nameLabel": "Name",
+    "namePlaceholder": "My Workspace",
+    "slugLabel": "Slug",
+    "slugPlaceholder": "my-workspace",
+    "slugHint": "URL-safe identifier. Auto-generated from name.",
+    "cancel": "Cancel",
+    "create": "Create",
+    "creating": "Creating...",
+    "createdToast": "Workspace created",
+    "createFailed": "Failed to create workspace",
+    "unknownError": "Unknown error",
+    "members": {
+      "heading": "Members",
+      "add": "Add Member",
+      "selectUserPrompt": "Select a user to add",
+      "cancel": "Cancel",
+      "noUsersAvailable": "No users available",
+      "column": {
+        "user": "User",
+        "role": "Role",
+        "joined": "Joined",
+        "actions": "Actions"
+      },
+      "ownerBadge": "owner",
+      "confirmRemove": "Confirm",
+      "remove": "Remove",
+      "noMembers": "No members",
+      "dateFallback": "-",
+      "toast": {
+        "roleUpdated": "Role updated",
+        "roleUpdateError": "Failed to update role",
+        "memberRemoved": "Member removed",
+        "memberRemoveError": "Failed to remove member",
+        "memberAdded": "Member added",
+        "memberAddError": "Failed to add member",
+        "loadUsersError": "Failed to load users"
+      }
+    }
+  },
   "settings": {
     "chrome": {
       "rootTitle": "Settings",
-      "pageTitle": "Settings — {page}"
+      "pageTitle": "Settings — {page}",
+      "backToWorkbench": "Back to Workbench",
+      "listDetail": {
+        "emptyDefault": "No items found.",
+        "selectPrompt": "Select an item to view details."
+      },
+      "sidebar": {
+        "organization": "Organization",
+        "workspace": "Workspace",
+        "team": "Team",
+        "profile": "Profile",
+        "system": "System",
+        "systemCategory": "System",
+        "providers": "Providers",
+        "models": "Models",
+        "usage": "Usage",
+        "notifications": "Notifications",
+        "data": "Data",
+        "recipes": "Recipes",
+        "reports": "Reports",
+        "schedules": "Schedules",
+        "knowledge": "Knowledge",
+        "governance": "Governance",
+        "qualityRules": "Quality Rules",
+        "accessControl": "Access Control",
+        "dataLineage": "Data Lineage",
+        "auditLog": "Audit Log",
+        "approvals": "Approvals",
+        "development": "Development",
+        "prompts": "Prompts",
+        "sessions": "Sessions"
+      }
     },
     "roles": {
       "admin": "Admin",
@@ -763,6 +1055,31 @@
         "outputDescriptionPlaceholder": "Describes what the recipe outputs",
         "create": "Create Recipe",
         "creating": "Creating..."
+      },
+      "card": {
+        "defaultAction": "Run Analysis",
+        "applyAction": "Apply to current ontology",
+        "parameters": "Parameters"
+      },
+      "runner": {
+        "parameters": "Parameters",
+        "dataSource": "Data Source",
+        "useLastResult": "Use last query result",
+        "cypherPlaceholder": "MATCH (n)-[r]->(m) RETURN n, r, m LIMIT 100",
+        "result": "Result",
+        "cancel": "Cancel",
+        "close": "Close",
+        "run": "Run Analysis",
+        "prompt": "Run analysis recipe \"{name}\" with parameters: {params}. {dataSource}",
+        "dataSourceLast": "Use the last query result as data source.",
+        "dataSourceQuery": "Data source query: {query}",
+        "errorPrefix": "[Error] {error}"
+      },
+      "insightsPanel": {
+        "loadError": "Failed to load analysis recipes.",
+        "heading": "Available Analyses",
+        "description": "Pre-built analysis recipes you can run against your ontology data.",
+        "emptyApproved": "No approved recipes available yet."
       }
     },
     "quality": {

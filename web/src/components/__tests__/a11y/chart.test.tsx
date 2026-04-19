@@ -8,8 +8,18 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import { axe } from "vitest-axe";
+import { NextIntlClientProvider } from "next-intl";
+import messages from "../../../../messages/en.json";
 import { BarChartWidget } from "@/components/widgets/bar-chart-widget";
 import type { QueryResult, WidgetSpec } from "@/types/api";
+
+function renderWithIntl(ui: React.ReactElement) {
+  return render(
+    <NextIntlClientProvider locale="en" messages={messages}>
+      {ui}
+    </NextIntlClientProvider>,
+  );
+}
 
 afterEach(cleanup);
 
@@ -41,7 +51,7 @@ describe("BarChartWidget (a11y)", () => {
   };
 
   it("exposes role=img with a descriptive aria-label", () => {
-    const { container } = render(<BarChartWidget spec={spec} data={data} />);
+    const { container } = renderWithIntl(<BarChartWidget spec={spec} data={data} />);
     const wrapper = container.querySelector('[role="img"]');
     expect(wrapper).not.toBeNull();
     expect(wrapper?.getAttribute("aria-label")).toMatch(/bar chart/i);
@@ -49,7 +59,7 @@ describe("BarChartWidget (a11y)", () => {
   });
 
   it("has no axe violations", async () => {
-    const { container } = render(<BarChartWidget spec={spec} data={data} />);
+    const { container } = renderWithIntl(<BarChartWidget spec={spec} data={data} />);
     const results = await axe(container);
     expect(results).toHaveNoViolations();
   });

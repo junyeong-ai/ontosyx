@@ -5,13 +5,11 @@
  *
  * Triggers on any uncaught error inside a server/client component during
  * rendering of the tree below `layout.tsx`. Must be a Client Component.
- *
- * Copy is Korean-first because the product's primary user base is Korean.
- * English is shown underneath as a tertiary line for international users.
  */
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { AlertCircleIcon, Home01Icon, RefreshIcon } from "@hugeicons/core-free-icons";
 
@@ -21,12 +19,18 @@ interface RootErrorProps {
 }
 
 export default function RootError({ error, reset }: RootErrorProps) {
+  const t = useTranslations("page.error");
+
   useEffect(() => {
     // Log to console for operators. In production this should also flush to
     // a telemetry endpoint — left as a follow-up since we don't have a
     // shared client error reporter yet.
     console.error("[RootError]", error);
   }, [error]);
+
+  const subject = error.digest
+    ? t("reportSubjectWithDigest", { digest: error.digest })
+    : t("reportSubject");
 
   return (
     <html lang="ko">
@@ -42,19 +46,18 @@ export default function RootError({ error, reset }: RootErrorProps) {
             </div>
             <div className="min-w-0 flex-1">
               <h1 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-                문제가 발생했어요
+                {t("title")}
               </h1>
-              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                페이지를 불러오는 중 오류가 발생했습니다. 잠시 후 다시
-                시도해 주세요.
+              <p className="mt-1 text-sm text-zinc-600 dark:text-muted-foreground">
+                {t("description")}
               </p>
-              <p className="mt-1 text-xs text-zinc-400">
-                Something went wrong while rendering the page.
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t("subtitle")}
               </p>
 
               {error.digest && (
-                <p className="mt-3 rounded bg-zinc-50 px-2 py-1 font-mono text-[10px] text-zinc-500 dark:bg-zinc-950 dark:text-zinc-400">
-                  ref: {error.digest}
+                <p className="mt-3 rounded bg-zinc-50 px-2 py-1 font-mono text-[10px] text-zinc-500 dark:bg-zinc-950 dark:text-muted-foreground">
+                  {t("refPrefix")} {error.digest}
                 </p>
               )}
 
@@ -68,7 +71,7 @@ export default function RootError({ error, reset }: RootErrorProps) {
                     className="h-3.5 w-3.5"
                     size="100%"
                   />
-                  다시 시도 (Try again)
+                  {t("tryAgain")}
                 </button>
                 <Link
                   href="/"
@@ -79,17 +82,17 @@ export default function RootError({ error, reset }: RootErrorProps) {
                     className="h-3.5 w-3.5"
                     size="100%"
                   />
-                  홈으로 (Home)
+                  {t("home")}
                 </Link>
                 <a
                   href={`mailto:support@ontosyx.io?subject=${encodeURIComponent(
-                    `[Ontosyx] Error report${error.digest ? `: ${error.digest}` : ""}`,
+                    subject,
                   )}&body=${encodeURIComponent(
                     `Error message: ${error.message}\nDigest: ${error.digest ?? "n/a"}\nURL: ${typeof window !== "undefined" ? window.location.href : ""}\n`,
                   )}`}
-                  className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-zinc-500 transition-colors hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                  className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-zinc-500 transition-colors hover:text-zinc-700 dark:text-muted-foreground dark:hover:text-zinc-200"
                 >
-                  오류 신고 (Report)
+                  {t("reportError")}
                 </a>
               </div>
             </div>

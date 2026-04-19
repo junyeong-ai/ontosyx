@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useTranslations } from "next-intl";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 import {
   LineChart,
@@ -32,6 +33,7 @@ interface LineChartWidgetProps {
 }
 
 export function LineChartWidget({ spec, data }: LineChartWidgetProps) {
+  const t = useTranslations("widget.lineChart");
   const isDark = useIsDarkMode();
   const xField = resolveLabelField(spec, data);
   const yField = resolveValueField(spec, data);
@@ -42,7 +44,7 @@ export function LineChartWidget({ spec, data }: LineChartWidgetProps) {
   );
 
   if (!xField || !yField || chartData.length === 0) {
-    return <p className="text-xs text-zinc-400">Insufficient columns for chart</p>;
+    return <p className="text-xs text-muted-foreground">{t("insufficient")}</p>;
   }
 
   const isArea = spec.chart_type === "area";
@@ -54,7 +56,7 @@ export function LineChartWidget({ spec, data }: LineChartWidgetProps) {
   return (
     <div className="space-y-2">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+        <h4 className="text-xs font-semibold text-zinc-600 dark:text-muted-foreground">
           {spec.title}
         </h4>
       )}
@@ -98,7 +100,7 @@ export function LineChartWidget({ spec, data }: LineChartWidgetProps) {
           </ChartComponent>
         </ResponsiveContainer>
       </div>
-      <p className="text-[10px] text-zinc-400">{chartData.length} data points</p>
+      <p className="text-[10px] text-muted-foreground">{t("dataPointsCount", { count: chartData.length })}</p>
     </div>
   );
 }

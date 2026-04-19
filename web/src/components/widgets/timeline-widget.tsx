@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 
@@ -36,6 +37,7 @@ function formatDate(value: unknown): string {
 }
 
 export function TimelineWidget({ spec, data }: TimelineWidgetProps) {
+  const t = useTranslations("widget.timeline");
   const { columns, rows } = data;
 
   const dateCol = useMemo(
@@ -67,13 +69,13 @@ export function TimelineWidget({ spec, data }: TimelineWidgetProps) {
   }, [rows, dateCol, labelCol, descCol]);
 
   if (!dateCol || !labelCol || events.length === 0) {
-    return <p className="text-xs text-zinc-400">Need date and event columns for timeline</p>;
+    return <p className="text-xs text-muted-foreground">{t("needColumns")}</p>;
   }
 
   return (
     <div className="space-y-2">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+        <h4 className="text-xs font-semibold text-zinc-600 dark:text-muted-foreground">
           {spec.title}
         </h4>
       )}
@@ -89,7 +91,7 @@ export function TimelineWidget({ spec, data }: TimelineWidgetProps) {
                 )}
               />
               {/* Date */}
-              <p className="text-[10px] font-medium text-zinc-400">
+              <p className="text-[10px] font-medium text-muted-foreground">
                 {formatDate(evt.date)}
               </p>
               {/* Label */}
@@ -98,7 +100,7 @@ export function TimelineWidget({ spec, data }: TimelineWidgetProps) {
               </p>
               {/* Description */}
               {evt.description && (
-                <p className="mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">
+                <p className="mt-0.5 text-[11px] text-zinc-500 dark:text-muted-foreground">
                   {evt.description}
                 </p>
               )}
@@ -106,7 +108,7 @@ export function TimelineWidget({ spec, data }: TimelineWidgetProps) {
           ))}
         </div>
       </div>
-      <p className="text-[10px] text-zinc-400">{events.length} events</p>
+      <p className="text-[10px] text-muted-foreground">{t("eventsCount", { count: events.length })}</p>
     </div>
   );
 }

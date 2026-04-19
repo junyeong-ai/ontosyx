@@ -2,28 +2,43 @@
 
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { useTranslations } from "next-intl";
+
+const KNOWN_LOGIN_ERRORS = ["token_exchange_failed", "not_configured"] as const;
+type KnownLoginError = (typeof KNOWN_LOGIN_ERRORS)[number];
+
+function isKnownLoginError(value: string): value is KnownLoginError {
+  return (KNOWN_LOGIN_ERRORS as readonly string[]).includes(value);
+}
 
 function LoginContent() {
+  const t = useTranslations("page.login");
   const searchParams = useSearchParams();
   const error = searchParams.get("error");
+
+  const resolvedError = (() => {
+    if (!error) return null;
+    if (isKnownLoginError(error)) {
+      return error === "token_exchange_failed"
+        ? t("errorTokenExchange")
+        : t("errorNotConfigured");
+    }
+    return t("errorGeneric", { error });
+  })();
 
   return (
     <main className="flex h-screen items-center justify-center bg-zinc-950">
       <div className="w-full max-w-sm text-center">
         <h1 className="text-3xl font-bold tracking-tight text-white">
-          Ontosyx
+          {t("appTitle")}
         </h1>
-        <p className="mt-2 text-sm text-zinc-400">
-          The Semantic Orchestrator
+        <p className="mt-2 text-sm text-muted-foreground">
+          {t("tagline")}
         </p>
 
-        {error && (
+        {resolvedError && (
           <div className="mt-6 rounded-lg border border-red-800 bg-red-950/50 px-4 py-3 text-sm text-red-300">
-            {error === "token_exchange_failed"
-              ? "Failed to authenticate with Google. Please try again."
-              : error === "not_configured"
-                ? "Google OAuth is not configured on this server."
-                : `Authentication error: ${error}`}
+            {resolvedError}
           </div>
         )}
 
@@ -49,7 +64,7 @@ function LoginContent() {
               fill="#EA4335"
             />
           </svg>
-          Sign in with Google
+          {t("signInGoogle")}
         </a>
       </div>
     </main>

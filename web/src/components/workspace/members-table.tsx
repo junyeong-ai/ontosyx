@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -15,7 +16,7 @@ import type { UserInfo } from "@/types/admin";
 const ROLE_COLORS: Record<string, string> = {
   owner: "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400",
   admin: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-400",
-  member: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
+  member: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground",
   viewer: "bg-zinc-100 text-muted-foreground dark:bg-zinc-800",
 };
 
@@ -28,6 +29,7 @@ interface Props {
 }
 
 export function MembersTable({ wsId, members, onReload }: Props) {
+  const t = useTranslations("workspaceDialog.members");
   const [showAdd, setShowAdd] = useState(false);
   const [users, setUsers] = useState<UserInfo[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
@@ -37,9 +39,9 @@ export function MembersTable({ wsId, members, onReload }: Props) {
     try {
       await updateMemberRole(wsId, userId, role);
       onReload();
-      toast.success("Role updated");
+      toast.success(t("toast.roleUpdated"));
     } catch {
-      toast.error("Failed to update role");
+      toast.error(t("toast.roleUpdateError"));
     }
   };
 
@@ -48,9 +50,9 @@ export function MembersTable({ wsId, members, onReload }: Props) {
       await removeMember(wsId, userId);
       setConfirmRemove(null);
       onReload();
-      toast.success("Member removed");
+      toast.success(t("toast.memberRemoved"));
     } catch {
-      toast.error("Failed to remove member");
+      toast.error(t("toast.memberRemoveError"));
     }
   };
 
@@ -59,9 +61,9 @@ export function MembersTable({ wsId, members, onReload }: Props) {
       await addMember(wsId, { user_id: userId, role: "member" });
       setShowAdd(false);
       onReload();
-      toast.success("Member added");
+      toast.success(t("toast.memberAdded"));
     } catch {
-      toast.error("Failed to add member");
+      toast.error(t("toast.memberAddError"));
     }
   };
 
@@ -73,7 +75,7 @@ export function MembersTable({ wsId, members, onReload }: Props) {
       const ids = new Set(members.map((m) => m.user_id));
       setUsers(page.items.filter((u) => !ids.has(u.id)));
     } catch {
-      toast.error("Failed to load users");
+      toast.error(t("toast.loadUsersError"));
     } finally {
       setUsersLoading(false);
     }
@@ -83,33 +85,33 @@ export function MembersTable({ wsId, members, onReload }: Props) {
     <section className="mt-8">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-          Members
+          {t("heading")}
         </h2>
         <button
           onClick={openAdd}
           className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700"
         >
-          Add Member
+          {t("add")}
         </button>
       </div>
 
       {showAdd && (
         <div className="mt-3 rounded-md border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Select a user to add
+            <span className="text-xs font-medium text-zinc-600 dark:text-muted-foreground">
+              {t("selectUserPrompt")}
             </span>
             <button
               onClick={() => setShowAdd(false)}
-              className="text-xs text-zinc-400 hover:text-zinc-600"
+              className="text-xs text-muted-foreground hover:text-zinc-600"
             >
-              Cancel
+              {t("cancel")}
             </button>
           </div>
           {usersLoading ? (
             <Spinner size="sm" className="mx-auto" />
           ) : users.length === 0 ? (
-            <p className="text-xs text-zinc-400">No users available</p>
+            <p className="text-xs text-muted-foreground">{t("noUsersAvailable")}</p>
           ) : (
             <div className="max-h-40 space-y-1 overflow-auto">
               {users.map((u) => (
@@ -121,7 +123,7 @@ export function MembersTable({ wsId, members, onReload }: Props) {
                   <span className="text-zinc-700 dark:text-zinc-300">
                     {u.name || u.email}
                   </span>
-                  {u.name && <span className="text-zinc-400">{u.email}</span>}
+                  {u.name && <span className="text-muted-foreground">{u.email}</span>}
                 </button>
               ))}
             </div>
@@ -133,10 +135,10 @@ export function MembersTable({ wsId, members, onReload }: Props) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-muted-foreground dark:border-zinc-700">
-              <th className="py-2">User</th>
-              <th className="py-2">Role</th>
-              <th className="py-2">Joined</th>
-              <th className="py-2 text-right">Actions</th>
+              <th className="py-2">{t("column.user")}</th>
+              <th className="py-2">{t("column.role")}</th>
+              <th className="py-2">{t("column.joined")}</th>
+              <th className="py-2 text-right">{t("column.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -153,7 +155,7 @@ export function MembersTable({ wsId, members, onReload }: Props) {
                     <span
                       className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${ROLE_COLORS.owner}`}
                     >
-                      owner
+                      {t("ownerBadge")}
                     </span>
                   ) : (
                     <select
@@ -174,7 +176,7 @@ export function MembersTable({ wsId, members, onReload }: Props) {
                 <td className="py-2 text-muted-foreground">
                   {m.joined_at
                     ? new Date(m.joined_at).toLocaleDateString()
-                    : "-"}
+                    : t("dateFallback")}
                 </td>
                 <td className="py-2 text-right">
                   {m.role !== "owner" &&
@@ -184,13 +186,13 @@ export function MembersTable({ wsId, members, onReload }: Props) {
                           onClick={() => handleRemove(m.user_id)}
                           className="rounded bg-red-600 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-red-700"
                         >
-                          Confirm
+                          {t("confirmRemove")}
                         </button>
                         <button
                           onClick={() => setConfirmRemove(null)}
                           className="rounded px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
                         >
-                          Cancel
+                          {t("cancel")}
                         </button>
                       </span>
                     ) : (
@@ -198,7 +200,7 @@ export function MembersTable({ wsId, members, onReload }: Props) {
                         onClick={() => setConfirmRemove(m.user_id)}
                         className="rounded px-2 py-0.5 text-[10px] text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
                       >
-                        Remove
+                        {t("remove")}
                       </button>
                     ))}
                 </td>
@@ -206,8 +208,8 @@ export function MembersTable({ wsId, members, onReload }: Props) {
             ))}
             {members.length === 0 && (
               <tr>
-                <td colSpan={4} className="py-8 text-center text-zinc-400">
-                  No members
+                <td colSpan={4} className="py-8 text-center text-muted-foreground">
+                  {t("noMembers")}
                 </td>
               </tr>
             )}

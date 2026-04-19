@@ -1,7 +1,17 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
+import messages from "../../../messages/en.json";
 import { StatCardWidget } from "@/components/widgets/stat-card-widget";
 import type { QueryResult, WidgetSpec } from "@/types/ontology";
+
+function renderWithIntl(ui: React.ReactElement) {
+  return render(
+    <NextIntlClientProvider locale="en" messages={messages}>
+      {ui}
+    </NextIntlClientProvider>,
+  );
+}
 
 describe("StatCardWidget", () => {
   it("renders a numeric KPI with label", () => {
@@ -14,7 +24,7 @@ describe("StatCardWidget", () => {
       columns: ["total", "label"],
       rows: [{ total: 12345, label: "총 주문 수" }],
     };
-    render(<StatCardWidget spec={spec} data={data} />);
+    renderWithIntl(<StatCardWidget spec={spec} data={data} />);
     expect(screen.getByText("12,345")).toBeInTheDocument();
     expect(screen.getByText("총 주문 수")).toBeInTheDocument();
   });
@@ -22,7 +32,7 @@ describe("StatCardWidget", () => {
   it("falls back to fallback when no rows present", () => {
     const spec: WidgetSpec = { widget_type: "stat_card" };
     const data: QueryResult = { columns: ["x"], rows: [] };
-    render(<StatCardWidget spec={spec} data={data} />);
+    renderWithIntl(<StatCardWidget spec={spec} data={data} />);
     expect(screen.getByText(/no data available/i)).toBeInTheDocument();
   });
 
@@ -33,7 +43,7 @@ describe("StatCardWidget", () => {
       content: "이 위젯은 설명용입니다",
     };
     const data: QueryResult = { columns: [], rows: [] };
-    render(<StatCardWidget spec={spec} data={data} />);
+    renderWithIntl(<StatCardWidget spec={spec} data={data} />);
     expect(screen.getByText("설명")).toBeInTheDocument();
     expect(
       screen.getByText("이 위젯은 설명용입니다"),
@@ -50,7 +60,7 @@ describe("StatCardWidget", () => {
       columns: ["latency_ms"],
       rows: [{ latency_ms: 1000 }],
     };
-    const { container } = render(<StatCardWidget spec={spec} data={data} />);
+    const { container } = renderWithIntl(<StatCardWidget spec={spec} data={data} />);
     const valueSpan = container.querySelector(".text-red-600");
     expect(valueSpan).not.toBeNull();
     expect(valueSpan?.textContent).toBe("1,000");
@@ -65,7 +75,7 @@ describe("StatCardWidget", () => {
       columns: ["total", "diff"],
       rows: [{ total: 100, diff: 25 }],
     };
-    render(<StatCardWidget spec={spec} data={data} />);
+    renderWithIntl(<StatCardWidget spec={spec} data={data} />);
     expect(screen.getByText("+25")).toBeInTheDocument();
   });
 });

@@ -2,69 +2,72 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/lib/use-auth";
 
 interface NavItem {
-  label: string;
+  labelKey: string;
   href: string;
   authOnly?: boolean;
   adminOnly?: boolean;
 }
 
 interface NavGroup {
-  title: string;
+  titleKey: string;
   items: NavItem[];
 }
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    title: "Organization",
+    titleKey: "organization",
     items: [
-      { label: "Workspace", href: "/settings/workspace", adminOnly: true },
-      { label: "Team", href: "/settings/team", authOnly: true },
-      { label: "Profile", href: "/settings/profile" },
+      { labelKey: "workspace", href: "/settings/workspace", adminOnly: true },
+      { labelKey: "team", href: "/settings/team", authOnly: true },
+      { labelKey: "profile", href: "/settings/profile" },
     ],
   },
   {
-    title: "System",
+    titleKey: "systemCategory",
     items: [
-      { label: "System", href: "/settings/system", adminOnly: true },
-      { label: "Providers", href: "/settings/providers" },
-      { label: "Models", href: "/settings/models", adminOnly: true },
-      { label: "Usage", href: "/settings/usage", adminOnly: true },
-      { label: "Notifications", href: "/settings/notifications", adminOnly: true },
+      { labelKey: "system", href: "/settings/system", adminOnly: true },
+      { labelKey: "providers", href: "/settings/providers" },
+      { labelKey: "models", href: "/settings/models", adminOnly: true },
+      { labelKey: "usage", href: "/settings/usage", adminOnly: true },
+      { labelKey: "notifications", href: "/settings/notifications", adminOnly: true },
     ],
   },
   {
-    title: "Data",
+    titleKey: "data",
     items: [
-      { label: "Recipes", href: "/settings/recipes" },
-      { label: "Reports", href: "/settings/reports" },
-      { label: "Schedules", href: "/settings/schedules", adminOnly: true },
-      { label: "Knowledge", href: "/settings/knowledge", adminOnly: true },
+      { labelKey: "recipes", href: "/settings/recipes" },
+      { labelKey: "reports", href: "/settings/reports" },
+      { labelKey: "schedules", href: "/settings/schedules", adminOnly: true },
+      { labelKey: "knowledge", href: "/settings/knowledge", adminOnly: true },
     ],
   },
   {
-    title: "Governance",
+    titleKey: "governance",
     items: [
-      { label: "Quality Rules", href: "/settings/quality", adminOnly: true },
-      { label: "Access Control", href: "/settings/acl", adminOnly: true },
-      { label: "Data Lineage", href: "/settings/lineage" },
-      { label: "Audit Log", href: "/settings/audit", adminOnly: true },
-      { label: "Approvals", href: "/settings/approvals", adminOnly: true },
+      { labelKey: "qualityRules", href: "/settings/quality", adminOnly: true },
+      { labelKey: "accessControl", href: "/settings/acl", adminOnly: true },
+      { labelKey: "dataLineage", href: "/settings/lineage" },
+      { labelKey: "auditLog", href: "/settings/audit", adminOnly: true },
+      { labelKey: "approvals", href: "/settings/approvals", adminOnly: true },
     ],
   },
   {
-    title: "Development",
+    titleKey: "development",
     items: [
-      { label: "Prompts", href: "/settings/prompts", adminOnly: true },
-      { label: "Sessions", href: "/settings/sessions" },
+      { labelKey: "prompts", href: "/settings/prompts", adminOnly: true },
+      { labelKey: "sessions", href: "/settings/sessions" },
     ],
   },
 ];
 
 export function SettingsSidebar() {
+  const t = useTranslations("settings.chrome");
+  const tSidebar = useTranslations("settings.chrome.sidebar");
   const pathname = usePathname();
   const { authEnabled, isAdmin } = useAuth();
 
@@ -82,7 +85,7 @@ export function SettingsSidebar() {
       <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
         <Link
           href="/"
-          className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 transition-colors hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+          className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 transition-colors hover:text-zinc-800 dark:text-muted-foreground dark:hover:text-zinc-200"
         >
           <svg
             className="h-3.5 w-3.5"
@@ -97,16 +100,16 @@ export function SettingsSidebar() {
               d="M15 19l-7-7 7-7"
             />
           </svg>
-          Back to Workbench
+          {t("backToWorkbench")}
         </Link>
       </div>
 
       {/* Grouped navigation */}
       <nav className="flex flex-col overflow-y-auto px-2 pb-4 pt-2">
         {visibleGroups.map((group) => (
-          <div key={group.title} className="flex flex-col gap-0.5">
-            <span className="mt-4 mb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
-              {group.title}
+          <div key={group.titleKey} className="flex flex-col gap-0.5">
+            <span className="mt-4 mb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-muted-foreground">
+              {tSidebar(group.titleKey)}
             </span>
             {group.items.map((item) => {
               const isActive = pathname === item.href;
@@ -118,10 +121,10 @@ export function SettingsSidebar() {
                     "block rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
                     isActive
                       ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400"
-                      : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200",
+                      : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-muted-foreground dark:hover:bg-zinc-800 dark:hover:text-zinc-200",
                   )}
                 >
-                  {item.label}
+                  {tSidebar(item.labelKey)}
                 </Link>
               );
             })}

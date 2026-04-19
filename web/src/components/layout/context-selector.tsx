@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useAppStore } from "@/lib/store";
+import { useWorkspaceMode } from "@/lib/use-workspace-mode";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -37,7 +40,7 @@ const POPOVER_CLASS =
 // ---------------------------------------------------------------------------
 
 export function ContextSelector() {
-  const workspaceMode = useAppStore((s) => s.workspaceMode);
+  const workspaceMode = useWorkspaceMode();
 
   switch (workspaceMode) {
     case "design":
@@ -58,9 +61,9 @@ export function ContextSelector() {
 // ---------------------------------------------------------------------------
 
 function DesignSelector() {
+  const t = useTranslations("chrome.contextSelector");
   const activeProject = useAppStore((s) => s.activeProject);
   const setActiveProject = useAppStore((s) => s.setActiveProject);
-  const ontology = useAppStore((s) => s.ontology);
   const setOntology = useAppStore((s) => s.setOntology);
   const setDesignBottomTab = useAppStore((s) => s.setDesignBottomTab);
   const bottomPanelOpen = useAppStore((s) => s.isBottomPanelOpen);
@@ -75,11 +78,11 @@ function DesignSelector() {
   const projects = data?.items ?? [];
 
   useEffect(() => {
-    if (isError) toast.error("Failed to load projects");
-  }, [isError]);
+    if (isError) toast.error(t("loadProjectsError"));
+  }, [isError, t]);
 
   const handleSelect = async (id: string) => {
-    if (!(await guardPendingEdits("Switch Project"))) return;
+    if (!(await guardPendingEdits(t("guardSwitchProject")))) return;
     setOpen(false);
     try {
       const project = await getProject(id);
@@ -91,25 +94,25 @@ function DesignSelector() {
       }
     } catch (err) {
       console.error("Failed to load project:", err);
-      toast.error("Failed to load project");
+      toast.error(t("loadProjectError"));
     }
   };
 
   // Design mode: show project title only (not standalone ontology name)
-  const label = activeProject?.title || "No project";
+  const label = activeProject?.title || t("noProject");
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger className={TRIGGER_CLASS}>
         <HugeiconsIcon icon={FolderOpenIcon} className="h-3.5 w-3.5" size="100%" />
         <span className="max-w-[280px] truncate">{label}</span>
-        <HugeiconsIcon icon={ArrowDown01Icon} className="h-3 w-3 text-zinc-400" size="100%" />
+        <HugeiconsIcon icon={ArrowDown01Icon} className="h-3 w-3 text-muted-foreground" size="100%" />
       </PopoverTrigger>
       <PopoverContent className={POPOVER_CLASS}>
         <div className="max-h-60 overflow-auto p-1">
           <button
             onClick={async () => {
-              if (!(await guardPendingEdits("New Project"))) return;
+              if (!(await guardPendingEdits(t("guardNewProject")))) return;
               setOpen(false);
               setActiveProject(null);
               useAppStore.getState().resetOntology();
@@ -119,15 +122,15 @@ function DesignSelector() {
             className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs font-medium text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950"
           >
             <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
-            New Project
+            {t("newProject")}
           </button>
           <div className="my-1 h-px bg-zinc-200 dark:bg-zinc-700" />
           {isFetching ? (
             <div className="flex items-center justify-center py-4">
-              <Spinner size="sm" className="text-zinc-400" />
+              <Spinner size="sm" className="text-muted-foreground" />
             </div>
           ) : projects.length === 0 ? (
-            <p className="px-3 py-4 text-center text-xs text-zinc-400">No projects</p>
+            <p className="px-3 py-4 text-center text-xs text-muted-foreground">{t("noProjects")}</p>
           ) : (
             projects.map((p) => (
               <div key={p.id} className="flex items-center gap-1">
@@ -144,30 +147,30 @@ function DesignSelector() {
                 </button>
                 {p.saved_ontology_id && (
                   <button
-                    title="Fork -- create new project from this ontology"
-                    aria-label="Fork project"
+                    title={t("forkTitle")}
+                    aria-label={t("forkAria")}
                     onClick={async (e) => {
                       e.stopPropagation();
-                      if (!(await guardPendingEdits("Fork Project"))) return;
+                      if (!(await guardPendingEdits(t("guardForkProject")))) return;
                       setOpen(false);
                       try {
                         const forked = await createProject({
                           origin_type: "base_ontology",
                           base_saved_ontology_id: p.saved_ontology_id!,
-                          title: `${p.title || "Untitled"} (fork)`,
+                          title: `${p.title || t("untitledProject")} (fork)`,
                         });
                         setActiveProject(forked);
                         if (forked.ontology) setOntology(forked.ontology as OntologyIR);
                         setDesignBottomTab("workflow");
                         if (!bottomPanelOpen) toggleBottomPanel();
-                        toast.success("Project forked", { description: `From: ${p.title}` });
+                        toast.success(t("forkedToast"), { description: t("forkedDescription", { title: p.title ?? t("untitledProject") }) });
                       } catch (err) {
-                        toast.error("Fork failed", {
-                          description: err instanceof Error ? err.message : "Unknown error",
+                        toast.error(t("forkFailed"), {
+                          description: err instanceof Error ? err.message : t("unknownError"),
                         });
                       }
                     }}
-                    className="shrink-0 rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-indigo-600 dark:hover:bg-zinc-800 dark:hover:text-indigo-400"
+                    className="shrink-0 rounded p-1 text-muted-foreground hover:bg-zinc-100 hover:text-indigo-600 dark:hover:bg-zinc-800 dark:hover:text-indigo-400"
                   >
                     <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
                   </button>
@@ -186,8 +189,10 @@ function DesignSelector() {
 // ---------------------------------------------------------------------------
 
 function AnalyzeSelector() {
+  const t = useTranslations("chrome.contextSelector");
   const ontology = useAppStore((s) => s.ontology);
   const workspaceReady = useAppStore((s) => s.workspaceReady);
+  const router = useRouter();
 
   // Auto-load latest saved ontology when entering Analyze mode (after workspace init)
   const { data, isFetching, isError } = useOntologies(
@@ -210,7 +215,7 @@ function AnalyzeSelector() {
     return (
       <div className={TRIGGER_CLASS}>
         <Spinner size="xs" />
-        <span className="text-zinc-400">Loading ontology...</span>
+        <span className="text-muted-foreground">{t("loadingOntology")}</span>
       </div>
     );
   }
@@ -219,18 +224,18 @@ function AnalyzeSelector() {
     return (
       <div className="flex items-center gap-2">
         <div className={TRIGGER_CLASS}>
-          <HugeiconsIcon icon={Message01Icon} className="h-3.5 w-3.5 text-zinc-400" size="100%" />
-          <span className="text-zinc-400">
-            {error ? "Failed to load ontology" : "No saved ontology"}
+          <HugeiconsIcon icon={Message01Icon} className="h-3.5 w-3.5 text-muted-foreground" size="100%" />
+          <span className="text-muted-foreground">
+            {error ? t("loadOntologyFailed") : t("noSavedOntology")}
           </span>
         </div>
         {!error && (
           <Button
             variant="outline"
             size="xs"
-            onClick={() => useAppStore.getState().setWorkspaceMode("design")}
+            onClick={() => router.push("/design")}
           >
-            Switch to Design
+            {t("switchToDesign")}
           </Button>
         )}
       </div>
@@ -250,6 +255,7 @@ function AnalyzeSelector() {
 // ---------------------------------------------------------------------------
 
 function ExploreSelector() {
+  const t = useTranslations("chrome.contextSelector");
   const ontology = useAppStore((s) => s.ontology);
   const workspaceReady = useAppStore((s) => s.workspaceReady);
 
@@ -273,7 +279,7 @@ function ExploreSelector() {
     return (
       <div className={TRIGGER_CLASS}>
         <Spinner size="xs" />
-        <span className="text-zinc-400">Loading ontology...</span>
+        <span className="text-muted-foreground">{t("loadingOntology")}</span>
       </div>
     );
   }
@@ -282,7 +288,7 @@ function ExploreSelector() {
     <div className={TRIGGER_CLASS}>
       <HugeiconsIcon icon={Search01Icon} className="h-3.5 w-3.5" size="100%" />
       <span className="max-w-[280px] truncate">
-        {ontology?.name || (error ? "Failed to load ontology" : "No saved ontology")}
+        {ontology?.name || (error ? t("loadOntologyFailed") : t("noSavedOntology"))}
       </span>
     </div>
   );
@@ -293,6 +299,7 @@ function ExploreSelector() {
 // ---------------------------------------------------------------------------
 
 function DashboardSelector() {
+  const t = useTranslations("chrome.contextSelector");
   const activeDashboardId = useAppStore((s) => s.activeDashboardId);
   const setActiveDashboardId = useAppStore((s) => s.setActiveDashboardId);
 
@@ -307,8 +314,8 @@ function DashboardSelector() {
   const dashboards = data?.items ?? [];
 
   useEffect(() => {
-    if (open && isError) toast.error("Failed to load dashboards");
-  }, [open, isError]);
+    if (open && isError) toast.error(t("loadDashboardsError"));
+  }, [open, isError, t]);
 
   const createMutation = useCreateDashboard();
   const loading = isFetching;
@@ -329,22 +336,22 @@ function DashboardSelector() {
           setIsCreateOpen(false);
           setNewName("");
           setOpen(false);
-          toast.success("Dashboard created");
+          toast.success(t("dashboardCreatedToast"));
         },
-        onError: () => toast.error("Failed to create dashboard"),
+        onError: () => toast.error(t("dashboardCreateError")),
       },
     );
   };
 
   const activeDashboard = dashboards.find((d) => d.id === activeDashboardId);
-  const label = activeDashboard?.name || "Select dashboard";
+  const label = activeDashboard?.name || t("selectDashboard");
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger className={TRIGGER_CLASS}>
         <HugeiconsIcon icon={DashboardSpeed01Icon} className="h-3.5 w-3.5" size="100%" />
         <span className="max-w-[280px] truncate">{label}</span>
-        <HugeiconsIcon icon={ArrowDown01Icon} className="h-3 w-3 text-zinc-400" size="100%" />
+        <HugeiconsIcon icon={ArrowDown01Icon} className="h-3 w-3 text-muted-foreground" size="100%" />
       </PopoverTrigger>
       <PopoverContent className={POPOVER_CLASS}>
         <div className="max-h-60 overflow-auto p-1">
@@ -354,7 +361,7 @@ function DashboardSelector() {
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 autoFocus
-                placeholder="Dashboard name"
+                placeholder={t("dashboardNamePlaceholder")}
                 className="w-full rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-xs text-zinc-700 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400/50 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleCreate();
@@ -372,14 +379,14 @@ function DashboardSelector() {
                   }}
                   className="rounded-md px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 >
-                  Cancel
+                  {t("cancel")}
                 </button>
                 <button
                   onClick={handleCreate}
                   disabled={!newName.trim()}
                   className="rounded-md bg-emerald-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
                 >
-                  Create
+                  {t("create")}
                 </button>
               </div>
             </div>
@@ -390,15 +397,15 @@ function DashboardSelector() {
                 className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-xs font-medium text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950"
               >
                 <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
-                New Dashboard
+                {t("newDashboard")}
               </button>
               <div className="my-1 h-px bg-zinc-200 dark:bg-zinc-700" />
               {loading ? (
                 <div className="flex items-center justify-center py-4">
-                  <Spinner size="sm" className="text-zinc-400" />
+                  <Spinner size="sm" className="text-muted-foreground" />
                 </div>
               ) : dashboards.length === 0 ? (
-                <p className="px-3 py-4 text-center text-xs text-zinc-400">No dashboards</p>
+                <p className="px-3 py-4 text-center text-xs text-muted-foreground">{t("noDashboards")}</p>
               ) : (
                 dashboards.map((d) => (
                   <button
@@ -413,7 +420,7 @@ function DashboardSelector() {
                     <span className="flex-1 truncate">{d.name}</span>
                     {d.is_public && (
                       <span className="rounded bg-emerald-100 px-1 text-[9px] text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400">
-                        public
+                        {t("publicBadge")}
                       </span>
                     )}
                   </button>

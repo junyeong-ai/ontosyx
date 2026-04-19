@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useTranslations } from "next-intl";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 import {
   ComposedChart,
@@ -64,6 +65,7 @@ function analyzeScales(
 }
 
 export function ComboChartWidget({ spec, data }: ComboChartWidgetProps) {
+  const t = useTranslations("widget.combo");
   const isDark = useIsDarkMode();
   const labelCol = resolveLabelField(spec, data);
   const numericCols = useMemo(
@@ -100,8 +102,8 @@ export function ComboChartWidget({ spec, data }: ComboChartWidgetProps) {
 
   if (!labelCol || numericCols.length < 2 || chartData.length === 0) {
     return (
-      <p className="text-xs text-zinc-400">
-        Combo chart requires a label column and 2+ numeric columns
+      <p className="text-xs text-muted-foreground">
+        {t("needColumns")}
       </p>
     );
   }
@@ -112,7 +114,7 @@ export function ComboChartWidget({ spec, data }: ComboChartWidgetProps) {
   return (
     <div className="space-y-2">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+        <h4 className="text-xs font-semibold text-zinc-600 dark:text-muted-foreground">
           {spec.title}
         </h4>
       )}
@@ -201,13 +203,13 @@ export function ComboChartWidget({ spec, data }: ComboChartWidgetProps) {
           </ComposedChart>
         </ResponsiveContainer>
       </div>
-      <p className="text-[10px] text-zinc-400">
-        {chartData.length} items · {barCols.length} bar
-        {barCols.length > 1 ? "s" : ""}
-        {lineCols.length > 0
-          ? ` + ${lineCols.length} line${lineCols.length > 1 ? "s" : ""}`
-          : ""}
-        {mixed ? " (dual axis)" : " (grouped)"}
+      <p className="text-[10px] text-muted-foreground">
+        {t("summary", {
+          items: chartData.length,
+          bars: barCols.length,
+          linePart: lineCols.length > 0 ? t("linePart", { count: lineCols.length }) : "",
+          axisMode: mixed ? t("dualAxis") : t("grouped"),
+        })}
       </p>
     </div>
   );

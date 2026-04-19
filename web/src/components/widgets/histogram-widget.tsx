@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useTranslations } from "next-intl";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 import {
   BarChart,
@@ -20,6 +21,7 @@ interface HistogramWidgetProps {
 }
 
 export function HistogramWidget({ spec, data }: HistogramWidgetProps) {
+  const t = useTranslations("widget.histogram");
   const isDark = useIsDarkMode();
   const { columns, rows } = data;
 
@@ -60,14 +62,14 @@ export function HistogramWidget({ spec, data }: HistogramWidgetProps) {
   }, [columns, rows]);
 
   if (!binData.length)
-    return <p className="text-xs text-zinc-400">No numeric data</p>;
+    return <p className="text-xs text-muted-foreground">{t("noNumericData")}</p>;
 
   const tick = axisTickStyle(isDark);
 
   return (
     <div className="space-y-2">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+        <h4 className="text-xs font-semibold text-zinc-600 dark:text-muted-foreground">
           {spec.title}
         </h4>
       )}
@@ -89,7 +91,7 @@ export function HistogramWidget({ spec, data }: HistogramWidgetProps) {
           </BarChart>
         </ResponsiveContainer>
       </div>
-      <p className="text-[10px] text-zinc-400">{binData.length} bins</p>
+      <p className="text-[10px] text-muted-foreground">{t("binsCount", { count: binData.length })}</p>
     </div>
   );
 }

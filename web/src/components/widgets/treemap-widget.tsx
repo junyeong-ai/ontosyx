@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useTranslations } from "next-intl";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 import { Treemap, ResponsiveContainer, Tooltip } from "recharts";
 import { useIsDarkMode } from "@/lib/use-dark-mode";
@@ -63,6 +64,7 @@ function CustomizedContent(props: Record<string, unknown>) {
 }
 
 export function TreemapWidget({ spec, data }: TreemapWidgetProps) {
+  const t = useTranslations("widget.treemap");
   const isDark = useIsDarkMode();
   const nameField = resolveLabelField(spec, data);
   const valueField = resolveValueField(spec, data);
@@ -109,13 +111,13 @@ export function TreemapWidget({ spec, data }: TreemapWidgetProps) {
   }, [data.rows, nameField, valueField, parentCol]);
 
   if (!nameField || !valueField || treeData.length === 0) {
-    return <p className="text-xs text-zinc-400">Need name and value columns for treemap</p>;
+    return <p className="text-xs text-muted-foreground">{t("needColumns")}</p>;
   }
 
   return (
     <div className="space-y-2">
       {spec.title && (
-        <h4 className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+        <h4 className="text-xs font-semibold text-zinc-600 dark:text-muted-foreground">
           {spec.title}
         </h4>
       )}
@@ -131,7 +133,7 @@ export function TreemapWidget({ spec, data }: TreemapWidgetProps) {
           </Treemap>
         </ResponsiveContainer>
       </div>
-      <p className="text-[10px] text-zinc-400">{data.rows.length} items</p>
+      <p className="text-[10px] text-muted-foreground">{t("itemsCount", { count: data.rows.length })}</p>
     </div>
   );
 }

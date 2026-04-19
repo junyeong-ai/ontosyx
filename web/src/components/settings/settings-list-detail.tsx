@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -26,11 +27,13 @@ export function SettingsListDetail<T>({
   getId,
   renderListItem,
   renderDetail,
-  emptyMessage = "No items found.",
+  emptyMessage,
   isLoading,
   actions,
   className,
 }: SettingsListDetailProps<T>) {
+  const t = useTranslations("settings.chrome.listDetail");
+  const resolvedEmptyMessage = emptyMessage ?? t("emptyDefault");
   const selected = items.find((item) => getId(item) === selectedId);
 
   if (isLoading) {
@@ -57,7 +60,7 @@ export function SettingsListDetail<T>({
         {/* Sidebar list */}
         <div className="w-72 shrink-0 space-y-1">
           {items.length === 0 ? (
-            <p className="text-sm text-zinc-400">{emptyMessage}</p>
+            <p className="text-sm text-muted-foreground">{resolvedEmptyMessage}</p>
           ) : (
             items.map((item) => {
               const id = getId(item);
@@ -84,8 +87,8 @@ export function SettingsListDetail<T>({
           {selected ? (
             renderDetail(selected)
           ) : (
-            <div className="text-sm text-zinc-400">
-              Select an item to view details.
+            <div className="text-sm text-muted-foreground">
+              {t("selectPrompt")}
             </div>
           )}
         </div>
