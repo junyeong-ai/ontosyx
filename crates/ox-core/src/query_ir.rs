@@ -231,7 +231,7 @@ pub enum AnalyticsSource {
     /// Run on all nodes/edges in the graph
     WholeGraph,
     /// Run on nodes with specific labels
-    Labels { labels: Vec<String> },
+    Labels { labels: Vec<GraphLabel> },
     /// Run on a filtered subgraph
     Subgraph { filter: Box<QueryOp> },
 }
@@ -260,7 +260,7 @@ pub enum QueryOp {
     PathFind {
         start: NodeRef,
         end: NodeRef,
-        edge_types: Vec<String>,
+        edge_types: Vec<GraphLabel>,
         direction: Direction,
         max_depth: Option<usize>,
         algorithm: PathAlgorithm,
@@ -1003,14 +1003,14 @@ pub enum MutateOp {
     /// CREATE (node)
     CreateNode {
         variable: VariableName,
-        label: String,
+        label: GraphLabel,
         properties: Vec<PropertyAssignment>,
     },
 
     /// CREATE (source)-[edge]->(target)
     CreateEdge {
         variable: Option<VariableName>,
-        label: String,
+        label: GraphLabel,
         source: VariableName,
         target: VariableName,
         properties: Vec<PropertyAssignment>,
@@ -1019,7 +1019,7 @@ pub enum MutateOp {
     /// MERGE (node) ON CREATE SET ... ON MATCH SET ...
     MergeNode {
         variable: VariableName,
-        label: String,
+        label: GraphLabel,
         match_properties: Vec<PropertyAssignment>,
         on_create: Vec<PropertyAssignment>,
         on_match: Vec<PropertyAssignment>,
@@ -1028,7 +1028,7 @@ pub enum MutateOp {
     /// MERGE (source)-[edge]->(target) ON CREATE SET ... ON MATCH SET ...
     MergeEdge {
         variable: Option<VariableName>,
-        label: String,
+        label: GraphLabel,
         source: VariableName,
         target: VariableName,
         match_properties: Vec<PropertyAssignment>,
@@ -1039,7 +1039,7 @@ pub enum MutateOp {
     /// SET variable.property = value
     SetProperty {
         variable: VariableName,
-        property: String,
+        property: PropertyKey,
         value: Expr,
     },
 
@@ -1052,19 +1052,19 @@ pub enum MutateOp {
     /// REMOVE variable.property
     RemoveProperty {
         variable: VariableName,
-        property: String,
+        property: PropertyKey,
     },
 
     /// REMOVE variable:Label
     RemoveLabel {
         variable: VariableName,
-        label: String,
+        label: GraphLabel,
     },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct PropertyAssignment {
-    pub property: String,
+    pub property: PropertyKey,
     pub value: Expr,
 }
 

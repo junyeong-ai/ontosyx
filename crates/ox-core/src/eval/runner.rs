@@ -366,7 +366,7 @@ fn extract_node_labels_from_op(op: &QueryOp, labels: &mut Vec<String>) {
                 match op {
                     crate::query_ir::MutateOp::CreateNode { label, .. }
                     | crate::query_ir::MutateOp::MergeNode { label, .. } => {
-                        labels.push(label.clone());
+                        labels.push(label.to_string());
                     }
                     _ => {}
                 }
@@ -377,7 +377,7 @@ fn extract_node_labels_from_op(op: &QueryOp, labels: &mut Vec<String>) {
         }
         QueryOp::Analytics { source, .. } => match source {
             crate::query_ir::AnalyticsSource::Labels { labels: src_labels } => {
-                labels.extend(src_labels.iter().cloned());
+                labels.extend(src_labels.iter().map(|l| l.to_string()));
             }
             crate::query_ir::AnalyticsSource::Subgraph { filter } => {
                 extract_node_labels_from_op(filter, labels);
@@ -427,7 +427,7 @@ fn extract_edge_labels_from_op(op: &QueryOp, labels: &mut Vec<String>) {
             }
         }
         QueryOp::PathFind { edge_types, .. } => {
-            labels.extend(edge_types.iter().cloned());
+            labels.extend(edge_types.iter().map(|l| l.to_string()));
         }
         QueryOp::Aggregate { source, .. } => {
             extract_edge_labels_from_op(&source.operation, labels);
@@ -454,7 +454,7 @@ fn extract_edge_labels_from_op(op: &QueryOp, labels: &mut Vec<String>) {
                 match op {
                     crate::query_ir::MutateOp::CreateEdge { label, .. }
                     | crate::query_ir::MutateOp::MergeEdge { label, .. } => {
-                        labels.push(label.clone());
+                        labels.push(label.to_string());
                     }
                     _ => {}
                 }

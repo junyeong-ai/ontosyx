@@ -592,7 +592,7 @@ mod tests {
                     label: Some(gl("Company")),
                     property_filters: vec![],
                 },
-                edge_types: vec!["WORKS_AT".into()],
+                edge_types: vec![gl("WORKS_AT")],
                 direction: Direction::Outgoing,
                 max_depth: Some(3),
                 algorithm: PathAlgorithm::ShortestPath,

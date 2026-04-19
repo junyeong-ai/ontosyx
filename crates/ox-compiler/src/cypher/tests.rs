@@ -355,15 +355,15 @@ fn test_compile_merge_node() {
             context: None,
             operations: vec![MutateOp::MergeNode {
                 variable: vn("p"),
-                label: "Product".to_string(),
+                label: gl("Product"),
                 match_properties: vec![PropertyAssignment {
-                    property: "sku".to_string(),
+                    property: pk("sku"),
                     value: Expr::Literal {
                         value: PropertyValue::String("ABC123".to_string()),
                     },
                 }],
                 on_create: vec![PropertyAssignment {
-                    property: "name".to_string(),
+                    property: pk("name"),
                     value: Expr::Literal {
                         value: PropertyValue::String("Widget".to_string()),
                     },
@@ -1324,7 +1324,7 @@ fn test_compile_all_shortest_paths() {
                 label: Some(gl("City")),
                 property_filters: vec![],
             },
-            edge_types: vec!["ROAD".to_string()],
+            edge_types: vec![gl("ROAD")],
             direction: Direction::Both,
             max_depth: Some(10),
             algorithm: PathAlgorithm::AllShortestPaths,
@@ -1368,7 +1368,7 @@ fn test_compile_all_paths_variable_length() {
                 label: Some(gl("Node")),
                 property_filters: vec![],
             },
-            edge_types: vec!["CONNECTS".to_string(), "LINKS".to_string()],
+            edge_types: vec![gl("CONNECTS"), gl("LINKS")],
             direction: Direction::Outgoing,
             max_depth: Some(5),
             algorithm: PathAlgorithm::AllPaths,
