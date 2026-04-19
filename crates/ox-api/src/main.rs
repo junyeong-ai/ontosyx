@@ -31,6 +31,7 @@ use ox_api::{
     collaboration, mcp, middleware, model_router, openapi, routes, schedule, sso, state,
     system_config,
 };
+use ox_api::spawn_scoped::spawn_system;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -162,7 +163,23 @@ async fn main() -> anyhow::Result<()> {
             },
         )
         .await?;
-    let compiler = graph_backend.compiler;
+    // Wrap the registry compiler in a `PlanCache` so dashboard-style
+    // repeated compiles of the same QueryIR hit memo instead of
+    // re-emitting Cypher. The wrapper's `GraphCompiler` impl delegates
+    // everything except `compile_query`; schema + load paths are
+    // one-shot and don't benefit from caching.
+    //
+    // We clone the Arc into two typed handles: one as `Arc<dyn GraphCompiler>`
+    // for handlers (unchanged API), one as `Arc<dyn PlanCacheHandle>` for
+    // the `/metrics` endpoint and the ontology-save hook that needs to
+    // invalidate the cache after a schema change.
+    let raw_compiler = graph_backend.compiler;
+    let plan_cache_arc = std::sync::Arc::new(ox_compiler::PlanCache::with_default_capacity(
+        raw_compiler,
+    ));
+    let compiler: std::sync::Arc<dyn ox_compiler::GraphCompiler> = plan_cache_arc.clone();
+    let plan_cache: Option<std::sync::Arc<dyn ox_compiler::PlanCacheHandle>> =
+        Some(plan_cache_arc);
     let runtime = graph_backend.runtime;
 
     // Optional read-only runtime — used by MCP `execute_cypher` so a
@@ -414,6 +431,7 @@ async fn main() -> anyhow::Result<()> {
     let state = AppState {
         brain,
         compiler,
+        plan_cache,
         runtime,
         readonly_runtime,
         store,
@@ -434,6 +452,10 @@ async fn main() -> anyhow::Result<()> {
         )),
         dashboards: config.dashboards.clone(),
         recovery: config.recovery.clone(),
+        agent: config.agent.clone(),
+        stream_limiter: Arc::new(ox_api::stream_limiter::StreamLimiter::new(
+            config.agent.max_concurrent_streams_per_user,
+        )),
     };
 
     // CORS policy: explicit origins required. No permissive fallback.
@@ -493,6 +515,7 @@ async fn main() -> anyhow::Result<()> {
         let mcp_store = Arc::clone(&state.store);
         let mcp_call_timeout = state.timeouts.raw_query;
         let mcp_rate_limit = config.mcp.rate_limit.clone();
+        let mcp_reject_high_cost = state.agent.reject_high_cost;
 
         let mcp_service = StreamableHttpService::new(
             move || {
@@ -504,23 +527,45 @@ async fn main() -> anyhow::Result<()> {
                     Arc::clone(&mcp_store),
                     mcp_call_timeout,
                     &mcp_rate_limit,
+                    mcp_reject_high_cost,
                 ))
             },
             LocalSessionManager::default().into(),
             Default::default(),
         );
 
-        // MCP endpoint sits behind the same `require_auth` gate as the
-        // regular API surface: Bearer JWT or `x-api-key` header is the
-        // minimum ticket to reach the session manager. The inner rate
-        // limiter and `forbidden_cypher_keyword` heuristic remain as
-        // defense-in-depth, but they are no longer the only gate —
-        // an unauthenticated caller is rejected at 401 before the
-        // StreamableHttpService ever sees the request.
-        tracing::info!("MCP server enabled at /mcp (auth required)");
-        Some(Router::new().nest_service("/mcp", mcp_service).route_layer(
-            axum::middleware::from_fn_with_state(state.clone(), middleware::require_auth),
-        ))
+        // MCP endpoint sits behind the same middleware stack as the
+        // regular API surface: `require_auth` then `workspace_context`.
+        //
+        // Why `workspace_context` is load-bearing here: every MCP tool
+        // body calls `self.store.*` directly (see `mcp.rs::do_*`). Without
+        // the workspace task-local set, those calls would read *every*
+        // workspace's ontologies — a cross-tenant bypass that predates
+        // this commit. Adding the middleware scopes `WORKSPACE_ID` and
+        // `GRAPH_WORKSPACE_ID` for the StreamableHttpService future, which
+        // stays alive for the entire session — so every tool invocation
+        // inside that session runs under RLS, and `get_latest_ontology`
+        // etc. only ever return rows owned by the caller's workspace.
+        //
+        // Machine principals (API keys) must send `X-Workspace-Id`;
+        // interactive JWT callers fall back to their default workspace
+        // per the middleware's existing logic.
+        //
+        // The inner rate limiter and `forbidden_cypher_keyword` heuristic
+        // remain as defense-in-depth, but are no longer the only gate.
+        tracing::info!("MCP server enabled at /mcp (auth + workspace_context required)");
+        Some(
+            Router::new()
+                .nest_service("/mcp", mcp_service)
+                .route_layer(axum::middleware::from_fn_with_state(
+                    state.clone(),
+                    middleware::workspace_context,
+                ))
+                .route_layer(axum::middleware::from_fn_with_state(
+                    state.clone(),
+                    middleware::require_auth,
+                )),
+        )
     } else {
         tracing::info!("MCP server disabled");
         None
@@ -539,11 +584,24 @@ async fn main() -> anyhow::Result<()> {
         SwaggerUi::new("/api/docs").url("/api/openapi.json", openapi::ApiDoc::openapi())
     };
 
+    // Snapshot the plan-cache handle separately so the metrics closure
+    // can surface stats without holding the whole AppState. A None here
+    // (no cache configured) simply skips the gauge push.
+    let metrics_plan_cache = state.plan_cache.clone();
     let mut app = Router::new()
         .nest("/api", routes::router(state.clone()))
         .route(
             "/metrics",
-            axum::routing::get(move || async move { prometheus_handle.render() }),
+            axum::routing::get(move || {
+                let plan_cache = metrics_plan_cache.clone();
+                let handle = prometheus_handle.clone();
+                async move {
+                    if let Some(cache) = plan_cache {
+                        ox_api::metrics::record_plan_cache_stats(cache.stats());
+                    }
+                    handle.render()
+                }
+            }),
         )
         .merge(swagger_ui);
 
@@ -567,7 +625,7 @@ async fn main() -> anyhow::Result<()> {
         let wip_archive_days = config.retention.wip_archive_days;
         let wip_delete_days = config.retention.wip_delete_days;
         let token = cancel_token.clone();
-        tokio::spawn(async move {
+        spawn_system(async move {
             let mut interval = tokio::time::interval(std::time::Duration::from_secs(3600));
             loop {
                 tokio::select! {
@@ -701,7 +759,7 @@ async fn main() -> anyhow::Result<()> {
         let retry_memory = Arc::clone(memory_for_retry);
         let retry_interval = config.retention.retry_interval_secs;
         let token = cancel_token.clone();
-        tokio::spawn(async move {
+        spawn_system(async move {
             let mut interval =
                 tokio::time::interval(std::time::Duration::from_secs(retry_interval));
             loop {
@@ -764,7 +822,7 @@ async fn main() -> anyhow::Result<()> {
         // Phase 4.11: prevent the same task from spawning twice when a
         // long-running execution overlaps the next 60-second poll.
         let in_flight: Arc<dashmap::DashSet<uuid::Uuid>> = Arc::new(dashmap::DashSet::new());
-        tokio::spawn(async move {
+        spawn_system(async move {
             let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
             loop {
                 tokio::select! {
@@ -791,7 +849,9 @@ async fn main() -> anyhow::Result<()> {
                                     // Individual task runs are NOT cancelled on shutdown.
                                     // Each run is bounded by analysis_timeout, and completing
                                     // in-flight work avoids result loss.
-                                    tokio::spawn(ox_store::SYSTEM_BYPASS.scope(true, async move {
+                                    // `spawn_system` wraps the future in SYSTEM_BYPASS so
+                                    // RLS treats it as cross-workspace work.
+                                    spawn_system(async move {
                                         tracing::info!(
                                             task_id = %task.id,
                                             recipe_id = %task.recipe_id,
@@ -880,7 +940,7 @@ async fn main() -> anyhow::Result<()> {
                                         );
                                         // Release in-flight guard so next poll can re-schedule.
                                         flight.remove(&task.id);
-                                    }));
+                                    });
                                 }
                             }
                             Err(e) => tracing::warn!(error = %e, "Failed to list due tasks"),
@@ -896,7 +956,7 @@ async fn main() -> anyhow::Result<()> {
         let quality_store = Arc::clone(&state.store);
         let quality_runtime = state.runtime.clone();
         let token = cancel_token.clone();
-        tokio::spawn(async move {
+        spawn_system(async move {
             let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
             loop {
                 tokio::select! {

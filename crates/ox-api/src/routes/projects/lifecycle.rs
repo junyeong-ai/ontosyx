@@ -480,6 +480,16 @@ pub(crate) async fn complete_project(
 
     let updated = reload_project(&state, id).await?;
 
+    // Invalidate the compile-plan cache: every entry keyed against the
+    // previous schema version is now stale (GraphLabel / PropertyKey
+    // identifiers may have been renamed, indexes added/dropped). A
+    // rebuild-on-demand is cheaper than serving a stale plan, and
+    // dashboard users will re-populate the cache within seconds of their
+    // next refresh.
+    if let Some(cache) = &state.plan_cache {
+        cache.invalidate_all();
+    }
+
     info!(project_id = %id, ontology_id = %saved.id, "Design project completed");
 
     // Schema RAG indexing: embed ontology nodes for vector search in query translation.

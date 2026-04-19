@@ -105,6 +105,28 @@ impl PlanCacheStats {
     }
 }
 
+/// Dyn-safe handle over a `PlanCache`, stashed in AppState next to the
+/// compiler so the `/metrics` endpoint and ontology-save hook can read
+/// stats / invalidate the cache without depending on the inner compiler
+/// type parameter.
+pub trait PlanCacheHandle: Send + Sync {
+    fn stats(&self) -> PlanCacheStats;
+    fn invalidate_all(&self);
+}
+
+impl<C> PlanCacheHandle for PlanCache<C>
+where
+    C: GraphCompiler,
+{
+    fn stats(&self) -> PlanCacheStats {
+        PlanCache::stats(self)
+    }
+
+    fn invalidate_all(&self) {
+        PlanCache::invalidate_all(self);
+    }
+}
+
 impl<C> PlanCache<C>
 where
     C: GraphCompiler,

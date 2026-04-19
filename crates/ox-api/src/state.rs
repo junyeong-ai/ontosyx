@@ -7,7 +7,7 @@ use tokio::sync::RwLock;
 use branchforge::Auth;
 use ox_brain::Brain;
 use ox_brain::client_pool::ClientPool;
-use ox_compiler::GraphCompiler;
+use ox_compiler::{GraphCompiler, PlanCacheHandle};
 use ox_runtime::GraphRuntime;
 use ox_source::registry::AdapterRegistry;
 use ox_store::{Store, ToolApproval};
@@ -15,7 +15,7 @@ use ox_store::{Store, ToolApproval};
 use crate::model_router::DbModelRouter;
 
 use crate::collaboration::CollaborationHub;
-use crate::config::{AuthConfig, DashboardsConfig, RecoveryConfig, TimeoutsConfig};
+use crate::config::{AgentConfig, AuthConfig, DashboardsConfig, RecoveryConfig, TimeoutsConfig};
 use crate::middleware::RateLimiter;
 use crate::sso::OidcProviderRegistry;
 use crate::system_config::SystemConfig;
@@ -32,6 +32,9 @@ pub struct RepoPolicy {
 pub struct AppState {
     pub brain: Arc<dyn Brain>,
     pub compiler: Arc<dyn GraphCompiler>,
+    /// `Some` when `compiler` is a `PlanCache`; exposes stats + invalidation
+    /// without forcing callers to know the inner compiler type.
+    pub plan_cache: Option<Arc<dyn PlanCacheHandle>>,
     pub runtime: Option<Arc<dyn GraphRuntime>>,
     /// Optional read-only graph runtime used by the MCP `execute_cypher`
     /// tool. When configured, MCP raw Cypher executes under credentials
@@ -61,6 +64,11 @@ pub struct AppState {
     pub dashboards: DashboardsConfig,
     /// Recovery-detection hook tuning.
     pub recovery: RecoveryConfig,
+    /// Agent-loop budgets (`max_iterations`, future: token cap, cost cap).
+    pub agent: AgentConfig,
+    /// Per-user concurrent chat-stream limiter (defense-in-depth alongside
+    /// the global request rate limiter).
+    pub stream_limiter: Arc<crate::stream_limiter::StreamLimiter>,
 }
 
 impl AppState {
@@ -84,6 +92,9 @@ pub struct Timeouts {
     pub raw_query: Duration,
     pub health_check: Duration,
     pub analysis: Duration,
+    /// Wall-clock ceiling on a single chat-stream agent loop. Applied at
+    /// route level via `tokio::time::timeout`.
+    pub chat_wall_clock: Duration,
 }
 
 impl From<&TimeoutsConfig> for Timeouts {
@@ -93,6 +104,7 @@ impl From<&TimeoutsConfig> for Timeouts {
             raw_query: Duration::from_secs(config.raw_query_secs),
             health_check: Duration::from_secs(config.health_check_secs),
             analysis: Duration::from_secs(config.analysis_secs),
+            chat_wall_clock: Duration::from_secs(config.chat_wall_clock_secs),
         }
     }
 }

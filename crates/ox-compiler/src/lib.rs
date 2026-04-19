@@ -14,7 +14,7 @@ pub mod export;
 pub mod import;
 pub mod plan_cache;
 
-pub use plan_cache::{DEFAULT_PLAN_CACHE_CAPACITY, PlanCache, PlanCacheStats};
+pub use plan_cache::{DEFAULT_PLAN_CACHE_CAPACITY, PlanCache, PlanCacheHandle, PlanCacheStats};
 
 use std::collections::HashMap;
 
@@ -55,4 +55,26 @@ pub trait GraphCompiler: Send + Sync {
 
     /// Return the name of this compilation target (for error messages)
     fn name(&self) -> &str;
+}
+
+// Blanket impl so an `Arc<dyn GraphCompiler>` (the AppState-side handle)
+// can itself satisfy the `GraphCompiler` bound. This lets
+// `PlanCache<Arc<dyn GraphCompiler>>` wrap an existing registry-built
+// compiler without forcing callers to name the concrete type.
+impl<T: GraphCompiler + ?Sized> GraphCompiler for std::sync::Arc<T> {
+    fn compile_schema(&self, ontology: &OntologyIR) -> OxResult<Vec<String>> {
+        T::compile_schema(self, ontology)
+    }
+
+    fn compile_query(&self, query: &QueryIR) -> OxResult<CompiledQuery> {
+        T::compile_query(self, query)
+    }
+
+    fn compile_load(&self, plan: &LoadPlan) -> OxResult<Vec<String>> {
+        T::compile_load(self, plan)
+    }
+
+    fn name(&self) -> &str {
+        T::name(self)
+    }
 }
