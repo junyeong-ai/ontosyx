@@ -17,6 +17,32 @@
 //! - No data-carrying tagged enums → no variant property merging issues
 //! - Only string enums (`ConditionOp`, `AggFunction`) → 0 schema property cost
 //! - Multiple conditions are implicitly AND'd → covers 95%+ of filter patterns
+//!
+//! ## Why fields are `String`, not `GraphLabel` / `VariableName` / `PropertyKey`
+//!
+//! This struct is an LLM pre-validation DTO, not an IR. The compile-target
+//! [`crate::query_ir::QueryIR`] uses the newtypes; this wire format does
+//! not, deliberately:
+//!
+//! 1. **Error-site locality.** `into_query_ir` attaches the field path
+//!    (e.g. `relationships[0].label`) to every validation failure. If the
+//!    fields were newtypes, the failure would surface as a serde error at
+//!    `from_str` time, one layer removed from the retry loop that reads
+//!    the message back to the LLM.
+//! 2. **Sanitization before validation.** `RelationshipPattern.variable`
+//!    passes through `sanitize_variable` to normalise the literal string
+//!    `"null"` that LLMs occasionally emit. A `VariableName` field would
+//!    reject `"null"` before sanitization had a chance to run.
+//! 3. **Graceful degradation.** `condition_to_expr` /
+//!    `return_to_projection` drop individual malformed rows with a
+//!    `tracing::warn!` and continue — a single bad condition should not
+//!    tank an otherwise-valid query. Newtypes would short-circuit at the
+//!    outermost deserialise boundary instead.
+//!
+//! The JSON Schema shape is already identical either way — GraphLabel et
+//! al. serialise transparently as `"string"` — so the LLM-facing contract
+//! does not change. Keeping `String` here preserves the three properties
+//! above without giving anything up on the wire.
 
 use schemars::JsonSchema;
 use serde::Deserialize;

@@ -20,7 +20,7 @@ use std::hint::black_box;
 
 use ox_compiler::GraphCompiler;
 use ox_compiler::cypher::CypherCompiler;
-use ox_core::VariableName;
+use ox_core::{GraphLabel, PropertyKey, VariableName};
 use ox_core::query_ir::{
     AggFunction, AggregationExpr, ComparisonOp, Expr, FieldRef, GraphPattern, OrderClause,
     Projection, QueryIR, QueryOp, SortDirection,
@@ -31,6 +31,14 @@ fn vn(s: &'static str) -> VariableName {
     VariableName::new(s).expect("bench variable literal must be valid")
 }
 
+fn gl(s: &'static str) -> GraphLabel {
+    GraphLabel::new(s).expect("bench graph label literal must be valid")
+}
+
+fn pk(s: &'static str) -> PropertyKey {
+    PropertyKey::new(s).expect("bench property key literal must be valid")
+}
+
 fn bench_simple_match(c: &mut Criterion) {
     let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
@@ -38,13 +46,13 @@ fn bench_simple_match(c: &mut Criterion) {
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("p"),
-                label: Some("Product".into()),
+                label: Some(gl("Product")),
                 property_filters: vec![],
             }],
             filter: Some(Expr::Comparison {
                 left: Box::new(Expr::Property {
                     variable: vn("p"),
-                    field: Some("price".into()),
+                    field: Some(pk("price")),
                 }),
                 op: ComparisonOp::Gt,
                 right: Box::new(Expr::Literal {
@@ -54,12 +62,12 @@ fn bench_simple_match(c: &mut Criterion) {
             projections: vec![
                 Projection::Field {
                     variable: vn("p"),
-                    field: "name".into(),
+                    field: pk("name"),
                     alias: None,
                 },
                 Projection::Field {
                     variable: vn("p"),
-                    field: "price".into(),
+                    field: pk("price"),
                     alias: None,
                 },
             ],
@@ -71,7 +79,7 @@ fn bench_simple_match(c: &mut Criterion) {
         order_by: vec![OrderClause {
             projection: Projection::Field {
                 variable: vn("p"),
-                field: "price".into(),
+                field: pk("price"),
                 alias: None,
             },
             direction: SortDirection::Desc,
@@ -94,19 +102,19 @@ fn bench_relationship_traversal(c: &mut Criterion) {
             patterns: vec![
                 GraphPattern::Node {
                     variable: vn("c"),
-                    label: Some("Customer".into()),
+                    label: Some(gl("Customer")),
                     property_filters: vec![],
                 },
                 GraphPattern::Node {
                     variable: vn("o"),
-                    label: Some("Order".into()),
+                    label: Some(gl("Order")),
                     property_filters: vec![],
                 },
                 GraphPattern::Relationship {
                     variable: Some(vn("r")),
                     source: vn("c"),
                     target: vn("o"),
-                    label: Some("PLACED".into()),
+                    label: Some(gl("PLACED")),
                     direction: Direction::Outgoing,
                     property_filters: vec![],
                     var_length: None,
@@ -116,12 +124,12 @@ fn bench_relationship_traversal(c: &mut Criterion) {
             projections: vec![
                 Projection::Field {
                     variable: vn("c"),
-                    field: "name".into(),
+                    field: pk("name"),
                     alias: None,
                 },
                 Projection::Field {
                     variable: vn("o"),
-                    field: "total".into(),
+                    field: pk("total"),
                     alias: Some("order_total".into()),
                 },
             ],
@@ -133,7 +141,7 @@ fn bench_relationship_traversal(c: &mut Criterion) {
         order_by: vec![OrderClause {
             projection: Projection::Field {
                 variable: vn("o"),
-                field: "total".into(),
+                field: pk("total"),
                 alias: None,
             },
             direction: SortDirection::Desc,
@@ -155,13 +163,13 @@ fn bench_aggregation(c: &mut Criterion) {
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("o"),
-                label: Some("Order".into()),
+                label: Some(gl("Order")),
                 property_filters: vec![],
             }],
             filter: Some(Expr::Comparison {
                 left: Box::new(Expr::Property {
                     variable: vn("o"),
-                    field: Some("status".into()),
+                    field: Some(pk("status")),
                 }),
                 op: ComparisonOp::Eq,
                 right: Box::new(Expr::Literal {
@@ -171,12 +179,12 @@ fn bench_aggregation(c: &mut Criterion) {
             projections: vec![
                 Projection::Field {
                     variable: vn("o"),
-                    field: "category".into(),
+                    field: pk("category"),
                     alias: None,
                 },
                 Projection::Field {
                     variable: vn("o"),
-                    field: "total".into(),
+                    field: pk("total"),
                     alias: None,
                 },
             ],
@@ -194,13 +202,13 @@ fn bench_aggregation(c: &mut Criterion) {
             source: Box::new(inner),
             group_by: vec![FieldRef {
                 variable: vn("o"),
-                field: Some("category".into()),
+                field: Some(pk("category")),
             }],
             aggregations: vec![AggregationExpr {
                 function: AggFunction::Sum,
                 field: FieldRef {
                     variable: vn("o"),
-                    field: Some("total".into()),
+                    field: Some(pk("total")),
                 },
                 distinct: false,
                 alias: "total_revenue".into(),
