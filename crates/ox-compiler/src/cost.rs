@@ -212,7 +212,8 @@ fn collect_pattern_signals(pattern: &GraphPattern, ctx: &mut CostCtx) {
             // Track filtered label.property pairs for index check
             if let Some(lbl) = label {
                 for pf in property_filters {
-                    ctx.filter_labels.push((lbl.clone(), pf.property.clone()));
+                    ctx.filter_labels
+                        .push((lbl.clone(), pf.property.to_string()));
                 }
             }
         }
@@ -226,7 +227,8 @@ fn collect_pattern_signals(pattern: &GraphPattern, ctx: &mut CostCtx) {
             if let Some(lbl) = label {
                 ctx.relationship_labels.push(lbl.clone());
                 for pf in property_filters {
-                    ctx.filter_labels.push((lbl.clone(), pf.property.clone()));
+                    ctx.filter_labels
+                        .push((lbl.clone(), pf.property.to_string()));
                 }
             }
 
@@ -731,7 +733,7 @@ mod tests {
             variable: vn("p"),
             label: Some("Person".into()),
             property_filters: vec![PropertyFilter {
-                property: "name".into(),
+                property: pk("name"),
                 value: Expr::Literal {
                     value: ox_core::types::PropertyValue::String("Alice".into()),
                 },

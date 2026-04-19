@@ -461,7 +461,7 @@ fn test_parameterization_string_values() {
                 variable: vn("n"),
                 label: Some("Person".to_string()),
                 property_filters: vec![PropertyFilter {
-                    property: "name".to_string(),
+                    property: PropertyKey::new("name").unwrap(),
                     value: Expr::Literal {
                         value: PropertyValue::String("Alice".to_string()),
                     },
@@ -1267,7 +1267,7 @@ fn test_compile_shortest_path() {
                 variable: vn("a"),
                 label: Some("Person".to_string()),
                 property_filters: vec![PropertyFilter {
-                    property: "name".to_string(),
+                    property: PropertyKey::new("name").unwrap(),
                     value: Expr::Literal {
                         value: PropertyValue::String("Alice".to_string()),
                     },
@@ -1277,7 +1277,7 @@ fn test_compile_shortest_path() {
                 variable: vn("b"),
                 label: Some("Person".to_string()),
                 property_filters: vec![PropertyFilter {
-                    property: "name".to_string(),
+                    property: PropertyKey::new("name").unwrap(),
                     value: Expr::Literal {
                         value: PropertyValue::String("Bob".to_string()),
                     },

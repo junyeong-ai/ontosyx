@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::property_key::PropertyKey;
 use crate::types::{Direction, PropertyValue};
 use crate::variable_name::VariableName;
 
@@ -338,7 +339,7 @@ pub enum GraphPattern {
 /// Inline property filter within a pattern: {name: "Alice", age: 30}
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct PropertyFilter {
-    pub property: String,
+    pub property: PropertyKey,
     pub value: Expr,
 }
 
