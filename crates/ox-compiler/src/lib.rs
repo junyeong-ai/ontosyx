@@ -12,6 +12,9 @@ pub mod cost;
 pub mod cypher;
 pub mod export;
 pub mod import;
+pub mod plan_cache;
+
+pub use plan_cache::{DEFAULT_PLAN_CACHE_CAPACITY, PlanCache, PlanCacheStats};
 
 use std::collections::HashMap;
 

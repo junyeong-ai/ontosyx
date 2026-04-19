@@ -13,6 +13,7 @@ thiserror = { workspace = true }
 rio_api = { workspace = true }
 rio_turtle = { workspace = true }
 tracing = { workspace = true }
+dashmap = { workspace = true }
 
 [dev-dependencies]
 chrono = { workspace = true }
