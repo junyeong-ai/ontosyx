@@ -29,7 +29,7 @@ fn test_compile_simple_match() {
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("n"),
-                label: Some("Product".to_string()),
+                label: Some(gl("Product")),
                 property_filters: vec![],
             }],
             filter: Some(Expr::Comparison {
@@ -88,7 +88,7 @@ fn test_compile_relationship_pattern() {
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Relationship {
                 variable: Some(vn("r")),
-                label: Some("PURCHASED".to_string()),
+                label: Some(gl("PURCHASED")),
                 source: vn("c"),
                 target: vn("p"),
                 direction: Direction::Outgoing,
@@ -249,12 +249,12 @@ fn test_korean_ontology_match_query_escapes_labels() {
             patterns: vec![
                 GraphPattern::Node {
                     variable: vn("c"),
-                    label: Some("고객".to_string()),
+                    label: Some(gl("고객")),
                     property_filters: vec![],
                 },
                 GraphPattern::Relationship {
                     variable: Some(vn("r")),
-                    label: Some("주문함".to_string()),
+                    label: Some(gl("주문함")),
                     source: vn("c"),
                     target: vn("o"),
                     direction: Direction::Outgoing,
@@ -263,7 +263,7 @@ fn test_korean_ontology_match_query_escapes_labels() {
                 },
                 GraphPattern::Node {
                     variable: vn("o"),
-                    label: Some("주문".to_string()),
+                    label: Some(gl("주문")),
                     property_filters: vec![],
                 },
             ],
@@ -459,7 +459,7 @@ fn test_parameterization_string_values() {
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("n"),
-                label: Some("Person".to_string()),
+                label: Some(gl("Person")),
                 property_filters: vec![PropertyFilter {
                     property: PropertyKey::new("name").unwrap(),
                     value: Expr::Literal {
@@ -524,7 +524,7 @@ fn test_parameterization_in_clause() {
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("n"),
-                label: Some("Product".to_string()),
+                label: Some(gl("Product")),
                 property_filters: vec![],
             }],
             filter: Some(Expr::In {
@@ -592,7 +592,7 @@ fn test_parameterization_null_stays_inline() {
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("n"),
-                label: Some("Product".to_string()),
+                label: Some(gl("Product")),
                 property_filters: vec![],
             }],
             filter: Some(Expr::Comparison {
@@ -636,7 +636,7 @@ fn test_parameterization_date_values() {
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("n"),
-                label: Some("Event".to_string()),
+                label: Some(gl("Event")),
                 property_filters: vec![],
             }],
             filter: Some(Expr::Comparison {
@@ -679,7 +679,7 @@ fn test_compile_aggregate_query() {
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("o"),
-                label: Some("Order".to_string()),
+                label: Some(gl("Order")),
                 property_filters: vec![],
             }],
             filter: None,
@@ -739,7 +739,7 @@ fn test_compile_union_query() {
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("n"),
-                label: Some("Person".to_string()),
+                label: Some(gl("Person")),
                 property_filters: vec![],
             }],
             filter: None,
@@ -760,7 +760,7 @@ fn test_compile_union_query() {
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("n"),
-                label: Some("Company".to_string()),
+                label: Some(gl("Company")),
                 property_filters: vec![],
             }],
             filter: None,
@@ -807,7 +807,7 @@ fn test_compile_chain_with_pass_through() {
                     operation: QueryOp::Match {
                         patterns: vec![GraphPattern::Node {
                             variable: vn("c"),
-                            label: Some("Customer".to_string()),
+                            label: Some(gl("Customer")),
                             property_filters: vec![],
                         }],
                         filter: None,
@@ -827,7 +827,7 @@ fn test_compile_chain_with_pass_through() {
                     operation: QueryOp::Match {
                         patterns: vec![GraphPattern::Relationship {
                             variable: Some(vn("r")),
-                            label: Some("PURCHASED".to_string()),
+                            label: Some(gl("PURCHASED")),
                             source: vn("c"),
                             target: vn("p"),
                             direction: Direction::Outgoing,
@@ -1008,7 +1008,7 @@ fn test_call_subquery_compilation() {
                     operation: QueryOp::Match {
                         patterns: vec![GraphPattern::Node {
                             variable: vn("n"),
-                            label: Some("Person".to_string()),
+                            label: Some(gl("Person")),
                             property_filters: vec![],
                         }],
                         filter: None,
@@ -1087,7 +1087,7 @@ fn test_subquery_expr_count() {
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("n"),
-                label: Some("Person".to_string()),
+                label: Some(gl("Person")),
                 property_filters: vec![],
             }],
             filter: None,
@@ -1103,7 +1103,7 @@ fn test_subquery_expr_count() {
                             operation: QueryOp::Match {
                                 patterns: vec![GraphPattern::Relationship {
                                     variable: None,
-                                    label: Some("KNOWS".to_string()),
+                                    label: Some(gl("KNOWS")),
                                     source: vn("n"),
                                     target: vn("friend"),
                                     direction: Direction::Outgoing,
@@ -1160,7 +1160,7 @@ fn test_call_subquery_standalone() {
                 operation: QueryOp::Match {
                     patterns: vec![GraphPattern::Node {
                         variable: vn("x"),
-                        label: Some("Task".to_string()),
+                        label: Some(gl("Task")),
                         property_filters: vec![],
                     }],
                     filter: None,
@@ -1213,7 +1213,7 @@ fn test_collect_list_aggregation() {
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Relationship {
                 variable: None,
-                label: Some("TAGGED".to_string()),
+                label: Some(gl("TAGGED")),
                 source: vn("p"),
                 target: vn("t"),
                 direction: Direction::Outgoing,
@@ -1265,7 +1265,7 @@ fn test_compile_shortest_path() {
         operation: QueryOp::PathFind {
             start: NodeRef {
                 variable: vn("a"),
-                label: Some("Person".to_string()),
+                label: Some(gl("Person")),
                 property_filters: vec![PropertyFilter {
                     property: PropertyKey::new("name").unwrap(),
                     value: Expr::Literal {
@@ -1275,7 +1275,7 @@ fn test_compile_shortest_path() {
             },
             end: NodeRef {
                 variable: vn("b"),
-                label: Some("Person".to_string()),
+                label: Some(gl("Person")),
                 property_filters: vec![PropertyFilter {
                     property: PropertyKey::new("name").unwrap(),
                     value: Expr::Literal {
@@ -1316,12 +1316,12 @@ fn test_compile_all_shortest_paths() {
         operation: QueryOp::PathFind {
             start: NodeRef {
                 variable: vn("a"),
-                label: Some("City".to_string()),
+                label: Some(gl("City")),
                 property_filters: vec![],
             },
             end: NodeRef {
                 variable: vn("b"),
-                label: Some("City".to_string()),
+                label: Some(gl("City")),
                 property_filters: vec![],
             },
             edge_types: vec!["ROAD".to_string()],
@@ -1360,12 +1360,12 @@ fn test_compile_all_paths_variable_length() {
         operation: QueryOp::PathFind {
             start: NodeRef {
                 variable: vn("a"),
-                label: Some("Node".to_string()),
+                label: Some(gl("Node")),
                 property_filters: vec![],
             },
             end: NodeRef {
                 variable: vn("b"),
-                label: Some("Node".to_string()),
+                label: Some(gl("Node")),
                 property_filters: vec![],
             },
             edge_types: vec!["CONNECTS".to_string(), "LINKS".to_string()],
@@ -1412,7 +1412,7 @@ fn test_compile_case_expression() {
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("n"),
-                label: Some("Product".to_string()),
+                label: Some(gl("Product")),
                 property_filters: vec![],
             }],
             filter: None,

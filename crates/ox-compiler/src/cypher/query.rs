@@ -60,13 +60,13 @@ pub(super) fn compile_op(
                     // AllPaths uses variable-length pattern, not a function
                     let start_pat = compile_node_ref_inline(
                         &start.variable,
-                        &start.label,
+                        start.label.as_deref(),
                         &start.property_filters,
                         pc,
                     )?;
                     let end_pat = compile_node_ref_inline(
                         &end.variable,
-                        &end.label,
+                        end.label.as_deref(),
                         &end.property_filters,
                         pc,
                     )?;
@@ -78,12 +78,16 @@ pub(super) fn compile_op(
             };
             let start_pat = compile_node_ref_inline(
                 &start.variable,
-                &start.label,
+                start.label.as_deref(),
                 &start.property_filters,
                 pc,
             )?;
-            let end_pat =
-                compile_node_ref_inline(&end.variable, &end.label, &end.property_filters, pc)?;
+            let end_pat = compile_node_ref_inline(
+                &end.variable,
+                end.label.as_deref(),
+                &end.property_filters,
+                pc,
+            )?;
             let rel = format_direction_pattern(&format!("[{rel_types}{depth}]"), direction);
             parts.push(format!("MATCH p = {path_fn}({start_pat}{rel}{end_pat})"));
             parts.push("RETURN p".to_string());

@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::graph_label::GraphLabel;
 use crate::property_key::PropertyKey;
 use crate::types::{Direction, PropertyValue};
 use crate::variable_name::VariableName;
@@ -315,7 +316,7 @@ pub enum GraphPattern {
     /// A single node: (variable:Label {props})
     Node {
         variable: VariableName,
-        label: Option<String>,
+        label: Option<GraphLabel>,
         property_filters: Vec<PropertyFilter>,
     },
 
@@ -323,7 +324,7 @@ pub enum GraphPattern {
     /// (source)-[variable:Label]->(target)
     Relationship {
         variable: Option<VariableName>,
-        label: Option<String>,
+        label: Option<GraphLabel>,
         source: VariableName,
         target: VariableName,
         direction: Direction,
@@ -356,11 +357,11 @@ pub struct VarLength {
 pub enum PathElement {
     Node {
         variable: VariableName,
-        label: Option<String>,
+        label: Option<GraphLabel>,
     },
     Edge {
         variable: Option<VariableName>,
-        label: Option<String>,
+        label: Option<GraphLabel>,
         direction: Direction,
     },
 }
@@ -852,7 +853,7 @@ pub struct FieldRef {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct NodeRef {
     pub variable: VariableName,
-    pub label: Option<String>,
+    pub label: Option<GraphLabel>,
     pub property_filters: Vec<PropertyFilter>,
 }
 

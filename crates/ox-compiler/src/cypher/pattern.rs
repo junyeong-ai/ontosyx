@@ -12,7 +12,7 @@ pub(super) fn compile_pattern(pattern: &GraphPattern, pc: &mut ParamCollector) -
             variable,
             label,
             property_filters,
-        } => compile_node_ref_inline(variable, label, property_filters, pc)?,
+        } => compile_node_ref_inline(variable, label.as_deref(), property_filters, pc)?,
 
         GraphPattern::Relationship {
             variable,
@@ -82,12 +82,11 @@ pub(super) fn compile_pattern(pattern: &GraphPattern, pc: &mut ParamCollector) -
 
 pub(super) fn compile_node_ref_inline(
     variable: &str,
-    label: &Option<String>,
+    label: Option<&str>,
     property_filters: &[PropertyFilter],
     pc: &mut ParamCollector,
 ) -> OxResult<String> {
     let lbl = label
-        .as_deref()
         .map(|l| format!(":{}", escape_identifier(l)))
         .unwrap_or_default();
     let props = compile_inline_props(property_filters, pc)?;

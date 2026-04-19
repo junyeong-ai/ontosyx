@@ -372,7 +372,7 @@ impl StructuredMatchQuery {
         for node in &self.nodes {
             patterns.push(GraphPattern::Node {
                 variable: crate::variable_name::VariableName::new(node.variable.clone())?,
-                label: Some(node.label.clone()),
+                label: Some(crate::graph_label::GraphLabel::new(node.label.clone())?),
                 property_filters: Vec::new(),
             });
         }
@@ -416,7 +416,7 @@ impl StructuredMatchQuery {
                 .and_then(|s| crate::variable_name::VariableName::new(s).ok());
             patterns.push(GraphPattern::Relationship {
                 variable,
-                label: Some(rel.label.clone()),
+                label: Some(crate::graph_label::GraphLabel::new(rel.label.clone())?),
                 source: crate::variable_name::VariableName::new(rel.source.clone())?,
                 target: crate::variable_name::VariableName::new(rel.target.clone())?,
                 direction: Direction::Outgoing,
@@ -432,7 +432,9 @@ impl StructuredMatchQuery {
                 inner: Box::new(Expr::Exists {
                     pattern: Box::new(GraphPattern::Relationship {
                         variable: None,
-                        label: Some(exclude.relationship_label.clone()),
+                        label: Some(crate::graph_label::GraphLabel::new(
+                            exclude.relationship_label.clone(),
+                        )?),
                         source: crate::variable_name::VariableName::new(exclude.source.clone())?,
                         target: crate::variable_name::VariableName::new(exclude.target.clone())?,
                         direction: Direction::Both,

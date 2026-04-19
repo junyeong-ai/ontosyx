@@ -335,10 +335,10 @@ fn extract_node_labels_from_op(op: &QueryOp, labels: &mut Vec<String>) {
         }
         QueryOp::PathFind { start, end, .. } => {
             if let Some(label) = &start.label {
-                labels.push(label.clone());
+                labels.push(label.to_string());
             }
             if let Some(label) = &end.label {
-                labels.push(label.clone());
+                labels.push(label.to_string());
             }
         }
         QueryOp::Aggregate { source, .. } => {
@@ -391,7 +391,7 @@ fn extract_node_labels_from_pattern(pattern: &GraphPattern, labels: &mut Vec<Str
     match pattern {
         GraphPattern::Node { label, .. } => {
             if let Some(l) = label {
-                labels.push(l.clone());
+                labels.push(l.to_string());
             }
         }
         GraphPattern::Relationship { .. } => {
@@ -403,7 +403,7 @@ fn extract_node_labels_from_pattern(pattern: &GraphPattern, labels: &mut Vec<Str
                 if let PathElement::Node { label, .. } = elem
                     && let Some(l) = label
                 {
-                    labels.push(l.clone());
+                    labels.push(l.to_string());
                 }
             }
         }
@@ -475,7 +475,7 @@ fn extract_edge_labels_from_pattern(pattern: &GraphPattern, labels: &mut Vec<Str
     match pattern {
         GraphPattern::Relationship { label, .. } => {
             if let Some(l) = label {
-                labels.push(l.clone());
+                labels.push(l.to_string());
             }
         }
         GraphPattern::Path { elements } => {
@@ -483,7 +483,7 @@ fn extract_edge_labels_from_pattern(pattern: &GraphPattern, labels: &mut Vec<Str
                 if let PathElement::Edge { label, .. } = elem
                     && let Some(l) = label
                 {
-                    labels.push(l.clone());
+                    labels.push(l.to_string());
                 }
             }
         }
@@ -494,8 +494,13 @@ fn extract_edge_labels_from_pattern(pattern: &GraphPattern, labels: &mut Vec<Str
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::graph_label::GraphLabel;
     use crate::query_ir::*;
     use crate::types::Direction;
+
+    fn gl(s: &str) -> GraphLabel {
+        GraphLabel::new(s).expect("test graph label literal must be valid")
+    }
 
     #[test]
     fn test_extract_node_labels_simple_match() {
@@ -504,7 +509,7 @@ mod tests {
             operation: QueryOp::Match {
                 patterns: vec![GraphPattern::Node {
                     variable: crate::variable_name::VariableName::new("c").expect("valid"),
-                    label: Some("Customer".into()),
+                    label: Some(gl("Customer")),
                     property_filters: vec![],
                 }],
                 filter: None,
@@ -527,14 +532,14 @@ mod tests {
                 patterns: vec![
                     GraphPattern::Node {
                         variable: crate::variable_name::VariableName::new("c").expect("valid"),
-                        label: Some("Customer".into()),
+                        label: Some(gl("Customer")),
                         property_filters: vec![],
                     },
                     GraphPattern::Relationship {
                         variable: Some(
                             crate::variable_name::VariableName::new("r").expect("valid"),
                         ),
-                        label: Some("PLACED".into()),
+                        label: Some(gl("PLACED")),
                         source: crate::variable_name::VariableName::new("c").expect("valid"),
                         target: crate::variable_name::VariableName::new("o").expect("valid"),
                         direction: Direction::Outgoing,
@@ -543,7 +548,7 @@ mod tests {
                     },
                     GraphPattern::Node {
                         variable: crate::variable_name::VariableName::new("o").expect("valid"),
-                        label: Some("Order".into()),
+                        label: Some(gl("Order")),
                         property_filters: vec![],
                     },
                 ],

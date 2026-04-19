@@ -34,6 +34,7 @@ use std::collections::HashMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::graph_label::GraphLabel;
 use crate::query_ir::{
     Expr, GraphPattern, LogicalOp, OrderClause, Projection, PropertyFilter, QueryIR, QueryOp,
     VarLength,
@@ -185,7 +186,7 @@ pub struct PatternNode {
     pub id: String,
     pub variable: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub label: Option<String>,
+    pub label: Option<GraphLabel>,
     #[serde(default)]
     pub property_filters: Vec<PropertyFilter>,
     /// Canvas position. `None` means "let the UI auto-layout" — the
@@ -203,7 +204,7 @@ pub struct PatternEdge {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub variable: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub label: Option<String>,
+    pub label: Option<GraphLabel>,
     pub source_node_id: String,
     pub target_node_id: String,
     pub direction: Direction,
@@ -529,6 +530,10 @@ mod tests {
         VariableName::new(s).expect("test variable literal must be valid")
     }
 
+    fn gl(s: &str) -> GraphLabel {
+        GraphLabel::new(s).expect("test graph label literal must be valid")
+    }
+
     fn lit_int(n: i64) -> Expr {
         Expr::Literal {
             value: PropertyValue::Int(n),
@@ -578,7 +583,7 @@ mod tests {
             nodes: vec![PatternNode {
                 id: "n1".into(),
                 variable: "p".to_string(),
-                label: Some("Person".into()),
+                label: Some(gl("Person")),
                 property_filters: Vec::new(),
                 position: Some(Position { x: 10.0, y: 20.0 }),
             }],
@@ -605,14 +610,14 @@ mod tests {
                 PatternNode {
                     id: "n1".into(),
                     variable: "a".to_string(),
-                    label: Some("A".into()),
+                    label: Some(gl("A")),
                     property_filters: Vec::new(),
                     position: None,
                 },
                 PatternNode {
                     id: "n2".into(),
                     variable: "b".to_string(),
-                    label: Some("B".into()),
+                    label: Some(gl("B")),
                     property_filters: Vec::new(),
                     position: None,
                 },
@@ -620,7 +625,7 @@ mod tests {
             edges: vec![PatternEdge {
                 id: "e1".into(),
                 variable: Some("r".to_string()),
-                label: Some("KNOWS".into()),
+                label: Some(gl("KNOWS")),
                 source_node_id: "n1".into(),
                 target_node_id: "n2".into(),
                 direction: Direction::Outgoing,
@@ -693,7 +698,7 @@ mod tests {
             nodes: vec![PatternNode {
                 id: "n1".into(),
                 variable: "p".to_string(),
-                label: Some("Person".into()),
+                label: Some(gl("Person")),
                 property_filters: Vec::new(),
                 position: None,
             }],
@@ -782,7 +787,7 @@ mod tests {
             nodes: vec![PatternNode {
                 id: "n1".into(),
                 variable: "p".to_string(),
-                label: Some("Person".into()),
+                label: Some(gl("Person")),
                 property_filters: Vec::new(),
                 position: None,
             }],
@@ -819,7 +824,7 @@ mod tests {
             operation: QueryOp::Match {
                 patterns: vec![GraphPattern::Node {
                     variable: vn("p"),
-                    label: Some("Person".into()),
+                    label: Some(gl("Person")),
                     property_filters: Vec::new(),
                 }],
                 filter: None,
@@ -849,17 +854,17 @@ mod tests {
                 patterns: vec![
                     GraphPattern::Node {
                         variable: vn("a"),
-                        label: Some("A".into()),
+                        label: Some(gl("A")),
                         property_filters: Vec::new(),
                     },
                     GraphPattern::Node {
                         variable: vn("b"),
-                        label: Some("B".into()),
+                        label: Some(gl("B")),
                         property_filters: Vec::new(),
                     },
                     GraphPattern::Relationship {
                         variable: Some(vn("r")),
-                        label: Some("R".into()),
+                        label: Some(gl("R")),
                         source: vn("a"),
                         target: vn("b"),
                         direction: Direction::Outgoing,
@@ -1042,7 +1047,7 @@ mod tests {
             operation: QueryOp::Match {
                 patterns: vec![GraphPattern::Node {
                     variable: vn("n"),
-                    label: Some("Person".into()),
+                    label: Some(gl("Person")),
                     property_filters: Vec::new(),
                 }],
                 filter: None,
@@ -1111,14 +1116,14 @@ mod tests {
                 PatternNode {
                     id: "n1".into(),
                     variable: "a".to_string(),
-                    label: Some("A".into()),
+                    label: Some(gl("A")),
                     property_filters: Vec::new(),
                     position: Some(Position { x: 0.0, y: 0.0 }),
                 },
                 PatternNode {
                     id: "n2".into(),
                     variable: "b".to_string(),
-                    label: Some("B".into()),
+                    label: Some(gl("B")),
                     property_filters: Vec::new(),
                     position: Some(Position { x: 100.0, y: 0.0 }),
                 },
@@ -1126,7 +1131,7 @@ mod tests {
             edges: vec![PatternEdge {
                 id: "e1".into(),
                 variable: Some("r".to_string()),
-                label: Some("R".into()),
+                label: Some(gl("R")),
                 source_node_id: "n1".into(),
                 target_node_id: "n2".into(),
                 direction: Direction::Outgoing,
@@ -1173,7 +1178,7 @@ mod tests {
             nodes: vec![PatternNode {
                 id: "n1".into(),
                 variable: "p".to_string(),
-                label: Some("Person".into()),
+                label: Some(gl("Person")),
                 property_filters: Vec::new(),
                 position: None,
             }],
@@ -1206,7 +1211,7 @@ mod tests {
             nodes: vec![PatternNode {
                 id: "n1".into(),
                 variable: "p".to_string(),
-                label: Some("Person".into()),
+                label: Some(gl("Person")),
                 property_filters: Vec::new(),
                 position: Some(Position { x: 1.0, y: 2.0 }),
             }],

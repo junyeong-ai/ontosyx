@@ -213,7 +213,7 @@ fn collect_pattern_signals(pattern: &GraphPattern, ctx: &mut CostCtx) {
             if let Some(lbl) = label {
                 for pf in property_filters {
                     ctx.filter_labels
-                        .push((lbl.clone(), pf.property.to_string()));
+                        .push((lbl.to_string(), pf.property.to_string()));
                 }
             }
         }
@@ -225,10 +225,10 @@ fn collect_pattern_signals(pattern: &GraphPattern, ctx: &mut CostCtx) {
             ..
         } => {
             if let Some(lbl) = label {
-                ctx.relationship_labels.push(lbl.clone());
+                ctx.relationship_labels.push(lbl.to_string());
                 for pf in property_filters {
                     ctx.filter_labels
-                        .push((lbl.clone(), pf.property.to_string()));
+                        .push((lbl.to_string(), pf.property.to_string()));
                 }
             }
 
@@ -254,7 +254,7 @@ fn collect_pattern_signals(pattern: &GraphPattern, ctx: &mut CostCtx) {
                     label: Some(lbl), ..
                 } = e
                 {
-                    ctx.relationship_labels.push(lbl.clone());
+                    ctx.relationship_labels.push(lbl.to_string());
                 }
             }
         }
@@ -507,7 +507,7 @@ mod tests {
     fn single_node_is_low_risk() {
         let ir = simple_match(vec![GraphPattern::Node {
             variable: vn("n"),
-            label: Some("Person".into()),
+            label: Some(gl("Person")),
             property_filters: vec![],
         }]);
         let cost = estimate_cost(&ir, &empty_ontology());
@@ -521,12 +521,12 @@ mod tests {
         let ir = simple_match(vec![
             GraphPattern::Node {
                 variable: vn("a"),
-                label: Some("Person".into()),
+                label: Some(gl("Person")),
                 property_filters: vec![],
             },
             GraphPattern::Relationship {
                 variable: None,
-                label: Some("KNOWS".into()),
+                label: Some(gl("KNOWS")),
                 source: vn("a"),
                 target: vn("b"),
                 direction: Direction::Outgoing,
@@ -543,12 +543,12 @@ mod tests {
         let ir = simple_match(vec![
             GraphPattern::Node {
                 variable: vn("a"),
-                label: Some("Person".into()),
+                label: Some(gl("Person")),
                 property_filters: vec![],
             },
             GraphPattern::Node {
                 variable: vn("b"),
-                label: Some("Company".into()),
+                label: Some(gl("Company")),
                 property_filters: vec![],
             },
         ]);
@@ -561,7 +561,7 @@ mod tests {
     fn deep_var_length_is_high_risk() {
         let ir = simple_match(vec![GraphPattern::Relationship {
             variable: None,
-            label: Some("FOLLOWS".into()),
+            label: Some(gl("FOLLOWS")),
             source: vn("a"),
             target: vn("b"),
             direction: Direction::Outgoing,
@@ -580,7 +580,7 @@ mod tests {
     fn moderate_var_length_is_medium() {
         let ir = simple_match(vec![GraphPattern::Relationship {
             variable: None,
-            label: Some("FOLLOWS".into()),
+            label: Some(gl("FOLLOWS")),
             source: vn("a"),
             target: vn("b"),
             direction: Direction::Outgoing,
@@ -600,11 +600,11 @@ mod tests {
             elements: vec![
                 PathElement::Node {
                     variable: vn("a"),
-                    label: Some("Person".into()),
+                    label: Some(gl("Person")),
                 },
                 PathElement::Edge {
                     variable: None,
-                    label: Some("KNOWS".into()),
+                    label: Some(gl("KNOWS")),
                     direction: Direction::Outgoing,
                 },
                 PathElement::Node {
@@ -613,12 +613,12 @@ mod tests {
                 },
                 PathElement::Edge {
                     variable: None,
-                    label: Some("WORKS_AT".into()),
+                    label: Some(gl("WORKS_AT")),
                     direction: Direction::Outgoing,
                 },
                 PathElement::Node {
                     variable: vn("c"),
-                    label: Some("Company".into()),
+                    label: Some(gl("Company")),
                 },
             ],
         }]);
@@ -731,7 +731,7 @@ mod tests {
     fn indexed_filter_detected() {
         let ir = simple_match(vec![GraphPattern::Node {
             variable: vn("p"),
-            label: Some("Person".into()),
+            label: Some(gl("Person")),
             property_filters: vec![PropertyFilter {
                 property: pk("name"),
                 value: Expr::Literal {
@@ -749,7 +749,7 @@ mod tests {
         // Cypher `*` → VarLength { min: None, max: None } = unlimited traversal
         let ir = simple_match(vec![GraphPattern::Relationship {
             variable: None,
-            label: Some("FOLLOWS".into()),
+            label: Some(gl("FOLLOWS")),
             source: vn("a"),
             target: vn("b"),
             direction: Direction::Outgoing,
@@ -769,7 +769,7 @@ mod tests {
         // `*3..` → min=3, max=None = unbounded upper
         let ir = simple_match(vec![GraphPattern::Relationship {
             variable: None,
-            label: Some("FOLLOWS".into()),
+            label: Some(gl("FOLLOWS")),
             source: vn("a"),
             target: vn("b"),
             direction: Direction::Outgoing,
@@ -787,7 +787,7 @@ mod tests {
     fn many_to_many_detected_as_high_fanout() {
         let ir = simple_match(vec![GraphPattern::Relationship {
             variable: None,
-            label: Some("KNOWS".into()),
+            label: Some(gl("KNOWS")),
             source: vn("a"),
             target: vn("b"),
             direction: Direction::Outgoing,

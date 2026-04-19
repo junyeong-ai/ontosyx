@@ -152,6 +152,10 @@ mod tests {
         VariableName::new(s).expect("test variable name literal must be valid")
     }
 
+    fn gl(s: &'static str) -> GraphLabel {
+        GraphLabel::new(s).expect("test graph label literal must be valid")
+    }
+
     fn test_ontology() -> OntologyIR {
         OntologyIR::new(
             "ont1".into(),
@@ -217,12 +221,12 @@ mod tests {
                 patterns: vec![
                     GraphPattern::Node {
                         variable: vn("p"),
-                        label: Some("Person".into()),
+                        label: Some(gl("Person")),
                         property_filters: vec![],
                     },
                     GraphPattern::Relationship {
                         variable: Some(vn("r")),
-                        label: Some("WORKS_AT".into()),
+                        label: Some(gl("WORKS_AT")),
                         source: vn("p"),
                         target: vn("c"),
                         direction: Direction::Outgoing,
@@ -231,7 +235,7 @@ mod tests {
                     },
                     GraphPattern::Node {
                         variable: vn("c"),
-                        label: Some("Company".into()),
+                        label: Some(gl("Company")),
                         property_filters: vec![],
                     },
                 ],
@@ -299,7 +303,7 @@ mod tests {
             operation: QueryOp::Match {
                 patterns: vec![GraphPattern::Node {
                     variable: vn("p"),
-                    label: Some("Person".into()),
+                    label: Some(gl("Person")),
                     property_filters: vec![],
                 }],
                 filter: Some(Expr::Comparison {
@@ -338,7 +342,7 @@ mod tests {
             operation: QueryOp::Match {
                 patterns: vec![GraphPattern::Node {
                     variable: vn("x"),
-                    label: Some("UnknownType".into()),
+                    label: Some(gl("UnknownType")),
                     property_filters: vec![],
                 }],
                 filter: None,
@@ -363,13 +367,13 @@ mod tests {
             operation: QueryOp::Match {
                 patterns: vec![GraphPattern::Node {
                     variable: vn("p"),
-                    label: Some("Person".into()),
+                    label: Some(gl("Person")),
                     property_filters: vec![],
                 }],
                 filter: Some(Expr::Exists {
                     pattern: Box::new(GraphPattern::Relationship {
                         variable: Some(vn("r")),
-                        label: Some("WORKS_AT".into()),
+                        label: Some(gl("WORKS_AT")),
                         source: vn("p"),
                         target: vn("c"),
                         direction: Direction::Outgoing,
@@ -422,7 +426,7 @@ mod tests {
                         operation: QueryOp::Match {
                             patterns: vec![GraphPattern::Node {
                                 variable: vn("x"),
-                                label: Some("Person".into()),
+                                label: Some(gl("Person")),
                                 property_filters: vec![],
                             }],
                             filter: None,
@@ -443,7 +447,7 @@ mod tests {
                         operation: QueryOp::Match {
                             patterns: vec![GraphPattern::Node {
                                 variable: vn("x"),
-                                label: Some("Company".into()),
+                                label: Some(gl("Company")),
                                 property_filters: vec![],
                             }],
                             filter: None,
@@ -530,7 +534,7 @@ mod tests {
             operation: QueryOp::Match {
                 patterns: vec![GraphPattern::Node {
                     variable: vn("p"),
-                    label: Some("Person".into()),
+                    label: Some(gl("Person")),
                     property_filters: vec![],
                 }],
                 filter: Some(Expr::Comparison {
@@ -576,12 +580,12 @@ mod tests {
             operation: QueryOp::PathFind {
                 start: NodeRef {
                     variable: vn("s"),
-                    label: Some("Person".into()),
+                    label: Some(gl("Person")),
                     property_filters: vec![],
                 },
                 end: NodeRef {
                     variable: vn("e"),
-                    label: Some("Company".into()),
+                    label: Some(gl("Company")),
                     property_filters: vec![],
                 },
                 edge_types: vec!["WORKS_AT".into()],
@@ -621,13 +625,13 @@ mod tests {
             operation: QueryOp::Match {
                 patterns: vec![GraphPattern::Node {
                     variable: vn("p2"),
-                    label: Some("Person".into()),
+                    label: Some(gl("Person")),
                     property_filters: vec![],
                 }],
                 filter: Some(Expr::Exists {
                     pattern: Box::new(GraphPattern::Relationship {
                         variable: Some(vn("r")),
-                        label: Some("WORKS_AT".into()),
+                        label: Some(gl("WORKS_AT")),
                         source: vn("p2"),
                         target: vn("c"),
                         direction: Direction::Outgoing,
