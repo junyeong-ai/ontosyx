@@ -41,7 +41,7 @@ export function KnowledgePanel() {
 
   if (!ontologyName) {
     return (
-      <div className="flex h-full items-center justify-center text-xs text-zinc-400">
+      <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
         Load an ontology to view knowledge
       </div>
     );
@@ -57,7 +57,7 @@ export function KnowledgePanel() {
 
   if (entries.length === 0) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 text-xs text-zinc-400">
+      <div className="flex h-full flex-col items-center justify-center gap-2 text-xs text-muted-foreground">
         <p>No knowledge entries for this ontology.</p>
         <p className="text-[10px]">
           Entries are auto-created when query translation fails, or manually via Settings &gt; Knowledge.
@@ -83,7 +83,7 @@ export function KnowledgePanel() {
             <div className="flex items-center gap-2">
               <span className={cn("h-1.5 w-1.5 rounded-full", STATUS_DOT[entry.status] ?? STATUS_DOT.draft)} />
               <span className="text-[10px] font-medium text-muted-foreground uppercase">{entry.kind}</span>
-              <span className="ml-auto text-[9px] tabular-nums text-zinc-400">
+              <span className="ml-auto text-[9px] tabular-nums text-muted-foreground">
                 {(entry.confidence * 100).toFixed(0)}%
               </span>
             </div>
@@ -91,14 +91,14 @@ export function KnowledgePanel() {
               {entry.title}
             </p>
             {selectedId === entry.id && (
-              <div className="mt-2 rounded border border-zinc-200 bg-zinc-50 p-2 text-[11px] text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">
+              <div className="mt-2 rounded border border-zinc-200 bg-zinc-50 p-2 text-[11px] text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-muted-foreground">
                 {entry.content}
               </div>
             )}
           </button>
         ))}
       </div>
-      <div className="shrink-0 border-t border-zinc-200 px-3 py-1.5 text-[10px] text-zinc-400 dark:border-zinc-700">
+      <div className="shrink-0 border-t border-zinc-200 px-3 py-1.5 text-[10px] text-muted-foreground dark:border-zinc-700">
         {entries.length} entries · {ontologyName}
       </div>
     </div>

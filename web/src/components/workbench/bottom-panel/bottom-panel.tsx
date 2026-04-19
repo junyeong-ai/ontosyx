@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useAppStore, type DesignBottomTab } from "@/lib/store";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { DesignPanel } from "./design-panel";
@@ -23,10 +24,11 @@ import {
 
 /** Wrapper that reads the active project's quality report from the store. */
 function QualityTab() {
+  const t = useTranslations("workbench.bottomPanel.tabs");
   const report = useAppStore((s) => s.activeProject?.quality_report);
   if (!report) {
     return (
-      <EmptyState title="No quality report available" description="Design a project first." />
+      <EmptyState title={t("noQualityReport")} description={t("designFirst")} />
     );
   }
   return (
@@ -36,10 +38,10 @@ function QualityTab() {
   );
 }
 
-const tabs: { id: DesignBottomTab; label: string; icon: IconSvgElement }[] = [
-  { id: "chat", label: "Chat", icon: Message01Icon },
-  { id: "workflow", label: "Workflow", icon: MagicWand01Icon },
-  { id: "quality", label: "Quality", icon: CheckListIcon },
+const TAB_DEFS: { id: DesignBottomTab; icon: IconSvgElement }[] = [
+  { id: "chat", icon: Message01Icon },
+  { id: "workflow", icon: MagicWand01Icon },
+  { id: "quality", icon: CheckListIcon },
 ];
 
 const panelMap: Record<DesignBottomTab, React.ComponentType> = {
@@ -49,6 +51,7 @@ const panelMap: Record<DesignBottomTab, React.ComponentType> = {
 };
 
 export function BottomPanel() {
+  const t = useTranslations("workbench.bottomPanel.tabs");
   const designBottomTab = useAppStore((s) => s.designBottomTab);
   const setDesignBottomTab = useAppStore((s) => s.setDesignBottomTab);
   const isBottomPanelOpen = useAppStore((s) => s.isBottomPanelOpen);
@@ -72,7 +75,7 @@ export function BottomPanel() {
       {/* Tab bar — manual click handling for active-tab-toggle */}
       <div className="flex h-8 shrink-0 items-center border-b border-zinc-200 dark:border-zinc-800">
         <div className="flex items-center" role="tablist">
-          {tabs.map(({ id, label, icon }) => {
+          {TAB_DEFS.map(({ id, icon }) => {
             const isActive = isBottomPanelOpen && designBottomTab === id;
             return (
               <button
@@ -84,21 +87,21 @@ export function BottomPanel() {
                   "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors outline-none",
                   isActive
                     ? "border-b-2 border-emerald-600 text-emerald-600 dark:border-emerald-400 dark:text-emerald-400"
-                    : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300",
+                    : "text-zinc-500 hover:text-zinc-700 dark:text-muted-foreground dark:hover:text-zinc-300",
                 )}
               >
                 <HugeiconsIcon icon={icon} className="h-3 w-3" size="100%" />
-                {label}
+                {t(id)}
               </button>
             );
           })}
         </div>
         <div className="flex-1" />
-        <Tooltip content={isBottomPanelOpen ? "Collapse panel" : "Expand panel"}>
+        <Tooltip content={isBottomPanelOpen ? t("collapsePanel") : t("expandPanel")}>
           <button
             onClick={toggleBottomPanel}
-            aria-label={isBottomPanelOpen ? "Collapse panel" : "Expand panel"}
-            className="px-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+            aria-label={isBottomPanelOpen ? t("collapsePanel") : t("expandPanel")}
+            className="px-2 text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300"
           >
             {isBottomPanelOpen
               ? <HugeiconsIcon icon={ArrowDown01Icon} className="h-3.5 w-3.5" size="100%" />

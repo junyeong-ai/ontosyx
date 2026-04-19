@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   PlusSignIcon,
@@ -28,6 +29,7 @@ export function CreateProjectForm({
   guardBeforeCreate: (actionName: string) => Promise<boolean>;
   onCreated: (p: DesignProject) => void;
 }) {
+  const t = useTranslations("workbench.bottomPanel.createProject");
   const [sourceType, setSourceType] = useState<GenerateSourceType>("postgresql");
   const [sampleData, setSampleData] = useState("");
   const [connectionString, setConnectionString] = useState("");
@@ -78,47 +80,47 @@ export function CreateProjectForm({
 
   const connectionError =
     touched.connectionString && isDbSource && !connectionString.trim()
-      ? "Connection string is required"
+      ? t("connectionStringRequired")
       : undefined;
   const mysqlDatabaseError =
     touched.mysqlDatabase && sourceType === "mysql" && !mysqlDatabase.trim()
-      ? "Database name is required"
+      ? t("databaseRequired")
       : undefined;
   const mongoDatabaseError =
     touched.mongoDatabase && sourceType === "mongodb" && !mongoDatabase.trim()
-      ? "Database name is required"
+      ? t("databaseRequired")
       : undefined;
   const sfAccountError =
     touched.sfAccount && sourceType === "snowflake" && !sfAccount.trim()
-      ? "Account identifier is required"
+      ? t("sfAccountRequired")
       : undefined;
   const sfUserError =
     touched.sfUser && sourceType === "snowflake" && !sfUser.trim()
-      ? "User is required"
+      ? t("sfUserRequired")
       : undefined;
   const sfPasswordError =
     touched.sfPassword && sourceType === "snowflake" && !sfPassword.trim()
-      ? "Password is required"
+      ? t("sfPasswordRequired")
       : undefined;
   const sfDatabaseError =
     touched.sfDatabase && sourceType === "snowflake" && !sfDatabase.trim()
-      ? "Database is required"
+      ? t("sfDatabaseRequired")
       : undefined;
   const bqProjectIdError =
     touched.bqProjectId && sourceType === "bigquery" && !bqProjectId.trim()
-      ? "Project ID is required"
+      ? t("bqProjectIdRequired")
       : undefined;
   const bqDatasetError =
     touched.bqDataset && sourceType === "bigquery" && !bqDataset.trim()
-      ? "Dataset is required"
+      ? t("bqDatasetRequired")
       : undefined;
   const duckdbFilePathError =
     touched.duckdbFilePath && sourceType === "duckdb" && !duckdbFilePath.trim()
-      ? "File path is required"
+      ? t("duckdbFileRequired")
       : undefined;
   const repoUrlError =
     touched.repoUrl && sourceType === "code_repository" && !repoUrl.trim()
-      ? "Repository URL is required"
+      ? t("repoUrlRequired")
       : undefined;
   const sampleDataError =
     touched.sampleData &&
@@ -126,7 +128,9 @@ export function CreateProjectForm({
     sourceType !== "code_repository" &&
     sourceType !== "duckdb" &&
     !sampleData.trim()
-      ? `${sourceType === "text" ? "Sample data" : "Source data"} is required`
+      ? sourceType === "text"
+        ? t("sampleDataRequired")
+        : t("sourceDataRequired")
       : undefined;
 
   function buildSource(): DesignSource | null {
@@ -254,15 +258,15 @@ export function CreateProjectForm({
   function testErrorMessage(errorType?: string, rawError?: string): string {
     switch (errorType) {
       case "auth_failed":
-        return "Authentication failed. Check username and password.";
+        return t("testErrors.authFailed");
       case "network":
-        return "Could not connect. Check host and port.";
+        return t("testErrors.network");
       case "not_found":
-        return "Database not found. Check the database name.";
+        return t("testErrors.notFound");
       case "permission":
-        return "Access denied. Check user permissions.";
+        return t("testErrors.permission");
       default:
-        return rawError ?? "Connection failed.";
+        return rawError ?? t("testErrors.generic");
     }
   }
 
@@ -270,7 +274,7 @@ export function CreateProjectForm({
     setTouched({ connectionString: true, sampleData: true, repoUrl: true, mysqlDatabase: true, mongoDatabase: true, sfAccount: true, sfUser: true, sfPassword: true, sfDatabase: true, bqProjectId: true, bqDataset: true, duckdbFilePath: true });
     const source = buildSource();
     if (!source) return;
-    if (!(await guardBeforeCreate("Create Project"))) return;
+    if (!(await guardBeforeCreate(t("createButton")))) return;
 
     setLoading(true);
     try {
@@ -285,12 +289,12 @@ export function CreateProjectForm({
           : undefined,
       });
       onCreated(project);
-      toast.success("Project created", {
-        description: `Status: ${project.status} (rev ${project.revision})`,
+      toast.success(t("createSuccess"), {
+        description: t("createSuccessDescription", { status: project.status, revision: project.revision }),
       });
     } catch (err) {
-      toast.error("Failed to create project", {
-        description: err instanceof Error ? err.message : "Unknown error",
+      toast.error(t("createFailed"), {
+        description: err instanceof Error ? err.message : t("unknownError"),
       });
     } finally {
       setLoading(false);
@@ -319,10 +323,10 @@ export function CreateProjectForm({
 
   const dataPlaceholder =
     sourceType === "csv"
-      ? "name,age,company\nAlice,30,Acme Corp\nBob,25,Globex"
+      ? t("dataPlaceholderCsv")
       : sourceType === "json"
-        ? '[{"name":"Alice","team":"Platform"},{"name":"Bob","team":"Data"}]'
-        : "Describe your entities, relationships, and example records";
+        ? t("dataPlaceholderJson")
+        : t("dataPlaceholderText");
 
   // Whether the test connection button should check connectionString or BQ-specific fields
   const canTestConnection = sourceType === "bigquery"
@@ -331,56 +335,57 @@ export function CreateProjectForm({
 
   return (
     <div>
-      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
-        New Design Project
+      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-zinc-600 dark:text-muted-foreground">
+        {t("heading")}
       </h3>
-      <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
-        Create a project to analyze your data source and design an ontology.
-        Fields marked with <span className="text-red-500">*</span> are required.
+      <p className="mb-3 text-xs text-zinc-500 dark:text-muted-foreground">
+        {t.rich("intro", {
+          asterisk: (chunks) => <span className="text-red-500">{chunks}</span>,
+        })}
       </p>
 
       {/* Mode toggle removed — "From Existing Ontology" is now a Fork action on completed projects in the header dropdown */}
 
       <div className="grid max-w-2xl grid-cols-2 gap-3">
-        <FormField label="Title" hint="Optional — auto-generated if empty">
+        <FormField label={t("titleLabel")} hint={t("titleHint")}>
           <FormInput
             type="text"
-            placeholder="e.g. Olive Young DB Ontology"
+            placeholder={t("titlePlaceholder")}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
         </FormField>
 
-        <FormField label="Source Type" required>
+        <FormField label={t("sourceTypeLabel")} required>
               <select
                 value={sourceType}
                 onChange={(e) => { setSourceType(e.target.value as GenerateSourceType); clearTestResult(); }}
                 className={selectClassName}
               >
-                <option value="postgresql">PostgreSQL</option>
-                <option value="mysql">MySQL</option>
-                <option value="mongodb">MongoDB</option>
-                <option value="snowflake">Snowflake</option>
-                <option value="bigquery">BigQuery</option>
-                <option value="duckdb">Local File (DuckDB)</option>
-                <option value="csv">CSV</option>
-                <option value="json">JSON</option>
-                <option value="code_repository">Code Repository</option>
-                <option value="text">Plain Text (manual)</option>
+                <option value="postgresql">{t("sourceTypes.postgresql")}</option>
+                <option value="mysql">{t("sourceTypes.mysql")}</option>
+                <option value="mongodb">{t("sourceTypes.mongodb")}</option>
+                <option value="snowflake">{t("sourceTypes.snowflake")}</option>
+                <option value="bigquery">{t("sourceTypes.bigquery")}</option>
+                <option value="duckdb">{t("sourceTypes.duckdb")}</option>
+                <option value="csv">{t("sourceTypes.csv")}</option>
+                <option value="json">{t("sourceTypes.json")}</option>
+                <option value="code_repository">{t("sourceTypes.codeRepository")}</option>
+                <option value="text">{t("sourceTypes.text")}</option>
               </select>
             </FormField>
 
             {sourceType === "postgresql" ? (
               <>
                 <FormField
-                  label="Connection String"
+                  label={t("connectionStringLabel")}
                   required
                   error={connectionError}
-                  hint="postgres://user:password@host:5432/dbname"
+                  hint={t("postgresHint")}
                 >
                   <FormInput
                     type="text"
-                    placeholder="postgres://user:password@host:5432/dbname"
+                    placeholder={t("postgresHint")}
                     value={connectionString}
                     onChange={(e) => { setConnectionString(e.target.value); clearTestResult(); }}
                     onBlur={() => markTouched("connectionString")}
@@ -388,10 +393,10 @@ export function CreateProjectForm({
                     className="font-mono"
                   />
                 </FormField>
-                <FormField label="Schema" hint="Defaults to 'public'">
+                <FormField label={t("schemaLabel")} hint={t("schemaHint")}>
                   <FormInput
                     type="text"
-                    placeholder="public"
+                    placeholder={t("schemaPlaceholder")}
                     value={schemaName}
                     onChange={(e) => { setSchemaName(e.target.value); clearTestResult(); }}
                   />
@@ -400,14 +405,14 @@ export function CreateProjectForm({
             ) : sourceType === "mysql" ? (
               <>
                 <FormField
-                  label="Connection String"
+                  label={t("connectionStringLabel")}
                   required
                   error={connectionError}
-                  hint="mysql://user:password@host:3306/dbname"
+                  hint={t("mysqlHint")}
                 >
                   <FormInput
                     type="text"
-                    placeholder="mysql://user:password@host:3306/dbname"
+                    placeholder={t("mysqlHint")}
                     value={connectionString}
                     onChange={(e) => { setConnectionString(e.target.value); clearTestResult(); }}
                     onBlur={() => markTouched("connectionString")}
@@ -415,10 +420,10 @@ export function CreateProjectForm({
                     className="font-mono"
                   />
                 </FormField>
-                <FormField label="Database" required error={mysqlDatabaseError}>
+                <FormField label={t("databaseLabel")} required error={mysqlDatabaseError}>
                   <FormInput
                     type="text"
-                    placeholder="my_database"
+                    placeholder={t("databasePlaceholder")}
                     value={mysqlDatabase}
                     onChange={(e) => { setMysqlDatabase(e.target.value); clearTestResult(); }}
                     onBlur={() => markTouched("mysqlDatabase")}
@@ -429,10 +434,10 @@ export function CreateProjectForm({
             ) : sourceType === "mongodb" ? (
               <>
                 <FormField
-                  label="Connection String"
+                  label={t("connectionStringLabel")}
                   required
                   error={connectionError}
-                  hint="mongodb://user:password@host:27017 or mongodb+srv://..."
+                  hint={t("mongoHint")}
                 >
                   <FormInput
                     type="text"
@@ -444,10 +449,10 @@ export function CreateProjectForm({
                     className="font-mono"
                   />
                 </FormField>
-                <FormField label="Database" required error={mongoDatabaseError}>
+                <FormField label={t("databaseLabel")} required error={mongoDatabaseError}>
                   <FormInput
                     type="text"
-                    placeholder="my_database"
+                    placeholder={t("databasePlaceholder")}
                     value={mongoDatabase}
                     onChange={(e) => { setMongoDatabase(e.target.value); clearTestResult(); }}
                     onBlur={() => markTouched("mongoDatabase")}
@@ -455,17 +460,77 @@ export function CreateProjectForm({
                   />
                 </FormField>
               </>
+            ) : sourceType === "snowflake" ? (
+              <>
+                <FormField label={t("sfAccountLabel")} required error={sfAccountError} hint={t("sfAccountHint")}>
+                  <FormInput
+                    type="text"
+                    placeholder={t("sfAccountPlaceholder")}
+                    value={sfAccount}
+                    onChange={(e) => { setSfAccount(e.target.value); clearTestResult(); }}
+                    onBlur={() => markTouched("sfAccount")}
+                    error={!!sfAccountError}
+                    className="font-mono"
+                  />
+                </FormField>
+                <FormField label={t("sfUserLabel")} required error={sfUserError}>
+                  <FormInput
+                    type="text"
+                    placeholder={t("sfUserPlaceholder")}
+                    value={sfUser}
+                    onChange={(e) => { setSfUser(e.target.value); clearTestResult(); }}
+                    onBlur={() => markTouched("sfUser")}
+                    error={!!sfUserError}
+                  />
+                </FormField>
+                <FormField label={t("sfPasswordLabel")} required error={sfPasswordError}>
+                  <FormInput
+                    type="password"
+                    placeholder="••••••••"
+                    value={sfPassword}
+                    onChange={(e) => { setSfPassword(e.target.value); clearTestResult(); }}
+                    onBlur={() => markTouched("sfPassword")}
+                    error={!!sfPasswordError}
+                  />
+                </FormField>
+                <FormField label={t("sfWarehouseLabel")} hint={t("sfWarehouseHint")}>
+                  <FormInput
+                    type="text"
+                    placeholder={t("sfWarehousePlaceholder")}
+                    value={sfWarehouse}
+                    onChange={(e) => { setSfWarehouse(e.target.value); clearTestResult(); }}
+                  />
+                </FormField>
+                <FormField label={t("sfDatabaseLabel")} required error={sfDatabaseError}>
+                  <FormInput
+                    type="text"
+                    placeholder={t("sfDatabasePlaceholder")}
+                    value={sfDatabase}
+                    onChange={(e) => { setSfDatabase(e.target.value); clearTestResult(); }}
+                    onBlur={() => markTouched("sfDatabase")}
+                    error={!!sfDatabaseError}
+                  />
+                </FormField>
+                <FormField label={t("sfSchemaLabel")} hint={t("sfSchemaHint")}>
+                  <FormInput
+                    type="text"
+                    placeholder={t("sfSchemaPlaceholder")}
+                    value={sfSchema}
+                    onChange={(e) => { setSfSchema(e.target.value); clearTestResult(); }}
+                  />
+                </FormField>
+              </>
             ) : sourceType === "bigquery" ? (
               <>
                 <FormField
-                  label="GCP Project ID"
+                  label={t("bqProjectIdLabel")}
                   required
                   error={bqProjectIdError}
-                  hint="e.g. my-gcp-project-123"
+                  hint={t("bqProjectIdHint")}
                 >
                   <FormInput
                     type="text"
-                    placeholder="my-gcp-project"
+                    placeholder={t("bqProjectIdPlaceholder")}
                     value={bqProjectId}
                     onChange={(e) => { setBqProjectId(e.target.value); clearTestResult(); }}
                     onBlur={() => markTouched("bqProjectId")}
@@ -474,14 +539,14 @@ export function CreateProjectForm({
                   />
                 </FormField>
                 <FormField
-                  label="Dataset"
+                  label={t("bqDatasetLabel")}
                   required
                   error={bqDatasetError}
-                  hint="BigQuery dataset name"
+                  hint={t("bqDatasetHint")}
                 >
                   <FormInput
                     type="text"
-                    placeholder="analytics_prod"
+                    placeholder={t("bqDatasetPlaceholder")}
                     value={bqDataset}
                     onChange={(e) => { setBqDataset(e.target.value); clearTestResult(); }}
                     onBlur={() => markTouched("bqDataset")}
@@ -491,12 +556,12 @@ export function CreateProjectForm({
                 </FormField>
                 <div className="col-span-2">
                   <FormField
-                    label="Credentials File Path"
-                    hint="Optional. Uses GOOGLE_APPLICATION_CREDENTIALS env var if empty."
+                    label={t("bqCredentialsLabel")}
+                    hint={t("bqCredentialsHint")}
                   >
                     <FormInput
                       type="text"
-                      placeholder="/path/to/service-account.json"
+                      placeholder={t("bqCredentialsPlaceholder")}
                       value={bqCredentialsPath}
                       onChange={(e) => { setBqCredentialsPath(e.target.value); clearTestResult(); }}
                       className="font-mono"
@@ -507,14 +572,14 @@ export function CreateProjectForm({
             ) : sourceType === "duckdb" ? (
               <div className="col-span-2">
                 <FormField
-                  label="File Path"
+                  label={t("duckdbFileLabel")}
                   required
                   error={duckdbFilePathError}
-                  hint="Absolute path to a Parquet, CSV, or JSON/JSONL file"
+                  hint={t("duckdbFileHint")}
                 >
                   <FormInput
                     type="text"
-                    placeholder="/path/to/data.parquet"
+                    placeholder={t("duckdbFilePlaceholder")}
                     value={duckdbFilePath}
                     onChange={(e) => setDuckdbFilePath(e.target.value)}
                     onBlur={() => markTouched("duckdbFilePath")}
@@ -526,14 +591,14 @@ export function CreateProjectForm({
             ) : sourceType === "code_repository" ? (
               <div className="col-span-2">
                 <FormField
-                  label="Repository URL"
+                  label={t("repoUrlLabel")}
                   required
                   error={repoUrlError}
-                  hint="Analyzes the default branch"
+                  hint={t("repoUrlHint")}
                 >
                   <FormInput
                     type="text"
-                    placeholder="https://github.com/org/repo"
+                    placeholder={t("repoUrlPlaceholder")}
                     value={repoUrl}
                     onChange={(e) => setRepoUrl(e.target.value)}
                     onBlur={() => markTouched("repoUrl")}
@@ -545,7 +610,7 @@ export function CreateProjectForm({
             ) : (
               <div className="col-span-2">
                 <FormField
-                  label={sourceType === "text" ? "Sample Data" : "Source Data"}
+                  label={sourceType === "text" ? t("sampleDataLabel") : t("sourceDataLabel")}
                   required
                   error={sampleDataError}
                 >
@@ -574,7 +639,7 @@ export function CreateProjectForm({
                   {testing ? (
                     <Spinner size="xs" className="mr-2" />
                   ) : null}
-                  {testing ? "Testing..." : "Test Connection"}
+                  {testing ? t("testing") : t("testConnectionLabel")}
                 </Button>
 
                 {testResult && (
@@ -593,7 +658,7 @@ export function CreateProjectForm({
                       />
                       <span>
                         {testResult.success
-                          ? `${testResult.table_count ?? 0} table${(testResult.table_count ?? 0) === 1 ? "" : "s"} found`
+                          ? t("tablesFound", { count: testResult.table_count ?? 0 })
                           : testErrorMessage(testResult.error_type, testResult.error)}
                       </span>
                     </div>
@@ -609,12 +674,12 @@ export function CreateProjectForm({
                             className="h-3 w-3"
                             size="100%"
                           />
-                          {showTables ? "Hide tables" : "Show tables"}
+                          {showTables ? t("hideTables") : t("showTables")}
                         </button>
                         {showTables && (
                           <ul className="mt-1 max-h-32 overflow-y-auto space-y-0.5 pl-1 font-mono text-[11px] text-emerald-400/70">
-                            {testResult.tables.map((t) => (
-                              <li key={t}>{t}</li>
+                            {testResult.tables.map((tbl) => (
+                              <li key={tbl}>{tbl}</li>
                             ))}
                           </ul>
                         )}
@@ -627,10 +692,10 @@ export function CreateProjectForm({
 
             {!["text", "code_repository"].includes(sourceType) && (
               <div className="col-span-2">
-                <FormField label="Repo Path or Git URL" hint="Optional — used for code analysis">
+                <FormField label={t("repoPathLabel")} hint={t("repoPathHint")}>
                   <FormInput
                     type="text"
-                    placeholder="/path/to/repo or https://github.com/org/repo"
+                    placeholder={t("repoPathPlaceholder")}
                     value={repoPath}
                     onChange={(e) => setRepoPath(e.target.value)}
                   />
@@ -645,7 +710,7 @@ export function CreateProjectForm({
             ) : (
               <HugeiconsIcon icon={PlusSignIcon} className="mr-2 h-4 w-4" size="100%" />
             )}
-            {loading ? "Creating..." : "Create Project"}
+            {loading ? t("creating") : t("createButton")}
           </Button>
         </div>
       </div>

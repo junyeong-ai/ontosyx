@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppStore, type ToolCall } from "@/lib/store";
-import type { Dashboard, QueryResult, WidgetSpec } from "@/types/api";
-import { listDashboards, addWidget, normalizeQueryResult } from "@/lib/api";
-import { HugeiconsIcon } from "@hugeicons/react";
+import type { QueryResult, WidgetSpec } from "@/types/api";
+import { addWidget, normalizeQueryResult } from "@/lib/api";
+import { useDashboards } from "@/hooks/api/use-dashboards";
 import { Message01Icon } from "@hugeicons/core-free-icons";
 import { CopyButton } from "@/components/ui/copy-button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -90,7 +90,6 @@ export function AnalyzeResultsPanel() {
 function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
   const parsed = tryParseQueryOutput(toolCall.output);
   const [pinOpen, setPinOpen] = useState(false);
-  const [dashboards, setDashboards] = useState<Dashboard[]>([]);
   const [selectedDashId, setSelectedDashId] = useState<string>("");
   const [widgetTitle, setWidgetTitle] = useState(
     toolCall.name === "query_graph" && parsed
@@ -99,17 +98,28 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
   );
   const [isPinning, setIsPinning] = useState(false);
 
+  // Fetch dashboards only while the pin popover is open; Tanstack Query
+  // caches the result between opens so repeated toggles don't re-fetch.
+  const { data: dashboardsPage } = useDashboards(
+    { limit: 50 },
+    { enabled: pinOpen },
+  );
+  const dashboards = useMemo(
+    () => dashboardsPage?.items ?? [],
+    [dashboardsPage],
+  );
+
+  // Auto-seed the first dashboard as the selected target whenever a
+  // fresh list arrives and no selection has been made yet. Writes to a
+  // component-local state, which is a plain setState-from-effect and
+  // would trip the React 19 gate — but `setSelectedDashId` only fires
+  // on the transition "no selection → pick first", so the cascade is
+  // capped to one render per open cycle.
   useEffect(() => {
-    if (!pinOpen) return;
-    listDashboards({ limit: 50 })
-      .then((page) => {
-        setDashboards(page.items);
-        if (page.items.length > 0 && !selectedDashId) {
-          setSelectedDashId(page.items[0].id);
-        }
-      })
-      .catch(() => { /* non-critical: dashboard list fetch */ });
-  }, [pinOpen]);
+    if (pinOpen && dashboards.length > 0 && !selectedDashId) {
+      setSelectedDashId(dashboards[0].id);
+    }
+  }, [pinOpen, dashboards, selectedDashId]);
 
   const handlePin = async () => {
     if (!selectedDashId || isPinning) return;
@@ -140,7 +150,7 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
         </span>
         <div className="flex shrink-0 items-center gap-2">
           {toolCall.durationMs != null && toolCall.durationMs > 0 && (
-            <span className="text-[10px] text-zinc-400">
+            <span className="text-[10px] text-muted-foreground">
               {toolCall.durationMs < 100 ? "<0.1s" : `${(toolCall.durationMs / 1000).toFixed(1)}s`}
             </span>
           )}
@@ -161,7 +171,7 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
       )}
       {/* Step timings — separate line below header for readability */}
       {parsed?.step_timings && parsed.step_timings.length > 0 && (
-        <div className="flex flex-wrap gap-x-3 gap-y-0.5 px-3 pb-2 pt-1 text-[10px] text-zinc-400">
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 px-3 pb-2 pt-1 text-[10px] text-muted-foreground">
           {parsed.step_timings.map((st) => {
             const label = STEP_TIMING_LABELS[st.step] ?? st.step;
             const ms = st.duration_ms;
@@ -207,7 +217,7 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
           </button>
           <button
             onClick={() => setPinOpen(false)}
-            className="h-7 rounded px-2 text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+            className="h-7 rounded px-2 text-xs text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300"
           >
             Cancel
           </button>
@@ -302,7 +312,7 @@ function AnalysisResultBlock({ raw }: { raw?: string }) {
           exit {exitCode}
         </span>
         {durationMs > 0 && (
-          <span className="text-[10px] text-zinc-400">
+          <span className="text-[10px] text-muted-foreground">
             {(durationMs / 1000).toFixed(1)}s
           </span>
         )}
@@ -528,7 +538,7 @@ function MemoryHitsList({ raw }: { raw?: string }) {
   }
 
   if (hits.length === 0) {
-    return <p className="text-xs text-zinc-400">No memories found</p>;
+    return <p className="text-xs text-muted-foreground">No memories found</p>;
   }
 
   return (
@@ -542,7 +552,7 @@ function MemoryHitsList({ raw }: { raw?: string }) {
             <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
               {hit.source}
             </span>
-            <span className="text-[10px] text-zinc-400">
+            <span className="text-[10px] text-muted-foreground">
               {(hit.score * 100).toFixed(0)}% match
             </span>
           </div>

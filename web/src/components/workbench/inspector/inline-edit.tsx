@@ -62,7 +62,7 @@ export function InlineEdit({
         <button onClick={commit} className="text-emerald-600 hover:text-emerald-700">
           <HugeiconsIcon icon={Tick01Icon} className="h-3 w-3" size="100%" />
         </button>
-        <button onClick={cancel} className="text-zinc-400 hover:text-zinc-600">
+        <button onClick={cancel} className="text-muted-foreground hover:text-zinc-600">
           <HugeiconsIcon icon={Cancel01Icon} className="h-3 w-3" size="100%" />
         </button>
       </div>

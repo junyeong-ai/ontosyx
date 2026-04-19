@@ -1,6 +1,7 @@
 "use client";
 
 import { forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   ReactFlowProvider,
   useReactFlow,
@@ -54,17 +55,41 @@ interface QueryNodeData extends Record<string, unknown> {
   propCount: number;
   filterCount: number;
   selected: boolean;
+  /** When `true`, the canvas paints a red ring around the node — the
+   *  live validator found a blocking issue (missing label, unknown
+   *  ontology entity, orphan filter, etc.). Independent of `selected`
+   *  so an invalid selected node shows both rings. */
+  hasError: boolean;
   onRemove: () => void;
+  /** Pre-translated strings — next-intl hooks can't be called inside
+   *  nodeTypes renderers registered with ReactFlow, so the parent passes
+   *  them down through node data instead. */
+  i18n: {
+    meta: string;
+    filters: string;
+    removeAria: string;
+    removeTitle: string;
+  };
 }
 
 function QueryNodeRenderer({ data }: NodeProps & { data: QueryNodeData }) {
+  // `hasError` wins over `selected` for border color so a selected
+  // node with a validation issue still advertises the problem; the
+  // secondary outline (ring) keeps the selection cue visible.
+  const borderClass = data.hasError
+    ? "border-red-500 bg-red-50 dark:border-red-500 dark:bg-red-950/30"
+    : data.selected
+      ? "border-emerald-500 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-950/30"
+      : "border-zinc-200 hover:border-emerald-300 dark:border-zinc-700 dark:hover:border-emerald-700";
+
   return (
     <div
-      className={`group/node relative cursor-pointer rounded-xl border-2 bg-white px-4 py-3 text-left shadow-sm transition-all dark:bg-zinc-800 ${
-        data.selected
-          ? "border-emerald-500 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-950/30"
-          : "border-zinc-200 hover:border-emerald-300 dark:border-zinc-700 dark:hover:border-emerald-700"
+      className={`group/node relative cursor-pointer rounded-xl border-2 bg-white px-4 py-3 text-left shadow-sm transition-all dark:bg-zinc-800 ${borderClass} ${
+        data.hasError && data.selected
+          ? "ring-2 ring-emerald-400/60 ring-offset-1 ring-offset-white dark:ring-offset-zinc-900"
+          : ""
       }`}
+      aria-invalid={data.hasError || undefined}
     >
       <Handle type="target" position={Position.Left} className="!h-2 !w-2 !border-zinc-400 !bg-white" />
       <Handle type="source" position={Position.Right} className="!h-2 !w-2 !border-zinc-400 !bg-white" />
@@ -74,9 +99,9 @@ function QueryNodeRenderer({ data }: NodeProps & { data: QueryNodeData }) {
           e.stopPropagation();
           data.onRemove();
         }}
-        aria-label={`Remove node ${data.label}`}
+        aria-label={data.i18n.removeAria}
         className="absolute -right-1.5 -top-1.5 hidden h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] text-white shadow-sm group-hover/node:flex"
-        title="Remove node"
+        title={data.i18n.removeTitle}
       >
         &times;
       </button>
@@ -86,12 +111,10 @@ function QueryNodeRenderer({ data }: NodeProps & { data: QueryNodeData }) {
           {data.label}
         </span>
       </div>
-      <div className="mt-1 text-[10px] text-zinc-400">
-        {data.alias} &middot; {data.propCount} props
+      <div className="mt-1 text-[10px] text-muted-foreground">
+        {data.i18n.meta}
         {data.filterCount > 0 && (
-          <span className="ml-1 text-amber-500">
-            &middot; {data.filterCount} filter{data.filterCount > 1 ? "s" : ""}
-          </span>
+          <span className="ml-1 text-amber-500">{data.i18n.filters}</span>
         )}
       </div>
     </div>
@@ -103,7 +126,16 @@ interface QueryEdgeData extends Record<string, unknown> {
   alias: string;
   filterCount: number;
   selected: boolean;
+  /** Same semantics as `QueryNodeData.hasError` — the live validator
+   *  flagged this edge (missing relationship type, dangling endpoint,
+   *  unknown ontology type, orphan filter). */
+  hasError: boolean;
   onRemove: () => void;
+  /** Pre-translated strings — see `QueryNodeData.i18n` for rationale. */
+  i18n: {
+    removeAria: string;
+    removeTitle: string;
+  };
 }
 
 function QueryEdgeRenderer(props: EdgeProps) {
@@ -119,6 +151,11 @@ function QueryEdgeRenderer(props: EdgeProps) {
   });
 
   const selected = data?.selected ?? false;
+  const hasError = data?.hasError ?? false;
+  // Error stroke beats selection; selection still shines through the
+  // label pill (see below).
+  const stroke = hasError ? "#ef4444" : selected ? "#f59e0b" : "#a1a1aa";
+  const strokeWidth = hasError ? 2.5 : selected ? 2 : 1.5;
 
   return (
     <>
@@ -126,18 +163,18 @@ function QueryEdgeRenderer(props: EdgeProps) {
         id={id}
         path={path}
         markerEnd={markerEnd}
-        style={{
-          stroke: selected ? "#f59e0b" : "#a1a1aa",
-          strokeWidth: selected ? 2 : 1.5,
-        }}
+        style={{ stroke, strokeWidth }}
       />
       <EdgeLabelRenderer>
         <div
           style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
+          aria-invalid={hasError || undefined}
           className={`group/edge pointer-events-auto absolute flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors ${
-            selected
-              ? "border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-600 dark:bg-amber-950/30 dark:text-amber-400"
-              : "border-zinc-300 bg-white text-zinc-500 hover:border-amber-300 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+            hasError
+              ? "border-red-400 bg-red-50 text-red-700 dark:border-red-500 dark:bg-red-950/30 dark:text-red-300"
+              : selected
+                ? "border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-600 dark:bg-amber-950/30 dark:text-amber-400"
+                : "border-zinc-300 bg-white text-zinc-500 hover:border-amber-300 dark:border-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground"
           }`}
         >
           <span>{data?.relType}</span>
@@ -150,9 +187,9 @@ function QueryEdgeRenderer(props: EdgeProps) {
               e.stopPropagation();
               data?.onRemove();
             }}
-            aria-label={`Remove edge ${data?.relType}`}
-            className="ml-0.5 hidden text-zinc-400 hover:text-red-500 group-hover/edge:inline dark:hover:text-red-400"
-            title="Remove edge"
+            aria-label={data?.i18n.removeAria ?? ""}
+            className="ml-0.5 hidden text-muted-foreground hover:text-red-500 group-hover/edge:inline dark:hover:text-red-400"
+            title={data?.i18n.removeTitle ?? ""}
           >
             &times;
           </button>
@@ -183,6 +220,10 @@ export interface QueryCanvasProps {
   onRemoveEdge: (edgeId: string) => void;
   /** Persist a position update so `PatternNode.position` survives reloads. */
   onMoveNode: (nodeId: string, position: { x: number; y: number }) => void;
+  /** Node/edge ids the live validator flagged with `severity: "error"`.
+   *  Default is an empty set — callers without validation still render
+   *  the canvas without any error chrome. */
+  errorIds?: ReadonlySet<string>;
 }
 
 /**
@@ -208,6 +249,13 @@ function defaultGridPosition(index: number): { x: number; y: number } {
   return { x: 80 + col * 220, y: 40 + row * 140 };
 }
 
+/**
+ * Singleton empty set reused for every render when the caller doesn't
+ * supply `errorIds`. Reusing the same identity keeps `useMemo`
+ * dependencies stable across renders.
+ */
+const EMPTY_ERROR_IDS: ReadonlySet<string> = new Set();
+
 const QueryCanvasInner = forwardRef<QueryCanvasHandle, QueryCanvasProps>(function QueryCanvasInner(
   props,
   ref,
@@ -224,7 +272,14 @@ const QueryCanvasInner = forwardRef<QueryCanvasHandle, QueryCanvasProps>(functio
     onRemoveNode,
     onRemoveEdge,
     onMoveNode,
+    errorIds,
   } = props;
+
+  const t = useTranslations("workbench.queryBuilder.canvas");
+
+  // Stable empty set so memoised flowNodes / flowEdges don't see a new
+  // identity on every render when the caller omits `errorIds`.
+  const effectiveErrorIds: ReadonlySet<string> = errorIds ?? EMPTY_ERROR_IDS;
 
   const reactFlow = useReactFlow();
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -273,9 +328,10 @@ const QueryCanvasInner = forwardRef<QueryCanvasHandle, QueryCanvasProps>(functio
 
   const flowNodes: Node[] = useMemo(() => {
     return nodes.map((n, idx) => {
-      const nt = nodeTypes.find((t) => t.label === n.label);
+      const nt = nodeTypes.find((nodeType) => nodeType.label === n.label);
       const position =
         n.position ?? fallbackPositions[n.id] ?? defaultGridPosition(idx);
+      const propCount = nt?.properties.length ?? 0;
       return {
         id: n.id,
         type: "query",
@@ -283,14 +339,21 @@ const QueryCanvasInner = forwardRef<QueryCanvasHandle, QueryCanvasProps>(functio
         data: {
           label: n.label,
           alias: n.alias,
-          propCount: nt?.properties.length ?? 0,
+          propCount,
           filterCount: n.filters.length,
           selected: selectedId === n.id,
+          hasError: effectiveErrorIds.has(n.id),
           onRemove: () => onRemoveNode(n.id),
+          i18n: {
+            meta: t("nodeMeta", { alias: n.alias, count: propCount }),
+            filters: t("nodeFilters", { count: n.filters.length }),
+            removeAria: t("removeNodeAria", { label: n.label }),
+            removeTitle: t("removeNodeTitle"),
+          },
         } satisfies QueryNodeData,
       };
     });
-  }, [nodes, nodeTypes, selectedId, fallbackPositions, onRemoveNode]);
+  }, [nodes, nodeTypes, selectedId, fallbackPositions, onRemoveNode, effectiveErrorIds, t]);
 
   const flowEdges: Edge[] = useMemo(() => {
     return edges.map((e) => ({
@@ -304,10 +367,15 @@ const QueryCanvasInner = forwardRef<QueryCanvasHandle, QueryCanvasProps>(functio
         alias: e.alias,
         filterCount: e.filters.length,
         selected: selectedId === e.id,
+        hasError: effectiveErrorIds.has(e.id),
         onRemove: () => onRemoveEdge(e.id),
+        i18n: {
+          removeAria: t("removeEdgeAria", { label: e.relType }),
+          removeTitle: t("removeEdgeTitle"),
+        },
       } satisfies QueryEdgeData,
     }));
-  }, [edges, selectedId, onRemoveEdge]);
+  }, [edges, selectedId, onRemoveEdge, effectiveErrorIds, t]);
 
   // ----- Drag/drop from palette ----------------------------------------
 
@@ -417,7 +485,10 @@ const QueryCanvasInner = forwardRef<QueryCanvasHandle, QueryCanvasProps>(functio
     if (!target) return [];
     return [
       {
-        label: target.type === "node" ? "Remove node" : "Remove edge",
+        label:
+          target.type === "node"
+            ? t("contextRemoveNode")
+            : t("contextRemoveEdge"),
         shortcut: "Del",
         danger: true,
         onClick: () => {
@@ -430,7 +501,7 @@ const QueryCanvasInner = forwardRef<QueryCanvasHandle, QueryCanvasProps>(functio
         },
       },
     ];
-  }, [contextMenu.state, onRemoveNode, onRemoveEdge, clearSelection]);
+  }, [contextMenu.state, onRemoveNode, onRemoveEdge, clearSelection, t]);
 
   // ----- Empty state ---------------------------------------------------
 
@@ -444,7 +515,7 @@ const QueryCanvasInner = forwardRef<QueryCanvasHandle, QueryCanvasProps>(functio
       >
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800">
           <svg
-            className="h-5 w-5 text-zinc-400"
+            className="h-5 w-5 text-muted-foreground"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -453,11 +524,11 @@ const QueryCanvasInner = forwardRef<QueryCanvasHandle, QueryCanvasProps>(functio
             <path d="M12 4.5v15m7.5-7.5h-15" />
           </svg>
         </div>
-        <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
-          Build your query pattern
+        <p className="text-sm font-medium text-zinc-600 dark:text-muted-foreground">
+          {t("emptyTitle")}
         </p>
-        <p className="text-xs text-zinc-400">
-          Drag node or edge types from the palette, or click them to add.
+        <p className="text-xs text-muted-foreground">
+          {t("emptyHint")}
         </p>
       </div>
     );

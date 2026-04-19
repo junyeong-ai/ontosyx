@@ -189,7 +189,7 @@ export function PropertyRow({
           ) : (
             <button
               onClick={() => setEditingType(true)}
-              className="text-zinc-400 hover:text-zinc-600 hover:underline dark:hover:text-zinc-300"
+              className="text-muted-foreground hover:text-zinc-600 hover:underline dark:hover:text-zinc-300"
               title="Click to change type"
             >
               {formatPropertyType(prop.property_type)}
@@ -199,7 +199,7 @@ export function PropertyRow({
             <button
               onClick={() => onUpdate({ nullable: !prop.nullable })}
               aria-label={prop.nullable ? "Nullable — click to make required" : "Required — click to make nullable"}
-              className={prop.nullable ? "text-zinc-400 hover:text-amber-500" : "text-amber-500 hover:text-zinc-400"}
+              className={prop.nullable ? "text-muted-foreground hover:text-amber-500" : "text-amber-500 hover:text-muted-foreground"}
             >
               {prop.nullable ? "?" : "*"}
             </button>
@@ -212,10 +212,10 @@ export function PropertyRow({
           value={prop.description || ""}
           placeholder="Add description..."
           onSave={(description) => onUpdate({ description: description || null })}
-          className="mt-0.5 break-words text-zinc-400"
+          className="mt-0.5 break-words text-muted-foreground"
         />
         {prop.source_column && (
-          <p className="text-zinc-400">Column: {prop.source_column}</p>
+          <p className="text-muted-foreground">Column: {prop.source_column}</p>
         )}
       </div>
       <Tooltip content="Delete property">

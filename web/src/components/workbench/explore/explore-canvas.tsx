@@ -138,7 +138,7 @@ function ExploreEdgeRenderer(props: EdgeProps) {
         <EdgeLabelRenderer>
           <div
             style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
-            className="pointer-events-none rounded-full border border-zinc-200 bg-white px-1.5 py-0.5 text-[9px] text-zinc-500 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400"
+            className="pointer-events-none rounded-full border border-zinc-200 bg-white px-1.5 py-0.5 text-[9px] text-zinc-500 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-muted-foreground"
           >
             {data.caption}
           </div>
@@ -289,15 +289,28 @@ function ExploreCanvasInner({ focusedNode, neighbors, schemaOverview, onNodeClic
   // Re-layout every time the underlying graph reference changes. ELK is
   // fast enough on the main thread for the sizes explore deals with;
   // a brief loading indicator bridges the gap on slower machines.
-  const [layoutNodes, setLayoutNodes] = useState<Node[]>([]);
+  // `layoutNodesAsync` is the result of the most recent ELK pass.
+  // The empty-graph case renders straight from `built.nodes` (derived
+  // below) so this state never needs to be reset to `[]` inside the
+  // effect — eliminating the `set-state-in-effect` trip.
+  const [layoutNodesAsync, setLayoutNodesAsync] = useState<Node[]>([]);
   const [laying, setLaying] = useState(false);
 
+  // Render-time derivation: when the graph is empty the ELK pass is
+  // skipped and we fall back to the raw `built.nodes` (which is also
+  // empty). Any non-empty frame reuses the async result from below.
+  const layoutNodes = built.nodes.length === 0 ? built.nodes : layoutNodesAsync;
+
   useEffect(() => {
+    if (built.nodes.length === 0) return;
     let cancelled = false;
-    if (built.nodes.length === 0) {
-      setLayoutNodes([]);
-      return;
-    }
+    // Set the "laying out" spinner synchronously so the user sees immediate
+    // feedback on an expensive ELK pass. This is a legitimate exception to
+    // the React 19 `set-state-in-effect` gate: the state reflects the
+    // lifecycle of an external async operation (ELK worker), not a React-
+    // internal cascade. Async mutation state can't be derived from render
+    // and has no useSyncExternalStore analogue.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLaying(true);
     // Feed the shared worker circles with diameter + label gutter so
     // ELK's repulsion accounts for the rendered footprint, not just
@@ -315,7 +328,7 @@ function ExploreCanvasInner({ focusedNode, neighbors, schemaOverview, onNodeClic
         const center = built.focusedId ? positions.get(built.focusedId) : undefined;
         const ox = center?.x ?? 0;
         const oy = center?.y ?? 0;
-        setLayoutNodes(
+        setLayoutNodesAsync(
           built.nodes.map((n) => {
             const pos = positions.get(n.id);
             return pos
@@ -329,7 +342,7 @@ function ExploreCanvasInner({ focusedNode, neighbors, schemaOverview, onNodeClic
         // degraded but visible rather than crashing the page.
         if (!cancelled) {
           console.warn("[explore-canvas] ELK layout failed, falling back to zero positions:", err);
-          setLayoutNodes(built.nodes);
+          setLayoutNodesAsync(built.nodes);
         }
       })
       .finally(() => {
@@ -394,7 +407,7 @@ function ExploreCanvasInner({ focusedNode, neighbors, schemaOverview, onNodeClic
         </div>
       )}
       {isSchemaMode && !laying && (
-        <div className="pointer-events-none absolute right-3 top-3 rounded bg-white/80 px-2.5 py-1 text-[10px] text-zinc-500 shadow-sm dark:bg-zinc-900/80 dark:text-zinc-400">
+        <div className="pointer-events-none absolute right-3 top-3 rounded bg-white/80 px-2.5 py-1 text-[10px] text-zinc-500 shadow-sm dark:bg-zinc-900/80 dark:text-muted-foreground">
           Data Model — click a node to explore
         </div>
       )}
@@ -412,8 +425,8 @@ function ExploreCanvasInner({ focusedNode, neighbors, schemaOverview, onNodeClic
                 aria-label={`${hidden ? "Show" : "Hide"} ${label} nodes`}
                 className={`flex cursor-pointer items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-[10px] shadow-sm transition-opacity dark:bg-zinc-900/80 ${
                   hidden
-                    ? "text-zinc-400 line-through opacity-60 dark:text-zinc-500"
-                    : "text-zinc-500 dark:text-zinc-400"
+                    ? "text-muted-foreground line-through opacity-60 dark:text-zinc-500"
+                    : "text-zinc-500 dark:text-muted-foreground"
                 }`}
               >
                 <span

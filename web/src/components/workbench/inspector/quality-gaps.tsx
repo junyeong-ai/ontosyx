@@ -68,7 +68,7 @@ export function GapsList({
               </Tooltip>
               <span
                 onClick={focusable ? () => navigateToGap(gap) : undefined}
-                className="min-w-0 flex-1 truncate text-zinc-600 dark:text-zinc-400"
+                className="min-w-0 flex-1 truncate text-zinc-600 dark:text-muted-foreground"
               >
                 {gap.issue}
               </span>
@@ -94,7 +94,7 @@ export function GapsList({
             </div>
             <p
               onClick={focusable ? () => navigateToGap(gap) : undefined}
-              className="mt-0.5 truncate pl-3 text-zinc-400"
+              className="mt-0.5 truncate pl-3 text-muted-foreground"
             >
               <Tooltip content={gap.suggestion}>
                 <span className="cursor-default">{gap.suggestion}</span>

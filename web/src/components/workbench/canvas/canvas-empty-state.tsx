@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PencilEdit01Icon, DatabaseIcon, Upload04Icon } from "@hugeicons/core-free-icons";
 
@@ -12,6 +13,7 @@ import { useAppStore } from "@/lib/store";
  * pair when no project has been loaded yet.
  */
 export function CanvasEmptyState() {
+  const t = useTranslations("workbench.canvas.empty");
   const hasProject = useAppStore((s) => s.activeProject !== null);
 
   if (hasProject) {
@@ -21,9 +23,11 @@ export function CanvasEmptyState() {
           <HugeiconsIcon icon={PencilEdit01Icon} className="h-6 w-6 text-emerald-500" size="100%" />
         </div>
         <div className="text-center">
-          <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">Ready to Design</h2>
-          <p className="mt-1.5 max-w-md text-sm text-zinc-600 dark:text-zinc-400">
-            Review the analysis in the Workflow panel below, then click <strong>Design Ontology</strong> to generate your knowledge graph schema.
+          <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">{t("readyTitle")}</h2>
+          <p className="mt-1.5 max-w-md text-sm text-zinc-600 dark:text-muted-foreground">
+            {t.rich("readyHint", {
+              bold: (chunks) => <strong>{chunks}</strong>,
+            })}
           </p>
         </div>
         <button
@@ -34,7 +38,7 @@ export function CanvasEmptyState() {
           }}
           className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-emerald-700"
         >
-          Open Workflow Panel
+          {t("openWorkflow")}
         </button>
       </div>
     );
@@ -46,9 +50,9 @@ export function CanvasEmptyState() {
         <HugeiconsIcon icon={PencilEdit01Icon} className="h-6 w-6 text-emerald-500" size="100%" />
       </div>
       <div className="text-center">
-        <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">Start Designing</h2>
-        <p className="mt-1.5 max-w-md text-sm text-zinc-600 dark:text-zinc-400">
-          Create a project from a data source or import an existing ontology to begin designing your knowledge graph.
+        <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">{t("startTitle")}</h2>
+        <p className="mt-1.5 max-w-md text-sm text-zinc-600 dark:text-muted-foreground">
+          {t("startHint")}
         </p>
       </div>
       <div className="flex items-center gap-4">
@@ -61,10 +65,10 @@ export function CanvasEmptyState() {
           className="flex flex-col items-center gap-2 rounded-xl border border-zinc-200 bg-white p-5 text-center transition-all hover:border-emerald-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-emerald-700"
         >
           <HugeiconsIcon icon={DatabaseIcon} className="h-5 w-5 text-emerald-600 dark:text-emerald-400" size="100%" />
-          <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">Create Project</span>
-          <span className="text-[10px] text-zinc-400">Database, CSV, JSON, or code repo</span>
+          <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">{t("createProject")}</span>
+          <span className="text-[10px] text-muted-foreground">{t("createProjectHint")}</span>
         </button>
-        <span className="text-xs text-zinc-400">or</span>
+        <span className="text-xs text-muted-foreground">{t("or")}</span>
         <button
           onClick={() => {
             const fileInput = document.querySelector('input[type="file"][accept=".json,.ttl,.owl"]') as HTMLInputElement;
@@ -73,8 +77,8 @@ export function CanvasEmptyState() {
           className="flex flex-col items-center gap-2 rounded-xl border border-zinc-200 bg-white p-5 text-center transition-all hover:border-emerald-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-emerald-700"
         >
           <HugeiconsIcon icon={Upload04Icon} className="h-5 w-5 text-indigo-600 dark:text-indigo-400" size="100%" />
-          <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">Import Ontology</span>
-          <span className="text-[10px] text-zinc-400">JSON, OWL, or Turtle file</span>
+          <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">{t("importOntology")}</span>
+          <span className="text-[10px] text-muted-foreground">{t("importOntologyHint")}</span>
         </button>
       </div>
     </div>

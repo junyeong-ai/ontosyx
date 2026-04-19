@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/lib/use-auth";
 import { Spinner } from "@/components/ui/spinner";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -13,6 +14,7 @@ import {
 } from "@/hooks/api/use-dashboards";
 
 export function DashboardPanel() {
+  const t = useTranslations("workbench.bottomPanel.dashboard");
   const { canWrite } = useAuth();
   const confirmDialog = useConfirm();
 
@@ -23,32 +25,31 @@ export function DashboardPanel() {
   const deleteMutation = useDeleteDashboard();
 
   if (isError) {
-    toast.error("Failed to load dashboards");
+    toast.error(t("loadFailed"));
   }
 
   const handleCreate = () => {
     createMutation.mutate(
-      { name: `Dashboard ${dashboards.length + 1}` },
+      { name: t("defaultName", { number: dashboards.length + 1 }) },
       {
-        onSuccess: () => toast.success("Dashboard created"),
-        onError: () => toast.error("Failed to create dashboard"),
+        onSuccess: () => toast.success(t("created")),
+        onError: () => toast.error(t("createFailed")),
       },
     );
   };
 
   const handleDelete = async (id: string) => {
     const confirmed = await confirmDialog({
-      title: "Delete dashboard",
-      description:
-        "This will permanently delete the dashboard and all its widgets.",
-      confirmLabel: "Delete",
+      title: t("deleteConfirmTitle"),
+      description: t("deleteConfirmDescription"),
+      confirmLabel: t("deleteConfirmLabel"),
       variant: "danger",
     });
     if (!confirmed) return;
 
     deleteMutation.mutate(id, {
-      onSuccess: () => toast.success("Dashboard deleted"),
-      onError: () => toast.error("Failed to delete dashboard"),
+      onSuccess: () => toast.success(t("deleted")),
+      onError: () => toast.error(t("deleteFailed")),
     });
   };
 
@@ -64,8 +65,8 @@ export function DashboardPanel() {
     <div className="flex h-full flex-col bg-zinc-50/50 p-4 dark:bg-zinc-950">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
-          Dashboards
-          <span className="ml-2 text-xs font-normal text-zinc-400">
+          {t("title")}
+          <span className="ml-2 text-xs font-normal text-muted-foreground">
             {dashboards.length}
           </span>
         </h2>
@@ -76,7 +77,7 @@ export function DashboardPanel() {
             className="flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
           >
             <HugeiconsIcon icon={Add01Icon} className="h-3 w-3" size="100%" />
-            New
+            {t("new")}
           </button>
         )}
       </div>
@@ -84,9 +85,9 @@ export function DashboardPanel() {
       {dashboards.length === 0 ? (
         <div className="flex flex-1 items-center justify-center">
           <div className="text-center">
-            <p className="text-sm text-muted-foreground">No dashboards yet</p>
-            <p className="mt-1 text-xs text-zinc-400">
-              Create a dashboard to save and monitor your queries and analyses.
+            <p className="text-sm text-muted-foreground">{t("empty")}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t("emptyHint")}
             </p>
           </div>
         </div>
@@ -104,15 +105,15 @@ export function DashboardPanel() {
                 {d.description && (
                   <p className="mt-0.5 text-xs text-muted-foreground">{d.description}</p>
                 )}
-                <p className="mt-0.5 text-[10px] text-zinc-400">
-                  Updated {new Date(d.updated_at).toLocaleDateString()}
+                <p className="mt-0.5 text-[10px] text-muted-foreground">
+                  {t("updated", { date: new Date(d.updated_at).toLocaleDateString() })}
                 </p>
               </div>
               {canWrite && (
                 <button
                   onClick={() => handleDelete(d.id)}
-                  className="rounded p-1 text-zinc-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950"
-                  aria-label="Delete dashboard"
+                  className="rounded p-1 text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950"
+                  aria-label={t("deleteAria")}
                 >
                   <HugeiconsIcon icon={Delete01Icon} className="h-3.5 w-3.5" size="100%" />
                 </button>

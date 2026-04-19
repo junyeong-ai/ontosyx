@@ -68,7 +68,7 @@ export function AiSuggestionRow({
         <button
           onClick={onReject}
           aria-label="Reject"
-          className="rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
+          className="rounded p-0.5 text-muted-foreground hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
         >
           <HugeiconsIcon icon={Cancel01Icon} className="h-3 w-3" size="100%" />
         </button>

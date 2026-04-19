@@ -114,7 +114,7 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
             onClick={undo}
             disabled={commandStack.length === 0}
             aria-label="Undo"
-            className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 disabled:opacity-30 dark:hover:bg-zinc-800"
+            className="rounded p-1 text-muted-foreground hover:bg-zinc-100 hover:text-zinc-600 disabled:opacity-30 dark:hover:bg-zinc-800"
           >
             <HugeiconsIcon icon={UndoIcon} className="h-3 w-3" size="100%" />
           </button>
@@ -124,14 +124,14 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
             onClick={redo}
             disabled={redoStack.length === 0}
             aria-label="Redo"
-            className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 disabled:opacity-30 dark:hover:bg-zinc-800"
+            className="rounded p-1 text-muted-foreground hover:bg-zinc-100 hover:text-zinc-600 disabled:opacity-30 dark:hover:bg-zinc-800"
           >
             <HugeiconsIcon icon={RedoIcon} className="h-3 w-3" size="100%" />
           </button>
         </Tooltip>
         {commandStack.length > 0 && (
           <>
-            <span className="ml-auto text-[9px] text-zinc-400">
+            <span className="ml-auto text-[9px] text-muted-foreground">
               {commandStack.length} change{commandStack.length !== 1 ? "s" : ""}
               {!activeProject && (
                 <span className="ml-1 text-amber-500" title="No project — edits are local only. Open a project to enable saving.">
@@ -165,7 +165,7 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
 
 function Empty({ text }: { text: string }) {
   return (
-    <div className="flex h-full items-center justify-center text-xs text-zinc-400">
+    <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
       {text}
     </div>
   );

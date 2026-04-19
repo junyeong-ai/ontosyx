@@ -1,11 +1,14 @@
 "use client";
 
 import { memo, useEffect, useRef } from "react";
+import { useTranslations } from "next-intl";
 import { Handle, Position, useStore, useUpdateNodeInternals, type NodeProps } from "@xyflow/react";
 import type { NodeTypeDef, PropertyDef, QualityGap } from "@/types/api";
 import { formatPropertyType } from "@/types/api";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
+
+type NodeTranslator = ReturnType<typeof useTranslations<"workbench.canvas.node">>;
 
 // ---------------------------------------------------------------------------
 // Schema node — renders a graph node type on the canvas
@@ -82,6 +85,7 @@ function highlightBorderClass(kind?: import("@/types/api").BindingKind): string 
 }
 
 export const SchemaNode = memo(function SchemaNode({ data, id }: SchemaNodeProps) {
+  const t = useTranslations("workbench.canvas.node");
   const { nodeDef, gaps, selected, highlighted, highlightKind, highlightedPropertyIds, layer, diffStatus, dimmed, verified } = data;
   const highGaps = gaps.filter((g) => g.severity === "high");
   const hasGaps = gaps.length > 0;
@@ -173,7 +177,7 @@ export const SchemaNode = memo(function SchemaNode({ data, id }: SchemaNodeProps
               diffStatus === "added" ? "bg-emerald-500 text-white" : diffStatus === "removed" ? "bg-red-500 text-white" : "bg-amber-500 text-white",
             )}
           >
-            {diffStatus === "added" ? "NEW" : diffStatus === "removed" ? "DEL" : "MOD"}
+            {diffStatus === "added" ? t("diffNew") : diffStatus === "removed" ? t("diffRemoved") : t("diffModified")}
           </div>
         )}
         <Handle type="target" position={Position.Left} id={`${nodeDef.id}:left`}
@@ -200,13 +204,13 @@ export const SchemaNode = memo(function SchemaNode({ data, id }: SchemaNodeProps
         {/* Summary badges */}
         <div className="flex items-center gap-2 border-t border-zinc-100 px-3 py-1 dark:border-zinc-800">
           {nodeDef.properties.length > 0 && (
-            <span className="pl-1.5 text-[9px] text-zinc-400">
-              {nodeDef.properties.length} prop{nodeDef.properties.length > 1 ? "s" : ""}
+            <span className="pl-1.5 text-[9px] text-muted-foreground">
+              {t("properties", { count: nodeDef.properties.length })}
             </span>
           )}
           {nodeDef.constraints && nodeDef.constraints.length > 0 && (
-            <span className="text-[9px] text-zinc-400">
-              {nodeDef.constraints.length} constraint{nodeDef.constraints.length > 1 ? "s" : ""}
+            <span className="text-[9px] text-muted-foreground">
+              {t("constraints", { count: nodeDef.constraints.length })}
             </span>
           )}
         </div>
@@ -258,15 +262,15 @@ export const SchemaNode = memo(function SchemaNode({ data, id }: SchemaNodeProps
           {nodeDef.label}
         </span>
         {highGaps.length > 0 && (
-          <Tooltip content={`${highGaps.length} quality issue(s)`}>
+          <Tooltip content={t("qualityIssues", { count: highGaps.length })}>
             <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-white">
               {highGaps.length}
             </span>
           </Tooltip>
         )}
         {nodeDef.source_table && (
-          <Tooltip content={`Source: ${nodeDef.source_table}`}>
-            <span className="ml-auto shrink-0 text-[9px] text-zinc-400">
+          <Tooltip content={t("sourceTooltip", { table: nodeDef.source_table })}>
+            <span className="ml-auto shrink-0 text-[9px] text-muted-foreground">
               {nodeDef.source_table}
             </span>
           </Tooltip>
@@ -275,14 +279,14 @@ export const SchemaNode = memo(function SchemaNode({ data, id }: SchemaNodeProps
 
       {/* Properties — separated for independent memoization */}
       {nodeDef.properties.length > 0 && (
-        <PropertyList properties={nodeDef.properties} highlightedPropertyIds={highlightedPropertyIds} />
+        <PropertyList properties={nodeDef.properties} highlightedPropertyIds={highlightedPropertyIds} t={t} />
       )}
 
       {/* Constraints badge */}
       {nodeDef.constraints && nodeDef.constraints.length > 0 && (
         <div className="border-t border-zinc-100 px-3 py-1 dark:border-zinc-800">
-          <span className="pl-1.5 text-[9px] text-zinc-400">
-            {nodeDef.constraints.length} constraint{nodeDef.constraints.length > 1 ? "s" : ""}
+          <span className="pl-1.5 text-[9px] text-muted-foreground">
+            {t("constraints", { count: nodeDef.constraints.length })}
           </span>
         </div>
       )}
@@ -297,9 +301,11 @@ export const SchemaNode = memo(function SchemaNode({ data, id }: SchemaNodeProps
 const PropertyList = memo(function PropertyList({
   properties,
   highlightedPropertyIds,
+  t,
 }: {
   properties: PropertyDef[];
   highlightedPropertyIds?: Set<string>;
+  t: NodeTranslator;
 }) {
   return (
     <div className="border-t border-zinc-100 px-3 py-1.5 dark:border-zinc-800">
@@ -311,18 +317,18 @@ const PropertyList = memo(function PropertyList({
             highlightedPropertyIds?.has(prop.id) && "bg-sky-50 dark:bg-sky-950/30",
           )}>
             {isRequired && (
-              <Tooltip content="Required">
+              <Tooltip content={t("required")}>
                 <span className="text-amber-500">*</span>
               </Tooltip>
             )}
             <span className="pl-1.5 text-zinc-700 dark:text-zinc-300">{prop.name}</span>
-            <span className="ml-auto text-zinc-400">{formatPropertyType(prop.property_type)}</span>
+            <span className="ml-auto text-muted-foreground">{formatPropertyType(prop.property_type)}</span>
           </div>
         );
       })}
       {properties.length > 8 && (
-        <div className="py-0.5 text-[9px] text-zinc-400">
-          +{properties.length - 8} more
+        <div className="py-0.5 text-[9px] text-muted-foreground">
+          {t("moreProperties", { count: properties.length - 8 })}
         </div>
       )}
     </div>

@@ -35,7 +35,9 @@ export function resolveSubtitle(props: Record<string, unknown>): string {
 }
 
 // ---------------------------------------------------------------------------
-// Color palette — 50 perceptually distinct hex colors for NVL (no hsl())
+// Color palette — 50 perceptually distinct hex colors for XyFlow graph
+// surfaces (hex only — avoid `hsl()` because XyFlow minimap overrides
+// lose saturation when re-rendering into canvas).
 // ---------------------------------------------------------------------------
 
 export const LABEL_COLOR_PALETTE = [

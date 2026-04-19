@@ -113,7 +113,7 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
       setSelectedIdx(0);
       setTimeout(() => inputRef.current?.focus(), 0);
     }
-  }, [open]);
+  }, [open, setQuery]);
 
   // Reset selected index when results change
   useEffect(() => {
@@ -206,7 +206,7 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
       >
         {/* Search input */}
         <div className="flex items-center gap-2 border-b border-zinc-200 px-3 py-2.5 dark:border-zinc-700">
-          <HugeiconsIcon icon={Search01Icon} className="h-4 w-4 text-zinc-400" size="100%" />
+          <HugeiconsIcon icon={Search01Icon} className="h-4 w-4 text-muted-foreground" size="100%" />
           <input
             ref={inputRef}
             type="search"
@@ -239,8 +239,8 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
             placeholder="Search schema and data..."
             className="flex-1 bg-transparent text-sm text-zinc-800 outline-none placeholder:text-zinc-500 dark:text-zinc-200"
           />
-          {loading && <Spinner size="xs" className="text-zinc-400" />}
-          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
+          {loading && <Spinner size="xs" className="text-muted-foreground" />}
+          <button onClick={onClose} className="text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300">
             <HugeiconsIcon icon={Cancel01Icon} className="h-3.5 w-3.5" size="100%" />
           </button>
         </div>
@@ -249,14 +249,14 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
         <div className="max-h-80 overflow-auto">
           {/* Empty state */}
           {!hasQuery && (
-            <p className="px-4 py-6 text-center text-xs text-zinc-400">
+            <p className="px-4 py-6 text-center text-xs text-muted-foreground">
               Type to search schema — press Enter to search data
             </p>
           )}
 
           {/* Typing hint: has query, no results yet */}
           {hasQuery && !hasSchemaResults && !dataSearched && !loading && (
-            <p className="px-4 py-6 text-center text-xs text-zinc-400">
+            <p className="px-4 py-6 text-center text-xs text-muted-foreground">
               No schema matches — press Enter to search data
             </p>
           )}
@@ -264,7 +264,7 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
           {/* Schema results section */}
           {hasSchemaResults && (
             <div>
-              <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+              <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Schema Matches
               </div>
               {schemaMatches.map((match, i) => {
@@ -290,7 +290,7 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
                       <span className="flex-1 truncate text-xs font-medium text-zinc-800 dark:text-zinc-200">
                         {match.node.label}
                       </span>
-                      <span className="text-[10px] text-zinc-400">
+                      <span className="text-[10px] text-muted-foreground">
                         {propCount} prop{propCount !== 1 ? "s" : ""}
                         {constraintCount > 0 && `, ${constraintCount} constraint${constraintCount !== 1 ? "s" : ""}`}
                       </span>
@@ -313,11 +313,11 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
                         Edge
                       </span>
                       <span className="flex-1 truncate text-xs text-zinc-800 dark:text-zinc-200">
-                        <span className="text-zinc-400">{match.sourceLabel}</span>
+                        <span className="text-muted-foreground">{match.sourceLabel}</span>
                         {" → "}
                         <span className="font-medium">{match.edge.label}</span>
                         {" → "}
-                        <span className="text-zinc-400">{match.targetLabel}</span>
+                        <span className="text-muted-foreground">{match.targetLabel}</span>
                       </span>
                     </button>
                   );
@@ -328,7 +328,7 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
 
           {/* Data search hint — shown when schema results exist but data not yet searched */}
           {hasQuery && hasSchemaResults && !dataSearched && !loading && (
-            <div className="border-t border-zinc-100 px-4 py-2 text-center text-[10px] text-zinc-400 dark:border-zinc-800">
+            <div className="border-t border-zinc-100 px-4 py-2 text-center text-[10px] text-muted-foreground dark:border-zinc-800">
               Press Enter to also search Neo4j data
             </div>
           )}
@@ -336,12 +336,12 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
           {/* Data results section */}
           {dataSearched && (
             <div className={cn(hasSchemaResults && "border-t border-zinc-100 dark:border-zinc-800")}>
-              <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+              <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Data Matches
-                {loading && <Spinner size="xs" className="ml-1 inline-block text-zinc-400" />}
+                {loading && <Spinner size="xs" className="ml-1 inline-block text-muted-foreground" />}
               </div>
               {!loading && !hasDataResults && (
-                <p className="px-4 py-3 text-center text-[10px] text-zinc-400">
+                <p className="px-4 py-3 text-center text-[10px] text-muted-foreground">
                   No data results for &ldquo;{query}&rdquo;
                 </p>
               )}
@@ -364,7 +364,7 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
                       {hit.labels.map((l) => (
                         <span
                           key={l}
-                          className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                          className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground"
                         >
                           {l}
                         </span>
@@ -374,7 +374,7 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
                       <p className="truncate text-xs font-medium text-zinc-800 dark:text-zinc-200">
                         {resolveDisplayName(hit.props)}
                       </p>
-                      <p className="truncate text-[10px] text-zinc-400">
+                      <p className="truncate text-[10px] text-muted-foreground">
                         {resolveSubtitle(hit.props)}
                       </p>
                     </div>
@@ -386,7 +386,7 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
         </div>
 
         {/* Footer hint */}
-        <div className="flex items-center gap-3 border-t border-zinc-200 px-3 py-1.5 text-[10px] text-zinc-400 dark:border-zinc-700">
+        <div className="flex items-center gap-3 border-t border-zinc-200 px-3 py-1.5 text-[10px] text-muted-foreground dark:border-zinc-700">
           <span><kbd className="rounded border border-zinc-300 px-1 dark:border-zinc-600">Enter</kbd> search data</span>
           <span><kbd className="rounded border border-zinc-300 px-1 dark:border-zinc-600">&uarr;&darr;</kbd> navigate</span>
           <span><kbd className="rounded border border-zinc-300 px-1 dark:border-zinc-600">Esc</kbd> close</span>

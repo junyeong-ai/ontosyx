@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { updateWidget } from "@/lib/api";
 import { WIDGET_TYPES } from "@/components/widgets/widget-types";
@@ -19,6 +20,7 @@ export interface WidgetInspectorProps {
 }
 
 export function WidgetInspector({ widget, dashboardId, onUpdated }: WidgetInspectorProps) {
+  const t = useTranslations("workbench.dashboard.inspector");
   const [title, setTitle] = useState(widget.title);
   const [widgetType, setWidgetType] = useState(widget.widget_type);
   const [query, setQuery] = useState(widget.query ?? "");
@@ -58,10 +60,14 @@ export function WidgetInspector({ widget, dashboardId, onUpdated }: WidgetInspec
         refresh_interval_secs: refreshSecs !== (widget.refresh_interval_secs ?? 0) ? refreshSecs : undefined,
         thresholds: thresholdsChanged ? thresholds : undefined,
       });
-      toast.success("Widget updated");
+      toast.success(t("updatedToast"));
       onUpdated();
     } catch (err) {
-      toast.error(`Failed to update: ${err instanceof Error ? err.message : String(err)}`);
+      toast.error(
+        t("updateFailedToast", {
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
     } finally {
       setIsSaving(false);
     }
@@ -71,7 +77,7 @@ export function WidgetInspector({ widget, dashboardId, onUpdated }: WidgetInspec
     <div className="space-y-4">
       <div>
         <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Title
+          {t("titleLabel")}
         </label>
         <input
           value={title}
@@ -81,7 +87,7 @@ export function WidgetInspector({ widget, dashboardId, onUpdated }: WidgetInspec
       </div>
       <div>
         <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Chart Type
+          {t("chartTypeLabel")}
         </label>
         <select
           value={widgetType}
@@ -97,19 +103,19 @@ export function WidgetInspector({ widget, dashboardId, onUpdated }: WidgetInspec
       </div>
       <div>
         <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Cypher Query
+          {t("queryLabel")}
         </label>
         <textarea
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           rows={4}
           className="mt-0.5 w-full rounded-md border border-zinc-200 bg-zinc-900 px-2 py-1.5 font-mono text-xs text-emerald-400 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400/50 focus:outline-none dark:border-zinc-700"
-          placeholder="MATCH (n) RETURN n.name, count(*) LIMIT 10"
+          placeholder={t("queryPlaceholder")}
         />
       </div>
       <div>
         <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Auto-Refresh (seconds)
+          {t("autoRefreshLabel")}
         </label>
         <input
           type="number"
@@ -117,17 +123,17 @@ export function WidgetInspector({ widget, dashboardId, onUpdated }: WidgetInspec
           value={refreshSecs}
           onChange={(e) => setRefreshSecs(parseInt(e.target.value) || 0)}
           className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-sm text-zinc-700 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400/50 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-          placeholder="0 = disabled"
+          placeholder={t("autoRefreshPlaceholder")}
         />
-        <p className="mt-0.5 text-[10px] text-zinc-400">0 = no auto-refresh</p>
+        <p className="mt-0.5 text-[10px] text-muted-foreground">{t("autoRefreshHint")}</p>
       </div>
       <div>
         <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          KPI Thresholds
+          {t("thresholdsLabel")}
         </label>
         <div className="mt-0.5 grid grid-cols-2 gap-2">
           <div>
-            <label className="text-[9px] text-zinc-400">Warning</label>
+            <label className="text-[9px] text-muted-foreground">{t("warningLabel")}</label>
             <input
               type="number"
               value={thresholds.warning ?? ""}
@@ -138,11 +144,11 @@ export function WidgetInspector({ widget, dashboardId, onUpdated }: WidgetInspec
                 }))
               }
               className="w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm text-zinc-700 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400/50 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-              placeholder="e.g. 80"
+              placeholder={t("warningPlaceholder")}
             />
           </div>
           <div>
-            <label className="text-[9px] text-zinc-400">Critical</label>
+            <label className="text-[9px] text-muted-foreground">{t("criticalLabel")}</label>
             <input
               type="number"
               value={thresholds.critical ?? ""}
@@ -153,7 +159,7 @@ export function WidgetInspector({ widget, dashboardId, onUpdated }: WidgetInspec
                 }))
               }
               className="w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm text-zinc-700 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400/50 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-              placeholder="e.g. 95"
+              placeholder={t("criticalPlaceholder")}
             />
           </div>
         </div>
@@ -167,8 +173,8 @@ export function WidgetInspector({ widget, dashboardId, onUpdated }: WidgetInspec
           }
           className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-700 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400/50 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
         >
-          <option value="above">Alert when above threshold</option>
-          <option value="below">Alert when below threshold</option>
+          <option value="above">{t("directionAbove")}</option>
+          <option value="below">{t("directionBelow")}</option>
         </select>
       </div>
       {hasChanges && (
@@ -177,7 +183,7 @@ export function WidgetInspector({ widget, dashboardId, onUpdated }: WidgetInspec
           disabled={isSaving}
           className="w-full rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
         >
-          {isSaving ? "Saving..." : "Save Changes"}
+          {isSaving ? t("saving") : t("saveButton")}
         </button>
       )}
     </div>

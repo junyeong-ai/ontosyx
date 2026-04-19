@@ -1,7 +1,16 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
 import type { DesignSource } from "@/types/api";
+
+// Known project statuses — localized via workbench.bottomPanel.workflow.stepXxx keys.
+// Unknown statuses fall back to the raw wire string.
+const KNOWN_STATUSES = ["analyzed", "designed", "completed"] as const;
+type KnownStatus = (typeof KNOWN_STATUSES)[number];
+function isKnownStatus(s: string): s is KnownStatus {
+  return (KNOWN_STATUSES as readonly string[]).includes(s);
+}
 
 export type GenerateSourceType = DesignSource["type"];
 
@@ -37,6 +46,17 @@ export function formatGapLocation(loc: Record<string, unknown>): string {
 }
 
 export function StatusBadge({ status }: { status: string }) {
+  const t = useTranslations("workbench.bottomPanel.workflow");
+  // Wire values for status mirror the Analyze / Design / Complete steps —
+  // re-use the step labels already declared in the workflow bundle, and
+  // fall back to the raw value for any future variants.
+  const label = isKnownStatus(status)
+    ? status === "analyzed"
+      ? t("stepAnalyze")
+      : status === "designed"
+        ? t("stepDesign")
+        : t("stepComplete")
+    : status;
   return (
     <span
       className={cn(
@@ -48,7 +68,7 @@ export function StatusBadge({ status }: { status: string }) {
             : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
       )}
     >
-      {status}
+      {label}
     </span>
   );
 }

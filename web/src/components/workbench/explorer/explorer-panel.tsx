@@ -79,7 +79,7 @@ const NodeItem = memo(function NodeItem({
         {node.label}
       </span>
       <Tooltip content={`${node.properties.length} properties`}>
-        <span className="text-[10px] text-zinc-400">
+        <span className="text-[10px] text-muted-foreground">
           {node.properties.length} props
         </span>
       </Tooltip>
@@ -133,13 +133,13 @@ const EdgeItem = memo(function EdgeItem({
         selected && "bg-emerald-50 dark:bg-emerald-950/30",
       )}
     >
-      <HugeiconsIcon icon={ArrowRight01Icon} className="h-2.5 w-2.5 text-zinc-400" size="100%" />
+      <HugeiconsIcon icon={ArrowRight01Icon} className="h-2.5 w-2.5 text-muted-foreground" size="100%" />
       <span className="flex-1 truncate text-zinc-700 dark:text-zinc-300">
-        <span className="text-zinc-400">{sourceLabel}</span>
+        <span className="text-muted-foreground">{sourceLabel}</span>
         {" → "}
         <span className="font-medium">{edge.label.replace(/_/g, " ").toLowerCase()}</span>
         {" → "}
-        <span className="text-zinc-400">{targetLabel}</span>
+        <span className="text-muted-foreground">{targetLabel}</span>
       </span>
       {isAdded && (
         <span className="rounded bg-emerald-100 px-1 text-[8px] font-bold uppercase text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">
@@ -270,7 +270,7 @@ export function ExplorerPanel({ gaps }: { gaps: QualityGap[] }) {
 
   if (!ontology) {
     return (
-      <div className="flex h-full items-center justify-center p-4 text-xs text-zinc-400">
+      <div className="flex h-full items-center justify-center p-4 text-xs text-muted-foreground">
         No ontology
       </div>
     );
@@ -281,7 +281,7 @@ export function ExplorerPanel({ gaps }: { gaps: QualityGap[] }) {
       {/* Search */}
       <div className="border-b border-zinc-200 p-2 dark:border-zinc-800">
         <div className="flex items-center gap-1.5 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900">
-          <HugeiconsIcon icon={Search01Icon} className="h-3 w-3 text-zinc-400" size="100%" />
+          <HugeiconsIcon icon={Search01Icon} className="h-3 w-3 text-muted-foreground" size="100%" />
           <input
             type="text"
             value={search}
@@ -293,7 +293,7 @@ export function ExplorerPanel({ gaps }: { gaps: QualityGap[] }) {
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-x-3 gap-y-0.5 border-b border-zinc-200 px-3 py-1.5 text-[9px] text-zinc-400 dark:border-zinc-800">
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5 border-b border-zinc-200 px-3 py-1.5 text-[9px] text-muted-foreground dark:border-zinc-800">
         <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />Asserted</span>
         <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-sky-500" />Suggested</span>
         <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-zinc-300 dark:bg-zinc-600" />Inferred</span>
@@ -420,6 +420,13 @@ function VirtualizedTree({
     return result;
   }, [nodes, edges, nodesOpen, edgesOpen, nodeCount, edgeCount]);
 
+  // `useVirtualizer` from @tanstack/virtual returns non-memoizable
+  // closures (scrollRef-driven getters). React Compiler correctly
+  // refuses to memoize callsites that consume it, and this rule is
+  // informational — the rest of the file still benefits from the
+  // compiler's optimisations. The lint will clear once @tanstack/virtual
+  // ships compiler-friendly metadata.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,

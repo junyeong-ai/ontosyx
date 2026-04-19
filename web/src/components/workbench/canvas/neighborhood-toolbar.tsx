@@ -1,8 +1,10 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useAppStore } from "@/lib/store";
 
 export function NeighborhoodToolbar() {
+  const t = useTranslations("workbench.canvas.neighborhood");
   const neighborhoodFocus = useAppStore((s) => s.neighborhoodFocus);
   const setNeighborhoodFocus = useAppStore((s) => s.setNeighborhoodFocus);
 
@@ -12,7 +14,7 @@ export function NeighborhoodToolbar() {
 
   return (
     <div className="absolute top-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2 py-1 shadow-md dark:border-zinc-700 dark:bg-zinc-900">
-      <span className="mr-2 text-xs text-muted-foreground">Neighborhood</span>
+      <span className="mr-2 text-xs text-muted-foreground">{t("label")}</span>
       {([1, 2, 3] as const).map((d) => (
         <button
           key={d}
@@ -23,16 +25,16 @@ export function NeighborhoodToolbar() {
               : "text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
           }`}
         >
-          {d}-hop
+          {t("hop", { depth: d })}
         </button>
       ))}
       <button
         onClick={() => setNeighborhoodFocus(null)}
         className="ml-1 rounded px-2 py-0.5 text-xs font-medium text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
       >
-        All
+        {t("all")}
       </button>
-      <span className="ml-1 text-[10px] text-zinc-400">(Esc to exit)</span>
+      <span className="ml-1 text-[10px] text-muted-foreground">{t("escHint")}</span>
     </div>
   );
 }

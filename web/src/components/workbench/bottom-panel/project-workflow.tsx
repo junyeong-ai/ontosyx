@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { ApiError, getProject } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { toast } from "sonner";
@@ -26,6 +27,8 @@ export function ProjectWorkflow({
   setProject: (p: DesignProject | null) => void;
   setOntology: (o: OntologyIR) => void;
 }) {
+  const t = useTranslations("workbench.bottomPanel.workflow");
+  const tActions = useTranslations("workbench.bottomPanel.workflowActions");
   const report = project.analysis_report;
   const [loading, setLoading] = useState(false);
   const analysisRef = useRef<HTMLDetailsElement>(null);
@@ -35,8 +38,8 @@ export function ProjectWorkflow({
   // Shared error handler
   async function handleApiError(err: unknown, label: string): Promise<boolean> {
     if (err instanceof ApiError && err.type === "conflict") {
-      toast.error("Conflict: project was modified elsewhere", {
-        description: "Reloading latest version.",
+      toast.error(tActions("conflictTitle"), {
+        description: tActions("conflictDescription"),
       });
       try {
         const fresh = await getProject(project.id);
@@ -47,7 +50,7 @@ export function ProjectWorkflow({
       return true;
     }
     toast.error(label, {
-      description: err instanceof Error ? err.message : "Unknown error",
+      description: err instanceof Error ? err.message : tActions("unknownError"),
     });
     return false;
   }
@@ -73,7 +76,7 @@ export function ProjectWorkflow({
                     "flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-bold",
                     i <= currentStepIndex
                       ? "bg-emerald-500 text-white"
-                      : "bg-zinc-200 text-zinc-400 dark:bg-zinc-700",
+                      : "bg-zinc-200 text-muted-foreground dark:bg-zinc-700",
                   )}
                 >
                   {i + 1}
@@ -83,10 +86,14 @@ export function ProjectWorkflow({
                     "text-[9px] font-medium capitalize",
                     i <= currentStepIndex
                       ? "text-emerald-600 dark:text-emerald-400"
-                      : "text-zinc-400",
+                      : "text-muted-foreground",
                   )}
                 >
-                  {step === "analyzed" ? "Analyze" : step === "designed" ? "Design" : "Complete"}
+                  {step === "analyzed"
+                    ? t("stepAnalyze")
+                    : step === "designed"
+                      ? t("stepDesign")
+                      : t("stepComplete")}
                 </span>
               </div>
               {i < STATUS_STEPS.length - 1 && (
@@ -106,17 +113,23 @@ export function ProjectWorkflow({
         {/* Contextual status guide */}
         {project.status === "analyzed" && (
           <p className="px-2 text-xs text-muted-foreground">
-            Review the analysis results and resolve PII/Clarification decisions, then click Design Ontology.
+            {t("analyzedGuidance")}
           </p>
         )}
         {project.status === "designed" && (
           <p className="px-2 text-xs text-muted-foreground">
-            Review the ontology on the canvas. Use ⌘K to edit, then Complete &amp; Save when ready.
+            {t.rich("designedGuidance", {
+              kbd: (chunks) => (
+                <kbd className="rounded bg-zinc-200 px-1 py-0.5 font-mono text-[9px] dark:bg-zinc-700">
+                  {chunks}
+                </kbd>
+              ),
+            })}
           </p>
         )}
         {project.status === "completed" && (
           <p className="px-2 text-xs text-muted-foreground">
-            Ontology saved. Use Analyze mode to query, or Fork to create a new version.
+            {t("completedGuidance")}
           </p>
         )}
 
@@ -142,7 +155,7 @@ export function ProjectWorkflow({
           <div className="rounded-lg border border-zinc-200 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Quality
+                {t("qualityHeader")}
               </h4>
               <span
                 className={cn(
@@ -154,7 +167,11 @@ export function ProjectWorkflow({
                       : "bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-200",
                 )}
               >
-                {project.quality_report.confidence}
+                {project.quality_report.confidence === "high"
+                  ? t("confidenceHigh")
+                  : project.quality_report.confidence === "medium"
+                    ? t("confidenceMedium")
+                    : t("confidenceLow")}
               </span>
             </div>
             {/* Counts summary */}
@@ -166,25 +183,25 @@ export function ProjectWorkflow({
                 const low = gaps.filter((g) => g.severity === "low").length;
                 return (
                   <>
-                    {high > 0 && <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-950/60 dark:text-red-300">{high} High</span>}
-                    {medium > 0 && <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">{medium} Medium</span>}
-                    {low > 0 && <span className="rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">{low} Low</span>}
+                    {high > 0 && <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-950/60 dark:text-red-300">{t("highSeverity", { count: high })}</span>}
+                    {medium > 0 && <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">{t("mediumSeverity", { count: medium })}</span>}
+                    {low > 0 && <span className="rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground">{t("lowSeverity", { count: low })}</span>}
                   </>
                 );
               })()}
             </div>
             {/* Guidance */}
             <p className="mt-2 text-[10px] text-muted-foreground">
-              {project.quality_report.confidence === "high" && "\u2713 High confidence — ready to finalize."}
-              {project.quality_report.confidence === "medium" && "Consider refining with \u2318K before completing."}
-              {project.quality_report.confidence === "low" && "\u26a0 Low confidence — review quality gaps before proceeding."}
+              {project.quality_report.confidence === "high" && t("guidanceHigh")}
+              {project.quality_report.confidence === "medium" && t("guidanceMedium")}
+              {project.quality_report.confidence === "low" && t("guidanceLow")}
             </p>
             {/* Link to Quality tab */}
             <button
               onClick={() => useAppStore.getState().setDesignBottomTab("quality")}
               className="mt-1.5 text-[10px] font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
             >
-              View full report →
+              {t("viewFullReport")}
             </button>
           </div>
         )}
@@ -205,11 +222,15 @@ export function ProjectWorkflow({
         {report && !isCompleted && (
           <details ref={analysisRef} open={!isDesigned}>
             <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-zinc-700 dark:hover:text-zinc-300">
-              Analysis Review
-              <span className="ml-2 text-[10px] font-normal normal-case text-zinc-400">
+              {t("analysisReview")}
+              <span className="ml-2 text-[10px] font-normal normal-case text-muted-foreground">
                 {decisions.unresolvedPiiCount + decisions.unresolvedClarificationCount > 0
-                  ? `${decisions.unresolvedPiiCount + decisions.unresolvedClarificationCount} unresolved`
-                  : "all resolved"}
+                  ? t("unresolved", {
+                      count:
+                        decisions.unresolvedPiiCount +
+                        decisions.unresolvedClarificationCount,
+                    })
+                  : t("allResolved")}
               </span>
             </summary>
             <div className="mt-2">

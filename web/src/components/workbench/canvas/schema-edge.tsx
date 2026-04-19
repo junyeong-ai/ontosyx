@@ -123,7 +123,7 @@ export const SchemaEdge = memo(function SchemaEdge({
                   ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300"
                   : highlighted
                     ? highlightLabelClass(highlightKind)
-                    : "bg-white text-zinc-500 shadow-sm dark:bg-zinc-800 dark:text-zinc-400",
+                    : "bg-white text-zinc-500 shadow-sm dark:bg-zinc-800 dark:text-muted-foreground",
           )}
           style={{
             transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
@@ -139,7 +139,7 @@ export const SchemaEdge = memo(function SchemaEdge({
           )}
           {edgeDef?.label ?? id}
           {edgeDef?.cardinality && edgeDef.cardinality !== "many_to_many" && (
-            <span className="ml-1 text-[8px] text-zinc-400">
+            <span className="ml-1 text-[8px] text-muted-foreground">
               ({formatCardinality(edgeDef.cardinality)})
             </span>
           )}

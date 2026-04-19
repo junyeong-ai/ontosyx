@@ -1,7 +1,7 @@
-/* eslint-disable react-hooks/rules-of-hooks */
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useAppStore } from "@/lib/store";
 import {
   ApiError,
@@ -35,35 +35,12 @@ export { VersionDiffBar } from "./version-diff-bar";
 // Loading hints — rotate tips while LLM processes
 // ---------------------------------------------------------------------------
 
-const LOADING_TIPS = [
-  // Edit tips
-  "Be specific — 'Add string property email to Customer node'",
-  "Include data type and target — 'Add integer property age to Driver'",
-  "You can remove edges too — 'Remove the MANAGES edge'",
-  "Batch edits work — 'Add description to all nodes missing one'",
-  // Undo & safety
-  "Every edit can be undone with Ctrl+Z",
-  "Edit mode previews changes before applying — review carefully",
-  "Refine mode replaces the entire ontology — use Edit for small changes",
-  // Workflow tips
-  "Quality tab shows gaps the AI can auto-fix with one click",
-  "Click a quality gap's Fix button to auto-generate the edit request",
-  "Use the Chat tab for multi-step analysis and complex questions",
-  // Schema & data tips
-  "The agent can explore your source schema — ask about table structures",
-  "Ask 'detect schema drift' to find mismatches between source and ontology",
-  "Use recall_memory to find similar past analyses across sessions",
-  // Analysis tips
-  "Prefix with ! in Chat for raw Cypher queries — skip the AI",
-  "Pin query results to dashboards directly from the Chat",
-  "Ask for EDA to get automated distribution and outlier analysis",
-  // Design best practices
-  "Good node names are singular nouns — Customer, not Customers",
-  "Every node should have a description for better query translation",
-  "Unique constraints help the AI generate more precise queries",
-];
-
 function LoadingHint({ baseMessage }: { baseMessage: string }) {
+  const t = useTranslations("workbench.canvas.commandBar");
+  // `t.raw` returns the underlying JSON value — an array of tips — without
+  // formatting. Memoised here to keep a stable reference across renders;
+  // otherwise the rotating `setInterval` would trip up on identity changes.
+  const tips = useMemo(() => t.raw("loadingTips") as string[], [t]);
   const [tipIndex, setTipIndex] = useState(0);
   const [showTip, setShowTip] = useState(false);
 
@@ -72,20 +49,20 @@ function LoadingHint({ baseMessage }: { baseMessage: string }) {
     const showTimer = setTimeout(() => setShowTip(true), 2000);
     // Rotate tips every 3 seconds
     const rotateTimer = setInterval(() => {
-      setTipIndex((prev) => (prev + 1) % LOADING_TIPS.length);
+      setTipIndex((prev) => (prev + 1) % tips.length);
     }, 3000);
     return () => {
       clearTimeout(showTimer);
       clearInterval(rotateTimer);
     };
-  }, []);
+  }, [tips.length]);
 
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-[10px] text-zinc-400">{baseMessage}</span>
+      <span className="text-[10px] text-muted-foreground">{baseMessage}</span>
       {showTip && (
-        <span className="text-[9px] text-zinc-400/50 transition-opacity duration-300">
-          · {LOADING_TIPS[tipIndex]}
+        <span className="text-[9px] text-muted-foreground/50 transition-opacity duration-300">
+          · {tips[tipIndex]}
         </span>
       )}
     </div>
@@ -116,6 +93,7 @@ type Phase =
 // ---------------------------------------------------------------------------
 
 export function CommandBar() {
+  const t = useTranslations("workbench.canvas.commandBar");
   const activeProject = useAppStore((s) => s.activeProject);
   const setActiveProject = useAppStore((s) => s.setActiveProject);
   const setOntology = useAppStore((s) => s.setOntology);
@@ -187,7 +165,7 @@ export function CommandBar() {
   const handleEditSubmit = useCallback(async () => {
     if (!activeProject || !input.trim()) return;
 
-    setPhase({ type: "loading", message: "Analyzing structure & generating commands..." });
+    setPhase({ type: "loading", message: t("loadingAnalyzing") });
     try {
       const resp = await editProject(activeProject.id, {
         revision: activeProject.revision,
@@ -196,8 +174,8 @@ export function CommandBar() {
       });
 
       if (resp.commands.length === 0) {
-        toast.info("No changes needed", {
-          description: resp.explanation || "The ontology already matches your request.",
+        toast.info(t("noChanges"), {
+          description: resp.explanation || t("noChangesFallback"),
         });
         setPhase({ type: "input" });
         return;
@@ -209,14 +187,19 @@ export function CommandBar() {
         explanation: resp.explanation,
       });
     } catch (err) {
-      toast.error("Edit failed", {
-        description: err instanceof Error ? err.message : "Unknown error",
+      toast.error(t("editFailed"), {
+        description: err instanceof Error ? err.message : t("unknownError"),
       });
       setPhase({ type: "input" });
     }
-  }, [activeProject, input]);
+  }, [activeProject, input, t]);
 
-  // Keep ref in sync for auto-submit from external triggers
+  // Keep ref in sync for auto-submit from external triggers.
+  // TODO(phase-2): replace this render-phase assignment with
+  // `useEffectEvent(handleEditSubmit)` once a stable API is available;
+  // until then the guarded assignment is the minimum-risk way to
+  // expose the latest callback to a global keybinding.
+  // eslint-disable-next-line react-hooks/refs
   handleEditSubmitRef.current = handleEditSubmit;
 
   const handleApplyCommands = useCallback(
@@ -224,13 +207,13 @@ export function CommandBar() {
       for (const cmd of accepted) {
         applyCommand(cmd);
       }
-      toast.success(`Applied ${accepted.length} command${accepted.length === 1 ? "" : "s"}`, {
-        description: "Use Ctrl+Z to undo individual commands",
+      toast.success(t("appliedToast", { count: accepted.length }), {
+        description: t("appliedDescription"),
       });
       setInput("");
       setOpen(false);
     },
-    [applyCommand],
+    [applyCommand, t],
   );
 
   // ---------------------------------------------------------------------------
@@ -241,15 +224,14 @@ export function CommandBar() {
     if (!activeProject || !input.trim()) return;
 
     const confirmed = await confirmDialog({
-      title: "Refine Ontology",
-      description:
-        "Refine will replace the entire ontology with a new LLM-generated version. This cannot be undone. Continue?",
-      confirmLabel: "Refine",
+      title: t("refineConfirmTitle"),
+      description: t("refineConfirmDescription"),
+      confirmLabel: t("refineConfirmLabel"),
       variant: "warning",
     });
     if (!confirmed) return;
 
-    setPhase({ type: "loading", message: "Refining ontology with additional context..." });
+    setPhase({ type: "loading", message: t("loadingRefining") });
     try {
       const resp = await refineProject(activeProject.id, {
         revision: activeProject.revision,
@@ -264,7 +246,7 @@ export function CommandBar() {
       }
       setInput("");
       setOpen(false);
-      toast.success("Ontology refined", { description: resp.profile_summary });
+      toast.success(t("refineSuccess"), { description: resp.profile_summary });
     } catch (err) {
       if (
         err instanceof ApiError &&
@@ -279,13 +261,13 @@ export function CommandBar() {
         });
         setInput("");
         setOpen(false);
-        toast.warning("Refine produced uncertain matches", {
-          description: `${details.report.uncertain_matches.length} match(es) need review`,
+        toast.warning(t("uncertainMatchesTitle"), {
+          description: t("uncertainMatchesDescription", { count: details.report.uncertain_matches.length }),
           duration: 8000,
         });
       } else {
-        toast.error("Refine failed", {
-          description: err instanceof Error ? err.message : "Unknown error",
+        toast.error(t("refineFailed"), {
+          description: err instanceof Error ? err.message : t("unknownError"),
         });
       }
       setPhase({ type: "input" });
@@ -297,6 +279,7 @@ export function CommandBar() {
     setActiveProject,
     setOntology,
     setLastReconcileReport,
+    t,
   ]);
 
   const handleSubmit = useCallback(() => {
@@ -340,7 +323,7 @@ export function CommandBar() {
           className={cn(
             "flex items-center gap-2 rounded-full border border-zinc-200 bg-white/90 px-4 py-2 text-xs font-medium text-zinc-600 shadow-lg backdrop-blur-sm transition-all",
             "hover:border-emerald-300 hover:bg-white hover:text-emerald-700 hover:shadow-emerald-100",
-            "dark:border-zinc-700 dark:bg-zinc-900/90 dark:text-zinc-400 dark:hover:border-emerald-600 dark:hover:text-emerald-400",
+            "dark:border-zinc-700 dark:bg-zinc-900/90 dark:text-muted-foreground dark:hover:border-emerald-600 dark:hover:text-emerald-400",
           )}
         >
           <HugeiconsIcon
@@ -348,8 +331,8 @@ export function CommandBar() {
             className="h-3.5 w-3.5"
             size="100%"
           />
-          Ask Ontosyx
-          <kbd className="ml-1 rounded bg-zinc-100 px-1.5 py-0.5 text-[9px] font-mono text-zinc-400 dark:bg-zinc-800">
+          {t("askOntosyx")}
+          <kbd className="ml-1 rounded bg-zinc-100 px-1.5 py-0.5 text-[9px] font-mono text-muted-foreground dark:bg-zinc-800">
             {"\u2318"}K
           </kbd>
         </button>
@@ -359,7 +342,7 @@ export function CommandBar() {
 
   // Expanded: command bar
   return (
-    <div className="absolute bottom-4 left-1/2 z-10 w-[560px] -translate-x-1/2" role="dialog" aria-label="Command bar">
+    <div className="absolute bottom-4 left-1/2 z-10 w-[560px] -translate-x-1/2" role="dialog" aria-label={t("commandBarAria")}>
       {/* Preview panel (rendered above input when in preview phase) */}
       {phase.type === "preview" && (
         <div className="mb-2">
@@ -386,7 +369,7 @@ export function CommandBar() {
         {/* Unsaved changes warning for refine mode */}
         {mode === "refine" && commandStack.length > 0 && (
           <div className="border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-[10px] text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-400">
-            Save pending changes first ({"\u2318"}S) before using LLM refine
+            {t("saveFirst")}
           </div>
         )}
 
@@ -399,12 +382,12 @@ export function CommandBar() {
                 if (canEdit) setMode("edit");
               }}
               disabled={!canEdit || loading}
-              title="Surgical edits — preview commands before applying, full undo support"
+              title={t("editTitle")}
               className={cn(
                 "flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-all",
                 mode === "edit"
                   ? "bg-white text-zinc-800 shadow-sm dark:bg-zinc-700 dark:text-zinc-200"
-                  : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300",
+                  : "text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300",
                 (!canEdit || loading) && "cursor-not-allowed opacity-40",
               )}
             >
@@ -413,19 +396,19 @@ export function CommandBar() {
                 className="h-3 w-3"
                 size="100%"
               />
-              Edit
+              {t("edit")}
             </button>
             <button
               onClick={() => {
                 if (canRefine) setMode("refine");
               }}
               disabled={!canRefine || loading}
-              title="Full LLM redesign — replaces the entire ontology"
+              title={t("refineTitle")}
               className={cn(
                 "flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-all",
                 mode === "refine"
                   ? "bg-white text-zinc-800 shadow-sm dark:bg-zinc-700 dark:text-zinc-200"
-                  : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300",
+                  : "text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300",
                 (!canRefine || loading) && "cursor-not-allowed opacity-40",
               )}
             >
@@ -434,7 +417,7 @@ export function CommandBar() {
                 className="h-3 w-3"
                 size="100%"
               />
-              Refine
+              {t("refine")}
             </button>
           </div>
 
@@ -444,7 +427,7 @@ export function CommandBar() {
           ) : (
             <HugeiconsIcon
               icon={MagicWand01Icon}
-              className="h-4 w-4 shrink-0 text-zinc-400"
+              className="h-4 w-4 shrink-0 text-muted-foreground"
               size="100%"
             />
           )}
@@ -466,11 +449,11 @@ export function CommandBar() {
             }}
             placeholder={
               mode === "edit"
-                ? "Describe changes... e.g. 'Add a Category node with name property'"
-                : "Describe ontology refinement... (full LLM redesign)"
+                ? t("placeholderEdit")
+                : t("placeholderRefine")
             }
             disabled={loading || phase.type === "preview"}
-            aria-label="Enter command"
+            aria-label={t("inputAria")}
             className={cn(
               "flex-1 bg-transparent text-sm text-zinc-800 outline-none placeholder:text-muted-foreground",
               "dark:text-zinc-200 dark:placeholder:text-zinc-500",
@@ -489,7 +472,7 @@ export function CommandBar() {
                 className="h-3 w-3"
                 size="100%"
               />
-              {mode === "edit" ? "Preview" : "Refine"}
+              {mode === "edit" ? t("previewEdit") : t("refineBtn")}
             </button>
           )}
 
@@ -497,8 +480,8 @@ export function CommandBar() {
           <button
             onClick={handleClose}
             disabled={loading}
-            aria-label="Close command bar"
-            className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 disabled:opacity-50 dark:hover:bg-zinc-800"
+            aria-label={t("closeAria")}
+            className="rounded-md p-1 text-muted-foreground hover:bg-zinc-100 hover:text-zinc-600 disabled:opacity-50 dark:hover:bg-zinc-800"
           >
             <HugeiconsIcon
               icon={Cancel01Icon}
@@ -513,12 +496,12 @@ export function CommandBar() {
           {loading && phase.type === "loading" ? (
             <LoadingHint baseMessage={phase.message} />
           ) : (
-            <span className="text-[10px] text-zinc-400">
+            <span className="text-[10px] text-muted-foreground">
               {phase.type === "preview"
-                ? "Select commands to apply, then click Apply"
+                ? t("hintPreview")
                 : mode === "edit"
-                  ? "Enter to preview commands \u00b7 Esc to close \u00b7 Surgical edits with undo support"
-                  : "Enter to submit \u00b7 Esc to close \u00b7 Full LLM redesign (replaces ontology)"}
+                  ? t("hintEdit")
+                  : t("hintRefine")}
             </span>
           )}
         </div>

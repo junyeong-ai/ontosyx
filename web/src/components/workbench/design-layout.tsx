@@ -33,7 +33,10 @@ export function DesignLayout() {
   const [searchOpen, setSearchOpen] = useState(false);
   const closeSearch = useCallback(() => setSearchOpen(false), []);
 
-  // Sync react-resizable-panels collapse/expand with store state
+  // Sync react-resizable-panels collapse/expand with store state.
+  // `bottomPanelRef` is a panel ref whose `.current` is assigned by the
+  // resizable-panels lib after mount; depending on the ref identity is
+  // a no-op (refs are stable) but the lint insists — add it verbatim.
   useEffect(() => {
     const panel = bottomPanelRef.current;
     if (!panel) return;
@@ -42,7 +45,7 @@ export function DesignLayout() {
     } else if (!isBottomPanelOpen && !panel.isCollapsed()) {
       panel.collapse();
     }
-  }, [isBottomPanelOpen]);
+  }, [isBottomPanelOpen, bottomPanelRef]);
 
   // Restore ontology from active project when entering Design mode.
   // If no active project, clear any orphaned ontology from other modes
@@ -102,7 +105,7 @@ export function DesignLayout() {
                     <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                       Explorer
                     </span>
-                    <button onClick={toggleExplorer} className="text-zinc-400 hover:text-zinc-600">
+                    <button onClick={toggleExplorer} className="text-muted-foreground hover:text-zinc-600">
                       <HugeiconsIcon icon={PanelLeftIcon} className="h-3 w-3" size="100%" />
                     </button>
                   </div>
@@ -134,9 +137,9 @@ export function DesignLayout() {
                   className="absolute left-1/2 top-2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2 py-1 shadow-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900"
                   aria-label="Search graph entities"
                 >
-                  <HugeiconsIcon icon={Search01Icon} className="h-3 w-3 text-zinc-400" size="100%" />
-                  <span className="text-[10px] font-medium text-zinc-400">Search...</span>
-                  <kbd className="ml-1 rounded border border-zinc-300 px-1 text-[9px] text-zinc-400 dark:border-zinc-600">
+                  <HugeiconsIcon icon={Search01Icon} className="h-3 w-3 text-muted-foreground" size="100%" />
+                  <span className="text-[10px] font-medium text-muted-foreground">Search...</span>
+                  <kbd className="ml-1 rounded border border-zinc-300 px-1 text-[9px] text-muted-foreground dark:border-zinc-600">
                     {typeof navigator !== "undefined" && /Mac/.test(navigator.userAgent) ? "\u2318" : "Ctrl+"}K
                   </kbd>
                 </button>
@@ -165,7 +168,7 @@ export function DesignLayout() {
                     <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                       Inspector
                     </span>
-                    <button onClick={toggleInspector} className="text-zinc-400 hover:text-zinc-600">
+                    <button onClick={toggleInspector} className="text-muted-foreground hover:text-zinc-600">
                       <HugeiconsIcon icon={PanelRightIcon} className="h-3 w-3" size="100%" />
                     </button>
                   </div>

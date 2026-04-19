@@ -1,6 +1,7 @@
 "use client";
 
 import { memo, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { type NodeProps } from "@xyflow/react";
 import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/cn";
@@ -20,6 +21,7 @@ export interface GroupNodeData {
 type GroupNodeProps = NodeProps & { data: GroupNodeData };
 
 export const GroupNode = memo(function GroupNode({ data }: GroupNodeProps) {
+  const t = useTranslations("workbench.canvas.group");
   const { groupId, name, nodeCount, collapsed, color } = data;
   const toggleGroupCollapse = useAppStore((s) => s.toggleGroupCollapse);
   const removeGroup = useAppStore((s) => s.removeGroup);
@@ -71,15 +73,15 @@ export const GroupNode = memo(function GroupNode({ data }: GroupNodeProps) {
           {name}
         </span>
 
-        <span className="ml-1 rounded-full bg-white/60 px-1.5 py-0.5 text-[9px] font-medium text-zinc-500 dark:bg-zinc-800/60 dark:text-zinc-400">
+        <span className="ml-1 rounded-full bg-white/60 px-1.5 py-0.5 text-[9px] font-medium text-zinc-500 dark:bg-zinc-800/60 dark:text-muted-foreground">
           {nodeCount}
         </span>
 
         {/* Ungroup button */}
         <button
           onClick={onRemove}
-          className="ml-auto flex h-5 w-5 items-center justify-center rounded text-[10px] text-zinc-400 hover:bg-black/10 hover:text-zinc-600 dark:hover:bg-white/10 dark:hover:text-zinc-300"
-          title="Ungroup"
+          className="ml-auto flex h-5 w-5 items-center justify-center rounded text-[10px] text-muted-foreground hover:bg-black/10 hover:text-zinc-600 dark:hover:bg-white/10 dark:hover:text-zinc-300"
+          title={t("ungroupTitle")}
         >
           ✕
         </button>
@@ -87,8 +89,8 @@ export const GroupNode = memo(function GroupNode({ data }: GroupNodeProps) {
 
       {/* When collapsed, show compact summary */}
       {collapsed && (
-        <div className="px-3 py-1 text-[9px] text-zinc-400">
-          {nodeCount} node{nodeCount !== 1 ? "s" : ""} (collapsed)
+        <div className="px-3 py-1 text-[9px] text-muted-foreground">
+          {t("collapsedSummary", { count: nodeCount })}
         </div>
       )}
     </div>

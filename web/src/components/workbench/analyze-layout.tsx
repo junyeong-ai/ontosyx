@@ -59,7 +59,7 @@ export function AnalyzeLayout() {
             className={`rounded px-2.5 py-1 text-[11px] font-medium transition-colors ${
               analyzeMode === "chat"
                 ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
+                : "text-zinc-500 hover:text-zinc-700 dark:text-muted-foreground dark:hover:text-zinc-300"
             }`}
           >
             Chat
@@ -69,7 +69,7 @@ export function AnalyzeLayout() {
             className={`rounded px-2.5 py-1 text-[11px] font-medium transition-colors ${
               analyzeMode === "builder"
                 ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
+                : "text-zinc-500 hover:text-zinc-700 dark:text-muted-foreground dark:hover:text-zinc-300"
             }`}
           >
             Query Builder

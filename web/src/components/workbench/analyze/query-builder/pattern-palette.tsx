@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import type { NodeTypeDef, EdgeTypeDef } from "@/types/api";
 import type { Suggestion } from "./use-suggestions";
 
@@ -33,6 +34,7 @@ export function PatternPalette({
   activeTab,
   onTabChange,
 }: PatternPaletteProps) {
+  const t = useTranslations("workbench.queryBuilder.palette");
   const [search, setSearch] = useState("");
   const [internalTab, setInternalTab] = useState<PaletteTab>("nodes");
 
@@ -77,8 +79,8 @@ export function PatternPalette({
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search types..."
-          className="h-7 w-full rounded border border-zinc-200 bg-white px-2 text-xs text-zinc-700 placeholder:text-zinc-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+          placeholder={t("searchPlaceholder")}
+          className="h-7 w-full rounded border border-zinc-200 bg-white px-2 text-xs text-zinc-700 placeholder:text-muted-foreground dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
         />
       </div>
 
@@ -89,20 +91,20 @@ export function PatternPalette({
           className={`px-3 py-1.5 text-xs font-medium transition-colors ${
             tab === "nodes"
               ? "border-b-2 border-emerald-600 text-emerald-600 dark:border-emerald-400 dark:text-emerald-400"
-              : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
+              : "text-zinc-500 hover:text-zinc-700 dark:text-muted-foreground dark:hover:text-zinc-300"
           }`}
         >
-          Nodes ({filteredNodes.length})
+          {t("tabNodes", { count: filteredNodes.length })}
         </button>
         <button
           onClick={() => setTab("edges")}
           className={`px-3 py-1.5 text-xs font-medium transition-colors ${
             tab === "edges"
               ? "border-b-2 border-emerald-600 text-emerald-600 dark:border-emerald-400 dark:text-emerald-400"
-              : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
+              : "text-zinc-500 hover:text-zinc-700 dark:text-muted-foreground dark:hover:text-zinc-300"
           }`}
         >
-          Edges ({filteredEdges.length})
+          {t("tabEdges", { count: filteredEdges.length })}
         </button>
         {selectedNodeLabel && (
           <button
@@ -110,10 +112,10 @@ export function PatternPalette({
             className={`px-3 py-1.5 text-xs font-medium transition-colors ${
               tab === "suggested"
                 ? "border-b-2 border-violet-600 text-violet-600 dark:border-violet-400 dark:text-violet-400"
-                : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
+                : "text-zinc-500 hover:text-zinc-700 dark:text-muted-foreground dark:hover:text-zinc-300"
             }`}
           >
-            Suggested ({suggestions.length})
+            {t("tabSuggested", { count: suggestions.length })}
           </button>
         )}
       </div>
@@ -136,12 +138,12 @@ export function PatternPalette({
                 </span>
               </div>
               {nt.description && (
-                <p className="mt-0.5 text-[10px] text-zinc-400 line-clamp-1">
+                <p className="mt-0.5 text-[10px] text-muted-foreground line-clamp-1">
                   {nt.description}
                 </p>
               )}
-              <div className="mt-1 text-[10px] text-zinc-400">
-                {nt.properties.length} properties
+              <div className="mt-1 text-[10px] text-muted-foreground">
+                {t("propertiesCount", { count: nt.properties.length })}
               </div>
             </div>
           ))}
@@ -166,7 +168,7 @@ export function PatternPalette({
                     {et.label}
                   </span>
                 </div>
-                <p className="mt-0.5 text-[10px] text-zinc-400">
+                <p className="mt-0.5 text-[10px] text-muted-foreground">
                   {srcLabel} &rarr; {tgtLabel}
                 </p>
               </div>
@@ -174,19 +176,19 @@ export function PatternPalette({
           })}
 
         {tab === "nodes" && filteredNodes.length === 0 && (
-          <p className="py-4 text-center text-xs text-zinc-400">
-            No node types found
+          <p className="py-4 text-center text-xs text-muted-foreground">
+            {t("noNodeTypes")}
           </p>
         )}
         {tab === "edges" && filteredEdges.length === 0 && (
-          <p className="py-4 text-center text-xs text-zinc-400">
-            No edge types found
+          <p className="py-4 text-center text-xs text-muted-foreground">
+            {t("noEdgeTypes")}
           </p>
         )}
 
         {tab === "suggested" && !selectedNodeLabel && (
-          <p className="py-4 text-center text-xs text-zinc-400">
-            Select a node to see related edges
+          <p className="py-4 text-center text-xs text-muted-foreground">
+            {t("selectNodeForSuggestions")}
           </p>
         )}
 
@@ -199,7 +201,7 @@ export function PatternPalette({
               className="group cursor-pointer rounded-lg border border-zinc-200 bg-white px-3 py-2 transition-colors hover:border-violet-300 hover:bg-violet-50/50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:border-violet-700 dark:hover:bg-violet-950/20"
             >
               <div className="flex items-center gap-2">
-                <span className="shrink-0 text-[10px] text-zinc-400">
+                <span className="shrink-0 text-[10px] text-muted-foreground">
                   {s.direction === "outgoing" ? "\u2192" : "\u2190"}
                 </span>
                 <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
@@ -213,7 +215,7 @@ export function PatternPalette({
                   }`}
                 />
               </div>
-              <p className="mt-0.5 text-[10px] text-zinc-400">
+              <p className="mt-0.5 text-[10px] text-muted-foreground">
                 {s.direction === "outgoing" ? "\u2192 " : "\u2190 "}
                 {s.targetNode.label}
               </p>
@@ -223,8 +225,8 @@ export function PatternPalette({
         {tab === "suggested" &&
           selectedNodeLabel &&
           suggestions.length === 0 && (
-            <p className="py-4 text-center text-xs text-zinc-400">
-              No related edges found
+            <p className="py-4 text-center text-xs text-muted-foreground">
+              {t("noRelatedEdges")}
             </p>
           )}
       </div>

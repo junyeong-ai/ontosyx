@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Search01Icon,
@@ -9,7 +10,6 @@ import {
   DatabaseIcon,
 } from "@hugeicons/core-free-icons";
 import { z } from "zod";
-import { useAppStore } from "@/lib/store";
 import { searchGraph, expandNode, fetchGraphOverview } from "@/lib/api";
 import type { ExpandNeighbor, GraphOverview } from "@/lib/api/queries";
 import { Spinner } from "@/components/ui/spinner";
@@ -45,6 +45,7 @@ interface BreadcrumbEntry {
 // ---------------------------------------------------------------------------
 
 export function ExploreLayout() {
+  const router = useRouter();
 
   // Schema overview state
   const [overview, setOverview] = useState<GraphOverview | null>(null);
@@ -204,7 +205,7 @@ export function ExploreLayout() {
         setLoading(false);
       }
     },
-    [expandAndNavigate],
+    [expandAndNavigate, searchInput, setQuery],
   );
 
   // ---- Graph node click (handles both schema mode and exploration mode) ----
@@ -296,7 +297,7 @@ export function ExploreLayout() {
           <div className="flex items-center gap-1.5 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5 dark:border-zinc-700 dark:bg-zinc-900">
             <HugeiconsIcon
               icon={Search01Icon}
-              className="h-3 w-3 text-zinc-400"
+              className="h-3 w-3 text-muted-foreground"
               size="100%"
             />
             <input
@@ -314,7 +315,7 @@ export function ExploreLayout() {
               placeholder="Search nodes..."
               className="w-full bg-transparent text-xs text-zinc-700 outline-none placeholder:text-zinc-500 dark:text-zinc-300"
             />
-            {loading && <Spinner size="xs" className="text-zinc-400" />}
+            {loading && <Spinner size="xs" className="text-muted-foreground" />}
           </div>
         </div>
 
@@ -329,20 +330,20 @@ export function ExploreLayout() {
                   <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
                     {overview.total_nodes.toLocaleString()}
                   </div>
-                  <div className="text-[9px] text-zinc-400">nodes</div>
+                  <div className="text-[9px] text-muted-foreground">nodes</div>
                 </div>
                 <div className="rounded bg-zinc-100 px-2 py-1 dark:bg-zinc-800">
                   <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
                     {overview.total_relationships.toLocaleString()}
                   </div>
-                  <div className="text-[9px] text-zinc-400">relationships</div>
+                  <div className="text-[9px] text-muted-foreground">relationships</div>
                 </div>
               </div>
 
               {/* Node labels */}
               <div>
                 <div className="mb-1.5 flex items-center gap-1.5">
-                  <HugeiconsIcon icon={DatabaseIcon} className="h-3 w-3 text-zinc-400" size="100%" />
+                  <HugeiconsIcon icon={DatabaseIcon} className="h-3 w-3 text-muted-foreground" size="100%" />
                   <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                     Node Labels
                   </span>
@@ -363,7 +364,7 @@ export function ExploreLayout() {
                           {label}
                         </span>
                       </div>
-                      <span className="text-[10px] tabular-nums text-zinc-400">
+                      <span className="text-[10px] tabular-nums text-muted-foreground">
                         {count.toLocaleString()}
                       </span>
                     </button>
@@ -383,12 +384,12 @@ export function ExploreLayout() {
                         key={`${rel.from_label}-${rel.rel_type}-${rel.to_label}`}
                         className="flex items-center gap-1 rounded px-2 py-1 text-[10px]"
                       >
-                        <span className="font-medium text-zinc-600 dark:text-zinc-400">{rel.from_label}</span>
-                        <span className="text-zinc-400">→</span>
+                        <span className="font-medium text-zinc-600 dark:text-muted-foreground">{rel.from_label}</span>
+                        <span className="text-muted-foreground">→</span>
                         <span className="font-mono text-muted-foreground">{rel.rel_type}</span>
-                        <span className="text-zinc-400">→</span>
-                        <span className="font-medium text-zinc-600 dark:text-zinc-400">{rel.to_label}</span>
-                        <span className="ml-auto tabular-nums text-zinc-400">{rel.count.toLocaleString()}</span>
+                        <span className="text-muted-foreground">→</span>
+                        <span className="font-medium text-zinc-600 dark:text-muted-foreground">{rel.to_label}</span>
+                        <span className="ml-auto tabular-nums text-muted-foreground">{rel.count.toLocaleString()}</span>
                       </div>
                     ))}
                   </div>
@@ -400,8 +401,8 @@ export function ExploreLayout() {
           {/* Overview loading */}
           {!searched && overviewLoading && (
             <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
-              <Spinner size="sm" className="text-zinc-400" />
-              <p className="text-xs text-zinc-400">Loading graph schema...</p>
+              <Spinner size="sm" className="text-muted-foreground" />
+              <p className="text-xs text-muted-foreground">Loading graph schema...</p>
             </div>
           )}
 
@@ -413,12 +414,12 @@ export function ExploreLayout() {
               </div>
               <div>
                 <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">No graph data yet</p>
-                <p className="mt-1 text-xs text-zinc-400">
+                <p className="mt-1 text-xs text-muted-foreground">
                   Deploy a schema and load data from Design mode to start exploring.
                 </p>
               </div>
               <button
-                onClick={() => useAppStore.getState().setWorkspaceMode("design")}
+                onClick={() => router.push("/design")}
                 className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50"
               >
                 Switch to Design
@@ -428,7 +429,7 @@ export function ExploreLayout() {
 
           {/* Search results */}
           {searched && !loading && results.length === 0 && (
-            <div className="px-4 py-8 text-center text-xs text-zinc-400">
+            <div className="px-4 py-8 text-center text-xs text-muted-foreground">
               No results found
             </div>
           )}
@@ -447,7 +448,7 @@ export function ExploreLayout() {
                 {result.labels.map((l) => (
                   <span
                     key={l}
-                    className="rounded bg-zinc-100 px-1 py-0.5 text-[9px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                    className="rounded bg-zinc-100 px-1 py-0.5 text-[9px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground"
                   >
                     {l}
                   </span>
@@ -471,7 +472,7 @@ export function ExploreLayout() {
                 setNeighbors([]);
                 setBreadcrumb([]);
               }}
-              className="w-full px-3 py-2 text-left text-[10px] text-zinc-400 transition-colors hover:text-zinc-600 dark:hover:text-zinc-300"
+              className="w-full px-3 py-2 text-left text-[10px] text-muted-foreground transition-colors hover:text-zinc-600 dark:hover:text-zinc-300"
             >
               ← Back to overview
             </button>
@@ -489,7 +490,7 @@ export function ExploreLayout() {
                 {i > 0 && (
                   <HugeiconsIcon
                     icon={ArrowRight01Icon}
-                    className="h-2.5 w-2.5 text-zinc-400"
+                    className="h-2.5 w-2.5 text-muted-foreground"
                     size="100%"
                   />
                 )}
@@ -502,14 +503,14 @@ export function ExploreLayout() {
                       : "text-muted-foreground hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300",
                   )}
                 >
-                  <span className="text-[9px] text-zinc-400">
+                  <span className="text-[9px] text-muted-foreground">
                     {entry.label}:
                   </span>
                   <span className="max-w-24 truncate">{entry.name}</span>
                 </button>
               </span>
             ))}
-            {expanding && <Spinner size="xs" className="ml-1 text-zinc-400" />}
+            {expanding && <Spinner size="xs" className="ml-1 text-muted-foreground" />}
           </div>
         )}
 
@@ -561,7 +562,7 @@ export function ExploreLayout() {
               <div className="space-y-1 pt-2">
                 {Object.entries(focusedNode.props).map(([key, value]) => (
                   <div key={key} className="flex items-start gap-2 text-xs">
-                    <span className="shrink-0 font-medium text-zinc-500 dark:text-zinc-400">
+                    <span className="shrink-0 font-medium text-zinc-500 dark:text-muted-foreground">
                       {key}
                     </span>
                     <span className="min-w-0 break-all text-zinc-700 dark:text-zinc-300">
@@ -572,7 +573,7 @@ export function ExploreLayout() {
               </div>
               {/* Element ID */}
               <div className="border-t border-zinc-100 pt-2 dark:border-zinc-800">
-                <span className="text-[9px] text-zinc-400">
+                <span className="text-[9px] text-muted-foreground">
                   ID: {focusedNode.elementId}
                 </span>
               </div>
@@ -598,10 +599,10 @@ export function ExploreLayout() {
                           >
                             {group.direction === "outgoing" ? "\u2192" : "\u2190"}
                           </span>
-                          <span className="font-mono font-medium text-zinc-600 dark:text-zinc-400">
+                          <span className="font-mono font-medium text-zinc-600 dark:text-muted-foreground">
                             {group.type}
                           </span>
-                          <span className="text-zinc-400">
+                          <span className="text-muted-foreground">
                             ({group.items.length})
                           </span>
                         </div>
@@ -615,7 +616,7 @@ export function ExploreLayout() {
                               }
                               className="flex w-full items-center gap-1.5 rounded px-1.5 py-0.5 text-left text-[10px] transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
                             >
-                              <span className="rounded bg-zinc-100 px-1 py-0.5 text-[8px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                              <span className="rounded bg-zinc-100 px-1 py-0.5 text-[8px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-muted-foreground">
                                 {neighbor.labels[0] || "Node"}
                               </span>
                               <span className="min-w-0 flex-1 truncate text-zinc-600 dark:text-zinc-300">
@@ -631,7 +632,7 @@ export function ExploreLayout() {
               )}
             </div>
           ) : (
-            <div className="flex h-full items-center justify-center text-xs text-zinc-400">
+            <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
               Select an entity to view properties
             </div>
           )}

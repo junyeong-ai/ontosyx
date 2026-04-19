@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Tick01Icon,
@@ -24,7 +25,6 @@ import {
   compileLoad,
   auditGraph,
   adoptGraph,
-  reindexSchema,
 } from "@/lib/api";
 import type { GraphAuditReport } from "@/lib/api";
 import { isGitUrl } from "@/lib/git-url";
@@ -87,6 +87,7 @@ export function WorkflowActions({
   unresolvedClarificationCount,
   needsPartialAcknowledgement,
 }: WorkflowActionsProps) {
+  const t = useTranslations("workbench.bottomPanel.workflowActions");
   const report = project.analysis_report;
   const [progressPhase, setProgressPhase] = useState<string | null>(null);
   const [progressDetail, setProgressDetail] = useState<string | null>(null);
@@ -157,16 +158,16 @@ export function WorkflowActions({
         revision: project.revision,
       });
       setProject(updated);
-      toast.success("Decisions saved");
+      toast.success(t("decisionsSaved"));
     } catch (err) {
-      if (await onApiError(err, "Failed to save decisions")) return;
+      if (await onApiError(err, t("decisionsSaveFailed"))) return;
     } finally {
       setLoading(false);
     }
   }
 
   async function handleDesign() {
-    if (!(await guardPendingEdits("Design"))) return;
+    if (!(await guardPendingEdits(t("guardActions.design")))) return;
     setLoading(true);
     setProgressPhase(null);
     setProgressDetail(null);
@@ -193,9 +194,12 @@ export function WorkflowActions({
           if (resp.project.ontology) {
             setOntology(resp.project.ontology);
           }
-          toast.success("Ontology designed", {
+          toast.success(t("ontologyDesigned"), {
             description: resp.project.ontology
-              ? `${resp.project.ontology.node_types.length} nodes, ${resp.project.ontology.edge_types.length} edges`
+              ? t("completeDesignedDescription", {
+                  nodeCount: resp.project.ontology.node_types.length,
+                  edgeCount: resp.project.ontology.edge_types.length,
+                })
               : undefined,
           });
         },
@@ -206,10 +210,10 @@ export function WorkflowActions({
       });
 
       if (streamErrorMsg) {
-        toast.error("Design failed", { description: errorMessage(streamErrorType, streamErrorMsg) });
+        toast.error(t("designFailed"), { description: errorMessage(streamErrorType, streamErrorMsg) });
       }
     } catch (err) {
-      if (await onApiError(err, "Design failed")) return;
+      if (await onApiError(err, t("designFailed"))) return;
     } finally {
       setLoading(false);
       setProgressPhase(null);
@@ -218,9 +222,9 @@ export function WorkflowActions({
   }
 
   async function handleComplete(acknowledgeRisks = false) {
-    if (!(await guardPendingEdits("Complete"))) return;
+    if (!(await guardPendingEdits(t("guardActions.complete")))) return;
     if (!form.complete.completeName.trim()) {
-      toast.error("Name is required to complete the project");
+      toast.error(t("completeNameRequired"));
       return;
     }
     setLoading(true);
@@ -237,20 +241,20 @@ export function WorkflowActions({
       if (form.complete.deployOnComplete) {
         try {
           await deploySchema(project.id, { dry_run: false });
-          toast.success("Project completed — ontology saved and schema deployed");
+          toast.success(t("completeWithDeploy"));
         } catch (deployErr) {
-          const msg = deployErr instanceof ApiError ? deployErr.message : "Unknown error";
-          toast.warning(`Project completed but schema deploy failed: ${msg}`);
+          const msg = deployErr instanceof ApiError ? deployErr.message : t("unknownError");
+          toast.warning(t("deployFailedPartial", { error: msg }));
         }
       } else {
-        toast.success("Project completed and ontology saved");
+        toast.success(t("completeSuccess"));
       }
     } catch (err) {
       if (err instanceof ApiError && err.type === "quality_gate") {
         const ok = await confirmDialog({
-          title: "Quality Gate Warning",
-          description: `${err.message}\n\nComplete the project anyway?`,
-          confirmLabel: "Complete Anyway",
+          title: t("qualityGateWarningTitle"),
+          description: t("qualityGateWarningDescription", { message: err.message }),
+          confirmLabel: t("qualityGateConfirmLabel"),
           variant: "warning",
         });
         if (ok) {
@@ -259,7 +263,7 @@ export function WorkflowActions({
         setLoading(false);
         return;
       }
-      if (await onApiError(err, "Complete failed")) return;
+      if (await onApiError(err, t("completeFailed"))) return;
     } finally {
       setLoading(false);
     }
@@ -267,9 +271,9 @@ export function WorkflowActions({
 
   async function handleDelete() {
     const ok = await confirmDialog({
-      title: "Delete Project",
-      description: "Delete this design project? This action is permanent and cannot be undone.",
-      confirmLabel: "Delete",
+      title: t("deleteProjectTitle"),
+      description: t("deleteProjectDescription"),
+      confirmLabel: t("deleteProjectConfirm"),
       variant: "danger",
     });
     if (!ok) return;
@@ -277,20 +281,20 @@ export function WorkflowActions({
     try {
       await deleteProject(project.id);
       setProject(null);
-      toast.success("Project deleted");
+      toast.success(t("projectDeleted"));
     } catch (err) {
-      if (await onApiError(err, "Failed to delete project")) return;
+      if (await onApiError(err, t("deleteProjectFailed"))) return;
     } finally {
       setLoading(false);
     }
   }
 
   async function handleReanalyze() {
-    if (!(await guardPendingEdits("Reanalyze"))) return;
+    if (!(await guardPendingEdits(t("guardActions.reanalyze")))) return;
     let source: DesignSource;
     if (reanalyzeSourceType === "postgresql") {
       if (!form.reanalyze.connectionString.trim()) {
-        toast.error("Connection string is required");
+        toast.error(t("connectionStringRequired"));
         return;
       }
       source = {
@@ -300,13 +304,13 @@ export function WorkflowActions({
       };
     } else if (reanalyzeSourceType === "code_repository") {
       if (!form.reanalyze.repoUrl.trim()) {
-        toast.error("Repository URL is required");
+        toast.error(t("repoUrlRequired"));
         return;
       }
       source = { type: "code_repository", url: form.reanalyze.repoUrl.trim() };
     } else {
       if (!form.reanalyze.sampleData.trim()) {
-        toast.error("Source data is required");
+        toast.error(t("sourceDataRequired"));
         return;
       }
       source = { type: reanalyzeSourceType as "text" | "csv" | "json", data: form.reanalyze.sampleData.trim() };
@@ -325,24 +329,24 @@ export function WorkflowActions({
       });
       setProject(resp.project);
       form.reanalyze.setShowReanalyze(false);
-      toast.success("Source reanalyzed", {
+      toast.success(t("reanalyzed"), {
         description: resp.invalidated_decisions?.length
-          ? `${resp.invalidated_decisions.length} decisions invalidated`
+          ? t("reanalyzedDescription", { count: resp.invalidated_decisions.length })
           : undefined,
       });
     } catch (err) {
-      if (await onApiError(err, "Reanalyze failed")) return;
+      if (await onApiError(err, t("reanalyzeFailed"))) return;
     } finally {
       setLoading(false);
     }
   }
 
   async function handleExtend() {
-    if (!(await guardPendingEdits("Extend"))) return;
+    if (!(await guardPendingEdits(t("guardActions.extend")))) return;
     let source: DesignSource;
     if (form.extend.sourceType === "postgresql") {
       if (!form.extend.connectionString.trim()) {
-        toast.error("Connection string is required");
+        toast.error(t("connectionStringRequired"));
         return;
       }
       source = {
@@ -352,11 +356,11 @@ export function WorkflowActions({
       };
     } else if (form.extend.sourceType === "mysql") {
       if (!form.extend.connectionString.trim()) {
-        toast.error("Connection string is required");
+        toast.error(t("connectionStringRequired"));
         return;
       }
       if (!form.extend.database.trim()) {
-        toast.error("Database name is required");
+        toast.error(t("databaseRequired"));
         return;
       }
       source = {
@@ -366,11 +370,11 @@ export function WorkflowActions({
       };
     } else if (form.extend.sourceType === "mongodb") {
       if (!form.extend.connectionString.trim()) {
-        toast.error("Connection string is required");
+        toast.error(t("connectionStringRequired"));
         return;
       }
       if (!form.extend.database.trim()) {
-        toast.error("Database name is required");
+        toast.error(t("databaseRequired"));
         return;
       }
       source = {
@@ -380,25 +384,25 @@ export function WorkflowActions({
       };
     } else if (form.extend.sourceType === "duckdb") {
       if (!form.extend.duckdbFilePath.trim()) {
-        toast.error("File path is required");
+        toast.error(t("filePathRequired"));
         return;
       }
       source = { type: "duckdb", file_path: form.extend.duckdbFilePath.trim() };
     } else if (form.extend.sourceType === "snowflake") {
-      toast.error("Snowflake extend is not supported in this form");
+      toast.error(t("snowflakeExtendUnsupported"));
       return;
     } else if (form.extend.sourceType === "bigquery") {
-      toast.error("BigQuery extend is not supported in this form");
+      toast.error(t("bigqueryExtendUnsupported"));
       return;
     } else if (form.extend.sourceType === "code_repository") {
       if (!form.extend.repoUrl.trim()) {
-        toast.error("Repository URL is required");
+        toast.error(t("repoUrlRequired"));
         return;
       }
       source = { type: "code_repository", url: form.extend.repoUrl.trim() };
     } else {
       if (!form.extend.sampleData.trim()) {
-        toast.error("Source data is required");
+        toast.error(t("sourceDataRequired"));
         return;
       }
       source = { type: form.extend.sourceType, data: form.extend.sampleData.trim() };
@@ -416,10 +420,10 @@ export function WorkflowActions({
       }
       setLastReconcileReport(resp.reconcile_report);
       form.extend.setShowExtend(false);
-      toast.success("Source added — review column clarifications for new tables");
+      toast.success(t("extendSuccess"));
       if (analysisRef.current) analysisRef.current.open = true;
     } catch (err) {
-      if (await onApiError(err, "Extend failed")) return;
+      if (await onApiError(err, t("extendFailed"))) return;
     } finally {
       setLoading(false);
     }
@@ -435,7 +439,7 @@ export function WorkflowActions({
       const resp = await deploySchema(project.id, { dry_run: true });
       form.deploy.setDeployPreview(resp.statements);
     } catch (err) {
-      if (await onApiError(err, "Deploy preview failed")) return;
+      if (await onApiError(err, t("deployPreviewFailed"))) return;
     } finally {
       setLoading(false);
     }
@@ -444,9 +448,9 @@ export function WorkflowActions({
   async function handleDeployExecute(skipConfirm = false) {
     if (!skipConfirm && !form.deploy.deployPreview) {
       const ok = await confirmDialog({
-        title: "Deploy Schema",
-        description: "Deploy ontology schema (constraints + indexes) to Neo4j? Use 'Preview DDL' first to review the statements.",
-        confirmLabel: "Deploy",
+        title: t("deployConfirmTitle"),
+        description: t("deployConfirmDescription"),
+        confirmLabel: t("deployConfirmLabel"),
         variant: "warning",
       });
       if (!ok) return;
@@ -455,9 +459,9 @@ export function WorkflowActions({
     try {
       const resp = await deploySchema(project.id, { dry_run: false });
       form.deploy.setDeployPreview(null);
-      toast.success(`Schema deployed: ${resp.statements.length} statements executed`);
+      toast.success(t("schemaDeployed", { count: resp.statements.length }));
     } catch (err) {
-      if (await onApiError(err, "Schema deploy failed")) return;
+      if (await onApiError(err, t("schemaDeployFailed"))) return;
     } finally {
       setLoading(false);
     }
@@ -469,7 +473,7 @@ export function WorkflowActions({
       const resp = await generateLoadPlan(project.id);
       form.deploy.setLoadPlan(resp.plan);
     } catch (err) {
-      if (await onApiError(err, "Load plan generation failed")) return;
+      if (await onApiError(err, t("loadPlanFailed"))) return;
     } finally {
       setLoading(false);
     }
@@ -480,9 +484,9 @@ export function WorkflowActions({
     setLoading(true);
     try {
       const resp = await compileLoad(project.id, { plan: form.deploy.loadPlan });
-      toast.success(`Load plan compiled: ${resp.statements.length} statements`);
+      toast.success(t("loadCompiled", { count: resp.statements.length }));
     } catch (err) {
-      if (await onApiError(err, "Load compilation failed")) return;
+      if (await onApiError(err, t("loadCompileFailed"))) return;
     } finally {
       setLoading(false);
     }
@@ -498,10 +502,13 @@ export function WorkflowActions({
       <div className="flex items-start justify-between gap-2">
         <div>
           <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
-            {project.title ?? "Untitled Project"}
+            {project.title ?? t("untitledProject")}
           </h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {project.source_config.source_type} · rev {project.revision}
+            {t("revMeta", {
+              source: project.source_config.source_type,
+              revision: project.revision,
+            })}
           </p>
         </div>
         <div className="flex items-center gap-1.5">
@@ -510,20 +517,20 @@ export function WorkflowActions({
             variant="ghost"
             size="sm"
             onClick={async () => {
-              if (!(await guardPendingEdits("Close Project"))) return;
+              if (!(await guardPendingEdits(t("guardActions.closeProject")))) return;
               setProject(null);
               // Clear ontology from canvas
               useAppStore.getState().resetOntology();
             }}
             className="text-xs"
           >
-            Close
+            {t("close")}
           </Button>
           {!isCompleted && (
             <button
               onClick={handleDelete}
               disabled={loading}
-              className="rounded p-1 text-zinc-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950"
+              className="rounded p-1 text-muted-foreground hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950"
             >
               <HugeiconsIcon icon={Delete01Icon} className="h-3.5 w-3.5" size="100%" />
             </button>
@@ -545,12 +552,12 @@ export function WorkflowActions({
       {!isDesigned && !isCompleted && (
         <>
           <div>
-            <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Domain Hints (optional)
+            <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-muted-foreground">
+              {t("domainHintsLabel")}
             </label>
             <FormInput
               type="text"
-              placeholder="e.g. HR system, social network..."
+              placeholder={t("domainHintsPlaceholder")}
               value={form.design.designContext}
               onChange={(e) => form.design.setDesignContext(e.target.value)}
             />
@@ -564,9 +571,10 @@ export function WorkflowActions({
                 className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border-amber-300 text-amber-600"
               />
               <span>
-                <span className="font-medium">Large schema ({report?.schema_stats?.table_count} tables).</span>{" "}
-                Top 40 tables will receive full detail; remaining tables included as summaries.
-                Design may take longer. Consider using excluded_tables in DesignOptions to scope the ontology.
+                {t.rich("largeSchemaWarning", {
+                  count: report?.schema_stats?.table_count ?? 0,
+                  bold: (chunks) => <span className="font-medium">{chunks}</span>,
+                })}
               </span>
             </label>
           )}
@@ -574,7 +582,16 @@ export function WorkflowActions({
             size="sm"
             onClick={handleDesign}
             disabled={!canDesign || (hasLargeSchema && !form.design.acknowledgeLargeSchema)}
-            title={!canDesign && (unresolvedPiiCount > 0 || unresolvedClarificationCount > 0 || needsPartialAcknowledgement) ? "Resolve all PII decisions and column clarifications first" : hasLargeSchema && !form.design.acknowledgeLargeSchema ? "Acknowledge the large schema warning above" : undefined}
+            title={
+              !canDesign &&
+              (unresolvedPiiCount > 0 ||
+                unresolvedClarificationCount > 0 ||
+                needsPartialAcknowledgement)
+                ? t("tipDisabledResolve")
+                : hasLargeSchema && !form.design.acknowledgeLargeSchema
+                  ? t("tipDisabledLargeSchema")
+                  : undefined
+            }
             className="w-full text-xs"
           >
             {loading ? (
@@ -582,11 +599,11 @@ export function WorkflowActions({
             ) : (
               <HugeiconsIcon icon={MagicWand01Icon} className="mr-1.5 h-3.5 w-3.5" size="100%" />
             )}
-            Design Ontology
+            {t("designOntology")}
           </Button>
           {report && (
             <Button variant="outline" size="sm" onClick={handleSaveDecisions} disabled={loading} className="w-full text-xs">
-              Save Decisions
+              {t("saveDecisions")}
             </Button>
           )}
         </>
@@ -597,9 +614,15 @@ export function WorkflowActions({
         <>
           {/* Enhance section */}
           <div className="space-y-1.5">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Enhance</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("enhanceHeader")}</p>
             <p className="text-[10px] text-muted-foreground">
-              Press <kbd className="rounded bg-zinc-200 px-1 py-0.5 font-mono text-[9px] dark:bg-zinc-700">⌘K</kbd> to edit or refine with AI
+              {t.rich("enhanceHint", {
+                kbd: (chunks) => (
+                  <kbd className="rounded bg-zinc-200 px-1 py-0.5 font-mono text-[9px] dark:bg-zinc-700">
+                    {chunks}
+                  </kbd>
+                ),
+              })}
             </p>
             <Button
               variant="outline"
@@ -609,7 +632,7 @@ export function WorkflowActions({
               className="w-full text-xs"
             >
               <HugeiconsIcon icon={Add01Icon} className="mr-1.5 h-3 w-3" size="100%" />
-              {form.extend.showExtend ? "Cancel" : "Extend with Source"}
+              {form.extend.showExtend ? t("cancel") : t("extendWithSource")}
             </Button>
             {form.extend.showExtend && (
               <ExtendSourceForm
@@ -643,19 +666,19 @@ export function WorkflowActions({
 
           {/* Advanced section (collapsed) */}
           <details className="text-xs">
-            <summary className="cursor-pointer text-[10px] font-semibold uppercase tracking-wider text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
-              Advanced
+            <summary className="cursor-pointer text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300">
+              {t("advanced")}
             </summary>
             <div className="mt-2 space-y-2">
               <Button variant="outline" size="sm" onClick={handleDesign} disabled={loading} className="w-full text-xs">
                 <HugeiconsIcon icon={MagicWand01Icon} className="mr-1.5 h-3 w-3" size="100%" />
-                Redesign from Source
+                {t("redesign")}
               </Button>
               {reanalyzeSourceType !== "ontology" && (
                 <>
                   <Button variant="outline" size="sm" onClick={() => form.reanalyze.setShowReanalyze(!form.reanalyze.showReanalyze)} disabled={loading} className="w-full text-xs">
                     <HugeiconsIcon icon={Refresh01Icon} className="mr-1.5 h-3 w-3" size="100%" />
-                    {form.reanalyze.showReanalyze ? "Cancel" : "Reanalyze Source"}
+                    {form.reanalyze.showReanalyze ? t("cancel") : t("reanalyzeSource")}
                   </Button>
                   {form.reanalyze.showReanalyze && (
                     <ReanalyzeForm
@@ -685,22 +708,22 @@ export function WorkflowActions({
       {isDesigned && !isCompleted && (
         <div className="space-y-2 rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 dark:border-emerald-900 dark:bg-emerald-950/20">
           <h4 className="text-xs font-semibold text-emerald-800 dark:text-emerald-200">
-            Finalize Project
+            {t("finalize")}
           </h4>
           <FormInput
             type="text"
-            placeholder="Ontology name"
+            placeholder={t("ontologyNamePlaceholder")}
             value={form.complete.completeName}
             onChange={(e) => form.complete.setCompleteName(e.target.value)}
           />
-          <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+          <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-muted-foreground">
             <input
               type="checkbox"
               checked={form.complete.deployOnComplete}
               onChange={(e) => form.complete.setDeployOnComplete(e.target.checked)}
               className="h-3.5 w-3.5 rounded border-zinc-300 text-emerald-600"
             />
-            Deploy schema to Neo4j on complete
+            {t("deployOnComplete")}
           </label>
           <Button
             size="sm"
@@ -713,7 +736,7 @@ export function WorkflowActions({
             ) : (
               <HugeiconsIcon icon={Tick01Icon} className="mr-1.5 h-3 w-3" size="100%" />
             )}
-            Complete & Save
+            {t("complete")}
           </Button>
         </div>
       )}
@@ -724,13 +747,11 @@ export function WorkflowActions({
           <div className="flex items-center gap-2">
             <HugeiconsIcon icon={Tick01Icon} className="h-4 w-4 text-emerald-600" size="100%" />
             <h4 className="text-xs font-semibold text-emerald-800 dark:text-emerald-200">
-              Ontology Saved
+              {t("savedHeader")}
             </h4>
           </div>
           <p className="text-[10px] text-emerald-700 dark:text-emerald-400">
-            {project.saved_ontology_id
-              ? "Ontology is finalized and saved. Use Analyze mode to query, or Fork from the project selector to create a new version."
-              : "Project is completed."}
+            {project.saved_ontology_id ? t("savedDescription") : t("completedDescription")}
           </p>
         </div>
       )}
@@ -739,12 +760,15 @@ export function WorkflowActions({
       {isCompleted && project.ontology && (
         <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50/50 p-3 dark:border-blue-900 dark:bg-blue-950/20">
           <h4 className="text-xs font-semibold text-blue-800 dark:text-blue-200">
-            Schema Deployment
+            {t("schemaDeployment")}
           </h4>
           {form.deploy.deployPreview ? (
             <div className="space-y-2">
               <p className="text-[10px] text-blue-700 dark:text-blue-400">
-                {form.deploy.deployPreview.length} DDL statement{form.deploy.deployPreview.length !== 1 ? "s" : ""} to execute:
+                {t("ddlStatements", {
+                  count: form.deploy.deployPreview.length,
+                  plural: form.deploy.deployPreview.length !== 1 ? t("ddlStatementsPlural") : "",
+                })}
               </p>
               <pre className="max-h-32 overflow-auto rounded bg-zinc-900 p-2 text-[10px] text-zinc-300">
                 {form.deploy.deployPreview.join(";\n")}
@@ -756,7 +780,7 @@ export function WorkflowActions({
                   disabled={loading}
                   className="text-xs"
                 >
-                  Execute
+                  {t("execute")}
                 </Button>
                 <Button
                   variant="outline"
@@ -764,7 +788,7 @@ export function WorkflowActions({
                   onClick={() => form.deploy.setDeployPreview(null)}
                   className="text-xs"
                 >
-                  Cancel
+                  {t("cancel")}
                 </Button>
               </div>
             </div>
@@ -777,7 +801,7 @@ export function WorkflowActions({
                 disabled={loading}
                 className="flex-1 text-xs"
               >
-                Preview DDL
+                {t("previewDdl")}
               </Button>
               <Button
                 size="sm"
@@ -785,7 +809,7 @@ export function WorkflowActions({
                 disabled={loading}
                 className="flex-1 text-xs"
               >
-                Deploy to Neo4j
+                {t("deployToNeo4j")}
               </Button>
             </div>
           )}
@@ -801,17 +825,20 @@ export function WorkflowActions({
       {isCompleted && project.ontology && project.source_mapping && (
         <div className="space-y-2 rounded-lg border border-purple-200 bg-purple-50/50 p-3 dark:border-purple-900 dark:bg-purple-950/20">
           <h4 className="text-xs font-semibold text-purple-800 dark:text-purple-200">
-            Data Loading
+            {t("dataLoading")}
           </h4>
           {form.deploy.loadPlan ? (
             <div className="space-y-2">
               <p className="text-[10px] text-purple-700 dark:text-purple-400">
-                {form.deploy.loadPlan.steps.length} load step{form.deploy.loadPlan.steps.length !== 1 ? "s" : ""}:
+                {t("loadSteps", {
+                  count: form.deploy.loadPlan.steps.length,
+                  plural: form.deploy.loadPlan.steps.length !== 1 ? t("ddlStatementsPlural") : "",
+                })}
               </p>
               <div className="space-y-1">
                 {form.deploy.loadPlan.steps.map((step, i) => (
                   <div key={i} className="rounded bg-zinc-100 px-2 py-1 text-[10px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                    {step.order + 1}. {step.description}
+                    {t("loadStepItem", { order: step.order + 1, description: step.description })}
                   </div>
                 ))}
               </div>
@@ -822,7 +849,7 @@ export function WorkflowActions({
                   disabled={loading}
                   className="text-xs"
                 >
-                  Compile DDL
+                  {t("compileDdl")}
                 </Button>
                 <Button
                   variant="outline"
@@ -830,7 +857,7 @@ export function WorkflowActions({
                   onClick={() => form.deploy.setLoadPlan(null)}
                   className="text-xs"
                 >
-                  Cancel
+                  {t("cancel")}
                 </Button>
               </div>
             </div>
@@ -842,7 +869,7 @@ export function WorkflowActions({
               disabled={loading}
               className="w-full text-xs"
             >
-              Generate Load Plan
+              {t("generateLoadPlan")}
             </Button>
           )}
         </div>
@@ -856,6 +883,7 @@ export function WorkflowActions({
 // ---------------------------------------------------------------------------
 
 function GraphAuditSection({ ontologyId }: { ontologyId: string }) {
+  const t = useTranslations("workbench.bottomPanel.workflowActions");
   const [report, setReport] = useState<GraphAuditReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [adopting, setAdopting] = useState(false);
@@ -867,7 +895,7 @@ function GraphAuditSection({ ontologyId }: { ontologyId: string }) {
       const result = await auditGraph(ontologyId);
       setReport(result);
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Audit failed");
+      toast.error(e instanceof ApiError ? e.message : t("auditFailed"));
     } finally {
       setLoading(false);
     }
@@ -876,14 +904,19 @@ function GraphAuditSection({ ontologyId }: { ontologyId: string }) {
   const handleAdopt = async () => {
     setAdopting(true);
     try {
-      const adopted = await adoptGraph("Adopted from Graph", true);
+      const adopted = await adoptGraph(t("adoptedName"), true);
       setOntology(adopted);
-      toast.success(`Adopted: ${adopted.node_types.length} nodes, ${adopted.edge_types.length} edges`);
+      toast.success(
+        t("adopted", {
+          nodeCount: adopted.node_types.length,
+          edgeCount: adopted.edge_types.length,
+        }),
+      );
       // Re-audit to confirm sync
       const result = await auditGraph(ontologyId);
       setReport(result);
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Adopt failed");
+      toast.error(e instanceof ApiError ? e.message : t("adoptFailed"));
     } finally {
       setAdopting(false);
     }
@@ -896,17 +929,17 @@ function GraphAuditSection({ ontologyId }: { ontologyId: string }) {
   return (
     <div className="space-y-2 rounded-lg border border-teal-200 bg-teal-50/50 p-3 dark:border-teal-900 dark:bg-teal-950/20">
       <h4 className="text-xs font-semibold text-teal-800 dark:text-teal-200">
-        Graph Sync
+        {t("graphSync")}
       </h4>
 
       {!report ? (
         <div className="space-y-2">
           <p className="text-[10px] text-teal-700 dark:text-teal-400">
-            Compare ontology labels against live Neo4j graph data.
+            {t("graphSyncDescription")}
           </p>
           <Button size="sm" onClick={handleAudit} disabled={loading}>
             {loading ? <Spinner size="xs" /> : <HugeiconsIcon icon={Refresh01Icon} className="mr-1 h-3 w-3" />}
-            Audit Graph
+            {t("auditGraph")}
           </Button>
         </div>
       ) : (
@@ -918,15 +951,24 @@ function GraphAuditSection({ ontologyId }: { ontologyId: string }) {
               syncColor === "amber" ? "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300" :
               "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
             }`}>
-              {report.sync_status === "synced" ? "Synced" : report.sync_status === "partial" ? "Partial" : "Unsynced"}
+              {report.sync_status === "synced"
+                ? t("syncStatusSynced")
+                : report.sync_status === "partial"
+                  ? t("syncStatusPartial")
+                  : t("syncStatusUnsynced")}
             </span>
-            <span className="text-[10px] text-muted-foreground">{report.sync_percentage}% match</span>
+            <span className="text-[10px] text-muted-foreground">
+              {t("syncPercentage", { percent: report.sync_percentage })}
+            </span>
           </div>
 
           {/* Matched */}
           {report.matched_nodes.length > 0 && (
             <p className="text-[10px] text-emerald-600 dark:text-emerald-400">
-              ✓ {report.matched_nodes.length} nodes, {report.matched_edges.length} edges matched
+              {t("syncMatched", {
+                nodeCount: report.matched_nodes.length,
+                edgeCount: report.matched_edges.length,
+              })}
             </p>
           )}
 
@@ -934,7 +976,7 @@ function GraphAuditSection({ ontologyId }: { ontologyId: string }) {
           {report.orphan_graph_edges.length > 0 && (
             <details className="text-[10px]">
               <summary className="cursor-pointer text-amber-600 dark:text-amber-400">
-                {report.orphan_graph_edges.length} graph-only edges (not in ontology)
+                {t("orphanGraphEdges", { count: report.orphan_graph_edges.length })}
               </summary>
               <div className="mt-1 flex flex-wrap gap-1">
                 {report.orphan_graph_edges.map((e) => (
@@ -950,7 +992,7 @@ function GraphAuditSection({ ontologyId }: { ontologyId: string }) {
           {report.missing_graph_edges.length > 0 && (
             <details className="text-[10px]">
               <summary className="cursor-pointer text-red-600 dark:text-red-400">
-                {report.missing_graph_edges.length} ontology-only edges (not in graph)
+                {t("missingGraphEdges", { count: report.missing_graph_edges.length })}
               </summary>
               <div className="mt-1 flex flex-wrap gap-1">
                 {report.missing_graph_edges.map((e) => (
@@ -965,12 +1007,12 @@ function GraphAuditSection({ ontologyId }: { ontologyId: string }) {
           {/* Actions */}
           <div className="flex gap-2">
             <Button size="sm" variant="ghost" onClick={handleAudit} disabled={loading}>
-              {loading ? <Spinner size="xs" /> : "Re-audit"}
+              {loading ? <Spinner size="xs" /> : t("reaudit")}
             </Button>
             {report.sync_status !== "synced" && (
               <Button size="sm" onClick={handleAdopt} disabled={adopting}>
                 {adopting ? <Spinner size="xs" /> : <HugeiconsIcon icon={MagicWand01Icon} className="mr-1 h-3 w-3" />}
-                Adopt Graph Labels
+                {t("adoptGraphLabels")}
               </Button>
             )}
           </div>

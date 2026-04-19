@@ -97,7 +97,7 @@ export function ContextMenu({ state, items, onClose }: ContextMenuProps) {
           >
             <span>{item.label}</span>
             {item.shortcut && (
-              <span className="ml-4 text-[10px] text-zinc-400">{item.shortcut}</span>
+              <span className="ml-4 text-[10px] text-muted-foreground">{item.shortcut}</span>
             )}
           </button>
         ),
@@ -128,7 +128,7 @@ function SubmenuItem({
         )}
       >
         <span>{item.label}</span>
-        <span className="text-zinc-400">&#9656;</span>
+        <span className="text-muted-foreground">&#9656;</span>
       </button>
       <div role="menu" className="absolute left-full top-0 hidden min-w-[160px] rounded-lg border border-zinc-200 bg-white py-1 shadow-lg group-hover:block dark:border-zinc-700 dark:bg-zinc-900">
         {item.submenu?.map((sub, j) => (

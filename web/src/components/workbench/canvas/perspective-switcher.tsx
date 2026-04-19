@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useReactFlow, type Node } from "@xyflow/react";
 import { useAppStore } from "@/lib/store";
 import {
@@ -29,6 +30,7 @@ export function PerspectiveSwitcher({
   onApplyPositions: (positions: Record<string, { x: number; y: number }>) => void;
   onOpen?: () => void;
 }) {
+  const t = useTranslations("workbench.canvas.perspective");
   const ontology = useAppStore((s) => s.ontology);
   const activeProject = useAppStore((s) => s.activeProject);
   const restoreNodeGroups = useAppStore((s) => s.restoreNodeGroups);
@@ -37,7 +39,7 @@ export function PerspectiveSwitcher({
 
   const [open, setOpen] = useState(false);
   const [perspectives, setPerspectives] = useState<WorkbenchPerspective[]>([]);
-  const [activeName, setActiveName] = useState("Unsaved Layout");
+  const [activeName, setActiveName] = useState(t("unsaved"));
   const [isSaving, setIsSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [showSaveAs, setShowSaveAs] = useState(false);
@@ -136,11 +138,11 @@ export function PerspectiveSwitcher({
       setShowSaveAs(false);
       await loadPerspectives();
     } catch {
-      toast.error("Failed to save perspective");
+      toast.error(t("saveFailed"));
     } finally {
       setIsSaving(false);
     }
-  }, [lineageId, newName, isSaving, nodes, getViewport, topologySignature, activeProject?.id, loadPerspectives]);
+  }, [lineageId, newName, isSaving, nodes, getViewport, topologySignature, activeProject?.id, loadPerspectives, t]);
 
   const handleDelete = useCallback(
     async (perspective: WorkbenchPerspective) => {
@@ -149,16 +151,16 @@ export function PerspectiveSwitcher({
       try {
         await deletePerspective(perspective.id);
         if (activeName === perspective.name) {
-          setActiveName("Unsaved Layout");
+          setActiveName(t("unsaved"));
         }
         await loadPerspectives();
       } catch {
-        toast.error("Failed to delete perspective");
+        toast.error(t("deleteFailed"));
       } finally {
         setDeleting(null);
       }
     },
-    [activeName, loadPerspectives],
+    [activeName, loadPerspectives, t],
   );
 
   if (!lineageId) return null;
@@ -176,7 +178,7 @@ export function PerspectiveSwitcher({
         className={cn(
           "flex items-center gap-1 rounded-md border bg-white px-2 py-1 text-[10px] font-medium shadow-sm transition-colors",
           "border-zinc-200 text-zinc-600 hover:bg-zinc-50",
-          "dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800",
+          "dark:border-zinc-700 dark:bg-zinc-900 dark:text-muted-foreground dark:hover:bg-zinc-800",
         )}
       >
         <svg className="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -197,11 +199,11 @@ export function PerspectiveSwitcher({
         )}>
           {/* Perspective list */}
           <div className="max-h-40 overflow-y-auto py-1">
-            <div className="px-3 py-1 text-[9px] font-semibold uppercase tracking-wider text-zinc-400">
-              Saved Views
+            <div className="px-3 py-1 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+              {t("savedViews")}
             </div>
             {perspectives.length === 0 && (
-              <div className="px-3 py-2 text-[10px] text-zinc-400">No saved views</div>
+              <div className="px-3 py-2 text-[10px] text-muted-foreground">{t("noSavedViews")}</div>
             )}
             {perspectives.map((p) => (
               <div
@@ -217,7 +219,7 @@ export function PerspectiveSwitcher({
                 >
                   {p.name}
                   {p.is_default && (
-                    <span className="ml-1 text-[8px] text-zinc-400">(default)</span>
+                    <span className="ml-1 text-[8px] text-muted-foreground">{t("defaultTag")}</span>
                   )}
                 </button>
                 {!p.is_default && (
@@ -227,9 +229,9 @@ export function PerspectiveSwitcher({
                       handleDelete(p);
                     }}
                     disabled={deleting === p.id}
-                    className="hidden shrink-0 text-zinc-400 hover:text-red-500 group-hover:block disabled:opacity-50"
+                    className="hidden shrink-0 text-muted-foreground hover:text-red-500 group-hover:block disabled:opacity-50"
                   >
-                    {deleting === p.id ? "..." : "\u00D7"}
+                    {deleting === p.id ? t("deleting") : "\u00D7"}
                   </button>
                 )}
               </div>
@@ -252,7 +254,7 @@ export function PerspectiveSwitcher({
                       setNewName("");
                     }
                   }}
-                  placeholder="Name..."
+                  placeholder={t("namePlaceholder")}
                   className="flex-1 rounded border border-zinc-200 bg-transparent px-1.5 py-0.5 text-[10px] text-zinc-700 outline-none placeholder:text-zinc-500 dark:border-zinc-700 dark:text-zinc-300"
                 />
                 <button
@@ -260,7 +262,7 @@ export function PerspectiveSwitcher({
                   disabled={!newName.trim() || isSaving}
                   className="rounded bg-emerald-600 px-2 py-0.5 text-[10px] text-white hover:bg-emerald-700 disabled:opacity-50"
                 >
-                  {isSaving ? "..." : "Save"}
+                  {isSaving ? t("saving") : t("save")}
                 </button>
               </div>
             ) : (
@@ -268,7 +270,7 @@ export function PerspectiveSwitcher({
                 onClick={() => setShowSaveAs(true)}
                 className="w-full px-3 py-1.5 text-left text-[10px] text-muted-foreground hover:bg-zinc-50 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
               >
-                Save as...
+                {t("saveAs")}
               </button>
             )}
           </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
 
 // ---------------------------------------------------------------------------
@@ -21,6 +22,7 @@ interface CommandPaletteProps {
 }
 
 export function CommandPalette({ open, onClose, commands }: CommandPaletteProps) {
+  const t = useTranslations("workbench.canvas.commandPalette");
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -107,7 +109,7 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
         <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900">
           {/* Search input */}
           <div className="flex items-center border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-            <span className="mr-2 text-xs text-zinc-400">&gt;</span>
+            <span className="mr-2 text-xs text-muted-foreground">&gt;</span>
             <input
               ref={inputRef}
               type="text"
@@ -117,7 +119,7 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
                 setSelectedIndex(0);
               }}
               onKeyDown={handleKeyDown}
-              placeholder="Type a command..."
+              placeholder={t("placeholder")}
               className="flex-1 bg-transparent text-sm text-zinc-800 outline-none placeholder:text-zinc-500 dark:text-zinc-200 dark:placeholder:text-zinc-500"
             />
           </div>
@@ -125,8 +127,8 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
           {/* Command list */}
           <div ref={listRef} className="max-h-[320px] overflow-auto py-1">
             {filtered.length === 0 ? (
-              <div className="px-4 py-6 text-center text-xs text-zinc-400">
-                No matching commands
+              <div className="px-4 py-6 text-center text-xs text-muted-foreground">
+                {t("empty")}
               </div>
             ) : (
               filtered.map((cmd, i) => (
@@ -147,7 +149,7 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
                 >
                   <span>{cmd.label}</span>
                   {cmd.shortcut && (
-                    <kbd className="ml-3 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-mono text-zinc-400 dark:bg-zinc-800">
+                    <kbd className="ml-3 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground dark:bg-zinc-800">
                       {cmd.shortcut}
                     </kbd>
                   )}
@@ -157,10 +159,10 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
           </div>
 
           {/* Footer hint */}
-          <div className="border-t border-zinc-100 px-4 py-1.5 text-[10px] text-zinc-400 dark:border-zinc-800">
-            <span className="mr-3">↑↓ Navigate</span>
-            <span className="mr-3">↵ Execute</span>
-            <span>Esc Close</span>
+          <div className="border-t border-zinc-100 px-4 py-1.5 text-[10px] text-muted-foreground dark:border-zinc-800">
+            <span className="mr-3">{t("hintNavigate")}</span>
+            <span className="mr-3">{t("hintExecute")}</span>
+            <span>{t("hintClose")}</span>
           </div>
         </div>
       </div>

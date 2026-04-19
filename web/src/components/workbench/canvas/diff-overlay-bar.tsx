@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useAppStore } from "@/lib/store";
 import { applyReconcile } from "@/lib/api";
 import { cn } from "@/lib/cn";
@@ -11,11 +12,18 @@ import type {
   MatchDecision,
 } from "@/types/api";
 
+const CONFIDENCE_LEVELS = ["low", "medium", "high"] as const;
+type KnownConfidence = (typeof CONFIDENCE_LEVELS)[number];
+function isKnownConfidence(s: string): s is KnownConfidence {
+  return (CONFIDENCE_LEVELS as readonly string[]).includes(s);
+}
+
 // ---------------------------------------------------------------------------
 // Diff overlay dismiss bar -- shown when reconcile report is active
 // ---------------------------------------------------------------------------
 
 export function DiffOverlayBar() {
+  const t = useTranslations("workbench.canvas.diffOverlay");
   const report = useAppStore((s) => s.lastReconcileReport);
   const setReport = useAppStore((s) => s.setLastReconcileReport);
   const pending = useAppStore((s) => s.pendingReconcile);
@@ -79,10 +87,10 @@ export function DiffOverlayBar() {
       }
       setReport(resp.reconcile_report);
       setPending(null);
-      toast.success("Reconcile decisions applied");
+      toast.success(t("applySuccess"));
     } catch (err) {
-      toast.error("Failed to apply reconcile decisions", {
-        description: err instanceof Error ? err.message : "Unknown error",
+      toast.error(t("applyFailed"), {
+        description: err instanceof Error ? err.message : t("unknownError"),
       });
     } finally {
       setApplying(false);
@@ -104,12 +112,12 @@ export function DiffOverlayBar() {
         {/* Summary row */}
         <div className="flex items-center gap-3 px-4 py-2 text-xs">
           <span className="font-semibold text-zinc-700 dark:text-zinc-300">
-            Refine diff
+            {t("title")}
           </span>
           <ConfidenceBadge confidence={report.confidence} />
           {addedCount > 0 && (
             <span className="text-emerald-600 dark:text-emerald-400">
-              +{addedCount} new
+              {t("addedCount", { count: addedCount })}
             </span>
           )}
           {uncertainCount > 0 && (
@@ -120,16 +128,16 @@ export function DiffOverlayBar() {
                 pending && "cursor-pointer underline decoration-dotted",
               )}
             >
-              ~{uncertainCount} uncertain
+              {t("uncertainCount", { count: uncertainCount })}
             </button>
           )}
           {deletedCount > 0 && (
             <span className="text-red-600 dark:text-red-400">
-              -{deletedCount} removed
+              {t("deletedCount", { count: deletedCount })}
             </span>
           )}
-          <span className="text-zinc-400">
-            {report.preserved_ids.length} preserved
+          <span className="text-muted-foreground">
+            {t("preservedCount", { count: report.preserved_ids.length })}
           </span>
           {pending && (
             <button
@@ -140,14 +148,14 @@ export function DiffOverlayBar() {
                 applying && "cursor-wait",
               )}
             >
-              {applying ? "Applying..." : "Apply Decisions"}
+              {applying ? t("applying") : t("applyDecisions")}
             </button>
           )}
           <button
             onClick={handleDismiss}
             className="ml-1 rounded-md px-2 py-0.5 text-muted-foreground hover:bg-white/50 hover:text-zinc-700 dark:hover:bg-zinc-800/50"
           >
-            Dismiss
+            {t("dismiss")}
           </button>
         </div>
 
@@ -163,15 +171,15 @@ export function DiffOverlayBar() {
                   <span className="min-w-0 flex-1 truncate text-zinc-700 dark:text-zinc-300">
                     <span className="font-medium">{m.original_label}</span>
                     {m.original_label !== m.matched_label && (
-                      <span className="text-zinc-400">
+                      <span className="text-muted-foreground">
                         {" -> "}
                         {m.matched_label}
                       </span>
                     )}
-                    <span className="ml-1 text-zinc-400">
+                    <span className="ml-1 text-muted-foreground">
                       ({m.entity_kind})
                     </span>
-                    <span className="ml-1 italic text-zinc-400">
+                    <span className="ml-1 italic text-muted-foreground">
                       {m.match_reason}
                     </span>
                   </span>
@@ -184,7 +192,7 @@ export function DiffOverlayBar() {
                         : "bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900 dark:text-red-300 dark:hover:bg-red-800",
                     )}
                   >
-                    {decisions[m.original_id] ? "Accept" : "Reject"}
+                    {decisions[m.original_id] ? t("accept") : t("reject")}
                   </button>
                 </div>
               ))}
@@ -201,6 +209,14 @@ function ConfidenceBadge({
 }: {
   confidence: ReconcileReport["confidence"];
 }) {
+  const t = useTranslations("workbench.canvas.diffOverlay");
+  const label = isKnownConfidence(confidence)
+    ? confidence === "high"
+      ? t("confidenceHigh")
+      : confidence === "medium"
+        ? t("confidenceMedium")
+        : t("confidenceLow")
+    : confidence;
   return (
     <span
       className={cn(
@@ -212,7 +228,7 @@ function ConfidenceBadge({
             : "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
       )}
     >
-      {confidence}
+      {label}
     </span>
   );
 }

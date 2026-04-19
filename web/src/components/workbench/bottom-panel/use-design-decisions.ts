@@ -1,8 +1,48 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { DesignOptions, PiiDecision } from "@/types/api";
 import { relationshipKey, columnKey } from "./design-panel-shared";
+
+// ---------------------------------------------------------------------------
+// Derive the five sub-states from a fresh `designOptions` snapshot. Lives
+// outside the hook so the render-phase reset below can call it without a
+// closure on any stale prop.
+// ---------------------------------------------------------------------------
+
+interface ResetState {
+  confirmed: Record<string, boolean>;
+  pii: Record<string, PiiDecision | "">;
+  clarifications: Record<string, string>;
+  excluded: Record<string, boolean>;
+  allowPartial: boolean;
+}
+
+function deriveResetState(designOptions: DesignOptions): ResetState {
+  const confirmed: Record<string, boolean> = {};
+  designOptions.confirmed_relationships?.forEach((r) => {
+    confirmed[relationshipKey(r)] = true;
+  });
+  const pii: Record<string, PiiDecision | ""> = {};
+  designOptions.pii_decisions?.forEach((d) => {
+    pii[columnKey(d.table, d.column)] = d.decision;
+  });
+  const clarifications: Record<string, string> = {};
+  designOptions.column_clarifications?.forEach((c) => {
+    clarifications[columnKey(c.table, c.column)] = c.hint;
+  });
+  const excluded: Record<string, boolean> = {};
+  designOptions.excluded_tables?.forEach((t) => {
+    excluded[t] = true;
+  });
+  return {
+    confirmed,
+    pii,
+    clarifications,
+    excluded,
+    allowPartial: designOptions.allow_partial_source_analysis ?? false,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Decision state hook — shared between WorkflowActions and AnalysisReview
@@ -29,66 +69,38 @@ export function useDesignDecisions(designOptions: DesignOptions, report: {
   ambiguous_columns: { table: string; column: string }[];
   analysis_completeness?: string;
 } | null): DesignDecisions {
-  const [confirmedRelationships, setConfirmedRelationships] = useState<Record<string, boolean>>(() => {
-    const init: Record<string, boolean> = {};
-    designOptions.confirmed_relationships?.forEach((r) => {
-      init[relationshipKey(r)] = true;
-    });
-    return init;
-  });
-  const [piiDecisions, setPiiDecisions] = useState<Record<string, PiiDecision | "">>(() => {
-    const init: Record<string, PiiDecision | ""> = {};
-    designOptions.pii_decisions?.forEach((d) => {
-      init[columnKey(d.table, d.column)] = d.decision;
-    });
-    return init;
-  });
-  const [clarifications, setClarifications] = useState<Record<string, string>>(() => {
-    const init: Record<string, string> = {};
-    designOptions.column_clarifications?.forEach((c) => {
-      init[columnKey(c.table, c.column)] = c.hint;
-    });
-    return init;
-  });
-  const [excludedTables, setExcludedTables] = useState<Record<string, boolean>>(() => {
-    const init: Record<string, boolean> = {};
-    designOptions.excluded_tables?.forEach((t) => {
-      init[t] = true;
-    });
-    return init;
-  });
+  const [confirmedRelationships, setConfirmedRelationships] = useState<Record<string, boolean>>(
+    () => deriveResetState(designOptions).confirmed,
+  );
+  const [piiDecisions, setPiiDecisions] = useState<Record<string, PiiDecision | "">>(
+    () => deriveResetState(designOptions).pii,
+  );
+  const [clarifications, setClarifications] = useState<Record<string, string>>(
+    () => deriveResetState(designOptions).clarifications,
+  );
+  const [excludedTables, setExcludedTables] = useState<Record<string, boolean>>(
+    () => deriveResetState(designOptions).excluded,
+  );
   const [allowPartialAnalysis, setAllowPartialAnalysis] = useState(
-    designOptions.allow_partial_source_analysis ?? false,
+    () => deriveResetState(designOptions).allowPartial,
   );
 
-  // Re-derive local state when design_options changes
-  useEffect(() => {
-    const nextConfirmed: Record<string, boolean> = {};
-    designOptions.confirmed_relationships?.forEach((r) => {
-      nextConfirmed[relationshipKey(r)] = true;
-    });
-    setConfirmedRelationships(nextConfirmed);
-
-    const nextPii: Record<string, PiiDecision | ""> = {};
-    designOptions.pii_decisions?.forEach((d) => {
-      nextPii[columnKey(d.table, d.column)] = d.decision;
-    });
-    setPiiDecisions(nextPii);
-
-    const nextClarifications: Record<string, string> = {};
-    designOptions.column_clarifications?.forEach((c) => {
-      nextClarifications[columnKey(c.table, c.column)] = c.hint;
-    });
-    setClarifications(nextClarifications);
-
-    const nextExcluded: Record<string, boolean> = {};
-    designOptions.excluded_tables?.forEach((t) => {
-      nextExcluded[t] = true;
-    });
-    setExcludedTables(nextExcluded);
-
-    setAllowPartialAnalysis(designOptions.allow_partial_source_analysis ?? false);
-  }, [designOptions]);
+  // Derived-state-on-prop-change — the React 19 idiomatic replacement for
+  // a `useEffect(() => { setLocal(deriveFromProp(prop)); }, [prop])` reset
+  // cascade. React explicitly supports render-phase setState when it
+  // matches the "last-seen prop" pattern documented at
+  // https://react.dev/reference/react/useState#storing-information-from-previous-renders.
+  // Same end result as the old effect but no cascading render trip.
+  const [prevDesignOptions, setPrevDesignOptions] = useState(designOptions);
+  if (prevDesignOptions !== designOptions) {
+    const reset = deriveResetState(designOptions);
+    setPrevDesignOptions(designOptions);
+    setConfirmedRelationships(reset.confirmed);
+    setPiiDecisions(reset.pii);
+    setClarifications(reset.clarifications);
+    setExcludedTables(reset.excluded);
+    setAllowPartialAnalysis(reset.allowPartial);
+  }
 
   // Derived counts
   const unresolvedPiiCount = report

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { useTranslations } from "next-intl";
 import { useAppStore } from "@/lib/store";
 import { executeFromIr } from "@/lib/api/queries";
 import type { NodeTypeDef, EdgeTypeDef, PropertyDef, QueryResult } from "@/types/api";
@@ -11,11 +12,13 @@ import { ReturnSelector } from "./return-selector";
 import {
   buildQueryIR,
   previewCypher,
+  validatePattern as inspectPattern,
   type PatternNode,
   type PatternEdge,
   type PatternFilter,
   type PatternReturnField,
   type PatternOrderClause,
+  type PatternIssue,
 } from "./ir-builder";
 import { useSuggestions, type Suggestion } from "./use-suggestions";
 import { SavedPatternsMenu } from "./saved-patterns-menu";
@@ -28,27 +31,31 @@ import { toast } from "sonner";
 // ---------------------------------------------------------------------------
 // Read-only banner labels
 // ---------------------------------------------------------------------------
-// Maps the backend's `ReadOnlyReason.original_op` (Rust `QueryOp`
-// variant name, stable and canonical) to a human label for the
-// locked-canvas banner. The wire value stays untouched — this is a
-// UI-only lookup, and a future variant will appear as its own key
-// here without requiring a backend change.
-const READ_ONLY_REASON_LABELS: Record<string, string> = {
-  Match: "Match query",
-  PathFind: "Path-find query",
-  Aggregate: "Aggregate query",
-  Union: "UNION query",
-  Chain: "Chained query",
-  CallSubquery: "Subquery (CALL)",
-  Mutate: "Mutation (CREATE / MERGE / DELETE)",
-  Analytics: "Analytics query",
-};
+// `ReadOnlyReason.original_op` is a stable Rust `QueryOp` variant name
+// from the backend — UI mirrors the known set so each variant can pick
+// up a localized label. Unknown variants (forward-compat) fall back to
+// the raw wire value.
+const READ_ONLY_REASONS = [
+  "Match",
+  "PathFind",
+  "Aggregate",
+  "Union",
+  "Chain",
+  "CallSubquery",
+  "Mutate",
+  "Analytics",
+] as const;
+type KnownReadOnlyReason = (typeof READ_ONLY_REASONS)[number];
+function isKnownReadOnlyReason(s: string): s is KnownReadOnlyReason {
+  return (READ_ONLY_REASONS as readonly string[]).includes(s);
+}
 
 // ---------------------------------------------------------------------------
 // QueryBuilder — Main container for visual query building
 // ---------------------------------------------------------------------------
 
 export function QueryBuilder() {
+  const t = useTranslations("workbench.queryBuilder");
   const ontology = useAppStore((s) => s.ontology);
   const savedOntologyId = useAppStore((s) => s.savedOntologyId);
 
@@ -71,9 +78,12 @@ export function QueryBuilder() {
   // Config panel (right side)
   const [configTab, setConfigTab] = useState<"filter" | "return">("filter");
 
-  // Ontology types
-  const nodeTypes = ontology?.node_types ?? [];
-  const edgeTypes = ontology?.edge_types ?? [];
+  // Ontology types — memoized so downstream useCallback/useMemo deps don't
+  // re-create their identities on every render. The `?? []` fallback is the
+  // culprit: without `useMemo` each render allocates a fresh empty array,
+  // invalidating every dependent hook.
+  const nodeTypes = useMemo(() => ontology?.node_types ?? [], [ontology]);
+  const edgeTypes = useMemo(() => ontology?.edge_types ?? [], [ontology]);
 
   // Counter for alias generation
   const [nodeCounter, setNodeCounter] = useState(0);
@@ -211,7 +221,7 @@ export function QueryBuilder() {
 
       // Duplicate edge check
       if (edges.some((e) => e.sourceNodeId === srcNode.id && e.targetNodeId === tgtNode.id && e.relType === et.label)) {
-        toast("Edge already exists");
+        toast(t("canvas.edgeAlreadyExists"));
         return;
       }
 
@@ -231,7 +241,7 @@ export function QueryBuilder() {
       setEdgeCounter((c) => c + 1);
       setSelectedId(newEdge.id);
     },
-    [nodes, edges, nodeTypes, nodeCounter, edgeCounter],
+    [nodes, edges, nodeTypes, nodeCounter, edgeCounter, t],
   );
 
   const handleAddSuggestion = useCallback(
@@ -265,7 +275,7 @@ export function QueryBuilder() {
 
       // Duplicate edge check
       if (edges.some((e) => e.sourceNodeId === srcNodeId && e.targetNodeId === tgtNodeId && e.relType === edge.label)) {
-        toast("Edge already exists");
+        toast(t("canvas.edgeAlreadyExists"));
         return;
       }
 
@@ -286,7 +296,7 @@ export function QueryBuilder() {
       // Select the target node to enable chain exploration
       setSelectedId(existingTarget.id);
     },
-    [nodes, edges, selectedId, nodeCounter, edgeCounter],
+    [nodes, edges, selectedId, nodeCounter, edgeCounter, t],
   );
 
   const handleRemoveNode = useCallback(
@@ -371,30 +381,38 @@ export function QueryBuilder() {
   }, [nodes, edges, returnFields, orderBy, limit]);
 
   // ---------------------------------------------------------------------------
+  // Live validation — canvas-side issues surfaced without a backend round-trip
+  // ---------------------------------------------------------------------------
+  //
+  // `inspectPattern` runs synchronously on every canvas edit and returns a
+  // classified issue list. Errors block execution (red border + disabled Run);
+  // warnings show in the issue panel without blocking; info lines are
+  // advisory (empty canvas, auto-return explanation).
+
+  const validation = useMemo(
+    () =>
+      inspectPattern(
+        { nodes, edges, returnFields, orderBy, limit },
+        ontology,
+      ),
+    [nodes, edges, returnFields, orderBy, limit, ontology],
+  );
+  const blockingIssues: PatternIssue[] = useMemo(
+    () => validation.issues.filter((i) => i.severity === "error"),
+    [validation],
+  );
+
+  // ---------------------------------------------------------------------------
   // Execute
   // ---------------------------------------------------------------------------
 
-  const validatePattern = useCallback((): string | null => {
-    if (nodes.length === 0) return "Add at least one node to the pattern";
-    for (const edge of edges) {
-      if (!nodes.find((n) => n.id === edge.sourceNodeId))
-        return `Edge ${edge.relType} has invalid source`;
-      if (!nodes.find((n) => n.id === edge.targetNodeId))
-        return `Edge ${edge.relType} has invalid target`;
-    }
-    const seen = new Set<string>();
-    for (const edge of edges) {
-      const key = `${edge.sourceNodeId}-${edge.relType}-${edge.targetNodeId}`;
-      if (seen.has(key)) return `Duplicate edge: ${edge.relType}`;
-      seen.add(key);
-    }
-    return null;
-  }, [nodes, edges]);
-
   const handleRun = useCallback(async () => {
-    const validationError = validatePattern();
-    if (validationError) {
-      toast.error(validationError);
+    if (blockingIssues.length > 0) {
+      toast.error(blockingIssues[0].message);
+      return;
+    }
+    if (nodes.length === 0) {
+      toast.error(t("toolbar.addAtLeastOneNode"));
       return;
     }
 
@@ -422,11 +440,11 @@ export function QueryBuilder() {
       };
       setResult(normalized);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Query execution failed");
+      setError(err instanceof Error ? err.message : t("toolbar.executionFailed"));
     } finally {
       setIsRunning(false);
     }
-  }, [nodes, edges, returnFields, orderBy, limit, savedOntologyId, validatePattern]);
+  }, [nodes, edges, returnFields, orderBy, limit, savedOntologyId, blockingIssues, t]);
 
   const handleClear = useCallback(() => {
     setNodes([]);
@@ -469,11 +487,11 @@ export function QueryBuilder() {
       return {
         pattern_ir,
         fallbackName: nodes[0]?.label
-          ? `${nodes[0].label} pattern`
-          : "Untitled pattern",
+          ? t("savedPatterns.fallbackPattern", { label: nodes[0].label })
+          : t("savedPatterns.untitledPattern"),
       };
     },
-    [nodes, edges, returnFields, orderBy, limit],
+    [nodes, edges, returnFields, orderBy, limit, t],
   );
 
   const applyLoadedPattern = useCallback((pattern: SavedPattern) => {
@@ -520,8 +538,8 @@ export function QueryBuilder() {
     // The loaded state *is* the saved baseline — no unsaved dot
     // until the user touches something.
     savedBaselineRef.current = JSON.stringify(pattern.pattern_ir);
-    toast.success(`Loaded "${pattern.name}"`);
-  }, []);
+    toast.success(t("savedPatterns.loadSuccess", { name: pattern.name }));
+  }, [t]);
 
   // One-shot viewport apply: consumes the ref after the canvas has
   // rendered the new node set and XyFlow has computed its bounds.
@@ -559,11 +577,11 @@ export function QueryBuilder() {
     return (
       <div className="flex h-full items-center justify-center p-8 text-center">
         <div>
-          <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
-            No ontology loaded
+          <p className="text-sm font-medium text-zinc-600 dark:text-muted-foreground">
+            {t("emptyOntology.title")}
           </p>
-          <p className="mt-1 text-xs text-zinc-400">
-            Design or load an ontology first, then switch to Analyze mode.
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t("emptyOntology.description")}
           </p>
         </div>
       </div>
@@ -576,27 +594,30 @@ export function QueryBuilder() {
   // empty-nodes marker on the backend, so `nodes.length === 0` anyway,
   // but we gate explicitly so a hypothetical future UX that loads the
   // raw source text alongside can't accidentally execute the marker).
-  const canRun = nodes.length > 0 && readOnlyReason === null;
+  const canRun =
+    nodes.length > 0 && readOnlyReason === null && blockingIssues.length === 0;
 
   // Human-readable label for the locked-query banner. Keep the
   // mapping here rather than in the wire type so the UI can be
   // localised in one place; the wire stays canonical (Rust variant
-  // names).
+  // names). Unknown variants fall back to the raw wire value.
   const readOnlyLabel = readOnlyReason
-    ? READ_ONLY_REASON_LABELS[readOnlyReason] ?? readOnlyReason
+    ? isKnownReadOnlyReason(readOnlyReason)
+      ? t(`readOnly.reason${readOnlyReason}`)
+      : readOnlyReason
     : null;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* Toolbar */}
       <div className="flex h-9 shrink-0 items-center justify-between border-b border-zinc-200 px-3 dark:border-zinc-800">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-          Query Builder
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {t("toolbar.title")}
         </span>
         <div className="flex items-center gap-2">
           {nodes.length > 0 && returnFields.length === 0 && (
             <span className="text-[9px] text-amber-500">
-              Select Return fields for custom projection, or run to return all
+              {t("toolbar.autoReturnHint")}
             </span>
           )}
           <SavedPatternsMenu
@@ -615,14 +636,19 @@ export function QueryBuilder() {
             disabled={nodes.length === 0}
             className="rounded px-2 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-zinc-100 disabled:opacity-40 dark:hover:bg-zinc-800"
           >
-            Clear
+            {t("toolbar.clear")}
           </button>
           <button
             onClick={handleRun}
             disabled={isRunning || !canRun}
+            title={
+              blockingIssues.length > 0
+                ? blockingIssues[0].message
+                : undefined
+            }
             className="rounded bg-emerald-600 px-3 py-1 text-[11px] font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
           >
-            {isRunning ? "Running..." : "Run Query"}
+            {isRunning ? t("toolbar.running") : t("toolbar.run")}
           </button>
         </div>
       </div>
@@ -636,11 +662,8 @@ export function QueryBuilder() {
           role="alert"
           className="flex shrink-0 items-center gap-2 border-b border-amber-300 bg-amber-50 px-3 py-1.5 text-[11px] text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
         >
-          <span className="font-semibold">Read-only:</span>
-          <span>
-            {readOnlyLabel} can’t be edited on the canvas. Clear to
-            start a new query, or use the chat to modify it.
-          </span>
+          <span className="font-semibold">{t("readOnly.prefix")}</span>
+          <span>{t("readOnly.message", { kind: readOnlyLabel })}</span>
         </div>
       )}
 
@@ -679,28 +702,77 @@ export function QueryBuilder() {
               onRemoveNode={handleRemoveNode}
               onRemoveEdge={handleRemoveEdge}
               onMoveNode={handleMoveNode}
+              errorIds={validation.errorIds}
             />
           </div>
 
-          {/* Cypher preview */}
-          {cypherPreview && (
-            <div className="shrink-0 border-t border-zinc-200 dark:border-zinc-800">
-              <div className="flex items-center justify-between px-3 py-1">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-                  Preview
-                </span>
+          {/* Cypher preview + live validation — always rendered so the
+              user sees the live-query shape as they build, plus any
+              issues the pattern has picked up. Empty canvas falls back
+              to the info-level "canvas-empty" issue message, so the
+              user always has something actionable to read. */}
+          <div className="shrink-0 border-t border-zinc-200 dark:border-zinc-800">
+            <div className="flex items-center justify-between px-3 py-1">
+              <span className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {t("preview.title")}
+                {validation.issues.length > 0 && (
+                  <span
+                    className={
+                      blockingIssues.length > 0
+                        ? "rounded bg-red-100 px-1.5 py-0.5 text-[9px] font-medium text-red-700 dark:bg-red-950/60 dark:text-red-300"
+                        : "rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300"
+                    }
+                  >
+                    {blockingIssues.length > 0
+                      ? t("preview.errorBadge", { count: blockingIssues.length })
+                      : t("preview.noteBadge", { count: validation.issues.length })}
+                  </span>
+                )}
+              </span>
+              {cypherPreview && (
                 <button
                   onClick={() => navigator.clipboard.writeText(cypherPreview)}
-                  className="cursor-pointer text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                  className="cursor-pointer text-[10px] text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300"
                 >
-                  Copy
+                  {t("preview.copy")}
                 </button>
-              </div>
+              )}
+            </div>
+            {cypherPreview ? (
               <pre className="max-h-24 overflow-auto bg-zinc-900 px-3 py-2 text-[11px] font-mono leading-relaxed text-emerald-400">
                 {cypherPreview}
               </pre>
-            </div>
-          )}
+            ) : (
+              <p className="bg-zinc-50 px-3 py-2 text-[11px] text-muted-foreground dark:bg-zinc-900/40">
+                {t("preview.emptyHint")}
+              </p>
+            )}
+            {validation.issues.length > 0 && (
+              <ul className="max-h-24 space-y-0.5 overflow-auto border-t border-zinc-200 bg-zinc-50 px-3 py-1.5 dark:border-zinc-800 dark:bg-zinc-900/40">
+                {validation.issues.map((issue, i) => (
+                  <li
+                    key={`${issue.code}-${issue.elementId ?? "global"}-${i}`}
+                    className={
+                      issue.severity === "error"
+                        ? "flex items-start gap-1.5 text-[10px] text-red-700 dark:text-red-300"
+                        : issue.severity === "warning"
+                          ? "flex items-start gap-1.5 text-[10px] text-amber-700 dark:text-amber-300"
+                          : "flex items-start gap-1.5 text-[10px] text-muted-foreground"
+                    }
+                  >
+                    <span aria-hidden className="mt-0.5 shrink-0">
+                      {issue.severity === "error"
+                        ? "●"
+                        : issue.severity === "warning"
+                          ? "▲"
+                          : "·"}
+                    </span>
+                    <span>{issue.message}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
 
           {/* Error */}
           {error && (
@@ -713,11 +785,11 @@ export function QueryBuilder() {
           {result && (
             <div className="shrink-0 border-t border-zinc-200 dark:border-zinc-800">
               <div className="flex items-center justify-between px-3 py-1">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-                  Results ({result.rows.length} rows)
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {t("results.title", { count: result.rows.length })}
                 </span>
                 {compiledCypher && (
-                  <span className="max-w-xs truncate text-[10px] text-zinc-400">
+                  <span className="max-w-xs truncate text-[10px] text-muted-foreground">
                     {compiledCypher}
                   </span>
                 )}
@@ -743,7 +815,7 @@ export function QueryBuilder() {
                 <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
                   {selectedNode ? selectedNode.label : selectedEdge?.relType}
                 </span>
-                <span className="ml-2 text-[10px] text-zinc-400">
+                <span className="ml-2 text-[10px] text-muted-foreground">
                   ({selectedElement.alias})
                 </span>
               </div>
@@ -755,20 +827,20 @@ export function QueryBuilder() {
                   className={`px-3 py-1.5 text-xs font-medium transition-colors ${
                     configTab === "filter"
                       ? "border-b-2 border-emerald-600 text-emerald-600 dark:border-emerald-400 dark:text-emerald-400"
-                      : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400"
+                      : "text-zinc-500 hover:text-zinc-700 dark:text-muted-foreground"
                   }`}
                 >
-                  Filters
+                  {t("config.tabFilter")}
                 </button>
                 <button
                   onClick={() => setConfigTab("return")}
                   className={`px-3 py-1.5 text-xs font-medium transition-colors ${
                     configTab === "return"
                       ? "border-b-2 border-emerald-600 text-emerald-600 dark:border-emerald-400 dark:text-emerald-400"
-                      : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400"
+                      : "text-zinc-500 hover:text-zinc-700 dark:text-muted-foreground"
                   }`}
                 >
-                  Return
+                  {t("config.tabReturn")}
                 </button>
               </div>
 
@@ -797,8 +869,8 @@ export function QueryBuilder() {
             </div>
           ) : (
             <div className="flex h-full flex-col items-center justify-center p-4 text-center">
-              <p className="text-xs text-zinc-400">
-                Select a node or edge to configure filters and return fields.
+              <p className="text-xs text-muted-foreground">
+                {t("config.emptyHint")}
               </p>
             </div>
           )}

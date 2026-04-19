@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { MagicWand01Icon, Tick01Icon, Alert01Icon } from "@hugeicons/core-free-icons";
@@ -48,16 +49,16 @@ function getGapActionType(category: QualityGapCategory): GapActionType {
   return "info";
 }
 
-function getActionHint(actionType: GapActionType): string {
+function actionHintKey(actionType: GapActionType): string | null {
   switch (actionType) {
     case "ai_fix":
-      return "AI can fix this -- click Fix to apply";
+      return "actionAiFix";
     case "user_decision":
-      return "Ask AI for suggestions, or Confirm to acknowledge as expected";
+      return "actionUserDecision";
     case "clarification_needed":
-      return "Provide a clarification in the Analysis Review";
+      return "actionClarificationNeeded";
     case "info":
-      return "";
+      return null;
   }
 }
 
@@ -75,7 +76,7 @@ function severityBadgeClass(severity: QualityGapSeverity): string {
       ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
       : severity === "medium"
         ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
-        : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
+        : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground",
   );
 }
 
@@ -102,9 +103,11 @@ export function QualityGapCard({
   onAcknowledge,
   onNavigateToClarification,
 }: QualityGapCardProps) {
+  const t = useTranslations("workbench.bottomPanel.quality");
   const focusable = getGapEntityId(gap) !== null;
   const actionType = getGapActionType(gap.category);
-  const actionHint = getActionHint(actionType);
+  const hintKey = actionHintKey(actionType);
+  const actionHint = hintKey ? t(hintKey as "actionAiFix" | "actionUserDecision" | "actionClarificationNeeded") : "";
 
   return (
     <div
@@ -147,7 +150,7 @@ export function QualityGapCard({
               )}
             >
               <HugeiconsIcon icon={MagicWand01Icon} className="h-2.5 w-2.5" size="100%" />
-              Fix
+              {t("categoryFix")}
             </button>
           )}
           {hasActiveProject && actionType === "user_decision" && (
@@ -167,7 +170,7 @@ export function QualityGapCard({
               )}
             >
               <HugeiconsIcon icon={MagicWand01Icon} className="h-2.5 w-2.5" size="100%" />
-              Ask AI
+              {t("categoryAskAi")}
             </button>
             <button
               type="button"
@@ -184,7 +187,7 @@ export function QualityGapCard({
               )}
             >
               <HugeiconsIcon icon={Tick01Icon} className="h-2.5 w-2.5" size="100%" />
-              {isAcknowledging ? "Saving..." : "Confirm"}
+              {isAcknowledging ? t("categorySaving") : t("categoryConfirm")}
             </button>
             </>
           )}
@@ -202,12 +205,12 @@ export function QualityGapCard({
               )}
             >
               <HugeiconsIcon icon={Alert01Icon} className="h-2.5 w-2.5" size="100%" />
-              Add Clarification
+              {t("categoryAddClarification")}
             </button>
           )}
           {focusable && (
-            <span className="text-[9px] text-zinc-400">
-              Navigate →
+            <span className="text-[9px] text-muted-foreground">
+              {t("navigate")}
             </span>
           )}
         </span>
@@ -215,7 +218,7 @@ export function QualityGapCard({
       <p className="mt-1 text-xs text-zinc-700 dark:text-zinc-200">
         {gap.issue}
       </p>
-      <p className="mt-0.5 text-[10px] text-zinc-400">
+      <p className="mt-0.5 text-[10px] text-muted-foreground">
         {gap.suggestion}
       </p>
       {actionHint && (
@@ -224,7 +227,7 @@ export function QualityGapCard({
           actionType === "ai_fix"
             ? "text-violet-500 dark:text-violet-400"
             : actionType === "user_decision"
-              ? "text-zinc-500 dark:text-zinc-400"
+              ? "text-zinc-500 dark:text-muted-foreground"
               : "text-amber-600 dark:text-amber-400",
         )}>
           {actionHint}

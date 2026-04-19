@@ -2,6 +2,7 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import type { OntologyCommand, OntologyIR } from "@/types/api";
 import { formatCommand, commandOpBadge } from "@/lib/command-format";
 import { cn } from "@/lib/cn";
@@ -27,6 +28,7 @@ export function CommandPreview({
   onApply,
   onCancel,
 }: CommandPreviewProps) {
+  const t = useTranslations("workbench.canvas.commandPreview");
   // Flatten batch commands for individual selection
   const flatCommands = useMemo(() => flattenCommands(commands), [commands]);
 
@@ -42,7 +44,7 @@ export function CommandPreview({
       >
         <div className="px-4 py-4">
           <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            No structural changes needed.
+            {t("noChangesTitle")}
           </p>
           {explanation && (
             <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
@@ -56,7 +58,7 @@ export function CommandPreview({
             className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
           >
             <HugeiconsIcon icon={Cancel01Icon} className="h-3 w-3" size="100%" />
-            Close
+            {t("close")}
           </button>
         </div>
       </div>
@@ -106,7 +108,7 @@ export function CommandPreview({
     >
       {/* Explanation */}
       <div className="border-b border-zinc-100 px-4 py-3 dark:border-zinc-800">
-        <p className="text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
+        <p className="text-xs leading-relaxed text-zinc-600 dark:text-muted-foreground">
           {explanation}
         </p>
       </div>
@@ -115,11 +117,11 @@ export function CommandPreview({
       <div className="flex items-center gap-2 border-b border-zinc-100 px-4 py-2 dark:border-zinc-800">
         <HugeiconsIcon
           icon={CheckListIcon}
-          className="h-3.5 w-3.5 text-zinc-400"
+          className="h-3.5 w-3.5 text-muted-foreground"
           size="100%"
         />
-        <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">
-          {selectedCount}/{flatCommands.length} selected
+        <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          {t("selectedCount", { selected: selectedCount, total: flatCommands.length })}
         </span>
         <div className="ml-auto flex gap-1">
           <button
@@ -127,14 +129,14 @@ export function CommandPreview({
             disabled={allChecked}
             className="rounded px-2 py-0.5 text-[10px] font-medium text-emerald-600 hover:bg-emerald-50 disabled:opacity-30 dark:text-emerald-400 dark:hover:bg-emerald-950"
           >
-            Select All
+            {t("selectAll")}
           </button>
           <button
             onClick={() => toggleAll(false)}
             disabled={noneChecked}
             className="rounded px-2 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-zinc-100 disabled:opacity-30 dark:hover:bg-zinc-800"
           >
-            Deselect All
+            {t("deselectAll")}
           </button>
         </div>
       </div>
@@ -191,7 +193,7 @@ export function CommandPreview({
             className="h-3 w-3"
             size="100%"
           />
-          Cancel
+          {t("cancel")}
         </button>
         <button
           onClick={handleApply}
@@ -203,7 +205,7 @@ export function CommandPreview({
             className="h-3 w-3"
             size="100%"
           />
-          Apply {selectedCount === flatCommands.length ? "All" : `${selectedCount}`}
+          {selectedCount === flatCommands.length ? t("applyAll") : t("apply", { count: selectedCount })}
         </button>
       </div>
     </div>

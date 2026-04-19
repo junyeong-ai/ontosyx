@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useTranslations } from "next-intl";
 import { Spinner } from "@/components/ui/spinner";
 import { useAppStore } from "@/lib/store";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -47,6 +48,7 @@ export function RevisionHistoryPanel({
   setOntology,
   onApiError,
 }: RevisionHistoryPanelProps) {
+  const t = useTranslations("workbench.bottomPanel.revision");
   const confirmDialog = useConfirm();
   const setActiveDiffOverlay = useAppStore((s) => s.setActiveDiffOverlay);
 
@@ -83,13 +85,13 @@ export function RevisionHistoryPanel({
       const diff = await getRevisionDiff(project.id, diffCompareBase, targetRevision);
       setDiffResult(diff);
       setDiffLabels({
-        base: `Rev ${diffCompareBase}`,
-        target: `Rev ${targetRevision}`,
+        base: t("baseLabel", { revision: diffCompareBase }),
+        target: t("baseLabel", { revision: targetRevision }),
       });
       setDiffCompareBase(null);
       setActiveDiffOverlay(diff);
     } catch (e) {
-      const msg = e instanceof ApiError ? e.message : "Failed to compute diff";
+      const msg = e instanceof ApiError ? e.message : t("diffFailed");
       toast.error(msg);
     } finally {
       setDiffLoading(false);
@@ -115,9 +117,9 @@ export function RevisionHistoryPanel({
 
   async function handleRestore(rev: number) {
     const ok = await confirmDialog({
-      title: "Restore Revision",
-      description: `Restore ontology to revision ${rev}? The current ontology will be saved as a snapshot before restoring.`,
-      confirmLabel: "Restore",
+      title: t("restoreTitle"),
+      description: t("restoreDescription", { revision: rev }),
+      confirmLabel: t("restoreConfirmLabel"),
       variant: "warning",
     });
     if (!ok) return;
@@ -130,9 +132,9 @@ export function RevisionHistoryPanel({
         setOntology(resp.project.ontology as OntologyIR);
       }
       loadRevisions();
-      toast.success(`Restored to revision ${rev}`);
+      toast.success(t("restoredToast", { revision: rev }));
     } catch (err) {
-      if (await onApiError(err, "Restore failed")) return;
+      if (await onApiError(err, t("restoreFailed"))) return;
     } finally {
       setLoading(false);
     }
@@ -145,10 +147,10 @@ export function RevisionHistoryPanel({
       setMigrationResult(resp);
       setMigrationTargetRev(rev);
       if (resp.up.length === 0) {
-        toast.info("No schema changes between revisions");
+        toast.info(t("noSchemaChanges"));
       }
     } catch (err) {
-      if (await onApiError(err, "Migration preview failed")) return;
+      if (await onApiError(err, t("migrationPreviewFailed"))) return;
     } finally {
       setLoading(false);
     }
@@ -159,9 +161,9 @@ export function RevisionHistoryPanel({
     try {
       const resp = await migrateSchema(project.id, rev, { dry_run: false });
       setMigrationResult(null);
-      toast.success(`Migration executed: ${resp.up.length} statements`);
+      toast.success(t("migrationSuccess", { count: resp.up.length }));
     } catch (err) {
-      if (await onApiError(err, "Migration failed")) return;
+      if (await onApiError(err, t("migrationFailed"))) return;
     } finally {
       setLoading(false);
     }
@@ -176,32 +178,32 @@ export function RevisionHistoryPanel({
       }}
     >
       <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-zinc-700 dark:hover:text-zinc-300">
-        Revision History
+        {t("title")}
       </summary>
       <div className="mt-2">
         {/* Compare mode instructions */}
         {diffCompareBase !== null && (
           <div className="mb-2 flex items-center gap-2 rounded bg-blue-50 px-2 py-1.5 text-[11px] text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">
-            <span>Base: Rev {diffCompareBase}. Click another revision to compare.</span>
+            <span>{t("compareBase", { revision: diffCompareBase })}</span>
             <button
               onClick={() => setDiffCompareBase(null)}
               className="ml-auto text-[10px] font-medium text-blue-500 hover:text-blue-700 dark:text-blue-400"
             >
-              Cancel
+              {t("cancel")}
             </button>
           </div>
         )}
         {diffLoading && (
           <div className="mb-2 flex items-center gap-2 py-1 text-xs text-muted-foreground">
-            <Spinner size="xs" /> Computing diff...
+            <Spinner size="xs" /> {t("computing")}
           </div>
         )}
         {revisionsLoading ? (
           <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
-            <Spinner size="xs" /> Loading revisions...
+            <Spinner size="xs" /> {t("loading")}
           </div>
         ) : revisions.length === 0 ? (
-          <p className="py-2 text-xs text-zinc-400">No revision history yet.</p>
+          <p className="py-2 text-xs text-muted-foreground">{t("empty")}</p>
         ) : (
           <div className="space-y-1">
             {revisions.map((rev) => (
@@ -213,14 +215,14 @@ export function RevisionHistoryPanel({
                     ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200"
                     : diffCompareBase === rev.revision
                       ? "bg-blue-50 text-blue-800 dark:bg-blue-950/30 dark:text-blue-200"
-                      : "text-zinc-600 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-800/50",
+                      : "text-zinc-600 hover:bg-zinc-50 dark:text-muted-foreground dark:hover:bg-zinc-800/50",
                 )}
               >
                 <div className="flex items-center gap-2">
                   <span className="font-mono font-medium">
-                    Rev {rev.revision}
+                    {t("revisionLabel", { revision: rev.revision })}
                   </span>
-                  <span className="text-zinc-400">
+                  <span className="text-muted-foreground">
                     {new Date(rev.created_at).toLocaleString(undefined, {
                       month: "short",
                       day: "numeric",
@@ -229,8 +231,8 @@ export function RevisionHistoryPanel({
                       minute: "2-digit",
                     })}
                   </span>
-                  <span className="text-zinc-400">
-                    {rev.node_count}N, {rev.edge_count}E
+                  <span className="text-muted-foreground">
+                    {t("nodeEdgeCount", { nodeCount: rev.node_count, edgeCount: rev.edge_count })}
                   </span>
                 </div>
                 <div className="flex items-center gap-1">
@@ -240,7 +242,7 @@ export function RevisionHistoryPanel({
                       onClick={() => handleCompare(rev.revision)}
                       className="rounded px-1.5 py-0.5 text-[10px] font-medium text-purple-600 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-purple-950/30"
                     >
-                      Compare
+                      {t("compare")}
                     </button>
                   )}
                   {diffCompareBase === null && revisions.length > 1 && (
@@ -248,7 +250,7 @@ export function RevisionHistoryPanel({
                       onClick={() => setDiffCompareBase(rev.revision)}
                       className="rounded px-1.5 py-0.5 text-[10px] font-medium text-purple-600 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-purple-950/30"
                     >
-                      Diff
+                      {t("diff")}
                     </button>
                   )}
                   {rev.revision !== project.revision && !loading && (
@@ -256,7 +258,7 @@ export function RevisionHistoryPanel({
                       onClick={() => handleRestore(rev.revision)}
                       className="rounded px-1.5 py-0.5 text-[10px] font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/30"
                     >
-                      Restore
+                      {t("restore")}
                     </button>
                   )}
                   {rev.revision !== project.revision && !loading && (
@@ -264,12 +266,12 @@ export function RevisionHistoryPanel({
                       onClick={() => handleMigrate(rev.revision)}
                       className="rounded px-1.5 py-0.5 text-[10px] font-medium text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/30"
                     >
-                      Migrate
+                      {t("migrate")}
                     </button>
                   )}
                   {rev.revision === project.revision && (
                     <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
-                      current
+                      {t("current")}
                     </span>
                   )}
                 </div>
@@ -294,11 +296,11 @@ export function RevisionHistoryPanel({
         {migrationResult && migrationResult.up.length > 0 && (
           <div className="mt-3 space-y-2 rounded-lg border border-amber-200 bg-amber-50/50 p-3 dark:border-amber-900 dark:bg-amber-950/20">
             <h4 className="text-xs font-semibold text-amber-800 dark:text-amber-200">
-              Migration Preview
+              {t("migrationPreview")}
             </h4>
             {migrationResult.breaking_changes.length > 0 && (
               <div className="space-y-1">
-                <p className="text-[10px] font-semibold text-red-600">Breaking Changes:</p>
+                <p className="text-[10px] font-semibold text-red-600">{t("breakingChanges")}</p>
                 {migrationResult.breaking_changes.map((bc, i) => (
                   <p key={i} className="text-[10px] text-red-600">{bc}</p>
                 ))}
@@ -306,7 +308,7 @@ export function RevisionHistoryPanel({
             )}
             {migrationResult.warnings.length > 0 && (
               <div className="space-y-1">
-                <p className="text-[10px] font-semibold text-amber-600">Warnings:</p>
+                <p className="text-[10px] font-semibold text-amber-600">{t("warnings")}</p>
                 {migrationResult.warnings.map((w, i) => (
                   <p key={i} className="text-[10px] text-amber-600">{w}</p>
                 ))}
@@ -322,14 +324,14 @@ export function RevisionHistoryPanel({
                   disabled={loading}
                   className="rounded bg-amber-600 px-3 py-1 text-[10px] font-medium text-white hover:bg-amber-700 disabled:opacity-50"
                 >
-                  Execute Migration
+                  {t("executeMigration")}
                 </button>
               )}
               <button
                 onClick={() => setMigrationResult(null)}
-                className="rounded px-3 py-1 text-[10px] font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                className="rounded px-3 py-1 text-[10px] font-medium text-zinc-600 hover:bg-zinc-100 dark:text-muted-foreground dark:hover:bg-zinc-800"
               >
-                Dismiss
+                {t("dismiss")}
               </button>
             </div>
           </div>

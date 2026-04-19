@@ -206,7 +206,7 @@ export function NodeDetail({
           />
         )}
         {node.source_table && (
-          <p className="mt-0.5 text-zinc-400">Source: {node.source_table}</p>
+          <p className="mt-0.5 text-muted-foreground">Source: {node.source_table}</p>
         )}
         <div className="mt-1.5">
           <VerificationBadge verifications={verifications} elementId={node.id} onVerify={onVerify} />
@@ -229,7 +229,7 @@ export function NodeDetail({
               <button
                 onClick={() => setAddingProp(true)}
                 aria-label="Add property"
-                className="rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
+                className="rounded p-0.5 text-muted-foreground hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
               >
                 <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
               </button>
@@ -261,7 +261,7 @@ export function NodeDetail({
       {node.constraints && node.constraints.length > 0 && (
         <Section title={`Constraints (${node.constraints.length})`}>
           {node.constraints.map((cd) => (
-            <div key={cd.id} className="group flex items-center justify-between px-3 py-1 text-zinc-600 dark:text-zinc-400">
+            <div key={cd.id} className="group flex items-center justify-between px-3 py-1 text-zinc-600 dark:text-muted-foreground">
               <span>{formatConstraint(cd, node)}</span>
               <Tooltip content="Remove constraint">
                 <button
@@ -284,7 +284,7 @@ export function NodeDetail({
             const src = ontology.node_types.find((n) => n.id === edge.source_node_id)?.label ?? "?";
             const tgt = ontology.node_types.find((n) => n.id === edge.target_node_id)?.label ?? "?";
             return (
-              <div key={edge.id} className="px-3 py-1 text-zinc-600 dark:text-zinc-400">
+              <div key={edge.id} className="px-3 py-1 text-zinc-600 dark:text-muted-foreground">
                 {src} —[{edge.label}]→ {tgt}
               </div>
             );
@@ -294,7 +294,7 @@ export function NodeDetail({
 
       <GapsList gaps={gaps} />
 
-      <p className="mt-3 px-3 pb-2 text-[10px] text-zinc-400">
+      <p className="mt-3 px-3 pb-2 text-[10px] text-muted-foreground">
         Tip: Press <kbd className="rounded bg-zinc-200 px-1 py-0.5 font-mono text-[9px] dark:bg-zinc-700">{"\u2318"}K</kbd> to edit with AI
       </p>
     </div>
@@ -432,7 +432,7 @@ export function EdgeDetail({
           {src} → {tgt}
         </p>
         {edge.cardinality && (
-          <p className="text-zinc-400">Cardinality: {edge.cardinality}</p>
+          <p className="text-muted-foreground">Cardinality: {edge.cardinality}</p>
         )}
         <div className="mt-1.5">
           <VerificationBadge verifications={verifications} elementId={edge.id} onVerify={onVerify} />
@@ -455,7 +455,7 @@ export function EdgeDetail({
               <button
                 onClick={() => setAddingProp(true)}
                 aria-label="Add property"
-                className="rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
+                className="rounded p-0.5 text-muted-foreground hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
               >
                 <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
               </button>
@@ -485,7 +485,7 @@ export function EdgeDetail({
 
       <GapsList gaps={gaps} />
 
-      <p className="mt-3 px-3 pb-2 text-[10px] text-zinc-400">
+      <p className="mt-3 px-3 pb-2 text-[10px] text-muted-foreground">
         Tip: Press <kbd className="rounded bg-zinc-200 px-1 py-0.5 font-mono text-[9px] dark:bg-zinc-700">{"\u2318"}K</kbd> to edit with AI
       </p>
     </div>

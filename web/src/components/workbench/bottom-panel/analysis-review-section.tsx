@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Alert01Icon, MagicWand01Icon } from "@hugeicons/core-free-icons";
 import { FormInput } from "@/components/ui/form-input";
@@ -16,12 +17,14 @@ import type {
 } from "@/types/api";
 import { relationshipKey, columnKey, selectClassName } from "./design-panel-shared";
 
+type AnalysisTranslator = ReturnType<typeof useTranslations<"workbench.bottomPanel.analysisReview">>;
+
 // ---------------------------------------------------------------------------
 // PII auto-fill — defaults to "allow" for internal tools.
 // Users review and override individual decisions as needed.
 // ---------------------------------------------------------------------------
 
-function inferPiiDecision(_finding: PiiFinding): PiiDecision {
+function inferPiiDecision(): PiiDecision {
   // Internal backoffice tool: default to "allow" for maximum data availability.
   // Users review and change individual decisions to "mask"/"exclude" as needed.
   return "allow";
@@ -31,47 +34,52 @@ function inferPiiDecision(_finding: PiiFinding): PiiDecision {
 // Column clarification auto-fill heuristics
 // ---------------------------------------------------------------------------
 
-function inferClarification(column: AmbiguousColumn): string {
+/**
+ * Heuristic clarification hint. Accepts a translator so the generated
+ * hint renders in the user's active locale — the hint is stored verbatim
+ * and shown in the UI. Locale is captured once at invocation time.
+ */
+function inferClarification(column: AmbiguousColumn, t: AnalysisTranslator): string {
   const col = column.column.toLowerCase();
   const samples = column.sample_values;
 
   // Year: 4-digit numbers
   if (/year/.test(col) && samples.every((v) => /^\d{4}$/.test(v.trim()))) {
-    return "Calendar year (e.g., YYYY)";
+    return t("clarHintDefault");
   }
 
   // Age: 2-digit numbers
   if (/age/.test(col) && samples.every((v) => /^\d{1,3}$/.test(v.trim()))) {
-    return "Age in years";
+    return t("inferAge");
   }
 
   // Percentage
   if (/pct|percent/.test(col)) {
-    return "Percentage value (0-100)";
+    return t("inferPercentage");
   }
 
   // Rating
   if (/rating/.test(col) && samples.every((v) => /^\d{1,2}$/.test(v.trim()))) {
     const nums = samples.map((v) => Number(v.trim())).filter((n) => !isNaN(n));
     if (nums.length > 0) {
-      return `Rating scale (${Math.min(...nums)}-${Math.max(...nums)})`;
+      return t("inferRatingRange", { min: Math.min(...nums), max: Math.max(...nums) });
     }
-    return "Rating scale";
+    return t("inferRating");
   }
 
   // Grade
   if (/grade/.test(col)) {
-    return "Grade or level classification";
+    return t("inferGrade");
   }
 
   // Quantity
   if (/quantity|qty/.test(col)) {
-    return "Quantity/count of items";
+    return t("inferQuantity");
   }
 
   // Type/status — list sample values as categories
   if (/type|status|category|kind/.test(col) && samples.length > 0) {
-    return `Category: ${samples.join(", ")}`;
+    return t("inferCategory", { values: samples.join(", ") });
   }
 
   // Default: readable column name + sample context
@@ -79,7 +87,7 @@ function inferClarification(column: AmbiguousColumn): string {
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
   if (samples.length > 0) {
-    return `${readable} (values: ${samples.slice(0, 5).join(", ")})`;
+    return t("inferReadable", { name: readable, values: samples.slice(0, 5).join(", ") });
   }
   return readable;
 }
@@ -210,6 +218,7 @@ export function AnalysisReviewSection({
   unresolvedClarificationCount: number;
   needsPartialAcknowledgement: boolean;
 }) {
+  const t = useTranslations("workbench.bottomPanel.analysisReview");
   const [searchFilter, setSearchFilter] = useState("");
   const [unresolvedOnly, setUnresolvedOnly] = useState(true);
 
@@ -354,7 +363,7 @@ export function AnalysisReviewSection({
       const updates: Record<string, PiiDecision | ""> = {};
       for (const e of items) {
         if (!piiDecisions[e.key]) {
-          updates[e.key] = inferPiiDecision(e.item as PiiFinding);
+          updates[e.key] = inferPiiDecision();
         }
       }
       if (Object.keys(updates).length > 0) {
@@ -374,14 +383,14 @@ export function AnalysisReviewSection({
           const col = e.item as AmbiguousColumn;
           updates[e.key] = col.repo_suggestion
             ? col.repo_suggestion.suggested_values
-            : inferClarification(col);
+            : inferClarification(col, t);
         }
       }
       if (Object.keys(updates).length > 0) {
         setClarifications((prev) => ({ ...prev, ...updates }));
       }
     },
-    [clarGroups, clarifications, setClarifications],
+    [clarGroups, clarifications, setClarifications, t],
   );
 
   const acceptAllExcludedInTable = useCallback(
@@ -405,7 +414,7 @@ export function AnalysisReviewSection({
       for (const finding of report.pii_findings) {
         const key = columnKey(finding.table, finding.column);
         if (!piiDecisions[key]) {
-          newPii[key] = inferPiiDecision(finding);
+          newPii[key] = inferPiiDecision();
           piiCount++;
         }
       }
@@ -423,7 +432,7 @@ export function AnalysisReviewSection({
           if (column.repo_suggestion) {
             newClar[key] = column.repo_suggestion.suggested_values;
           } else {
-            newClar[key] = inferClarification(column);
+            newClar[key] = inferClarification(column, t);
           }
           clarCount++;
         }
@@ -434,14 +443,19 @@ export function AnalysisReviewSection({
     }
 
     if (piiCount === 0 && clarCount === 0) {
-      toast.info("All decisions are already filled");
+      toast.info(t("autoFillComplete"));
     } else {
       toast.success(
-        `Filled ${piiCount} PII decision${piiCount !== 1 ? "s" : ""} and ${clarCount} clarification${clarCount !== 1 ? "s" : ""} with defaults`,
-        { description: "Review each decision before designing — adjust as needed" },
+        t("autoFillSuccess", {
+          pii: piiCount,
+          piiLabel: piiCount !== 1 ? t("autoFillPiiPlural") : t("autoFillPiiSingular"),
+          clar: clarCount,
+          clarLabel: clarCount !== 1 ? t("autoFillClarPlural") : t("autoFillClarSingular"),
+        }),
+        { description: t("autoFillDescription") },
       );
     }
-  }, [report, piiDecisions, setPiiDecisions, clarifications, setClarifications]);
+  }, [report, piiDecisions, setPiiDecisions, clarifications, setClarifications, t]);
 
   const hasUnresolved = unresolvedPiiCount > 0 || unresolvedClarificationCount > 0;
 
@@ -451,13 +465,17 @@ export function AnalysisReviewSection({
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
-            Analysis Review
+            {t("heading")}
           </p>
           <p className="mt-0.5 text-[10px] text-muted-foreground">
-            {report.schema_stats.table_count} tables, {report.schema_stats.column_count} columns,{" "}
-            {report.schema_stats.declared_fk_count} FKs · Remaining: {unresolvedPiiCount} PII,{" "}
-            {unresolvedClarificationCount} clarifications
-            {needsPartialAcknowledgement ? ", partial ack" : ""}
+            {t("description", {
+              tables: report.schema_stats.table_count,
+              columns: report.schema_stats.column_count,
+              fks: report.schema_stats.declared_fk_count,
+              pii: unresolvedPiiCount,
+              clarifications: unresolvedClarificationCount,
+              partial: needsPartialAcknowledgement ? t("partialAck") : "",
+            })}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -472,7 +490,7 @@ export function AnalysisReviewSection({
               )}
             >
               <HugeiconsIcon icon={MagicWand01Icon} className="h-3 w-3" size="100%" />
-              Auto-fill
+              {t("autoFill")}
             </button>
           )}
           <span
@@ -483,7 +501,9 @@ export function AnalysisReviewSection({
                 : "bg-emerald-100 text-emerald-800",
             )}
           >
-            {report.analysis_completeness}
+            {report.analysis_completeness === "partial"
+              ? t("completenessPartial")
+              : t("completenessFull")}
           </span>
         </div>
       </div>
@@ -492,8 +512,8 @@ export function AnalysisReviewSection({
       {totalItems > 0 && (
         <div>
           <div className="mb-1 flex items-center justify-between text-[10px] text-muted-foreground">
-            <span>{progressPercent}% resolved ({totalResolved}/{totalItems})</span>
-            <span className="text-zinc-400">{totalUnresolved} remaining</span>
+            <span>{t("progressResolved", { percent: progressPercent, resolved: totalResolved, total: totalItems })}</span>
+            <span className="text-muted-foreground">{t("progressRemaining", { count: totalUnresolved })}</span>
           </div>
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
             <div
@@ -521,18 +541,18 @@ export function AnalysisReviewSection({
               onChange={(e) => setUnresolvedOnly(e.target.checked)}
               className="accent-emerald-600"
             />
-            Unresolved only
+            {t("unresolvedOnly")}
           </label>
           <div className="h-3 w-px bg-zinc-200 dark:bg-zinc-700" />
           <input
             type="text"
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
-            placeholder="Filter by table name..."
+            placeholder={t("filterPlaceholder")}
             className="flex-1 border-none bg-transparent text-[10px] text-zinc-700 outline-none placeholder:text-zinc-500 dark:text-zinc-200 dark:placeholder:text-zinc-500"
           />
           <span className="whitespace-nowrap text-[10px] font-medium text-muted-foreground">
-            {totalUnresolved}/{totalItems} unresolved
+            {t("filterCount", { remaining: totalUnresolved, total: totalItems })}
           </span>
         </div>
       )}
@@ -543,7 +563,7 @@ export function AnalysisReviewSection({
           <div className="flex items-center gap-1.5">
             <HugeiconsIcon icon={Alert01Icon} className="h-3 w-3 text-amber-600" size="100%" />
             <span className="text-xs font-medium text-amber-900 dark:text-amber-100">
-              Partial Analysis Warnings
+              {t("warningsTitle")}
             </span>
           </div>
           <div className="mt-2 space-y-1">
@@ -560,7 +580,7 @@ export function AnalysisReviewSection({
               onChange={(e) => setAllowPartialAnalysis(e.target.checked)}
               className="mt-0.5"
             />
-            I understand the analysis is partial.
+            {t("acknowledgePartial")}
           </label>
         </div>
       )}
@@ -568,15 +588,20 @@ export function AnalysisReviewSection({
       {/* Repo summary */}
       {report.repo_summary && (
         <div className="text-[10px] text-muted-foreground">
-          Repo: {report.repo_summary.status} · {report.repo_summary.files_analyzed}/{report.repo_summary.files_requested} files
-          {report.repo_summary.enums_found > 0 && ` · ${report.repo_summary.enums_found} enums`}
+          {t("repoSummary", {
+            status: report.repo_summary.status,
+            analyzed: report.repo_summary.files_analyzed,
+            requested: report.repo_summary.files_requested,
+          })}
+          {report.repo_summary.enums_found > 0 &&
+            t("repoEnums", { count: report.repo_summary.enums_found })}
         </div>
       )}
 
       {/* Relationships — grouped by from_table */}
       {report.implied_relationships.length > 0 && (
         <GroupedSection
-          title="Confirm Relationships"
+          title={t("confirmRelationships")}
           groups={relGroups as Map<string, { key: string; item: unknown }[]>}
           searchFilter={searchFilter}
           unresolvedOnly={unresolvedOnly}
@@ -592,7 +617,7 @@ export function AnalysisReviewSection({
                 }}
                 className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:hover:bg-emerald-800/60"
               >
-                Accept all
+                {t("acceptAll")}
               </button>
             ) : null;
           }}
@@ -608,7 +633,13 @@ export function AnalysisReviewSection({
                   }
                 />
                 <span className="text-zinc-600 dark:text-zinc-300">
-                  {rel.from_table}.{rel.from_column} → {rel.to_table}.{rel.to_column} ({Math.round(rel.confidence * 100)}%)
+                  {t("relationshipRow", {
+                    fromTable: rel.from_table,
+                    fromColumn: rel.from_column,
+                    toTable: rel.to_table,
+                    toColumn: rel.to_column,
+                    confidence: Math.round(rel.confidence * 100),
+                  })}
                 </span>
               </label>
             );
@@ -619,7 +650,7 @@ export function AnalysisReviewSection({
       {/* PII — grouped by table */}
       {report.pii_findings.length > 0 && (
         <GroupedSection
-          title="PII Decisions"
+          title={t("piiDecisions")}
           groups={piiGroups as Map<string, { key: string; item: unknown }[]>}
           searchFilter={searchFilter}
           unresolvedOnly={unresolvedOnly}
@@ -635,7 +666,7 @@ export function AnalysisReviewSection({
                 }}
                 className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:hover:bg-emerald-800/60"
               >
-                Accept all
+                {t("acceptAll")}
               </button>
             ) : null;
           }}
@@ -644,7 +675,11 @@ export function AnalysisReviewSection({
             return (
               <div className="rounded border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950/60">
                 <p className="text-[10px] font-medium text-zinc-700 dark:text-zinc-200">
-                  {finding.table}.{finding.column} ({finding.pii_type})
+                  {t("piiRow", {
+                    table: finding.table,
+                    column: finding.column,
+                    type: finding.pii_type,
+                  })}
                 </p>
                 <select
                   value={piiDecisions[entry.key] ?? ""}
@@ -656,10 +691,10 @@ export function AnalysisReviewSection({
                   }
                   className={cn(selectClassName, "mt-1 !py-1 !text-xs")}
                 >
-                  <option value="">Choose...</option>
-                  <option value="mask">Mask</option>
-                  <option value="exclude">Exclude</option>
-                  <option value="allow">Allow</option>
+                  <option value="">{t("piiOptionChoose")}</option>
+                  <option value="mask">{t("piiOptionMask")}</option>
+                  <option value="exclude">{t("piiOptionExclude")}</option>
+                  <option value="allow">{t("piiOptionAllow")}</option>
                 </select>
               </div>
             );
@@ -670,7 +705,7 @@ export function AnalysisReviewSection({
       {/* Clarifications — grouped by table */}
       {report.ambiguous_columns.length > 0 && (
         <GroupedSection
-          title="Column Clarifications"
+          title={t("columnClarifications")}
           groups={clarGroups as Map<string, { key: string; item: unknown }[]>}
           searchFilter={searchFilter}
           unresolvedOnly={unresolvedOnly}
@@ -686,7 +721,7 @@ export function AnalysisReviewSection({
                 }}
                 className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:hover:bg-emerald-800/60"
               >
-                Accept all
+                {t("acceptAll")}
               </button>
             ) : null;
           }}
@@ -695,7 +730,7 @@ export function AnalysisReviewSection({
             return (
               <div className="rounded border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950/60">
                 <p className="text-[10px] font-medium text-zinc-700 dark:text-zinc-200">
-                  {column.table}.{column.column}
+                  {t("clarificationRowHeader", { table: column.table, column: column.column })}
                 </p>
                 <p className="text-[10px] text-muted-foreground">{column.clarification_prompt}</p>
                 {column.repo_suggestion && (
@@ -708,14 +743,14 @@ export function AnalysisReviewSection({
                         }
                         className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 hover:bg-emerald-200"
                       >
-                        Accept
+                        {t("clarificationAccept")}
                       </button>
                     )}
                   </div>
                 )}
                 <FormInput
                   type="text"
-                  placeholder="e.g. 0=draft, 1=active, 2=archived"
+                  placeholder={t("clarificationPlaceholder")}
                   value={clarifications[entry.key] ?? ""}
                   onChange={(e) =>
                     setClarifications((c) => ({ ...c, [entry.key]: e.target.value }))
@@ -731,7 +766,7 @@ export function AnalysisReviewSection({
       {/* Excluded tables — grouped by table name */}
       {report.table_exclusion_suggestions.length > 0 && (
         <GroupedSection
-          title="Excluded Tables"
+          title={t("excludedTables")}
           groups={excludedGroups as Map<string, { key: string; item: unknown }[]>}
           searchFilter={searchFilter}
           unresolvedOnly={unresolvedOnly}
@@ -746,7 +781,7 @@ export function AnalysisReviewSection({
                 }}
                 className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:hover:bg-emerald-800/60"
               >
-                Accept all
+                {t("acceptAll")}
               </button>
             ) : null;
           }}
@@ -762,8 +797,14 @@ export function AnalysisReviewSection({
                   }
                 />
                 <span className="text-zinc-600 dark:text-zinc-300">
-                  {s.table_name} ({s.reason}
-                  {typeof s.row_count === "number" ? ` — ${s.row_count} rows` : ""})
+                  {t("excludedRow", {
+                    table: s.table_name,
+                    reason: s.reason,
+                    rows:
+                      typeof s.row_count === "number"
+                        ? t("excludedRows", { count: s.row_count })
+                        : "",
+                  })}
                 </span>
               </label>
             );

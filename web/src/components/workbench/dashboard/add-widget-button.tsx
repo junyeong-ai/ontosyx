@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PlusSignIcon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
@@ -13,17 +14,16 @@ import type { DashboardWidget } from "@/types/api";
 // ---------------------------------------------------------------------------
 const TEMPLATES = [
   {
-    label: "Count by type",
+    key: "countByType" as const,
     query:
       "MATCH (n) RETURN labels(n)[0] AS type, count(n) AS count ORDER BY count DESC",
   },
   {
-    label: "Top 10 nodes",
-    query:
-      "MATCH (n) RETURN n.name AS name, labels(n)[0] AS type LIMIT 10",
+    key: "topNodes" as const,
+    query: "MATCH (n) RETURN n.name AS name, labels(n)[0] AS type LIMIT 10",
   },
   {
-    label: "Relationship distribution",
+    key: "relationshipDistribution" as const,
     query:
       "MATCH ()-[r]->() RETURN type(r) AS rel_type, count(*) AS count ORDER BY count DESC",
   },
@@ -61,11 +61,17 @@ export function AddWidgetButton({
   existingWidgets,
   onAdded,
 }: AddWidgetButtonProps) {
+  const t = useTranslations("workbench.dashboard.addWidget");
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [query, setQuery] = useState("");
   const [widgetType, setWidgetType] = useState("table");
   const [isSaving, setIsSaving] = useState(false);
+
+  const templates = useMemo(
+    () => TEMPLATES.map((tpl) => ({ ...tpl, label: t(`templates.${tpl.key}`) })),
+    [t],
+  );
 
   const resetForm = () => {
     setTitle("");
@@ -88,9 +94,9 @@ export function AddWidgetButton({
       onAdded(widget);
       resetForm();
       setOpen(false);
-      toast.success("Widget added");
+      toast.success(t("addedToast"));
     } catch {
-      toast.error("Failed to add widget");
+      toast.error(t("addFailedToast"));
     } finally {
       setIsSaving(false);
     }
@@ -104,7 +110,7 @@ export function AddWidgetButton({
         className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-zinc-300 py-6 text-xs text-muted-foreground transition-colors hover:border-emerald-400 hover:text-emerald-600 dark:border-zinc-700 dark:hover:border-emerald-600"
       >
         <HugeiconsIcon icon={PlusSignIcon} className="h-4 w-4" size="100%" />
-        Add Widget
+        {t("trigger")}
       </button>
 
       {/* Modal overlay */}
@@ -121,22 +127,22 @@ export function AddWidgetButton({
           >
             {/* Header */}
             <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              Add Widget
+              {t("modalTitle")}
             </h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              Create a new dashboard widget from a Cypher query.
+              {t("modalDescription")}
             </p>
 
             <div className="mt-4 space-y-4">
               {/* Title */}
               <div>
                 <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Title
+                  {t("titleLabel")}
                 </label>
                 <input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Widget title"
+                  placeholder={t("titlePlaceholder")}
                   autoFocus
                   className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-700 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400/50 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
                 />
@@ -145,16 +151,16 @@ export function AddWidgetButton({
               {/* Widget type */}
               <div>
                 <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Type
+                  {t("typeLabel")}
                 </label>
                 <select
                   value={widgetType}
                   onChange={(e) => setWidgetType(e.target.value)}
                   className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-700 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400/50 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
                 >
-                  {WIDGET_TYPES.map((t) => (
-                    <option key={t.value} value={t.value}>
-                      {t.label}
+                  {WIDGET_TYPES.map((wt) => (
+                    <option key={wt.value} value={wt.value}>
+                      {wt.label}
                     </option>
                   ))}
                 </select>
@@ -163,15 +169,15 @@ export function AddWidgetButton({
               {/* Templates */}
               <div>
                 <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Templates
+                  {t("templatesLabel")}
                 </label>
                 <div className="mt-1 flex flex-wrap gap-1.5">
-                  {TEMPLATES.map((tpl) => (
+                  {templates.map((tpl) => (
                     <button
-                      key={tpl.label}
+                      key={tpl.key}
                       type="button"
                       onClick={() => setQuery(tpl.query)}
-                      className="rounded-full border border-zinc-200 px-2.5 py-1 text-[11px] text-zinc-600 transition-colors hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-emerald-600 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-400"
+                      className="rounded-full border border-zinc-200 px-2.5 py-1 text-[11px] text-zinc-600 transition-colors hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700 dark:border-zinc-700 dark:text-muted-foreground dark:hover:border-emerald-600 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-400"
                     >
                       {tpl.label}
                     </button>
@@ -182,12 +188,12 @@ export function AddWidgetButton({
               {/* Cypher query */}
               <div>
                 <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Cypher Query
+                  {t("queryLabel")}
                 </label>
                 <textarea
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="MATCH (n) RETURN labels(n)[0] AS label, count(n) AS cnt"
+                  placeholder={t("queryPlaceholder")}
                   rows={6}
                   className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 font-mono text-xs text-zinc-700 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400/50 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
                 />
@@ -201,16 +207,16 @@ export function AddWidgetButton({
                   setOpen(false);
                   resetForm();
                 }}
-                className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-muted-foreground dark:hover:bg-zinc-800"
               >
-                Cancel
+                {t("cancel")}
               </button>
               <button
                 onClick={handleSave}
                 disabled={!title.trim() || !query.trim() || isSaving}
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
               >
-                {isSaving ? "Adding..." : "Add Widget"}
+                {isSaving ? t("submitting") : t("submit")}
               </button>
             </div>
           </div>

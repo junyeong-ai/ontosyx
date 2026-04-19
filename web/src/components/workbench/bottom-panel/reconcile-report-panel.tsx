@@ -1,7 +1,14 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
 import type { ReconcileReport } from "@/types/api";
+
+const CONFIDENCE_LEVELS = ["low", "medium", "high"] as const;
+type KnownConfidence = (typeof CONFIDENCE_LEVELS)[number];
+function isKnownConfidence(s: string): s is KnownConfidence {
+  return (CONFIDENCE_LEVELS as readonly string[]).includes(s);
+}
 
 // ---------------------------------------------------------------------------
 // Reconcile Report — shown after LLM refine
@@ -14,9 +21,16 @@ export function ReconcileReportPanel({
   report: ReconcileReport;
   onDismiss: () => void;
 }) {
+  const t = useTranslations("workbench.bottomPanel.reconcile");
   const hasUncertain = report.uncertain_matches.length > 0;
   const hasDeleted = report.deleted_entities.length > 0;
   const hasGenerated = report.generated_ids.length > 0;
+  const confidenceLabel = isKnownConfidence(report.confidence)
+    ? t(`confidence${report.confidence.charAt(0).toUpperCase()}${report.confidence.slice(1)}` as
+        | "confidenceLow"
+        | "confidenceMedium"
+        | "confidenceHigh")
+    : report.confidence;
 
   return (
     <div
@@ -31,7 +45,7 @@ export function ReconcileReportPanel({
     >
       <div className="flex items-center justify-between">
         <h4 className="font-semibold text-zinc-700 dark:text-zinc-300">
-          Refine Report
+          {t("title")}
           <span
             className={cn(
               "ml-2 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase",
@@ -42,12 +56,12 @@ export function ReconcileReportPanel({
                   : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300",
             )}
           >
-            {report.confidence}
+            {confidenceLabel}
           </span>
         </h4>
         <button
           onClick={onDismiss}
-          className="text-zinc-400 hover:text-zinc-600"
+          className="text-muted-foreground hover:text-zinc-600"
         >
           ✕
         </button>
@@ -56,19 +70,19 @@ export function ReconcileReportPanel({
       <div className="mt-2 space-y-1.5">
         {report.preserved_ids.length > 0 && (
           <p className="text-muted-foreground">
-            <span className="font-medium text-emerald-600">✓ Preserved:</span>{" "}
-            {report.preserved_ids.length} entities
+            <span className="font-medium text-emerald-600">{t("preserved")}</span>{" "}
+            {t("preservedCount", { count: report.preserved_ids.length })}
           </p>
         )}
 
         {hasGenerated && (
           <div>
             <p className="font-medium text-blue-600 dark:text-blue-400">
-              + New ({report.generated_ids.length}):
+              {t("added", { count: report.generated_ids.length })}
             </p>
             <ul className="ml-3 mt-0.5 space-y-0.5">
               {report.generated_ids.map((e) => (
-                <li key={e.id} className="text-zinc-600 dark:text-zinc-400">
+                <li key={e.id} className="text-zinc-600 dark:text-muted-foreground">
                   {e.entity_kind}: {e.label}
                 </li>
               ))}
@@ -79,11 +93,11 @@ export function ReconcileReportPanel({
         {hasDeleted && (
           <div>
             <p className="font-medium text-red-600 dark:text-red-400">
-              − Removed ({report.deleted_entities.length}):
+              {t("removed", { count: report.deleted_entities.length })}
             </p>
             <ul className="ml-3 mt-0.5 space-y-0.5">
               {report.deleted_entities.map((e) => (
-                <li key={e.id} className="text-zinc-600 dark:text-zinc-400">
+                <li key={e.id} className="text-zinc-600 dark:text-muted-foreground">
                   {e.entity_kind}: {e.label}
                 </li>
               ))}
@@ -94,15 +108,15 @@ export function ReconcileReportPanel({
         {hasUncertain && (
           <div>
             <p className="font-medium text-amber-600 dark:text-amber-400">
-              ⚠ Uncertain matches ({report.uncertain_matches.length}):
+              {t("uncertain", { count: report.uncertain_matches.length })}
             </p>
             <ul className="ml-3 mt-0.5 space-y-1">
               {report.uncertain_matches.map((m) => (
-                <li key={m.original_id} className="text-zinc-600 dark:text-zinc-400">
+                <li key={m.original_id} className="text-zinc-600 dark:text-muted-foreground">
                   <span className="font-medium">{m.original_label}</span>
                   {" → "}
                   <span className="font-medium">{m.matched_label}</span>
-                  <span className="ml-1 text-zinc-400">({m.match_reason})</span>
+                  <span className="ml-1 text-muted-foreground">({m.match_reason})</span>
                 </li>
               ))}
             </ul>

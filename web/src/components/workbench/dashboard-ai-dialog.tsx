@@ -1,7 +1,6 @@
-/* eslint-disable react-hooks/rules-of-hooks */
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useAppStore } from "@/lib/store";
 import { chatStream, addWidget, type StreamCallbacks } from "@/lib/api";
 import type { DashboardWidget, OntologyIR, QueryResult, WidgetSpec } from "@/types/api";
@@ -193,6 +192,16 @@ export function DashboardAiDialog({
   // --------------------------------------------------
   // Add a previewed widget to the dashboard
   // --------------------------------------------------
+  // Why derive this outside `handleAddWidget`: threading `previews` through
+  // the callback deps would invalidate the handler on every state tick. We
+  // compute the count at render time, capture it by value, and add it to
+  // deps — the handler stays stable between adds but always places the
+  // next widget in the correct 2-column grid slot.
+  const addedCount = useMemo(
+    () => previews.filter((p) => p.isAdded).length,
+    [previews],
+  );
+
   const handleAddWidget = useCallback(
     async (preview: WidgetPreview) => {
       setPreviews((prev) =>
@@ -206,8 +215,8 @@ export function DashboardAiDialog({
           query: preview.query,
           widget_spec: preview.spec as unknown as Record<string, unknown>,
           position: {
-            x: (previews.filter((p) => p.isAdded).length % 2) * 6,
-            y: Math.floor(previews.filter((p) => p.isAdded).length / 2) * 4,
+            x: (addedCount % 2) * 6,
+            y: Math.floor(addedCount / 2) * 4,
             w: 6,
             h: 4,
           },
@@ -230,7 +239,7 @@ export function DashboardAiDialog({
         toast.error("Failed to add widget");
       }
     },
-    [dashboardId, onWidgetAdded],
+    [dashboardId, onWidgetAdded, addedCount],
   );
 
   // --------------------------------------------------
@@ -272,7 +281,7 @@ export function DashboardAiDialog({
           </div>
           <button
             onClick={onClose}
-            className="rounded-md p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+            className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
           >
             <HugeiconsIcon icon={Cancel01Icon} className="h-4 w-4" size="100%" />
           </button>
@@ -293,7 +302,7 @@ export function DashboardAiDialog({
               <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                 Describe the widgets you need
               </p>
-              <p className="text-center text-xs text-zinc-400">
+              <p className="text-center text-xs text-muted-foreground">
                 The AI will generate chart widgets based on your ontology and add
                 them directly to your dashboard.
               </p>
@@ -323,7 +332,7 @@ export function DashboardAiDialog({
         {/* Input area at bottom */}
         <div className="shrink-0 border-t border-zinc-200 p-3 dark:border-zinc-800">
           {!ontology ? (
-            <p className="text-center text-xs text-zinc-400">
+            <p className="text-center text-xs text-muted-foreground">
               Load an ontology to generate widgets
             </p>
           ) : (
@@ -388,7 +397,7 @@ function WidgetPreviewCard({
       {/* Query preview */}
       {preview.query && (
         <div className="border-b border-zinc-100 px-3 py-2 dark:border-zinc-700/50">
-          <pre className="max-h-16 overflow-auto text-[10px] font-mono text-zinc-500 dark:text-zinc-400">
+          <pre className="max-h-16 overflow-auto text-[10px] font-mono text-zinc-500 dark:text-muted-foreground">
             {preview.query}
           </pre>
         </div>

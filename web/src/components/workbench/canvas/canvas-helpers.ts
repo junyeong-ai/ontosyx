@@ -341,7 +341,7 @@ export function computeAutoGroups(
 
   // If everything is one big component, split by degree
   if (components.length <= 1 && ontology.node_types.length >= threshold) {
-    return splitByDegree(ontology, adj, labelToId);
+    return splitByDegree(ontology, adj);
   }
 
   // Convert components to groups (using node IDs, not labels)
@@ -364,7 +364,6 @@ export function computeAutoGroups(
 function splitByDegree(
   ontology: OntologyIR,
   adj: Map<string, Set<string>>,
-  labelToId: Map<string, string>,
 ): Record<string, NodeGroup> {
   const sorted = ontology.node_types
     .map((n) => ({ id: n.id, label: n.label, degree: adj.get(n.label)?.size ?? 0 }))

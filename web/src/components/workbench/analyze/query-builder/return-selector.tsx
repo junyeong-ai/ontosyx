@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
+import { useTranslations } from "next-intl";
 import type { PatternNode, PatternEdge, PatternReturnField, Aggregation, PatternOrderClause } from "./ir-builder";
 import type { NodeTypeDef, EdgeTypeDef } from "@/types/api";
 
@@ -22,8 +23,10 @@ interface ReturnSelectorProps {
   onLimitChange: (limit: number | null) => void;
 }
 
-const AGGREGATIONS: { value: Aggregation | ""; label: string }[] = [
-  { value: "", label: "None" },
+// Aggregation dropdown options. Only the "None" label is localized — the
+// rest are canonical SQL-style keywords displayed as-is.
+const AGGREGATION_VALUES: { value: Aggregation | ""; label: string | null }[] = [
+  { value: "", label: null },
   { value: "count", label: "COUNT" },
   { value: "sum", label: "SUM" },
   { value: "avg", label: "AVG" },
@@ -43,8 +46,19 @@ export function ReturnSelector({
   limit,
   onLimitChange,
 }: ReturnSelectorProps) {
+  const t = useTranslations("workbench.queryBuilder.return");
+
   // Collect all available properties grouped by alias
   const groups = buildPropertyGroups(patternNodes, patternEdges, nodeTypes, edgeTypes);
+
+  const aggregations = useMemo(
+    () =>
+      AGGREGATION_VALUES.map((a) => ({
+        value: a.value,
+        label: a.label ?? t("aggregationNone"),
+      })),
+    [t],
+  );
 
   const isChecked = useCallback(
     (alias: string, property: string) =>
@@ -122,13 +136,13 @@ export function ReturnSelector({
     <div className="space-y-3">
       {/* RETURN fields */}
       <div>
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-          Return Fields
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {t("header")}
         </span>
 
         {groups.length === 0 && (
-          <p className="mt-1 text-[11px] text-zinc-400">
-            Add nodes to the pattern to select return fields.
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {t("emptyHint")}
           </p>
         )}
 
@@ -136,7 +150,9 @@ export function ReturnSelector({
           <div key={group.alias} className="mt-2">
             <span className="text-[11px] font-medium text-zinc-600 dark:text-zinc-300">
               {group.alias}{" "}
-              <span className="text-zinc-400">:{group.label}</span>
+              <span className="text-muted-foreground">
+                {t("groupType", { label: group.label })}
+              </span>
             </span>
             <div className="mt-1 space-y-0.5">
               {group.properties.map((prop) => {
@@ -171,9 +187,9 @@ export function ReturnSelector({
                               (e.target.value as Aggregation) || null,
                             )
                           }
-                          className="h-6 rounded border border-zinc-200 bg-white px-1 text-[10px] text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400"
+                          className="h-6 rounded border border-zinc-200 bg-white px-1 text-[10px] text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-muted-foreground"
                         >
-                          {AGGREGATIONS.map((a) => (
+                          {aggregations.map((a) => (
                             <option key={a.value} value={a.value}>
                               {a.label}
                             </option>
@@ -186,11 +202,11 @@ export function ReturnSelector({
                           className={`h-6 rounded px-1.5 text-[10px] font-medium transition-colors ${
                             dir
                               ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400"
-                              : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                              : "text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300"
                           }`}
-                          title="Toggle sort order"
+                          title={t("sortToggleTitle")}
                         >
-                          {dir === "asc" ? "ASC" : dir === "desc" ? "DESC" : "Sort"}
+                          {dir === "asc" ? t("sortAsc") : dir === "desc" ? t("sortDesc") : t("sortLabel")}
                         </button>
                       </>
                     )}
@@ -205,8 +221,8 @@ export function ReturnSelector({
       {/* LIMIT */}
       <div>
         <label className="flex items-center gap-2">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-            Limit
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {t("limitLabel")}
           </span>
           <input
             type="number"
@@ -217,7 +233,7 @@ export function ReturnSelector({
               const v = e.target.value;
               onLimitChange(v ? parseInt(v, 10) : null);
             }}
-            placeholder="no limit"
+            placeholder={t("limitPlaceholder")}
             className="h-7 w-24 rounded border border-zinc-200 bg-white px-2 text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
           />
         </label>

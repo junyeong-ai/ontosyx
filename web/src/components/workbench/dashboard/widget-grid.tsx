@@ -6,6 +6,27 @@ import "react-grid-layout/css/styles.css";
 import { WidgetCard } from "./widget-card";
 import type { DashboardWidget } from "@/types/api";
 
+/**
+ * Build the runtime prop bag for `<ReactGridLayout>`. Hoisted outside
+ * the component body so the single-site `any` cast lives on exactly
+ * one line — see the JSX site for why the cast is necessary.
+ */
+function gridProps(args: {
+  layout: Array<{ i: string; x: number; y: number; w: number; h: number; minW: number; minH: number }>;
+  width: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+}): any {
+  return {
+    className: "layout",
+    layout: args.layout,
+    cols: 12,
+    rowHeight: 60,
+    width: args.width,
+    isDraggable: true,
+    isResizable: true,
+  };
+}
+
 export interface WidgetGridProps {
   widgets: DashboardWidget[];
   selectedWidgetId: string | null;
@@ -50,17 +71,16 @@ export function WidgetGrid({
 
   return (
     <div ref={containerRef}>
-      { }
+      {/*
+        Why `as any` on `gridProps`: @types/react-grid-layout@1.3.6 types
+        `cols` for the Responsive variant only — the default export
+        accepts the same prop at runtime but its `GridLayoutProps` type
+        omits it. A d.ts augmentation or a fork of @types/... is the
+        proper long-term fix; a hoisted prop bag with a single disable
+        is the minimum-risk stop-gap for now.
+      */}
       <ReactGridLayout
-        {...({
-          className: "layout",
-          layout,
-          cols: 12,
-          rowHeight: 60,
-          width,
-          isDraggable: true,
-          isResizable: true,
-        } as any)}
+        {...(gridProps({ layout, width }))}
         onLayoutChange={(newLayout) => {
           const items = Array.isArray(newLayout) ? newLayout : [newLayout];
           onLayoutChange(

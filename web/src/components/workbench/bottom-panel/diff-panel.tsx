@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
 import type {
   OntologyDiff,
@@ -12,6 +13,8 @@ import type {
   NodeTypeDef,
   EdgeTypeDef,
 } from "@/types/api";
+
+type DiffTranslator = ReturnType<typeof useTranslations<"workbench.bottomPanel.diff">>;
 
 // ---------------------------------------------------------------------------
 // DiffPanel — visual diff between two ontology versions
@@ -28,6 +31,7 @@ export function DiffPanel({
   targetLabel: string;
   onDismiss: () => void;
 }) {
+  const t = useTranslations("workbench.bottomPanel.diff");
   const { summary } = diff;
 
   if (summary.total_changes === 0) {
@@ -35,17 +39,17 @@ export function DiffPanel({
       <div className="rounded-lg border border-zinc-200 bg-zinc-50/50 p-3 text-xs dark:border-zinc-700 dark:bg-zinc-900/50">
         <div className="flex items-center justify-between">
           <h4 className="font-semibold text-zinc-700 dark:text-zinc-300">
-            No Changes
+            {t("noChanges")}
           </h4>
           <button
             onClick={onDismiss}
-            className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+            className="text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300"
           >
             &times;
           </button>
         </div>
-        <p className="mt-1 text-zinc-500 dark:text-zinc-400">
-          {baseLabel} and {targetLabel} are identical.
+        <p className="mt-1 text-zinc-500 dark:text-muted-foreground">
+          {t("noChangesDescription", { baseLabel, targetLabel })}
         </p>
       </div>
     );
@@ -56,11 +60,11 @@ export function DiffPanel({
       {/* Header */}
       <div className="flex items-center justify-between">
         <h4 className="font-semibold text-zinc-700 dark:text-zinc-300">
-          Diff: {baseLabel} &rarr; {targetLabel}
+          {t("header", { baseLabel, targetLabel })}
         </h4>
         <button
           onClick={onDismiss}
-          className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+          className="text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300"
         >
           &times;
         </button>
@@ -69,83 +73,77 @@ export function DiffPanel({
       {/* Summary bar */}
       <div className="mt-2 flex flex-wrap gap-2">
         {summary.nodes_added > 0 && (
-          <SummaryBadge color="emerald" label={`+${summary.nodes_added} node${summary.nodes_added > 1 ? "s" : ""}`} />
+          <SummaryBadge color="emerald" label={t("summaryNodesAdded", { count: summary.nodes_added })} />
         )}
         {summary.nodes_removed > 0 && (
-          <SummaryBadge color="red" label={`-${summary.nodes_removed} node${summary.nodes_removed > 1 ? "s" : ""}`} />
+          <SummaryBadge color="red" label={t("summaryNodesRemoved", { count: summary.nodes_removed })} />
         )}
         {summary.nodes_modified > 0 && (
-          <SummaryBadge color="amber" label={`~${summary.nodes_modified} modified node${summary.nodes_modified > 1 ? "s" : ""}`} />
+          <SummaryBadge color="amber" label={t("summaryNodesModified", { count: summary.nodes_modified })} />
         )}
         {summary.edges_added > 0 && (
-          <SummaryBadge color="emerald" label={`+${summary.edges_added} edge${summary.edges_added > 1 ? "s" : ""}`} />
+          <SummaryBadge color="emerald" label={t("summaryEdgesAdded", { count: summary.edges_added })} />
         )}
         {summary.edges_removed > 0 && (
-          <SummaryBadge color="red" label={`-${summary.edges_removed} edge${summary.edges_removed > 1 ? "s" : ""}`} />
+          <SummaryBadge color="red" label={t("summaryEdgesRemoved", { count: summary.edges_removed })} />
         )}
         {summary.edges_modified > 0 && (
-          <SummaryBadge color="amber" label={`~${summary.edges_modified} modified edge${summary.edges_modified > 1 ? "s" : ""}`} />
+          <SummaryBadge color="amber" label={t("summaryEdgesModified", { count: summary.edges_modified })} />
         )}
         {summary.properties_added > 0 && (
-          <SummaryBadge color="emerald" label={`+${summary.properties_added} prop${summary.properties_added > 1 ? "s" : ""}`} />
+          <SummaryBadge color="emerald" label={t("summaryPropertiesAdded", { count: summary.properties_added })} />
         )}
         {summary.properties_removed > 0 && (
-          <SummaryBadge color="red" label={`-${summary.properties_removed} prop${summary.properties_removed > 1 ? "s" : ""}`} />
+          <SummaryBadge color="red" label={t("summaryPropertiesRemoved", { count: summary.properties_removed })} />
         )}
       </div>
 
       {/* Change details */}
       <div className="mt-3 space-y-2 max-h-[40vh] overflow-y-auto">
-        {/* Added Nodes */}
         {diff.added_nodes.length > 0 && (
-          <DiffSection title="Added Nodes" color="emerald">
+          <DiffSection title={t("addedNodes")} color="emerald">
             {diff.added_nodes.map((n) => (
-              <AddedNodeItem key={n.id} node={n} />
+              <AddedNodeItem key={n.id} node={n} t={t} />
             ))}
           </DiffSection>
         )}
 
-        {/* Removed Nodes */}
         {diff.removed_nodes.length > 0 && (
-          <DiffSection title="Removed Nodes" color="red">
+          <DiffSection title={t("removedNodes")} color="red">
             {diff.removed_nodes.map((n) => (
-              <RemovedNodeItem key={n.id} node={n} />
+              <RemovedNodeItem key={n.id} node={n} t={t} />
             ))}
           </DiffSection>
         )}
 
-        {/* Modified Nodes */}
         {diff.modified_nodes.length > 0 && (
-          <DiffSection title="Modified Nodes" color="amber">
+          <DiffSection title={t("modifiedNodes")} color="amber">
             {diff.modified_nodes.map((n) => (
-              <ModifiedNodeItem key={n.node_id} node={n} />
+              <ModifiedNodeItem key={n.node_id} node={n} t={t} />
             ))}
           </DiffSection>
         )}
 
-        {/* Added Edges */}
         {diff.added_edges.length > 0 && (
-          <DiffSection title="Added Edges" color="emerald">
+          <DiffSection title={t("addedEdges")} color="emerald">
             {diff.added_edges.map((e) => (
               <AddedEdgeItem key={e.id} edge={e} />
             ))}
           </DiffSection>
         )}
 
-        {/* Removed Edges */}
         {diff.removed_edges.length > 0 && (
-          <DiffSection title="Removed Edges" color="red">
+          <DiffSection title={t("removedEdges")} color="red">
             {diff.removed_edges.map((e) => (
               <RemovedEdgeItem key={e.id} edge={e} />
             ))}
           </DiffSection>
         )}
 
-        {/* Modified Edges */}
         {diff.modified_edges.length > 0 && (
-          <DiffSection title="Modified Edges" color="amber">
+          <DiffSection title={t("modifiedEdges")} color="amber">
             {diff.modified_edges.map((e) => (
-              <ModifiedEdgeItem key={e.edge_id} edge={e} />
+              <ModifiedEdgeItem key={e.edge_id} edge={e} t={t} />
             ))}
           </DiffSection>
         )}
@@ -210,37 +208,37 @@ function DiffSection({
   );
 }
 
-function AddedNodeItem({ node }: { node: NodeTypeDef }) {
+function AddedNodeItem({ node, t }: { node: NodeTypeDef; t: DiffTranslator }) {
   return (
     <div className="rounded bg-emerald-50/50 px-2 py-1 dark:bg-emerald-950/20">
       <span className="font-medium text-emerald-700 dark:text-emerald-300">
         + {node.label}
       </span>
       {node.properties.length > 0 && (
-        <span className="ml-1.5 text-zinc-400">
-          ({node.properties.length} properties)
+        <span className="ml-1.5 text-muted-foreground">
+          {t("propertiesCount", { count: node.properties.length })}
         </span>
       )}
     </div>
   );
 }
 
-function RemovedNodeItem({ node }: { node: NodeTypeDef }) {
+function RemovedNodeItem({ node, t }: { node: NodeTypeDef; t: DiffTranslator }) {
   return (
     <div className="rounded bg-red-50/50 px-2 py-1 dark:bg-red-950/20">
       <span className="font-medium text-red-700 dark:text-red-300">
         - {node.label}
       </span>
       {node.properties.length > 0 && (
-        <span className="ml-1.5 text-zinc-400">
-          ({node.properties.length} properties)
+        <span className="ml-1.5 text-muted-foreground">
+          {t("propertiesCount", { count: node.properties.length })}
         </span>
       )}
     </div>
   );
 }
 
-function ModifiedNodeItem({ node }: { node: NodeDiffEntry }) {
+function ModifiedNodeItem({ node, t }: { node: NodeDiffEntry; t: DiffTranslator }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
@@ -249,18 +247,18 @@ function ModifiedNodeItem({ node }: { node: NodeDiffEntry }) {
         onClick={() => setIsExpanded(!isExpanded)}
         className="flex w-full items-center gap-1 text-left"
       >
-        <span className="select-none text-zinc-400">{isExpanded ? "\u25BE" : "\u25B8"}</span>
+        <span className="select-none text-muted-foreground">{isExpanded ? "\u25BE" : "\u25B8"}</span>
         <span className="font-medium text-amber-700 dark:text-amber-300">
           ~ {node.label}
         </span>
-        <span className="ml-1 text-zinc-400">
-          ({node.changes.length} change{node.changes.length > 1 ? "s" : ""})
+        <span className="ml-1 text-muted-foreground">
+          {t("changes", { count: node.changes.length })}
         </span>
       </button>
       {isExpanded && (
         <div className="mt-1 ml-3 space-y-0.5">
           {node.changes.map((change, i) => (
-            <NodeChangeItem key={i} change={change} />
+            <NodeChangeItem key={i} change={change} t={t} />
           ))}
         </div>
       )}
@@ -268,12 +266,12 @@ function ModifiedNodeItem({ node }: { node: NodeDiffEntry }) {
   );
 }
 
-function NodeChangeItem({ change }: { change: NodeChange }) {
+function NodeChangeItem({ change, t }: { change: NodeChange; t: DiffTranslator }) {
   switch (change.type) {
     case "label_changed":
       return (
         <ChangeRow
-          label="Label"
+          label={t("labelTxt")}
           old={change.old}
           new_val={change.new}
         />
@@ -281,32 +279,32 @@ function NodeChangeItem({ change }: { change: NodeChange }) {
     case "description_changed":
       return (
         <ChangeRow
-          label="Description"
-          old={change.old ?? "(none)"}
-          new_val={change.new ?? "(none)"}
+          label={t("descriptionTxt")}
+          old={change.old ?? t("noneValue")}
+          new_val={change.new ?? t("noneValue")}
         />
       );
     case "property_added":
       return (
         <div className="text-emerald-600 dark:text-emerald-400">
-          + Property: <span className="font-medium">{change.property.name}</span>
+          + {t("propertyLabel")}: <span className="font-medium">{change.property.name}</span>
         </div>
       );
     case "property_removed":
       return (
         <div className="text-red-600 dark:text-red-400">
-          - Property: <span className="font-medium">{change.property.name}</span>
+          - {t("propertyLabel")}: <span className="font-medium">{change.property.name}</span>
         </div>
       );
     case "property_modified":
       return (
         <div>
           <span className="text-amber-600 dark:text-amber-400">
-            ~ Property: <span className="font-medium">{change.property_name}</span>
+            ~ {t("propertyLabel")}: <span className="font-medium">{change.property_name}</span>
           </span>
           <div className="ml-3 space-y-0.5">
             {change.changes.map((pc, i) => (
-              <PropertyChangeItem key={i} change={pc} />
+              <PropertyChangeItem key={i} change={pc} t={t} />
             ))}
           </div>
         </div>
@@ -314,13 +312,13 @@ function NodeChangeItem({ change }: { change: NodeChange }) {
     case "constraint_added":
       return (
         <div className="text-emerald-600 dark:text-emerald-400">
-          + Constraint: <span className="font-mono">{change.constraint}</span>
+          + {t("constraintLabel")}: <span className="font-mono">{change.constraint}</span>
         </div>
       );
     case "constraint_removed":
       return (
         <div className="text-red-600 dark:text-red-400">
-          - Constraint: <span className="font-mono">{change.constraint}</span>
+          - {t("constraintLabel")}: <span className="font-mono">{change.constraint}</span>
         </div>
       );
   }
@@ -332,7 +330,7 @@ function AddedEdgeItem({ edge }: { edge: EdgeTypeDef }) {
       <span className="font-medium text-emerald-700 dark:text-emerald-300">
         + {edge.label}
       </span>
-      <span className="ml-1.5 text-zinc-400">
+      <span className="ml-1.5 text-muted-foreground">
         ({edge.source_node_id} &rarr; {edge.target_node_id})
       </span>
     </div>
@@ -345,14 +343,14 @@ function RemovedEdgeItem({ edge }: { edge: EdgeTypeDef }) {
       <span className="font-medium text-red-700 dark:text-red-300">
         - {edge.label}
       </span>
-      <span className="ml-1.5 text-zinc-400">
+      <span className="ml-1.5 text-muted-foreground">
         ({edge.source_node_id} &rarr; {edge.target_node_id})
       </span>
     </div>
   );
 }
 
-function ModifiedEdgeItem({ edge }: { edge: EdgeDiffEntry }) {
+function ModifiedEdgeItem({ edge, t }: { edge: EdgeDiffEntry; t: DiffTranslator }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
@@ -361,18 +359,18 @@ function ModifiedEdgeItem({ edge }: { edge: EdgeDiffEntry }) {
         onClick={() => setIsExpanded(!isExpanded)}
         className="flex w-full items-center gap-1 text-left"
       >
-        <span className="select-none text-zinc-400">{isExpanded ? "\u25BE" : "\u25B8"}</span>
+        <span className="select-none text-muted-foreground">{isExpanded ? "\u25BE" : "\u25B8"}</span>
         <span className="font-medium text-amber-700 dark:text-amber-300">
           ~ {edge.label}
         </span>
-        <span className="ml-1 text-zinc-400">
-          ({edge.changes.length} change{edge.changes.length > 1 ? "s" : ""})
+        <span className="ml-1 text-muted-foreground">
+          {t("changes", { count: edge.changes.length })}
         </span>
       </button>
       {isExpanded && (
         <div className="mt-1 ml-3 space-y-0.5">
           {edge.changes.map((change, i) => (
-            <EdgeChangeItem key={i} change={change} />
+            <EdgeChangeItem key={i} change={change} t={t} />
           ))}
         </div>
       )}
@@ -380,45 +378,45 @@ function ModifiedEdgeItem({ edge }: { edge: EdgeDiffEntry }) {
   );
 }
 
-function EdgeChangeItem({ change }: { change: EdgeChange }) {
+function EdgeChangeItem({ change, t }: { change: EdgeChange; t: DiffTranslator }) {
   switch (change.type) {
     case "label_changed":
-      return <ChangeRow label="Label" old={change.old} new_val={change.new} />;
+      return <ChangeRow label={t("labelTxt")} old={change.old} new_val={change.new} />;
     case "description_changed":
       return (
         <ChangeRow
-          label="Description"
-          old={change.old ?? "(none)"}
-          new_val={change.new ?? "(none)"}
+          label={t("descriptionTxt")}
+          old={change.old ?? t("noneValue")}
+          new_val={change.new ?? t("noneValue")}
         />
       );
     case "source_changed":
-      return <ChangeRow label="Source" old={change.old} new_val={change.new} />;
+      return <ChangeRow label={t("sourceTxt")} old={change.old} new_val={change.new} />;
     case "target_changed":
-      return <ChangeRow label="Target" old={change.old} new_val={change.new} />;
+      return <ChangeRow label={t("targetTxt")} old={change.old} new_val={change.new} />;
     case "cardinality_changed":
-      return <ChangeRow label="Cardinality" old={change.old} new_val={change.new} />;
+      return <ChangeRow label={t("cardinalityTxt")} old={change.old} new_val={change.new} />;
     case "property_added":
       return (
         <div className="text-emerald-600 dark:text-emerald-400">
-          + Property: <span className="font-medium">{change.property.name}</span>
+          + {t("propertyLabel")}: <span className="font-medium">{change.property.name}</span>
         </div>
       );
     case "property_removed":
       return (
         <div className="text-red-600 dark:text-red-400">
-          - Property: <span className="font-medium">{change.property.name}</span>
+          - {t("propertyLabel")}: <span className="font-medium">{change.property.name}</span>
         </div>
       );
     case "property_modified":
       return (
         <div>
           <span className="text-amber-600 dark:text-amber-400">
-            ~ Property: <span className="font-medium">{change.property_name}</span>
+            ~ {t("propertyLabel")}: <span className="font-medium">{change.property_name}</span>
           </span>
           <div className="ml-3 space-y-0.5">
             {change.changes.map((pc, i) => (
-              <PropertyChangeItem key={i} change={pc} />
+              <PropertyChangeItem key={i} change={pc} t={t} />
             ))}
           </div>
         </div>
@@ -426,32 +424,32 @@ function EdgeChangeItem({ change }: { change: EdgeChange }) {
   }
 }
 
-function PropertyChangeItem({ change }: { change: PropertyChange }) {
+function PropertyChangeItem({ change, t }: { change: PropertyChange; t: DiffTranslator }) {
   switch (change.type) {
     case "type_changed":
-      return <ChangeRow label="Type" old={change.old} new_val={change.new} />;
+      return <ChangeRow label={t("typeTxt")} old={change.old} new_val={change.new} />;
     case "nullability_changed":
       return (
         <ChangeRow
-          label="Nullable"
-          old={change.old ? "true" : "false"}
-          new_val={change.new ? "true" : "false"}
+          label={t("nullableTxt")}
+          old={change.old ? t("trueValue") : t("falseValue")}
+          new_val={change.new ? t("trueValue") : t("falseValue")}
         />
       );
     case "description_changed":
       return (
         <ChangeRow
-          label="Description"
-          old={change.old ?? "(none)"}
-          new_val={change.new ?? "(none)"}
+          label={t("descriptionTxt")}
+          old={change.old ?? t("noneValue")}
+          new_val={change.new ?? t("noneValue")}
         />
       );
     case "default_value_changed":
       return (
         <ChangeRow
-          label="Default"
-          old={change.old ?? "(none)"}
-          new_val={change.new ?? "(none)"}
+          label={t("defaultTxt")}
+          old={change.old ?? t("noneValue")}
+          new_val={change.new ?? t("noneValue")}
         />
       );
   }
@@ -467,10 +465,10 @@ function ChangeRow({
   new_val: string;
 }) {
   return (
-    <div className="flex items-baseline gap-1 text-zinc-600 dark:text-zinc-400">
+    <div className="flex items-baseline gap-1 text-zinc-600 dark:text-muted-foreground">
       <span className="font-medium text-muted-foreground">{label}:</span>
       <span className="line-through text-red-500/70 dark:text-red-400/70">{old}</span>
-      <span className="text-zinc-400 dark:text-zinc-600">&rarr;</span>
+      <span className="text-muted-foreground dark:text-zinc-600">&rarr;</span>
       <span className="text-emerald-600 dark:text-emerald-400">{new_val}</span>
     </div>
   );

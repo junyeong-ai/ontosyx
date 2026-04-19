@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAppStore, selectSelectedWidgetId } from "@/lib/store";
 import { Group, Panel } from "react-resizable-panels";
 import { ResizeHandle } from "@/components/ui/resize-handle";
@@ -14,15 +15,15 @@ import {
 import { Tooltip } from "@/components/ui/tooltip";
 import { SkeletonWidgetGrid } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import type { Dashboard, DashboardWidget } from "@/types/api";
 import {
-  listDashboards,
   createDashboard,
   deleteDashboard,
   updateDashboard,
   listWidgets,
   addWidget,
 } from "@/lib/api";
+import { dashboardsKeys, useDashboards } from "@/hooks/api/use-dashboards";
+import { widgetsKeys, useWidgets } from "@/hooks/api/use-widgets";
 import { DashboardAiDialog } from "./dashboard-ai-dialog";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -40,46 +41,61 @@ export function DashboardLayout() {
   const setActiveDashboardId = useAppStore((s) => s.setActiveDashboardId);
   const selectedWidgetId = useAppStore(selectSelectedWidgetId);
   const dashboardFilters = useAppStore((s) => s.dashboardFilters);
-  const [dashboards, setDashboards] = useState<Dashboard[]>([]);
-  const [widgets, setWidgets] = useState<DashboardWidget[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // Load dashboards on mount (auto-select first if none active)
-  useEffect(() => {
-    setIsLoading(true);
-    listDashboards({ limit: 50 })
-      .then((page) => {
-        setDashboards(page.items);
-        if (!activeDashboardId && page.items.length > 0) {
-          setActiveDashboardId(page.items[0].id);
-        }
-      })
-      .catch(() => toast.error("Failed to load dashboards"))
-      .finally(() => setIsLoading(false));
-  }, []);
+  const qc = useQueryClient();
 
-  // Load widgets when active dashboard changes + sync count to store
+  // Dashboards list — Tanstack Query owns loading and cache invalidation.
+  const {
+    data: dashboardsPage,
+    isLoading,
+    isError: dashboardsError,
+  } = useDashboards({ limit: 50 });
+  // Stable references — without these the `?? []` fallbacks allocate
+  // fresh arrays every render and invalidate downstream deps.
+  const dashboards = useMemo(
+    () => dashboardsPage?.items ?? [],
+    [dashboardsPage],
+  );
+
+  useEffect(() => {
+    if (dashboardsError) toast.error("Failed to load dashboards");
+  }, [dashboardsError]);
+
+  // Widgets — tied to the active dashboard.
+  const {
+    data: widgetsData,
+    isError: widgetsError,
+  } = useWidgets(activeDashboardId);
+  const widgets = useMemo(() => widgetsData ?? [], [widgetsData]);
+
+  useEffect(() => {
+    if (widgetsError) toast.error("Failed to load widgets");
+  }, [widgetsError]);
+
+  // Auto-select the first dashboard when none is active — writes to the
+  // Zustand store, which is an external system from React's perspective
+  // and so sits outside the `set-state-in-effect` gate.
+  useEffect(() => {
+    if (!activeDashboardId && dashboards.length > 0) {
+      setActiveDashboardId(dashboards[0].id);
+    }
+  }, [activeDashboardId, dashboards, setActiveDashboardId]);
+
+  // Sync widget count into Zustand (external store — same exemption).
+  useEffect(() => {
+    useAppStore.getState().setDashboardWidgetCount(widgets.length);
+  }, [widgets.length]);
+
   const refreshWidgets = useCallback(() => {
     if (!activeDashboardId) return;
-    listWidgets(activeDashboardId)
-      .then((w) => {
-        setWidgets(w);
-        useAppStore.getState().setDashboardWidgetCount(w.length);
-      })
-      .catch(() => toast.error("Failed to load widgets"));
-  }, [activeDashboardId]);
+    qc.invalidateQueries({ queryKey: widgetsKeys.list(activeDashboardId) });
+  }, [qc, activeDashboardId]);
 
-  useEffect(() => {
-    if (!activeDashboardId) {
-      setWidgets([]);
-      useAppStore.getState().setDashboardWidgetCount(0);
-      return;
-    }
-    refreshWidgets();
-  }, [activeDashboardId, refreshWidgets]);
+  const activeDashboard = dashboards.find((d) => d.id === activeDashboardId);
+  const selectedWidget = widgets.find((w) => w.id === selectedWidgetId);
 
   const handleCreate = () => {
     setIsCreateDialogOpen(true);
@@ -91,7 +107,7 @@ export function DashboardLayout() {
         name,
         description: description || undefined,
       });
-      setDashboards((prev) => [dash, ...prev]);
+      qc.invalidateQueries({ queryKey: dashboardsKeys.lists() });
       setActiveDashboardId(dash.id);
       setIsCreateDialogOpen(false);
       toast.success("Dashboard created");
@@ -118,7 +134,7 @@ export function DashboardLayout() {
           refresh_interval_secs: w.refresh_interval_secs ?? undefined,
         });
       }
-      setDashboards((prev) => [copy, ...prev]);
+      qc.invalidateQueries({ queryKey: dashboardsKeys.lists() });
       setActiveDashboardId(copy.id);
       toast.success("Dashboard duplicated");
     } catch {
@@ -127,16 +143,14 @@ export function DashboardLayout() {
   };
 
   const handleDelete = async (id: string) => {
-    const snapshot = dashboards;
-    setDashboards((prev) => prev.filter((d) => d.id !== id));
     if (activeDashboardId === id) {
       setActiveDashboardId(null);
     }
     try {
       await deleteDashboard(id);
+      qc.invalidateQueries({ queryKey: dashboardsKeys.lists() });
       toast.success("Dashboard deleted");
     } catch {
-      setDashboards(snapshot);
       if (activeDashboardId === id) setActiveDashboardId(id);
       toast.error("Failed to delete dashboard");
     }
@@ -149,9 +163,6 @@ export function DashboardLayout() {
       </div>
     );
   }
-
-  const activeDashboard = dashboards.find((d) => d.id === activeDashboardId);
-  const selectedWidget = widgets.find((w) => w.id === selectedWidgetId);
 
   return (
     <ErrorBoundary name="Dashboard">
@@ -167,7 +178,7 @@ export function DashboardLayout() {
                   <button
                     onClick={() => setIsAiDialogOpen(true)}
                     aria-label="AI Generate Widgets"
-                    className="rounded-md p-1 text-zinc-400 hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950"
+                    className="rounded-md p-1 text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950"
                   >
                     <HugeiconsIcon icon={AiNetworkIcon} className="h-3.5 w-3.5" size="100%" />
                   </button>
@@ -180,9 +191,7 @@ export function DashboardLayout() {
                       const newPublic = !activeDashboard.is_public;
                       try {
                         await updateDashboard(activeDashboardId, { is_public: newPublic });
-                        setDashboards(prev => prev.map(d =>
-                          d.id === activeDashboardId ? { ...d, is_public: newPublic } : d
-                        ));
+                        qc.invalidateQueries({ queryKey: dashboardsKeys.lists() });
                         toast.success(newPublic ? "Dashboard shared" : "Dashboard made private");
                       } catch {
                         toast.error("Failed to update sharing");
@@ -191,7 +200,7 @@ export function DashboardLayout() {
                     className={`rounded-md p-1 ${
                       activeDashboard.is_public
                         ? "text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950"
-                        : "text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                        : "text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
                     }`}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-3.5 w-3.5">
@@ -220,7 +229,7 @@ export function DashboardLayout() {
                       printWindow.document.close();
                       printWindow.print();
                     }}
-                    className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
+                    className="rounded-md p-1 text-muted-foreground hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-3.5 w-3.5">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
@@ -231,7 +240,7 @@ export function DashboardLayout() {
                   <button
                     onClick={handleDuplicate}
                     aria-label="Duplicate Dashboard"
-                    className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
+                    className="rounded-md p-1 text-muted-foreground hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-3.5 w-3.5">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
@@ -242,7 +251,7 @@ export function DashboardLayout() {
                   <button
                     onClick={() => setRefreshKey((prev) => prev + 1)}
                     aria-label="Refresh All Widgets"
-                    className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
+                    className="rounded-md p-1 text-muted-foreground hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
                   >
                     <HugeiconsIcon icon={RepeatIcon} className="h-3.5 w-3.5" size="100%" />
                   </button>
@@ -251,7 +260,7 @@ export function DashboardLayout() {
                   <button
                     onClick={() => handleDelete(activeDashboard.id)}
                     aria-label="Delete Dashboard"
-                    className="rounded-md p-1 text-zinc-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950"
+                    className="rounded-md p-1 text-muted-foreground hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950"
                   >
                     <HugeiconsIcon icon={Delete02Icon} className="h-3.5 w-3.5" size="100%" />
                   </button>
@@ -281,7 +290,7 @@ export function DashboardLayout() {
               ))}
               <button
                 onClick={() => useAppStore.getState().clearDashboardFilters()}
-                className="text-[10px] text-zinc-400 hover:text-zinc-600"
+                className="text-[10px] text-muted-foreground hover:text-zinc-600"
               >
                 Clear all
               </button>
@@ -310,11 +319,9 @@ export function DashboardLayout() {
                 <AddWidgetButton
                   dashboardId={activeDashboard.id}
                   existingWidgets={widgets}
-                  onAdded={(w) => {
-                    setWidgets((prev) => {
-                      const next = [...prev, w];
-                      useAppStore.getState().setDashboardWidgetCount(next.length);
-                      return next;
+                  onAdded={() => {
+                    qc.invalidateQueries({
+                      queryKey: widgetsKeys.list(activeDashboard.id),
                     });
                   }}
                 />
@@ -342,7 +349,7 @@ export function DashboardLayout() {
                 onUpdated={refreshWidgets}
               />
             ) : (
-              <p className="text-xs text-zinc-400 text-center mt-8">
+              <p className="text-xs text-muted-foreground text-center mt-8">
                 Select a widget to configure
               </p>
             )}
@@ -356,11 +363,9 @@ export function DashboardLayout() {
           isOpen={isAiDialogOpen}
           onClose={() => setIsAiDialogOpen(false)}
           dashboardId={activeDashboardId}
-          onWidgetAdded={(widget) => {
-            setWidgets((prev) => {
-              const next = [...prev, widget];
-              useAppStore.getState().setDashboardWidgetCount(next.length);
-              return next;
+          onWidgetAdded={() => {
+            qc.invalidateQueries({
+              queryKey: widgetsKeys.list(activeDashboardId),
             });
           }}
         />

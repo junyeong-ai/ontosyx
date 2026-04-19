@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/rules-of-hooks */
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -29,6 +28,11 @@ export function useCanvasLayout(
 ) {
   const uiConfig = useUiConfig();
   const uiConfigRef = useRef(uiConfig);
+  // TODO(phase-2): migrate to useEffectEvent(uiConfig) once the API
+  // stabilises in React 19. Keeping the render-phase assignment so
+  // later layout math can read the freshest config without adding a
+  // dependency on every uiConfig field.
+  // eslint-disable-next-line react-hooks/refs
   uiConfigRef.current = uiConfig;
   const ontology = useAppStore((s) => s.ontology);
   const { fitView, setViewport, getViewport, getNodes: getFlowNodes } = useReactFlow();

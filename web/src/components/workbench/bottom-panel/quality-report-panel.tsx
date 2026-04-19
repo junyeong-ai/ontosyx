@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { MagicWand01Icon } from "@hugeicons/core-free-icons";
@@ -20,6 +21,8 @@ import { updateDecisions, getProject } from "@/lib/api";
 import { useAppStore } from "@/lib/store";
 import { QualityGapCard, AI_FIXABLE_CATEGORIES } from "./quality-gap-card";
 
+type QualityTranslator = ReturnType<typeof useTranslations<"workbench.bottomPanel.quality">>;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -30,8 +33,41 @@ const SEVERITY_ORDER: Record<QualityGapSeverity, number> = {
   low: 2,
 };
 
-function formatCategory(category: QualityGapCategory): string {
-  return category
+// Known quality gap categories mirrored from the backend wire type.
+// Unknown variants fall back to the raw snake_case value.
+const KNOWN_CATEGORIES = [
+  "opaque_enum_value",
+  "numeric_enum_code",
+  "single_value_bias",
+  "small_sample",
+  "missing_description",
+  "sparse_property",
+  "unmapped_source_table",
+  "missing_foreign_key_edge",
+  "missing_containment_edge",
+  "unmapped_source_column",
+  "duplicate_edge",
+  "orphan_node",
+  "property_type_inconsistency",
+  "hub_node",
+  "overloaded_property",
+  "self_referential_edge",
+] as const;
+type KnownCategory = (typeof KNOWN_CATEGORIES)[number];
+function isKnownCategory(s: string): s is KnownCategory {
+  return (KNOWN_CATEGORIES as readonly string[]).includes(s);
+}
+
+function formatCategory(
+  category: QualityGapCategory,
+  t: QualityTranslator,
+): string {
+  // Widen to plain `string` so TS doesn't narrow to `never` after the
+  // `isKnownCategory` guard — the wire type is the closed union mirror,
+  // but the guard is written defensively for forward-compat.
+  const raw: string = category;
+  if (isKnownCategory(raw)) return t(`categories.${raw}`);
+  return raw
     .split("_")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
@@ -44,30 +80,28 @@ function countBadgeClass(severity: QualityGapSeverity): string {
       ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
       : severity === "medium"
         ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
-        : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
+        : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground",
   );
 }
 
 /**
  * Build an acknowledgment clarification hint based on gap type and location.
+ * Accepts a translator so the hint matches the user's active locale — the
+ * hint is persisted verbatim, so it should render in the UI language.
  */
-function buildAcknowledgmentHint(gap: QualityGap): string {
-  const loc = gap.location;
+function buildAcknowledgmentHint(gap: QualityGap, t: QualityTranslator): string {
   if (gap.category === "single_value_bias") {
     // Extract value info from the issue text if possible
     const match = gap.issue.match(/all (?:values|rows) (?:are|=) ['"]?([^'"]+)['"]?/i)
       ?? gap.issue.match(/single value ['"]?([^'"]+)['"]?/i);
-    const value = match?.[1] ?? "the observed value";
-    return `Confirmed: '${value}' is the expected value for this column`;
+    const value = match?.[1] ?? t("acknowledgmentHintSingleValueDefault");
+    return t("acknowledgmentHintSingleValue", { value });
   }
   if (gap.category === "sparse_property") {
-    return "Confirmed: nullable property, keep as-is";
+    return t("acknowledgmentHintSparse");
   }
-  // Fallback
-  if ("property_name" in loc) {
-    return `Acknowledged: ${gap.issue}`;
-  }
-  return `Acknowledged: ${gap.issue}`;
+  // Fallback for any other gap categories the UI is asked to acknowledge.
+  return t("acknowledgmentHintGeneric", { issue: gap.issue });
 }
 
 /**
@@ -102,6 +136,12 @@ interface QualityReportPanelProps {
 }
 
 export function QualityReportPanel({ report }: QualityReportPanelProps) {
+  const t = useTranslations("workbench.bottomPanel.quality");
+  // Workflow heading used to locate the Analysis Review <details> element
+  // when navigating from a gap to its clarification source.
+  const analysisReviewHeading = useTranslations(
+    "workbench.bottomPanel.workflow",
+  )("analysisReview");
   const [enabledSeverities, setEnabledSeverities] = useState<
     Set<QualityGapSeverity>
   >(new Set(["high", "medium", "low"]));
@@ -131,23 +171,23 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
 
       const sourceLoc = extractSourceLocation(gap);
       if (!sourceLoc) {
-        toast.error("Cannot determine source column for this gap");
+        toast.error(t("cannotDetermineSource"));
         return;
       }
 
       // Confirm with user before acknowledging
       const confirmed = await confirmDialog({
-        title: "Acknowledge Finding",
+        title: t("acknowledgeTitle"),
         description: gap.category === "single_value_bias"
-          ? `Confirm that the observed value is expected for ${sourceLoc.table}.${sourceLoc.column}? This will suppress the warning in future quality assessments.`
-          : `Confirm that ${sourceLoc.table}.${sourceLoc.column} is intentionally sparse or can be kept as-is? This will suppress the warning.`,
-        confirmLabel: "Confirm",
+          ? t("acknowledgeSingleValueDescription", { table: sourceLoc.table, column: sourceLoc.column })
+          : t("acknowledgeSparseDescription", { table: sourceLoc.table, column: sourceLoc.column }),
+        confirmLabel: t("acknowledgeConfirmLabel"),
       });
       if (!confirmed) return;
 
       setAcknowledgingIndex(index);
       try {
-        const hint = buildAcknowledgmentHint(gap);
+        const hint = buildAcknowledgmentHint(gap, t);
         const existingClarifications = activeProject.design_options.column_clarifications ?? [];
 
         // Check if a clarification already exists for this column
@@ -181,11 +221,11 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
           revision: activeProject.revision,
         });
         setActiveProject(updatedProject);
-        toast.success("Gap acknowledged", {
-          description: `Clarification added for ${sourceLoc.table}.${sourceLoc.column}`,
+        toast.success(t("gapAcknowledged"), {
+          description: t("clarificationAdded", { table: sourceLoc.table, column: sourceLoc.column }),
         });
       } catch (err) {
-        toast.error("Acknowledge failed", {
+        toast.error(t("acknowledgeFailed"), {
           description: err instanceof Error ? err.message : "Unknown error",
         });
         // Try to reload project in case of conflict
@@ -199,7 +239,7 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
         setAcknowledgingIndex(null);
       }
     },
-    [activeProject, setActiveProject],
+    [activeProject, setActiveProject, confirmDialog, t],
   );
 
   const navigateToClarification = useCallback(
@@ -217,7 +257,7 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
         const detailElements = document.querySelectorAll<HTMLDetailsElement>("details");
         for (const d of detailElements) {
           const summary = d.querySelector("summary");
-          if (summary?.textContent?.includes("Analysis Review")) {
+          if (summary?.textContent?.includes(analysisReviewHeading)) {
             d.open = true;
             d.scrollIntoView({ behavior: "smooth", block: "start" });
             break;
@@ -225,11 +265,11 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
         }
       });
 
-      toast.info(`Add a clarification for ${locationLabel}`, {
-        description: "Provide context in the Analysis Review section",
+      toast.info(t("navigationHint", { location: locationLabel }), {
+        description: t("navigationDescription"),
       });
     },
-    [setDesignBottomTab],
+    [setDesignBottomTab, t, analysisReviewHeading],
   );
 
   const fixAll = useCallback(() => {
@@ -237,14 +277,14 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
       (g) => getGapEntityId(g) !== null && AI_FIXABLE_CATEGORIES.has(g.category),
     );
     if (fixableGaps.length === 0) {
-      toast.info("No auto-fixable gaps found");
+      toast.info(t("autoFixAllEmpty"));
       return;
     }
     const combinedRequest = fixableGaps
       .map((g) => gapToEditRequest(g))
       .join("\n");
     setCommandBarInput(combinedRequest);
-  }, [setCommandBarInput, report.gaps]);
+  }, [setCommandBarInput, report.gaps, t]);
 
   // Count by severity
   const counts = useMemo(() => {
@@ -298,9 +338,12 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
 
   if (report.gaps.length === 0) {
     return (
-      <p className="text-xs text-zinc-400">No quality gaps found.</p>
+      <p className="text-xs text-muted-foreground">{t("reportNoGaps")}</p>
     );
   }
+
+  const severityLabel = (sev: QualityGapSeverity) =>
+    sev === "high" ? t("highLabel") : sev === "medium" ? t("mediumLabel") : t("lowLabel");
 
   return (
     <div className="space-y-3">
@@ -311,7 +354,10 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
             <button
               key={sev}
               type="button"
-              aria-label={`${enabledSeverities.has(sev) ? "Hide" : "Show"} ${sev} severity gaps`}
+              aria-label={t("toggleAria", {
+                action: enabledSeverities.has(sev) ? t("hide") : t("show"),
+                severity: severityLabel(sev),
+              })}
               aria-pressed={enabledSeverities.has(sev)}
               onClick={() => toggleSeverity(sev)}
               className={cn(
@@ -322,7 +368,7 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
               )}
             >
               <span className={countBadgeClass(sev)}>{counts[sev]}</span>
-              <span className="capitalize">{sev}</span>
+              <span className="capitalize">{severityLabel(sev)}</span>
             </button>
           ) : null,
         )}
@@ -338,7 +384,7 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
             )}
           >
             <HugeiconsIcon icon={MagicWand01Icon} className="h-3 w-3" size="100%" />
-            Auto-fix All
+            {t("autoFixAll")}
           </button>
         )}
       </div>
@@ -348,13 +394,13 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
         type="text"
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
-        placeholder="Search gaps by keyword..."
+        placeholder={t("searchPlaceholder")}
         className="w-full rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-xs text-zinc-700 placeholder-zinc-500 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400/50 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
       />
 
       {/* Grouped gaps */}
       {grouped.size === 0 && (
-        <p className="text-xs text-zinc-400">No gaps match the current filter.</p>
+        <p className="text-xs text-muted-foreground">{t("noMatches")}</p>
       )}
 
       {Array.from(grouped.entries()).map(([category, gaps]) => {
@@ -374,8 +420,8 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
               >
                 ▶
               </span>
-              {formatCategory(category)}
-              <span className="text-zinc-400">({gaps.length})</span>
+              {formatCategory(category, t)}
+              <span className="text-muted-foreground">{t("groupCount", { count: gaps.length })}</span>
             </button>
 
             {!collapsed && (

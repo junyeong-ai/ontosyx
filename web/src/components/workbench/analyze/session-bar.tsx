@@ -42,10 +42,10 @@ export function SessionBar() {
 
   return (
     <div className="flex h-8 shrink-0 items-center gap-2 border-b border-zinc-200 px-3 dark:border-zinc-800">
-      <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
         Session
       </span>
-      <span className="truncate text-xs text-zinc-600 dark:text-zinc-400 max-w-[140px]">
+      <span className="truncate text-xs text-zinc-600 dark:text-muted-foreground max-w-[140px]">
         {sessionId ? sessionId.slice(0, 8) + "..." : "New"}
       </span>
 
@@ -53,7 +53,7 @@ export function SessionBar() {
 
       <button
         onClick={() => setOpen(!open)}
-        className="text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+        className="text-[10px] text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300"
       >
         {sessions.length} past
       </button>
@@ -102,7 +102,7 @@ export function SessionBar() {
                 <span className="flex-1 truncate text-zinc-700 dark:text-zinc-300">
                   {s.user_message.slice(0, 60)}
                 </span>
-                <span className="shrink-0 text-[10px] text-zinc-400">
+                <span className="shrink-0 text-[10px] text-muted-foreground">
                   {formatRelativeDate(s.created_at)}
                 </span>
               </button>
