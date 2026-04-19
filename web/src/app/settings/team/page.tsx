@@ -1,21 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/lib/use-auth";
 import { listUsers, updateUserRole } from "@/lib/api";
 import { Spinner } from "@/components/ui/spinner";
 import { SettingsSelect } from "@/components/ui/form-input";
+import { Avatar } from "@/components/ui/avatar";
 import type { UserInfo } from "@/types/api";
 
-const ROLE_DESCRIPTIONS: Record<string, string> = {
-  admin: "Full access to all features including system configuration and user management",
-  designer: "Create and edit ontology designs, run queries, and manage projects",
-  viewer: "View ontologies, run chat queries, and browse query history",
-};
-
 const ROLES = ["admin", "designer", "viewer"] as const;
+type KnownRole = (typeof ROLES)[number];
+
+function isKnownRole(r: string): r is KnownRole {
+  return r === "admin" || r === "designer" || r === "viewer";
+}
 
 export default function TeamPage() {
+  const t = useTranslations("settings.team");
+  const tRoles = useTranslations("settings.roles");
   const { user, loading: authLoading, authEnabled, isAdmin } = useAuth();
   const [users, setUsers] = useState<UserInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,11 +31,11 @@ export default function TeamPage() {
       const page = await listUsers({ limit: 100 });
       setUsers(page.items);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load users");
+      setError(e instanceof Error ? e.message : t("loadError"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!authLoading && authEnabled) {
@@ -50,7 +53,7 @@ export default function TeamPage() {
         prev.map((u) => (u.id === updated.id ? updated : u)),
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to update role");
+      setError(e instanceof Error ? e.message : t("updateRoleError"));
     } finally {
       setUpdatingId(null);
     }
@@ -68,11 +71,11 @@ export default function TeamPage() {
     return (
       <div>
         <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-          Team
+          {t("title")}
         </h1>
         <div className="mt-6 rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Team management is available when authentication is enabled.
+          <p className="text-sm text-zinc-500 dark:text-muted-foreground">
+            {t("authRequired")}
           </p>
         </div>
       </div>
@@ -82,10 +85,10 @@ export default function TeamPage() {
   return (
     <div>
       <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-        Team
+        {t("title")}
       </h1>
-      <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-        Manage team members and their roles.
+      <p className="mt-1 text-sm text-zinc-500 dark:text-muted-foreground">
+        {t("description")}
       </p>
 
       <div className="mt-6 space-y-6">
@@ -93,15 +96,15 @@ export default function TeamPage() {
         <section className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
           <div className="border-b border-zinc-100 px-6 py-4 dark:border-zinc-800">
             <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              Roles
+              {t("rolesHeading")}
             </h2>
           </div>
           <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-            {Object.entries(ROLE_DESCRIPTIONS).map(([role, description]) => (
+            {ROLES.map((role) => (
               <div key={role} className="flex items-start gap-3 px-6 py-3">
-                <RoleBadge role={role} />
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                  {description}
+                <RoleBadge role={role} roleLabel={tRoles(role)} />
+                <p className="text-xs text-zinc-500 dark:text-muted-foreground">
+                  {t(`roleDescriptions.${role}`)}
                 </p>
               </div>
             ))}
@@ -119,8 +122,8 @@ export default function TeamPage() {
         <section className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
           <div className="border-b border-zinc-100 px-6 py-4 dark:border-zinc-800">
             <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              Members
-              <span className="ml-2 text-xs font-normal text-zinc-400">
+              {t("membersHeading")}
+              <span className="ml-2 text-xs font-normal text-muted-foreground">
                 {users.length}
               </span>
             </h2>
@@ -129,71 +132,60 @@ export default function TeamPage() {
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-zinc-100 dark:border-zinc-800">
-                  <th scope="col" className="py-3 pr-6 text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                    User
+                  <th scope="col" className="py-3 pr-6 text-xs font-medium text-zinc-500 dark:text-muted-foreground">
+                    {t("column.user")}
                   </th>
-                  <th scope="col" className="py-3 pr-6 text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                    Email
+                  <th scope="col" className="py-3 pr-6 text-xs font-medium text-zinc-500 dark:text-muted-foreground">
+                    {t("column.email")}
                   </th>
-                  <th scope="col" className="py-3 pr-6 text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                    Role
+                  <th scope="col" className="py-3 pr-6 text-xs font-medium text-zinc-500 dark:text-muted-foreground">
+                    {t("column.role")}
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
                 {users.map((member) => {
                   const isMe = member.id === user?.sub;
+                  const displayName = member.name ?? member.email;
                   return (
                     <tr key={member.id}>
                       <td className="py-3 pr-6">
                         <div className="flex items-center gap-2.5">
-                          {member.picture ? (
-                            <img
-                              src={member.picture}
-                              alt={member.name ?? member.email}
-                              className="h-7 w-7 rounded-full"
-                              referrerPolicy="no-referrer"
-                            />
-                          ) : (
-                            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-semibold text-white">
-                              {(member.name ?? member.email)
-                                .split(" ")
-                                .map((n) => n[0])
-                                .join("")
-                                .toUpperCase()
-                                .slice(0, 2)}
-                            </div>
-                          )}
+                          <Avatar
+                            src={member.picture}
+                            name={displayName}
+                            size="sm"
+                          />
                           <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                            {member.name ?? member.email}
+                            {displayName}
                           </span>
                           {isMe && (
                             <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] text-muted-foreground dark:bg-zinc-800">
-                              you
+                              {t("you")}
                             </span>
                           )}
                         </div>
                       </td>
-                      <td className="py-3 pr-6 text-zinc-600 dark:text-zinc-400">
+                      <td className="py-3 pr-6 text-zinc-600 dark:text-muted-foreground">
                         {member.email}
                       </td>
                       <td className="py-3 pr-6">
                         {isAdmin && !isMe ? (
                           <div className="relative">
                             <SettingsSelect
-            label="Role"
-            hideLabel
+                              label={t("roleSelectLabel")}
+                              hideLabel
                               value={member.role}
                               onChange={(e) =>
                                 handleRoleChange(member.id, e.target.value)
                               }
                               disabled={updatingId === member.id}
-                              aria-label={`Change role for ${member.name ?? member.email}`}
+                              aria-label={t("changeRoleAria", { name: displayName })}
                               className="capitalize"
                             >
                               {ROLES.map((r) => (
                                 <option key={r} value={r}>
-                                  {r}
+                                  {tRoles(r)}
                                 </option>
                               ))}
                             </SettingsSelect>
@@ -205,7 +197,14 @@ export default function TeamPage() {
                             )}
                           </div>
                         ) : (
-                          <RoleBadge role={member.role} />
+                          <RoleBadge
+                            role={member.role}
+                            roleLabel={
+                              member.role && isKnownRole(member.role)
+                                ? tRoles(member.role)
+                                : member.role
+                            }
+                          />
                         )}
                       </td>
                     </tr>
@@ -219,12 +218,10 @@ export default function TeamPage() {
         {/* Invite Note */}
         <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
           <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-            Adding Members
+            {t("addingMembers.heading")}
           </h2>
-          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-            Users are automatically added on first login via SSO. Share the
-            platform URL with your team members and ask them to sign in with
-            their Google account.
+          <p className="mt-1 text-xs text-zinc-500 dark:text-muted-foreground">
+            {t("addingMembers.description")}
           </p>
         </section>
       </div>
@@ -232,7 +229,13 @@ export default function TeamPage() {
   );
 }
 
-function RoleBadge({ role }: { role?: string }) {
+function RoleBadge({
+  role,
+  roleLabel,
+}: {
+  role?: string;
+  roleLabel?: string;
+}) {
   if (!role) return null;
 
   const styles =
@@ -240,13 +243,13 @@ function RoleBadge({ role }: { role?: string }) {
       ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400"
       : role === "designer"
         ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-        : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400";
+        : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground";
 
   return (
     <span
-      className={`inline-block shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize ${styles}`}
+      className={`inline-block shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${styles}`}
     >
-      {role}
+      {roleLabel ?? role}
     </span>
   );
 }

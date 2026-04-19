@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { Spinner } from "@/components/ui/spinner";
 import { FormInput } from "@/components/ui/form-input";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ import type { Workspace, WorkspaceMember } from "@/types/workspace";
 const BCP47_RE = /^[a-z]{2,3}(-[a-z0-9]{2,8})*$/;
 
 export default function WorkspaceSettingsPage() {
+  const t = useTranslations("settings.workspace");
   const wsId = getWorkspaceId();
 
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -47,11 +49,11 @@ export default function WorkspaceSettingsPage() {
       setEditFallback((ws.locale_fallback ?? ["ko", "en"]).join(","));
       setMembers(mems);
     } catch {
-      toast.error("Failed to load workspace");
+      toast.error(t("loadError"));
     } finally {
       setLoading(false);
     }
-  }, [wsId]);
+  }, [wsId, t]);
 
   useEffect(() => {
     load();
@@ -64,9 +66,9 @@ export default function WorkspaceSettingsPage() {
       const updated = await updateWorkspace(wsId, { name: editName.trim() });
       setWorkspace(updated);
       setWorkspaceName(updated.name);
-      toast.success("Workspace updated");
+      toast.success(t("updatedToast"));
     } catch {
-      toast.error("Failed to update workspace");
+      toast.error(t("updateError"));
     } finally {
       setSaving(false);
     }
@@ -96,9 +98,9 @@ export default function WorkspaceSettingsPage() {
       setWorkspace(updated);
       setEditPrimaryLocale(updated.primary_locale);
       setEditFallback((updated.locale_fallback ?? []).join(","));
-      toast.success("Locale updated");
+      toast.success(t("locale.updatedToast"));
     } catch {
-      toast.error("Failed to update locale");
+      toast.error(t("locale.updateError"));
     } finally {
       setSavingLocale(false);
     }
@@ -106,8 +108,8 @@ export default function WorkspaceSettingsPage() {
 
   if (!wsId) {
     return (
-      <div className="py-12 text-center text-sm text-zinc-400">
-        No workspace selected. Switch to a workspace first.
+      <div className="py-12 text-center text-sm text-muted-foreground">
+        {t("noWorkspace")}
       </div>
     );
   }
@@ -118,8 +120,8 @@ export default function WorkspaceSettingsPage() {
 
   return (
     <SettingsSection
-      title="Workspace Settings"
-      description="Manage workspace details and team members."
+      title={t("title")}
+      description={t("description")}
       actions={
         <Button
           variant="primary"
@@ -127,19 +129,19 @@ export default function WorkspaceSettingsPage() {
           onClick={handleSave}
           disabled={!hasChanges || saving}
         >
-          {saving ? "Saving..." : "Save"}
+          {saving ? t("saving") : t("save")}
         </Button>
       }
     >
       {/* ── General ────────────────────────────────────────────── */}
       <section className="mt-6">
         <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-          General
+          {t("general.heading")}
         </h2>
         <div className="mt-3 space-y-3">
           <div>
-            <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Name
+            <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-muted-foreground">
+              {t("general.name")}
             </label>
             <FormInput
               value={editName}
@@ -147,8 +149,8 @@ export default function WorkspaceSettingsPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Slug
+            <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-muted-foreground">
+              {t("general.slug")}
             </label>
             <FormInput
               value={workspace?.slug ?? ""}
@@ -157,8 +159,8 @@ export default function WorkspaceSettingsPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Created
+            <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-muted-foreground">
+              {t("general.created")}
             </label>
             <p className="text-sm text-muted-foreground">
               {workspace?.created_at
@@ -173,7 +175,7 @@ export default function WorkspaceSettingsPage() {
       <section className="mt-8">
         <div className="flex items-baseline justify-between">
           <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-            Locale
+            {t("locale.heading")}
           </h2>
           <Button
             variant="primary"
@@ -183,19 +185,18 @@ export default function WorkspaceSettingsPage() {
               !hasLocaleChanges || !primaryValid || !fallbackValid || savingLocale
             }
           >
-            {savingLocale ? "Saving..." : "Save locale"}
+            {savingLocale ? t("locale.saving") : t("locale.save")}
           </Button>
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
-          Primary locale drives the UI and LLM default language. The fallback
-          chain is consulted in order when a requested locale is missing.
-          Both must be BCP 47 tags (e.g., <code>ko</code>, <code>en-us</code>,
-          <code>zh-hant</code>).
+          {t.rich("locale.description", {
+            k: (chunks) => <code>{chunks}</code>,
+          })}
         </p>
         <div className="mt-3 space-y-3">
           <div>
-            <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Primary locale
+            <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-muted-foreground">
+              {t("locale.primary")}
             </label>
             <FormInput
               value={editPrimaryLocale}
@@ -204,14 +205,13 @@ export default function WorkspaceSettingsPage() {
             />
             {!primaryValid && (
               <p className="mt-1 text-xs text-red-600">
-                Invalid BCP 47 tag. Use lowercase letters / digits separated
-                by hyphens (2–3 letter primary, optional 2–8 char subtags).
+                {t("locale.primaryInvalid")}
               </p>
             )}
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Fallback chain (comma-separated)
+            <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-muted-foreground">
+              {t("locale.fallback")}
             </label>
             <FormInput
               value={editFallback}
@@ -220,8 +220,7 @@ export default function WorkspaceSettingsPage() {
             />
             {!fallbackValid && (
               <p className="mt-1 text-xs text-red-600">
-                Every entry must be a valid BCP 47 tag and the list must be
-                non-empty.
+                {t("locale.fallbackInvalid")}
               </p>
             )}
           </div>

@@ -199,6 +199,60 @@
         "rejected": "거절",
         "expired": "만료"
       }
+    },
+    "team": {
+      "title": "팀",
+      "description": "팀 구성원과 역할을 관리합니다.",
+      "authRequired": "인증이 활성화된 경우 팀 관리를 사용할 수 있습니다.",
+      "rolesHeading": "역할",
+      "membersHeading": "구성원",
+      "loadError": "사용자를 불러오지 못했습니다",
+      "updateRoleError": "역할을 업데이트하지 못했습니다",
+      "changeRoleAria": "{name} 역할 변경",
+      "roleSelectLabel": "역할",
+      "you": "나",
+      "roleDescriptions": {
+        "admin": "시스템 구성·사용자 관리를 포함한 모든 기능에 대한 전체 권한",
+        "designer": "온톨로지 설계 생성·편집, 쿼리 실행, 프로젝트 관리",
+        "viewer": "온톨로지 보기, 채팅 쿼리 실행, 쿼리 이력 탐색"
+      },
+      "column": {
+        "user": "사용자",
+        "email": "이메일",
+        "role": "역할"
+      },
+      "addingMembers": {
+        "heading": "구성원 추가",
+        "description": "사용자는 SSO 첫 로그인 시 자동으로 추가됩니다. 팀 구성원에게 플랫폼 URL을 공유하고 Google 계정으로 로그인하도록 안내하세요."
+      }
+    },
+    "workspace": {
+      "title": "워크스페이스 설정",
+      "description": "워크스페이스 정보와 구성원을 관리합니다.",
+      "save": "저장",
+      "saving": "저장 중…",
+      "noWorkspace": "선택된 워크스페이스가 없습니다. 먼저 워크스페이스를 전환하세요.",
+      "loadError": "워크스페이스를 불러오지 못했습니다",
+      "updateError": "워크스페이스를 업데이트하지 못했습니다",
+      "updatedToast": "워크스페이스가 업데이트되었습니다",
+      "general": {
+        "heading": "일반",
+        "name": "이름",
+        "slug": "슬러그",
+        "created": "생성일"
+      },
+      "locale": {
+        "heading": "로캘",
+        "save": "로캘 저장",
+        "saving": "저장 중…",
+        "updatedToast": "로캘이 업데이트되었습니다",
+        "updateError": "로캘을 업데이트하지 못했습니다",
+        "description": "기본 로캘은 UI 및 LLM 기본 언어를 결정합니다. 폴백 체인은 요청된 로캘이 없을 때 순서대로 사용됩니다. 둘 다 BCP 47 태그여야 합니다 (예: <k>ko</k>, <k>en-us</k>, <k>zh-hant</k>).",
+        "primary": "기본 로캘",
+        "primaryInvalid": "잘못된 BCP 47 태그입니다. 소문자와 숫자를 하이픈으로 구분하여 사용하세요 (기본 2–3자, 선택적 하위 태그 2–8자).",
+        "fallback": "폴백 체인 (쉼표로 구분)",
+        "fallbackInvalid": "모든 항목이 유효한 BCP 47 태그여야 하며 목록은 비어 있을 수 없습니다."
+      }
     }
   }
 }

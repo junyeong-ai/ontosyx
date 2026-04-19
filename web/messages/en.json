@@ -199,6 +199,60 @@
         "rejected": "Rejected",
         "expired": "Expired"
       }
+    },
+    "team": {
+      "title": "Team",
+      "description": "Manage team members and their roles.",
+      "authRequired": "Team management is available when authentication is enabled.",
+      "rolesHeading": "Roles",
+      "membersHeading": "Members",
+      "loadError": "Failed to load users",
+      "updateRoleError": "Failed to update role",
+      "changeRoleAria": "Change role for {name}",
+      "roleSelectLabel": "Role",
+      "you": "you",
+      "roleDescriptions": {
+        "admin": "Full access to all features including system configuration and user management",
+        "designer": "Create and edit ontology designs, run queries, and manage projects",
+        "viewer": "View ontologies, run chat queries, and browse query history"
+      },
+      "column": {
+        "user": "User",
+        "email": "Email",
+        "role": "Role"
+      },
+      "addingMembers": {
+        "heading": "Adding Members",
+        "description": "Users are automatically added on first login via SSO. Share the platform URL with your team members and ask them to sign in with their Google account."
+      }
+    },
+    "workspace": {
+      "title": "Workspace Settings",
+      "description": "Manage workspace details and team members.",
+      "save": "Save",
+      "saving": "Saving...",
+      "noWorkspace": "No workspace selected. Switch to a workspace first.",
+      "loadError": "Failed to load workspace",
+      "updateError": "Failed to update workspace",
+      "updatedToast": "Workspace updated",
+      "general": {
+        "heading": "General",
+        "name": "Name",
+        "slug": "Slug",
+        "created": "Created"
+      },
+      "locale": {
+        "heading": "Locale",
+        "save": "Save locale",
+        "saving": "Saving...",
+        "updatedToast": "Locale updated",
+        "updateError": "Failed to update locale",
+        "description": "Primary locale drives the UI and LLM default language. The fallback chain is consulted in order when a requested locale is missing. Both must be BCP 47 tags (e.g., <k>ko</k>, <k>en-us</k>, <k>zh-hant</k>).",
+        "primary": "Primary locale",
+        "primaryInvalid": "Invalid BCP 47 tag. Use lowercase letters / digits separated by hyphens (2–3 letter primary, optional 2–8 char subtags).",
+        "fallback": "Fallback chain (comma-separated)",
+        "fallbackInvalid": "Every entry must be a valid BCP 47 tag and the list must be non-empty."
+      }
     }
   }
 }
