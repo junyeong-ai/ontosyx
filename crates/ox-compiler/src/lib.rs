@@ -13,8 +13,10 @@ pub mod cypher;
 pub mod export;
 pub mod import;
 pub mod plan_cache;
+pub mod temporal;
 
 pub use plan_cache::{DEFAULT_PLAN_CACHE_CAPACITY, PlanCache, PlanCacheHandle, PlanCacheStats};
+pub use temporal::rewrite_temporal;
 
 use std::collections::HashMap;
 
