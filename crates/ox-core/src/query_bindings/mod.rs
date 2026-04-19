@@ -156,6 +156,10 @@ mod tests {
         GraphLabel::new(s).expect("test graph label literal must be valid")
     }
 
+    fn pk(s: &'static str) -> PropertyKey {
+        PropertyKey::new(s).expect("test property key literal must be valid")
+    }
+
     fn test_ontology() -> OntologyIR {
         OntologyIR::new(
             "ont1".into(),
@@ -242,7 +246,7 @@ mod tests {
                 filter: None,
                 projections: vec![Projection::Field {
                     variable: vn("p"),
-                    field: "name".into(),
+                    field: pk("name"),
                     alias: None,
                 }],
                 optional: false,
@@ -309,7 +313,7 @@ mod tests {
                 filter: Some(Expr::Comparison {
                     left: Box::new(Expr::Property {
                         variable: vn("p"),
-                        field: Some("name".into()),
+                        field: Some(pk("name")),
                     }),
                     op: ComparisonOp::Eq,
                     right: Box::new(Expr::Literal {
@@ -432,7 +436,7 @@ mod tests {
                             filter: None,
                             projections: vec![Projection::Field {
                                 variable: vn("x"),
-                                field: "name".into(),
+                                field: pk("name"),
                                 alias: None,
                             }],
                             optional: false,
@@ -453,7 +457,7 @@ mod tests {
                             filter: None,
                             projections: vec![Projection::Field {
                                 variable: vn("x"),
-                                field: "title".into(),
+                                field: pk("title"),
                                 alias: None,
                             }],
                             optional: false,
@@ -540,7 +544,7 @@ mod tests {
                 filter: Some(Expr::Comparison {
                     left: Box::new(Expr::Property {
                         variable: vn("p"),
-                        field: Some("name".into()),
+                        field: Some(pk("name")),
                     }),
                     op: ComparisonOp::Eq,
                     right: Box::new(Expr::Literal {
@@ -549,7 +553,7 @@ mod tests {
                 }),
                 projections: vec![Projection::Field {
                     variable: vn("p"),
-                    field: "name".into(),
+                    field: pk("name"),
                     alias: None,
                 }],
                 optional: false,

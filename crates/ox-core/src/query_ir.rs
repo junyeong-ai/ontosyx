@@ -380,7 +380,7 @@ pub enum Expr {
     Property {
         variable: VariableName,
         #[serde(default)]
-        field: Option<String>,
+        field: Option<PropertyKey>,
     },
 
     /// Binary comparison: left op right
@@ -505,7 +505,7 @@ impl<'de> Deserialize<'de> for Expr {
             Property {
                 variable: VariableName,
                 #[serde(default)]
-                field: Option<String>,
+                field: Option<PropertyKey>,
             },
             Comparison {
                 left: Box<Expr>,
@@ -658,7 +658,7 @@ pub enum Projection {
     /// A specific field: variable.field AS alias
     Field {
         variable: VariableName,
-        field: String,
+        field: PropertyKey,
         alias: Option<String>,
     },
 
@@ -724,7 +724,7 @@ impl<'de> Deserialize<'de> for Projection {
                 {
                     Some(field) => Ok(Projection::Field {
                         variable,
-                        field: field.to_string(),
+                        field: PropertyKey::new(field).map_err(serde::de::Error::custom)?,
                         alias,
                     }),
                     None => Ok(Projection::Variable { variable, alias }),
@@ -783,7 +783,8 @@ impl<'de> Deserialize<'de> for Projection {
                         if let Some(field) = obj.get("field").and_then(|v| v.as_str()) {
                             Some(Box::new(Projection::Field {
                                 variable,
-                                field: field.to_string(),
+                                field: PropertyKey::new(field)
+                                    .map_err(serde::de::Error::custom)?,
                                 alias: None,
                             }))
                         } else {
@@ -847,7 +848,7 @@ pub enum AggFunction {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct FieldRef {
     pub variable: VariableName,
-    pub field: Option<String>,
+    pub field: Option<PropertyKey>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -932,7 +933,7 @@ impl<'de> Deserialize<'de> for OrderClause {
             return Ok(OrderClause {
                 projection: Projection::Field {
                     variable,
-                    field: field.to_string(),
+                    field: PropertyKey::new(field).map_err(serde::de::Error::custom)?,
                     alias: None,
                 },
                 direction,

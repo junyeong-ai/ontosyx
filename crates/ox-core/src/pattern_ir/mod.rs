@@ -534,6 +534,10 @@ mod tests {
         GraphLabel::new(s).expect("test graph label literal must be valid")
     }
 
+    fn pk(s: &str) -> crate::property_key::PropertyKey {
+        crate::property_key::PropertyKey::new(s).expect("test property key literal must be valid")
+    }
+
     fn lit_int(n: i64) -> Expr {
         Expr::Literal {
             value: PropertyValue::Int(n),
@@ -543,7 +547,7 @@ mod tests {
     fn prop(variable: &str, field: &str) -> Expr {
         Expr::Property {
             variable: vn(variable),
-            field: Some(field.to_string()),
+            field: Some(pk(field)),
         }
     }
 
@@ -778,7 +782,7 @@ mod tests {
         let order = OrderClause {
             projection: Projection::Field {
                 variable: vn("p"),
-                field: "age".into(),
+                field: pk("age"),
                 alias: None,
             },
             direction: SortDirection::Desc,

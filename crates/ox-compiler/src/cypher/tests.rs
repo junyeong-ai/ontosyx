@@ -35,7 +35,7 @@ fn test_compile_simple_match() {
             filter: Some(Expr::Comparison {
                 left: Box::new(Expr::Property {
                     variable: vn("n"),
-                    field: Some("price".to_string()),
+                    field: Some(pk("price")),
                 }),
                 op: ComparisonOp::Gt,
                 right: Box::new(Expr::Literal {
@@ -45,12 +45,12 @@ fn test_compile_simple_match() {
             projections: vec![
                 Projection::Field {
                     variable: vn("n"),
-                    field: "name".to_string(),
+                    field: pk("name"),
                     alias: None,
                 },
                 Projection::Field {
                     variable: vn("n"),
-                    field: "price".to_string(),
+                    field: pk("price"),
                     alias: None,
                 },
             ],
@@ -62,7 +62,7 @@ fn test_compile_simple_match() {
         order_by: vec![OrderClause {
             projection: Projection::Field {
                 variable: vn("n"),
-                field: "price".to_string(),
+                field: pk("price"),
                 alias: None,
             },
             direction: SortDirection::Desc,
@@ -270,7 +270,7 @@ fn test_korean_ontology_match_query_escapes_labels() {
             filter: Some(Expr::Comparison {
                 left: Box::new(Expr::Property {
                     variable: vn("c"),
-                    field: Some("이름".to_string()),
+                    field: Some(pk("이름")),
                 }),
                 op: ComparisonOp::Eq,
                 right: Box::new(Expr::Literal {
@@ -279,7 +279,7 @@ fn test_korean_ontology_match_query_escapes_labels() {
             }),
             projections: vec![Projection::Field {
                 variable: vn("o"),
-                field: "주문번호".to_string(),
+                field: pk("주문번호"),
                 alias: None,
             }],
             optional: false,
@@ -470,7 +470,7 @@ fn test_parameterization_string_values() {
             filter: Some(Expr::Comparison {
                 left: Box::new(Expr::Property {
                     variable: vn("n"),
-                    field: Some("city".to_string()),
+                    field: Some(pk("city")),
                 }),
                 op: ox_core::query_ir::ComparisonOp::Eq,
                 right: Box::new(Expr::Literal {
@@ -530,7 +530,7 @@ fn test_parameterization_in_clause() {
             filter: Some(Expr::In {
                 expr: Box::new(Expr::Property {
                     variable: vn("n"),
-                    field: Some("status".to_string()),
+                    field: Some(pk("status")),
                 }),
                 values: vec![
                     PropertyValue::String("active".to_string()),
@@ -598,7 +598,7 @@ fn test_parameterization_null_stays_inline() {
             filter: Some(Expr::Comparison {
                 left: Box::new(Expr::Property {
                     variable: vn("n"),
-                    field: Some("status".to_string()),
+                    field: Some(pk("status")),
                 }),
                 op: ox_core::query_ir::ComparisonOp::Eq,
                 right: Box::new(Expr::Literal {
@@ -642,7 +642,7 @@ fn test_parameterization_date_values() {
             filter: Some(Expr::Comparison {
                 left: Box::new(Expr::Property {
                     variable: vn("n"),
-                    field: Some("date".to_string()),
+                    field: Some(pk("date")),
                 }),
                 op: ox_core::query_ir::ComparisonOp::Gte,
                 right: Box::new(Expr::Literal {
@@ -686,7 +686,7 @@ fn test_compile_aggregate_query() {
             projections: vec![
                 Projection::Field {
                     variable: vn("o"),
-                    field: "status".to_string(),
+                    field: pk("status"),
                     alias: Some("status".to_string()),
                 },
                 Projection::Aggregation {
@@ -702,7 +702,7 @@ fn test_compile_aggregate_query() {
                     function: AggFunction::Sum,
                     argument: Some(Box::new(Projection::Field {
                         variable: vn("o"),
-                        field: "amount".to_string(),
+                        field: pk("amount"),
                         alias: None,
                     })),
                     alias: "total_amount".to_string(),
@@ -712,7 +712,7 @@ fn test_compile_aggregate_query() {
             optional: false,
             group_by: vec![Projection::Field {
                 variable: vn("o"),
-                field: "status".to_string(),
+                field: pk("status"),
                 alias: None,
             }],
         },
@@ -745,7 +745,7 @@ fn test_compile_union_query() {
             filter: None,
             projections: vec![Projection::Field {
                 variable: vn("n"),
-                field: "name".to_string(),
+                field: pk("name"),
                 alias: Some("name".to_string()),
             }],
             optional: false,
@@ -766,7 +766,7 @@ fn test_compile_union_query() {
             filter: None,
             projections: vec![Projection::Field {
                 variable: vn("n"),
-                field: "name".to_string(),
+                field: pk("name"),
                 alias: Some("name".to_string()),
             }],
             optional: false,
@@ -1230,7 +1230,7 @@ fn test_collect_list_aggregation() {
                     function: AggFunction::CollectList,
                     argument: Some(Box::new(Projection::Field {
                         variable: vn("t"),
-                        field: "name".to_string(),
+                        field: pk("name"),
                         alias: None,
                     })),
                     alias: "tags".to_string(),
@@ -1423,7 +1423,7 @@ fn test_compile_case_expression() {
                         condition: Expr::Comparison {
                             left: Box::new(Expr::Property {
                                 variable: vn("n"),
-                                field: Some("price".to_string()),
+                                field: Some(pk("price")),
                             }),
                             op: ComparisonOp::Gt,
                             right: Box::new(Expr::Literal {

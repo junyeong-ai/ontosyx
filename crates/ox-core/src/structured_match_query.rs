@@ -460,7 +460,7 @@ impl StructuredMatchQuery {
             .map(|g| {
                 Ok::<_, OxError>(Projection::Field {
                     variable: crate::variable_name::VariableName::new(g.variable.clone())?,
-                    field: g.field.clone(),
+                    field: crate::property_key::PropertyKey::new(g.field.clone())?,
                     alias: None,
                 })
             })
@@ -514,9 +514,21 @@ fn condition_to_expr(c: &Condition) -> Option<Expr> {
             return None;
         }
     };
+    let field = match crate::property_key::PropertyKey::new(c.field.clone()) {
+        Ok(k) => k,
+        Err(e) => {
+            tracing::warn!(
+                variable = %c.variable,
+                field = %c.field,
+                error = %e,
+                "Dropping condition with invalid property key"
+            );
+            return None;
+        }
+    };
     let prop = Expr::Property {
         variable,
-        field: Some(c.field.clone()),
+        field: Some(field),
     };
 
     match c.op {
@@ -657,12 +669,35 @@ fn return_to_projection(r: &ReturnClause) -> Projection {
             };
         }
     };
+    // Parse the property key once; reuse on both branches.
+    // An invalid key collapses the return to a sentinel `null` expression
+    // — the same failure mode the variable-name path takes above.
+    let field_key = match r.field.as_deref() {
+        Some(f) => match crate::property_key::PropertyKey::new(f) {
+            Ok(k) => Some(k),
+            Err(e) => {
+                tracing::warn!(
+                    variable = %r.variable,
+                    field = %f,
+                    error = %e,
+                    "Dropping return clause with invalid property key"
+                );
+                return Projection::Expression {
+                    expr: Expr::Literal {
+                        value: PropertyValue::Null,
+                    },
+                    alias: r.alias.clone().unwrap_or_else(|| "invalid".to_string()),
+                };
+            }
+        },
+        None => None,
+    };
     if let Some(func) = r.aggregate {
         // Aggregation projection
-        let argument = match &r.field {
+        let argument = match field_key {
             Some(f) => Some(Box::new(Projection::Field {
                 variable,
-                field: f.clone(),
+                field: f,
                 alias: None,
             })),
             None => Some(Box::new(Projection::Variable {
@@ -680,10 +715,10 @@ fn return_to_projection(r: &ReturnClause) -> Projection {
             distinct: r.distinct.unwrap_or(false),
         }
     } else {
-        match &r.field {
+        match field_key {
             Some(f) => Projection::Field {
                 variable,
-                field: f.clone(),
+                field: f,
                 alias: r.alias.clone(),
             },
             None => Projection::Variable {
@@ -705,13 +740,19 @@ fn sort_to_order(s: &SortClause) -> OrderClause {
     // expression-sort-key on an invalid variable rather than dropping
     // the clause so the caller still gets deterministic ordering.
     let projection = if let Some((var, field)) = s.field.split_once('.') {
-        match crate::variable_name::VariableName::new(var) {
-            Ok(variable) => Projection::Field {
+        // Both halves must be valid identifiers; either failure falls back
+        // to an expression-sort-key on the raw string so the UI still sees
+        // a deterministic ordering hint.
+        match (
+            crate::variable_name::VariableName::new(var),
+            crate::property_key::PropertyKey::new(field),
+        ) {
+            (Ok(variable), Ok(field)) => Projection::Field {
                 variable,
-                field: field.to_string(),
+                field,
                 alias: None,
             },
-            Err(_) => Projection::Expression {
+            _ => Projection::Expression {
                 expr: Expr::Literal {
                     value: PropertyValue::String(s.field.clone()),
                 },
