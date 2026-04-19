@@ -1,5 +1,6 @@
 //! Evaluation case definitions for NL-to-QueryIR translation quality.
 
+use crate::graph_label::GraphLabel;
 use crate::ontology_ir::OntologyIR;
 use serde::{Deserialize, Serialize};
 
@@ -17,9 +18,9 @@ pub struct EvalCase {
     /// Expected top-level operation type.
     pub expected_op: ExpectedOp,
     /// Node labels that MUST appear in the generated QueryIR patterns.
-    pub expected_node_labels: Vec<String>,
+    pub expected_node_labels: Vec<GraphLabel>,
     /// Edge labels that MUST appear in the generated QueryIR patterns.
-    pub expected_edge_labels: Vec<String>,
+    pub expected_edge_labels: Vec<GraphLabel>,
     /// Human-readable description of what this case tests.
     pub description: String,
 }

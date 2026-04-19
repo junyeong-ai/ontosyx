@@ -10,6 +10,7 @@ use std::pin::Pin;
 use std::time::Instant;
 
 use crate::error::OxResult;
+use crate::graph_label::GraphLabel;
 use crate::ontology_ir::OntologyIR;
 use crate::query_ir::{GraphPattern, PathElement, QueryIR, QueryOp};
 
@@ -318,15 +319,15 @@ fn check_operation_type(op: &QueryOp, expected: ExpectedOp) -> bool {
 }
 
 /// Extract all node labels referenced in the QueryIR.
-pub fn extract_node_labels(query: &QueryIR) -> Vec<String> {
+pub fn extract_node_labels(query: &QueryIR) -> Vec<GraphLabel> {
     let mut labels = Vec::new();
     extract_node_labels_from_op(&query.operation, &mut labels);
-    labels.sort();
+    labels.sort_by(|a, b| a.as_str().cmp(b.as_str()));
     labels.dedup();
     labels
 }
 
-fn extract_node_labels_from_op(op: &QueryOp, labels: &mut Vec<String>) {
+fn extract_node_labels_from_op(op: &QueryOp, labels: &mut Vec<GraphLabel>) {
     match op {
         QueryOp::Match { patterns, .. } => {
             for p in patterns {
@@ -335,10 +336,10 @@ fn extract_node_labels_from_op(op: &QueryOp, labels: &mut Vec<String>) {
         }
         QueryOp::PathFind { start, end, .. } => {
             if let Some(label) = &start.label {
-                labels.push(label.to_string());
+                labels.push(label.clone());
             }
             if let Some(label) = &end.label {
-                labels.push(label.to_string());
+                labels.push(label.clone());
             }
         }
         QueryOp::Aggregate { source, .. } => {
@@ -366,7 +367,7 @@ fn extract_node_labels_from_op(op: &QueryOp, labels: &mut Vec<String>) {
                 match op {
                     crate::query_ir::MutateOp::CreateNode { label, .. }
                     | crate::query_ir::MutateOp::MergeNode { label, .. } => {
-                        labels.push(label.to_string());
+                        labels.push(label.clone());
                     }
                     _ => {}
                 }
@@ -377,7 +378,7 @@ fn extract_node_labels_from_op(op: &QueryOp, labels: &mut Vec<String>) {
         }
         QueryOp::Analytics { source, .. } => match source {
             crate::query_ir::AnalyticsSource::Labels { labels: src_labels } => {
-                labels.extend(src_labels.iter().map(|l| l.to_string()));
+                labels.extend(src_labels.iter().cloned());
             }
             crate::query_ir::AnalyticsSource::Subgraph { filter } => {
                 extract_node_labels_from_op(filter, labels);
@@ -387,11 +388,11 @@ fn extract_node_labels_from_op(op: &QueryOp, labels: &mut Vec<String>) {
     }
 }
 
-fn extract_node_labels_from_pattern(pattern: &GraphPattern, labels: &mut Vec<String>) {
+fn extract_node_labels_from_pattern(pattern: &GraphPattern, labels: &mut Vec<GraphLabel>) {
     match pattern {
         GraphPattern::Node { label, .. } => {
             if let Some(l) = label {
-                labels.push(l.to_string());
+                labels.push(l.clone());
             }
         }
         GraphPattern::Relationship { .. } => {
@@ -403,7 +404,7 @@ fn extract_node_labels_from_pattern(pattern: &GraphPattern, labels: &mut Vec<Str
                 if let PathElement::Node { label, .. } = elem
                     && let Some(l) = label
                 {
-                    labels.push(l.to_string());
+                    labels.push(l.clone());
                 }
             }
         }
@@ -411,15 +412,15 @@ fn extract_node_labels_from_pattern(pattern: &GraphPattern, labels: &mut Vec<Str
 }
 
 /// Extract all edge labels referenced in the QueryIR.
-pub fn extract_edge_labels(query: &QueryIR) -> Vec<String> {
+pub fn extract_edge_labels(query: &QueryIR) -> Vec<GraphLabel> {
     let mut labels = Vec::new();
     extract_edge_labels_from_op(&query.operation, &mut labels);
-    labels.sort();
+    labels.sort_by(|a, b| a.as_str().cmp(b.as_str()));
     labels.dedup();
     labels
 }
 
-fn extract_edge_labels_from_op(op: &QueryOp, labels: &mut Vec<String>) {
+fn extract_edge_labels_from_op(op: &QueryOp, labels: &mut Vec<GraphLabel>) {
     match op {
         QueryOp::Match { patterns, .. } => {
             for p in patterns {
@@ -427,7 +428,7 @@ fn extract_edge_labels_from_op(op: &QueryOp, labels: &mut Vec<String>) {
             }
         }
         QueryOp::PathFind { edge_types, .. } => {
-            labels.extend(edge_types.iter().map(|l| l.to_string()));
+            labels.extend(edge_types.iter().cloned());
         }
         QueryOp::Aggregate { source, .. } => {
             extract_edge_labels_from_op(&source.operation, labels);
@@ -454,7 +455,7 @@ fn extract_edge_labels_from_op(op: &QueryOp, labels: &mut Vec<String>) {
                 match op {
                     crate::query_ir::MutateOp::CreateEdge { label, .. }
                     | crate::query_ir::MutateOp::MergeEdge { label, .. } => {
-                        labels.push(label.to_string());
+                        labels.push(label.clone());
                     }
                     _ => {}
                 }
@@ -471,11 +472,11 @@ fn extract_edge_labels_from_op(op: &QueryOp, labels: &mut Vec<String>) {
     }
 }
 
-fn extract_edge_labels_from_pattern(pattern: &GraphPattern, labels: &mut Vec<String>) {
+fn extract_edge_labels_from_pattern(pattern: &GraphPattern, labels: &mut Vec<GraphLabel>) {
     match pattern {
         GraphPattern::Relationship { label, .. } => {
             if let Some(l) = label {
-                labels.push(l.to_string());
+                labels.push(l.clone());
             }
         }
         GraphPattern::Path { elements } => {
@@ -483,7 +484,7 @@ fn extract_edge_labels_from_pattern(pattern: &GraphPattern, labels: &mut Vec<Str
                 if let PathElement::Edge { label, .. } = elem
                     && let Some(l) = label
                 {
-                    labels.push(l.to_string());
+                    labels.push(l.clone());
                 }
             }
         }
