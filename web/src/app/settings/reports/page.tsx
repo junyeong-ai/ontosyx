@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { z } from "zod";
 import { Spinner } from "@/components/ui/spinner";
 import { SettingsSelect } from "@/components/ui/form-input";
@@ -25,7 +26,20 @@ import {
 import { WIDGET_TYPES } from "@/components/widgets/widget-types";
 import { useQueryState } from "@/hooks/use-query-state";
 
+// ---------------------------------------------------------------------------
+// Known widget type guard — gates dynamic t(`widgetType.<key>`) calls so
+// unexpected backend values fall back to the raw string rather than throwing.
+// ---------------------------------------------------------------------------
+
+const WIDGET_TYPE_VALUES = WIDGET_TYPES.map((w) => w.value);
+type KnownWidgetType = (typeof WIDGET_TYPES)[number]["value"];
+
+function isKnownWidgetType(s: string): s is KnownWidgetType {
+  return (WIDGET_TYPE_VALUES as readonly string[]).includes(s);
+}
+
 export default function ReportsPage() {
+  const t = useTranslations("settings.reports");
   const [reports, setReports] = useState<SavedReport[]>([]);
   const [ontologies, setOntologies] = useState<SavedOntology[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,7 +66,7 @@ export default function ReportsPage() {
           setOntologyFilter(page.items[0].id);
         }
       })
-      .catch(() => toast.error("Failed to load ontologies"))
+      .catch(() => toast.error(t("loadOntologiesError")))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -62,17 +76,17 @@ export default function ReportsPage() {
     setLoading(true);
     listReports({ ontology_lineage_id: ontologyFilter })
       .then((page) => setReports(page.items))
-      .catch(() => toast.error("Failed to load reports"))
+      .catch(() => toast.error(t("loadError")))
       .finally(() => setLoading(false));
-  }, [ontologyFilter]);
+  }, [ontologyFilter, t]);
 
   const confirm = useConfirm();
 
   const handleDelete = async (id: string) => {
     const report = reports.find((r) => r.id === id);
     const ok = await confirm({
-      title: `Delete report '${report?.title ?? id}'?`,
-      description: "This action cannot be undone. The saved report will be permanently removed.",
+      title: t("deleteConfirm.title", { name: report?.title ?? id }),
+      description: t("deleteConfirm.description"),
       variant: "danger",
     });
     if (!ok) return;
@@ -80,25 +94,25 @@ export default function ReportsPage() {
       await deleteReport(id);
       setReports((prev) => prev.filter((r) => r.id !== id));
       if (selectedId === id) setSelectedId(null);
-      toast.success("Report deleted");
+      toast.success(t("toast.deleted"));
     } catch {
-      toast.error("Delete failed");
+      toast.error(t("toast.deleteError"));
     }
   };
 
   const handleCreate = async (values: ReportCreateRequest) => {
     const report = await createReport(values);
     setReports((prev) => [report, ...prev]);
-    toast.success("Report created");
+    toast.success(t("toast.created"));
   };
 
   const handleUpdate = async (id: string, patch: ReportUpdateRequest) => {
     try {
       const updated = await updateReport(id, patch);
       setReports((prev) => prev.map((r) => (r.id === id ? updated : r)));
-      toast.success("Report updated");
+      toast.success(t("toast.updated"));
     } catch {
-      toast.error("Update failed");
+      toast.error(t("toast.updateError"));
     }
   };
 
@@ -115,19 +129,19 @@ export default function ReportsPage() {
   return (
     <div>
       <h1 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
-        Saved Reports
+        {t("title")}
       </h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Parameterized query templates that can be executed on demand.
+        {t("description")}
       </p>
 
       {/* Ontology filter */}
       <div className="mt-4">
         <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Ontology
+          {t("ontologyLabel")}
         </label>
         <SettingsSelect
-            label="Ontology Filter"
+            label={t("ontologyFilterLabel")}
             hideLabel
           value={ontologyFilter}
           onChange={(e) => {
@@ -138,7 +152,7 @@ export default function ReportsPage() {
         >
           {ontologies.map((o) => (
             <option key={o.id} value={o.id}>
-              {o.name} (v{o.version})
+              {t("ontologyOption", { name: o.name, version: o.version })}
             </option>
           ))}
         </SettingsSelect>
@@ -160,8 +174,8 @@ export default function ReportsPage() {
           {/* Report list */}
           <div className="w-72 shrink-0 space-y-1">
             {reports.length === 0 ? (
-              <p className="text-sm text-zinc-400">
-                No reports for this ontology.
+              <p className="text-sm text-muted-foreground">
+                {t("emptyForOntology")}
               </p>
             ) : (
               reports.map((r) => (
@@ -180,14 +194,20 @@ export default function ReportsPage() {
                       className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium ${
                         r.is_public
                           ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                          : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+                          : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-muted-foreground"
                       }`}
                     >
-                      {r.is_public ? "public" : "private"}
+                      {r.is_public ? t("visibility.public") : t("visibility.private")}
                     </span>
                   </div>
-                  <div className="text-xs text-zinc-400">
-                    {r.widget_type ?? "auto"} · {r.parameters.length} params
+                  <div className="text-xs text-muted-foreground">
+                    {r.widget_type
+                      ? (isKnownWidgetType(r.widget_type)
+                          ? t(`widgetType.${r.widget_type}`)
+                          : r.widget_type)
+                      : t("widgetAuto")}
+                    {" · "}
+                    {t("paramsCount", { count: r.parameters.length })}
                   </div>
                 </button>
               ))
@@ -203,8 +223,8 @@ export default function ReportsPage() {
                 onUpdate={handleUpdate}
               />
             ) : (
-              <div className="text-sm text-zinc-400">
-                Select a report to view details.
+              <div className="text-sm text-muted-foreground">
+                {t("selectPrompt")}
               </div>
             )}
           </div>
@@ -227,6 +247,7 @@ function ReportDetail({
   onDelete: (id: string) => void;
   onUpdate: (id: string, patch: ReportUpdateRequest) => void;
 }) {
+  const t = useTranslations("settings.reports");
   const [editing, setEditing] = useState(false);
   const confirm = useConfirm();
   const [executing, setExecuting] = useState(false);
@@ -275,7 +296,7 @@ function ReportDetail({
       const res = await executeReport(report.id, paramValues);
       setResult(res);
     } catch {
-      toast.error("Execution failed");
+      toast.error(t("toast.executeError"));
     } finally {
       setExecuting(false);
     }
@@ -288,30 +309,32 @@ function ReportDetail({
           <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
             {report.title}
           </h2>
-          <p className="text-xs text-zinc-400">
-            {new Date(report.created_at).toLocaleDateString()} · updated{" "}
-            {new Date(report.updated_at).toLocaleDateString()}
+          <p className="text-xs text-muted-foreground">
+            {t("detail.meta", {
+              created: new Date(report.created_at).toLocaleDateString(),
+              updated: new Date(report.updated_at).toLocaleDateString(),
+            })}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setEditing(!editing)}
-            className="rounded-md px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-800"
+            className="rounded-md px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:text-muted-foreground dark:hover:bg-zinc-800"
           >
-            {editing ? "Cancel" : "Edit"}
+            {editing ? t("detail.cancel") : t("detail.edit")}
           </button>
           <button
             onClick={async () => {
               const ok = await confirm({
-                title: `Delete report '${report.title}'?`,
-                description: "This action cannot be undone. The saved report will be permanently removed.",
+                title: t("deleteConfirm.title", { name: report.title }),
+                description: t("deleteConfirm.description"),
                 variant: "danger",
               });
               if (ok) onDelete(report.id);
             }}
             className="rounded-md px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
           >
-            Delete
+            {t("detail.delete")}
           </button>
         </div>
       </div>
@@ -321,7 +344,7 @@ function ReportDetail({
         <div className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50/30 p-4 dark:border-emerald-800 dark:bg-emerald-950/10">
           <div>
             <label htmlFor="edit-report-title" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Title
+              {t("edit.title")}
             </label>
             <input
               id="edit-report-title"
@@ -332,7 +355,7 @@ function ReportDetail({
           </div>
           <div>
             <label htmlFor="edit-report-description" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Description
+              {t("edit.description")}
             </label>
             <textarea
               id="edit-report-description"
@@ -344,7 +367,7 @@ function ReportDetail({
           </div>
           <div>
             <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Query Template
+              {t("edit.queryTemplate")}
             </label>
             <textarea
               value={editQueryTemplate}
@@ -355,25 +378,25 @@ function ReportDetail({
           </div>
           <div>
             <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Widget Type
+              {t("edit.widgetType")}
             </label>
             <SettingsSelect
-            label="Edit Widget Type"
+            label={t("edit.widgetTypeSelectLabel")}
             hideLabel
               value={editWidgetType}
               onChange={(e) => setEditWidgetType(e.target.value)}
             >
-              <option value="">Auto</option>
-              {WIDGET_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
+              <option value="">{t("widgetTypeAuto")}</option>
+              {WIDGET_TYPES.map((w) => (
+                <option key={w.value} value={w.value}>
+                  {t(`widgetType.${w.value}`)}
                 </option>
               ))}
             </SettingsSelect>
           </div>
           <div className="flex items-center gap-2">
             <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Public
+              {t("edit.public")}
             </label>
             <button
               type="button"
@@ -393,7 +416,7 @@ function ReportDetail({
             onClick={handleSaveEdit}
             className="rounded-md bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
           >
-            Save Changes
+            {t("edit.save")}
           </button>
         </div>
       ) : (
@@ -401,7 +424,7 @@ function ReportDetail({
           {report.description && (
             <div>
               <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Description
+                {t("detail.description")}
               </label>
               <p className="mt-0.5 text-sm text-zinc-700 dark:text-zinc-300">
                 {report.description}
@@ -411,7 +434,7 @@ function ReportDetail({
 
           <div>
             <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Query Template
+              {t("detail.queryTemplate")}
             </label>
             <pre className="mt-1 max-h-48 overflow-auto rounded-md bg-zinc-900 p-3 text-xs text-emerald-400">
               {report.query_template}
@@ -421,10 +444,12 @@ function ReportDetail({
           {report.widget_type && (
             <div>
               <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Widget Type
+                {t("detail.widgetType")}
               </label>
-              <span className="ml-2 rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
-                {report.widget_type}
+              <span className="ml-2 rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground">
+                {isKnownWidgetType(report.widget_type)
+                  ? t(`widgetType.${report.widget_type}`)
+                  : report.widget_type}
               </span>
             </div>
           )}
@@ -432,15 +457,15 @@ function ReportDetail({
           {/* Parameters + execute */}
           <div>
             <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Parameters
+              {t("detail.parameters")}
             </label>
             {report.parameters.length === 0 ? (
-              <p className="mt-0.5 text-xs text-zinc-400">No parameters.</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{t("detail.noParameters")}</p>
             ) : (
               <div className="mt-1 space-y-2">
                 {report.parameters.map((p) => (
                   <div key={p.name} className="flex items-center gap-2">
-                    <span className="w-28 shrink-0 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                    <span className="w-28 shrink-0 text-xs font-medium text-zinc-600 dark:text-muted-foreground">
                       {p.label || p.name}
                     </span>
                     {p.type === "boolean" ? (
@@ -483,7 +508,7 @@ function ReportDetail({
                         className="w-48 rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
                       />
                     )}
-                    <span className="text-[10px] text-zinc-400">({p.type})</span>
+                    <span className="text-[10px] text-muted-foreground">({p.type})</span>
                   </div>
                 ))}
               </div>
@@ -494,7 +519,7 @@ function ReportDetail({
               disabled={executing}
               className="mt-3 rounded-md bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white disabled:opacity-50 hover:bg-emerald-700"
             >
-              {executing ? "Executing..." : "Execute Report"}
+              {executing ? t("detail.executing") : t("detail.executeReport")}
             </button>
           </div>
 
@@ -502,7 +527,7 @@ function ReportDetail({
           {result && (
             <div>
               <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Results ({result.rows.length} rows)
+                {t("detail.results", { count: result.rows.length })}
               </label>
               <div className="mt-1 max-h-64 overflow-auto rounded-md border border-zinc-200 dark:border-zinc-700">
                 <table className="w-full text-xs">
@@ -511,7 +536,7 @@ function ReportDetail({
                       {result.columns.map((col) => (
                         <th
                           key={col}
-                          className="px-3 py-1.5 text-left font-medium text-zinc-600 dark:text-zinc-400"
+                          className="px-3 py-1.5 text-left font-medium text-zinc-600 dark:text-muted-foreground"
                         >
                           {col}
                         </th>
@@ -537,8 +562,8 @@ function ReportDetail({
                   </tbody>
                 </table>
                 {result.rows.length > 50 && (
-                  <div className="px-3 py-1.5 text-[10px] text-zinc-400">
-                    Showing 50 of {result.rows.length} rows
+                  <div className="px-3 py-1.5 text-[10px] text-muted-foreground">
+                    {t("detail.showingRows", { count: result.rows.length })}
                   </div>
                 )}
               </div>
@@ -561,6 +586,7 @@ function ReportCreateForm({
   ontologyId: string;
   onSubmit: (values: ReportCreateRequest) => Promise<void>;
 }) {
+  const t = useTranslations("settings.reports");
   const [isOpen, setIsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -598,7 +624,7 @@ function ReportCreateForm({
       reset();
       setIsOpen(false);
     } catch {
-      toast.error("Failed to create report");
+      toast.error(t("toast.createError"));
     } finally {
       setIsSaving(false);
     }
@@ -610,7 +636,7 @@ function ReportCreateForm({
         onClick={() => setIsOpen(true)}
         className="mt-4 rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800"
       >
-        New Report
+        {t("newReport")}
       </button>
     );
   }
@@ -622,7 +648,7 @@ function ReportCreateForm({
     >
       <div className="mb-3 flex items-center justify-between">
         <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-          New Report
+          {t("create.newTitle")}
         </span>
         <button
           type="button"
@@ -630,22 +656,22 @@ function ReportCreateForm({
             reset();
             setIsOpen(false);
           }}
-          className="text-xs text-zinc-400 hover:text-zinc-600"
+          className="text-xs text-muted-foreground hover:text-zinc-600"
         >
-          Cancel
+          {t("create.cancel")}
         </button>
       </div>
 
       <div className="space-y-3">
         <div>
           <label htmlFor="new-report-title" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Title
+            {t("create.title")}
           </label>
           <input
             id="new-report-title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Report title"
+            placeholder={t("create.titlePlaceholder")}
             required
             className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
           />
@@ -653,13 +679,13 @@ function ReportCreateForm({
 
         <div>
           <label htmlFor="new-report-description" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Description
+            {t("create.description")}
           </label>
           <textarea
             id="new-report-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="What this report shows..."
+            placeholder={t("create.descriptionPlaceholder")}
             rows={2}
             className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
           />
@@ -667,12 +693,12 @@ function ReportCreateForm({
 
         <div>
           <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Query Template
+            {t("create.queryTemplate")}
           </label>
           <textarea
             value={queryTemplate}
             onChange={(e) => setQueryTemplate(e.target.value)}
-            placeholder={"MATCH (n:Product) WHERE n.category = $category RETURN n.name, n.price LIMIT $limit"}
+            placeholder={t("create.queryTemplatePlaceholder")}
             rows={6}
             required
             className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-900"
@@ -681,34 +707,34 @@ function ReportCreateForm({
 
         <div>
           <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Parameters (JSON)
+            {t("create.parameters")}
           </label>
           <textarea
             value={paramInput}
             onChange={(e) => setParamInput(e.target.value)}
-            placeholder={`[{"name":"category","type":"string","default":"all","label":"Category"}]`}
+            placeholder={t("create.parametersPlaceholder")}
             rows={3}
             className="mt-0.5 w-full rounded-md border border-zinc-200 bg-white px-3 py-1.5 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-900"
           />
-          <p className="mt-0.5 text-[10px] text-zinc-400">
-            Array of {"{"}&quot;name&quot;, &quot;type&quot;: string|number|boolean, &quot;default&quot;, &quot;label&quot;{"}"}
+          <p className="mt-0.5 text-[10px] text-muted-foreground">
+            {t("create.parametersHint", { shape: t("create.parametersShape") })}
           </p>
         </div>
 
         <div>
           <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Widget Type
+            {t("create.widgetType")}
           </label>
           <SettingsSelect
-            label="Widget Type"
+            label={t("create.widgetTypeSelectLabel")}
             hideLabel
             value={widgetType}
             onChange={(e) => setWidgetType(e.target.value)}
           >
-            <option value="">Auto</option>
-            {WIDGET_TYPES.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
+            <option value="">{t("widgetTypeAuto")}</option>
+            {WIDGET_TYPES.map((w) => (
+              <option key={w.value} value={w.value}>
+                {t(`widgetType.${w.value}`)}
               </option>
             ))}
           </SettingsSelect>
@@ -716,7 +742,7 @@ function ReportCreateForm({
 
         <div className="flex items-center gap-2">
           <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Public
+            {t("create.public")}
           </label>
           <button
             type="button"
@@ -738,7 +764,7 @@ function ReportCreateForm({
           disabled={!title.trim() || !queryTemplate.trim() || isSaving}
           className="rounded-md bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white disabled:opacity-50 hover:bg-emerald-700"
         >
-          {isSaving ? "Creating..." : "Create Report"}
+          {isSaving ? t("create.creating") : t("create.create")}
         </button>
       </div>
     </form>

@@ -598,6 +598,262 @@
         "fallback": "Fallback chain (comma-separated)",
         "fallbackInvalid": "Every entry must be a valid BCP 47 tag and the list must be non-empty."
       }
+    },
+    "reports": {
+      "title": "Saved Reports",
+      "description": "Parameterized query templates that can be executed on demand.",
+      "loadOntologiesError": "Failed to load ontologies",
+      "loadError": "Failed to load reports",
+      "ontologyLabel": "Ontology",
+      "ontologyFilterLabel": "Ontology Filter",
+      "ontologyOption": "{name} (v{version})",
+      "newReport": "New Report",
+      "emptyForOntology": "No reports for this ontology.",
+      "selectPrompt": "Select a report to view details.",
+      "visibility": {
+        "public": "public",
+        "private": "private"
+      },
+      "widgetAuto": "auto",
+      "paramsCount": "{count, plural, one {# param} other {# params}}",
+      "widgetTypeAuto": "Auto",
+      "toast": {
+        "created": "Report created",
+        "updated": "Report updated",
+        "deleted": "Report deleted",
+        "deleteError": "Delete failed",
+        "updateError": "Update failed",
+        "createError": "Failed to create report",
+        "executeError": "Execution failed"
+      },
+      "deleteConfirm": {
+        "title": "Delete report '{name}'?",
+        "description": "This action cannot be undone. The saved report will be permanently removed."
+      },
+      "detail": {
+        "meta": "{created} · updated {updated}",
+        "edit": "Edit",
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "description": "Description",
+        "queryTemplate": "Query Template",
+        "widgetType": "Widget Type",
+        "parameters": "Parameters",
+        "noParameters": "No parameters.",
+        "executeReport": "Execute Report",
+        "executing": "Executing...",
+        "results": "Results ({count} rows)",
+        "showingRows": "Showing 50 of {count} rows"
+      },
+      "edit": {
+        "title": "Title",
+        "description": "Description",
+        "queryTemplate": "Query Template",
+        "widgetType": "Widget Type",
+        "widgetTypeSelectLabel": "Edit Widget Type",
+        "public": "Public",
+        "save": "Save Changes"
+      },
+      "create": {
+        "newTitle": "New Report",
+        "cancel": "Cancel",
+        "title": "Title",
+        "titlePlaceholder": "Report title",
+        "description": "Description",
+        "descriptionPlaceholder": "What this report shows...",
+        "queryTemplate": "Query Template",
+        "queryTemplatePlaceholder": "MATCH (n:Product) WHERE n.category = $category RETURN n.name, n.price LIMIT $limit",
+        "parameters": "Parameters (JSON)",
+        "parametersPlaceholder": "[{\"name\":\"category\",\"type\":\"string\",\"default\":\"all\",\"label\":\"Category\"}]",
+        "parametersHint": "Array of {shape}",
+        "parametersShape": "{\"name\", \"type\": string|number|boolean, \"default\", \"label\"}",
+        "widgetType": "Widget Type",
+        "widgetTypeSelectLabel": "Widget Type",
+        "public": "Public",
+        "create": "Create Report",
+        "creating": "Creating..."
+      },
+      "widgetType": {
+        "table": "Table",
+        "bar_chart": "Bar Chart",
+        "line_chart": "Line Chart",
+        "pie_chart": "Pie Chart",
+        "combo_chart": "Combo Chart",
+        "stat_card": "Stat Card",
+        "graph": "Graph",
+        "heatmap": "Heatmap",
+        "timeline": "Timeline",
+        "treemap": "Treemap",
+        "funnel": "Funnel",
+        "scatter": "Scatter Plot",
+        "histogram": "Histogram"
+      }
+    },
+    "recipes": {
+      "title": "Analysis Recipes",
+      "description": "Reusable data analysis algorithms. The agent searches these before writing custom code.",
+      "loadError": "Failed to load recipes",
+      "searchPlaceholder": "Search by name or description...",
+      "newRecipe": "New Recipe",
+      "emptyAll": "No recipes yet. The agent will create recipes when analyses produce useful results.",
+      "emptyFiltered": "No matching recipes.",
+      "deleteConfirm": {
+        "title": "Delete recipe '{name}'?",
+        "description": "This action cannot be undone. The recipe and all its versions will be permanently removed."
+      },
+      "toast": {
+        "created": "Recipe created",
+        "deleted": "Recipe deleted",
+        "deleteError": "Delete failed",
+        "createError": "Failed to create recipe",
+        "statusChanged": "Status changed to {status}",
+        "statusError": "Failed to update status",
+        "versionsError": "Failed to load version history"
+      },
+      "status": {
+        "draft": "Draft",
+        "approved": "Approved",
+        "deprecated": "Deprecated"
+      },
+      "algorithmType": {
+        "time_series": "Time Series",
+        "segmentation": "Segmentation",
+        "classification": "Classification",
+        "regression": "Regression",
+        "anomaly_detection": "Anomaly Detection",
+        "statistical_analysis": "Statistical Analysis",
+        "custom": "Custom"
+      },
+      "detail": {
+        "statusLabel": "Status",
+        "meta": "{algorithm} · v{version} · by {user} · {date}",
+        "hideHistory": "Hide History",
+        "versions": "Versions",
+        "delete": "Delete",
+        "description": "Description",
+        "requiredColumns": "Required Columns",
+        "output": "Output",
+        "codeTemplate": "Code Template",
+        "parameters": "Parameters"
+      },
+      "versions": {
+        "heading": "Version History",
+        "empty": "No previous versions.",
+        "current": "CURRENT",
+        "versionPrefix": "v{version}",
+        "meta": "{date} · {user}",
+        "description": "Description",
+        "noDescription": "No description",
+        "algorithm": "Algorithm",
+        "code": "Code"
+      },
+      "form": {
+        "newTitle": "New Recipe",
+        "cancel": "Cancel",
+        "name": "Name",
+        "namePlaceholder": "Recipe name",
+        "description": "Description",
+        "descriptionPlaceholder": "What this recipe does...",
+        "algorithmType": "Algorithm Type",
+        "codeTemplate": "Code Template",
+        "codeTemplatePlaceholder": "import pandas as pd\n...",
+        "requiredColumns": "Required Columns",
+        "requiredColumnsPlaceholder": "date, value, category (comma-separated)",
+        "outputDescription": "Output Description",
+        "outputDescriptionPlaceholder": "Describes what the recipe outputs",
+        "create": "Create Recipe",
+        "creating": "Creating..."
+      }
+    },
+    "quality": {
+      "title": "Quality Rules",
+      "description": "Declarative data quality rules evaluated automatically against graph data.",
+      "loadError": "Failed to load quality dashboard",
+      "executeAll": "Execute All",
+      "executingAll": "Executing...",
+      "createRule": "Create Rule",
+      "summary": {
+        "passing": "Passing",
+        "failing": "Failing",
+        "pending": "Not Yet Evaluated"
+      },
+      "column": {
+        "rule": "Rule",
+        "type": "Type",
+        "target": "Target",
+        "threshold": "Threshold",
+        "severity": "Severity",
+        "status": "Status",
+        "value": "Value",
+        "actions": "Actions"
+      },
+      "status": {
+        "pass": "Pass",
+        "fail": "Fail",
+        "none": "-"
+      },
+      "action": {
+        "run": "Run",
+        "running": "...",
+        "edit": "Edit",
+        "delete": "Delete",
+        "deleting": "..."
+      },
+      "empty": "No quality rules configured",
+      "ruleType": {
+        "completeness": "completeness",
+        "uniqueness": "uniqueness",
+        "freshness": "freshness",
+        "consistency": "consistency",
+        "custom": "custom"
+      },
+      "severityLevel": {
+        "critical": "critical",
+        "warning": "warning",
+        "info": "info"
+      },
+      "form": {
+        "newTitle": "New Rule",
+        "editTitle": "Edit Rule",
+        "cancel": "Cancel",
+        "name": "Name",
+        "namePlaceholder": "e.g. Brand completeness",
+        "ruleType": "Rule Type",
+        "severity": "Severity",
+        "targetLabel": "Target Label",
+        "targetLabelPlaceholder": "e.g. Brand, Product",
+        "targetProperty": "Target Property",
+        "targetPropertyHint": "(optional)",
+        "targetPropertyPlaceholder": "e.g. email",
+        "threshold": "Threshold (%)",
+        "cypherCheck": "Cypher Check",
+        "cypherCheckPlaceholder": "MATCH (n:Label) WHERE ... RETURN count(n) as value",
+        "create": "Create Rule",
+        "creating": "Creating...",
+        "update": "Update Rule",
+        "updating": "Updating..."
+      },
+      "validation": {
+        "required": "Required",
+        "thresholdRange": "Must be 0-100"
+      },
+      "toast": {
+        "created": "Rule created",
+        "updated": "Rule updated",
+        "createError": "Failed to create rule",
+        "updateError": "Failed to update rule",
+        "deleted": "Rule deleted",
+        "deleteError": "Failed to delete rule",
+        "executed": "Executed {total} rules: {passed} passed, {failed} failed",
+        "executeError": "Failed to execute rule",
+        "executeAllError": "Failed to execute rules",
+        "rulePassed": "Rule passed ({value}%)",
+        "ruleFailed": "Rule failed ({value}%)"
+      },
+      "deleteConfirm": {
+        "title": "Delete quality rule '{name}'?",
+        "description": "This action cannot be undone. The rule and its evaluation history will be permanently removed."
+      }
     }
   }
 }
