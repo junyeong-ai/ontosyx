@@ -30,26 +30,40 @@
 //!   "current"). Mismatch → `OxError::Validation`.
 //! - Clears `as_of` on the returned query so the compiler accepts it.
 //!
-//! # What it does not do yet (explicit non-goal, tracked for follow-up)
+//! # Label-rename rewriting
 //!
-//! - Label-rename rewriting. If the ontology at `as_of` had a node
-//!   labelled "Customer" but the current saved PatternIR references
-//!   "Client" (a later rename), the rewriter does not today walk the
-//!   `OntologyCommand` log between versions to reverse the rename. The
-//!   compiler will attempt to emit a `(:Client)` query against a
-//!   snapshot where no such label existed — the resulting error
-//!   surfaces at execution time. Wiring the command log into the
-//!   rewrite pass is the next commit's territory.
+//! [`rewrite_temporal_with_renames`] extends the base rewriter with a
+//! label-substitution pass. A query authored today references
+//! **current** labels (e.g. `(:Customer)`); evaluating it as of a past
+//! timestamp when that node type was labelled `Client` requires
+//! substituting every `Customer` literal with `Client` before the
+//! compiler emits Cypher.
 //!
-//! This is a deliberate foundation-first slice: interface + window
-//! check + `as_of` clear, with semantic label rewriting split out so
-//! the window-validation bug surface can be reviewed in isolation.
+//! The substitution is driven by diffing the two ontology snapshots on
+//! stable type ids (`NodeTypeId`, `EdgeTypeId`): if the same id carries
+//! different labels in `current` and `snapshot`, the rewriter records
+//! a `current_label → snapshot_label` mapping and walks the query AST
+//! to apply it. Labels that don't map (new types that didn't exist
+//! yet, or unchanged types) pass through unchanged.
+//!
+//! Ambiguity at type-id granularity is impossible — a single id can
+//! only have one label per snapshot — so the mapping is a plain
+//! `HashMap`. Collisions at label granularity (two current labels
+//! colliding to one snapshot label, for a later rename that reused a
+//! name) are rejected with a clear error rather than silently picking
+//! one — the semantics of `(:Client)` in the rewritten query would
+//! depend on which rename you applied first, which is non-obvious.
+
+use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 
 use ox_core::error::{OxError, OxResult};
+use ox_core::graph_label::GraphLabel;
 use ox_core::ontology_ir::OntologyIR;
-use ox_core::query_ir::QueryIR;
+use ox_core::query_ir::{
+    AnalyticsSource, Expr, GraphPattern, MutateOp, PathElement, QueryIR, QueryOp,
+};
 
 /// Rewrite a temporal-pivoted query to evaluate against the given
 /// ontology snapshot.
@@ -79,6 +93,306 @@ pub fn rewrite_temporal(
     let mut out = query;
     out.as_of = None;
     Ok(out)
+}
+
+/// Same as [`rewrite_temporal`] plus a label-rename pass: labels that
+/// refer to a type renamed between `snapshot` and `current` are
+/// rewritten to match the snapshot's label. See the module docs for
+/// the diff semantics.
+///
+/// A single-snapshot caller (no interest in renames, or confident the
+/// type labels haven't changed) should prefer [`rewrite_temporal`] and
+/// skip the extra `current` argument.
+pub fn rewrite_temporal_with_renames(
+    query: QueryIR,
+    snapshot: &OntologyIR,
+    current: &OntologyIR,
+) -> OxResult<QueryIR> {
+    // No-op fast path. We still skip building the rename maps when
+    // there is no temporal pivot — the maps would go unused.
+    if query.as_of.is_none() {
+        return Ok(query);
+    }
+
+    let mut query = rewrite_temporal(query, snapshot)?;
+
+    let node_renames = diff_node_labels(current, snapshot)?;
+    let edge_renames = diff_edge_labels(current, snapshot)?;
+
+    if !node_renames.is_empty() || !edge_renames.is_empty() {
+        apply_renames(&mut query.operation, &node_renames, &edge_renames)?;
+    }
+
+    Ok(query)
+}
+
+/// Build a `current_label → snapshot_label` map for node types whose
+/// labels changed between the two ontologies.
+///
+/// Shared ids with identical labels contribute nothing. Ids unique to
+/// either side (newly created types or types removed since) also
+/// contribute nothing — the rewriter can't rewrite what isn't in the
+/// current query's label set.
+fn diff_node_labels(
+    current: &OntologyIR,
+    snapshot: &OntologyIR,
+) -> OxResult<HashMap<String, GraphLabel>> {
+    let snapshot_by_id: HashMap<&str, &GraphLabel> = snapshot
+        .node_types()
+        .iter()
+        .map(|n| (n.id.as_ref(), &n.label))
+        .collect();
+
+    let mut map: HashMap<String, GraphLabel> = HashMap::new();
+    for node in current.node_types() {
+        if let Some(snap_label) = snapshot_by_id.get(node.id.as_ref())
+            && *snap_label != &node.label
+        {
+            // A second current label collapsing onto an already-mapped
+            // snapshot-label-key would be ambiguous — refuse rather
+            // than pick a winner.
+            if let Some(existing) = map.insert(node.label.to_string(), (*snap_label).clone())
+                && &existing != *snap_label
+            {
+                return Err(OxError::Validation {
+                    field: "node_rename".to_string(),
+                    message: format!(
+                        "ambiguous node rename: current label `{}` maps to both \
+                         `{}` and `{}` in the requested snapshot",
+                        node.label, existing, snap_label
+                    ),
+                });
+            }
+        }
+    }
+    Ok(map)
+}
+
+fn diff_edge_labels(
+    current: &OntologyIR,
+    snapshot: &OntologyIR,
+) -> OxResult<HashMap<String, GraphLabel>> {
+    let snapshot_by_id: HashMap<&str, &GraphLabel> = snapshot
+        .edge_types()
+        .iter()
+        .map(|e| (e.id.as_ref(), &e.label))
+        .collect();
+
+    let mut map: HashMap<String, GraphLabel> = HashMap::new();
+    for edge in current.edge_types() {
+        if let Some(snap_label) = snapshot_by_id.get(edge.id.as_ref())
+            && *snap_label != &edge.label
+        {
+            if let Some(existing) = map.insert(edge.label.to_string(), (*snap_label).clone())
+                && &existing != *snap_label
+            {
+                return Err(OxError::Validation {
+                    field: "edge_rename".to_string(),
+                    message: format!(
+                        "ambiguous edge rename: current label `{}` maps to both \
+                         `{}` and `{}` in the requested snapshot",
+                        edge.label, existing, snap_label
+                    ),
+                });
+            }
+        }
+    }
+    Ok(map)
+}
+
+/// Walk every label surface in a `QueryOp` tree and substitute any
+/// rename hits. Additive on the [Expr / Pattern / Mutate / Analytics]
+/// coverage — a new label-carrying variant needs an arm here or the
+/// rewriter will silently miss its renames.
+fn apply_renames(
+    op: &mut QueryOp,
+    nodes: &HashMap<String, GraphLabel>,
+    edges: &HashMap<String, GraphLabel>,
+) -> OxResult<()> {
+    match op {
+        QueryOp::Match {
+            patterns, filter, ..
+        } => {
+            for p in patterns {
+                rename_pattern(p, nodes, edges);
+            }
+            if let Some(expr) = filter {
+                rename_expr(expr, nodes, edges)?;
+            }
+        }
+        QueryOp::PathFind {
+            start,
+            end,
+            edge_types,
+            ..
+        } => {
+            if let Some(l) = start.label.as_mut() {
+                swap_if_renamed(l, nodes);
+            }
+            if let Some(l) = end.label.as_mut() {
+                swap_if_renamed(l, nodes);
+            }
+            for l in edge_types.iter_mut() {
+                swap_if_renamed(l, edges);
+            }
+        }
+        QueryOp::Aggregate {
+            source, having, ..
+        } => {
+            apply_renames(&mut source.operation, nodes, edges)?;
+            if let Some(expr) = having {
+                rename_expr(expr, nodes, edges)?;
+            }
+        }
+        QueryOp::Union { queries, .. } => {
+            for q in queries {
+                apply_renames(&mut q.operation, nodes, edges)?;
+            }
+        }
+        QueryOp::Chain { steps } => {
+            for s in steps {
+                apply_renames(&mut s.operation, nodes, edges)?;
+            }
+        }
+        QueryOp::CallSubquery { inner, .. } => {
+            apply_renames(&mut inner.operation, nodes, edges)?;
+        }
+        QueryOp::Mutate {
+            context,
+            operations,
+            ..
+        } => {
+            if let Some(ctx) = context {
+                apply_renames(ctx, nodes, edges)?;
+            }
+            for mut_op in operations {
+                rename_mutate_op(mut_op, nodes, edges);
+            }
+        }
+        QueryOp::Analytics { source, .. } => {
+            if let AnalyticsSource::Labels {
+                labels: src_labels, ..
+            } = source
+            {
+                for l in src_labels.iter_mut() {
+                    swap_if_renamed(l, nodes);
+                }
+            }
+            if let AnalyticsSource::Subgraph { filter } = source {
+                apply_renames(filter, nodes, edges)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn rename_pattern(
+    pattern: &mut GraphPattern,
+    nodes: &HashMap<String, GraphLabel>,
+    edges: &HashMap<String, GraphLabel>,
+) {
+    match pattern {
+        GraphPattern::Node { label, .. } => {
+            if let Some(l) = label.as_mut() {
+                swap_if_renamed(l, nodes);
+            }
+        }
+        GraphPattern::Relationship { label, .. } => {
+            if let Some(l) = label.as_mut() {
+                swap_if_renamed(l, edges);
+            }
+        }
+        GraphPattern::Path { elements } => {
+            for elem in elements {
+                match elem {
+                    PathElement::Node { label, .. } => {
+                        if let Some(l) = label.as_mut() {
+                            swap_if_renamed(l, nodes);
+                        }
+                    }
+                    PathElement::Edge { label, .. } => {
+                        if let Some(l) = label.as_mut() {
+                            swap_if_renamed(l, edges);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn rename_expr(
+    expr: &mut Expr,
+    nodes: &HashMap<String, GraphLabel>,
+    edges: &HashMap<String, GraphLabel>,
+) -> OxResult<()> {
+    match expr {
+        Expr::Comparison { left, right, .. } | Expr::StringOp { left, right, .. } => {
+            rename_expr(left, nodes, edges)?;
+            rename_expr(right, nodes, edges)?;
+        }
+        Expr::Logical { left, right, .. } => {
+            rename_expr(left, nodes, edges)?;
+            rename_expr(right, nodes, edges)?;
+        }
+        Expr::Not { inner } => rename_expr(inner, nodes, edges)?,
+        Expr::In { expr, .. } => rename_expr(expr, nodes, edges)?,
+        Expr::IsNull { expr, .. } => rename_expr(expr, nodes, edges)?,
+        Expr::FunctionCall { args, .. } => {
+            for a in args {
+                rename_expr(a, nodes, edges)?;
+            }
+        }
+        Expr::Exists { pattern } => rename_pattern(pattern, nodes, edges),
+        Expr::Case {
+            operand,
+            when_clauses,
+            else_result,
+        } => {
+            if let Some(op) = operand {
+                rename_expr(op, nodes, edges)?;
+            }
+            for w in when_clauses {
+                rename_expr(&mut w.condition, nodes, edges)?;
+                rename_expr(&mut w.result, nodes, edges)?;
+            }
+            if let Some(e) = else_result {
+                rename_expr(e, nodes, edges)?;
+            }
+        }
+        Expr::Subquery { query, .. } => {
+            apply_renames(&mut query.operation, nodes, edges)?;
+        }
+        // Leaves with no label surface.
+        Expr::Literal { .. } | Expr::Param { .. } | Expr::Property { .. } => {}
+    }
+    Ok(())
+}
+
+fn rename_mutate_op(
+    op: &mut MutateOp,
+    nodes: &HashMap<String, GraphLabel>,
+    edges: &HashMap<String, GraphLabel>,
+) {
+    match op {
+        MutateOp::CreateNode { label, .. }
+        | MutateOp::MergeNode { label, .. }
+        | MutateOp::RemoveLabel { label, .. } => {
+            swap_if_renamed(label, nodes);
+        }
+        MutateOp::CreateEdge { label, .. } | MutateOp::MergeEdge { label, .. } => {
+            swap_if_renamed(label, edges);
+        }
+        MutateOp::SetProperty { .. }
+        | MutateOp::RemoveProperty { .. }
+        | MutateOp::Delete { .. } => {}
+    }
+}
+
+fn swap_if_renamed(label: &mut GraphLabel, map: &HashMap<String, GraphLabel>) {
+    if let Some(target) = map.get(label.as_str()) {
+        *label = target.clone();
+    }
 }
 
 /// Validate that the supplied snapshot's `OntologyVersion` window
@@ -276,6 +590,237 @@ mod tests {
         let future = simple_query(Some(ts(2099, 12, 31)));
         assert!(rewrite_temporal(past, &snap).is_ok());
         assert!(rewrite_temporal(future, &snap).is_ok());
+    }
+
+    fn snapshot_with_label(
+        number: u32,
+        valid_from: Option<DateTime<Utc>>,
+        valid_to: Option<DateTime<Utc>>,
+        node_id: &'static str,
+        label: &'static str,
+    ) -> OntologyIR {
+        let version = OntologyVersion {
+            number,
+            valid_from,
+            valid_to,
+            committed_by: None,
+            commit_message: None,
+        };
+        OntologyIR::new(
+            "test".to_string(),
+            "Test".to_string(),
+            LocalizedText::default(),
+            version,
+            vec![NodeTypeDef {
+                id: node_id.into(),
+                label: gl(label),
+                description: LocalizedText::default(),
+                properties: vec![],
+                constraints: vec![],
+                ..Default::default()
+            }],
+            vec![],
+            vec![],
+        )
+    }
+
+    #[test]
+    fn rename_rewrites_current_label_to_snapshot_label() {
+        // At as_of the node was labelled "Client"; today it's "Customer".
+        // Query written today references "Customer" → rewritten to "Client".
+        let snap = snapshot_with_label(
+            1,
+            Some(ts(2026, 1, 1)),
+            Some(ts(2026, 6, 1)),
+            "nt1",
+            "Client",
+        );
+        let current = snapshot_with_label(2, Some(ts(2026, 6, 1)), None, "nt1", "Customer");
+        let query = QueryIR {
+            schema_version: QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Match {
+                patterns: vec![GraphPattern::Node {
+                    variable: vn("c"),
+                    label: Some(gl("Customer")),
+                    property_filters: vec![],
+                }],
+                filter: None,
+                projections: vec![],
+                optional: false,
+                group_by: vec![],
+            },
+            limit: None,
+            skip: None,
+            order_by: vec![],
+            as_of: Some(ts(2026, 3, 15)),
+        };
+
+        let out = rewrite_temporal_with_renames(query, &snap, &current)
+            .expect("rewrite ok");
+        assert!(out.as_of.is_none());
+        let QueryOp::Match { patterns, .. } = &out.operation else {
+            panic!("expected Match");
+        };
+        let GraphPattern::Node { label, .. } = &patterns[0] else {
+            panic!("expected Node");
+        };
+        assert_eq!(
+            label.as_ref().map(|l| l.as_str()),
+            Some("Client"),
+            "label must be rewritten to the snapshot-era name"
+        );
+    }
+
+    #[test]
+    fn rename_pass_no_op_when_as_of_absent() {
+        // Even with a rename pair that would otherwise apply, a non-
+        // temporal query must not be rewritten — the caller's intent
+        // is "run against current" when as_of is None.
+        let snap = snapshot_with_label(
+            1,
+            Some(ts(2026, 1, 1)),
+            Some(ts(2026, 6, 1)),
+            "nt1",
+            "Client",
+        );
+        let current = snapshot_with_label(2, Some(ts(2026, 6, 1)), None, "nt1", "Customer");
+        let query = QueryIR {
+            schema_version: QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Match {
+                patterns: vec![GraphPattern::Node {
+                    variable: vn("c"),
+                    label: Some(gl("Customer")),
+                    property_filters: vec![],
+                }],
+                filter: None,
+                projections: vec![],
+                optional: false,
+                group_by: vec![],
+            },
+            limit: None,
+            skip: None,
+            order_by: vec![],
+            as_of: None,
+        };
+        let out = rewrite_temporal_with_renames(query, &snap, &current)
+            .expect("rewrite ok");
+        let QueryOp::Match { patterns, .. } = &out.operation else {
+            panic!("expected Match");
+        };
+        let GraphPattern::Node { label, .. } = &patterns[0] else {
+            panic!("expected Node");
+        };
+        assert_eq!(
+            label.as_ref().map(|l| l.as_str()),
+            Some("Customer"),
+            "no temporal pivot → label must stay current"
+        );
+    }
+
+    #[test]
+    fn rename_leaves_unchanged_labels_alone() {
+        // Node id `nt1` — same label in both ontologies → no rewrite.
+        let snap = snapshot_with_label(
+            1,
+            Some(ts(2026, 1, 1)),
+            Some(ts(2026, 6, 1)),
+            "nt1",
+            "Customer",
+        );
+        let current = snapshot_with_label(2, Some(ts(2026, 6, 1)), None, "nt1", "Customer");
+        let query = QueryIR {
+            schema_version: QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Match {
+                patterns: vec![GraphPattern::Node {
+                    variable: vn("c"),
+                    label: Some(gl("Customer")),
+                    property_filters: vec![],
+                }],
+                filter: None,
+                projections: vec![],
+                optional: false,
+                group_by: vec![],
+            },
+            limit: None,
+            skip: None,
+            order_by: vec![],
+            as_of: Some(ts(2026, 3, 15)),
+        };
+        let out = rewrite_temporal_with_renames(query, &snap, &current)
+            .expect("rewrite ok");
+        let QueryOp::Match { patterns, .. } = &out.operation else {
+            panic!("expected Match");
+        };
+        let GraphPattern::Node { label, .. } = &patterns[0] else {
+            panic!("expected Node");
+        };
+        assert_eq!(label.as_ref().map(|l| l.as_str()), Some("Customer"));
+    }
+
+    #[test]
+    fn rename_diff_map_excludes_new_node_types() {
+        // `nt2` exists in current but not in snapshot — rewriting a
+        // query that references it against `snap` should still clear
+        // as_of and leave the label alone (the compiler/runtime will
+        // surface the "unknown label" error against the snapshot).
+        let snap = snapshot_with_label(
+            1,
+            Some(ts(2026, 1, 1)),
+            Some(ts(2026, 6, 1)),
+            "nt1",
+            "Customer",
+        );
+        let current = {
+            let mut ont = snapshot_with_label(
+                2,
+                Some(ts(2026, 6, 1)),
+                None,
+                "nt1",
+                "Customer",
+            );
+            ont.add_node_type(NodeTypeDef {
+                id: "nt2".into(),
+                label: gl("Order"),
+                description: LocalizedText::default(),
+                properties: vec![],
+                constraints: vec![],
+                ..Default::default()
+            })
+            .expect("add Order node");
+            ont
+        };
+        let query = QueryIR {
+            schema_version: QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Match {
+                patterns: vec![GraphPattern::Node {
+                    variable: vn("o"),
+                    label: Some(gl("Order")),
+                    property_filters: vec![],
+                }],
+                filter: None,
+                projections: vec![],
+                optional: false,
+                group_by: vec![],
+            },
+            limit: None,
+            skip: None,
+            order_by: vec![],
+            as_of: Some(ts(2026, 3, 15)),
+        };
+        let out = rewrite_temporal_with_renames(query, &snap, &current)
+            .expect("rewrite ok");
+        let QueryOp::Match { patterns, .. } = &out.operation else {
+            panic!("expected Match");
+        };
+        let GraphPattern::Node { label, .. } = &patterns[0] else {
+            panic!("expected Node");
+        };
+        assert_eq!(
+            label.as_ref().map(|l| l.as_str()),
+            Some("Order"),
+            "labels for types that didn't exist at as_of must pass through \
+             untouched — the compiler will surface the error against the snapshot"
+        );
     }
 
     #[test]

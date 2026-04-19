@@ -16,7 +16,7 @@ pub mod plan_cache;
 pub mod temporal;
 
 pub use plan_cache::{DEFAULT_PLAN_CACHE_CAPACITY, PlanCache, PlanCacheHandle, PlanCacheStats};
-pub use temporal::rewrite_temporal;
+pub use temporal::{rewrite_temporal, rewrite_temporal_with_renames};
 
 use std::collections::HashMap;
 
