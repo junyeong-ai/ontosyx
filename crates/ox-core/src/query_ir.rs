@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -165,46 +165,229 @@ impl QueryIR {
     /// Validate structural integrity of the QueryIR.
     ///
     /// Catches issues that would cause Cypher compilation failures:
-    /// - CASE expressions with no WHEN clauses
-    /// - IN expressions with empty value lists
-    /// - Match operations with no patterns
+    /// - Match operations with no patterns.
+    /// - `CallSubquery.import_variables` / `Expr::Subquery.import_variables`
+    ///   referencing variables that are not in scope at the call site —
+    ///   Neo4j rejects these at parse time with a cryptic stack trace; we
+    ///   catch them at IR validation with a full list of available
+    ///   variables instead.
     pub fn validate(&self) -> Result<(), crate::error::OxError> {
-        Self::validate_op(&self.operation)
+        let mut scope: HashSet<String> = HashSet::new();
+        Self::validate_op(&self.operation, &mut scope)
     }
 
-    fn validate_op(op: &QueryOp) -> Result<(), crate::error::OxError> {
+    /// Walk the operation tree, threading a mutable `scope` of variables
+    /// that have been declared up to this point. The scope is used to
+    /// validate that every `CallSubquery` / `Expr::Subquery` import lists
+    /// names that are actually available — inner subqueries receive a
+    /// fresh scope seeded with their import list.
+    fn validate_op(
+        op: &QueryOp,
+        scope: &mut HashSet<String>,
+    ) -> Result<(), crate::error::OxError> {
         match op {
-            QueryOp::Match { patterns, .. } => {
+            QueryOp::Match {
+                patterns, filter, ..
+            } => {
                 if patterns.is_empty() {
                     return Err(crate::error::OxError::Validation {
                         field: "patterns".into(),
                         message: "Match operation must have at least one pattern".into(),
                     });
                 }
+                for p in patterns {
+                    collect_pattern_vars(p, scope);
+                }
+                // Filter expressions may contain Subquery — walk them.
+                if let Some(expr) = filter {
+                    validate_expr_scope(expr, scope)?;
+                }
                 Ok(())
             }
-            QueryOp::Aggregate { source, .. } => Self::validate_op(&source.operation),
+            QueryOp::PathFind { start, end, .. } => {
+                scope.insert(start.variable.to_string());
+                scope.insert(end.variable.to_string());
+                Ok(())
+            }
+            QueryOp::Aggregate { source, .. } => Self::validate_op(&source.operation, scope),
             QueryOp::Union { queries, .. } => {
+                // UNION branches are independent — each starts from the
+                // outer scope, with their own additions discarded afterwards.
                 for q in queries {
-                    Self::validate_op(&q.operation)?;
+                    let mut branch_scope = scope.clone();
+                    Self::validate_op(&q.operation, &mut branch_scope)?;
                 }
                 Ok(())
             }
             QueryOp::Chain { steps } => {
                 for s in steps {
-                    Self::validate_op(&s.operation)?;
+                    Self::validate_op(&s.operation, scope)?;
                 }
                 Ok(())
             }
-            QueryOp::CallSubquery { inner, .. } => Self::validate_op(&inner.operation),
-            QueryOp::Mutate { context, .. } => {
+            QueryOp::CallSubquery {
+                inner,
+                import_variables,
+            } => {
+                for imported in import_variables {
+                    if !scope.contains(imported) {
+                        return Err(crate::error::OxError::Validation {
+                            field: "import_variables".into(),
+                            message: format!(
+                                "CallSubquery imports undeclared variable `{imported}`. \
+                                 Available in scope: {}",
+                                fmt_scope(scope)
+                            ),
+                        });
+                    }
+                }
+                let mut sub_scope: HashSet<String> = import_variables.iter().cloned().collect();
+                Self::validate_op(&inner.operation, &mut sub_scope)
+            }
+            QueryOp::Mutate {
+                context,
+                operations,
+                ..
+            } => {
                 if let Some(ctx) = context {
-                    Self::validate_op(ctx)?;
+                    Self::validate_op(ctx, scope)?;
+                }
+                for mut_op in operations {
+                    match mut_op {
+                        MutateOp::CreateNode { variable, .. }
+                        | MutateOp::MergeNode { variable, .. } => {
+                            scope.insert(variable.to_string());
+                        }
+                        MutateOp::CreateEdge { variable, .. }
+                        | MutateOp::MergeEdge { variable, .. } => {
+                            if let Some(v) = variable {
+                                scope.insert(v.to_string());
+                            }
+                        }
+                        _ => {}
+                    }
                 }
                 Ok(())
             }
-            _ => Ok(()),
+            QueryOp::Analytics { .. } => Ok(()),
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Scope helpers
+// ---------------------------------------------------------------------------
+
+fn collect_pattern_vars(pattern: &GraphPattern, scope: &mut HashSet<String>) {
+    match pattern {
+        GraphPattern::Node { variable, .. } => {
+            scope.insert(variable.to_string());
+        }
+        GraphPattern::Relationship {
+            variable,
+            source,
+            target,
+            ..
+        } => {
+            if let Some(v) = variable {
+                scope.insert(v.to_string());
+            }
+            scope.insert(source.to_string());
+            scope.insert(target.to_string());
+        }
+        GraphPattern::Path { elements } => {
+            for elem in elements {
+                match elem {
+                    PathElement::Node { variable, .. } => {
+                        scope.insert(variable.to_string());
+                    }
+                    PathElement::Edge { variable, .. } => {
+                        if let Some(v) = variable {
+                            scope.insert(v.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn validate_expr_scope(
+    expr: &Expr,
+    scope: &HashSet<String>,
+) -> Result<(), crate::error::OxError> {
+    match expr {
+        Expr::Subquery {
+            query,
+            import_variables,
+        } => {
+            for imported in import_variables {
+                if !scope.contains(imported) {
+                    return Err(crate::error::OxError::Validation {
+                        field: "import_variables".into(),
+                        message: format!(
+                            "Expr::Subquery imports undeclared variable `{imported}`. \
+                             Available in scope: {}",
+                            fmt_scope(scope)
+                        ),
+                    });
+                }
+            }
+            let mut sub_scope: HashSet<String> = import_variables.iter().cloned().collect();
+            QueryIR::validate_op(&query.operation, &mut sub_scope)
+        }
+        Expr::Comparison { left, right, .. } | Expr::StringOp { left, right, .. } => {
+            validate_expr_scope(left, scope)?;
+            validate_expr_scope(right, scope)
+        }
+        Expr::Logical { left, right, .. } => {
+            validate_expr_scope(left, scope)?;
+            validate_expr_scope(right, scope)
+        }
+        Expr::Not { inner } => validate_expr_scope(inner, scope),
+        Expr::In { expr, .. } => validate_expr_scope(expr, scope),
+        Expr::IsNull { expr, .. } => validate_expr_scope(expr, scope),
+        Expr::FunctionCall { args, .. } => {
+            for a in args {
+                validate_expr_scope(a, scope)?;
+            }
+            Ok(())
+        }
+        Expr::Case {
+            operand,
+            when_clauses,
+            else_result,
+        } => {
+            if let Some(op) = operand {
+                validate_expr_scope(op, scope)?;
+            }
+            for w in when_clauses {
+                validate_expr_scope(&w.condition, scope)?;
+                validate_expr_scope(&w.result, scope)?;
+            }
+            if let Some(e) = else_result {
+                validate_expr_scope(e, scope)?;
+            }
+            Ok(())
+        }
+        // Literal, Property, Exists — no inner Subquery reachable from here.
+        Expr::Literal { .. } | Expr::Property { .. } | Expr::Exists { .. } => Ok(()),
+    }
+}
+
+/// Human-readable scope listing for validation-error messages.
+/// Deterministic so tests can assert on the exact text.
+fn fmt_scope(scope: &HashSet<String>) -> String {
+    let mut names: Vec<&String> = scope.iter().collect();
+    names.sort();
+    if names.is_empty() {
+        "<empty>".to_string()
+    } else {
+        names
+            .iter()
+            .map(|s| format!("`{s}`"))
+            .collect::<Vec<_>>()
+            .join(", ")
     }
 }
 
@@ -1092,4 +1275,225 @@ pub struct QueryMetadata {
     pub nodes_affected: Option<usize>,
     /// Number of relationships created/modified (for mutations)
     pub edges_affected: Option<usize>,
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod validate_scope_tests {
+    use super::*;
+    use crate::error::OxError;
+
+    fn vn(s: &'static str) -> VariableName {
+        VariableName::new(s).expect("test variable literal")
+    }
+
+    fn gl(s: &'static str) -> GraphLabel {
+        GraphLabel::new(s).expect("test graph label literal")
+    }
+
+    fn simple_match(variable: &'static str, label: &'static str) -> QueryIR {
+        QueryIR {
+            schema_version: QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Match {
+                patterns: vec![GraphPattern::Node {
+                    variable: vn(variable),
+                    label: Some(gl(label)),
+                    property_filters: vec![],
+                }],
+                filter: None,
+                projections: vec![],
+                optional: false,
+                group_by: vec![],
+            },
+            limit: None,
+            skip: None,
+            order_by: vec![],
+        }
+    }
+
+    #[test]
+    fn call_subquery_importing_outer_variable_passes() {
+        let inner = simple_match("m", "Friend");
+        let ir = QueryIR {
+            schema_version: QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Chain {
+                steps: vec![
+                    ChainStep {
+                        pass_through: vec![],
+                        operation: QueryOp::Match {
+                            patterns: vec![GraphPattern::Node {
+                                variable: vn("p"),
+                                label: Some(gl("Person")),
+                                property_filters: vec![],
+                            }],
+                            filter: None,
+                            projections: vec![],
+                            optional: false,
+                            group_by: vec![],
+                        },
+                    },
+                    ChainStep {
+                        pass_through: vec![],
+                        operation: QueryOp::CallSubquery {
+                            inner: Box::new(inner),
+                            import_variables: vec!["p".to_string()],
+                        },
+                    },
+                ],
+            },
+            limit: None,
+            skip: None,
+            order_by: vec![],
+        };
+        ir.validate().expect("scope should resolve");
+    }
+
+    #[test]
+    fn call_subquery_importing_undeclared_variable_fails() {
+        let inner = simple_match("m", "Friend");
+        let ir = QueryIR {
+            schema_version: QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Chain {
+                steps: vec![
+                    ChainStep {
+                        pass_through: vec![],
+                        operation: QueryOp::Match {
+                            patterns: vec![GraphPattern::Node {
+                                variable: vn("p"),
+                                label: Some(gl("Person")),
+                                property_filters: vec![],
+                            }],
+                            filter: None,
+                            projections: vec![],
+                            optional: false,
+                            group_by: vec![],
+                        },
+                    },
+                    ChainStep {
+                        pass_through: vec![],
+                        operation: QueryOp::CallSubquery {
+                            inner: Box::new(inner),
+                            import_variables: vec!["ghost".to_string()],
+                        },
+                    },
+                ],
+            },
+            limit: None,
+            skip: None,
+            order_by: vec![],
+        };
+        match ir.validate() {
+            Err(OxError::Validation { field, message }) => {
+                assert_eq!(field, "import_variables");
+                assert!(
+                    message.contains("`ghost`") && message.contains("`p`"),
+                    "message should list missing var + available scope, got: {message}"
+                );
+            }
+            other => panic!("expected Validation error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn expr_subquery_import_scope_validated() {
+        // Match(p:Person) WHERE EXISTS { Subquery with import["p"] }.
+        let sub = simple_match("m", "Friend");
+        let ir = QueryIR {
+            schema_version: QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Match {
+                patterns: vec![GraphPattern::Node {
+                    variable: vn("p"),
+                    label: Some(gl("Person")),
+                    property_filters: vec![],
+                }],
+                filter: Some(Expr::Subquery {
+                    query: Box::new(sub),
+                    import_variables: vec!["p".to_string()],
+                }),
+                projections: vec![],
+                optional: false,
+                group_by: vec![],
+            },
+            limit: None,
+            skip: None,
+            order_by: vec![],
+        };
+        ir.validate().expect("importing `p` defined by the Match should pass");
+    }
+
+    #[test]
+    fn expr_subquery_import_undeclared_fails() {
+        let sub = simple_match("m", "Friend");
+        let ir = QueryIR {
+            schema_version: QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Match {
+                patterns: vec![GraphPattern::Node {
+                    variable: vn("p"),
+                    label: Some(gl("Person")),
+                    property_filters: vec![],
+                }],
+                filter: Some(Expr::Subquery {
+                    query: Box::new(sub),
+                    import_variables: vec!["ghost".to_string()],
+                }),
+                projections: vec![],
+                optional: false,
+                group_by: vec![],
+            },
+            limit: None,
+            skip: None,
+            order_by: vec![],
+        };
+        match ir.validate() {
+            Err(OxError::Validation { field, .. }) => {
+                assert_eq!(field, "import_variables");
+            }
+            other => panic!("expected Validation error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn relationship_endpoints_added_to_scope() {
+        // (a)-[:KNOWS]->(b) gives {a, b} in scope; subquery imports `b`.
+        let sub = simple_match("m", "Other");
+        let ir = QueryIR {
+            schema_version: QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Chain {
+                steps: vec![
+                    ChainStep {
+                        pass_through: vec![],
+                        operation: QueryOp::Match {
+                            patterns: vec![GraphPattern::Relationship {
+                                variable: None,
+                                label: Some(gl("KNOWS")),
+                                source: vn("a"),
+                                target: vn("b"),
+                                direction: Direction::Outgoing,
+                                property_filters: vec![],
+                                var_length: None,
+                            }],
+                            filter: None,
+                            projections: vec![],
+                            optional: false,
+                            group_by: vec![],
+                        },
+                    },
+                    ChainStep {
+                        pass_through: vec![],
+                        operation: QueryOp::CallSubquery {
+                            inner: Box::new(sub),
+                            import_variables: vec!["b".to_string()],
+                        },
+                    },
+                ],
+            },
+            limit: None,
+            skip: None,
+            order_by: vec![],
+        };
+        ir.validate().expect("relationship endpoints must enter scope");
+    }
 }
