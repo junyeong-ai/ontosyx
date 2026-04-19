@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useAppStore, type ToolCall } from "@/lib/store";
 import type { QueryResult, WidgetSpec } from "@/types/api";
 import { respondToolReview, normalizeQueryResult } from "@/lib/api";
@@ -27,6 +28,7 @@ interface ToolCallCardProps {
 }
 
 export function ToolCallCard({ toolCall }: ToolCallCardProps) {
+  const t = useTranslations("workbench.chat.toolCall");
   const [isExpanded, setIsExpanded] = useState(false);
   const { isAdmin } = useAuth();
   const meta = TOOL_META[toolCall.name] ?? DEFAULT_TOOL_META;
@@ -37,13 +39,13 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
   // Parse structured result for inline rendering
   const parsedResult = useMemo(() => {
     if (!isDone || !toolCall.output) return null;
-    return tryParseToolResult(toolCall.name, toolCall.output);
-  }, [isDone, toolCall.output, toolCall.name]);
+    return tryParseToolResult(toolCall.name, toolCall.output, t);
+  }, [isDone, toolCall.output, toolCall.name, t]);
 
   return (
     <div
       role={isRunning ? "status" : undefined}
-      aria-label={isRunning ? `${toolCall.name} running` : undefined}
+      aria-label={isRunning ? t("runningAria", { name: toolCall.name }) : undefined}
       className={`overflow-hidden rounded-xl border transition-colors ${
         isRunning
           ? "border-emerald-200 bg-emerald-50/30 dark:border-emerald-800/40 dark:bg-emerald-950/10"
@@ -68,7 +70,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
           ) : (
             <HugeiconsIcon
               icon={meta.icon}
-              className={`h-3.5 w-3.5 ${isError ? "text-red-500" : "text-zinc-500 dark:text-zinc-400"}`}
+              className={`h-3.5 w-3.5 ${isError ? "text-red-500" : "text-zinc-500 dark:text-muted-foreground"}`}
               size="100%"
             />
           )}
@@ -79,34 +81,34 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
 
           {/* Duration badge — show total time */}
           {(isDone || isError) && toolCall.durationMs != null && toolCall.durationMs > 0 && (
-            <span className="rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] tabular-nums text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400">
-              {toolCall.durationMs < 100 ? "<0.1s" : `${(toolCall.durationMs / 1000).toFixed(1)}s`}
+            <span className="rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] tabular-nums text-zinc-500 dark:bg-zinc-700 dark:text-muted-foreground">
+              {toolCall.durationMs < 100 ? t("durationSub100") : t("durationSeconds", { seconds: (toolCall.durationMs / 1000).toFixed(1) })}
             </span>
           )}
 
           {/* Result summary */}
           {parsedResult?.summary && (
-            <span className="ml-1 text-[10px] text-zinc-400">
+            <span className="ml-1 text-[10px] text-muted-foreground">
               {parsedResult.summary}
             </span>
           )}
 
           {isError && (
             <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] text-red-600 dark:bg-red-900/30 dark:text-red-400">
-              failed
+              {t("failedBadge")}
             </span>
           )}
 
           {toolCall.status === "review" && (
             <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-              review required
+              {t("reviewBadge")}
             </span>
           )}
 
           {!isRunning && toolCall.output && (isAdmin || isError) && (
             <HugeiconsIcon
               icon={isExpanded ? ArrowUp01Icon : ArrowDown01Icon}
-              className="ml-auto h-3 w-3 text-zinc-400"
+              className="ml-auto h-3 w-3 text-muted-foreground"
               size="100%"
             />
           )}
@@ -116,14 +118,14 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
         {isDone && !isError && toolCall.output && (
           <button
             type="button"
-            aria-label="View in Results panel"
+            aria-label={t("viewInResults")}
             onClick={() => {
               const store = useAppStore.getState();
               store.setAnalyzeRightTab("results");
               store.setFocusResultId(toolCall.id);
             }}
-            className="rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-emerald-600 dark:hover:bg-zinc-700 dark:hover:text-emerald-400"
-            title="View in Results panel"
+            className="rounded p-0.5 text-muted-foreground hover:bg-zinc-100 hover:text-emerald-600 dark:hover:bg-zinc-700 dark:hover:text-emerald-400"
+            title={t("viewInResults")}
           >
             <span className="text-[10px]">→</span>
           </button>
@@ -147,13 +149,13 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
                   ? "text-emerald-700 dark:text-emerald-400 font-medium"
                   : step.status === "failed"
                     ? "text-red-600 dark:text-red-400"
-                    : "text-zinc-500 dark:text-zinc-400"
+                    : "text-zinc-500 dark:text-muted-foreground"
               }>
                 {STEP_LABELS[step.step] ?? step.step}
               </span>
               {step.durationMs != null && (
-                <span className="text-[10px] tabular-nums text-zinc-400">
-                  {step.durationMs < 100 ? "<0.1s" : `${(step.durationMs / 1000).toFixed(1)}s`}
+                <span className="text-[10px] tabular-nums text-muted-foreground">
+                  {step.durationMs < 100 ? t("durationSub100") : t("durationSeconds", { seconds: (step.durationMs / 1000).toFixed(1) })}
                 </span>
               )}
             </div>
@@ -165,7 +167,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
       {toolCall.status === "review" && (
         <div className="border-t border-amber-200/40 px-3 py-2 dark:border-amber-800/30">
           <p className="text-[11px] text-amber-700 dark:text-amber-400 mb-2">
-            This tool requires your approval before execution.
+            {t("hitl.description")}
           </p>
           <div className="flex gap-2">
             <button
@@ -174,13 +176,13 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
                 const sessionId = useAppStore.getState().sessionId;
                 if (sessionId) {
                   respondToolReview(sessionId, toolCall.id, true)
-                    .then(() => toast.success("Tool approved"))
-                    .catch(() => toast.error("Failed to approve"));
+                    .then(() => toast.success(t("hitl.approvedToast")))
+                    .catch(() => toast.error(t("hitl.approveError")));
                 }
               }}
               className="rounded-md bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700"
             >
-              Approve
+              {t("hitl.approve")}
             </button>
             <button
               onClick={(e) => {
@@ -188,13 +190,13 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
                 const sessionId = useAppStore.getState().sessionId;
                 if (sessionId) {
                   respondToolReview(sessionId, toolCall.id, false)
-                    .then(() => toast.info("Tool rejected"))
-                    .catch(() => toast.error("Failed to reject"));
+                    .then(() => toast.info(t("hitl.rejectedToast")))
+                    .catch(() => toast.error(t("hitl.rejectError")));
                 }
               }}
               className="rounded-md border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/30"
             >
-              Reject
+              {t("hitl.reject")}
             </button>
           </div>
         </div>
@@ -211,8 +213,8 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
             {/* Show attempted query if available */}
             {compiledQuery && (
               <div className="mt-1.5 rounded border border-red-200/40 bg-zinc-100 px-2 py-1.5 dark:border-red-800/30 dark:bg-zinc-900">
-                <p className="mb-1 text-[10px] font-medium text-zinc-500 dark:text-zinc-400">Attempted query:</p>
-                <pre className="max-h-20 overflow-auto text-[10px] font-mono text-zinc-600 dark:text-zinc-400">
+                <p className="mb-1 text-[10px] font-medium text-zinc-500 dark:text-muted-foreground">{t("error.attemptedQuery")}</p>
+                <pre className="max-h-20 overflow-auto text-[10px] font-mono text-zinc-600 dark:text-muted-foreground">
                   {compiledQuery}
                 </pre>
               </div>
@@ -221,14 +223,14 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
             {/* Tips for query_graph translation errors */}
             {toolCall.name === "query_graph" && (
               <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400">
-                <p className="font-medium">Tips to improve query translation:</p>
+                <p className="font-medium">{t("error.tipsHeading")}</p>
                 <ul className="mt-1 list-disc pl-4 space-y-0.5">
-                  <li>Use specific entity names from your ontology (e.g., &quot;Customer&quot;, &quot;Product&quot;)</li>
-                  <li>Mention property names explicitly (e.g., &quot;with name containing X&quot;)</li>
-                  <li>Try simpler questions first, then add complexity</li>
+                  <li>{t("error.tipEntityNames")}</li>
+                  <li>{t("error.tipPropertyNames")}</li>
+                  <li>{t("error.tipSimpler")}</li>
                 </ul>
                 <p className="mt-1.5 text-amber-600 dark:text-amber-500">
-                  Or try the{" "}
+                  {t("error.tryVisualBuilderPrefix")}
                   <button
                     className="underline font-medium"
                     onClick={(e) => {
@@ -237,21 +239,21 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
                       store.setAnalyzeRightTab("query");
                     }}
                   >
-                    Visual Query Builder
+                    {t("error.visualQueryBuilder")}
                   </button>
-                  {" "}for complex queries.
+                  {t("error.tryVisualBuilderSuffix")}
                 </p>
               </div>
             )}
 
             {isExpanded && isAdmin && (
               <details className="mt-1">
-                <summary className="cursor-pointer text-[10px] text-zinc-400 hover:text-zinc-600">
-                  Technical details
+                <summary className="cursor-pointer text-[10px] text-muted-foreground hover:text-zinc-600">
+                  {t("error.technicalDetails")}
                 </summary>
                 <div className="relative mt-1">
                   <CopyButton text={technicalDetail} />
-                  <pre className="max-h-32 overflow-auto rounded bg-zinc-100 p-2 pr-8 text-[10px] text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400 select-text">
+                  <pre className="max-h-32 overflow-auto rounded bg-zinc-100 p-2 pr-8 text-[10px] text-zinc-500 dark:bg-zinc-900 dark:text-muted-foreground select-text">
                     {truncateOutput(technicalDetail)}
                   </pre>
                 </div>
@@ -283,7 +285,13 @@ interface ParsedToolResult {
   widget?: { spec: WidgetSpec; data: QueryResult };
 }
 
-function tryParseToolResult(toolName: string, output: string): ParsedToolResult | null {
+type ToolCallTranslator = ReturnType<typeof useTranslations<"workbench.chat.toolCall">>;
+
+function tryParseToolResult(
+  toolName: string,
+  output: string,
+  t: ToolCallTranslator,
+): ParsedToolResult | null {
   try {
     const parsed = JSON.parse(output);
 
@@ -296,7 +304,7 @@ function tryParseToolResult(toolName: string, output: string): ParsedToolResult 
       const spec: WidgetSpec = { columns: specColumns, widget_type: "auto" };
 
       return {
-        summary: `${rowCount} rows, ${columns.length} columns`,
+        summary: t("summary.queryRowsColumns", { rows: rowCount, columns: columns.length }),
         widget: rowCount > 0 ? { spec, data } : undefined,
       };
     }
@@ -313,19 +321,19 @@ function tryParseToolResult(toolName: string, output: string): ParsedToolResult 
       if (parsed.data && parsed.columns) {
         const data: QueryResult = { columns: parsed.columns, rows: parsed.data };
         return {
-          summary: `${parsed.chart_type}: ${parsed.title ?? ""}`,
+          summary: t("summary.chartType", { type: parsed.chart_type, title: parsed.title ?? "" }),
           widget: { spec, data },
         };
       }
 
       return {
-        summary: `${parsed.chart_type}: ${parsed.title ?? ""}`,
+        summary: t("summary.chartType", { type: parsed.chart_type, title: parsed.title ?? "" }),
       };
     }
 
     if (toolName === "edit_ontology" && parsed.command_count != null) {
       const commands = parsed.commands as Array<{ type: string }> | undefined;
-      let detail = `${parsed.command_count} commands generated`;
+      let detail = t("summary.commands", { count: parsed.command_count });
       if (commands && commands.length > 0) {
         const typeCounts: Record<string, number> = {};
         for (const cmd of commands) {
@@ -333,7 +341,7 @@ function tryParseToolResult(toolName: string, output: string): ParsedToolResult 
           typeCounts[type] = (typeCounts[type] || 0) + 1;
         }
         detail = Object.entries(typeCounts)
-          .map(([t, c]) => `${c} ${t}`)
+          .map(([kind, c]) => `${c} ${kind}`)
           .join(", ");
       }
       return { summary: detail };
@@ -341,51 +349,56 @@ function tryParseToolResult(toolName: string, output: string): ParsedToolResult 
 
     if (toolName === "apply_ontology") {
       if (parsed.status === "no_changes") {
-        return { summary: "No changes needed" };
+        return { summary: t("summary.noChanges") };
       }
       if (parsed.commands_applied != null) {
         const errCount = parsed.errors?.length ?? 0;
-        const suffix = errCount > 0 ? ` (${errCount} errors)` : "";
-        return { summary: `${parsed.commands_applied} commands applied${suffix}` };
+        const summary = errCount > 0
+          ? t("summary.commandsAppliedErrors", { count: parsed.commands_applied, errors: errCount })
+          : t("summary.commandsApplied", { count: parsed.commands_applied });
+        return { summary };
       }
     }
 
     if (toolName === "execute_analysis") {
       return {
-        summary: `exit ${parsed.exit_code}, ${(parsed.duration_ms / 1000).toFixed(1)}s`,
+        summary: t("summary.execExit", {
+          code: parsed.exit_code,
+          duration: (parsed.duration_ms / 1000).toFixed(1),
+        }),
       };
     }
 
     if (toolName === "recall_memory" && parsed.total != null) {
-      return { summary: `${parsed.total} hits` };
+      return { summary: t("summary.recallHits", { count: parsed.total }) };
     }
 
     if (toolName === "search_recipes" && parsed.total != null) {
-      return { summary: `${parsed.total} recipes` };
+      return { summary: t("summary.recipesHits", { count: parsed.total }) };
     }
 
     if (toolName === "introspect_source") {
       if (parsed.table_count != null) {
-        return { summary: `${parsed.table_count} tables` };
+        return { summary: t("summary.tablesCount", { count: parsed.table_count }) };
       }
       if (parsed.table_name) {
         const colCount = Array.isArray(parsed.columns) ? parsed.columns.length : 0;
-        return { summary: `${parsed.table_name} (${colCount} columns)` };
+        return { summary: t("summary.tableColumns", { name: parsed.table_name, count: colCount }) };
       }
     }
 
     if (toolName === "schema_evolution") {
       if (parsed.status === "no_drift") {
-        return { summary: "No drift detected" };
+        return { summary: t("summary.noDrift") };
       }
       if (parsed.suggestion_count != null) {
-        return { summary: `${parsed.suggestion_count} suggestions` };
+        return { summary: t("summary.driftSuggestions", { count: parsed.suggestion_count }) };
       }
       if (parsed.summary?.drift_detected != null) {
         const s = parsed.summary;
         const total = (s.unmapped_table_count ?? 0) + (s.orphaned_node_count ?? 0)
           + (s.unmapped_column_count ?? 0) + (s.orphaned_property_count ?? 0);
-        return { summary: total > 0 ? `${total} diffs found` : "No drift" };
+        return { summary: total > 0 ? t("summary.driftDiffs", { count: total }) : t("summary.noDriftShort") };
       }
     }
 
@@ -395,7 +408,7 @@ function tryParseToolResult(toolName: string, output: string): ParsedToolResult 
       const specColumns = cols.map((c: string) => ({ key: c, label: c }));
       const spec: WidgetSpec = { columns: specColumns, widget_type: "auto" };
       return {
-        summary: `${parsed.rows?.length ?? 0} rows`,
+        summary: t("summary.rawRows", { count: parsed.rows?.length ?? 0 }),
         widget: parsed.rows?.length > 0 ? { spec, data } : undefined,
       };
     }
@@ -403,7 +416,7 @@ function tryParseToolResult(toolName: string, output: string): ParsedToolResult 
     // Not JSON — return simple summary
   }
 
-  return { summary: output.length > 100 ? `${output.length.toLocaleString()} chars` : "" };
+  return { summary: output.length > 100 ? t("summary.charsCount", { count: output.length.toLocaleString() }) : "" };
 }
 
 // ---------------------------------------------------------------------------
@@ -435,6 +448,7 @@ function truncateOutput(output: string, maxLen = 3000): string {
 
 /** Formatted JSON display with collapse/expand for tool outputs. */
 function JsonBlock({ raw }: { raw: string }) {
+  const t = useTranslations("workbench.chat.toolCall");
   const [expanded, setExpanded] = useState(false);
 
   let formatted: string;
@@ -459,7 +473,7 @@ function JsonBlock({ raw }: { raw: string }) {
       <pre className="max-h-64 overflow-auto p-3 pr-10 text-xs font-mono text-zinc-700 dark:text-zinc-300 leading-relaxed">
         {display}
         {!expanded && isLarge && (
-          <span className="text-zinc-400">{"\n... "}({formatted.length.toLocaleString()} chars)</span>
+          <span className="text-muted-foreground">{"\n... ("}{t("json.truncatedChars", { count: formatted.length.toLocaleString() })}{")"}</span>
         )}
       </pre>
       {isLarge && (
@@ -467,7 +481,7 @@ function JsonBlock({ raw }: { raw: string }) {
           onClick={() => setExpanded(!expanded)}
           className="absolute bottom-2 right-2 rounded bg-zinc-200 px-2 py-0.5 text-[10px] text-zinc-600 hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600"
         >
-          {expanded ? "Collapse" : "Expand"}
+          {expanded ? t("json.collapse") : t("json.expand")}
         </button>
       )}
     </div>

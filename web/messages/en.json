@@ -855,5 +855,168 @@
         "description": "This action cannot be undone. The rule and its evaluation history will be permanently removed."
       }
     }
+  },
+  "workbench": {
+    "chat": {
+      "input": {
+        "messageAria": "Chat message",
+        "sendAria": "Send message",
+        "placeholder": "Ask anything... (prefix ! for raw Cypher)",
+        "rawMode": "Raw Cypher mode",
+        "enterHint": "Enter to send, Shift+Enter for new line",
+        "tokensUsed": "{count} tokens used",
+        "modelSelectTitle": "Model override",
+        "defaultModel": "Default model",
+        "modelOption": "{name} ({id})",
+        "executionMode": {
+          "auto": "Auto",
+          "supervised": "Supervised",
+          "autoTitle": "Auto mode: tools execute automatically",
+          "supervisedTitle": "Supervised: tools require approval"
+        }
+      },
+      "panel": {
+        "logAria": "Chat messages",
+        "appTitle": "Ontosyx AI",
+        "suggestionsHintWithOntology": "Ask questions, edit the ontology, or explore your knowledge graph with {count} node types.",
+        "analyzeLoadHint": "Load an ontology in Design mode to enable AI-powered analysis. The agent can query your graph, run analyses, and generate visualizations.",
+        "designLoadHint": "Load an ontology to start chatting. The AI can help you edit, explain, and analyze your knowledge graph.",
+        "runEda": "Run Exploratory Data Analysis",
+        "edaPrompt": "Please run an exploratory data analysis (EDA) on this ontology's data. Include node distribution, relationship patterns, outliers, and key insights.",
+        "recentSessions": "Recent Sessions",
+        "untitledSession": "Untitled session",
+        "sessionResumed": "Session resumed",
+        "resumeFailed": "Failed to resume session",
+        "sessionExpiredToast": "Previous session expired. Starting a new session.",
+        "inputDisabledNoOntology": "Load an ontology first",
+        "connectionError": "Connection error: {error}",
+        "rawRowsSummary": "Query returned {count, plural, one {# row} other {# rows}}"
+      },
+      "execution": {
+        "viewAria": "View execution: {question}",
+        "rowsSummary": "{count, plural, one {# row} other {# rows}}",
+        "backAria": "Back",
+        "meta": "{date} · {model} · {duration}ms",
+        "highlightTitle": "Highlight on current ontology (best-effort)",
+        "highlight": "Highlight",
+        "replayTitle": "Switch to execution's ontology snapshot for exact replay",
+        "replay": "Replay",
+        "loadToChat": "Load to chat",
+        "loadToChatGuardLabel": "Load to Chat",
+        "showOnSnapshotGuardLabel": "Show on Snapshot",
+        "sectionExplanation": "Explanation",
+        "sectionQueryTitle": "{target} query",
+        "sectionResultsTitle": "Results ({count} rows)",
+        "sectionOntology": "Ontology",
+        "ontologyMeta": "{id} v{version}",
+        "differentOntologyWarning": "This query was executed on a different ontology version. Highlights may not match the current graph.",
+        "bindingsDropped": "{count, plural, one {# binding} other {# bindings}} could not be resolved against the current ontology and were skipped."
+      },
+      "feedback": {
+        "good": "Good result",
+        "bad": "Bad result",
+        "helpful": "Helpful",
+        "removeHelpful": "Remove helpful rating",
+        "notHelpful": "Not helpful",
+        "removeNotHelpful": "Remove unhelpful rating",
+        "saveError": "Failed to save feedback"
+      },
+      "history": {
+        "tabRecent": "Recent",
+        "tabPinned": "Pinned",
+        "emptyRecent": "No query executions yet",
+        "emptyPinned": "No pinned results yet",
+        "loadHistoryError": "Failed to load history",
+        "loadExecutionError": "Failed to load execution",
+        "loadPinsError": "Failed to load pins",
+        "unpinFailed": "Failed to unpin",
+        "unpinnedToast": "Unpinned",
+        "loadMore": "Load more",
+        "untitledPin": "Untitled pin",
+        "viewPinnedAria": "View pinned: {title}",
+        "unpinAria": "Unpin"
+      },
+      "message": {
+        "userAria": "User message",
+        "assistantAria": "Assistant message",
+        "requestFailed": "Request failed",
+        "failedCount": "failed ×{count}"
+      },
+      "query": {
+        "title": "Raw Query",
+        "runningLabel": "Running...",
+        "execute": "Execute",
+        "placeholder": "MATCH (n) RETURN n LIMIT 10",
+        "execHintPrefixMac": "⌘",
+        "execHintPrefixOther": "Ctrl",
+        "execHintSuffix": "+Enter to execute",
+        "failedTitle": "Query failed",
+        "noRows": "Query executed successfully — 0 rows returned",
+        "emptyPrompt": "Write a Cypher query and hit Execute"
+      },
+      "streamdown": {
+        "viewFullscreen": "View fullscreen",
+        "expandTable": "Expand table",
+        "tableFullscreenAria": "Table fullscreen view",
+        "closeFullscreen": "Close fullscreen"
+      },
+      "thinking": {
+        "thinking": "Thinking...",
+        "reasoning": "Reasoning",
+        "steps": "{count, plural, one {# step} other {# steps}}"
+      },
+      "toolCall": {
+        "runningAria": "{name} running",
+        "durationSub100": "<0.1s",
+        "durationSeconds": "{seconds}s",
+        "failedBadge": "failed",
+        "reviewBadge": "review required",
+        "viewInResults": "View in Results panel",
+        "hitl": {
+          "description": "This tool requires your approval before execution.",
+          "approve": "Approve",
+          "reject": "Reject",
+          "approvedToast": "Tool approved",
+          "rejectedToast": "Tool rejected",
+          "approveError": "Failed to approve",
+          "rejectError": "Failed to reject"
+        },
+        "error": {
+          "attemptedQuery": "Attempted query:",
+          "tipsHeading": "Tips to improve query translation:",
+          "tipEntityNames": "Use specific entity names from your ontology (e.g., \"Customer\", \"Product\")",
+          "tipPropertyNames": "Mention property names explicitly (e.g., \"with name containing X\")",
+          "tipSimpler": "Try simpler questions first, then add complexity",
+          "tryVisualBuilderPrefix": "Or try the ",
+          "visualQueryBuilder": "Visual Query Builder",
+          "tryVisualBuilderSuffix": " for complex queries.",
+          "technicalDetails": "Technical details"
+        },
+        "summary": {
+          "queryRowsColumns": "{rows, plural, one {# row} other {# rows}}, {columns, plural, one {# column} other {# columns}}",
+          "rawRows": "{count, plural, one {# row} other {# rows}}",
+          "commands": "{count, plural, one {# command} other {# commands}} generated",
+          "noChanges": "No changes needed",
+          "commandsApplied": "{count, plural, one {# command} other {# commands}} applied",
+          "commandsAppliedErrors": "{count, plural, one {# command} other {# commands}} applied ({errors, plural, one {# error} other {# errors}})",
+          "execExit": "exit {code}, {duration}s",
+          "recallHits": "{count, plural, one {# hit} other {# hits}}",
+          "recipesHits": "{count, plural, one {# recipe} other {# recipes}}",
+          "tablesCount": "{count, plural, one {# table} other {# tables}}",
+          "tableColumns": "{name} ({count, plural, one {# column} other {# columns}})",
+          "noDrift": "No drift detected",
+          "driftSuggestions": "{count, plural, one {# suggestion} other {# suggestions}}",
+          "driftDiffs": "{count, plural, one {# diff} other {# diffs}} found",
+          "noDriftShort": "No drift",
+          "charsCount": "{count} chars",
+          "chartType": "{type}: {title}"
+        },
+        "json": {
+          "truncatedChars": "{count} chars",
+          "collapse": "Collapse",
+          "expand": "Expand"
+        }
+      }
+    }
   }
 }

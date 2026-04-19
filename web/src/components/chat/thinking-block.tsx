@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   AiNetworkIcon,
@@ -19,6 +20,7 @@ interface ThinkingBlockProps {
 }
 
 export function ThinkingBlock({ content, isStreaming }: ThinkingBlockProps) {
+  const t = useTranslations("workbench.chat.thinking");
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -33,10 +35,10 @@ export function ThinkingBlock({ content, isStreaming }: ThinkingBlockProps) {
           <HugeiconsIcon icon={AiNetworkIcon} className="h-3.5 w-3.5" size="100%" />
         )}
         <span className="font-medium">
-          {isStreaming && !content ? "Thinking..." : "Reasoning"}
+          {isStreaming && !content ? t("thinking") : t("reasoning")}
         </span>
         <span className="ml-auto text-[10px] text-amber-500/70">
-          {content.length > 0 && `${content.split("\n").length} steps`}
+          {content.length > 0 && t("steps", { count: content.split("\n").length })}
         </span>
         <HugeiconsIcon
           icon={isOpen ? ArrowUp01Icon : ArrowDown01Icon}

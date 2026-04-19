@@ -855,5 +855,168 @@
         "description": "이 작업은 되돌릴 수 없으며 규칙과 평가 이력이 영구적으로 제거됩니다."
       }
     }
+  },
+  "workbench": {
+    "chat": {
+      "input": {
+        "messageAria": "채팅 메시지",
+        "sendAria": "메시지 보내기",
+        "placeholder": "무엇이든 물어보세요... (원시 Cypher는 ! 로 시작)",
+        "rawMode": "원시 Cypher 모드",
+        "enterHint": "Enter로 전송, Shift+Enter로 줄 바꿈",
+        "tokensUsed": "{count} 토큰 사용",
+        "modelSelectTitle": "모델 오버라이드",
+        "defaultModel": "기본 모델",
+        "modelOption": "{name} ({id})",
+        "executionMode": {
+          "auto": "자동",
+          "supervised": "감독",
+          "autoTitle": "자동 모드: 도구가 자동으로 실행됩니다",
+          "supervisedTitle": "감독 모드: 도구 실행에 승인이 필요합니다"
+        }
+      },
+      "panel": {
+        "logAria": "채팅 메시지",
+        "appTitle": "Ontosyx AI",
+        "suggestionsHintWithOntology": "{count}개 노드 타입으로 질문하거나 온톨로지를 편집하거나 지식 그래프를 탐색해 보세요.",
+        "analyzeLoadHint": "분석을 활성화하려면 디자인 모드에서 온톨로지를 불러오세요. 에이전트가 그래프 쿼리, 분석 실행, 시각화를 수행할 수 있습니다.",
+        "designLoadHint": "온톨로지를 불러와 채팅을 시작하세요. AI가 지식 그래프를 편집·설명·분석해 드립니다.",
+        "runEda": "탐색적 데이터 분석 실행",
+        "edaPrompt": "이 온톨로지의 데이터에 대해 탐색적 데이터 분석(EDA)을 수행해주세요. 노드 분포, 관계 패턴, 이상치, 핵심 인사이트를 포함해주세요.",
+        "recentSessions": "최근 세션",
+        "untitledSession": "제목 없는 세션",
+        "sessionResumed": "세션이 재개되었습니다",
+        "resumeFailed": "세션을 재개하지 못했습니다",
+        "sessionExpiredToast": "이전 세션이 만료되어 새 세션으로 시작합니다.",
+        "inputDisabledNoOntology": "먼저 온톨로지를 불러오세요",
+        "connectionError": "연결 오류: {error}",
+        "rawRowsSummary": "쿼리가 {count}행을 반환했습니다"
+      },
+      "execution": {
+        "viewAria": "실행 보기: {question}",
+        "rowsSummary": "{count}행",
+        "backAria": "뒤로",
+        "meta": "{date} · {model} · {duration}ms",
+        "highlightTitle": "현재 온톨로지에서 강조 (최선 노력)",
+        "highlight": "강조",
+        "replayTitle": "실행 당시의 온톨로지 스냅샷으로 전환하여 정확히 재현",
+        "replay": "재실행",
+        "loadToChat": "채팅에서 열기",
+        "loadToChatGuardLabel": "채팅에서 열기",
+        "showOnSnapshotGuardLabel": "스냅샷에서 보기",
+        "sectionExplanation": "설명",
+        "sectionQueryTitle": "{target} 쿼리",
+        "sectionResultsTitle": "결과 ({count}행)",
+        "sectionOntology": "온톨로지",
+        "ontologyMeta": "{id} v{version}",
+        "differentOntologyWarning": "이 쿼리는 다른 온톨로지 버전에서 실행되었습니다. 강조가 현재 그래프와 일치하지 않을 수 있습니다.",
+        "bindingsDropped": "현재 온톨로지에서 확인되지 않은 {count}개 바인딩은 건너뛰었습니다."
+      },
+      "feedback": {
+        "good": "좋은 결과",
+        "bad": "나쁜 결과",
+        "helpful": "도움됨",
+        "removeHelpful": "도움됨 평가 취소",
+        "notHelpful": "도움 안 됨",
+        "removeNotHelpful": "도움 안 됨 평가 취소",
+        "saveError": "피드백 저장에 실패했습니다"
+      },
+      "history": {
+        "tabRecent": "최근",
+        "tabPinned": "고정됨",
+        "emptyRecent": "아직 쿼리 실행 기록이 없습니다",
+        "emptyPinned": "고정된 결과가 없습니다",
+        "loadHistoryError": "이력을 불러오지 못했습니다",
+        "loadExecutionError": "실행을 불러오지 못했습니다",
+        "loadPinsError": "고정 목록을 불러오지 못했습니다",
+        "unpinFailed": "고정 해제에 실패했습니다",
+        "unpinnedToast": "고정 해제됨",
+        "loadMore": "더 보기",
+        "untitledPin": "제목 없는 고정",
+        "viewPinnedAria": "고정 항목 보기: {title}",
+        "unpinAria": "고정 해제"
+      },
+      "message": {
+        "userAria": "사용자 메시지",
+        "assistantAria": "어시스턴트 메시지",
+        "requestFailed": "요청 실패",
+        "failedCount": "실패 ×{count}"
+      },
+      "query": {
+        "title": "원시 쿼리",
+        "runningLabel": "실행 중…",
+        "execute": "실행",
+        "placeholder": "MATCH (n) RETURN n LIMIT 10",
+        "execHintPrefixMac": "⌘",
+        "execHintPrefixOther": "Ctrl",
+        "execHintSuffix": "+Enter로 실행",
+        "failedTitle": "쿼리 실패",
+        "noRows": "쿼리가 정상 실행되었습니다 — 반환된 행이 없습니다",
+        "emptyPrompt": "Cypher 쿼리를 작성하고 실행을 눌러 주세요"
+      },
+      "streamdown": {
+        "viewFullscreen": "전체 화면 보기",
+        "expandTable": "표 펼치기",
+        "tableFullscreenAria": "표 전체 화면 보기",
+        "closeFullscreen": "전체 화면 닫기"
+      },
+      "thinking": {
+        "thinking": "생각하는 중…",
+        "reasoning": "추론",
+        "steps": "{count}단계"
+      },
+      "toolCall": {
+        "runningAria": "{name} 실행 중",
+        "durationSub100": "<0.1초",
+        "durationSeconds": "{seconds}초",
+        "failedBadge": "실패",
+        "reviewBadge": "검토 필요",
+        "viewInResults": "결과 패널에서 보기",
+        "hitl": {
+          "description": "이 도구는 실행 전 승인이 필요합니다.",
+          "approve": "승인",
+          "reject": "거절",
+          "approvedToast": "도구가 승인되었습니다",
+          "rejectedToast": "도구가 거절되었습니다",
+          "approveError": "승인에 실패했습니다",
+          "rejectError": "거절에 실패했습니다"
+        },
+        "error": {
+          "attemptedQuery": "시도한 쿼리:",
+          "tipsHeading": "쿼리 번역 개선 팁:",
+          "tipEntityNames": "온톨로지에 정의된 구체적인 엔티티 이름을 사용하세요 (예: \"Customer\", \"Product\")",
+          "tipPropertyNames": "속성 이름을 명시적으로 언급하세요 (예: \"name에 X가 포함된\")",
+          "tipSimpler": "먼저 단순한 질문으로 시작한 뒤 복잡도를 올려 보세요",
+          "tryVisualBuilderPrefix": "복잡한 쿼리는 ",
+          "visualQueryBuilder": "비주얼 쿼리 빌더",
+          "tryVisualBuilderSuffix": "를 사용해 보세요.",
+          "technicalDetails": "기술 세부 정보"
+        },
+        "summary": {
+          "queryRowsColumns": "{rows}행, {columns}컬럼",
+          "rawRows": "{count}행",
+          "commands": "{count}개 명령 생성",
+          "noChanges": "변경할 내용이 없습니다",
+          "commandsApplied": "{count}개 명령 적용됨",
+          "commandsAppliedErrors": "{count}개 명령 적용됨 (오류 {errors}건)",
+          "execExit": "exit {code}, {duration}초",
+          "recallHits": "{count}개 적중",
+          "recipesHits": "레시피 {count}개",
+          "tablesCount": "테이블 {count}개",
+          "tableColumns": "{name} (컬럼 {count}개)",
+          "noDrift": "드리프트 감지되지 않음",
+          "driftSuggestions": "{count}개 제안",
+          "driftDiffs": "차이 {count}건 발견",
+          "noDriftShort": "드리프트 없음",
+          "charsCount": "{count}자",
+          "chartType": "{type}: {title}"
+        },
+        "json": {
+          "truncatedChars": "{count}자",
+          "collapse": "접기",
+          "expand": "펼치기"
+        }
+      }
+    }
   }
 }

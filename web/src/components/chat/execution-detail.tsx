@@ -1,5 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useAppStore, type ChatMessage } from "@/lib/store";
 import type { QueryExecution } from "@/types/api";
 import { WidgetWithToolbar } from "@/components/widgets/widget-toolbar";
@@ -25,7 +27,7 @@ export interface SectionProps {
 export function Section({ title, children }: SectionProps) {
   return (
     <div>
-      <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+      <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         {title}
       </h3>
       {children}
@@ -43,12 +45,14 @@ export interface ExecutionDetailProps {
 }
 
 export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
-  const { setOntology, setActiveProject, setWorkspaceMode, addMessage, clearMessages, setHighlightedBindings } =
+  const t = useTranslations("workbench.chat.execution");
+  const { setOntology, setActiveProject, addMessage, clearMessages, setHighlightedBindings } =
     useAppStore();
+  const router = useRouter();
   const guardPendingEdits = useGuardPendingEdits();
 
   const handleLoadToChat = async () => {
-    if (!(await guardPendingEdits("Load to Chat"))) return;
+    if (!(await guardPendingEdits(t("loadToChatGuardLabel")))) return;
     // Detach from active project — loaded snapshot is standalone
     setActiveProject(null);
     setOntology(execution.ontology_snapshot);
@@ -60,7 +64,7 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
       content: execution.question,
     };
     addMessage(userMsg);
-    setWorkspaceMode("analyze");
+    router.push("/analyze");
   };
 
   const handleShowOnGraph = () => {
@@ -69,10 +73,7 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
     if (!currentOntology) return;
 
     if (currentOntology.id !== execution.ontology_lineage_id) {
-      toast.warning(
-        "This query was executed on a different ontology version. Highlights may not match the current graph.",
-        { duration: 5000 },
-      );
+      toast.warning(t("differentOntologyWarning"), { duration: 5000 });
     }
 
     // Validate that referenced node/edge IDs exist in current ontology
@@ -91,9 +92,7 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
     const droppedEdges = bindings.edge_bindings.length - validEdgeBindings.length;
 
     if (droppedNodes > 0 || droppedEdges > 0) {
-      toast.warning(
-        `${droppedNodes + droppedEdges} binding(s) could not be resolved against the current ontology and were skipped.`,
-      );
+      toast.warning(t("bindingsDropped", { count: droppedNodes + droppedEdges }));
     }
 
     setHighlightedBindings({
@@ -106,7 +105,7 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
   /** Deterministic replay: switch to the execution's ontology snapshot and highlight all bindings exactly */
   const handleShowOnSnapshot = async () => {
     if (!execution.query_bindings) return;
-    if (!(await guardPendingEdits("Show on Snapshot"))) return;
+    if (!(await guardPendingEdits(t("showOnSnapshotGuardLabel")))) return;
     // Detach from active project — viewing historical snapshot
     setActiveProject(null);
     setOntology(execution.ontology_snapshot);
@@ -119,34 +118,37 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="flex items-center gap-2 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-        <Button variant="ghost" size="icon" onClick={onBack} aria-label="Back" className="shrink-0">
+        <Button variant="ghost" size="icon" onClick={onBack} aria-label={t("backAria")} className="shrink-0">
           <HugeiconsIcon icon={ArrowLeft01Icon} className="h-4 w-4" size="100%" />
         </Button>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-zinc-800 dark:text-zinc-200">
             {execution.question}
           </p>
-          <p className="text-xs text-zinc-400">
-            {date.toLocaleString()} &middot; {execution.model} &middot;{" "}
-            {execution.execution_time_ms}ms
+          <p className="text-xs text-muted-foreground">
+            {t("meta", {
+              date: date.toLocaleString(),
+              model: execution.model,
+              duration: execution.execution_time_ms,
+            })}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {execution.query_bindings && (
             <>
-              <Button variant="outline" size="sm" onClick={handleShowOnGraph} title="Highlight on current ontology (best-effort)">
+              <Button variant="outline" size="sm" onClick={handleShowOnGraph} title={t("highlightTitle")}>
                 <HugeiconsIcon icon={AiNetworkIcon} className="mr-1 h-3 w-3" size="100%" />
-                Highlight
+                {t("highlight")}
               </Button>
-              <Button variant="outline" size="sm" onClick={handleShowOnSnapshot} title="Switch to execution's ontology snapshot for exact replay">
+              <Button variant="outline" size="sm" onClick={handleShowOnSnapshot} title={t("replayTitle")}>
                 <HugeiconsIcon icon={AiNetworkIcon} className="mr-1 h-3 w-3" size="100%" />
-                Replay
+                {t("replay")}
               </Button>
             </>
           )}
           <Button variant="outline" size="sm" onClick={handleLoadToChat}>
             <HugeiconsIcon icon={PlayIcon} className="mr-1 h-3 w-3" size="100%" />
-            Load to chat
+            {t("loadToChat")}
           </Button>
         </div>
       </div>
@@ -154,14 +156,14 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
       {/* Body */}
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
         {/* Explanation */}
-        <Section title="Explanation">
+        <Section title={t("sectionExplanation")}>
           <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
             {execution.explanation}
           </p>
         </Section>
 
         {/* Compiled query */}
-        <Section title={`${execution.compiled_target} query`}>
+        <Section title={t("sectionQueryTitle", { target: execution.compiled_target })}>
           <pre className="overflow-x-auto rounded-lg bg-zinc-900 p-3 text-xs text-emerald-400 dark:bg-zinc-950">
             {execution.compiled_query}
           </pre>
@@ -169,7 +171,7 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
 
         {/* Results */}
         {execution.results && execution.results.rows.length > 0 && (
-          <Section title={`Results (${execution.results.rows.length} rows)`}>
+          <Section title={t("sectionResultsTitle", { count: execution.results.rows.length })}>
             <WidgetWithToolbar
               spec={(execution.widget as Record<string, unknown>) ?? { widget: "auto" }}
               data={execution.results}
@@ -178,9 +180,12 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
         )}
 
         {/* Ontology info */}
-        <Section title="Ontology">
+        <Section title={t("sectionOntology")}>
           <p className="text-xs text-muted-foreground">
-            {execution.ontology_lineage_id} v{execution.ontology_version}
+            {t("ontologyMeta", {
+              id: execution.ontology_lineage_id,
+              version: execution.ontology_version,
+            })}
           </p>
         </Section>
       </div>

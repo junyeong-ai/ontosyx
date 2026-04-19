@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect, type KeyboardEvent } from "react";
+import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowUp01Icon } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/cn";
@@ -25,6 +26,7 @@ export function ChatInput({
   disabled,
   disabledReason,
 }: ChatInputProps) {
+  const t = useTranslations("workbench.chat.input");
   const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const tokenUsage = useAppStore((s) => s.tokenUsage);
@@ -66,9 +68,7 @@ export function ChatInput({
   };
 
   const isRawMode = value.startsWith("!");
-  const placeholder = disabledReason
-    ? disabledReason
-    : "Ask anything... (prefix ! for raw Cypher)";
+  const placeholder = disabledReason ? disabledReason : t("placeholder");
 
   const canSend = !disabled && value.trim().length > 0;
 
@@ -79,7 +79,7 @@ export function ChatInput({
           <textarea
             ref={textareaRef}
             data-chat-input
-            aria-label="Chat message"
+            aria-label={t("messageAria")}
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -101,7 +101,7 @@ export function ChatInput({
             <Tooltip content={disabledReason}>
               <button
                 disabled
-                className="absolute right-2.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg bg-zinc-200 text-zinc-400 dark:bg-zinc-700"
+                className="absolute right-2.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg bg-zinc-200 text-muted-foreground dark:bg-zinc-700"
                 aria-label={disabledReason}
               >
                 <HugeiconsIcon icon={ArrowUp01Icon} className="h-3.5 w-3.5" size="100%" strokeWidth={2.5} />
@@ -115,25 +115,25 @@ export function ChatInput({
                 "absolute right-2.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg transition-all",
                 canSend
                   ? "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
-                  : "bg-zinc-200 text-zinc-400 dark:bg-zinc-700",
+                  : "bg-zinc-200 text-muted-foreground dark:bg-zinc-700",
               )}
-              aria-label="Send message"
+              aria-label={t("sendAria")}
             >
               <HugeiconsIcon icon={ArrowUp01Icon} className="h-3.5 w-3.5" size="100%" strokeWidth={2.5} />
             </button>
           )}
         </div>
       </div>
-      <div className="mx-auto mt-1.5 flex max-w-3xl items-center gap-2 text-[10px] text-zinc-400">
+      <div className="mx-auto mt-1.5 flex max-w-3xl items-center gap-2 text-[10px] text-muted-foreground">
         <span>
           {isRawMode ? (
-            <span className="text-amber-500">Raw Cypher mode</span>
+            <span className="text-amber-500">{t("rawMode")}</span>
           ) : (
-            "Enter to send, Shift+Enter for new line"
+            t("enterHint")
           )}
           {tokenUsage && (
             <span className="ml-2">
-              {formatTokens(tokenUsage.input + tokenUsage.output)} tokens used
+              {t("tokensUsed", { count: formatTokens(tokenUsage.input + tokenUsage.output) })}
             </span>
           )}
         </span>
@@ -142,13 +142,13 @@ export function ChatInput({
           <select
             value={modelOverride ?? ""}
             onChange={(e) => setModelOverride(e.target.value || null)}
-            className="rounded-md border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400"
-            title="Model override"
+            className="rounded-md border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-muted-foreground"
+            title={t("modelSelectTitle")}
           >
-            <option value="">Default model</option>
+            <option value="">{t("defaultModel")}</option>
             {models.map((m) => (
               <option key={m.id} value={m.model_id}>
-                {m.name} ({m.model_id})
+                {t("modelOption", { name: m.name, id: m.model_id })}
               </option>
             ))}
           </select>
@@ -162,11 +162,11 @@ export function ChatInput({
             "rounded-md px-2 py-0.5 text-[10px] font-medium transition-colors",
             executionMode === "supervised"
               ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-              : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+              : "text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300"
           )}
-          title={executionMode === "auto" ? "Auto mode: tools execute automatically" : "Supervised: tools require approval"}
+          title={executionMode === "auto" ? t("executionMode.autoTitle") : t("executionMode.supervisedTitle")}
         >
-          {executionMode === "auto" ? "Auto" : "Supervised"}
+          {executionMode === "auto" ? t("executionMode.auto") : t("executionMode.supervised")}
         </button>
       </div>
     </div>

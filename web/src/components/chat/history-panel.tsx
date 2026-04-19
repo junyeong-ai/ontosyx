@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   listExecutions,
   getExecution,
@@ -30,6 +31,7 @@ import { ExecutionCard } from "@/components/chat/execution-card";
 type Tab = "recent" | "pinned";
 
 export function HistoryPanel() {
+  const t = useTranslations("workbench.chat.history");
   const [tab, setTab] = useState<Tab>("recent");
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -49,14 +51,14 @@ export function HistoryPanel() {
             className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium outline-none transition-colors text-muted-foreground hover:text-zinc-700 dark:hover:text-zinc-300 data-[active]:border-b-2 data-[active]:border-emerald-600 data-[active]:text-emerald-700 dark:data-[active]:text-emerald-400"
           >
             <HugeiconsIcon icon={Clock01Icon} className="h-3.5 w-3.5" size="100%" />
-            Recent
+            {t("tabRecent")}
           </Tabs.Tab>
           <Tabs.Tab
             value="pinned"
             className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium outline-none transition-colors text-muted-foreground hover:text-zinc-700 dark:hover:text-zinc-300 data-[active]:border-b-2 data-[active]:border-emerald-600 data-[active]:text-emerald-700 dark:data-[active]:text-emerald-400"
           >
             <HugeiconsIcon icon={PinIcon} className="h-3.5 w-3.5" size="100%" />
-            Pinned
+            {t("tabPinned")}
           </Tabs.Tab>
         </Tabs.List>
 
@@ -79,6 +81,7 @@ export function HistoryPanel() {
 // ---------------------------------------------------------------------------
 
 function RecentTab() {
+  const t = useTranslations("workbench.chat.history");
   const [items, setItems] = useState<QueryExecutionSummary[]>([]);
   const [nextCursor, setNextCursor] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
@@ -95,11 +98,11 @@ function RecentTab() {
       }
       setNextCursor(page.next_cursor);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to load history");
+      toast.error(err instanceof Error ? err.message : t("loadHistoryError"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     loadPage();
@@ -114,7 +117,7 @@ function RecentTab() {
       {items.length === 0 && loading && <SkeletonList count={4} />}
 
       {items.length === 0 && !loading && (
-        <EmptyState icon={Clock01Icon} title="No query executions yet" />
+        <EmptyState icon={Clock01Icon} title={t("emptyRecent")} />
       )}
 
       <div className="space-y-2">
@@ -127,7 +130,7 @@ function RecentTab() {
                 const full = await getExecution(item.id);
                 setDetail(full);
               } catch (err) {
-                toast.error(err instanceof Error ? err.message : "Failed to load execution");
+                toast.error(err instanceof Error ? err.message : t("loadExecutionError"));
               }
             }}
           />
@@ -136,14 +139,14 @@ function RecentTab() {
 
       {loading && (
         <div className="flex justify-center py-8">
-          <Spinner size="md" className="text-zinc-400" />
+          <Spinner size="md" className="text-muted-foreground" />
         </div>
       )}
 
       {nextCursor && !loading && (
         <div className="pt-3 text-center">
           <Button variant="ghost" size="sm" onClick={() => loadPage(nextCursor)}>
-            Load more
+            {t("loadMore")}
           </Button>
         </div>
       )}
@@ -156,6 +159,7 @@ function RecentTab() {
 // ---------------------------------------------------------------------------
 
 function PinnedTab() {
+  const t = useTranslations("workbench.chat.history");
   const [items, setItems] = useState<PinboardItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
@@ -172,11 +176,11 @@ function PinnedTab() {
       }
       setNextCursor(page.next_cursor);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to load pins");
+      toast.error(err instanceof Error ? err.message : t("loadPinsError"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     loadPage();
@@ -186,9 +190,9 @@ function PinnedTab() {
     try {
       await deletePin(id);
       setItems((prev) => prev.filter((p) => p.id !== id));
-      toast.success("Unpinned");
+      toast.success(t("unpinnedToast"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to unpin");
+      toast.error(err instanceof Error ? err.message : t("unpinFailed"));
     }
   };
 
@@ -199,7 +203,7 @@ function PinnedTab() {
   return (
     <div className="p-4">
       {items.length === 0 && !loading && (
-        <EmptyState icon={PinIcon} title="No pinned results yet" />
+        <EmptyState icon={PinIcon} title={t("emptyPinned")} />
       )}
 
       <div className="space-y-2">
@@ -215,17 +219,17 @@ function PinnedTab() {
                   setDetail(full);
                 } catch (err) {
                   toast.error(
-                    err instanceof Error ? err.message : "Failed to load execution",
+                    err instanceof Error ? err.message : t("loadExecutionError"),
                   );
                 }
               }}
-              aria-label={`View pinned: ${item.title ?? "Untitled"}`}
+              aria-label={t("viewPinnedAria", { title: item.title ?? t("untitledPin") })}
               className="min-w-0 flex-1 text-left"
             >
               <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200 line-clamp-2">
-                {item.title ?? "Untitled pin"}
+                {item.title ?? t("untitledPin")}
               </p>
-              <p className="mt-1 text-xs text-zinc-400">
+              <p className="mt-1 text-xs text-muted-foreground">
                 {new Date(item.pinned_at).toLocaleString(undefined, {
                   month: "short",
                   day: "numeric",
@@ -237,7 +241,7 @@ function PinnedTab() {
             <button
               onClick={() => handleUnpin(item.id)}
               className="rounded p-1 text-zinc-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100 group-focus-within:opacity-100 dark:hover:bg-red-900/20"
-              aria-label="Unpin"
+              aria-label={t("unpinAria")}
             >
               <HugeiconsIcon icon={Delete01Icon} className="h-3.5 w-3.5" size="100%" />
             </button>
@@ -247,14 +251,14 @@ function PinnedTab() {
 
       {loading && (
         <div className="flex justify-center py-8">
-          <Spinner size="md" className="text-zinc-400" />
+          <Spinner size="md" className="text-muted-foreground" />
         </div>
       )}
 
       {nextCursor && !loading && (
         <div className="pt-3 text-center">
           <Button variant="ghost" size="sm" onClick={() => loadPage(nextCursor)}>
-            Load more
+            {t("loadMore")}
           </Button>
         </div>
       )}

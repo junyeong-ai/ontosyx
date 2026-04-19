@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PlayIcon, CommandLineIcon } from "@hugeicons/core-free-icons";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import { cn } from "@/lib/cn";
 import type { QueryResult } from "@/types/api";
 
 export function QueryPanel() {
+  const t = useTranslations("workbench.chat.query");
   const [query, setQuery] = useState("");
   const [result, setResult] = useState<QueryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +59,7 @@ export function QueryPanel() {
           <div className="flex items-center justify-between pb-3">
             <div className="flex items-center gap-2">
               <HugeiconsIcon icon={CommandLineIcon} className="h-4 w-4 text-muted-foreground" size="100%" />
-              <h2 className="text-sm font-semibold">Raw Query</h2>
+              <h2 className="text-sm font-semibold">{t("title")}</h2>
             </div>
             <Button
               size="sm"
@@ -70,7 +72,7 @@ export function QueryPanel() {
               ) : (
                 <HugeiconsIcon icon={PlayIcon} className="h-3.5 w-3.5" size="100%" />
               )}
-              {loading ? "Running..." : "Execute"}
+              {loading ? t("runningLabel") : t("execute")}
             </Button>
           </div>
           <textarea
@@ -79,7 +81,7 @@ export function QueryPanel() {
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             onInput={handleInput}
-            placeholder="MATCH (n) RETURN n LIMIT 10"
+            placeholder={t("placeholder")}
             rows={4}
             className={cn(
               "w-full resize-none rounded-lg border border-zinc-200 bg-zinc-900 p-3",
@@ -88,12 +90,12 @@ export function QueryPanel() {
               "dark:border-zinc-700",
             )}
           />
-          <p className="mt-1.5 text-[10px] text-zinc-400">
+          <p className="mt-1.5 text-[10px] text-muted-foreground">
             {typeof navigator !== "undefined" &&
             navigator.userAgent?.includes("Mac")
-              ? "\u2318"
-              : "Ctrl"}
-            +Enter to execute
+              ? t("execHintPrefixMac")
+              : t("execHintPrefixOther")}
+            {t("execHintSuffix")}
           </p>
         </div>
       </div>
@@ -102,7 +104,7 @@ export function QueryPanel() {
       <div className="flex-1 overflow-auto bg-zinc-50/50 p-4 dark:bg-zinc-950">
         <div className="mx-auto max-w-4xl">
           {error && (
-            <Alert variant="error" title="Query failed" onDismiss={() => setError(null)}>
+            <Alert variant="error" title={t("failedTitle")} onDismiss={() => setError(null)}>
               {error}
             </Alert>
           )}
@@ -114,18 +116,18 @@ export function QueryPanel() {
             />
           )}
           {result && result.rows?.length === 0 && (
-            <p className="py-4 text-center text-sm text-zinc-400">
-              Query executed successfully — 0 rows returned
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              {t("noRows")}
             </p>
           )}
 
           {!result && !error && (
             <div className="flex h-64 flex-col items-center justify-center text-center">
               <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-100 dark:bg-zinc-800">
-                <HugeiconsIcon icon={CommandLineIcon} className="h-6 w-6 text-zinc-400" size="100%" />
+                <HugeiconsIcon icon={CommandLineIcon} className="h-6 w-6 text-muted-foreground" size="100%" />
               </div>
               <p className="text-sm text-muted-foreground">
-                Write a Cypher query and hit Execute
+                {t("emptyPrompt")}
               </p>
             </div>
           )}

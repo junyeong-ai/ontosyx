@@ -10,6 +10,7 @@ import {
   useEffect,
 } from "react";
 import { createPortal } from "react-dom";
+import { useTranslations } from "next-intl";
 
 // ---------------------------------------------------------------------------
 // Custom Streamdown Components — dark-mode ontology UI, portal fullscreen
@@ -24,6 +25,7 @@ export const TableWrapper: ComponentType<HTMLAttributes<HTMLTableElement>> = ({
   children,
   ...props
 }) => {
+  const t = useTranslations("workbench.chat.streamdown");
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const close = useCallback(() => setIsFullscreen(false), []);
@@ -54,9 +56,9 @@ export const TableWrapper: ComponentType<HTMLAttributes<HTMLTableElement>> = ({
         {/* Fullscreen button */}
         <button
           onClick={() => setIsFullscreen(true)}
-          className="absolute right-2 top-2 z-10 rounded p-1 text-zinc-400 opacity-0 transition-opacity hover:bg-zinc-100 hover:text-zinc-600 group-hover/table:opacity-100 dark:hover:bg-zinc-700 dark:hover:text-zinc-300"
-          aria-label="View fullscreen"
-          title="Expand table"
+          className="absolute right-2 top-2 z-10 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-zinc-100 hover:text-zinc-600 group-hover/table:opacity-100 dark:hover:bg-zinc-700 dark:hover:text-zinc-300"
+          aria-label={t("viewFullscreen")}
+          title={t("expandTable")}
         >
           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
@@ -72,14 +74,14 @@ export const TableWrapper: ComponentType<HTMLAttributes<HTMLTableElement>> = ({
             className="fixed inset-0 z-[9999] flex flex-col bg-white dark:bg-zinc-900"
             role="dialog"
             aria-modal="true"
-            aria-label="Table fullscreen view"
+            aria-label={t("tableFullscreenAria")}
           >
             {/* Header */}
             <div className="flex items-center justify-end border-b border-zinc-200 px-4 py-2 dark:border-zinc-700">
               <button
                 onClick={close}
-                className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-200"
-                aria-label="Close fullscreen"
+                className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 dark:text-muted-foreground dark:hover:bg-zinc-700 dark:hover:text-zinc-200"
+                aria-label={t("closeFullscreen")}
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -213,7 +215,7 @@ export const Blockquote: ComponentType<HTMLAttributes<HTMLQuoteElement>> = ({
   ...props
 }) => (
   <blockquote
-    className="my-2 border-l-3 border-zinc-300 pl-3 text-zinc-500 dark:border-zinc-600 dark:text-zinc-400"
+    className="my-2 border-l-3 border-zinc-300 pl-3 text-zinc-500 dark:border-zinc-600 dark:text-muted-foreground"
     {...props}
   >
     {children}

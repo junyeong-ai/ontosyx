@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { setQueryFeedback } from "@/lib/api";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -18,6 +19,7 @@ interface FeedbackButtonsProps {
 }
 
 export function FeedbackButtons({ executionId }: FeedbackButtonsProps) {
+  const t = useTranslations("workbench.chat.feedback");
   const [feedback, setFeedback] = useState<"positive" | "negative" | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -32,7 +34,7 @@ export function FeedbackButtons({ executionId }: FeedbackButtonsProps) {
       await setQueryFeedback(executionId, next);
     } catch {
       setFeedback(feedback); // revert on error
-      toast.error("Failed to save feedback");
+      toast.error(t("saveError"));
     } finally {
       setSaving(false);
     }
@@ -46,9 +48,9 @@ export function FeedbackButtons({ executionId }: FeedbackButtonsProps) {
         className={`rounded p-1 text-xs transition-colors ${
           feedback === "positive"
             ? "text-emerald-500"
-            : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+            : "text-muted-foreground hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
         } disabled:cursor-wait`}
-        aria-label="Good result"
+        aria-label={t("good")}
       >
         <HugeiconsIcon icon={ThumbsUpIcon} className="h-3 w-3" size="100%" />
       </button>
@@ -58,9 +60,9 @@ export function FeedbackButtons({ executionId }: FeedbackButtonsProps) {
         className={`rounded p-1 text-xs transition-colors ${
           feedback === "negative"
             ? "text-red-500"
-            : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+            : "text-muted-foreground hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
         } disabled:cursor-wait`}
-        aria-label="Bad result"
+        aria-label={t("bad")}
       >
         <HugeiconsIcon icon={ThumbsDownIcon} className="h-3 w-3" size="100%" />
       </button>

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useAppStore, type ChatMessage } from "@/lib/store";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -65,9 +67,10 @@ interface MessageBubbleProps {
 }
 
 export function MessageBubble({ message, onSend }: MessageBubbleProps) {
+  const t = useTranslations("workbench.chat.message");
   if (message.role === "user") {
     return (
-      <div role="article" aria-label="User message" className="flex flex-row-reverse gap-3">
+      <div role="article" aria-label={t("userAria")} className="flex flex-row-reverse gap-3">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-800">
           <HugeiconsIcon icon={UserIcon} className="h-4 w-4" size="100%" />
         </div>
@@ -81,7 +84,7 @@ export function MessageBubble({ message, onSend }: MessageBubbleProps) {
   }
 
   return (
-    <div role="article" aria-label="Assistant message" className="flex gap-3">
+    <div role="article" aria-label={t("assistantAria")} className="flex gap-3">
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-400">
         <HugeiconsIcon icon={BotIcon} className="h-4 w-4" size="100%" />
       </div>
@@ -89,7 +92,7 @@ export function MessageBubble({ message, onSend }: MessageBubbleProps) {
       <div className="min-w-0 flex-1 space-y-2">
         {/* Error */}
         {message.error && (
-          <Alert variant="error" title="Request failed">
+          <Alert variant="error" title={t("requestFailed")}>
             {message.error}
           </Alert>
         )}
@@ -108,7 +111,7 @@ export function MessageBubble({ message, onSend }: MessageBubbleProps) {
                   <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs text-red-600 dark:text-red-400">
                     <span className="font-medium">{group.items[0].name}</span>
                     <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium dark:bg-red-900/40">
-                      failed ×{group.items.length}
+                      {t("failedCount", { count: group.items.length })}
                     </span>
                   </summary>
                   <div className="space-y-1 px-2 pb-2">
@@ -165,7 +168,7 @@ export function MessageBubble({ message, onSend }: MessageBubbleProps) {
             {hasQueryResult(message) ? (
               <FeedbackButtons executionId={getExecutionId(message)} />
             ) : (
-              <MessageFeedback messageId={message.id} />
+              <MessageFeedback />
             )}
             <CopyButton text={message.content} variant="inline" />
           </div>
@@ -193,6 +196,7 @@ function stripBullet(line: string): string {
 }
 
 function SuggestedFollowups({ content, onSend }: { content: string; onSend?: (text: string) => void }) {
+  const router = useRouter();
   // Extract trailing question lines from assistant content.
   // Supports: `- Q?`, `• Q?`, `* Q?`, `1. Q?`, emoji-prefixed, `> Q?`
   const lines = content.trim().split("\n");
@@ -216,9 +220,8 @@ function SuggestedFollowups({ content, onSend }: { content: string; onSend?: (te
     if (onSend) {
       onSend(q);
     } else {
-      const store = useAppStore.getState();
-      store.setWorkspaceMode("analyze");
-      store.setCommandBarInput(q);
+      useAppStore.getState().setCommandBarInput(q);
+      router.push("/analyze");
     }
   };
 
@@ -242,7 +245,8 @@ function SuggestedFollowups({ content, onSend }: { content: string; onSend?: (te
 // MessageFeedback — local-only thumbs up/down for general assistant messages
 // ---------------------------------------------------------------------------
 
-function MessageFeedback({ messageId }: { messageId: string }) {
+function MessageFeedback() {
+  const t = useTranslations("workbench.chat.feedback");
   const [feedback, setFeedback] = useState<"positive" | "negative" | null>(null);
 
   const toggle = (value: "positive" | "negative") => {
@@ -256,9 +260,9 @@ function MessageFeedback({ messageId }: { messageId: string }) {
         className={`rounded p-1 text-xs transition-colors ${
           feedback === "positive"
             ? "text-emerald-500"
-            : "text-zinc-300 hover:text-zinc-500 dark:text-zinc-600 dark:hover:text-zinc-400"
+            : "text-zinc-300 hover:text-zinc-500 dark:text-zinc-600 dark:hover:text-muted-foreground"
         }`}
-        aria-label={feedback === "positive" ? "Remove helpful rating" : "Helpful"}
+        aria-label={feedback === "positive" ? t("removeHelpful") : t("helpful")}
       >
         <HugeiconsIcon icon={ThumbsUpIcon} className="h-3 w-3" size="100%" />
       </button>
@@ -267,9 +271,9 @@ function MessageFeedback({ messageId }: { messageId: string }) {
         className={`rounded p-1 text-xs transition-colors ${
           feedback === "negative"
             ? "text-red-500"
-            : "text-zinc-300 hover:text-zinc-500 dark:text-zinc-600 dark:hover:text-zinc-400"
+            : "text-zinc-300 hover:text-zinc-500 dark:text-zinc-600 dark:hover:text-muted-foreground"
         }`}
-        aria-label={feedback === "negative" ? "Remove unhelpful rating" : "Not helpful"}
+        aria-label={feedback === "negative" ? t("removeNotHelpful") : t("notHelpful")}
       >
         <HugeiconsIcon icon={ThumbsDownIcon} className="h-3 w-3" size="100%" />
       </button>

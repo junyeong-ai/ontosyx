@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useAppStore, type ChatMessage, type ToolStep } from "@/lib/store";
+import { useWorkspaceMode } from "@/lib/use-workspace-mode";
 import { chatStream, fetchSessionMessages, listAgentSessions, rawQuery, suggestInsights, type InsightSuggestion } from "@/lib/api";
 import type { AgentSession } from "@/types/api";
 import { errorMessage } from "@/lib/error-messages";
@@ -25,6 +27,7 @@ function upsertToolStep(steps: ToolStep[], update: ToolStep): ToolStep[] {
 }
 
 export function ChatPanel() {
+  const t = useTranslations("workbench.chat.panel");
   const {
     messages,
     isLoading,
@@ -35,9 +38,9 @@ export function ChatPanel() {
     setIsLoading,
     sessionId,
     setSessionId,
-    workspaceMode,
     savedOntologyId,
   } = useAppStore();
+  const workspaceMode = useWorkspaceMode();
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const userScrolledUpRef = useRef(false);
@@ -61,7 +64,11 @@ export function ChatPanel() {
     return () => el.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Load insight suggestions when ontology is present and chat is empty
+  // Load insight suggestions when ontology is present and chat is empty.
+  // Depend on the full `ontology` (not just `?.id`) so the lint can see the
+  // same reference that `suggestInsights(ontology)` actually closes over.
+  // The zustand `selectOntology` returns a stable reference between
+  // structural changes, so this won't churn the effect on every render.
   useEffect(() => {
     if (!ontology || messages.length > 0) {
       setSuggestions([]);
@@ -78,7 +85,7 @@ export function ChatPanel() {
     return () => {
       cancelled = true;
     };
-  }, [ontology?.id, messages.length]);
+  }, [ontology, messages.length]);
 
   // Load recent sessions when chat is empty (for resume UI)
   useEffect(() => {
@@ -119,12 +126,12 @@ export function ChatPanel() {
         }));
         useAppStore.getState().restoreMessages(restored);
         setSessionId(session.id);
-        toast.success("Session resumed");
+        toast.success(t("sessionResumed"));
       } catch {
-        toast.error("Failed to resume session");
+        toast.error(t("resumeFailed"));
       }
     },
-    [setSessionId],
+    [setSessionId, t],
   );
 
   const lastMessageContent = messages[messages.length - 1]?.content;
@@ -163,7 +170,7 @@ export function ChatPanel() {
         try {
           const result = await rawQuery({ query: actualText });
           updateMessage(assistantId, {
-            content: `Query returned ${result.rows.length} rows`,
+            content: t("rawRowsSummary", { count: result.rows.length }),
             toolCalls: [{
               id: "raw",
               name: "raw_cypher",
@@ -331,7 +338,7 @@ export function ChatPanel() {
               // Session resume failed — clear stale session and restore
               // previous messages as read-only history context.
               setSessionId(null);
-              toast.warning("이전 세션이 만료되어 새 세션으로 시작합니다.");
+              toast.warning(t("sessionExpiredToast"));
 
               // Best-effort: fetch previous conversation and prepend as
               // read-only history so the user still sees past context.
@@ -381,31 +388,43 @@ export function ChatPanel() {
         if (controller.signal.aborted) return; // Unmount or cancel — not an error
         updateMessage(assistantId, {
           content: "",
-          error: `Connection error: ${err instanceof Error ? err.message : String(err)}`,
+          error: t("connectionError", { error: err instanceof Error ? err.message : String(err) }),
           isStreaming: false,
         });
       } finally {
         setIsLoading(false);
       }
     },
-    [ontology, activeProject, addMessage, updateMessage, setIsLoading],
+    [
+      ontology,
+      activeProject,
+      addMessage,
+      updateMessage,
+      setIsLoading,
+      getState,
+      savedOntologyId,
+      sessionId,
+      setSessionId,
+      workspaceMode,
+      t,
+    ],
   );
 
   const inputDisabled = isLoading || !ontology;
-  const disabledReason = !ontology ? "Load an ontology first" : undefined;
+  const disabledReason = !ontology ? t("inputDisabledNoOntology") : undefined;
 
   return (
     <ErrorBoundary name="Chat">
     <div className="flex h-full flex-col bg-zinc-50/50 dark:bg-zinc-950">
-      <div ref={scrollRef} role="log" aria-label="Chat messages" aria-live="polite" className="flex-1 overflow-y-auto px-4 py-6">
+      <div ref={scrollRef} role="log" aria-label={t("logAria")} aria-live="polite" className="flex-1 overflow-y-auto px-4 py-6">
         <div className="mx-auto max-w-4xl space-y-5">
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center pt-16 text-center">
               <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-zinc-100 dark:bg-zinc-800">
-                <HugeiconsIcon icon={AiNetworkIcon} className="h-7 w-7 text-zinc-400" size="100%" />
+                <HugeiconsIcon icon={AiNetworkIcon} className="h-7 w-7 text-muted-foreground" size="100%" />
               </div>
               <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
-                Ontosyx AI
+                {t("appTitle")}
               </h2>
               {ontology && suggestions.length > 0 ? (
                 <div className="mt-6 grid gap-2 w-full max-w-lg">
@@ -424,25 +443,25 @@ export function ChatPanel() {
                     </button>
                   ))}
                   <button
-                    onClick={() => handleSend("이 온톨로지의 데이터에 대해 탐색적 데이터 분석(EDA)을 수행해주세요. 노드 분포, 관계 패턴, 이상치, 핵심 인사이트를 포함해주세요.")}
+                    onClick={() => handleSend(t("edaPrompt"))}
                     className="mt-4 rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50/50 px-6 py-3 text-sm font-medium text-emerald-700 transition-all hover:border-emerald-400 hover:bg-emerald-100/50 dark:border-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400 dark:hover:border-emerald-600"
                   >
-                    Run Exploratory Data Analysis
+                    {t("runEda")}
                   </button>
                 </div>
               ) : (
                 <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">
                   {ontology
-                    ? `Ask questions, edit the ontology, or explore your knowledge graph with ${ontology.node_types.length} node types.`
+                    ? t("suggestionsHintWithOntology", { count: ontology.node_types.length })
                     : workspaceMode === "analyze"
-                      ? "Load an ontology in Design mode to enable AI-powered analysis. The agent can query your graph, run analyses, and generate visualizations."
-                      : "Load an ontology to start chatting. The AI can help you edit, explain, and analyze your knowledge graph."}
+                      ? t("analyzeLoadHint")
+                      : t("designLoadHint")}
                 </p>
               )}
               {recentSessions.length > 0 && (
                 <div className="mt-6 w-full max-w-lg">
-                  <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-                    Recent Sessions
+                  <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    {t("recentSessions")}
                   </h3>
                   <div className="space-y-1">
                     {recentSessions.map((s) => (
@@ -452,10 +471,10 @@ export function ChatPanel() {
                         className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
                       >
                         <span className="min-w-0 flex-1 truncate text-zinc-600 dark:text-zinc-300">
-                          {s.user_message?.substring(0, 80) || "Untitled session"}
+                          {s.user_message?.substring(0, 80) || t("untitledSession")}
                           {(s.user_message?.length ?? 0) > 80 ? "..." : ""}
                         </span>
-                        <span className="shrink-0 text-[10px] text-zinc-400">
+                        <span className="shrink-0 text-[10px] text-muted-foreground">
                           {new Date(s.created_at).toLocaleDateString()}
                         </span>
                       </button>
