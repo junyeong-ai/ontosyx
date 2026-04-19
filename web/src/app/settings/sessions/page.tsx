@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
+import { useTranslations } from "next-intl";
 import { Spinner } from "@/components/ui/spinner";
 import { FormInput, SettingsSelect } from "@/components/ui/form-input";
 import { useQueryState } from "@/hooks/use-query-state";
@@ -19,32 +20,22 @@ import {
 
 const PAGE_LIMIT = 50;
 
-// ---------------------------------------------------------------------------
-// StatCard
-// ---------------------------------------------------------------------------
-
 function StatCard({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="rounded-lg border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">{label}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
       <p className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-100">{value}</p>
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// SessionsPage
-// ---------------------------------------------------------------------------
-
 export default function SessionsPage() {
+  const t = useTranslations("settings.sessions");
   const [sessions, setSessions] = useState<AgentSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [events, setEvents] = useState<AgentEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
-  // URL-backed search + model filter. ?q= is debounced (text) while
-  // ?model= is sync (select). IME-aware input prevents mid-jamo updates
-  // from polluting the URL with intermediate jamo.
   const [search, setSearch] = useQueryState("q", {
     default: "",
     parser: z.string(),
@@ -66,7 +57,6 @@ export default function SessionsPage() {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  // Conversation replay state
   const [viewMode, setViewMode] = useState<"conversation" | "events">("conversation");
   const [messages, setMessages] = useState<SessionMessage[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
@@ -80,9 +70,9 @@ export default function SessionsPage() {
         setNextCursor(page.next_cursor);
         setHasMore(page.items.length === PAGE_LIMIT);
       })
-      .catch(() => toast.error("Failed to load sessions"))
+      .catch(() => toast.error(t("loadError")))
       .finally(() => setLoading(false));
-  }, []);
+  }, [t]);
 
   const handleLoadMore = async () => {
     if (!hasMore || loadingMore) return;
@@ -93,13 +83,12 @@ export default function SessionsPage() {
       setNextCursor(page.next_cursor);
       setHasMore(page.items.length === PAGE_LIMIT);
     } catch {
-      toast.error("Failed to load more sessions");
+      toast.error(t("loadMoreError"));
     } finally {
       setLoadingMore(false);
     }
   };
 
-  // --- Summary stats ---
   const stats = useMemo(() => {
     const total = sessions.length;
     const completed = sessions.filter((s) => s.completed_at).length;
@@ -111,20 +100,17 @@ export default function SessionsPage() {
     return { total, completed, last7Days, modelsUsed };
   }, [sessions]);
 
-  // --- Model filter options ---
   const uniqueModels = useMemo(
     () => [...new Set(sessions.map((s) => s.model_id).filter(Boolean))].sort(),
     [sessions],
   );
 
-  // --- Filtered list ---
   const filtered = sessions.filter((s) => {
     if (search && !s.user_message.toLowerCase().includes(search.toLowerCase())) return false;
     if (modelFilter && s.model_id !== modelFilter) return false;
     return true;
   });
 
-  // --- Load events when session selected ---
   useEffect(() => {
     if (!selectedId) {
       setEvents([]);
@@ -134,28 +120,26 @@ export default function SessionsPage() {
     setEventsLoading(true);
     listAgentEvents(selectedId)
       .then(setEvents)
-      .catch(() => toast.error("Failed to load events"))
+      .catch(() => toast.error(t("eventsError")))
       .finally(() => setEventsLoading(false));
-  }, [selectedId]);
+  }, [selectedId, t]);
 
-  // --- Fetch messages when switching to conversation mode ---
   useEffect(() => {
     if (viewMode === "conversation" && selectedId) {
       setMessagesLoading(true);
       fetchSessionMessages(selectedId)
         .then((res) => setMessages(res.messages))
-        .catch(() => toast.error("Failed to load messages"))
+        .catch(() => toast.error(t("messagesError")))
         .finally(() => setMessagesLoading(false));
     }
-  }, [viewMode, selectedId]);
+  }, [viewMode, selectedId, t]);
 
-  // --- Delete session ---
   const handleDelete = async (e: React.MouseEvent, sessionId: string) => {
     e.stopPropagation();
     const ok = await confirm({
-      title: "Delete session",
-      description: "This will permanently delete the session and all its events. This cannot be undone.",
-      confirmLabel: "Delete",
+      title: t("deleteConfirmTitle"),
+      description: t("deleteConfirmDescription"),
+      confirmLabel: t("deleteConfirmLabel"),
       variant: "danger",
     });
     if (!ok) return;
@@ -163,9 +147,9 @@ export default function SessionsPage() {
       await deleteSession(sessionId);
       setSessions((prev) => prev.filter((s) => s.id !== sessionId));
       if (selectedId === sessionId) setSelectedId(null);
-      toast.success("Session deleted");
+      toast.success(t("deletedToast"));
     } catch {
-      toast.error("Failed to delete session");
+      toast.error(t("deleteError"));
     }
   };
 
@@ -182,25 +166,23 @@ export default function SessionsPage() {
   return (
     <div>
       <h1 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
-        Agent Sessions
+        {t("title")}
       </h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Audit trail of agent executions with event replay.
+        {t("description")}
       </p>
 
-      {/* Summary stats */}
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="Total Sessions" value={stats.total} />
-        <StatCard label="Completed" value={stats.completed} />
-        <StatCard label="Last 7 Days" value={stats.last7Days} />
-        <StatCard label="Models Used" value={stats.modelsUsed} />
+        <StatCard label={t("stats.total")} value={stats.total} />
+        <StatCard label={t("stats.completed")} value={stats.completed} />
+        <StatCard label={t("stats.last7Days")} value={stats.last7Days} />
+        <StatCard label={t("stats.modelsUsed")} value={stats.modelsUsed} />
       </div>
 
-      {/* Search + Model filter */}
       <div className="mt-4 mb-4 flex items-end gap-3">
         <FormInput
           type="search"
-          placeholder="Search by message..."
+          placeholder={t("searchPlaceholder")}
           value={searchInput.value}
           onChange={searchInput.bind.onChange}
           onCompositionStart={searchInput.bind.onCompositionStart}
@@ -208,13 +190,13 @@ export default function SessionsPage() {
           className="max-w-xs"
         />
         <SettingsSelect
-            label="Model Filter"
-            hideLabel
+          label={t("modelFilterLabel")}
+          hideLabel
           value={modelFilter}
           onChange={(e) => setModelFilter(e.target.value)}
           className="max-w-[200px]"
         >
-          <option value="">All models</option>
+          <option value="">{t("allModels")}</option>
           {uniqueModels.map((m) => (
             <option key={m} value={m}>
               {m.split("/").pop()}
@@ -223,11 +205,10 @@ export default function SessionsPage() {
         </SettingsSelect>
       </div>
 
-      {/* Session list */}
       <div className="mt-6 space-y-2">
         {filtered.length === 0 ? (
-          <p className="text-sm text-zinc-400">
-            {sessions.length === 0 ? "No sessions recorded yet." : "No matching sessions."}
+          <p className="text-sm text-muted-foreground">
+            {sessions.length === 0 ? t("empty") : t("emptyFiltered")}
           </p>
         ) : (
           filtered.map((s) => (
@@ -247,16 +228,16 @@ export default function SessionsPage() {
                   <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 truncate max-w-md">
                     {s.user_message}
                   </span>
-                  <span className="shrink-0 text-[10px] text-zinc-400">
+                  <span className="shrink-0 text-[10px] text-muted-foreground">
                     {new Date(s.created_at).toLocaleString()}
                   </span>
                 </div>
-                <div className="mt-1 flex items-center gap-3 text-[10px] text-zinc-400">
+                <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground">
                   <span>{s.model_id.split("/").pop()}</span>
                   {s.completed_at ? (
-                    <span className="text-emerald-500">completed</span>
+                    <span className="text-emerald-500">{t("completed")}</span>
                   ) : (
-                    <span className="text-amber-500">incomplete</span>
+                    <span className="text-amber-500">{t("incomplete")}</span>
                   )}
                 </div>
               </button>
@@ -264,7 +245,7 @@ export default function SessionsPage() {
                 onClick={(e) => handleDelete(e, s.id)}
                 className="absolute right-2 top-2 hidden rounded px-1.5 py-0.5 text-[10px] font-medium text-red-600 transition-colors hover:bg-red-50 group-hover:inline-block dark:text-red-400 dark:hover:bg-red-950/30"
               >
-                Delete
+                {t("delete")}
               </button>
             </div>
           ))
@@ -274,45 +255,47 @@ export default function SessionsPage() {
       {hasMore && sessions.length > 0 && (
         <div className="mt-4 flex justify-center">
           <Button variant="outline" size="sm" onClick={handleLoadMore} disabled={loadingMore}>
-            {loadingMore ? "Loading..." : `Load more (showing ${sessions.length})`}
+            {loadingMore
+              ? t("loading")
+              : t("loadMore", { count: sessions.length })}
           </Button>
         </div>
       )}
 
-      {/* Detail panel */}
       {selected && (
         <div className="mt-6">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
-              Session Detail
+              {t("detailHeading")}
             </h2>
-            {/* Tab toggle */}
             <div className="flex rounded-md border border-zinc-200 text-[10px] font-medium dark:border-zinc-700">
               <button
                 onClick={() => setViewMode("conversation")}
                 className={`px-3 py-1 transition-colors ${
                   viewMode === "conversation"
                     ? "bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
-                    : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                    : "text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300"
                 }`}
               >
-                Conversation
+                {t("viewConversation")}
               </button>
               <button
                 onClick={() => setViewMode("events")}
                 className={`px-3 py-1 transition-colors ${
                   viewMode === "events"
                     ? "bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
-                    : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                    : "text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300"
                 }`}
               >
-                Events
+                {t("viewEvents")}
               </button>
             </div>
           </div>
-          <div className="mt-1 text-[10px] text-zinc-400 font-mono">
-            prompt_hash: {selected.prompt_hash.slice(0, 16)}... ·
-            tool_hash: {selected.tool_schema_hash.slice(0, 16)}...
+          <div className="mt-1 text-[10px] text-muted-foreground font-mono">
+            {t("hashLine", {
+              prompt: selected.prompt_hash.slice(0, 16),
+              tool: selected.tool_schema_hash.slice(0, 16),
+            })}
           </div>
 
           {viewMode === "conversation" ? (
@@ -326,10 +309,6 @@ export default function SessionsPage() {
   );
 }
 
-// ---------------------------------------------------------------------------
-// ConversationView — chat-bubble replay
-// ---------------------------------------------------------------------------
-
 function ConversationView({
   messages,
   loading,
@@ -337,6 +316,7 @@ function ConversationView({
   messages: SessionMessage[];
   loading: boolean;
 }) {
+  const t = useTranslations("settings.sessions");
   if (loading) {
     return (
       <div className="flex items-center justify-center py-4">
@@ -346,7 +326,7 @@ function ConversationView({
   }
 
   if (messages.length === 0) {
-    return <p className="mt-3 text-xs text-zinc-400">No messages.</p>;
+    return <p className="mt-3 text-xs text-muted-foreground">{t("noMessages")}</p>;
   }
 
   return (
@@ -356,7 +336,9 @@ function ConversationView({
           {msg.role === "user" ? (
             <div className="flex justify-end">
               <div className="max-w-[80%] rounded-lg bg-zinc-100 px-3 py-2 dark:bg-zinc-800">
-                <p className="mb-1 text-[10px] font-semibold text-muted-foreground">User</p>
+                <p className="mb-1 text-[10px] font-semibold text-muted-foreground">
+                  {t("roleUser")}
+                </p>
                 <p className="whitespace-pre-wrap text-xs text-zinc-700 dark:text-zinc-300">
                   {msg.content}
                 </p>
@@ -366,14 +348,15 @@ function ConversationView({
             <div className="flex justify-start">
               <div className="max-w-[80%] space-y-2">
                 <div className="rounded-lg border border-zinc-200 bg-white px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900">
-                  <p className="mb-1 text-[10px] font-semibold text-muted-foreground">Assistant</p>
+                  <p className="mb-1 text-[10px] font-semibold text-muted-foreground">
+                    {t("roleAssistant")}
+                  </p>
                   {msg.content && (
                     <p className="whitespace-pre-wrap text-xs text-zinc-700 dark:text-zinc-300">
                       {msg.content}
                     </p>
                   )}
                 </div>
-                {/* Tool calls */}
                 {msg.tool_calls?.map((tc, j) => (
                   <div
                     key={j}
@@ -384,7 +367,7 @@ function ConversationView({
                         {tc.name}
                       </span>
                       {tc.duration_ms != null && (
-                        <span className="text-zinc-400">{tc.duration_ms}ms</span>
+                        <span className="text-muted-foreground">{tc.duration_ms}ms</span>
                       )}
                       <span
                         className={
@@ -409,10 +392,6 @@ function ConversationView({
   );
 }
 
-// ---------------------------------------------------------------------------
-// EventsView — raw event timeline (original)
-// ---------------------------------------------------------------------------
-
 function EventsView({
   events,
   loading,
@@ -435,14 +414,14 @@ function EventsView({
           key={e.id}
           className="flex items-start gap-3 rounded-md border border-zinc-100 px-3 py-2 dark:border-zinc-800"
         >
-          <span className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-mono text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+          <span className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-mono text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground">
             #{e.sequence}
           </span>
           <EventBadge type={e.event_type} />
-          <span className="flex-1 truncate text-xs text-zinc-600 dark:text-zinc-400 font-mono">
+          <span className="flex-1 truncate text-xs text-zinc-600 dark:text-muted-foreground font-mono">
             {JSON.stringify(e.payload).slice(0, 120)}
           </span>
-          <span className="shrink-0 text-[10px] text-zinc-400">
+          <span className="shrink-0 text-[10px] text-muted-foreground">
             {new Date(e.created_at).toLocaleTimeString()}
           </span>
         </div>
@@ -451,17 +430,13 @@ function EventsView({
   );
 }
 
-// ---------------------------------------------------------------------------
-// EventBadge
-// ---------------------------------------------------------------------------
-
 function EventBadge({ type }: { type: string }) {
   const colors: Record<string, string> = {
     text: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
     tool_start: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
     tool_complete: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
     complete: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
-    usage: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
+    usage: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground",
     error: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
   };
 

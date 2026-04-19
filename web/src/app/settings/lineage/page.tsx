@@ -2,14 +2,11 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { request } from "@/lib/api/client";
 import { Spinner } from "@/components/ui/spinner";
 import { SettingsSection } from "@/components/settings/settings-section";
 import { cn } from "@/lib/cn";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 interface LineageSummary {
   graph_label: string;
@@ -23,7 +20,7 @@ interface PropertyMapping {
   source_column: string;
   graph_property: string;
   transform: string | null;
-  mapping_kind: string; // "match" | "set"
+  mapping_kind: string;
 }
 
 interface LabelMappings {
@@ -48,9 +45,10 @@ interface LineageEntry {
   error_message: string | null;
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+type KnownLineageStatus = "completed" | "running" | "failed" | "partial";
+function isKnownLineageStatus(s: string): s is KnownLineageStatus {
+  return s === "completed" || s === "running" || s === "failed" || s === "partial";
+}
 
 function formatNumber(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -70,7 +68,13 @@ function formatDate(iso: string | null) {
   });
 }
 
-function statusBadge(status: string) {
+function StatusBadge({
+  status,
+  label,
+}: {
+  status: string;
+  label: string;
+}) {
   const map: Record<string, { bg: string; text: string }> = {
     completed: {
       bg: "bg-emerald-50 dark:bg-emerald-950/40",
@@ -98,14 +102,10 @@ function statusBadge(status: string) {
         s.text,
       )}
     >
-      {status}
+      {label}
     </span>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Aggregation: group all property mappings from entries by (source, label)
-// ---------------------------------------------------------------------------
 
 interface MappingGroup {
   sourceTable: string;
@@ -120,10 +120,8 @@ function aggregateMappings(entries: LineageEntry[]): MappingGroup[] {
 
   for (const entry of entries) {
     if (!entry.property_mappings) continue;
-    const labelMappings = entry.property_mappings;
-    for (const lm of labelMappings) {
-      const src =
-        entry.source_table || entry.source_name || "unknown";
+    for (const lm of entry.property_mappings) {
+      const src = entry.source_table || entry.source_name || "unknown";
       const k = key(src, lm.label);
       if (!groups.has(k)) {
         groups.set(k, {
@@ -134,25 +132,18 @@ function aggregateMappings(entries: LineageEntry[]): MappingGroup[] {
         });
       }
       const g = groups.get(k)!;
-      // Deduplicate by source_column + graph_property
       for (const m of lm.mappings) {
         const exists = g.mappings.some(
           (x) =>
             x.source_column === m.source_column &&
             x.graph_property === m.graph_property,
         );
-        if (!exists) {
-          g.mappings.push(m);
-        }
+        if (!exists) g.mappings.push(m);
       }
     }
   }
   return Array.from(groups.values());
 }
-
-// ---------------------------------------------------------------------------
-// Components
-// ---------------------------------------------------------------------------
 
 function MappingCard({
   group,
@@ -163,6 +154,7 @@ function MappingCard({
   expanded: boolean;
   onToggle: () => void;
 }) {
+  const t = useTranslations("settings.lineage");
   const matchMappings = group.mappings.filter(
     (m) => m.mapping_kind === "match",
   );
@@ -177,40 +169,17 @@ function MappingCard({
         className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
       >
         <div className="flex items-center gap-3">
-          {/* Source table */}
           <span className="inline-flex items-center gap-1.5 rounded-md bg-zinc-100 px-2.5 py-1 text-sm font-mono font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-            <svg
-              className="h-3.5 w-3.5 text-zinc-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0 1 12 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 0v1.5c0 .621-.504 1.125-1.125 1.125"
-              />
+            <svg className="h-3.5 w-3.5 text-muted-foreground" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0 1 12 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 0v1.5c0 .621-.504 1.125-1.125 1.125" />
             </svg>
             {group.sourceTable}
           </span>
 
-          {/* Arrow */}
-          <svg
-            className="h-5 w-5 text-zinc-400 flex-shrink-0"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={1.5}
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"
-            />
+          <svg className="h-5 w-5 text-muted-foreground flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
           </svg>
 
-          {/* Graph label */}
           <span
             className={cn(
               "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm font-mono font-medium",
@@ -220,53 +189,30 @@ function MappingCard({
             )}
           >
             {group.elementType === "node" ? (
-              <svg
-                className="h-3.5 w-3.5"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={1.5}
-                stroke="currentColor"
-              >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                 <circle cx="12" cy="12" r="9" />
               </svg>
             ) : (
-              <svg
-                className="h-3.5 w-3.5"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={1.5}
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"
-                />
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
               </svg>
             )}
             {group.graphLabel}
           </span>
 
-          <span className="text-xs text-zinc-400">
-            {group.mappings.length} column{group.mappings.length !== 1 ? "s" : ""}
+          <span className="text-xs text-muted-foreground">
+            {t("columnsCount", { count: group.mappings.length })}
           </span>
         </div>
 
         <svg
-          className={cn(
-            "h-4 w-4 text-zinc-400 transition-transform",
-            expanded && "rotate-180",
-          )}
+          className={cn("h-4 w-4 text-muted-foreground transition-transform", expanded && "rotate-180")}
           fill="none"
           viewBox="0 0 24 24"
           strokeWidth={2}
           stroke="currentColor"
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M19.5 8.25l-7.5 7.5-7.5-7.5"
-          />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
         </svg>
       </button>
 
@@ -274,8 +220,8 @@ function MappingCard({
         <div className="border-t border-zinc-100 dark:border-zinc-800 px-4 py-3 bg-zinc-50/50 dark:bg-zinc-900/30">
           {matchMappings.length > 0 && (
             <div className="mb-3">
-              <div className="text-[10px] uppercase tracking-wider font-medium text-zinc-400 mb-1.5">
-                Identity (match)
+              <div className="text-[10px] uppercase tracking-wider font-medium text-muted-foreground mb-1.5">
+                {t("identity")}
               </div>
               <div className="space-y-1">
                 {matchMappings.map((m, i) => (
@@ -286,8 +232,8 @@ function MappingCard({
           )}
           {setMappings.length > 0 && (
             <div>
-              <div className="text-[10px] uppercase tracking-wider font-medium text-zinc-400 mb-1.5">
-                Properties (set)
+              <div className="text-[10px] uppercase tracking-wider font-medium text-muted-foreground mb-1.5">
+                {t("properties")}
               </div>
               <div className="space-y-1">
                 {setMappings.map((m, i) => (
@@ -297,7 +243,7 @@ function MappingCard({
             </div>
           )}
           {matchMappings.length === 0 && setMappings.length === 0 && (
-            <p className="text-xs text-zinc-400">No column mappings recorded</p>
+            <p className="text-xs text-muted-foreground">{t("noMappings")}</p>
           )}
         </div>
       )}
@@ -312,6 +258,7 @@ function MappingRow({
   mapping: PropertyMapping;
   isIdentity?: boolean;
 }) {
+  const t = useTranslations("settings.lineage");
   return (
     <div className="flex items-center gap-2 text-xs">
       <code
@@ -319,23 +266,13 @@ function MappingRow({
           "rounded px-1.5 py-0.5 font-mono",
           isIdentity
             ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
-            : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
+            : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground",
         )}
       >
         {mapping.source_column}
       </code>
-      <svg
-        className="h-3 w-3 text-zinc-300 dark:text-zinc-600 flex-shrink-0"
-        fill="none"
-        viewBox="0 0 24 24"
-        strokeWidth={2}
-        stroke="currentColor"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"
-        />
+      <svg className="h-3 w-3 text-zinc-300 dark:text-zinc-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
       </svg>
       <code className="rounded bg-blue-50 px-1.5 py-0.5 font-mono text-blue-700 dark:bg-blue-950/40 dark:text-blue-400">
         {mapping.graph_property}
@@ -347,18 +284,15 @@ function MappingRow({
       )}
       {isIdentity && (
         <span className="rounded bg-amber-50 px-1 py-0.5 text-[10px] font-medium text-amber-600 dark:bg-amber-950/40 dark:text-amber-400">
-          KEY
+          {t("key")}
         </span>
       )}
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Page
-// ---------------------------------------------------------------------------
-
 export default function LineageSettingsPage() {
+  const t = useTranslations("settings.lineage");
   const [summary, setSummary] = useState<LineageSummary[]>([]);
   const [entries, setEntries] = useState<LineageEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -366,12 +300,11 @@ export default function LineageSettingsPage() {
 
   const load = useCallback(async () => {
     try {
-      const [summaryData, ...labelResults] = await Promise.all([
+      const [summaryData] = await Promise.all([
         request<LineageSummary[]>("/lineage"),
       ]);
       setSummary(summaryData);
 
-      // Fetch detailed entries for each label to get property mappings
       const labels = summaryData.map((s) => s.graph_label);
       const uniqueLabels = [...new Set(labels)];
       const entryResults = await Promise.all(
@@ -383,11 +316,11 @@ export default function LineageSettingsPage() {
       );
       setEntries(entryResults.flat());
     } catch {
-      toast.error("Failed to load lineage data");
+      toast.error(t("loadError"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     load();
@@ -397,19 +330,19 @@ export default function LineageSettingsPage() {
   const totalSources = summary.reduce((acc, l) => acc + l.source_count, 0);
   const totalLabels = summary.length;
 
-  // Build mapping groups from entries that have property_mappings
   const mappingGroups = aggregateMappings(entries);
-
-  // Deduplicated entries for history table, sorted by started_at DESC
   const historyEntries = [...entries].sort(
     (a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime(),
   );
 
+  const statusLabel = (s: string) =>
+    isKnownLineageStatus(s) ? t(`status.${s}`) : s;
+
   return (
     <div className="space-y-8">
       <SettingsSection
-        title="Data Lineage"
-        description="Trace how source data flows into your knowledge graph."
+        title={t("title")}
+        description={t("description")}
       >
         {loading ? (
           <div className="flex items-center justify-center py-12">
@@ -417,37 +350,34 @@ export default function LineageSettingsPage() {
           </div>
         ) : (
           <>
-            {/* Summary cards */}
             <div className="mt-6 grid grid-cols-3 gap-4">
               <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
                 <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
                   {totalLabels}
                 </div>
-                <div className="text-xs text-muted-foreground">Graph Labels</div>
+                <div className="text-xs text-muted-foreground">{t("summary.labels")}</div>
               </div>
               <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
                 <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
                   {totalSources}
                 </div>
-                <div className="text-xs text-muted-foreground">Source Tables</div>
+                <div className="text-xs text-muted-foreground">{t("summary.sources")}</div>
               </div>
               <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
                 <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
                   {formatNumber(totalRecords)}
                 </div>
-                <div className="text-xs text-muted-foreground">Total Records</div>
+                <div className="text-xs text-muted-foreground">{t("summary.records")}</div>
               </div>
             </div>
 
-            {/* Column-level mappings */}
             {mappingGroups.length > 0 && (
               <div className="mt-8">
                 <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-3">
-                  Column Mappings
+                  {t("columnMappings")}
                 </h2>
                 <p className="text-xs text-muted-foreground mb-4">
-                  Source columns mapped to graph properties during data loading.
-                  Click a mapping to expand column-level details.
+                  {t("columnMappingsHint")}
                 </p>
                 <div className="space-y-2">
                   {mappingGroups.map((group) => {
@@ -469,20 +399,19 @@ export default function LineageSettingsPage() {
               </div>
             )}
 
-            {/* Load history table */}
             <div className="mt-8">
               <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-3">
-                Load History
+                {t("loadHistory")}
               </h2>
               <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-700">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-zinc-200 bg-zinc-50 text-left text-xs font-medium uppercase text-muted-foreground dark:border-zinc-700 dark:bg-zinc-800/50">
-                      <th className="py-3 pr-6">Label</th>
-                      <th className="py-3 pr-6">Source</th>
-                      <th className="py-3 pr-6 text-right">Records</th>
-                      <th className="py-3 pr-6 text-right">Started</th>
-                      <th className="py-3 pr-6 text-right">Status</th>
+                      <th className="py-3 pr-6">{t("column.label")}</th>
+                      <th className="py-3 pr-6">{t("column.source")}</th>
+                      <th className="py-3 pr-6 text-right">{t("column.records")}</th>
+                      <th className="py-3 pr-6 text-right">{t("column.started")}</th>
+                      <th className="py-3 pr-6 text-right">{t("column.status")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -517,7 +446,7 @@ export default function LineageSettingsPage() {
                           {formatDate(e.started_at)}
                         </td>
                         <td className="py-3 pr-6 text-right">
-                          {statusBadge(e.status)}
+                          <StatusBadge status={e.status} label={statusLabel(e.status)} />
                         </td>
                       </tr>
                     ))}
@@ -525,9 +454,9 @@ export default function LineageSettingsPage() {
                       <tr>
                         <td
                           colSpan={5}
-                          className="py-8 text-center text-zinc-400"
+                          className="py-8 text-center text-muted-foreground"
                         >
-                          No load history available
+                          {t("noHistory")}
                         </td>
                       </tr>
                     )}
