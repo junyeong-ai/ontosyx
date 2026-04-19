@@ -84,6 +84,70 @@
         "userEmail": "dev@localhost",
         "notice": "Development mode — no authentication configured. Configure Google OAuth to enable user accounts."
       }
+    },
+    "datePicker": {
+      "last7Days": "Last 7 days",
+      "last30Days": "Last 30 days",
+      "last90Days": "Last 90 days",
+      "daysLabel": "Days"
+    },
+    "audit": {
+      "title": "Audit Log",
+      "description": "Track user actions, resource changes, and system events.",
+      "loadError": "Failed to load audit log",
+      "empty": "No audit entries for the selected period",
+      "column": {
+        "action": "Action",
+        "resourceType": "Resource Type",
+        "resourceId": "Resource ID",
+        "user": "User",
+        "date": "Date"
+      },
+      "systemUser": "system"
+    },
+    "usage": {
+      "title": "Usage & Metering",
+      "description": "LLM token usage, compute costs, and request volumes.",
+      "loadError": "Failed to load usage data",
+      "empty": "No usage data for the selected period",
+      "summary": {
+        "totalTokens": "Total Tokens",
+        "requests": "Requests",
+        "estimatedCost": "Estimated Cost"
+      },
+      "column": {
+        "resourceType": "Resource Type",
+        "inputTokens": "Input Tokens",
+        "outputTokens": "Output Tokens",
+        "requests": "Requests",
+        "cost": "Cost"
+      }
+    },
+    "approvals": {
+      "title": "Approval Queue",
+      "description": "Review and approve schema deployments and other gated operations.",
+      "loadError": "Failed to load approvals",
+      "reviewError": "Failed to review approval",
+      "approvedToast": "Approved",
+      "rejectedToast": "Rejected",
+      "approve": "Approve",
+      "reject": "Reject",
+      "pendingHeading": "Pending ({count})",
+      "historyHeading": "History",
+      "emptyHistory": "No approval history",
+      "expires": "Expires",
+      "column": {
+        "action": "Action",
+        "resource": "Resource",
+        "status": "Status",
+        "date": "Date"
+      },
+      "status": {
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "expired": "Expired"
+      }
     }
   }
 }

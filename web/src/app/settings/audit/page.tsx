@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { request } from "@/lib/api/client";
 import { Spinner } from "@/components/ui/spinner";
 import { SettingsSelect } from "@/components/ui/form-input";
@@ -17,6 +18,8 @@ interface AuditEntry {
 }
 
 export default function AuditSettingsPage() {
+  const t = useTranslations("settings.audit");
+  const datePickerT = useTranslations("settings.datePicker");
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
@@ -31,11 +34,11 @@ export default function AuditSettingsPage() {
       );
       setEntries(data.items);
     } catch {
-      toast.error("Failed to load audit log");
+      toast.error(t("loadError"));
     } finally {
       setLoading(false);
     }
-  }, [days]);
+  }, [days, t]);
 
   useEffect(() => {
     load();
@@ -49,21 +52,21 @@ export default function AuditSettingsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-            Audit Log
+            {t("title")}
           </h1>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            Track user actions, resource changes, and system events.
+          <p className="mt-1 text-sm text-zinc-500 dark:text-muted-foreground">
+            {t("description")}
           </p>
         </div>
         <SettingsSelect
-            label="Days"
-            hideLabel
+          label={datePickerT("daysLabel")}
+          hideLabel
           value={days}
           onChange={(e) => setDays(Number(e.target.value))}
         >
-          <option value={7}>Last 7 days</option>
-          <option value={30}>Last 30 days</option>
-          <option value={90}>Last 90 days</option>
+          <option value={7}>{datePickerT("last7Days")}</option>
+          <option value={30}>{datePickerT("last30Days")}</option>
+          <option value={90}>{datePickerT("last90Days")}</option>
         </SettingsSelect>
       </div>
 
@@ -76,11 +79,11 @@ export default function AuditSettingsPage() {
           <table className="w-full min-w-[640px] text-sm">
             <thead>
               <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-muted-foreground dark:border-zinc-700">
-                <th className="py-3 pr-6">Action</th>
-                <th className="py-3 pr-6">Resource Type</th>
-                <th className="py-3 pr-6">Resource ID</th>
-                <th className="py-3 pr-6">User</th>
-                <th className="py-3 pr-6 text-right">Date</th>
+                <th className="py-3 pr-6">{t("column.action")}</th>
+                <th className="py-3 pr-6">{t("column.resourceType")}</th>
+                <th className="py-3 pr-6">{t("column.resourceId")}</th>
+                <th className="py-3 pr-6">{t("column.user")}</th>
+                <th className="py-3 pr-6 text-right">{t("column.date")}</th>
               </tr>
             </thead>
             <tbody>
@@ -95,19 +98,19 @@ export default function AuditSettingsPage() {
                   <td className="py-3 pr-6 text-muted-foreground">
                     {entry.resource_type}
                   </td>
-                  <td className="py-3 pr-6 font-mono text-xs text-zinc-400">
+                  <td className="py-3 pr-6 font-mono text-xs text-muted-foreground">
                     {entry.resource_id
                       ? entry.resource_id.length > 12
                         ? entry.resource_id.slice(0, 12) + "..."
                         : entry.resource_id
                       : "\u2014"}
                   </td>
-                  <td className="py-3 pr-6 font-mono text-xs text-zinc-400">
+                  <td className="py-3 pr-6 font-mono text-xs text-muted-foreground">
                     {entry.user_id
                       ? entry.user_id.length > 12
                         ? entry.user_id.slice(0, 12) + "..."
                         : entry.user_id
-                      : "system"}
+                      : t("systemUser")}
                   </td>
                   <td className="py-3 pr-6 text-right text-muted-foreground">
                     {new Date(entry.created_at).toLocaleString(undefined, {
@@ -123,9 +126,9 @@ export default function AuditSettingsPage() {
                 <tr>
                   <td
                     colSpan={5}
-                    className="py-8 text-center text-zinc-400"
+                    className="py-8 text-center text-muted-foreground"
                   >
-                    No audit entries for the selected period
+                    {t("empty")}
                   </td>
                 </tr>
               )}

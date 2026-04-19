@@ -84,6 +84,70 @@
         "userEmail": "dev@localhost",
         "notice": "개발 모드 — 인증이 구성되지 않았습니다. Google OAuth를 구성하면 사용자 계정을 활성화할 수 있습니다."
       }
+    },
+    "datePicker": {
+      "last7Days": "최근 7일",
+      "last30Days": "최근 30일",
+      "last90Days": "최근 90일",
+      "daysLabel": "기간"
+    },
+    "audit": {
+      "title": "감사 로그",
+      "description": "사용자 동작, 리소스 변경, 시스템 이벤트를 추적합니다.",
+      "loadError": "감사 로그를 불러오지 못했습니다",
+      "empty": "선택한 기간에 감사 기록이 없습니다",
+      "column": {
+        "action": "동작",
+        "resourceType": "리소스 유형",
+        "resourceId": "리소스 ID",
+        "user": "사용자",
+        "date": "일시"
+      },
+      "systemUser": "system"
+    },
+    "usage": {
+      "title": "사용량 및 과금",
+      "description": "LLM 토큰 사용량, 컴퓨트 비용, 요청량.",
+      "loadError": "사용량 데이터를 불러오지 못했습니다",
+      "empty": "선택한 기간에 사용 데이터가 없습니다",
+      "summary": {
+        "totalTokens": "총 토큰",
+        "requests": "요청",
+        "estimatedCost": "예상 비용"
+      },
+      "column": {
+        "resourceType": "리소스 유형",
+        "inputTokens": "입력 토큰",
+        "outputTokens": "출력 토큰",
+        "requests": "요청",
+        "cost": "비용"
+      }
+    },
+    "approvals": {
+      "title": "승인 대기열",
+      "description": "스키마 배포 및 기타 승인 대상 작업을 검토·승인합니다.",
+      "loadError": "승인 목록을 불러오지 못했습니다",
+      "reviewError": "승인 처리에 실패했습니다",
+      "approvedToast": "승인됨",
+      "rejectedToast": "거절됨",
+      "approve": "승인",
+      "reject": "거절",
+      "pendingHeading": "대기 중 ({count})",
+      "historyHeading": "이력",
+      "emptyHistory": "승인 이력이 없습니다",
+      "expires": "만료",
+      "column": {
+        "action": "동작",
+        "resource": "리소스",
+        "status": "상태",
+        "date": "일시"
+      },
+      "status": {
+        "pending": "대기",
+        "approved": "승인",
+        "rejected": "거절",
+        "expired": "만료"
+      }
     }
   }
 }

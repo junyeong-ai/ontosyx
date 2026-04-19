@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { request } from "@/lib/api/client";
 import { Spinner } from "@/components/ui/spinner";
 import { SettingsSelect } from "@/components/ui/form-input";
@@ -15,6 +16,8 @@ interface UsageSummary {
 }
 
 export default function UsageSettingsPage() {
+  const t = useTranslations("settings.usage");
+  const datePickerT = useTranslations("settings.datePicker");
   const [usage, setUsage] = useState<UsageSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
@@ -29,11 +32,11 @@ export default function UsageSettingsPage() {
       );
       setUsage(data);
     } catch {
-      toast.error("Failed to load usage data");
+      toast.error(t("loadError"));
     } finally {
       setLoading(false);
     }
-  }, [days]);
+  }, [days, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -55,21 +58,21 @@ export default function UsageSettingsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-            Usage & Metering
+            {t("title")}
           </h1>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            LLM token usage, compute costs, and request volumes.
+          <p className="mt-1 text-sm text-zinc-500 dark:text-muted-foreground">
+            {t("description")}
           </p>
         </div>
         <SettingsSelect
-            label="Days"
-            hideLabel
+          label={datePickerT("daysLabel")}
+          hideLabel
           value={days}
           onChange={(e) => setDays(Number(e.target.value))}
         >
-          <option value={7}>Last 7 days</option>
-          <option value={30}>Last 30 days</option>
-          <option value={90}>Last 90 days</option>
+          <option value={7}>{datePickerT("last7Days")}</option>
+          <option value={30}>{datePickerT("last30Days")}</option>
+          <option value={90}>{datePickerT("last90Days")}</option>
         </SettingsSelect>
       </div>
 
@@ -83,19 +86,19 @@ export default function UsageSettingsPage() {
               <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
                 {formatTokens(totalTokens)}
               </div>
-              <div className="text-xs text-muted-foreground">Total Tokens</div>
+              <div className="text-xs text-muted-foreground">{t("summary.totalTokens")}</div>
             </div>
             <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
               <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
                 {totalRequests.toLocaleString()}
               </div>
-              <div className="text-xs text-muted-foreground">Requests</div>
+              <div className="text-xs text-muted-foreground">{t("summary.requests")}</div>
             </div>
             <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
               <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
                 ${totalCost.toFixed(4)}
               </div>
-              <div className="text-xs text-muted-foreground">Estimated Cost</div>
+              <div className="text-xs text-muted-foreground">{t("summary.estimatedCost")}</div>
             </div>
           </div>
 
@@ -104,11 +107,11 @@ export default function UsageSettingsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-muted-foreground dark:border-zinc-700">
-                  <th className="py-3 pr-6">Resource Type</th>
-                  <th className="py-3 pr-6 text-right">Input Tokens</th>
-                  <th className="py-3 pr-6 text-right">Output Tokens</th>
-                  <th className="py-3 pr-6 text-right">Requests</th>
-                  <th className="py-3 pr-6 text-right">Cost</th>
+                  <th className="py-3 pr-6">{t("column.resourceType")}</th>
+                  <th className="py-3 pr-6 text-right">{t("column.inputTokens")}</th>
+                  <th className="py-3 pr-6 text-right">{t("column.outputTokens")}</th>
+                  <th className="py-3 pr-6 text-right">{t("column.requests")}</th>
+                  <th className="py-3 pr-6 text-right">{t("column.cost")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -133,8 +136,8 @@ export default function UsageSettingsPage() {
                 ))}
                 {usage.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-zinc-400">
-                      No usage data for the selected period
+                    <td colSpan={5} className="py-8 text-center text-muted-foreground">
+                      {t("empty")}
                     </td>
                   </tr>
                 )}
