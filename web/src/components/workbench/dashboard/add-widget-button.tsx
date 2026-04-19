@@ -62,6 +62,7 @@ export function AddWidgetButton({
   onAdded,
 }: AddWidgetButtonProps) {
   const t = useTranslations("workbench.dashboard.addWidget");
+  const tCommon = useTranslations("common");
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [query, setQuery] = useState("");
@@ -209,14 +210,14 @@ export function AddWidgetButton({
                 }}
                 className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-muted-foreground dark:hover:bg-zinc-800"
               >
-                {t("cancel")}
+                {tCommon("cancel")}
               </button>
               <button
                 onClick={handleSave}
                 disabled={!title.trim() || !query.trim() || isSaving}
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
               >
-                {isSaving ? t("submitting") : t("submit")}
+                {isSaving ? t("submitting") : tCommon("submit")}
               </button>
             </div>
           </div>

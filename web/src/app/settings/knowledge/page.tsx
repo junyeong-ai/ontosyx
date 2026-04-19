@@ -45,6 +45,7 @@ const KB_PAGE_LIMIT = 100;
 
 export default function KnowledgePage() {
   const t = useTranslations("settings.knowledge");
+  const tCommon = useTranslations("common");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("");
   const [kindFilter, setKindFilter] = useState("");
@@ -215,7 +216,7 @@ export default function KnowledgePage() {
                 disabled={isFetchingNextPage}
               >
                 {isFetchingNextPage
-                  ? t("loading")
+                  ? tCommon("loading")
                   : t("loadMore", { count: entries.length })}
               </Button>
             </div>
@@ -242,6 +243,7 @@ function EntryCard({
   onDelete: () => void;
 }) {
   const t = useTranslations("settings.knowledge");
+  const tCommon = useTranslations("common");
   const kindCls = KIND_STYLES[entry.kind] ?? KIND_STYLES.correction;
   const statusDot = STATUS_DOT[entry.status] ?? STATUS_DOT.draft;
   const kindLabel = isKnownKind(entry.kind)
@@ -319,7 +321,7 @@ function EntryCard({
                 </button>
               )}
               <button onClick={onDelete} className="rounded-md border border-red-200 px-3 py-1 text-[11px] font-medium text-red-500 hover:bg-red-50 transition dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/30">
-                {t("delete")}
+                {tCommon("delete")}
               </button>
             </div>
           </div>

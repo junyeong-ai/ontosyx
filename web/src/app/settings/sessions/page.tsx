@@ -31,6 +31,7 @@ function StatCard({ label, value }: { label: string; value: number | string }) {
 
 export default function SessionsPage() {
   const t = useTranslations("settings.sessions");
+  const tCommon = useTranslations("common");
   const [sessions, setSessions] = useState<AgentSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -245,7 +246,7 @@ export default function SessionsPage() {
                 onClick={(e) => handleDelete(e, s.id)}
                 className="absolute right-2 top-2 hidden rounded px-1.5 py-0.5 text-[10px] font-medium text-red-600 transition-colors hover:bg-red-50 group-hover:inline-block dark:text-red-400 dark:hover:bg-red-950/30"
               >
-                {t("delete")}
+                {tCommon("delete")}
               </button>
             </div>
           ))
@@ -256,7 +257,7 @@ export default function SessionsPage() {
         <div className="mt-4 flex justify-center">
           <Button variant="outline" size="sm" onClick={handleLoadMore} disabled={loadingMore}>
             {loadingMore
-              ? t("loading")
+              ? tCommon("loading")
               : t("loadMore", { count: sessions.length })}
           </Button>
         </div>

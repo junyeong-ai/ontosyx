@@ -63,7 +63,7 @@ use ox_core::graph_label::GraphLabel;
 use ox_core::ontology_ir::{EdgeTypeDef, EdgeTypeId, NodeTypeId, OntologyIR};
 use ox_core::property_key::PropertyKey;
 use ox_core::query_ir::{
-    AnalyticsSource, Expr, GraphPattern, MutateOp, PathElement, PropertyAssignment,
+    AnalyticsSource, Expr, GraphPattern, MutateOp, NodeRef, PathElement, PropertyAssignment,
     PropertyFilter, QueryIR, QueryOp,
 };
 use ox_core::variable_name::VariableName;
@@ -624,12 +624,8 @@ fn apply_renames(op: &mut QueryOp, ctx: &RenameCtx<'_>) -> OxResult<()> {
             edge_types,
             ..
         } => {
-            if let Some(l) = start.label.as_mut() {
-                swap_if_renamed(l, ctx.node_labels);
-            }
-            if let Some(l) = end.label.as_mut() {
-                swap_if_renamed(l, ctx.node_labels);
-            }
+            rename_node_ref(start, ctx);
+            rename_node_ref(end, ctx);
             for l in edge_types.iter_mut() {
                 swap_if_renamed(l, ctx.edge_labels);
             }
@@ -664,7 +660,7 @@ fn apply_renames(op: &mut QueryOp, ctx: &RenameCtx<'_>) -> OxResult<()> {
                 apply_renames(inner, ctx)?;
             }
             for mut_op in operations {
-                rename_mutate_op(mut_op, ctx);
+                rename_mutate_op(mut_op, ctx)?;
             }
         }
         QueryOp::Analytics { source, .. } => match source {
@@ -750,6 +746,21 @@ fn rename_property_filters_node(
         if let Some(snap) = node_props.get(&(owner.clone(), f.property.clone())) {
             f.property = snap.clone();
         }
+    }
+}
+
+/// Rename a PathFind start/end `NodeRef` in place — its inline property
+/// filters reference the ref's own type (resolved via the authored
+/// label), and the label itself then swaps through the rename map.
+/// Symmetric to the Match-pattern `GraphPattern::Node` path.
+fn rename_node_ref(node_ref: &mut NodeRef, ctx: &RenameCtx<'_>) {
+    if let Some(l) = node_ref.label.as_ref()
+        && let Some(nt) = ctx.current.node_by_label(l.as_str())
+    {
+        rename_property_filters_node(&mut node_ref.property_filters, &nt.id, ctx.node_props);
+    }
+    if let Some(l) = node_ref.label.as_mut() {
+        swap_if_renamed(l, ctx.node_labels);
     }
 }
 
@@ -849,87 +860,67 @@ fn rename_expr(expr: &mut Expr, ctx: &RenameCtx<'_>) -> OxResult<()> {
     Ok(())
 }
 
-fn rename_mutate_op(op: &mut MutateOp, ctx: &RenameCtx<'_>) {
-    // A rename-error on an assignment list propagates out of the match
-    // arm but none of the current arm bodies return Err (all internal
-    // calls return Ok); we still thread OxResult for symmetry with
-    // rename_expr and to leave a hook for future validation.
-    let result: OxResult<()> = (|| {
-        match op {
-            MutateOp::CreateNode {
-                label, properties, ..
-            } => {
-                rename_node_label_and_assignments(label, properties, ctx)?;
-            }
-            MutateOp::MergeNode {
-                label,
-                match_properties,
-                on_create,
-                on_match,
-                ..
-            } => {
-                // Resolve type once via current, then apply to all three
-                // assignment lists (they share the same owner type_id).
-                if let Some(nt) = ctx.current.node_by_label(label.as_str()) {
-                    let owner = nt.id.clone();
-                    rename_property_assignments_node(
-                        match_properties,
-                        &owner,
-                        ctx.node_props,
-                        ctx,
-                    )?;
-                    rename_property_assignments_node(on_create, &owner, ctx.node_props, ctx)?;
-                    rename_property_assignments_node(on_match, &owner, ctx.node_props, ctx)?;
-                }
-                swap_if_renamed(label, ctx.node_labels);
-            }
-            MutateOp::CreateEdge {
-                label, properties, ..
-            } => {
-                rename_edge_label_and_assignments(label, properties, ctx)?;
-            }
-            MutateOp::MergeEdge {
-                label,
-                match_properties,
-                on_create,
-                on_match,
-                ..
-            } => {
-                if let Some(et) = edge_by_label(ctx.current, label.as_str()) {
-                    let owner = et.id.clone();
-                    rename_property_assignments_edge(
-                        match_properties,
-                        &owner,
-                        ctx.edge_props,
-                        ctx,
-                    )?;
-                    rename_property_assignments_edge(on_create, &owner, ctx.edge_props, ctx)?;
-                    rename_property_assignments_edge(on_match, &owner, ctx.edge_props, ctx)?;
-                }
-                swap_if_renamed(label, ctx.edge_labels);
-            }
-            MutateOp::RemoveLabel { label, .. } => {
-                swap_if_renamed(label, ctx.node_labels);
-            }
-            MutateOp::SetProperty {
-                variable,
-                property,
-                value,
-            } => {
-                ctx.rename_var_property(variable, property);
-                rename_expr(value, ctx)?;
-            }
-            MutateOp::RemoveProperty { variable, property } => {
-                ctx.rename_var_property(variable, property);
-            }
-            MutateOp::Delete { .. } => {}
+fn rename_mutate_op(op: &mut MutateOp, ctx: &RenameCtx<'_>) -> OxResult<()> {
+    match op {
+        MutateOp::CreateNode {
+            label, properties, ..
+        } => {
+            rename_node_label_and_assignments(label, properties, ctx)?;
         }
-        Ok(())
-    })();
-    // Swallow the result — the signature is `()` for now. If a later
-    // validation pass needs to reject mutations, convert this caller
-    // to OxResult<()> and propagate.
-    let _ = result;
+        MutateOp::MergeNode {
+            label,
+            match_properties,
+            on_create,
+            on_match,
+            ..
+        } => {
+            // Resolve type once via current, then apply to all three
+            // assignment lists (they share the same owner type_id).
+            if let Some(nt) = ctx.current.node_by_label(label.as_str()) {
+                let owner = nt.id.clone();
+                rename_property_assignments_node(match_properties, &owner, ctx.node_props, ctx)?;
+                rename_property_assignments_node(on_create, &owner, ctx.node_props, ctx)?;
+                rename_property_assignments_node(on_match, &owner, ctx.node_props, ctx)?;
+            }
+            swap_if_renamed(label, ctx.node_labels);
+        }
+        MutateOp::CreateEdge {
+            label, properties, ..
+        } => {
+            rename_edge_label_and_assignments(label, properties, ctx)?;
+        }
+        MutateOp::MergeEdge {
+            label,
+            match_properties,
+            on_create,
+            on_match,
+            ..
+        } => {
+            if let Some(et) = edge_by_label(ctx.current, label.as_str()) {
+                let owner = et.id.clone();
+                rename_property_assignments_edge(match_properties, &owner, ctx.edge_props, ctx)?;
+                rename_property_assignments_edge(on_create, &owner, ctx.edge_props, ctx)?;
+                rename_property_assignments_edge(on_match, &owner, ctx.edge_props, ctx)?;
+            }
+            swap_if_renamed(label, ctx.edge_labels);
+        }
+        MutateOp::RemoveLabel { label, .. } => {
+            swap_if_renamed(label, ctx.node_labels);
+        }
+        MutateOp::SetProperty {
+            variable,
+            property,
+            value,
+        } => {
+            ctx.rename_var_property(variable, property);
+            rename_expr(value, ctx)?;
+        }
+        MutateOp::RemoveProperty { variable, property } => {
+            ctx.rename_var_property(variable, property);
+        }
+        MutateOp::Delete { .. } => {}
+    }
+    Ok(())
 }
 
 /// Resolve a CreateNode's type once via the authored label, rename all
@@ -1893,6 +1884,74 @@ mod tests {
     // variables never made it into var_types. A property reference
     // inside the subquery's own filter was silently un-renamed.
     // ---------------------------------------------------------------
+
+    #[test]
+    fn property_rename_in_pathfind_node_refs() {
+        // `NodeRef` (PathFind start/end) has its own `property_filters`
+        // field. The inline filter must be rewritten using the ref's
+        // own label to resolve the owner type, mirroring the Match
+        // pattern path.
+        use ox_core::query_ir::{NodeRef, PathAlgorithm};
+        use ox_core::types::Direction;
+
+        let snap = snapshot_with_node_property(
+            1,
+            Some(ts(2026, 1, 1)),
+            Some(ts(2026, 6, 1)),
+            "nt1",
+            "Customer",
+            "p1",
+            "email",
+        );
+        let current = snapshot_with_node_property(
+            2,
+            Some(ts(2026, 6, 1)),
+            None,
+            "nt1",
+            "Customer",
+            "p1",
+            "primary_email",
+        );
+
+        let query = QueryIR {
+            schema_version: QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::PathFind {
+                start: NodeRef {
+                    variable: vn("a"),
+                    label: Some(gl("Customer")),
+                    property_filters: vec![PropertyFilter {
+                        property: pk("primary_email"),
+                        value: Expr::Literal {
+                            value: PropertyValue::String("x@y".into()),
+                        },
+                    }],
+                },
+                end: NodeRef {
+                    variable: vn("b"),
+                    label: Some(gl("Customer")),
+                    property_filters: vec![],
+                },
+                edge_types: vec![],
+                direction: Direction::Outgoing,
+                max_depth: None,
+                algorithm: PathAlgorithm::ShortestPath,
+            },
+            limit: None,
+            skip: None,
+            order_by: vec![],
+            as_of: Some(ts(2026, 3, 15)),
+        };
+
+        let out = rewrite_temporal_with_renames(query, &snap, &current).expect("rewrite");
+        let QueryOp::PathFind { start, .. } = &out.operation else {
+            panic!("expected PathFind");
+        };
+        assert_eq!(
+            start.property_filters[0].property.as_str(),
+            "email",
+            "PathFind.start.property_filters must rewrite to snapshot-era names"
+        );
+    }
 
     #[test]
     fn property_rename_reaches_into_expr_subquery() {

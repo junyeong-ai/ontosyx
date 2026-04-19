@@ -49,6 +49,7 @@ export function RevisionHistoryPanel({
   onApiError,
 }: RevisionHistoryPanelProps) {
   const t = useTranslations("workbench.bottomPanel.revision");
+  const tCommon = useTranslations("common");
   const confirmDialog = useConfirm();
   const setActiveDiffOverlay = useAppStore((s) => s.setActiveDiffOverlay);
 
@@ -189,7 +190,7 @@ export function RevisionHistoryPanel({
               onClick={() => setDiffCompareBase(null)}
               className="ml-auto text-[10px] font-medium text-blue-500 hover:text-blue-700 dark:text-blue-400"
             >
-              {t("cancel")}
+              {tCommon("cancel")}
             </button>
           </div>
         )}
@@ -200,7 +201,7 @@ export function RevisionHistoryPanel({
         )}
         {revisionsLoading ? (
           <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
-            <Spinner size="xs" /> {t("loading")}
+            <Spinner size="xs" /> {tCommon("loading")}
           </div>
         ) : revisions.length === 0 ? (
           <p className="py-2 text-xs text-muted-foreground">{t("empty")}</p>

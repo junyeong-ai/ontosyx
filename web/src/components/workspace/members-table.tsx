@@ -30,6 +30,7 @@ interface Props {
 
 export function MembersTable({ wsId, members, onReload }: Props) {
   const t = useTranslations("workspaceDialog.members");
+  const tCommon = useTranslations("common");
   const [showAdd, setShowAdd] = useState(false);
   const [users, setUsers] = useState<UserInfo[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
@@ -105,7 +106,7 @@ export function MembersTable({ wsId, members, onReload }: Props) {
               onClick={() => setShowAdd(false)}
               className="text-xs text-muted-foreground hover:text-zinc-600"
             >
-              {t("cancel")}
+              {tCommon("cancel")}
             </button>
           </div>
           {usersLoading ? (
@@ -192,7 +193,7 @@ export function MembersTable({ wsId, members, onReload }: Props) {
                           onClick={() => setConfirmRemove(null)}
                           className="rounded px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
                         >
-                          {t("cancel")}
+                          {tCommon("cancel")}
                         </button>
                       </span>
                     ) : (

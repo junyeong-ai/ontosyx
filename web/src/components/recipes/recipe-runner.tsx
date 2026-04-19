@@ -80,6 +80,7 @@ interface RecipeRunnerProps {
 
 export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
   const t = useTranslations("settings.recipes.runner");
+  const tCommon = useTranslations("common");
   const params = recipe.parameters as Record<string, ParamDef>;
   const paramEntries = Object.entries(params);
 
@@ -251,7 +252,7 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
                 onClick={handleCancel}
                 className="rounded-md px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
               >
-                {t("cancel")}
+                {tCommon("cancel")}
               </button>
             </>
           ) : (
@@ -260,7 +261,7 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
                 onClick={onClose}
                 className="rounded-md px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 dark:text-muted-foreground dark:hover:bg-zinc-800"
               >
-                {t("close")}
+                {tCommon("close")}
               </button>
               <button
                 onClick={handleRun}

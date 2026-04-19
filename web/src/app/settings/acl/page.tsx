@@ -76,6 +76,7 @@ const EMPTY_FORM: PolicyFormValues = {
 
 export default function AclSettingsPage() {
   const t = useTranslations("settings.acl");
+  const tCommon = useTranslations("common");
   const [policies, setPolicies] = useState<AclPolicy[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -333,14 +334,14 @@ export default function AclSettingsPage() {
                       onClick={() => openEdit(p)}
                       className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
                     >
-                      {t("edit")}
+                      {tCommon("edit")}
                     </button>
                     <button
                       onClick={() => handleDelete(p.id)}
                       disabled={deletingId === p.id}
                       className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 dark:hover:bg-red-950"
                     >
-                      {deletingId === p.id ? t("deleting") : t("delete")}
+                      {deletingId === p.id ? tCommon("deleting") : tCommon("delete")}
                     </button>
                   </div>
                 </td>
@@ -390,6 +391,7 @@ function PolicyForm({
   actionLabel: (value: string) => string;
 }) {
   const t = useTranslations("settings.acl");
+  const tCommon = useTranslations("common");
 
   const update = (field: string, patch: Partial<PolicyFormValues>) => {
     setForm((prev) => ({ ...prev, ...patch }));
@@ -410,7 +412,7 @@ function PolicyForm({
           onClick={onCancel}
           className="text-xs text-muted-foreground hover:text-zinc-600"
         >
-          {t("cancel")}
+          {tCommon("cancel")}
         </button>
       </div>
 
@@ -577,7 +579,7 @@ function PolicyForm({
           {saving
             ? isEditing
               ? t("updating")
-              : t("creating")
+              : tCommon("creating")
             : isEditing
               ? t("updatePolicy")
               : t("createPolicy")}
@@ -587,7 +589,7 @@ function PolicyForm({
           onClick={onCancel}
           className="rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
         >
-          {t("cancel")}
+          {tCommon("cancel")}
         </button>
       </div>
     </form>

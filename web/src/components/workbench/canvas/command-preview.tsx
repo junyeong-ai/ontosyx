@@ -29,6 +29,7 @@ export function CommandPreview({
   onCancel,
 }: CommandPreviewProps) {
   const t = useTranslations("workbench.canvas.commandPreview");
+  const tCommon = useTranslations("common");
   // Flatten batch commands for individual selection
   const flatCommands = useMemo(() => flattenCommands(commands), [commands]);
 
@@ -58,7 +59,7 @@ export function CommandPreview({
             className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
           >
             <HugeiconsIcon icon={Cancel01Icon} className="h-3 w-3" size="100%" />
-            {t("close")}
+            {tCommon("close")}
           </button>
         </div>
       </div>
@@ -193,7 +194,7 @@ export function CommandPreview({
             className="h-3 w-3"
             size="100%"
           />
-          {t("cancel")}
+          {tCommon("cancel")}
         </button>
         <button
           onClick={handleApply}

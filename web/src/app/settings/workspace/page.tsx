@@ -24,6 +24,7 @@ const BCP47_RE = /^[a-z]{2,3}(-[a-z0-9]{2,8})*$/;
 
 export default function WorkspaceSettingsPage() {
   const t = useTranslations("settings.workspace");
+  const tCommon = useTranslations("common");
   const wsId = getWorkspaceId();
 
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -129,7 +130,7 @@ export default function WorkspaceSettingsPage() {
           onClick={handleSave}
           disabled={!hasChanges || saving}
         >
-          {saving ? t("saving") : t("save")}
+          {saving ? tCommon("saving") : tCommon("save")}
         </Button>
       }
     >

@@ -33,6 +33,7 @@ export function CreateWorkspaceDialog({ open, onOpenChange }: Props) {
 
 function CreateWorkspaceDialogBody({ onClose }: { onClose: () => void }) {
   const t = useTranslations("workspaceDialog");
+  const tCommon = useTranslations("common");
   const [name, setName] = useState("");
   /**
    * `slugOverride` is empty when the user hasn't touched the slug field.
@@ -128,14 +129,14 @@ function CreateWorkspaceDialogBody({ onClose }: { onClose: () => void }) {
             onClick={onClose}
             className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
           >
-            {t("cancel")}
+            {tCommon("cancel")}
           </button>
           <button
             onClick={handleSubmit}
             disabled={!name.trim() || !slug.trim() || submitting}
             className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
           >
-            {submitting ? t("creating") : t("create")}
+            {submitting ? tCommon("creating") : tCommon("create")}
           </button>
         </div>
       </div>

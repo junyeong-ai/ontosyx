@@ -70,6 +70,7 @@ export function SavedPatternsMenu({
   isDirty,
 }: SavedPatternsMenuProps) {
   const t = useTranslations("workbench.queryBuilder.savedPatterns");
+  const tCommon = useTranslations("common");
   const [isOpen, setIsOpen] = useState(false);
   const confirm = useConfirm();
   const prompt = usePrompt();
@@ -228,7 +229,7 @@ export function SavedPatternsMenu({
             : t("saveTitle")
         }
       >
-        <span>{currentId ? t("save") : t("saveWithEllipsis")}</span>
+        <span>{currentId ? tCommon("save") : t("saveWithEllipsis")}</span>
         {isDirty && (
           <span
             aria-label={t("unsavedChanges")}
@@ -284,7 +285,7 @@ export function SavedPatternsMenu({
               {t("loadOntologyHint")}
             </div>
           ) : loading ? (
-            <div className="p-2 text-xs text-muted-foreground">{t("loading")}</div>
+            <div className="p-2 text-xs text-muted-foreground">{tCommon("loading")}</div>
           ) : items.length === 0 ? (
             <div className="p-2 text-xs text-muted-foreground">
               {t("empty")}

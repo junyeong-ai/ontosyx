@@ -30,6 +30,7 @@ export function CreateProjectForm({
   onCreated: (p: DesignProject) => void;
 }) {
   const t = useTranslations("workbench.bottomPanel.createProject");
+  const tCommon = useTranslations("common");
   const [sourceType, setSourceType] = useState<GenerateSourceType>("postgresql");
   const [sampleData, setSampleData] = useState("");
   const [connectionString, setConnectionString] = useState("");
@@ -710,7 +711,7 @@ export function CreateProjectForm({
             ) : (
               <HugeiconsIcon icon={PlusSignIcon} className="mr-2 h-4 w-4" size="100%" />
             )}
-            {loading ? t("creating") : t("createButton")}
+            {loading ? tCommon("creating") : t("createButton")}
           </Button>
         </div>
       </div>

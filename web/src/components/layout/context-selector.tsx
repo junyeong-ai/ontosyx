@@ -300,6 +300,7 @@ function ExploreSelector() {
 
 function DashboardSelector() {
   const t = useTranslations("chrome.contextSelector");
+  const tCommon = useTranslations("common");
   const activeDashboardId = useAppStore((s) => s.activeDashboardId);
   const setActiveDashboardId = useAppStore((s) => s.setActiveDashboardId);
 
@@ -379,14 +380,14 @@ function DashboardSelector() {
                   }}
                   className="rounded-md px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 >
-                  {t("cancel")}
+                  {tCommon("cancel")}
                 </button>
                 <button
                   onClick={handleCreate}
                   disabled={!newName.trim()}
                   className="rounded-md bg-emerald-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
                 >
-                  {t("create")}
+                  {tCommon("create")}
                 </button>
               </div>
             </div>

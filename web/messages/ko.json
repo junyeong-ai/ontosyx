@@ -13,8 +13,9 @@
     "edit": "편집",
     "apply": "적용",
     "discard": "버리기",
-    "unknown": "알 수 없음",
-    "loadingEllipsis": "불러오는 중…"
+    "saving": "저장 중…",
+    "deleting": "삭제 중…",
+    "creating": "생성 중…"
   },
   "auth": {
     "signIn": "로그인",
@@ -102,8 +103,6 @@
       "noDashboards": "대시보드가 없습니다",
       "newDashboard": "새 대시보드",
       "dashboardNamePlaceholder": "대시보드 이름",
-      "cancel": "취소",
-      "create": "만들기",
       "publicBadge": "공개",
       "untitledProject": "제목 없음",
       "toast": {
@@ -172,7 +171,6 @@
     },
     "errorBoundary": {
       "title": "위젯 렌더링에 실패했습니다",
-      "retry": "다시 시도",
       "unknownError": "알 수 없는 오류"
     },
     "table": {
@@ -286,14 +284,11 @@
     "slugLabel": "슬러그",
     "slugPlaceholder": "my-workspace",
     "slugHint": "URL에 사용되는 식별자입니다. 이름에서 자동 생성됩니다.",
-    "cancel": "취소",
-    "create": "만들기",
     "creating": "생성 중...",
     "members": {
       "heading": "멤버",
       "add": "멤버 추가",
       "selectUserPrompt": "추가할 사용자를 선택하세요",
-      "cancel": "취소",
       "noUsersAvailable": "추가 가능한 사용자가 없습니다",
       "column": {
         "user": "사용자",
@@ -517,9 +512,6 @@
       "updatePolicy": "정책 수정",
       "creating": "생성 중...",
       "updating": "수정 중...",
-      "cancel": "취소",
-      "edit": "편집",
-      "delete": "삭제",
       "deleting": "...",
       "newPolicyHeading": "새 정책",
       "editPolicyHeading": "정책 편집",
@@ -636,7 +628,6 @@
       "usedTimes": "{count}회 사용",
       "approve": "승인",
       "deprecate": "폐기",
-      "delete": "삭제",
       "structuredData": "구조화된 데이터",
       "createdBy": "{user} 작성",
       "reviewed": "{date} 검토됨",
@@ -723,8 +714,6 @@
       "authorMeta": "{user} 작성",
       "activeSwitch": "활성",
       "newVersion": "새 버전",
-      "delete": "삭제",
-      "save": "저장",
       "saving": "저장 중…",
       "deleteConfirmTitle": "v{version} 버전을 삭제하시겠습니까?",
       "deleteConfirmDescription": "\"{name}\"의 v{version} 버전이 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다.",
@@ -757,7 +746,6 @@
       "incomplete": "미완료",
       "loadMore": "더 보기 ({count}개 표시 중)",
       "loading": "불러오는 중…",
-      "delete": "삭제",
       "deleteConfirmTitle": "세션 삭제",
       "deleteConfirmDescription": "세션과 모든 이벤트가 영구적으로 삭제됩니다. 되돌릴 수 없습니다.",
       "deleteConfirmLabel": "삭제",
@@ -834,8 +822,6 @@
       "action": {
         "test": "테스트 전송",
         "testing": "…",
-        "edit": "편집",
-        "delete": "삭제",
         "deleting": "…"
       },
       "channelType": {
@@ -855,7 +841,6 @@
       "form": {
         "newTitle": "새 채널",
         "editTitle": "채널 편집",
-        "cancel": "취소",
         "name": "이름",
         "namePlaceholder": "예: Slack #alerts",
         "channelType": "채널 유형",
@@ -900,7 +885,6 @@
     "workspace": {
       "title": "워크스페이스 설정",
       "description": "워크스페이스 정보와 구성원을 관리합니다.",
-      "save": "저장",
       "saving": "저장 중…",
       "noWorkspace": "선택된 워크스페이스가 없습니다. 먼저 워크스페이스를 전환하세요.",
       "general": {
@@ -964,9 +948,6 @@
       },
       "detail": {
         "meta": "{created} · {updated} 업데이트",
-        "edit": "편집",
-        "cancel": "취소",
-        "delete": "삭제",
         "description": "설명",
         "queryTemplate": "쿼리 템플릿",
         "widgetType": "위젯 유형",
@@ -988,7 +969,6 @@
       },
       "create": {
         "newTitle": "새 리포트",
-        "cancel": "취소",
         "title": "제목",
         "titlePlaceholder": "리포트 제목",
         "description": "설명",
@@ -1063,7 +1043,6 @@
         "meta": "{algorithm} · v{version} · {user} 작성 · {date}",
         "hideHistory": "이력 숨기기",
         "versions": "버전",
-        "delete": "삭제",
         "description": "설명",
         "requiredColumns": "필수 컬럼",
         "output": "출력",
@@ -1083,7 +1062,6 @@
       },
       "form": {
         "newTitle": "새 레시피",
-        "cancel": "취소",
         "name": "이름",
         "namePlaceholder": "레시피 이름",
         "description": "설명",
@@ -1109,8 +1087,6 @@
         "useLastResult": "마지막 쿼리 결과 사용",
         "cypherPlaceholder": "MATCH (n)-[r]->(m) RETURN n, r, m LIMIT 100",
         "result": "결과",
-        "cancel": "취소",
-        "close": "닫기",
         "run": "분석 실행",
         "prompt": "분석 레시피 \"{name}\"를 다음 파라미터로 실행해 주세요: {params}. {dataSource}",
         "dataSourceLast": "마지막 쿼리 결과를 데이터 소스로 사용하세요.",
@@ -1155,8 +1131,6 @@
       "action": {
         "run": "실행",
         "running": "…",
-        "edit": "편집",
-        "delete": "삭제",
         "deleting": "…"
       },
       "empty": "등록된 품질 규칙이 없습니다",
@@ -1175,7 +1149,6 @@
       "form": {
         "newTitle": "새 규칙",
         "editTitle": "규칙 편집",
-        "cancel": "취소",
         "name": "이름",
         "namePlaceholder": "예: 브랜드 완전성",
         "ruleType": "규칙 유형",
@@ -1429,7 +1402,6 @@
         "commandBarAria": "명령 바",
         "saveFirst": "LLM 리파인 전에 변경사항을 저장하세요 (⌘S)",
         "editTitle": "세밀한 편집 — 적용 전 명령 미리보기, 전체 실행 취소 지원",
-        "edit": "편집",
         "refineTitle": "전체 LLM 재설계 — 전체 온톨로지를 교체합니다",
         "refine": "리파인",
         "previewEdit": "미리보기",
@@ -1480,11 +1452,9 @@
       },
       "commandPreview": {
         "noChangesTitle": "구조 변경이 필요 없습니다.",
-        "close": "닫기",
         "selectedCount": "{selected}/{total} 선택됨",
         "selectAll": "모두 선택",
         "deselectAll": "모두 해제",
-        "cancel": "취소",
         "applyAll": "모두 적용",
         "apply": "{count}개 적용"
       },
@@ -1547,7 +1517,6 @@
         "noSavedViews": "저장된 뷰가 없습니다",
         "defaultTag": "(기본)",
         "namePlaceholder": "이름...",
-        "save": "저장",
         "saving": "...",
         "saveAs": "다른 이름으로 저장...",
         "saveFailed": "관점 저장에 실패했습니다",
@@ -1718,7 +1687,6 @@
       "workflowActions": {
         "untitledProject": "이름 없는 프로젝트",
         "revMeta": "{source} · 리비전 {revision}",
-        "close": "닫기",
         "domainHintsLabel": "도메인 힌트 (선택)",
         "domainHintsPlaceholder": "예: HR 시스템, 소셜 네트워크...",
         "largeSchemaWarning": "<bold>대규모 스키마 ({count}개 테이블).</bold> 상위 40개 테이블은 상세히 분석되고, 나머지는 요약으로 포함됩니다. 설계에 시간이 걸릴 수 있습니다. DesignOptions의 excluded_tables로 범위를 제한하는 것도 고려하세요.",
@@ -1728,7 +1696,6 @@
         "decisionsSaveFailed": "결정 저장에 실패했습니다",
         "enhanceHeader": "강화",
         "enhanceHint": "<kbd>⌘K</kbd>를 눌러 AI로 편집하거나 리파인하세요",
-        "cancel": "취소",
         "extendWithSource": "소스로 확장",
         "redesign": "소스에서 재설계",
         "reanalyzeSource": "소스 재분석",
@@ -1873,7 +1840,6 @@
       "revision": {
         "title": "리비전 이력",
         "compareBase": "기준: 리비전 {revision}. 다른 리비전을 눌러 비교하세요.",
-        "cancel": "취소",
         "computing": "차이 계산 중...",
         "loading": "리비전 불러오는 중...",
         "empty": "아직 리비전 이력이 없습니다.",
@@ -1907,7 +1873,6 @@
       "diff": {
         "noChanges": "변경 없음",
         "noChangesDescription": "{baseLabel}과(와) {targetLabel}이(가) 동일합니다.",
-        "header": "차이: {baseLabel} → {targetLabel}",
         "addedNodes": "추가된 노드",
         "removedNodes": "제거된 노드",
         "modifiedNodes": "수정된 노드",
@@ -1936,7 +1901,8 @@
         "constraintLabel": "제약 조건",
         "noneValue": "(없음)",
         "trueValue": "true",
-        "falseValue": "false"
+        "falseValue": "false",
+        "heading": "차이: {baseLabel} → {targetLabel}"
       },
       "quality": {
         "categories": {
@@ -2109,14 +2075,13 @@
         "emptyHint": "필터와 반환 필드를 설정하려면 노드 또는 엣지를 선택하세요."
       },
       "filter": {
-        "header": "필터 (WHERE)",
         "add": "+ 추가",
         "empty": "적용된 필터가 없습니다",
         "valuePlaceholder": "값",
-        "removeTitle": "필터 제거"
+        "removeTitle": "필터 제거",
+        "heading": "필터 (WHERE)"
       },
       "return": {
-        "header": "반환 필드",
         "emptyHint": "반환 필드를 선택하려면 패턴에 노드를 추가하세요.",
         "groupType": ":{label}",
         "sortToggleTitle": "정렬 순서 전환",
@@ -2125,10 +2090,10 @@
         "sortLabel": "정렬",
         "aggregationNone": "없음",
         "limitLabel": "개수 제한",
-        "limitPlaceholder": "제한 없음"
+        "limitPlaceholder": "제한 없음",
+        "heading": "반환 필드"
       },
       "savedPatterns": {
-        "save": "저장",
         "saveWithEllipsis": "저장…",
         "saveAs": "다른 이름으로…",
         "library": "보관함",
@@ -2142,7 +2107,6 @@
         "updateDirtyTitle": "로드된 패턴 업데이트 (저장되지 않은 변경)",
         "saveAsLibraryTitle": "현재 캔버스를 새 패턴으로 저장",
         "loadOntologyHint": "먼저 온톨로지를 로드하세요.",
-        "loading": "불러오는 중…",
         "empty": "저장된 패턴이 없습니다. 저장을 눌러 현재 캔버스를 보관하세요.",
         "loadTitle": "\"{name}\" 불러오기",
         "deleteTitle": "삭제",
@@ -2178,7 +2142,6 @@
         "templatesLabel": "템플릿",
         "queryLabel": "Cypher 쿼리",
         "queryPlaceholder": "MATCH (n) RETURN labels(n)[0] AS label, count(n) AS cnt",
-        "cancel": "취소",
         "submit": "위젯 추가",
         "submitting": "추가 중...",
         "templates": {

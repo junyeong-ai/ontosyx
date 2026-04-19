@@ -13,8 +13,9 @@
     "edit": "Edit",
     "apply": "Apply",
     "discard": "Discard",
-    "unknown": "Unknown",
-    "loadingEllipsis": "Loading…"
+    "saving": "Saving…",
+    "deleting": "Deleting…",
+    "creating": "Creating…"
   },
   "auth": {
     "signIn": "Sign in",
@@ -102,8 +103,6 @@
       "noDashboards": "No dashboards",
       "newDashboard": "New Dashboard",
       "dashboardNamePlaceholder": "Dashboard name",
-      "cancel": "Cancel",
-      "create": "Create",
       "publicBadge": "public",
       "untitledProject": "Untitled",
       "toast": {
@@ -172,7 +171,6 @@
     },
     "errorBoundary": {
       "title": "Widget rendering failed",
-      "retry": "Retry",
       "unknownError": "Unknown error"
     },
     "table": {
@@ -286,14 +284,11 @@
     "slugLabel": "Slug",
     "slugPlaceholder": "my-workspace",
     "slugHint": "URL-safe identifier. Auto-generated from name.",
-    "cancel": "Cancel",
-    "create": "Create",
     "creating": "Creating...",
     "members": {
       "heading": "Members",
       "add": "Add Member",
       "selectUserPrompt": "Select a user to add",
-      "cancel": "Cancel",
       "noUsersAvailable": "No users available",
       "column": {
         "user": "User",
@@ -517,9 +512,6 @@
       "updatePolicy": "Update Policy",
       "creating": "Creating...",
       "updating": "Updating...",
-      "cancel": "Cancel",
-      "edit": "Edit",
-      "delete": "Delete",
       "deleting": "...",
       "newPolicyHeading": "New Policy",
       "editPolicyHeading": "Edit Policy",
@@ -636,7 +628,6 @@
       "usedTimes": "Used {count} times",
       "approve": "Approve",
       "deprecate": "Deprecate",
-      "delete": "Delete",
       "structuredData": "Structured data",
       "createdBy": "Created by {user}",
       "reviewed": "Reviewed {date}",
@@ -723,8 +714,6 @@
       "authorMeta": "by {user}",
       "activeSwitch": "Active",
       "newVersion": "New Version",
-      "delete": "Delete",
-      "save": "Save",
       "saving": "Saving...",
       "deleteConfirmTitle": "Delete version v{version}?",
       "deleteConfirmDescription": "This will permanently delete version v{version} of \"{name}\". This action cannot be undone.",
@@ -757,7 +746,6 @@
       "incomplete": "incomplete",
       "loadMore": "Load more (showing {count})",
       "loading": "Loading...",
-      "delete": "Delete",
       "deleteConfirmTitle": "Delete session",
       "deleteConfirmDescription": "This will permanently delete the session and all its events. This cannot be undone.",
       "deleteConfirmLabel": "Delete",
@@ -834,8 +822,6 @@
       "action": {
         "test": "Test",
         "testing": "...",
-        "edit": "Edit",
-        "delete": "Delete",
         "deleting": "..."
       },
       "channelType": {
@@ -855,7 +841,6 @@
       "form": {
         "newTitle": "New Channel",
         "editTitle": "Edit Channel",
-        "cancel": "Cancel",
         "name": "Name",
         "namePlaceholder": "e.g. Slack #alerts",
         "channelType": "Channel Type",
@@ -900,7 +885,6 @@
     "workspace": {
       "title": "Workspace Settings",
       "description": "Manage workspace details and team members.",
-      "save": "Save",
       "saving": "Saving...",
       "noWorkspace": "No workspace selected. Switch to a workspace first.",
       "general": {
@@ -964,9 +948,6 @@
       },
       "detail": {
         "meta": "{created} · updated {updated}",
-        "edit": "Edit",
-        "cancel": "Cancel",
-        "delete": "Delete",
         "description": "Description",
         "queryTemplate": "Query Template",
         "widgetType": "Widget Type",
@@ -988,7 +969,6 @@
       },
       "create": {
         "newTitle": "New Report",
-        "cancel": "Cancel",
         "title": "Title",
         "titlePlaceholder": "Report title",
         "description": "Description",
@@ -1063,7 +1043,6 @@
         "meta": "{algorithm} · v{version} · by {user} · {date}",
         "hideHistory": "Hide History",
         "versions": "Versions",
-        "delete": "Delete",
         "description": "Description",
         "requiredColumns": "Required Columns",
         "output": "Output",
@@ -1083,7 +1062,6 @@
       },
       "form": {
         "newTitle": "New Recipe",
-        "cancel": "Cancel",
         "name": "Name",
         "namePlaceholder": "Recipe name",
         "description": "Description",
@@ -1109,8 +1087,6 @@
         "useLastResult": "Use last query result",
         "cypherPlaceholder": "MATCH (n)-[r]->(m) RETURN n, r, m LIMIT 100",
         "result": "Result",
-        "cancel": "Cancel",
-        "close": "Close",
         "run": "Run Analysis",
         "prompt": "Run analysis recipe \"{name}\" with parameters: {params}. {dataSource}",
         "dataSourceLast": "Use the last query result as data source.",
@@ -1155,8 +1131,6 @@
       "action": {
         "run": "Run",
         "running": "...",
-        "edit": "Edit",
-        "delete": "Delete",
         "deleting": "..."
       },
       "empty": "No quality rules configured",
@@ -1175,7 +1149,6 @@
       "form": {
         "newTitle": "New Rule",
         "editTitle": "Edit Rule",
-        "cancel": "Cancel",
         "name": "Name",
         "namePlaceholder": "e.g. Brand completeness",
         "ruleType": "Rule Type",
@@ -1429,7 +1402,6 @@
         "commandBarAria": "Command bar",
         "saveFirst": "Save pending changes first (⌘S) before using LLM refine",
         "editTitle": "Surgical edits — preview commands before applying, full undo support",
-        "edit": "Edit",
         "refineTitle": "Full LLM redesign — replaces the entire ontology",
         "refine": "Refine",
         "previewEdit": "Preview",
@@ -1480,11 +1452,9 @@
       },
       "commandPreview": {
         "noChangesTitle": "No structural changes needed.",
-        "close": "Close",
         "selectedCount": "{selected}/{total} selected",
         "selectAll": "Select All",
         "deselectAll": "Deselect All",
-        "cancel": "Cancel",
         "applyAll": "Apply All",
         "apply": "Apply {count}"
       },
@@ -1547,7 +1517,6 @@
         "noSavedViews": "No saved views",
         "defaultTag": "(default)",
         "namePlaceholder": "Name...",
-        "save": "Save",
         "saving": "...",
         "saveAs": "Save as...",
         "saveFailed": "Failed to save perspective",
@@ -1718,7 +1687,6 @@
       "workflowActions": {
         "untitledProject": "Untitled Project",
         "revMeta": "{source} · rev {revision}",
-        "close": "Close",
         "domainHintsLabel": "Domain Hints (optional)",
         "domainHintsPlaceholder": "e.g. HR system, social network...",
         "largeSchemaWarning": "<bold>Large schema ({count} tables).</bold> Top 40 tables will receive full detail; remaining tables included as summaries. Design may take longer. Consider using excluded_tables in DesignOptions to scope the ontology.",
@@ -1728,7 +1696,6 @@
         "decisionsSaveFailed": "Failed to save decisions",
         "enhanceHeader": "Enhance",
         "enhanceHint": "Press <kbd>⌘K</kbd> to edit or refine with AI",
-        "cancel": "Cancel",
         "extendWithSource": "Extend with Source",
         "redesign": "Redesign from Source",
         "reanalyzeSource": "Reanalyze Source",
@@ -1873,7 +1840,6 @@
       "revision": {
         "title": "Revision History",
         "compareBase": "Base: Rev {revision}. Click another revision to compare.",
-        "cancel": "Cancel",
         "computing": "Computing diff...",
         "loading": "Loading revisions...",
         "empty": "No revision history yet.",
@@ -1907,7 +1873,6 @@
       "diff": {
         "noChanges": "No Changes",
         "noChangesDescription": "{baseLabel} and {targetLabel} are identical.",
-        "header": "Diff: {baseLabel} → {targetLabel}",
         "addedNodes": "Added Nodes",
         "removedNodes": "Removed Nodes",
         "modifiedNodes": "Modified Nodes",
@@ -1936,7 +1901,8 @@
         "constraintLabel": "Constraint",
         "noneValue": "(none)",
         "trueValue": "true",
-        "falseValue": "false"
+        "falseValue": "false",
+        "heading": "Diff: {baseLabel} → {targetLabel}"
       },
       "quality": {
         "categories": {
@@ -2109,14 +2075,13 @@
         "emptyHint": "Select a node or edge to configure filters and return fields."
       },
       "filter": {
-        "header": "Filters (WHERE)",
         "add": "+ Add",
         "empty": "No filters applied",
         "valuePlaceholder": "value",
-        "removeTitle": "Remove filter"
+        "removeTitle": "Remove filter",
+        "heading": "Filters (WHERE)"
       },
       "return": {
-        "header": "Return Fields",
         "emptyHint": "Add nodes to the pattern to select return fields.",
         "groupType": ":{label}",
         "sortToggleTitle": "Toggle sort order",
@@ -2125,10 +2090,10 @@
         "sortLabel": "Sort",
         "aggregationNone": "None",
         "limitLabel": "Limit",
-        "limitPlaceholder": "no limit"
+        "limitPlaceholder": "no limit",
+        "heading": "Return Fields"
       },
       "savedPatterns": {
-        "save": "Save",
         "saveWithEllipsis": "Save…",
         "saveAs": "Save as…",
         "library": "Library",
@@ -2142,7 +2107,6 @@
         "updateDirtyTitle": "Update the loaded pattern (unsaved changes)",
         "saveAsLibraryTitle": "Save the current canvas as a new pattern",
         "loadOntologyHint": "Load an ontology first.",
-        "loading": "Loading…",
         "empty": "No patterns yet. Use Save to capture your current canvas.",
         "loadTitle": "Load \"{name}\"",
         "deleteTitle": "Delete",
@@ -2178,7 +2142,6 @@
         "templatesLabel": "Templates",
         "queryLabel": "Cypher Query",
         "queryPlaceholder": "MATCH (n) RETURN labels(n)[0] AS label, count(n) AS cnt",
-        "cancel": "Cancel",
         "submit": "Add Widget",
         "submitting": "Adding...",
         "templates": {

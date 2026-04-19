@@ -21,6 +21,7 @@ export interface WidgetInspectorProps {
 
 export function WidgetInspector({ widget, dashboardId, onUpdated }: WidgetInspectorProps) {
   const t = useTranslations("workbench.dashboard.inspector");
+  const tCommon = useTranslations("common");
   const [title, setTitle] = useState(widget.title);
   const [widgetType, setWidgetType] = useState(widget.widget_type);
   const [query, setQuery] = useState(widget.query ?? "");
@@ -183,7 +184,7 @@ export function WidgetInspector({ widget, dashboardId, onUpdated }: WidgetInspec
           disabled={isSaving}
           className="w-full rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
         >
-          {isSaving ? t("saving") : t("saveButton")}
+          {isSaving ? tCommon("saving") : t("saveButton")}
         </button>
       )}
     </div>

@@ -94,6 +94,7 @@ type Phase =
 
 export function CommandBar() {
   const t = useTranslations("workbench.canvas.commandBar");
+  const tCommon = useTranslations("common");
   const activeProject = useAppStore((s) => s.activeProject);
   const setActiveProject = useAppStore((s) => s.setActiveProject);
   const setOntology = useAppStore((s) => s.setOntology);
@@ -396,7 +397,7 @@ export function CommandBar() {
                 className="h-3 w-3"
                 size="100%"
               />
-              {t("edit")}
+              {tCommon("edit")}
             </button>
             <button
               onClick={() => {

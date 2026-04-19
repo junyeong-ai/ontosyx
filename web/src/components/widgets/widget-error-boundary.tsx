@@ -75,11 +75,12 @@ interface Props {
  */
 export function WidgetErrorBoundary({ widgetType, children }: Props) {
   const t = useTranslations("widget.errorBoundary");
+  const tCommon = useTranslations("common");
   return (
     <WidgetErrorBoundaryInner
       widgetType={widgetType}
       titleLabel={t("title")}
-      retryLabel={t("retry")}
+      retryLabel={tCommon("retry")}
       unknownErrorLabel={t("unknownError")}
     >
       {children}

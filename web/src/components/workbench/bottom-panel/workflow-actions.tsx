@@ -88,6 +88,7 @@ export function WorkflowActions({
   needsPartialAcknowledgement,
 }: WorkflowActionsProps) {
   const t = useTranslations("workbench.bottomPanel.workflowActions");
+  const tCommon = useTranslations("common");
   const report = project.analysis_report;
   const [progressPhase, setProgressPhase] = useState<string | null>(null);
   const [progressDetail, setProgressDetail] = useState<string | null>(null);
@@ -524,7 +525,7 @@ export function WorkflowActions({
             }}
             className="text-xs"
           >
-            {t("close")}
+            {tCommon("close")}
           </Button>
           {!isCompleted && (
             <button
@@ -632,7 +633,7 @@ export function WorkflowActions({
               className="w-full text-xs"
             >
               <HugeiconsIcon icon={Add01Icon} className="mr-1.5 h-3 w-3" size="100%" />
-              {form.extend.showExtend ? t("cancel") : t("extendWithSource")}
+              {form.extend.showExtend ? tCommon("cancel") : t("extendWithSource")}
             </Button>
             {form.extend.showExtend && (
               <ExtendSourceForm
@@ -678,7 +679,7 @@ export function WorkflowActions({
                 <>
                   <Button variant="outline" size="sm" onClick={() => form.reanalyze.setShowReanalyze(!form.reanalyze.showReanalyze)} disabled={loading} className="w-full text-xs">
                     <HugeiconsIcon icon={Refresh01Icon} className="mr-1.5 h-3 w-3" size="100%" />
-                    {form.reanalyze.showReanalyze ? t("cancel") : t("reanalyzeSource")}
+                    {form.reanalyze.showReanalyze ? tCommon("cancel") : t("reanalyzeSource")}
                   </Button>
                   {form.reanalyze.showReanalyze && (
                     <ReanalyzeForm
@@ -788,7 +789,7 @@ export function WorkflowActions({
                   onClick={() => form.deploy.setDeployPreview(null)}
                   className="text-xs"
                 >
-                  {t("cancel")}
+                  {tCommon("cancel")}
                 </Button>
               </div>
             </div>
@@ -857,7 +858,7 @@ export function WorkflowActions({
                   onClick={() => form.deploy.setLoadPlan(null)}
                   className="text-xs"
                 >
-                  {t("cancel")}
+                  {tCommon("cancel")}
                 </Button>
               </div>
             </div>

@@ -31,6 +31,7 @@ export function PerspectiveSwitcher({
   onOpen?: () => void;
 }) {
   const t = useTranslations("workbench.canvas.perspective");
+  const tCommon = useTranslations("common");
   const ontology = useAppStore((s) => s.ontology);
   const activeProject = useAppStore((s) => s.activeProject);
   const restoreNodeGroups = useAppStore((s) => s.restoreNodeGroups);
@@ -231,7 +232,7 @@ export function PerspectiveSwitcher({
                     disabled={deleting === p.id}
                     className="hidden shrink-0 text-muted-foreground hover:text-red-500 group-hover:block disabled:opacity-50"
                   >
-                    {deleting === p.id ? t("deleting") : "\u00D7"}
+                    {deleting === p.id ? tCommon("deleting") : "\u00D7"}
                   </button>
                 )}
               </div>
@@ -262,7 +263,7 @@ export function PerspectiveSwitcher({
                   disabled={!newName.trim() || isSaving}
                   className="rounded bg-emerald-600 px-2 py-0.5 text-[10px] text-white hover:bg-emerald-700 disabled:opacity-50"
                 >
-                  {isSaving ? t("saving") : t("save")}
+                  {isSaving ? tCommon("saving") : tCommon("save")}
                 </button>
               </div>
             ) : (

@@ -270,6 +270,7 @@ function PromptCardDetail({
   onNewVersion: (name: string, version: string, content: string) => Promise<void>;
 }) {
   const t = useTranslations("settings.prompts");
+  const tCommon = useTranslations("common");
   const confirm = useConfirm();
   const activeVersion = versions.find((v) => v.is_active) || versions[0];
   const [selectedId, setSelectedId] = useState(activeVersion.id);
@@ -360,7 +361,7 @@ function PromptCardDetail({
             {t("newVersion")}
           </Button>
           <Button variant="danger" size="xs" onClick={handleDelete}>
-            {t("delete")}
+            {tCommon("delete")}
           </Button>
           <Button
             variant="primary"
@@ -368,7 +369,7 @@ function PromptCardDetail({
             onClick={handleSave}
             disabled={!hasChanges || isSaving}
           >
-            {isSaving ? t("saving") : t("save")}
+            {isSaving ? tCommon("saving") : tCommon("save")}
           </Button>
         </div>
       </div>

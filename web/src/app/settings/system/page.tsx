@@ -18,6 +18,7 @@ function isKnownCategory(c: string): c is KnownCategory {
 
 export default function SystemSettingsPage() {
   const t = useTranslations("settings.system");
+  const tCommon = useTranslations("common");
   const { isAdmin } = useAuth();
   const [config, setConfig] = useState<ConfigResponse | null>(null);
   const [editedValues, setEditedValues] = useState<Record<string, string>>({});
@@ -194,7 +195,7 @@ export default function SystemSettingsPage() {
               disabled={!isAdmin || !hasChanges || isSaving}
               className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isSaving ? t("saving") : t("save")}
+              {isSaving ? tCommon("saving") : tCommon("save")}
             </button>
           </div>
         </>
