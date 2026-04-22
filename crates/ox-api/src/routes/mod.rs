@@ -124,6 +124,7 @@ pub fn router(state: AppState) -> Router {
         .route("/ontologies", get(ontology::list_ontologies))
         .route("/ontologies/{id}", get(ontology::get_ontology_detail))
         .route("/ontologies/{id}/edits", post(ontology::apply_ontology_edits))
+        .route("/ontologies/{id}/map-summary", get(ontology::map_summary))
         .route("/ontologies/{id}/enrich", post(ontology::enrich_ontology))
         .route(
             "/ontologies/{id}/value-sets/propose",

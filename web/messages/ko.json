@@ -1,4 +1,75 @@
 {
+  "ontology": {
+    "map": {
+      "title": "전체 지도",
+      "subtitle": "현재 버전 {version} — 6축에 걸쳐 총 {total}개 엔트리",
+      "noVersion": "커밋되지 않음",
+      "loadError": "지도 요약을 불러오지 못했습니다: {message}",
+      "unknownError": "알 수 없는 오류",
+      "danglers": {
+        "title": "{count}개 댕글링 참조",
+        "hint": "미해결 레지스트리 포인터입니다. 새 커밋이 검증을 통과하려면 먼저 해결해야 합니다.",
+        "more": "+{n}개 더"
+      },
+      "axes": {
+        "topology": {
+          "title": "토폴로지",
+          "description": "노드·엣지 타입과 빠른 조회를 뒷받침하는 인덱스.",
+          "kinds": {
+            "node_types": "노드 타입",
+            "edge_types": "엣지 타입",
+            "indexes": "인덱스"
+          }
+        },
+        "vocabulary": {
+          "title": "어휘",
+          "description": "LLM 프롬프트에 노출되는 비즈니스 용어와 인터페이스.",
+          "kinds": {
+            "glossary_terms": "용어",
+            "interfaces": "인터페이스"
+          }
+        },
+        "registry": {
+          "title": "레지스트리",
+          "description": "CodeSystem·ValueSet·NotationPattern·ConceptMap 등 시맨틱 레지스트리.",
+          "kinds": {
+            "code_systems": "코드 시스템",
+            "value_sets": "값 집합",
+            "notation_patterns": "표기 패턴",
+            "concept_maps": "개념 매핑",
+            "value_range_sets": "값 범위 집합"
+          }
+        },
+        "strategy": {
+          "title": "전략",
+          "description": "규칙(SHACL)·액션·함수·메트릭 — 타입에 부착된 행동 표면.",
+          "kinds": {
+            "rules": "규칙",
+            "actions": "액션",
+            "functions": "함수",
+            "metrics": "메트릭"
+          }
+        },
+        "vol": {
+          "title": "VOL",
+          "description": "논리적 타입과 물리적 소스 사이의 매핑 — 페더레이션 계약.",
+          "kinds": {
+            "object_mappings": "오브젝트 매핑",
+            "link_mappings": "링크 매핑"
+          }
+        },
+        "governance": {
+          "title": "거버넌스",
+          "description": "프로베넌스 기록·데이터 품질 체크·인리치먼트 피드.",
+          "kinds": {
+            "provenances": "프로베넌스",
+            "data_qualities": "DQ 체크",
+            "enrichments": "인리치먼트"
+          }
+        }
+      }
+    }
+  },
   "bootstrap": {
     "sidebar": {
       "title": "파일럿 온보딩",

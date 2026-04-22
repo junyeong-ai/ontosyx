@@ -1,4 +1,75 @@
 {
+  "ontology": {
+    "map": {
+      "title": "Complete Map",
+      "subtitle": "Current version {version} — {total} total entries across six axes",
+      "noVersion": "uncommitted",
+      "loadError": "Failed to load map summary: {message}",
+      "unknownError": "Unknown error",
+      "danglers": {
+        "title": "{count} dangling references",
+        "hint": "Registry pointers that don't resolve. Fix these before the ontology validator accepts a new commit.",
+        "more": "+{n} more not shown"
+      },
+      "axes": {
+        "topology": {
+          "title": "Topology",
+          "description": "Node and edge types, plus the indexes that back fast lookups.",
+          "kinds": {
+            "node_types": "Node types",
+            "edge_types": "Edge types",
+            "indexes": "Indexes"
+          }
+        },
+        "vocabulary": {
+          "title": "Vocabulary",
+          "description": "Business terms + interfaces that the glossary exposes to LLM prompts.",
+          "kinds": {
+            "glossary_terms": "Glossary terms",
+            "interfaces": "Interfaces"
+          }
+        },
+        "registry": {
+          "title": "Registry",
+          "description": "CodeSystems, ValueSets, NotationPatterns, ConceptMaps — the semantic registries.",
+          "kinds": {
+            "code_systems": "Code systems",
+            "value_sets": "Value sets",
+            "notation_patterns": "Notation patterns",
+            "concept_maps": "Concept maps",
+            "value_range_sets": "Value range sets"
+          }
+        },
+        "strategy": {
+          "title": "Strategy",
+          "description": "Rules (SHACL), actions, functions, metrics — the behavioural surfaces on types.",
+          "kinds": {
+            "rules": "Rules",
+            "actions": "Actions",
+            "functions": "Functions",
+            "metrics": "Metrics"
+          }
+        },
+        "vol": {
+          "title": "VOL",
+          "description": "Mappings between logical types and physical sources — the federation contract.",
+          "kinds": {
+            "object_mappings": "Object mappings",
+            "link_mappings": "Link mappings"
+          }
+        },
+        "governance": {
+          "title": "Governance",
+          "description": "Provenance trails, data-quality checks, enrichment feeds.",
+          "kinds": {
+            "provenances": "Provenance records",
+            "data_qualities": "DQ checks",
+            "enrichments": "Enrichments"
+          }
+        }
+      }
+    }
+  },
   "bootstrap": {
     "sidebar": {
       "title": "Pilot onboarding",

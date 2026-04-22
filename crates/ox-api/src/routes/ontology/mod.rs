@@ -11,6 +11,7 @@ mod binding_suggestions;
 mod crud;
 mod edits;
 mod exchange;
+mod map_summary;
 mod schema_ops;
 mod value_sets;
 mod verifications;
@@ -18,6 +19,7 @@ mod verifications;
 // Handler functions are referenced by the router (`routes::mod::router`) via
 // these module-local names, so `pub(crate) use` keeps the surface minimal.
 pub(crate) use crud::{apply_ontology_commands, get_ontology_detail, list_ontologies};
+pub(crate) use map_summary::map_summary;
 pub(crate) use edits::apply_ontology_edits;
 pub(crate) use exchange::{
     export_cypher, export_graphql, export_mermaid, export_ontology, export_owl, export_python,
