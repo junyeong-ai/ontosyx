@@ -20,6 +20,7 @@
 
 use std::sync::Arc;
 
+use arrow::array::{ArrayBuilder, RecordBatch};
 use async_trait::async_trait;
 use gcp_bigquery_client::Client;
 use gcp_bigquery_client::model::query_request::QueryRequest;
@@ -27,7 +28,10 @@ use gcp_bigquery_client::model::query_response::ResultSet;
 use tracing::info;
 
 use ox_core::error::{OxError, OxResult};
-use ox_core::source_analysis::ENUM_CARDINALITY_THRESHOLD;
+use ox_ontology::source_analysis::ENUM_CARDINALITY_THRESHOLD;
+
+use crate::normalize::describe_to_arrow_schema;
+use crate::text_scan::{append_text_cell, make_builder};
 use ox_core::source_schema::{ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef};
 
 use crate::DataSourceAdapter;
@@ -444,6 +448,89 @@ impl DataSourceAdapter for BigQueryAdapter {
             }
         }
         Ok(fks)
+    }
+
+    async fn scan(
+        &self,
+        table: &str,
+        projection: Option<Vec<usize>>,
+        limit: Option<usize>,
+    ) -> OxResult<RecordBatch> {
+        // Same shape as the Postgres / MySQL scan paths: stringify
+        // every projected column on the server side so the Rust
+        // layer only handles `Option<String>`, then feed through
+        // per-Arrow-type builders. BigQuery's `CAST(x AS STRING)`
+        // is the Standard SQL equivalent of Postgres's `::text`.
+        let table_def = self.describe_table(table).await?;
+        let arrow_schema = describe_to_arrow_schema("bigquery", &table_def);
+
+        let selected_indices: Vec<usize> =
+            projection.unwrap_or_else(|| (0..table_def.columns.len()).collect());
+
+        let projected_schema = if selected_indices.len() == table_def.columns.len() {
+            arrow_schema.clone()
+        } else {
+            arrow_schema
+                .project(&selected_indices)
+                .map_err(|e| OxError::Runtime {
+                    message: format!("bigquery scan: projection error: {e}"),
+                })?
+        };
+
+        let projected_columns: Vec<&SourceColumnDef> = selected_indices
+            .iter()
+            .map(|i| &table_def.columns[*i])
+            .collect();
+        let select_list = projected_columns
+            .iter()
+            .map(|c| {
+                format!(
+                    "CAST({ident} AS STRING) AS {ident}",
+                    ident = quote_ident(&c.name)
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        let limit_clause = limit
+            .map(|n| format!(" LIMIT {n}"))
+            .unwrap_or_default();
+        let sql = format!(
+            "SELECT {select_list} FROM `{project}.{dataset}.{table}`{limit}",
+            project = self.project_id,
+            dataset = self.dataset,
+            table = table,
+            limit = limit_clause,
+        );
+
+        let mut rs = self.run_query(&sql).await?;
+        let mut builders: Vec<Box<dyn ArrayBuilder>> = projected_schema
+            .fields()
+            .iter()
+            .map(|f| make_builder(f.data_type()))
+            .collect();
+
+        while rs.next_row() {
+            for (idx, _col) in projected_columns.iter().enumerate() {
+                let raw: Option<String> =
+                    rs.get_string(idx).map_err(|e| OxError::Runtime {
+                        message: format!(
+                            "bigquery scan: failed to read column at offset {idx}: {e}"
+                        ),
+                    })?;
+                append_text_cell(
+                    "bigquery",
+                    builders[idx].as_mut(),
+                    projected_schema.field(idx).data_type(),
+                    raw.as_deref(),
+                )?;
+            }
+        }
+
+        let arrays: Vec<arrow::array::ArrayRef> =
+            builders.into_iter().map(|mut b| b.finish()).collect();
+        RecordBatch::try_new(Arc::new(projected_schema), arrays).map_err(|e| OxError::Runtime {
+            message: format!("bigquery scan: RecordBatch::try_new failed: {e}"),
+        })
     }
 }
 

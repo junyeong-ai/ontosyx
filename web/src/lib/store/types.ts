@@ -113,7 +113,7 @@ export interface OntologySlice {
   redo: () => void;
   clearCommandStack: () => void;
   resetOntology: () => void;
-  loadSavedOntology: (ontology: OntologyIR) => void;
+  loadOntology: (ontology: OntologyIR) => void;
   nodeGroups: Record<string, NodeGroup>;
   restoreNodeGroups: (groups: Record<string, NodeGroup>) => void;
   createGroup: (name: string, nodeIds: string[]) => void;
@@ -164,8 +164,8 @@ export interface ChromeSlice {
   initWorkspace: () => Promise<void>;
   setActiveWorkspace: (id: string, name: string, role: string) => void;
 
-  workspaceMode: WorkspaceMode;
-  setWorkspaceMode: (mode: WorkspaceMode) => void;
+  // `workspaceMode` moved to URL (Phase 2-4). Consume via
+  // `useWorkspaceMode()` — the slice no longer carries the state.
 
   // Design mode
   designBottomTab: DesignBottomTab;
@@ -180,9 +180,10 @@ export interface ChromeSlice {
   // Analyze mode
   analyzeRightTab: AnalyzeRightTab;
   setAnalyzeRightTab: (tab: AnalyzeRightTab) => void;
-  /** UUID of the saved ontology currently active in Analyze mode */
-  savedOntologyId: string | null;
-  setSavedOntologyId: (id: string | null) => void;
+  /** Identity uuid (`ontologies.id`) of the ontology currently active in
+   *  Analyze mode. `null` means no pinned ontology. */
+  ontologyId: string | null;
+  setOntologyId: (id: string | null) => void;
 
   /** Tool call ID to scroll to in the Results panel */
   focusResultId: string | null;
@@ -205,6 +206,24 @@ export interface DashboardSlice {
   dashboardFilters: Record<string, unknown>;
   setDashboardFilter: (key: string, value: unknown) => void;
   clearDashboardFilters: () => void;
+
+  /**
+   * Dashboard-scoped type-visibility cross-filter.
+   *
+   * Keyed by `dashboard_id` — every widget mounted inside the same
+   * dashboard shares the same hidden-types list. Stored as `string[]`
+   * rather than `Set<string>` because Zustand's `persist` middleware
+   * serialises to JSON; `Set` round-trips as `{}` and loses contents.
+   * The hook boundary does the `Set` conversion for ergonomic filter
+   * APIs.
+   *
+   * A missing entry means "no types hidden on this dashboard" —
+   * the widget-level hook treats absence and `[]` identically.
+   */
+  dashboardTypeFilters: Record<string, string[]>;
+  toggleDashboardType: (dashboardId: string, type: string) => void;
+  setDashboardTypeHidden: (dashboardId: string, type: string, hidden: boolean) => void;
+  clearDashboardTypes: (dashboardId: string) => void;
 }
 
 export interface VerificationSlice {

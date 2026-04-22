@@ -4,175 +4,183 @@ import type { AppStore } from "./types";
 // Derived selectors (compute values from state)
 // ---------------------------------------------------------------------------
 
-export const selectHasOntology = (s: AppStore) => s.ontology !== null;
-export const selectHasUnsavedEdits = (s: AppStore) => s.commandStack.length > 0;
-export const selectSelectedNodeId = (s: AppStore) =>
+export const selectStateHasOntology = (s: AppStore) => s.ontology !== null;
+export const selectStateHasUnsavedEdits = (s: AppStore) => s.commandStack.length > 0;
+export const selectStateSelectedNodeId = (s: AppStore) =>
   s.selection.type === "node" ? s.selection.nodeId : null;
-export const selectSelectedEdgeId = (s: AppStore) =>
+export const selectStateSelectedEdgeId = (s: AppStore) =>
   s.selection.type === "edge" ? s.selection.edgeId : null;
-export const selectSelectedWidgetId = (s: AppStore) =>
+export const selectStateSelectedWidgetId = (s: AppStore) =>
   s.selection.type === "widget" ? s.selection.widgetId : null;
-export const selectCanChat = (s: AppStore) => s.ontology !== null;
+export const selectStateCanChat = (s: AppStore) => s.ontology !== null;
 
 // ---------------------------------------------------------------------------
 // State selectors — OntologySlice
 // ---------------------------------------------------------------------------
 
-export const selectOntology = (s: AppStore) => s.ontology;
-export const selectCommandStack = (s: AppStore) => s.commandStack;
-export const selectRedoStack = (s: AppStore) => s.redoStack;
-export const selectNodeGroups = (s: AppStore) => s.nodeGroups;
+export const selectStateOntology = (s: AppStore) => s.ontology;
+export const selectStateCommandStack = (s: AppStore) => s.commandStack;
+export const selectStateRedoStack = (s: AppStore) => s.redoStack;
+export const selectStateNodeGroups = (s: AppStore) => s.nodeGroups;
 
 // ---------------------------------------------------------------------------
 // State selectors — ChatSlice
 // ---------------------------------------------------------------------------
 
-export const selectMessages = (s: AppStore) => s.messages;
-export const selectIsLoading = (s: AppStore) => s.isLoading;
-export const selectSessionId = (s: AppStore) => s.sessionId;
-export const selectTokenUsage = (s: AppStore) => s.tokenUsage;
-export const selectHighlightedBindings = (s: AppStore) =>
+export const selectStateMessages = (s: AppStore) => s.messages;
+export const selectStateIsLoading = (s: AppStore) => s.isLoading;
+export const selectStateSessionId = (s: AppStore) => s.sessionId;
+export const selectStateTokenUsage = (s: AppStore) => s.tokenUsage;
+export const selectStateHighlightedBindings = (s: AppStore) =>
   s.highlightedBindings;
-export const selectPendingCommandBarInput = (s: AppStore) =>
+export const selectStatePendingCommandBarInput = (s: AppStore) =>
   s.pendingCommandBarInput;
-export const selectExecutionMode = (s: AppStore) => s.executionMode;
-export const selectModelOverride = (s: AppStore) => s.modelOverride;
+export const selectStateExecutionMode = (s: AppStore) => s.executionMode;
+export const selectStateModelOverride = (s: AppStore) => s.modelOverride;
 
 // ---------------------------------------------------------------------------
 // State selectors — ProjectSlice
 // ---------------------------------------------------------------------------
 
-export const selectActiveProject = (s: AppStore) => s.activeProject;
-export const selectLastReconcileReport = (s: AppStore) =>
+export const selectStateActiveProject = (s: AppStore) => s.activeProject;
+export const selectStateLastReconcileReport = (s: AppStore) =>
   s.lastReconcileReport;
-export const selectPendingReconcile = (s: AppStore) => s.pendingReconcile;
-export const selectActiveDiffOverlay = (s: AppStore) => s.activeDiffOverlay;
+export const selectStatePendingReconcile = (s: AppStore) => s.pendingReconcile;
+export const selectStateActiveDiffOverlay = (s: AppStore) => s.activeDiffOverlay;
 
 // ---------------------------------------------------------------------------
 // State selectors — ChromeSlice
 // ---------------------------------------------------------------------------
 
-export const selectWorkspaceMode = (s: AppStore) => s.workspaceMode;
-export const selectDesignBottomTab = (s: AppStore) => s.designBottomTab;
-export const selectIsExplorerOpen = (s: AppStore) => s.isExplorerOpen;
-export const selectIsInspectorOpen = (s: AppStore) => s.isInspectorOpen;
-export const selectIsBottomPanelOpen = (s: AppStore) => s.isBottomPanelOpen;
-export const selectAnalyzeRightTab = (s: AppStore) => s.analyzeRightTab;
-export const selectSavedOntologyId = (s: AppStore) => s.savedOntologyId;
+// `selectWorkspaceMode` removed (Phase 2-4). Use `useWorkspaceMode()`
+// from `@/lib/use-workspace-mode` — the URL is the source of truth.
+export const selectStateDesignBottomTab = (s: AppStore) => s.designBottomTab;
+export const selectStateIsExplorerOpen = (s: AppStore) => s.isExplorerOpen;
+export const selectStateIsInspectorOpen = (s: AppStore) => s.isInspectorOpen;
+export const selectStateIsBottomPanelOpen = (s: AppStore) => s.isBottomPanelOpen;
+export const selectStateAnalyzeRightTab = (s: AppStore) => s.analyzeRightTab;
+export const selectStateOntologyId = (s: AppStore) => s.ontologyId;
 
 // ---------------------------------------------------------------------------
 // State selectors — SelectionSlice
 // ---------------------------------------------------------------------------
 
-export const selectSelection = (s: AppStore) => s.selection;
-export const selectNeighborhoodFocus = (s: AppStore) => s.neighborhoodFocus;
+export const selectStateSelection = (s: AppStore) => s.selection;
+export const selectStateNeighborhoodFocus = (s: AppStore) => s.neighborhoodFocus;
 
 // ---------------------------------------------------------------------------
 // State selectors — DashboardSlice
 // ---------------------------------------------------------------------------
 
-export const selectActiveDashboardId = (s: AppStore) => s.activeDashboardId;
-export const selectDashboardWidgetCount = (s: AppStore) =>
+export const selectStateActiveDashboardId = (s: AppStore) => s.activeDashboardId;
+export const selectStateDashboardWidgetCount = (s: AppStore) =>
   s.dashboardWidgetCount;
-export const selectDashboardFilters = (s: AppStore) => s.dashboardFilters;
+export const selectStateDashboardFilters = (s: AppStore) => s.dashboardFilters;
+export const selectStateDashboardTypeFilters = (s: AppStore) =>
+  s.dashboardTypeFilters;
 
 // ---------------------------------------------------------------------------
 // Action selectors — OntologySlice
 // ---------------------------------------------------------------------------
 
-export const selectSetOntology = (s: AppStore) => s.setOntology;
-export const selectApplyCommand = (s: AppStore) => s.applyCommand;
-export const selectUndo = (s: AppStore) => s.undo;
-export const selectRedo = (s: AppStore) => s.redo;
-export const selectClearCommandStack = (s: AppStore) => s.clearCommandStack;
-export const selectResetOntology = (s: AppStore) => s.resetOntology;
-export const selectLoadSavedOntology = (s: AppStore) => s.loadSavedOntology;
-export const selectRestoreNodeGroups = (s: AppStore) => s.restoreNodeGroups;
-export const selectCreateGroup = (s: AppStore) => s.createGroup;
-export const selectToggleGroupCollapse = (s: AppStore) =>
+export const selectActionSetOntology = (s: AppStore) => s.setOntology;
+export const selectActionApplyCommand = (s: AppStore) => s.applyCommand;
+export const selectActionUndo = (s: AppStore) => s.undo;
+export const selectActionRedo = (s: AppStore) => s.redo;
+export const selectActionClearCommandStack = (s: AppStore) => s.clearCommandStack;
+export const selectActionResetOntology = (s: AppStore) => s.resetOntology;
+export const selectActionLoadOntology = (s: AppStore) => s.loadOntology;
+export const selectActionRestoreNodeGroups = (s: AppStore) => s.restoreNodeGroups;
+export const selectActionCreateGroup = (s: AppStore) => s.createGroup;
+export const selectActionToggleGroupCollapse = (s: AppStore) =>
   s.toggleGroupCollapse;
-export const selectRemoveGroup = (s: AppStore) => s.removeGroup;
-export const selectRenameGroup = (s: AppStore) => s.renameGroup;
+export const selectActionRemoveGroup = (s: AppStore) => s.removeGroup;
+export const selectActionRenameGroup = (s: AppStore) => s.renameGroup;
 
 // ---------------------------------------------------------------------------
 // Action selectors — ChatSlice
 // ---------------------------------------------------------------------------
 
-export const selectSetSessionId = (s: AppStore) => s.setSessionId;
-export const selectAddMessage = (s: AppStore) => s.addMessage;
-export const selectUpdateMessage = (s: AppStore) => s.updateMessage;
-export const selectRestoreMessages = (s: AppStore) => s.restoreMessages;
-export const selectClearMessages = (s: AppStore) => s.clearMessages;
-export const selectSetIsLoading = (s: AppStore) => s.setIsLoading;
-export const selectSetTokenUsage = (s: AppStore) => s.setTokenUsage;
-export const selectSetHighlightedBindings = (s: AppStore) =>
+export const selectActionSetSessionId = (s: AppStore) => s.setSessionId;
+export const selectActionAddMessage = (s: AppStore) => s.addMessage;
+export const selectActionUpdateMessage = (s: AppStore) => s.updateMessage;
+export const selectActionRestoreMessages = (s: AppStore) => s.restoreMessages;
+export const selectActionClearMessages = (s: AppStore) => s.clearMessages;
+export const selectActionSetIsLoading = (s: AppStore) => s.setIsLoading;
+export const selectActionSetTokenUsage = (s: AppStore) => s.setTokenUsage;
+export const selectActionSetHighlightedBindings = (s: AppStore) =>
   s.setHighlightedBindings;
-export const selectSetCommandBarInput = (s: AppStore) => s.setCommandBarInput;
-export const selectTakeCommandBarInput = (s: AppStore) =>
+export const selectActionSetCommandBarInput = (s: AppStore) => s.setCommandBarInput;
+export const selectActionTakeCommandBarInput = (s: AppStore) =>
   s.takeCommandBarInput;
-export const selectSetExecutionMode = (s: AppStore) => s.setExecutionMode;
-export const selectSetModelOverride = (s: AppStore) => s.setModelOverride;
+export const selectActionSetExecutionMode = (s: AppStore) => s.setExecutionMode;
+export const selectActionSetModelOverride = (s: AppStore) => s.setModelOverride;
 
 // ---------------------------------------------------------------------------
 // Action selectors — ProjectSlice
 // ---------------------------------------------------------------------------
 
-export const selectSetActiveProject = (s: AppStore) => s.setActiveProject;
-export const selectSetLastReconcileReport = (s: AppStore) =>
+export const selectActionSetActiveProject = (s: AppStore) => s.setActiveProject;
+export const selectActionSetLastReconcileReport = (s: AppStore) =>
   s.setLastReconcileReport;
-export const selectSetPendingReconcile = (s: AppStore) =>
+export const selectActionSetPendingReconcile = (s: AppStore) =>
   s.setPendingReconcile;
-export const selectSetActiveDiffOverlay = (s: AppStore) =>
+export const selectActionSetActiveDiffOverlay = (s: AppStore) =>
   s.setActiveDiffOverlay;
 
 // ---------------------------------------------------------------------------
 // Action selectors — ChromeSlice
 // ---------------------------------------------------------------------------
 
-export const selectSetWorkspaceMode = (s: AppStore) => s.setWorkspaceMode;
-export const selectSetDesignBottomTab = (s: AppStore) => s.setDesignBottomTab;
-export const selectToggleExplorer = (s: AppStore) => s.toggleExplorer;
-export const selectToggleInspector = (s: AppStore) => s.toggleInspector;
-export const selectToggleBottomPanel = (s: AppStore) => s.toggleBottomPanel;
-export const selectSetAnalyzeRightTab = (s: AppStore) => s.setAnalyzeRightTab;
-export const selectSetSavedOntologyId = (s: AppStore) => s.setSavedOntologyId;
-export const selectFocusResultId = (s: AppStore) => s.focusResultId;
-export const selectSetFocusResultId = (s: AppStore) => s.setFocusResultId;
+// `selectSetWorkspaceMode` removed (Phase 2-4). Navigate with
+// `router.push("/design")` etc. — Zustand no longer owns the mode.
+export const selectActionSetDesignBottomTab = (s: AppStore) => s.setDesignBottomTab;
+export const selectActionToggleExplorer = (s: AppStore) => s.toggleExplorer;
+export const selectActionToggleInspector = (s: AppStore) => s.toggleInspector;
+export const selectActionToggleBottomPanel = (s: AppStore) => s.toggleBottomPanel;
+export const selectActionSetAnalyzeRightTab = (s: AppStore) => s.setAnalyzeRightTab;
+export const selectActionSetOntologyId = (s: AppStore) => s.setOntologyId;
+export const selectStateFocusResultId = (s: AppStore) => s.focusResultId;
+export const selectActionSetFocusResultId = (s: AppStore) => s.setFocusResultId;
 
 // ---------------------------------------------------------------------------
 // Action selectors — SelectionSlice
 // ---------------------------------------------------------------------------
 
-export const selectSelect = (s: AppStore) => s.select;
-export const selectClearSelection = (s: AppStore) => s.clearSelection;
-export const selectSetNeighborhoodFocus = (s: AppStore) =>
+export const selectActionSelect = (s: AppStore) => s.select;
+export const selectActionClearSelection = (s: AppStore) => s.clearSelection;
+export const selectActionSetNeighborhoodFocus = (s: AppStore) =>
   s.setNeighborhoodFocus;
 
 // ---------------------------------------------------------------------------
 // Action selectors — DashboardSlice
 // ---------------------------------------------------------------------------
 
-export const selectSetActiveDashboardId = (s: AppStore) =>
+export const selectActionSetActiveDashboardId = (s: AppStore) =>
   s.setActiveDashboardId;
-export const selectSetDashboardWidgetCount = (s: AppStore) =>
+export const selectActionSetDashboardWidgetCount = (s: AppStore) =>
   s.setDashboardWidgetCount;
-export const selectSetDashboardFilter = (s: AppStore) => s.setDashboardFilter;
-export const selectClearDashboardFilters = (s: AppStore) =>
+export const selectActionSetDashboardFilter = (s: AppStore) => s.setDashboardFilter;
+export const selectActionClearDashboardFilters = (s: AppStore) =>
   s.clearDashboardFilters;
+export const selectActionToggleDashboardType = (s: AppStore) => s.toggleDashboardType;
+export const selectActionSetDashboardTypeHidden = (s: AppStore) =>
+  s.setDashboardTypeHidden;
+export const selectActionClearDashboardTypes = (s: AppStore) => s.clearDashboardTypes;
 
 // ---------------------------------------------------------------------------
 // State selectors — VerificationSlice
 // ---------------------------------------------------------------------------
 
-export const selectVerifications = (s: AppStore) => s.verifications;
-export const selectVerificationsLoading = (s: AppStore) =>
+export const selectStateVerifications = (s: AppStore) => s.verifications;
+export const selectStateVerificationsLoading = (s: AppStore) =>
   s.verificationsLoading;
 
 // ---------------------------------------------------------------------------
 // Action selectors — VerificationSlice
 // ---------------------------------------------------------------------------
 
-export const selectLoadVerifications = (s: AppStore) => s.loadVerifications;
-export const selectVerifyElement = (s: AppStore) => s.verifyElement;
-export const selectRevokeVerification = (s: AppStore) => s.revokeVerification;
-export const selectClearVerifications = (s: AppStore) => s.clearVerifications;
+export const selectActionLoadVerifications = (s: AppStore) => s.loadVerifications;
+export const selectActionVerifyElement = (s: AppStore) => s.verifyElement;
+export const selectActionRevokeVerification = (s: AppStore) => s.revokeVerification;
+export const selectActionClearVerifications = (s: AppStore) => s.clearVerifications;

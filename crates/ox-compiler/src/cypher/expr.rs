@@ -1,5 +1,5 @@
 use ox_core::error::{OxError, OxResult};
-use ox_core::query_ir::{AggFunction, Expr, OrderClause, Projection, SortDirection};
+use ox_query_ir::query::{AggFunction, Expr, OrderClause, Projection, SortDirection};
 use ox_core::types::{PropertyValue, is_valid_graph_identifier};
 
 use super::params::{ParamCollector, escape_identifier};

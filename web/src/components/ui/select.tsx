@@ -134,7 +134,7 @@ function ChevronIcon() {
       height="10"
       viewBox="0 0 10 10"
       fill="none"
-      className="text-zinc-500 dark:text-zinc-400"
+      className="text-zinc-500 dark:text-muted-foreground"
     >
       <path
         d="M2.5 3.75L5 6.25L7.5 3.75"

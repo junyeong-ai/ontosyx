@@ -9,7 +9,8 @@ use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use ox_core::resolve_query_bindings;
+use ox_query_ir::resolve_query_bindings;
+use ox_runtime::cypher::strict_advisory_diagnostics;
 use ox_store::QueryExecution;
 
 use crate::DomainContext;
@@ -42,6 +43,22 @@ struct QueryGraphOutput {
     /// Guidance for the agent on how to proceed with results.
     #[serde(skip_serializing_if = "Option::is_none")]
     guidance: Option<String>,
+    /// Π-3 response-attribution trail. Mirrors the wire shape the HTTP
+    /// query routes stamp onto `QueryResult.metadata.provenance`, so
+    /// the front-end's `ResponseBasis` panel renders the same summary
+    /// whether the query ran through the agent tool path or the raw
+    /// HTTP path. `None` iff the session has no pinned ontology
+    /// identity (ad-hoc draft execution).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    provenance: Option<ox_query_ir::query::QueryProvenance>,
+    /// Advisory validator diagnostics — same shape as
+    /// `QueryMetadata.warnings`. Surfaced here as a structured field
+    /// so the frontend's ResponseBasis panel renders identically
+    /// whether the query took the agent tool path or the HTTP
+    /// `/api/query/from-ir` path. The LLM reads a flattened form of
+    /// the same content via the `guidance` tail.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    warnings: Vec<ox_query_ir::query::QueryDiagnostic>,
 }
 
 #[derive(Debug, Serialize)]
@@ -61,6 +78,11 @@ struct WidgetHintOutput {
 pub struct QueryGraphTool {
     pub domain: Arc<DomainContext>,
     pub brain: Arc<dyn ox_brain::Brain>,
+    /// Refuse to execute `RiskLevel::High` queries (Cartesian products,
+    /// unbounded variable-length paths, unindexed high-fanout traversals).
+    /// Flip to `false` only when the workspace has consciously opted into
+    /// that risk — see `AgentConfig::reject_high_cost`.
+    pub reject_high_cost: bool,
 }
 
 #[async_trait]
@@ -131,7 +153,10 @@ impl SchemaTool for QueryGraphTool {
             }
         };
 
-        // Cost estimation: analyse QueryIR before compilation
+        // Cost estimation: analyse QueryIR before compilation. High-risk
+        // shapes (unbounded `*`, Cartesian joins, unindexed high-fanout
+        // labels) are refused before they reach the driver when policy
+        // allows — otherwise we still warn so operators see the shape.
         let cost_estimate = ox_compiler::cost::estimate_cost(&query_ir, &ontology);
         if cost_estimate.risk_level == ox_compiler::cost::RiskLevel::High {
             warn!(
@@ -140,6 +165,14 @@ impl SchemaTool for QueryGraphTool {
                 var_depth = cost_estimate.max_var_length_depth,
                 "High-risk query detected"
             );
+            if self.reject_high_cost {
+                let detail = cost_estimate.warnings.join("; ");
+                return ToolResult::error(format!(
+                    "Query rejected: the cost estimator flagged this as high-risk ({detail}). \
+                     Reformulate with a bounded path length / indexed filter / connected pattern, \
+                     or ask an admin to disable `agent.reject_high_cost` for this workspace."
+                ));
+            }
         }
 
         // Step 2: Compile QueryIR → target language
@@ -243,8 +276,8 @@ impl SchemaTool for QueryGraphTool {
             question: input.question.clone(),
             ontology_lineage_id: ontology.id.clone(),
             ontology_version: ontology.version.number as i32,
-            saved_ontology_id: self.domain.saved_ontology_id,
-            ontology_snapshot: if self.domain.saved_ontology_id.is_some() {
+            ontology_id: self.domain.ontology_id,
+            ontology_snapshot: if self.domain.ontology_id.is_some() {
                 None
             } else {
                 serde_json::to_value(&*ontology).ok()
@@ -324,11 +357,109 @@ impl SchemaTool for QueryGraphTool {
             }
         }
 
+        // Advisory-validator diagnostics run in strict mode via the
+        // shared `ox_runtime::cypher::diagnostics` helper so the agent
+        // surface and the HTTP surface (see
+        // `ox-api/src/routes/query.rs`) stay aligned on which
+        // validators run and how their output is shaped. The runtime
+        // pipeline runs a *permissive* variant so power users aren't
+        // blocked; this strict re-pass is pure advice — the query
+        // already executed.
+        let validator_notes = strict_advisory_diagnostics(
+            &compiled.statement,
+            &self.domain.workspace_id.to_string(),
+        );
+        if !validator_notes.is_empty() {
+            // The LLM sees a flattened, LLM-friendly form ("<validator>
+            // <level>: <message>") in the guidance tail; the structured
+            // list stays on the tool output envelope for the UI.
+            let joined = validator_notes
+                .iter()
+                .map(format_diagnostic_for_guidance)
+                .collect::<Vec<_>>()
+                .join("; ");
+            let joined = format!(" [Validation: {joined}]");
+            match &mut guidance {
+                Some(g) => g.push_str(&joined),
+                None => guidance = Some(joined),
+            }
+        }
+
         let cost = if cost_estimate.risk_level != ox_compiler::cost::RiskLevel::Low {
             Some(cost_estimate)
         } else {
             None
         };
+
+        // Π-3 — build response provenance inline. The agent tool path
+        // never sets `QueryResult.metadata.provenance` (the runtime
+        // leaves it `None`), so the signal only reaches the client if
+        // the tool explicitly assembles it here. Current-version
+        // lookup is a cheap btree seek (partial index); a failure
+        // downgrades to `ontology_version: None` rather than failing
+        // the whole tool call.
+        let provenance = if let Some(ontology_id) = self.domain.ontology_id {
+            let ontology_version = match self.domain.store.get_current_version(ontology_id).await {
+                Ok(Some(v)) => Some(v.version),
+                _ => None,
+            };
+            Some(ox_compiler::build_provenance(
+                &query_ir,
+                &ox_compiler::ProvenanceContext {
+                    ontology_id: Some(ontology_id.to_string()),
+                    ontology_version,
+                    as_of: None,
+                    source_ids: Vec::new(),
+                    ontology: Some(ontology.as_ref()),
+                },
+            ))
+        } else {
+            None
+        };
+
+        // Phase 3 — quality-signal capture. Fire-and-forget: a write
+        // failure is logged but does NOT fail the user-facing query.
+        // Runs after the execution row lands so the FK
+        // `query_execution_signals.execution_id → query_executions(id)`
+        // always resolves.
+        {
+            let signal = build_query_execution_signal(
+                execution_id,
+                self.domain.workspace_id,
+                &query_ir,
+                provenance.as_ref(),
+                &validator_notes,
+            );
+            let type_kinds = signal_type_kinds(provenance.as_ref());
+            let store = Arc::clone(&self.domain.store);
+            let workspace_id = self.domain.workspace_id;
+            // `WORKSPACE_ID` is threaded through the spawned future so
+            // the store's RLS `before_acquire` hook sees the same
+            // tenant the tool ran under — without this scope the
+            // spawned task hits the deny-all policy branch.
+            #[allow(clippy::disallowed_methods)]
+            tokio::spawn(async move {
+                ox_store::WORKSPACE_ID
+                    .scope(workspace_id, async move {
+                        if let Err(e) = store
+                            .create_query_execution_signal(&signal)
+                            .await
+                        {
+                            warn!(error = %e, "quality signal persist failed");
+                        }
+                        if !type_kinds.is_empty() {
+                            let refs: Vec<(Uuid, &str)> = type_kinds
+                                .iter()
+                                .map(|(id, k)| (*id, k.as_str()))
+                                .collect();
+                            if let Err(e) = store.upsert_type_last_used(&refs).await {
+                                warn!(error = %e, "type_last_used upsert failed");
+                            }
+                        }
+                    })
+                    .await
+            });
+        }
 
         let output = QueryGraphOutput {
             execution_id: execution_id.to_string(),
@@ -341,6 +472,8 @@ impl SchemaTool for QueryGraphTool {
             cost,
             step_timings,
             guidance,
+            provenance,
+            warnings: validator_notes,
         };
 
         ToolResult::success(serde_json::to_string_pretty(&output).unwrap_or_default())
@@ -353,4 +486,130 @@ fn truncate(s: &str, max_len: usize) -> &str {
     } else {
         &s[..s.floor_char_boundary(max_len)]
     }
+}
+
+/// Flatten a structured [`QueryDiagnostic`] into the `"<validator>
+/// <level>: <message>"` shape the LLM's `guidance` tail carries.
+/// Kept alongside the caller so the format stays local to the one
+/// consumer that needs a string form — all other surfaces render
+/// structured fields directly.
+fn format_diagnostic_for_guidance(d: &ox_query_ir::query::QueryDiagnostic) -> String {
+    // `level` serialises as `"warning"` / `"error"` / `"info"` on the
+    // wire; mirror that lowercase rendering in the LLM tail so
+    // operators and the model see one consistent token across logs,
+    // responses, and prompts.
+    let level = match d.level {
+        ox_query_ir::query::DiagnosticLevel::Error => "error",
+        ox_query_ir::query::DiagnosticLevel::Warning => "warning",
+        ox_query_ir::query::DiagnosticLevel::Info => "info",
+    };
+    format!("{} {}: {}", d.validator, level, d.message)
+}
+
+/// Translate a strict-advisory diagnostic tagged `validator:"shacl"`
+/// into the typed [`ShaclFailureKind`] for the signal store. Falls
+/// back to `Other` when the message fingerprint doesn't match a
+/// known bucket — `Other` itself is a first-class variant so every
+/// failure still shows up in the failure-kind histogram.
+fn first_shacl_failure_kind(
+    diagnostics: &[ox_query_ir::query::QueryDiagnostic],
+) -> Option<ox_store::ShaclFailureKind> {
+    use ox_query_ir::query::DiagnosticLevel;
+    use ox_store::ShaclFailureKind;
+
+    diagnostics
+        .iter()
+        .find(|d| d.validator == "shacl" && d.level == DiagnosticLevel::Error)
+        .map(|d| {
+            let msg = d.message.to_ascii_lowercase();
+            // Fingerprint on the bits of message text the ShaclValidator
+            // emits today (see `crates/ox-runtime/src/cypher/shacl_validator.rs`).
+            // Matching is substring-based so wording tweaks don't
+            // invalidate the histogram until a validator rewrite
+            // renames the category outright.
+            if msg.contains("required by rule") || msg.contains("mincount") {
+                ShaclFailureKind::MandatoryPropertyMissing
+            } else if msg.contains("not defined")
+                || msg.contains("violates rule")
+                || msg.contains("not an enum")
+            {
+                ShaclFailureKind::UnknownCodedValue
+            } else if msg.contains("measure") && msg.contains("group by") {
+                ShaclFailureKind::MeasureGroupBy
+            } else if msg.contains("cardinality")
+                || msg.contains("many_to_many")
+                || msg.contains("distinct")
+            {
+                ShaclFailureKind::CardinalityViolation
+            } else if msg.contains("temporal") || msg.contains("grain") {
+                ShaclFailureKind::TemporalGrainMismatch
+            } else {
+                ShaclFailureKind::Other
+            }
+        })
+}
+
+/// Assemble a `QueryExecutionSignal` from the agent-path context.
+/// `anchor_top_score` is always `None` here — the agent's NL→Cypher
+/// path doesn't yet route through [`OntologyNavigationStore::search_entry_points`],
+/// so anchor telemetry is captured only where that API is called
+/// (future Progressive Disclosure wiring).
+fn build_query_execution_signal(
+    execution_id: Uuid,
+    workspace_id: Uuid,
+    query_ir: &ox_query_ir::query::QueryIR,
+    provenance: Option<&ox_query_ir::query::QueryProvenance>,
+    validator_notes: &[ox_query_ir::query::QueryDiagnostic],
+) -> ox_store::QueryExecutionSignal {
+    // SHACL failure: any `validator: "shacl"` entry with `Error` level
+    // in the strict re-pass means the runtime's permissive pass let
+    // the query through but the stricter set would have rejected it.
+    let shacl_failure_kind = first_shacl_failure_kind(validator_notes);
+    let shacl_passed = shacl_failure_kind.is_none();
+
+    // `type_ids` is `Vec<String>` on `QueryProvenance`. Signal store
+    // wants `Vec<Uuid>` so non-parseable ids (external identifiers,
+    // legacy strings) are skipped — the metric's accuracy depends on
+    // UUIDs anyway (FK into ontology rows).
+    let referenced_type_ids: Vec<Uuid> = provenance
+        .map(|p| {
+            p.type_ids
+                .iter()
+                .filter_map(|s| Uuid::parse_str(s).ok())
+                .collect()
+        })
+        .unwrap_or_default();
+
+    ox_store::QueryExecutionSignal {
+        execution_id,
+        workspace_id,
+        captured_at: Utc::now(),
+        anchor_top_score: None,
+        anchor_hit_kinds: Vec::new(),
+        glossary_term_hits: Vec::new(),
+        ambiguity_resolution_ids: Vec::new(),
+        ambiguity_was_clarified: false,
+        shacl_passed,
+        shacl_failure_kind,
+        query_ir_normalized_hash: query_ir.canonical_hash(),
+        referenced_type_ids,
+    }
+}
+
+/// `(type_id, kind)` pairs feeding the `ontology_type_last_used`
+/// upsert. Kind defaults to `"NodeType"` since the provenance
+/// currently tags every id by node-type heuristics — a future
+/// signal version can carry edge-type / property-level kinds when
+/// the provenance does.
+fn signal_type_kinds(
+    provenance: Option<&ox_query_ir::query::QueryProvenance>,
+) -> Vec<(Uuid, String)> {
+    provenance
+        .map(|p| {
+            p.type_ids
+                .iter()
+                .filter_map(|s| Uuid::parse_str(s).ok().map(|u| (u, "NodeType".to_string())))
+                .collect()
+        })
+        .unwrap_or_default()
 }

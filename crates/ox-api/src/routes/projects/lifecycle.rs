@@ -8,14 +8,13 @@ use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use ox_core::LocalizedText;
-use ox_core::design_project::{
+use ox_ontology::design_project::{
     DesignProjectStatus, SourceConfig, SourceHistoryEntry, SourceTypeKind,
 };
-use ox_core::quality::OntologyQualityReport;
-use ox_core::source_analysis::DesignOptions;
+use ox_ontology::quality::OntologyQualityReport;
+use ox_ontology::source_analysis::DesignOptions;
 use ox_store::store::CursorParams;
-use ox_store::{DesignProject, DesignProjectSummary, SavedOntology};
+use ox_store::{DesignProject, DesignProjectSummary};
 
 use ox_source::fetcher::DataSourceFetcher;
 
@@ -57,16 +56,35 @@ pub(crate) async fn create_project(
     let now = Utc::now();
 
     let project = match req.origin {
-        ProjectOrigin::BaseOntology {
-            base_saved_ontology_id,
-        } => {
+        ProjectOrigin::BaseOntology { base_ontology_id } => {
             // --- From existing ontology ---
-            let saved = state
+            // Resolve identity → current version → hydrate IR. The new
+            // project carries the IR JSON so downstream design edits
+            // operate on a local copy; the link back to `ontologies.id`
+            // is established only on completion.
+            let identity = state
                 .store
-                .get_saved_ontology(base_saved_ontology_id)
+                .get_ontology(base_ontology_id)
                 .await
                 .map_err(AppError::from)?
                 .ok_or_else(AppError::ontology_not_found)?;
+            let version = state
+                .store
+                .get_current_version(identity.id)
+                .await
+                .map_err(AppError::from)?
+                .ok_or_else(|| {
+                    AppError::unprocessable(format!(
+                        "Ontology `{}` has no committed version",
+                        identity.lineage_id
+                    ))
+                })?;
+            let ir = state
+                .store
+                .load_version(version.id)
+                .await
+                .map_err(AppError::from)?;
+            let ontology_json = AppError::to_json(&ir)?;
 
             let source_config = SourceConfig {
                 source_type: SourceTypeKind::Ontology,
@@ -95,9 +113,9 @@ pub(crate) async fn create_project(
                 analysis_report: None,
                 design_options: AppError::to_json(&DesignOptions::default())?,
                 source_mapping: None,
-                ontology: Some(saved.ontology_ir),
+                ontology: Some(ontology_json),
                 quality_report: None,
-                saved_ontology_id: None,
+                ontology_id: None,
                 source_history: AppError::to_json(&vec![history_entry])?,
                 created_at: now,
                 updated_at: now,
@@ -138,7 +156,7 @@ pub(crate) async fn create_project(
                     source_mapping: None,
                     ontology: None,
                     quality_report: None,
-                    saved_ontology_id: None,
+                    ontology_id: None,
                     source_history: AppError::to_json(&vec![history_entry])?,
                     created_at: now,
                     updated_at: now,
@@ -226,7 +244,7 @@ pub(crate) async fn create_project(
                 source_mapping: None,
                 ontology: None,
                 quality_report: None,
-                saved_ontology_id: None,
+                ontology_id: None,
                 source_history: AppError::to_json(&vec![history_entry])?,
                 created_at: now,
                 updated_at: now,
@@ -382,7 +400,7 @@ pub(crate) async fn delete_project(
 
         // Fire-and-forget: clean up orphaned memory entries for the deleted project's ontology.
         if let Some(ref memory) = state.memory
-            && let Some(ontology_id) = project.saved_ontology_id
+            && let Some(ontology_id) = project.ontology_id
         {
             let mem = Arc::clone(memory);
             let oid = ontology_id.to_string();
@@ -423,7 +441,7 @@ pub(crate) async fn delete_project(
 pub(crate) async fn complete_project(
     State(state): State<AppState>,
     principal: Principal,
-    ws: crate::workspace::WorkspaceContext,
+    _ws: crate::workspace::WorkspaceContext,
     Path(id): Path<Uuid>,
     Json(req): Json<ProjectCompleteRequest>,
 ) -> Result<Json<ApiResponse<DesignProject>>, AppError> {
@@ -434,47 +452,102 @@ pub(crate) async fn complete_project(
     if !req.acknowledge_quality_risks
         && let Some(qr) = &project.quality_report
         && let Ok(report) = serde_json::from_value::<OntologyQualityReport>(qr.clone())
-        && !matches!(report.confidence, ox_core::quality::QualityConfidence::High)
+        && !matches!(report.confidence, ox_ontology::quality::QualityConfidence::High)
     {
         return Err(AppError::quality_gate(format!(
             "Quality confidence is '{}'. Resolve gaps via refine, \
              or set acknowledge_quality_risks=true to proceed.",
             match report.confidence {
-                ox_core::quality::QualityConfidence::Low => "low",
-                ox_core::quality::QualityConfidence::Medium => "medium",
-                ox_core::quality::QualityConfidence::High => "high",
+                ox_ontology::quality::QualityConfidence::Low => "low",
+                ox_ontology::quality::QualityConfidence::Medium => "medium",
+                ox_ontology::quality::QualityConfidence::High => "high",
             }
         )));
     }
 
-    let ontology_ir = project
+    let ontology_json = project
         .ontology
         .as_ref()
         .ok_or_else(AppError::no_ontology)?
         .clone();
+    let ontology: ox_ontology::OntologyIR = serde_json::from_value(ontology_json)
+        .map_err(|e| AppError::internal(format!("Failed to parse project ontology: {e}")))?;
 
-    // Determine next version
-    let latest = state
+    // Identity resolution: find or create the `ontologies` row named by the
+    // caller. Existing identity + has a current version → this is version N+1
+    // in the same lineage; no identity → first version of a new lineage.
+    let existing_identity = state
         .store
-        .get_latest_ontology(&req.name)
+        .find_ontology_by_name(&req.name)
         .await
         .map_err(AppError::from)?;
-    let next_version = latest.as_ref().map_or(1, |o| o.version + 1);
 
-    let saved = SavedOntology {
-        id: Uuid::new_v4(),
-        workspace_id: ws.workspace_id,
-        name: req.name,
-        description: req.description,
-        version: next_version,
-        ontology_ir,
-        created_by: principal.id.clone(),
-        created_at: Utc::now(),
-    };
+    let (identity, parent_version, next_version_tag, previous_ir) =
+        if let Some(identity) = existing_identity {
+            let current = state
+                .store
+                .get_current_version(identity.id)
+                .await
+                .map_err(AppError::from)?;
+            let next_tag = current
+                .as_ref()
+                .map(|v| super::helpers::next_ontology_version_tag(&v.version))
+                .unwrap_or_else(|| "1".to_string());
+            let prev_ir = if let Some(v) = &current {
+                Some(
+                    state
+                        .store
+                        .load_version(v.id)
+                        .await
+                        .map_err(AppError::from)?,
+                )
+            } else {
+                None
+            };
+            (identity, current.map(|v| v.id), next_tag, prev_ir)
+        } else {
+            let description_json = AppError::to_json(&req.description)?;
+            // Seed the new identity's lineage id from the ontology's own id —
+            // external references (quality rules, saved queries) already point
+            // at that string under the legacy schema, so keeping it anchors
+            // them across the Λ cutover.
+            let lineage_seed = if ontology.id.is_empty() {
+                None
+            } else {
+                Some(ontology.id.as_str())
+            };
+            let identity = state
+                .store
+                .create_ontology(&req.name, &description_json, lineage_seed)
+                .await
+                .map_err(AppError::from)?;
+            (identity, None, "1".to_string(), None)
+        };
+
+    let commit_message = format!(
+        "Completed design project {id} — v{next_version_tag}{maybe_note}",
+        maybe_note = if parent_version.is_some() {
+            ""
+        } else {
+            " (initial commit)"
+        }
+    );
+    let snapshot = state
+        .store
+        .commit_version(
+            identity.id,
+            &ontology,
+            &next_version_tag,
+            parent_version,
+            &principal.id,
+            &commit_message,
+        )
+        .await
+        .map_err(AppError::from)?;
 
     state
         .store
-        .complete_design_project(id, &saved, req.revision)
+        .complete_design_project(id, identity.id, req.revision)
         .await
         .map_err(AppError::from)?;
 
@@ -490,71 +563,60 @@ pub(crate) async fn complete_project(
         cache.invalidate_all();
     }
 
-    info!(project_id = %id, ontology_id = %saved.id, "Design project completed");
+    info!(
+        project_id = %id,
+        ontology_id = %identity.id,
+        version_id = %snapshot.id,
+        version = %next_version_tag,
+        "Design project completed"
+    );
 
     // Schema RAG indexing: embed ontology nodes for vector search in query translation.
     // Non-blocking — indexing failure doesn't affect project completion.
     if let Some(memory) = &state.memory {
         let memory = Arc::clone(memory);
-        let ontology_id = saved.id.to_string();
-        let ontology: ox_core::OntologyIR = serde_json::from_value(saved.ontology_ir.clone())
-            .unwrap_or_else(|e| {
-                tracing::warn!(error = %e, "Failed to deserialize ontology for schema indexing");
-                ox_core::OntologyIR::new(
-                    String::new(),
-                    String::new(),
-                    LocalizedText::default(),
-                    0,
-                    vec![],
-                    vec![],
-                    vec![],
-                )
-            });
+        let ontology_key = identity.id.to_string();
+        let ont_clone = ontology.clone();
         crate::spawn_scoped::spawn_scoped(async move {
-            ox_brain::schema_rag::index_ontology_schema(&memory, &ontology, &ontology_id).await;
+            ox_brain::schema_rag::index_ontology_schema(&memory, &ont_clone, &ontology_key).await;
         });
     }
 
     // Knowledge lifecycle: mark stale entries when breaking schema changes detected.
     // Non-blocking — lifecycle failure doesn't affect project completion.
-    if next_version > 1
-        && let Some(prev) = &latest
-    {
+    if let Some(prev_ont) = previous_ir {
         let store = Arc::clone(&state.store);
-        let ontology_name = saved.name.clone();
-        let prev_ir = prev.ontology_ir.clone();
-        let new_ir = saved.ontology_ir.clone();
+        let ontology_name = req.name.clone();
+        let new_ont = ontology.clone();
         crate::spawn_scoped::spawn_scoped(async move {
-            if let (Ok(old_ont), Ok(new_ont)) = (
-                serde_json::from_value::<ox_core::OntologyIR>(prev_ir),
-                serde_json::from_value::<ox_core::OntologyIR>(new_ir),
-            ) {
-                let diff = ox_core::compute_diff(&old_ont, &new_ont);
-                if !diff.is_empty() {
-                    let breaking = ox_core::breaking_labels(&diff);
-                    if !breaking.is_empty() {
-                        // Postgres binding expects `&[String]`; the
-                        // breaking_labels call returns GraphLabel so we
-                        // unwrap through `.to_string()` at the store
-                        // boundary rather than threading a newtype
-                        // through the sqlx encoder.
-                        let breaking_str: Vec<String> =
-                            breaking.iter().map(|l| l.to_string()).collect();
-                        match store.mark_stale_by_labels(&ontology_name, &breaking_str).await {
-                            Ok(count) if count > 0 => {
-                                tracing::info!(
-                                    ontology = %ontology_name,
-                                    stale_count = count,
-                                    "Marked knowledge entries as stale due to breaking schema changes"
-                                );
-                            }
-                            Err(e) => {
-                                tracing::warn!(error = %e, "Knowledge lifecycle failed");
-                            }
-                            _ => {}
-                        }
-                    }
+            let diff = ox_ontology::compute_diff(&prev_ont, &new_ont);
+            if diff.is_empty() {
+                return;
+            }
+            let breaking = ox_ontology::breaking_labels(&diff);
+            if breaking.is_empty() {
+                return;
+            }
+            // Postgres binding expects `&[String]`; the breaking_labels
+            // call returns GraphLabel so we unwrap through `.to_string()`
+            // at the store boundary rather than threading a newtype
+            // through the sqlx encoder.
+            let breaking_str: Vec<String> = breaking.iter().map(|l| l.to_string()).collect();
+            match store
+                .mark_stale_by_labels(&ontology_name, &breaking_str)
+                .await
+            {
+                Ok(count) if count > 0 => {
+                    tracing::info!(
+                        ontology = %ontology_name,
+                        stale_count = count,
+                        "Marked knowledge entries as stale due to breaking schema changes"
+                    );
                 }
+                Err(e) => {
+                    tracing::warn!(error = %e, "Knowledge lifecycle failed");
+                }
+                _ => {}
             }
         });
     }
@@ -632,7 +694,7 @@ pub(crate) async fn deploy_schema(
         .ok_or_else(AppError::project_not_found)?;
 
     let ontology_json = project.ontology.ok_or_else(AppError::no_ontology)?;
-    let ontology: ox_core::ontology_ir::OntologyIR = serde_json::from_value(ontology_json)
+    let ontology: ox_ontology::ir::OntologyIR = serde_json::from_value(ontology_json)
         .map_err(|e| AppError::internal(format!("Failed to parse ontology: {e}")))?;
 
     let statements = state
@@ -692,7 +754,7 @@ pub(crate) async fn deploy_schema(
 pub struct ProjectLoadPlanResponse {
     /// The generated load plan
     #[schema(value_type = Object)]
-    pub plan: ox_core::load_plan::LoadPlan,
+    pub plan: ox_ontology::load_plan::LoadPlan,
 }
 
 #[utoipa::path(
@@ -725,13 +787,13 @@ pub(crate) async fn generate_load_plan(
         .ontology
         .as_ref()
         .ok_or_else(AppError::no_ontology)?;
-    let ontology: ox_core::ontology_ir::OntologyIR = serde_json::from_value(ontology_json.clone())
+    let ontology: ox_ontology::ir::OntologyIR = serde_json::from_value(ontology_json.clone())
         .map_err(|e| AppError::internal(format!("Failed to parse ontology: {e}")))?;
 
     let source_mapping_json = project.source_mapping.as_ref().ok_or_else(|| {
         AppError::bad_request("Project has no source mapping — design the ontology first")
     })?;
-    let source_mapping: ox_core::SourceMapping =
+    let source_mapping: ox_ontology::SourceMapping =
         serde_json::from_value(source_mapping_json.clone())
             .map_err(|e| AppError::internal(format!("Failed to parse source mapping: {e}")))?;
 
@@ -771,7 +833,7 @@ pub(crate) async fn generate_load_plan(
 pub struct ProjectLoadCompileRequest {
     /// The load plan to compile
     #[schema(value_type = Object)]
-    pub plan: ox_core::load_plan::LoadPlan,
+    pub plan: ox_ontology::load_plan::LoadPlan,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
@@ -833,7 +895,7 @@ pub(crate) async fn compile_load(
 pub struct ProjectLoadExecuteRequest {
     /// Pre-computed load plan (from generate_load_plan or manual)
     #[schema(value_type = Object)]
-    pub plan: ox_core::load_plan::LoadPlan,
+    pub plan: ox_ontology::load_plan::LoadPlan,
     /// Source database connection string (required for fetching data)
     pub connection_string: String,
     /// Batch size for fetching rows (default: 1000)
@@ -892,12 +954,12 @@ pub(crate) async fn execute_load_from_source(
     let source_mapping_json = project.source_mapping.as_ref().ok_or_else(|| {
         AppError::bad_request("Project has no source mapping — design the ontology first")
     })?;
-    let source_mapping: ox_core::SourceMapping =
+    let source_mapping: ox_ontology::SourceMapping =
         serde_json::from_value(source_mapping_json.clone())
             .map_err(|e| AppError::internal(format!("Failed to parse source mapping: {e}")))?;
 
     // Determine schema name from project source config
-    let source_config: ox_core::design_project::SourceConfig =
+    let source_config: ox_ontology::design_project::SourceConfig =
         serde_json::from_value(project.source_config.clone())
             .map_err(|e| AppError::internal(format!("Failed to parse source config: {e}")))?;
     let schema_name = source_config.schema_name.as_deref().unwrap_or("public");
@@ -959,10 +1021,10 @@ pub(crate) async fn execute_load_from_source(
 
     // Determine load mode: full (default) or incremental (watermark-based)
     let incremental_config = match &req.plan.mode {
-        ox_core::load_plan::LoadMode::Incremental { watermark_column } => {
+        ox_ontology::load_plan::LoadMode::Incremental { watermark_column } => {
             Some(watermark_column.clone())
         }
-        ox_core::load_plan::LoadMode::Full => None,
+        ox_ontology::load_plan::LoadMode::Full => None,
     };
 
     // Execute each load step: fetch from source table → execute against graph
@@ -1186,16 +1248,18 @@ pub(crate) async fn execute_load_from_source(
     );
 
     // Auto-enrich ontology descriptions with sample values from loaded data.
-    // Fire-and-forget: enrichment failure doesn't affect load success.
-    if let (Some(runtime), Some(ont_id)) = (&state.runtime, project.saved_ontology_id) {
+    // Fire-and-forget: enrichment failure doesn't affect load success. Under
+    // the Λ storage model, each enrichment produces a new version snapshot
+    // (immutable history) rather than overwriting an IR in place.
+    if let (Some(runtime), Some(ont_id)) = (&state.runtime, project.ontology_id) {
         let runtime = Arc::clone(runtime);
         let store = Arc::clone(&state.store);
-        let ontology_json = project.ontology.clone();
+        let committer = principal.id.clone();
         crate::spawn_scoped::spawn_scoped(async move {
-            let Some(ont_json) = ontology_json else {
+            let Ok(Some(current_version)) = store.get_current_version(ont_id).await else {
                 return;
             };
-            let Ok(ontology) = serde_json::from_value::<ox_core::OntologyIR>(ont_json) else {
+            let Ok(ontology) = store.load_version(current_version.id).await else {
                 return;
             };
             let config =
@@ -1206,15 +1270,34 @@ pub(crate) async fn execute_load_from_source(
                 return;
             };
             let result = ox_runtime::enrichment::enrich_descriptions(&ontology, &profile);
-            if !result.changes.is_empty()
-                && let Ok(ir_json) = serde_json::to_value(&result.ontology)
+            if result.changes.is_empty() {
+                return;
+            }
+            let next_tag =
+                crate::routes::projects::helpers::next_ontology_version_tag(&current_version.version);
+            let message = format!(
+                "Auto-enrichment after data load: {} property description(s) updated",
+                result.changes.len()
+            );
+            match store
+                .commit_version(
+                    ont_id,
+                    &result.ontology,
+                    &next_tag,
+                    Some(current_version.id),
+                    &committer,
+                    &message,
+                )
+                .await
             {
-                let _ = store.update_ontology_ir(ont_id, &ir_json).await;
-                tracing::info!(
+                Ok(snapshot) => tracing::info!(
                     ontology_id = %ont_id,
+                    version_id = %snapshot.id,
+                    version = %next_tag,
                     changes = result.changes.len(),
                     "Auto-enriched ontology after data load"
-                );
+                ),
+                Err(e) => tracing::warn!(error = %e, "Auto-enrichment commit failed"),
             }
         });
     }
@@ -1259,10 +1342,10 @@ pub(crate) async fn execute_load_from_source(
 
 /// Resolve which source table to fetch from, given a load operation and source mapping.
 fn resolve_source_table(
-    op: &ox_core::load_plan::LoadOp,
-    source_mapping: &ox_core::SourceMapping,
+    op: &ox_ontology::load_plan::LoadOp,
+    source_mapping: &ox_ontology::SourceMapping,
 ) -> Option<String> {
-    use ox_core::load_plan::LoadOp;
+    use ox_ontology::load_plan::LoadOp;
 
     match op {
         LoadOp::UpsertNode { target_label, .. } => {
@@ -1320,8 +1403,8 @@ struct FlatPropertyMapping {
 }
 
 /// Extract all property mappings from a LoadPlan, grouped by target label.
-fn extract_all_mappings(plan: &ox_core::load_plan::LoadPlan) -> Vec<LabelMappings> {
-    use ox_core::load_plan::LoadOp;
+fn extract_all_mappings(plan: &ox_ontology::load_plan::LoadPlan) -> Vec<LabelMappings> {
+    use ox_ontology::load_plan::LoadOp;
 
     plan.steps
         .iter()
@@ -1397,8 +1480,8 @@ fn extract_all_mappings(plan: &ox_core::load_plan::LoadPlan) -> Vec<LabelMapping
 }
 
 /// Extract source column names from a load operation's property mappings.
-fn extract_source_columns(op: &ox_core::load_plan::LoadOp) -> Vec<String> {
-    use ox_core::load_plan::LoadOp;
+fn extract_source_columns(op: &ox_ontology::load_plan::LoadOp) -> Vec<String> {
+    use ox_ontology::load_plan::LoadOp;
 
     match op {
         LoadOp::UpsertNode {
@@ -1433,8 +1516,8 @@ fn extract_source_columns(op: &ox_core::load_plan::LoadOp) -> Vec<String> {
 }
 
 /// Extract the graph label from a load operation (for checkpoint keying).
-fn graph_label_for_op(op: &ox_core::load_plan::LoadOp) -> String {
-    use ox_core::load_plan::LoadOp;
+fn graph_label_for_op(op: &ox_ontology::load_plan::LoadOp) -> String {
+    use ox_ontology::load_plan::LoadOp;
     match op {
         LoadOp::UpsertNode { target_label, .. } => target_label.clone(),
         LoadOp::UpsertEdge { target_label, .. } => target_label.clone(),

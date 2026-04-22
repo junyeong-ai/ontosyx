@@ -26,7 +26,7 @@ use neo4rs::{ConfigBuilder, Graph, query};
 use tracing::info;
 
 use ox_core::error::{OxError, OxResult};
-use ox_core::query_ir::{QueryMetadata, QueryResult};
+use ox_query_ir::query::{QueryMetadata, QueryResult};
 use ox_core::types::PropertyValue;
 
 use crate::bolt::{
@@ -214,6 +214,8 @@ impl GraphRuntime for MemGraphRuntime {
                 rows_returned: row_count,
                 nodes_affected: None,
                 edges_affected: None,
+                provenance: None,
+                warnings: Vec::new(),
             },
         })
     }
@@ -277,8 +279,8 @@ impl GraphRuntime for MemGraphRuntime {
         search_query: &str,
         limit: usize,
         labels: Option<&[String]>,
-    ) -> OxResult<Vec<ox_core::graph_exploration::SearchResultNode>> {
-        use ox_core::graph_exploration::SearchResultNode;
+    ) -> OxResult<Vec<ox_ontology::graph_exploration::SearchResultNode>> {
+        use ox_ontology::graph_exploration::SearchResultNode;
 
         let label_match = match labels {
             Some(lbls) if !lbls.is_empty() => {
@@ -375,8 +377,8 @@ impl GraphRuntime for MemGraphRuntime {
         &self,
         element_id: &str,
         limit: usize,
-    ) -> OxResult<ox_core::graph_exploration::NodeExpansion> {
-        use ox_core::graph_exploration::{ExpandNeighbor, NodeExpansion};
+    ) -> OxResult<ox_ontology::graph_exploration::NodeExpansion> {
+        use ox_ontology::graph_exploration::{ExpandNeighbor, NodeExpansion};
 
         // Memgraph uses id(n) (integer) instead of elementId(n) (string).
         // Try parsing as integer first; fall back to string comparison.
@@ -465,8 +467,8 @@ impl GraphRuntime for MemGraphRuntime {
         })
     }
 
-    async fn graph_overview(&self) -> OxResult<ox_core::graph_exploration::GraphSchemaOverview> {
-        use ox_core::graph_exploration::{GraphSchemaOverview, LabelStat, RelationshipPattern};
+    async fn graph_overview(&self) -> OxResult<ox_ontology::graph_exploration::GraphSchemaOverview> {
+        use ox_ontology::graph_exploration::{GraphSchemaOverview, LabelStat, RelationshipPattern};
 
         let empty_params = HashMap::new();
 

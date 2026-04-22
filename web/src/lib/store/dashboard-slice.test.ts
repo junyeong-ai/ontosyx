@@ -76,4 +76,58 @@ describe("DashboardSlice", () => {
     store.getState().setDashboardWidgetCount(5);
     expect(store.getState().dashboardWidgetCount).toBe(5);
   });
+
+  // -------------------------------------------------------------------
+  // Dashboard-scoped type-filter cross-widget coordination
+  // -------------------------------------------------------------------
+
+  it("dashboardTypeFilters defaults to empty object", () => {
+    expect(store.getState().dashboardTypeFilters).toEqual({});
+  });
+
+  it("toggleDashboardType adds a type when absent", () => {
+    store.getState().toggleDashboardType("d1", "Person");
+    expect(store.getState().dashboardTypeFilters).toEqual({ d1: ["Person"] });
+  });
+
+  it("toggleDashboardType removes a type when present", () => {
+    store.getState().toggleDashboardType("d1", "Person");
+    store.getState().toggleDashboardType("d1", "Person");
+    expect(store.getState().dashboardTypeFilters).toEqual({ d1: [] });
+  });
+
+  it("toggleDashboardType isolates different dashboards", () => {
+    store.getState().toggleDashboardType("d1", "Person");
+    store.getState().toggleDashboardType("d2", "Company");
+    expect(store.getState().dashboardTypeFilters).toEqual({
+      d1: ["Person"],
+      d2: ["Company"],
+    });
+  });
+
+  it("setDashboardTypeHidden is idempotent on matching state", () => {
+    store.getState().setDashboardTypeHidden("d1", "Person", true);
+    const snapshot = store.getState().dashboardTypeFilters;
+    store.getState().setDashboardTypeHidden("d1", "Person", true);
+    expect(store.getState().dashboardTypeFilters).toBe(snapshot);
+  });
+
+  it("setDashboardTypeHidden false removes a hidden type", () => {
+    store.getState().setDashboardTypeHidden("d1", "Person", true);
+    store.getState().setDashboardTypeHidden("d1", "Person", false);
+    expect(store.getState().dashboardTypeFilters.d1).toEqual([]);
+  });
+
+  it("clearDashboardTypes drops the dashboard entry", () => {
+    store.getState().toggleDashboardType("d1", "Person");
+    store.getState().toggleDashboardType("d2", "Company");
+    store.getState().clearDashboardTypes("d1");
+    expect(store.getState().dashboardTypeFilters).toEqual({ d2: ["Company"] });
+  });
+
+  it("clearDashboardTypes is a no-op on absent key", () => {
+    const snapshot = store.getState().dashboardTypeFilters;
+    store.getState().clearDashboardTypes("never-existed");
+    expect(store.getState().dashboardTypeFilters).toBe(snapshot);
+  });
 });

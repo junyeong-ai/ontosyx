@@ -10,6 +10,34 @@ use serde_json::Value;
 const INLINE_TABLE_NAME: &str = "records";
 const MAX_DISTINCT_VALUES: usize = 30;
 
+/// Upper bound on the size of an in-memory CSV / JSON payload the
+/// analyzer will accept. Both `analyze_csv` and `analyze_json` materialise
+/// the full input into memory (the CSV reader collects every row into
+/// `Vec<Row>`; `serde_json::from_str` parses the whole tree). Without a
+/// cap a 1 GiB CSV would OOM the process before a single schema row
+/// was produced. 100 MiB covers every realistic inline / file-upload
+/// workload and still rejects denial-of-service payloads eagerly.
+///
+/// Large data sets belong in a DataSourceAdapter backed by a real DB
+/// (DuckDB, PostgreSQL) which scans lazily. When this limit is hit the
+/// error points the caller at that path explicitly.
+pub const MAX_INLINE_SOURCE_BYTES: usize = 100 * 1024 * 1024;
+
+fn guard_payload_size(source_type: &str, data: &str) -> OxResult<()> {
+    if data.len() > MAX_INLINE_SOURCE_BYTES {
+        return Err(OxError::Validation {
+            field: "source.data".to_string(),
+            message: format!(
+                "{source_type} payload is {} bytes; the inline analyzer caps at {} bytes. \
+                 Load large files through a DuckDB / PostgreSQL adapter instead of inline.",
+                data.len(),
+                MAX_INLINE_SOURCE_BYTES,
+            ),
+        });
+    }
+    Ok(())
+}
+
 #[derive(Clone, Debug)]
 struct Cell {
     raw: Option<String>,
@@ -19,6 +47,8 @@ struct Cell {
 type Row = BTreeMap<String, Cell>;
 
 pub fn analyze_csv(data: &str) -> OxResult<(SourceSchema, SourceProfile)> {
+    guard_payload_size("csv", data)?;
+
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(true)
         .from_reader(data.as_bytes());
@@ -62,6 +92,8 @@ pub fn analyze_csv(data: &str) -> OxResult<(SourceSchema, SourceProfile)> {
 }
 
 pub fn analyze_json(data: &str) -> OxResult<(SourceSchema, SourceProfile)> {
+    guard_payload_size("json", data)?;
+
     let value: Value = serde_json::from_str(data).map_err(|e| OxError::Validation {
         field: "source.data".to_string(),
         message: format!("Invalid JSON source: {e}"),
@@ -480,23 +512,57 @@ fn infer_scalar_type(raw: &str) -> &'static str {
 // so every method is O(1) w.r.t. I/O and returns cloned snapshots.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
+use arrow_array::RecordBatch;
+use arrow_array::{ArrayRef, builder::ArrayBuilder};
+use arrow_schema::Schema;
 use async_trait::async_trait;
 
 use crate::DataSourceAdapter;
+use crate::json_scan::append_json_cell;
+use crate::normalize::describe_to_arrow_schema;
+use crate::text_scan::{append_text_cell, make_builder};
 
 /// A [`DataSourceAdapter`] backed by in-memory CSV data.
+///
+/// The raw CSV string is held in an `Arc<str>` so cheap `clone`s keep
+/// `scan()` re-parsable without mutating the adapter. This costs one
+/// 1× payload copy at construction (bounded by `MAX_INLINE_SOURCE_BYTES`)
+/// in exchange for a scan path that stays faithful to the analyzer
+/// pipeline — value parsing goes through the same `infer_scalar_type`
+/// choices the schema was built from, so column types in a scanned
+/// `RecordBatch` line up with the Arrow schema reported by
+/// [`crate::normalize::describe_to_arrow_schema`].
 pub struct CsvAdapter {
+    raw_data: Arc<str>,
     schema: SourceSchema,
     stats_by_column: HashMap<(String, String), ColumnStats>,
     counts_by_table: HashMap<String, u64>,
 }
 
 impl CsvAdapter {
-    pub fn new(data: &str) -> OxResult<Self> {
-        let (schema, profile) = analyze_csv(data)?;
+    /// Build an adapter from an inline CSV payload.
+    ///
+    /// Accepts any `Into<Arc<str>>` so callers can pass a borrowed
+    /// `&str`, an owned `String`, or an already-shared `Arc<str>`
+    /// without the ctor choosing for them. The latter two
+    /// conversions are zero-copy (`Arc::from(String)` reuses the
+    /// String's allocation; `Arc<str> → Arc<str>` is a refcount
+    /// bump). The `&str` branch allocates once — unavoidable to
+    /// take ownership.
+    ///
+    /// This is load-bearing for the federation inline-CSV flow: the
+    /// `Credential::Inline { value: Arc<str> }` produced by the
+    /// admin handler is handed directly to this ctor, so a 100 MiB
+    /// payload crosses the boundary as a refcount bump, not a
+    /// memcpy.
+    pub fn new(data: impl Into<Arc<str>>) -> OxResult<Self> {
+        let raw_data: Arc<str> = data.into();
+        let (schema, profile) = analyze_csv(&raw_data)?;
         let (stats_by_column, counts_by_table) = index_profile(&profile);
         Ok(Self {
+            raw_data,
             schema,
             stats_by_column,
             counts_by_table,
@@ -506,16 +572,26 @@ impl CsvAdapter {
 
 /// A [`DataSourceAdapter`] backed by in-memory JSON data.
 pub struct JsonAdapter {
+    /// Raw JSON payload — kept around so `scan()` can rematerialise
+    /// the top-level table into Arrow. Held behind an `Arc<str>` so
+    /// per-scan cloning is cheap and the value is immutably shared
+    /// across async tasks (DataSourceAdapter is `Send + Sync`).
+    raw_data: Arc<str>,
     schema: SourceSchema,
     stats_by_column: HashMap<(String, String), ColumnStats>,
     counts_by_table: HashMap<String, u64>,
 }
 
 impl JsonAdapter {
-    pub fn new(data: &str) -> OxResult<Self> {
-        let (schema, profile) = analyze_json(data)?;
+    /// Build an adapter from an inline JSON payload. See
+    /// [`CsvAdapter::new`] for the `impl Into<Arc<str>>` rationale;
+    /// semantics are identical.
+    pub fn new(data: impl Into<Arc<str>>) -> OxResult<Self> {
+        let raw_data: Arc<str> = data.into();
+        let (schema, profile) = analyze_json(&raw_data)?;
         let (stats_by_column, counts_by_table) = index_profile(&profile);
         Ok(Self {
+            raw_data,
             schema,
             stats_by_column,
             counts_by_table,
@@ -547,6 +623,18 @@ impl DataSourceAdapter for CsvAdapter {
     async fn list_foreign_keys(&self) -> OxResult<Vec<ForeignKeyDef>> {
         Ok(self.schema.foreign_keys.clone())
     }
+
+    async fn scan(
+        &self,
+        table: &str,
+        projection: Option<Vec<usize>>,
+        limit: Option<usize>,
+    ) -> OxResult<RecordBatch> {
+        let table_def = describe_from_schema(&self.schema, table)?;
+        let raw = Arc::clone(&self.raw_data);
+        let arrow_schema = describe_to_arrow_schema("csv", &table_def);
+        scan_csv_into_batch(&raw, &table_def, &arrow_schema, projection, limit)
+    }
 }
 
 #[async_trait]
@@ -573,6 +661,284 @@ impl DataSourceAdapter for JsonAdapter {
     async fn list_foreign_keys(&self) -> OxResult<Vec<ForeignKeyDef>> {
         Ok(self.schema.foreign_keys.clone())
     }
+
+    async fn scan(
+        &self,
+        table: &str,
+        projection: Option<Vec<usize>>,
+        limit: Option<usize>,
+    ) -> OxResult<RecordBatch> {
+        let table_def = describe_from_schema(&self.schema, table)?;
+        let arrow_schema = describe_to_arrow_schema("json", &table_def);
+        let items = self.resolve_items_for_table(table)?;
+        scan_json_items_into_batch(&items, &table_def, &arrow_schema, projection, limit)
+    }
+}
+
+impl JsonAdapter {
+    /// Return the slice of JSON items that make up `table`'s rows.
+    ///
+    /// Recognised relations map to items as follows:
+    ///
+    /// - [`INLINE_TABLE_NAME`] (`"records"`) — the payload itself is
+    ///   an array of objects, an object (wrapped to a single row),
+    ///   or a scalar (wrapped into a single `{value: scalar}`
+    ///   object).
+    /// - `records_<a>` — a top-level array-of-objects field.
+    /// - `records_<a>_<b>...` — a nested array-of-objects reached by
+    ///   walking the parent chain (tracked via
+    ///   `schema.foreign_keys`) top-down and flattening each hop.
+    ///
+    /// The parent-chain walk is how we disambiguate field names that
+    /// happen to contain `_`: `records_user_id` is whatever
+    /// `analyze_json` emitted when it saw a top-level `user_id`
+    /// array, while `records_user_id_when_id_is_nested` would have
+    /// distinct FK entries linking it to a chain. `_`-in-name
+    /// collisions never reach scan because the profiler is the
+    /// single source of truth for both naming and the FK chain.
+    fn resolve_items_for_table(&self, table: &str) -> OxResult<Vec<Value>> {
+        let value: Value =
+            serde_json::from_str(&self.raw_data).map_err(|e| OxError::Validation {
+                field: "source.data".to_string(),
+                message: format!("Invalid JSON source: {e}"),
+            })?;
+
+        if table == INLINE_TABLE_NAME {
+            return Ok(match value {
+                Value::Array(items) => items,
+                Value::Object(_) => vec![value],
+                scalar => vec![Value::Object(serde_json::Map::from_iter([(
+                    "value".to_string(),
+                    scalar,
+                )]))],
+            });
+        }
+
+        // Reject unknown tables up-front. Downstream walk assumes
+        // every name in the input appears in the schema.
+        if !self.schema.tables.iter().any(|t| t.name == table) {
+            return Err(OxError::NotFound {
+                entity: format!("table `{table}`"),
+            });
+        }
+
+        let path = self.parent_chain_fields(table);
+        if path.is_empty() {
+            return Err(OxError::UnsupportedOperation {
+                target: "json".into(),
+                operation: format!(
+                    "scan(table={table}) — the profiler did not link this \
+                     relation to any parent, so there is no way to walk the \
+                     JSON payload for its rows"
+                ),
+            });
+        }
+
+        Ok(walk_json_path(&value, &path))
+    }
+
+    /// Build the parent-first field path from `table` up to
+    /// `records`. At each step we find the **longest** known
+    /// sibling table name that is a proper prefix of the current
+    /// table — that table is the parent, and the remainder after
+    /// its `_` delimiter is the field JSON uses to nest it.
+    ///
+    /// Walking against `schema.tables` (not `foreign_keys`)
+    /// side-steps two issues that come up with the profiler's
+    /// naming scheme:
+    ///
+    /// 1. `analyze_json` only emits a `ForeignKeyDef` when the
+    ///    parent table has a primary-key column. A nested array
+    ///    under a PK-less parent leaves the chain unlinked on the
+    ///    FK side; walking `tables` doesn't care.
+    /// 2. Field names can contain `_` (`user_addresses`). A naïve
+    ///    `_`-split heuristic would pick `user` as a parent even
+    ///    when no such table exists. The longest-known-prefix rule
+    ///    picks the right parent deterministically because the
+    ///    profiler already decided what is and isn't a separate
+    ///    table.
+    fn parent_chain_fields(&self, table: &str) -> Vec<String> {
+        let mut path: Vec<String> = Vec::new();
+        let mut current = table.to_string();
+        loop {
+            if current == INLINE_TABLE_NAME {
+                break;
+            }
+            let Some(parent) = self.resolve_parent(&current) else {
+                break;
+            };
+            let prefix = format!("{parent}_");
+            let field = current
+                .strip_prefix(&prefix)
+                .unwrap_or(current.as_str())
+                .to_string();
+            path.push(field);
+            current = parent;
+        }
+        path.reverse();
+        path
+    }
+
+    /// Resolve the immediate parent of `current` in the profiler's
+    /// naming scheme. Returns `None` when no parent can be found —
+    /// that's the terminal condition for the walker.
+    ///
+    /// Two candidate sources, in priority order:
+    ///
+    /// 1. The schema table list itself. The longest known sibling
+    ///    that is a proper `{name}_` prefix of `current` wins.
+    ///    `current` is excluded from its own candidate set.
+    /// 2. [`INLINE_TABLE_NAME`] as an implicit root. When the
+    ///    top-level payload has only nested arrays / objects, the
+    ///    profiler does not emit a `records` entry in
+    ///    `schema.tables` — the child tables still carry the
+    ///    `records_` prefix, so we fall back to the constant.
+    ///
+    /// A schema match, when present, is always at least as long as
+    /// the implicit-root candidate (any schema match that competes
+    /// must already start with `records_`), so `schema_match` wins
+    /// any tie — the single `.or` below is exhaustive.
+    ///
+    /// Prefix checks use byte-level comparison rather than
+    /// `format!("{name}_")` to avoid a per-iteration String
+    /// allocation — for a wide schema this is O(N) allocations
+    /// per walk step, which sample analysis hits on every JSON
+    /// scan.
+    fn resolve_parent(&self, current: &str) -> Option<String> {
+        let schema_match = self
+            .schema
+            .tables
+            .iter()
+            .map(|t| t.name.as_str())
+            .filter(|name| *name != current)
+            .filter(|name| is_underscore_prefix(current, name))
+            .max_by_key(|n| n.len())
+            .map(|s| s.to_string());
+        let implicit_root = is_underscore_prefix(current, INLINE_TABLE_NAME)
+            .then(|| INLINE_TABLE_NAME.to_string());
+        schema_match.or(implicit_root)
+    }
+}
+
+/// Returns true iff `current` is `prefix` followed by an underscore
+/// and then at least one more character — i.e. `prefix` is the
+/// parent table name and `current` is one of its descendants under
+/// the `{parent}_{field}` naming scheme.
+///
+/// Free-function rather than a `str` method so it's reusable and so
+/// both walker candidates run the same check.
+fn is_underscore_prefix(current: &str, prefix: &str) -> bool {
+    current.len() > prefix.len()
+        && current.as_bytes().get(prefix.len()) == Some(&b'_')
+        && current.starts_with(prefix)
+}
+
+/// Walk a parsed JSON payload using the parent-first field path.
+/// Each field takes the current pool of values (objects or a
+/// singleton at the root), looks up the field on each, and flattens
+/// any array-of-objects into the next hop's pool. Non-array /
+/// non-object values contribute nothing.
+fn walk_json_path(top: &Value, path: &[String]) -> Vec<Value> {
+    // Seed: if the top-level is an object, start with a single-item
+    // pool. If it's an array, start with the elements. Scalars have
+    // no structure to descend into.
+    let mut pool: Vec<Value> = match top {
+        Value::Object(_) => vec![top.clone()],
+        Value::Array(items) => items.clone(),
+        _ => return Vec::new(),
+    };
+    for field in path {
+        let mut next: Vec<Value> = Vec::new();
+        for item in &pool {
+            if let Value::Object(obj) = item {
+                match obj.get(field) {
+                    Some(Value::Array(items)) => {
+                        next.extend(items.iter().filter(|v| v.is_object()).cloned());
+                    }
+                    Some(Value::Object(_)) => {
+                        // Nested single object — treat as a one-row
+                        // child relation, same way `analyze_json`
+                        // does when it emits the child table.
+                        if let Some(nested) = obj.get(field) {
+                            next.push(nested.clone());
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        pool = next;
+    }
+    pool
+}
+
+/// Materialise a pre-selected slice of JSON items into an Arrow
+/// `RecordBatch` that matches `table_def`'s column layout.
+///
+/// The caller owns item selection (see [`resolve_items_for_table`])
+/// so this function is agnostic to whether the rows came from the
+/// top-level array or from a nested field. Missing columns on a
+/// row surface as `NULL` in the Arrow output.
+fn scan_json_items_into_batch(
+    items: &[Value],
+    table_def: &SourceTableDef,
+    arrow_schema: &Schema,
+    projection: Option<Vec<usize>>,
+    limit: Option<usize>,
+) -> OxResult<RecordBatch> {
+    let selected_indices: Vec<usize> =
+        projection.unwrap_or_else(|| (0..table_def.columns.len()).collect());
+
+    let projected_schema = if selected_indices.len() == table_def.columns.len() {
+        arrow_schema.clone()
+    } else {
+        arrow_schema
+            .project(&selected_indices)
+            .map_err(|e| OxError::Runtime {
+                message: format!("json scan: projection error: {e}"),
+            })?
+    };
+
+    let mut builders: Vec<Box<dyn ArrayBuilder>> = projected_schema
+        .fields()
+        .iter()
+        .map(|f| make_builder(f.data_type()))
+        .collect();
+
+    let mut rows_emitted = 0usize;
+    for item in items {
+        for (builder_idx, col_idx) in selected_indices.iter().enumerate() {
+            let col_def = table_def
+                .columns
+                .get(*col_idx)
+                .ok_or_else(|| OxError::Runtime {
+                    message: format!("json scan: column index {col_idx} out of range"),
+                })?;
+            // Dispatch JSON value → Arrow builder directly in
+            // `append_json_cell`. No owned-String detour: integers
+            // preserve i64 precision beyond f64's exact range,
+            // strings borrow into the builder without a clone,
+            // structural values (array / object) serialise once at
+            // the Utf8 fallback branch.
+            append_json_cell(
+                "json",
+                builders[builder_idx].as_mut(),
+                projected_schema.field(builder_idx).data_type(),
+                item.get(&col_def.name),
+            )?;
+        }
+        rows_emitted += 1;
+        if let Some(cap) = limit
+            && rows_emitted >= cap
+        {
+            break;
+        }
+    }
+
+    let arrays: Vec<ArrayRef> = builders.into_iter().map(|mut b| b.finish()).collect();
+    RecordBatch::try_new(Arc::new(projected_schema), arrays).map_err(|e| OxError::Runtime {
+        message: format!("json scan: RecordBatch::try_new failed: {e}"),
+    })
 }
 
 /// Index a `SourceProfile` into `(table, column) → ColumnStats` and
@@ -621,9 +987,134 @@ fn empty_stats(column_name: &str) -> ColumnStats {
     }
 }
 
+// ---------------------------------------------------------------------------
+// CSV scan — row → Arrow RecordBatch
+// ---------------------------------------------------------------------------
+//
+// Produces a RecordBatch whose schema matches
+// `crate::normalize::describe_to_arrow_schema("csv", table_def)`.
+// Projection narrows the emitted columns; limit bounds the row count.
+// Each column is built through the Arrow builder matching its Arrow
+// `DataType`; unknown / unsupported types fall back to `StringBuilder`
+// so the scan never fails because of a dialect gap.
+
+fn scan_csv_into_batch(
+    raw: &str,
+    table_def: &SourceTableDef,
+    arrow_schema: &Schema,
+    projection: Option<Vec<usize>>,
+    limit: Option<usize>,
+) -> OxResult<RecordBatch> {
+    let mut reader = csv::ReaderBuilder::new()
+        .has_headers(true)
+        .from_reader(raw.as_bytes());
+
+    // Header positions in the raw file (may be a superset of columns
+    // we expose). We anchor per-column reads to the table-def's column
+    // name so extraneous header columns are ignored silently.
+    let header_positions: HashMap<String, usize> = reader
+        .headers()
+        .map_err(|e| OxError::Validation {
+            field: "source.data".to_string(),
+            message: format!("Invalid CSV headers: {e}"),
+        })?
+        .iter()
+        .enumerate()
+        .map(|(idx, name)| (name.trim().to_string(), idx))
+        .collect();
+
+    let selected_indices: Vec<usize> = projection
+        .unwrap_or_else(|| (0..table_def.columns.len()).collect());
+
+    let projected_schema = if selected_indices.len() == table_def.columns.len() {
+        arrow_schema.clone()
+    } else {
+        arrow_schema
+            .project(&selected_indices)
+            .map_err(|e| OxError::Runtime {
+                message: format!("csv scan: projection error: {e}"),
+            })?
+    };
+
+    let mut builders: Vec<Box<dyn ArrayBuilder>> = projected_schema
+        .fields()
+        .iter()
+        .map(|f| make_builder(f.data_type()))
+        .collect();
+
+    let mut rows_emitted = 0usize;
+    for record in reader.records() {
+        let record = record.map_err(|e| OxError::Validation {
+            field: "source.data".to_string(),
+            message: format!("Invalid CSV record: {e}"),
+        })?;
+
+        for (builder_idx, col_idx) in selected_indices.iter().enumerate() {
+            let col_def = table_def
+                .columns
+                .get(*col_idx)
+                .ok_or_else(|| OxError::Runtime {
+                    message: format!("csv scan: column index {col_idx} out of range"),
+                })?;
+            let raw_value = header_positions
+                .get(&col_def.name)
+                .and_then(|h| record.get(*h))
+                .map(str::trim);
+            let normalised = match raw_value {
+                Some("") | None => None,
+                Some(v) => Some(v),
+            };
+            append_text_cell(
+                "csv",
+                builders[builder_idx].as_mut(),
+                projected_schema.field(builder_idx).data_type(),
+                normalised,
+            )?;
+        }
+
+        rows_emitted += 1;
+        if let Some(cap) = limit
+            && rows_emitted >= cap
+        {
+            break;
+        }
+    }
+
+    let arrays: Vec<ArrayRef> = builders.into_iter().map(|mut b| b.finish()).collect();
+    RecordBatch::try_new(Arc::new(projected_schema), arrays).map_err(|e| OxError::Runtime {
+        message: format!("csv scan: RecordBatch::try_new failed: {e}"),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use arrow_array::Array;
+
+    #[test]
+    fn analyze_csv_rejects_oversized_payload() {
+        // Build a payload just over the cap. Use an inert filler so the
+        // CSV reader is not the bottleneck under test — the guard must
+        // fire before parsing starts.
+        let header = "id,name\n";
+        let body_size = MAX_INLINE_SOURCE_BYTES + 1 - header.len();
+        let mut payload = String::with_capacity(MAX_INLINE_SOURCE_BYTES + 1);
+        payload.push_str(header);
+        payload.extend(std::iter::repeat_n('x', body_size));
+        let err = analyze_csv(&payload).expect_err("oversized csv must be rejected");
+        assert!(matches!(err, OxError::Validation { ref field, .. } if field == "source.data"));
+    }
+
+    #[test]
+    fn analyze_json_rejects_oversized_payload() {
+        // Size cap fires before `serde_json::from_str` allocates the
+        // parse tree — important for DoS resistance, since the parser
+        // would otherwise still walk the whole document first.
+        let payload = "[".to_string() + &"0,".repeat(MAX_INLINE_SOURCE_BYTES / 2) + "0]";
+        assert!(payload.len() > MAX_INLINE_SOURCE_BYTES);
+        let err = analyze_json(&payload).expect_err("oversized json must be rejected");
+        assert!(matches!(err, OxError::Validation { ref field, .. } if field == "source.data"));
+    }
 
     #[test]
     fn analyze_csv_builds_schema_and_profile() {
@@ -738,5 +1229,82 @@ mod tests {
             !child.columns.iter().any(|c| c.name == "records_id"),
             "no FK column when parent has no PK"
         );
+    }
+
+    /// Regression: a column carrying both integer and float rows
+    /// must be inferred as Float64 (via `merge_types`) so the scan
+    /// path's `append_to_builder` parses every row as `f64` and
+    /// never drops an integer cell to NULL. Exercises CSV.
+    #[tokio::test]
+    async fn csv_scan_widens_mixed_int_float_column_to_float64() {
+        let adapter = CsvAdapter::new("id,amount\n1,100\n2,2.5\n3,42\n").unwrap();
+        // `float` at the analyzer layer becomes `Float64` in Arrow.
+        let table_def = adapter.describe_table(INLINE_TABLE_NAME).await.unwrap();
+        let amount = table_def
+            .columns
+            .iter()
+            .find(|c| c.name == "amount")
+            .expect("amount column exists");
+        assert_eq!(
+            amount.data_type, "float",
+            "mixed int+float column must widen to float at analyzer level"
+        );
+        let batch = adapter
+            .scan(INLINE_TABLE_NAME, None, None)
+            .await
+            .unwrap();
+        assert_eq!(batch.num_rows(), 3);
+        let arr = batch
+            .column(1)
+            .as_any()
+            .downcast_ref::<arrow_array::Float64Array>()
+            .unwrap();
+        // Every row is populated — no NULL from a failed int parse.
+        assert_eq!(arr.null_count(), 0);
+        assert!((arr.value(0) - 100.0).abs() < 1e-9);
+        assert!((arr.value(1) - 2.5).abs() < 1e-9);
+        assert!((arr.value(2) - 42.0).abs() < 1e-9);
+    }
+
+    /// Same property for the JSON profiler: a numeric field with
+    /// mixed integer and float values must land as Float64. Pins
+    /// the `merge_types("int", "float") == "float"` branch against
+    /// future refactors.
+    #[tokio::test]
+    async fn json_scan_widens_mixed_int_float_column_to_float64() {
+        let payload =
+            r#"[{"id": 1, "amount": 100}, {"id": 2, "amount": 2.5}, {"id": 3, "amount": 42}]"#;
+        let adapter = JsonAdapter::new(payload).unwrap();
+        let table_def = adapter.describe_table(INLINE_TABLE_NAME).await.unwrap();
+        let amount = table_def
+            .columns
+            .iter()
+            .find(|c| c.name == "amount")
+            .expect("amount column exists");
+        assert_eq!(
+            amount.data_type, "float",
+            "mixed int+float JSON column must widen to float"
+        );
+        let batch = adapter
+            .scan(INLINE_TABLE_NAME, None, None)
+            .await
+            .unwrap();
+        assert_eq!(batch.num_rows(), 3);
+        // Locate the `amount` column by schema ordering.
+        let amount_idx = batch
+            .schema()
+            .fields()
+            .iter()
+            .position(|f| f.name() == "amount")
+            .expect("amount column is in the batch schema");
+        let arr = batch
+            .column(amount_idx)
+            .as_any()
+            .downcast_ref::<arrow_array::Float64Array>()
+            .unwrap();
+        assert_eq!(arr.null_count(), 0);
+        assert!((arr.value(0) - 100.0).abs() < 1e-9);
+        assert!((arr.value(1) - 2.5).abs() < 1e-9);
+        assert!((arr.value(2) - 42.0).abs() < 1e-9);
     }
 }

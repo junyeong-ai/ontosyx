@@ -1,4 +1,4 @@
-use ox_core::ontology_ir::{Cardinality, NodeConstraint, NodeTypeDef, OntologyIR};
+use ox_ontology::ir::{Cardinality, NodeConstraint, NodeTypeDef, OntologyIR};
 use ox_core::types::PropertyType;
 
 /// Generate a GraphQL schema from an OntologyIR.
@@ -74,7 +74,7 @@ pub fn generate_graphql(ontology: &OntologyIR) -> String {
 /// an empty string when the property is not deprecated. Resolves
 /// `replaced_by_id` against the ontology so the reason names the successor.
 fn property_deprecation_directive(
-    prop: &ox_core::ontology_ir::PropertyDef,
+    prop: &ox_ontology::ir::PropertyDef,
     ontology: &OntologyIR,
 ) -> String {
     if prop.deprecated_at.is_none() {
@@ -99,7 +99,7 @@ fn property_deprecation_directive(
 /// derived from an edge type, or an empty string when the edge is not
 /// deprecated. Resolves `replaced_by_id` against the edge index.
 fn edge_deprecation_directive(
-    edge: &ox_core::ontology_ir::EdgeTypeDef,
+    edge: &ox_ontology::ir::EdgeTypeDef,
     ontology: &OntologyIR,
 ) -> String {
     if edge.deprecated_at.is_none() {
@@ -254,7 +254,7 @@ mod tests {
     use ox_core::GraphLabel;
     use ox_core::LocalizedText;
     use ox_core::PropertyKey;
-    use ox_core::ontology_ir::{
+    use ox_ontology::ir::{
         Cardinality, ConstraintDef, EdgeTypeDef, NodeConstraint, NodeTypeDef, OntologyIR,
         PropertyDef,
     };

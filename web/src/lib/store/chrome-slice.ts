@@ -8,7 +8,7 @@ import {
   setWorkspaceRole,
 } from "@/lib/workspace";
 
-export const createChromeSlice: StateCreator<AppStore, [], [], ChromeSlice> = (set, get) => ({
+export const createChromeSlice: StateCreator<AppStore, [], [], ChromeSlice> = (set) => ({
   // Active workspace — synced with localStorage
   workspaceId: null,
   workspaceName: null,
@@ -50,12 +50,9 @@ export const createChromeSlice: StateCreator<AppStore, [], [], ChromeSlice> = (s
     set({ workspaceId: id, workspaceName: name });
   },
 
-  workspaceMode: "design",
-  setWorkspaceMode: (mode) => {
-    set({ workspaceMode: mode });
-    // Reset selection when switching modes (via selection slice)
-    get().clearSelection();
-  },
+  // `workspaceMode` removed (Phase 2-4) — the active mode now lives in
+  // the URL (`/design` / `/analyze` / ...). Use `useWorkspaceMode()`
+  // from `@/lib/use-workspace-mode` to read the current mode.
 
   designBottomTab: "workflow",
   setDesignBottomTab: (tab) => set({ designBottomTab: tab }),
@@ -70,8 +67,8 @@ export const createChromeSlice: StateCreator<AppStore, [], [], ChromeSlice> = (s
   analyzeRightTab: "results",
   setAnalyzeRightTab: (tab) => set({ analyzeRightTab: tab }),
 
-  savedOntologyId: null,
-  setSavedOntologyId: (id) => set({ savedOntologyId: id }),
+  ontologyId: null,
+  setOntologyId: (id) => set({ ontologyId: id }),
 
   focusResultId: null,
   setFocusResultId: (id) => set({ focusResultId: id }),

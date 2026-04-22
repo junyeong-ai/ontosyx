@@ -301,3 +301,50 @@ export interface PhaseEvent {
 export interface ProjectDesignResponse {
   project: DesignProject;
 }
+
+// ---------------------------------------------------------------------------
+// Signal-backed 6 창 metrics — matches Rust `ox_store::quality_signal`.
+// ---------------------------------------------------------------------------
+
+/** Wire-stable window enum on the server; UI keeps the bare-day shape. */
+export type MetricWindowApi = "last7d" | "last30d" | "last90d";
+
+/** One dashboard tile: value + trend + Wilson 95% CI band. */
+export interface MetricValue {
+  value: number;
+  trend_delta: number;
+  lower_bound_95: number;
+  upper_bound_95: number;
+}
+
+export interface QualityMetricsReport {
+  anchor_match_rate: MetricValue;
+  glossary_hit_rate: MetricValue;
+  clarification_success_rate: MetricValue;
+  query_reproducibility: MetricValue;
+  shacl_pass_rate: MetricValue;
+  stale_concept_ratio: MetricValue;
+  sample_size: number;
+  window: MetricWindowApi;
+}
+
+export type ShaclFailureKind =
+  | "cardinality_violation"
+  | "measure_group_by"
+  | "unknown_coded_value"
+  | "mandatory_property_missing"
+  | "temporal_grain_mismatch"
+  | "other";
+
+export interface ShaclFailureCount {
+  kind: ShaclFailureKind;
+  count: number;
+}
+
+export interface StaleTypeEntry {
+  workspace_id: string;
+  type_id: string;
+  type_kind: string;
+  last_used_at: string | null;
+  days_since_last_use: number;
+}

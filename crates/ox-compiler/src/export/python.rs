@@ -1,4 +1,4 @@
-use ox_core::ontology_ir::OntologyIR;
+use ox_ontology::ir::OntologyIR;
 use ox_core::types::PropertyType;
 
 /// Generate Python dataclass definitions from an OntologyIR.
@@ -122,7 +122,7 @@ pub fn generate_python(ontology: &OntologyIR) -> String {
     lines.join("\n")
 }
 
-fn emit_properties(lines: &mut Vec<String>, properties: &[ox_core::ontology_ir::PropertyDef]) {
+fn emit_properties(lines: &mut Vec<String>, properties: &[ox_ontology::ir::PropertyDef]) {
     // Required fields first, then optional fields (Python dataclass ordering)
     let required: Vec<_> = properties.iter().filter(|p| !p.nullable).collect();
     let optional: Vec<_> = properties.iter().filter(|p| p.nullable).collect();
@@ -143,7 +143,7 @@ fn emit_properties(lines: &mut Vec<String>, properties: &[ox_core::ontology_ir::
 }
 
 fn check_imports(
-    properties: &[ox_core::ontology_ir::PropertyDef],
+    properties: &[ox_ontology::ir::PropertyDef],
     needs_datetime: &mut bool,
     needs_date: &mut bool,
     needs_optional: &mut bool,
@@ -274,7 +274,7 @@ fn push_dataclass_docstring(
 
 /// Collect (field_name, reason) pairs for every deprecated property.
 fn collect_field_deprecations(
-    properties: &[ox_core::ontology_ir::PropertyDef],
+    properties: &[ox_ontology::ir::PropertyDef],
     ontology: &OntologyIR,
 ) -> Vec<(String, String)> {
     properties
@@ -288,7 +288,7 @@ fn collect_field_deprecations(
 /// Resolve a property's deprecation reason against the ontology (matches the
 /// shape used by the TypeScript / GraphQL exports for consistency).
 fn property_deprecation_reason(
-    prop: &ox_core::ontology_ir::PropertyDef,
+    prop: &ox_ontology::ir::PropertyDef,
     ontology: &OntologyIR,
 ) -> Option<String> {
     prop.deprecated_at?;
@@ -303,7 +303,7 @@ fn property_deprecation_reason(
 }
 
 fn edge_deprecation_reason(
-    edge: &ox_core::ontology_ir::EdgeTypeDef,
+    edge: &ox_ontology::ir::EdgeTypeDef,
     ontology: &OntologyIR,
 ) -> Option<String> {
     edge.deprecated_at?;
@@ -318,7 +318,7 @@ fn edge_deprecation_reason(
 }
 
 fn node_deprecation_reason(
-    node: &ox_core::ontology_ir::NodeTypeDef,
+    node: &ox_ontology::ir::NodeTypeDef,
     ontology: &OntologyIR,
 ) -> Option<String> {
     node.deprecated_at?;
@@ -342,7 +342,7 @@ mod tests {
     use ox_core::GraphLabel;
     use ox_core::LocalizedText;
     use ox_core::PropertyKey;
-    use ox_core::ontology_ir::{
+    use ox_ontology::ir::{
         EdgeTypeDef, EdgeTypeId, NodeTypeDef, NodeTypeId, PropertyDef, PropertyId,
     };
 
@@ -467,7 +467,7 @@ mod tests {
                     classification: None,
                     ..Default::default()
                 }],
-                cardinality: ox_core::ontology_ir::Cardinality::ManyToMany,
+                cardinality: ox_ontology::ir::Cardinality::ManyToMany,
                 ..Default::default()
             }],
             vec![],

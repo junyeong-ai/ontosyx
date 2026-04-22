@@ -3,13 +3,55 @@ use axum::extract::{Path, State};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use ox_core::ontology_ir::OntologyIR;
-use ox_store::SavedOntology;
+use ox_ontology::ir::OntologyIR;
+use ox_store::{OntologyRow, OntologyVersionSnapshot};
 
 use crate::error::AppError;
 use crate::principal::Principal;
 use crate::response::ApiResponse;
 use crate::state::AppState;
+
+// ---------------------------------------------------------------------------
+// Shared helpers — identity → current version → IR hydration.
+//
+// Every route on this module operates on "the ontology as it is right now":
+// resolve the `ontologies` row, pick its current-valid version, hydrate the
+// `OntologyIR` from the content-addressed entity store. The three steps are
+// kept as one helper because each route needs the same failure semantics:
+// `404` on unknown identity, `422` on present-but-unversioned, `500` on
+// hydrate failure (surfaced from `load_version` via `AppError::from`).
+// ---------------------------------------------------------------------------
+
+async fn load_identity_current_ir(
+    state: &AppState,
+    ontology_id: Uuid,
+) -> Result<(OntologyRow, OntologyVersionSnapshot, OntologyIR), AppError> {
+    let identity = state
+        .store
+        .get_ontology(ontology_id)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::not_found("Ontology"))?;
+    let version = state
+        .store
+        .get_current_version(identity.id)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| {
+            AppError::unprocessable(format!(
+                "Ontology `{}` has no committed version",
+                identity.lineage_id
+            ))
+        })?;
+    let ir = state
+        .store
+        .load_version(version.id)
+        .await
+        .map_err(AppError::from)?;
+    Ok((identity, version, ir))
+}
+
+use crate::routes::projects::helpers::next_ontology_version_tag;
 
 // ---------------------------------------------------------------------------
 // POST /api/ontology/{id}/reindex — re-index schema embeddings
@@ -18,7 +60,7 @@ use crate::state::AppState;
 #[utoipa::path(
     post,
     path = "/api/ontology/{id}/reindex",
-    params(("id" = Uuid, Path, description = "Saved ontology ID")),
+    params(("id" = Uuid, Path, description = "Ontology identity ID")),
     responses(
         (status = 200, description = "Re-indexing triggered", body = inline(ReindexResponse)),
         (status = 404, description = "Ontology not found"),
@@ -31,15 +73,7 @@ pub(crate) async fn reindex_schema(
     _principal: Principal,
     Path(ontology_id): Path<Uuid>,
 ) -> Result<Json<ApiResponse<ReindexResponse>>, AppError> {
-    let saved: SavedOntology = state
-        .store
-        .get_saved_ontology(ontology_id)
-        .await
-        .map_err(AppError::from)?
-        .ok_or_else(|| AppError::not_found("Ontology not found"))?;
-
-    let ontology: OntologyIR = serde_json::from_value(saved.ontology_ir)
-        .map_err(|e| AppError::internal(format!("Failed to deserialize ontology: {e}")))?;
+    let (identity, _, ontology) = load_identity_current_ir(&state, ontology_id).await?;
 
     let node_count = ontology.node_types().len();
     let memory = state
@@ -47,10 +81,10 @@ pub(crate) async fn reindex_schema(
         .as_ref()
         .ok_or_else(|| AppError::bad_request("Semantic memory not configured"))?;
 
-    ox_brain::schema_rag::index_ontology_schema(memory, &ontology, &ontology_id.to_string()).await;
+    ox_brain::schema_rag::index_ontology_schema(memory, &ontology, &identity.id.to_string()).await;
 
     Ok(ApiResponse::of(ReindexResponse {
-        ontology_id,
+        ontology_id: identity.id,
         nodes_indexed: node_count,
     }))
 }
@@ -68,7 +102,7 @@ pub struct ReindexResponse {
 #[utoipa::path(
     post,
     path = "/api/ontology/{id}/audit",
-    params(("id" = Uuid, Path, description = "Saved ontology ID")),
+    params(("id" = Uuid, Path, description = "Ontology identity ID")),
     responses(
         (status = 200, description = "Audit report comparing ontology vs graph", body = Object),
         (status = 404, description = "Ontology not found"),
@@ -81,16 +115,8 @@ pub(crate) async fn graph_audit_report(
     State(state): State<AppState>,
     _principal: Principal,
     Path(ontology_id): Path<Uuid>,
-) -> Result<Json<ApiResponse<ox_core::graph_audit::GraphAuditReport>>, AppError> {
-    let saved: SavedOntology = state
-        .store
-        .get_saved_ontology(ontology_id)
-        .await
-        .map_err(AppError::from)?
-        .ok_or_else(|| AppError::not_found("Ontology not found"))?;
-
-    let ontology: OntologyIR = serde_json::from_value(saved.ontology_ir)
-        .map_err(|e| AppError::internal(format!("Failed to deserialize ontology: {e}")))?;
+) -> Result<Json<ApiResponse<ox_ontology::audit::GraphAuditReport>>, AppError> {
+    let (_, _, ontology) = load_identity_current_ir(&state, ontology_id).await?;
 
     let runtime = state
         .runtime
@@ -103,7 +129,7 @@ pub(crate) async fn graph_audit_report(
             .map_err(|_| AppError::internal("Graph overview timed out"))?
             .map_err(AppError::from)?;
 
-    let report = ox_core::graph_audit::audit_graph(&ontology, &overview);
+    let report = ox_ontology::audit::audit_graph(&ontology, &overview);
     Ok(ApiResponse::of(report))
 }
 
@@ -124,7 +150,7 @@ pub(crate) async fn graph_audit_report(
 )]
 pub(crate) async fn adopt_graph(
     State(state): State<AppState>,
-    _principal: Principal,
+    principal: Principal,
     Json(req): Json<AdoptGraphRequest>,
 ) -> Result<Json<ApiResponse<OntologyIR>>, AppError> {
     let runtime = state
@@ -142,36 +168,55 @@ pub(crate) async fn adopt_graph(
         .name
         .unwrap_or_else(|| "Adopted Graph Ontology".to_string());
     let ontology =
-        ox_core::graph_audit::ontology_from_graph(&overview, &name).map_err(AppError::from)?;
+        ox_ontology::audit::ontology_from_graph(&overview, &name).map_err(AppError::from)?;
 
     if req.save.unwrap_or(false) {
-        let ontology_ir = serde_json::to_value(&ontology)
-            .map_err(|e| AppError::internal(format!("Failed to serialize ontology: {e}")))?;
-
-        let saved_id = state
+        // Persist as a new identity + initial version. `OntologyIR.id` is the
+        // lineage handle external systems already reference, so we seed the
+        // `ontologies.lineage_id` column from it rather than minting a fresh
+        // UUID — keeps quality rules / saved queries pointing at the same
+        // lineage string they would have seen under the legacy path.
+        let description_json = serde_json::to_value(&ontology.description)
+            .map_err(|e| AppError::internal(format!("Failed to serialize description: {e}")))?;
+        let lineage_seed = ontology.id.clone();
+        let identity = state
             .store
-            .create_standalone_ontology(&name, &ontology_ir)
+            .create_ontology(&name, &description_json, Some(&lineage_seed))
+            .await
+            .map_err(AppError::from)?;
+        state
+            .store
+            .commit_version(
+                identity.id,
+                &ontology,
+                "1",
+                None,
+                &principal.id,
+                "Adopted from live graph",
+            )
             .await
             .map_err(AppError::from)?;
 
-        // Re-index schema embeddings for the saved ontology.
-        // Must use spawn_with_ws so the spawned task inherits the
-        // workspace-scoped task-locals for pgvector RLS.
+        // Re-index schema embeddings for the committed ontology. Must use
+        // `spawn_with_ws` so the spawned task inherits the workspace-scoped
+        // task-locals that pgvector RLS depends on.
         if let Some(memory) = &state.memory {
             let memory = std::sync::Arc::clone(memory);
             let ont = ontology.clone();
+            let identity_id = identity.id;
             let ws_scope = crate::spawn_scoped::WsScope::capture();
             crate::spawn_scoped::spawn_with_ws(ws_scope, async move {
-                ox_brain::schema_rag::index_ontology_schema(&memory, &ont, &saved_id.to_string())
+                ox_brain::schema_rag::index_ontology_schema(&memory, &ont, &identity_id.to_string())
                     .await;
             });
         }
 
         tracing::info!(
-            saved_ontology_id = %saved_id,
+            ontology_id = %identity.id,
+            lineage_id = %identity.lineage_id,
             nodes = ontology.node_types().len(),
             edges = ontology.edge_types().len(),
-            "Graph ontology adopted and saved"
+            "Graph ontology adopted and committed"
         );
     }
 
@@ -204,7 +249,7 @@ pub(crate) async fn suggest_insights(
     State(state): State<AppState>,
     _principal: Principal,
     Json(ontology): Json<OntologyIR>,
-) -> Result<Json<ApiResponse<Vec<ox_core::InsightSuggestion>>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<ox_ontology::InsightSuggestion>>>, AppError> {
     let suggestions = state
         .brain
         .suggest_insights(&ontology, None)
@@ -255,21 +300,13 @@ pub struct EnrichRequest {
 )]
 pub(crate) async fn enrich_ontology(
     State(state): State<AppState>,
-    _principal: Principal,
+    principal: Principal,
     Path(id): Path<Uuid>,
     Json(req): Json<EnrichRequest>,
 ) -> Result<Json<ApiResponse<EnrichResponse>>, AppError> {
     let runtime = state.runtime.as_ref().ok_or_else(AppError::no_runtime)?;
 
-    let saved = state
-        .store
-        .get_saved_ontology(id)
-        .await
-        .map_err(AppError::from)?
-        .ok_or_else(|| AppError::not_found("Saved ontology"))?;
-
-    let ontology: OntologyIR = serde_json::from_value(saved.ontology_ir.clone())
-        .map_err(|e| AppError::internal(format!("Failed to parse ontology IR: {e}")))?;
+    let (identity, current_version, ontology) = load_identity_current_ir(&state, id).await?;
 
     let config =
         ox_runtime::profiler::ProfileConfig::for_ontology_size(ontology.node_types().len());
@@ -295,33 +332,44 @@ pub(crate) async fn enrich_ontology(
         .collect();
 
     if req.apply && !result.changes.is_empty() {
-        let ir_json = serde_json::to_value(&result.ontology).map_err(|e| {
-            AppError::internal(format!("Failed to serialize enriched ontology: {e}"))
-        })?;
+        let next_tag = next_ontology_version_tag(&current_version.version);
+        let commit_message = format!(
+            "Enrichment: {} property description(s) updated",
+            result.changes.len()
+        );
         state
             .store
-            .update_ontology_ir(id, &ir_json)
+            .commit_version(
+                identity.id,
+                &result.ontology,
+                &next_tag,
+                Some(current_version.id),
+                &principal.id,
+                &commit_message,
+            )
             .await
             .map_err(AppError::from)?;
 
         if let Some(memory) = &state.memory {
             let memory = std::sync::Arc::clone(memory);
-            let ont_id = id.to_string();
+            let identity_id = identity.id.to_string();
             let enriched = result.ontology.clone();
             crate::spawn_scoped::spawn_scoped(async move {
-                ox_brain::schema_rag::index_ontology_schema(&memory, &enriched, &ont_id).await;
+                ox_brain::schema_rag::index_ontology_schema(&memory, &enriched, &identity_id).await;
             });
         }
 
         tracing::info!(
-            ontology_id = %id,
+            ontology_id = %identity.id,
+            lineage_id = %identity.lineage_id,
+            new_version = %next_tag,
             changes = changes.len(),
             "Ontology descriptions enriched with data samples"
         );
     }
 
     Ok(ApiResponse::of(EnrichResponse {
-        ontology_id: id,
+        ontology_id: identity.id,
         changes,
         profiled_nodes,
         profiled_edges,

@@ -497,7 +497,7 @@ export const createOntologySlice: StateCreator<AppStore, [], [], OntologySlice> 
   },
   clearCommandStack: () => { capWarningShown = false; set({ commandStack: [], redoStack: [] }); },
   resetOntology: () => { capWarningShown = false; set({ ontology: null, commandStack: [], redoStack: [] }); },
-  loadSavedOntology: (ontology) => { capWarningShown = false; set({ ontology, commandStack: [], redoStack: [] }); },
+  loadOntology: (ontology) => { capWarningShown = false; set({ ontology, commandStack: [], redoStack: [] }); },
 
   nodeGroups: {},
   restoreNodeGroups: (groups) => set({ nodeGroups: groups }),

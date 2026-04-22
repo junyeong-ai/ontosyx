@@ -1,5 +1,5 @@
 use ox_core::error::OxResult;
-use ox_core::load_plan::{ConflictStrategy, LoadOp};
+use ox_ontology::load_plan::{ConflictStrategy, LoadOp};
 
 use super::params::escape_identifier;
 

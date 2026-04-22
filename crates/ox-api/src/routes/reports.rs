@@ -7,7 +7,7 @@ use serde::Deserialize;
 use tracing::{error, info};
 use uuid::Uuid;
 
-use ox_core::query_ir::QueryResult;
+use ox_query_ir::query::QueryResult;
 use ox_core::types::PropertyValue;
 use ox_store::SavedReport;
 use ox_store::store::CursorParams;
@@ -36,6 +36,21 @@ pub struct ReportCreateRequest {
 
 fn default_parameters() -> serde_json::Value {
     serde_json::json!([])
+}
+
+/// Best-effort resolution of the current-version IR for a lineage id.
+/// Used by read-only paths that want to bind `GRAPH_ONTOLOGY` for the
+/// runtime's OntologyValidator but don't want to hard-fail when the
+/// lineage has been archived or was never committed — those callers
+/// fall back to safety + workspace-scope validation only.
+async fn resolve_lineage_current_ir(
+    state: &AppState,
+    lineage_id: &str,
+) -> Option<std::sync::Arc<ox_ontology::ir::OntologyIR>> {
+    let identity = state.store.find_ontology_by_lineage(lineage_id).await.ok()??;
+    let version = state.store.get_current_version(identity.id).await.ok()??;
+    let ir = state.store.load_version(version.id).await.ok()?;
+    Some(std::sync::Arc::new(ir))
 }
 
 pub(crate) async fn create_report(
@@ -260,16 +275,7 @@ pub(crate) async fn execute_report(
     // OntologyValidator. A report whose lineage no longer resolves runs
     // with safety + workspace-scope only (unchanged behaviour); no
     // hard error here — orphan reports are a storage-lifetime concern.
-    let ontology = state
-        .store
-        .get_latest_ontology_by_lineage(&report.ontology_lineage_id)
-        .await
-        .map_err(AppError::from)?
-        .and_then(|saved| {
-            serde_json::from_value::<ox_core::ontology_ir::OntologyIR>(saved.ontology_ir)
-                .ok()
-                .map(std::sync::Arc::new)
-        });
+    let ontology = resolve_lineage_current_ir(&state, &report.ontology_lineage_id).await;
 
     let timeout = state.timeouts.raw_query;
     let empty_params: HashMap<String, PropertyValue> = HashMap::new();

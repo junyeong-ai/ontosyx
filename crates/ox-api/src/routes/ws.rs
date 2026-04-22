@@ -131,9 +131,12 @@ async fn serve_collab(socket: WebSocket, state: AppState, user_id: String, user_
                             .await;
                         joined_rooms.push(project_id);
 
-                        // Spawn a task to forward broadcast messages to this client
+                        // Spawn a task to forward broadcast messages to this client.
+                        // `spawn_scoped` captures the current WORKSPACE_ID /
+                        // GRAPH_WORKSPACE_ID task-locals so any store / graph
+                        // call inside `forward_broadcast` stays workspace-scoped.
                         let sender_for_fwd = Arc::clone(&ws_sender);
-                        tokio::spawn(forward_broadcast(rx, sender_for_fwd));
+                        crate::spawn_scoped::spawn_scoped(forward_broadcast(rx, sender_for_fwd));
                     }
                     CollabMessage::Leave { ref project_id } => {
                         state.collaboration.leave(project_id, &user_id).await;

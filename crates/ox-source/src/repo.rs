@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use ignore::WalkBuilder;
 use ox_core::error::{OxError, OxResult};
-use ox_core::repo_insights::{FileContent, OrmRelationType, RepoInsights};
+use ox_ontology::repo_insights::{FileContent, OrmRelationType, RepoInsights};
 use ox_core::source_schema::{
     ForeignKeyDef, SourceColumnDef, SourceProfile, SourceSchema, SourceTableDef, TableProfile,
 };

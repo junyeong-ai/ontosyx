@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useReactFlow, type Node, type Edge } from "@xyflow/react";
 
-import { useAppStore, selectSelectedNodeId, selectSelectedEdgeId } from "@/lib/store";
+import { useAppStore, selectStateSelectedNodeId, selectStateSelectedEdgeId } from "@/lib/store";
 import { getNeighborhood, getNeighborhoodEdges } from "@/components/workbench/canvas/neighborhood";
 import type { OntologyIR } from "@/types/api";
 
@@ -30,8 +30,8 @@ interface SelectionSets {
 export function useCanvasSelection(options: SelectionOptions) {
   const { ontology, setNodes, setEdges } = options;
 
-  const selectedNodeId = useAppStore(selectSelectedNodeId);
-  const selectedEdgeId = useAppStore(selectSelectedEdgeId);
+  const selectedNodeId = useAppStore(selectStateSelectedNodeId);
+  const selectedEdgeId = useAppStore(selectStateSelectedEdgeId);
   const neighborhoodFocus = useAppStore((s) => s.neighborhoodFocus);
   const setNeighborhoodFocus = useAppStore((s) => s.setNeighborhoodFocus);
 

@@ -3,7 +3,7 @@ use axum::extract::{Path, State};
 use tracing::warn;
 use uuid::Uuid;
 
-use ox_core::design_project::{SourceConfig, SourceTypeKind};
+use ox_ontology::design_project::{SourceConfig, SourceTypeKind};
 use ox_store::store::AnalysisSnapshot;
 
 use crate::error::AppError;

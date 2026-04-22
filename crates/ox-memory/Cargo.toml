@@ -4,9 +4,12 @@ description = "Ontosyx semantic memory — embedding + vector search for long-te
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+publish.workspace = true
 
 [dependencies]
 ox-core = { workspace = true }
+ox-ontology = { workspace = true }
+ox-query-ir = { workspace = true }
 
 # Async
 tokio = { workspace = true }

@@ -1,6 +1,8 @@
 [workspace]
 members = [
     "crates/ox-core",
+    "crates/ox-ontology",
+    "crates/ox-query-ir",
     "crates/ox-compiler",
     "crates/ox-runtime",
     "crates/ox-brain",
@@ -9,6 +11,7 @@ members = [
     "crates/ox-api",
     "crates/ox-store",
     "crates/ox-source",
+    "crates/ox-federation",
 ]
 resolver = "3"
 
@@ -17,6 +20,10 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.94"
 license = "MIT"
+# Every in-repo crate is private. Marking them unpublished lets
+# `cargo-deny`'s `allow-wildcard-paths` accept the `{ workspace = true }`
+# references without requiring explicit version strings on path deps.
+publish = false
 
 [workspace.lints.clippy]
 too_many_arguments = "allow"
@@ -35,6 +42,11 @@ panic = "deny"
 unreachable = "deny"
 dbg_macro = "deny"
 
+# Raw `tokio::spawn` in application code drops our workspace task-locals
+# and breaks RLS. The forbidden-methods list lives in `clippy.toml` since
+# Cargo.toml can't express structured lint arguments.
+disallowed_methods = "deny"
+
 [workspace.dependencies]
 # Internal crates
 ox-core = { path = "crates/ox-core" }
@@ -45,6 +57,9 @@ ox-store = { path = "crates/ox-store" }
 ox-source = { path = "crates/ox-source" }
 ox-agent = { path = "crates/ox-agent" }
 ox-memory = { path = "crates/ox-memory" }
+ox-federation = { path = "crates/ox-federation" }
+ox-ontology = { path = "crates/ox-ontology" }
+ox-query-ir = { path = "crates/ox-query-ir" }
 
 # LLM runtime
 branchforge = { version = "0.9", default-features = false }
@@ -76,8 +91,19 @@ mongodb = "3"
 duckdb = { version = "1", features = ["bundled"] }
 snowflake-api = "0.12"
 # Arrow — snowflake-api returns query results as Arrow RecordBatches; we
-# parse them directly rather than round-tripping through JSON.
+# parse them directly rather than round-tripping through JSON. DataFusion
+# 50.x is also pinned to Arrow 55 so the federation engine and the
+# snowflake adapter share the same RecordBatch shape.
 arrow = "55"
+arrow-schema = "55"
+arrow-array = "55"
+
+# Federation execution engine — see docs/adr/0002-datafusion-federation.md.
+# Pinned to the last release in the arrow-55 line so the workspace's
+# existing arrow-55 consumers (snowflake-api, ox-source profilers)
+# share one RecordBatch type with DataFusion. Bumping the major implies
+# a coordinated arrow upgrade for snowflake-api and the adapter layer.
+datafusion = "49"
 # BigQuery client — Application Default Credentials first, service-account
 # JSON file fallback. Default features use rustls.
 gcp-bigquery-client = "0.22"
@@ -99,6 +125,7 @@ tempfile = "3"
 # Crypto
 subtle = "2"
 jsonwebtoken = "9"
+sha2 = "0.10"
 
 # Pattern matching (used for transient-error classification, etc.)
 regex = "1"

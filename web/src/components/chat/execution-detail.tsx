@@ -3,8 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAppStore, type ChatMessage } from "@/lib/store";
-import type { QueryExecution } from "@/types/api";
+import type { OntologyIR, QueryExecution } from "@/types/api";
+import { getOntologyDetail } from "@/lib/api";
 import { WidgetWithToolbar } from "@/components/widgets/widget-toolbar";
+import { ResponseBasis } from "@/components/widgets/response-basis";
 import { Button } from "@/components/ui/button";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -14,6 +16,27 @@ import {
 } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 import { useGuardPendingEdits } from "@/lib/guard-pending-edits";
+
+/**
+ * Resolve the ontology IR for a past execution. Draft executions carry
+ * an inline `ontology_snapshot`; committed executions reference an
+ * identity uuid and the IR must be fetched via the detail endpoint.
+ * Returns `null` when neither path yields an IR — the caller should
+ * show a user-facing error rather than proceed.
+ */
+async function resolveExecutionOntology(
+  execution: QueryExecution,
+): Promise<OntologyIR | null> {
+  if (execution.ontology_snapshot) return execution.ontology_snapshot;
+  if (!execution.ontology_id) return null;
+  try {
+    const detail = await getOntologyDetail(execution.ontology_id);
+    return detail.ontology_ir ?? null;
+  } catch (err) {
+    console.error("Failed to hydrate execution ontology:", err);
+    return null;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Section — reusable collapsible section header
@@ -53,9 +76,14 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
 
   const handleLoadToChat = async () => {
     if (!(await guardPendingEdits(t("loadToChatGuardLabel")))) return;
+    const ir = await resolveExecutionOntology(execution);
+    if (!ir) {
+      toast.error(t("loadOntologyFailed", { default: "Failed to load ontology" }));
+      return;
+    }
     // Detach from active project — loaded snapshot is standalone
     setActiveProject(null);
-    setOntology(execution.ontology_snapshot);
+    setOntology(ir);
     clearMessages();
 
     const userMsg: ChatMessage = {
@@ -106,9 +134,14 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
   const handleShowOnSnapshot = async () => {
     if (!execution.query_bindings) return;
     if (!(await guardPendingEdits(t("showOnSnapshotGuardLabel")))) return;
+    const ir = await resolveExecutionOntology(execution);
+    if (!ir) {
+      toast.error(t("loadOntologyFailed", { default: "Failed to load ontology" }));
+      return;
+    }
     // Detach from active project — viewing historical snapshot
     setActiveProject(null);
-    setOntology(execution.ontology_snapshot);
+    setOntology(ir);
     setHighlightedBindings(execution.query_bindings);
   };
 
@@ -172,10 +205,13 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
         {/* Results */}
         {execution.results && execution.results.rows.length > 0 && (
           <Section title={t("sectionResultsTitle", { count: execution.results.rows.length })}>
-            <WidgetWithToolbar
-              spec={(execution.widget as Record<string, unknown>) ?? { widget: "auto" }}
-              data={execution.results}
-            />
+            <div className="space-y-3">
+              <WidgetWithToolbar
+                spec={(execution.widget as Record<string, unknown>) ?? { widget: "auto" }}
+                data={execution.results}
+              />
+              <ResponseBasis provenance={execution.results.metadata?.provenance} warnings={execution.results.metadata?.warnings} />
+            </div>
           </Section>
         )}
 

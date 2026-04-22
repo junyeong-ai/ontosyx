@@ -1,0 +1,112 @@
+# ox-ontology
+
+Domain layer for the platform's knowledge graph: what types of nodes
+and edges exist, how they're labelled, which properties they carry,
+how they map to physical relations, and every governance surface
+layered on top (interfaces, rules, provenance, data quality,
+glossary, functions, actions, metrics, enrichment).
+
+This is the biggest IR crate by surface area. The doc below names
+the high-level pieces and points at the files that hold depth.
+
+## Core IR
+
+- **`OntologyIR`** (`src/ir/mod.rs`) — the root struct. Owns the full
+  graph schema plus every governance collection:
+  - `node_types`, `edge_types` — primary topology.
+  - `indexes`, `constraints` — lookup + invariant metadata.
+  - `object_mappings`, `link_mappings`, `property_mappings`
+    — physical mapping layer (ADR 0003). See
+    `src/mapping/`.
+  - `interfaces` — shared-property abstractions (e.g., `HasAddress`).
+  - `rules` — SHACL-style constraints.
+  - `actions`, `functions`, `metrics`, `enrichments` —
+    type-bound behavioural surfaces.
+  - `glossary_terms` — domain vocabulary; attaches to types.
+  - `provenances` — PROV-O style data-origin records.
+  - `data_qualities` — per-type DQ checks.
+  - `lineage_id` + `version`, optional `valid_from`/`valid_to`
+    — bitemporal identity.
+
+  Every collection has an `add_X` method returning
+  `Result<_, OntologyInvariantError>` (referential integrity check
+  at insert time) and an `x_by_id` O(1) accessor.
+
+- **`OntologyIR::validate()`** (`src/ir/validation.rs`) — whole-IR
+  cross-reference check. Call at ontology-edit boundaries; returns
+  `Vec<String>` of diagnostic strings (empty on valid).
+
+## Mapping layer
+
+`src/mapping/`:
+
+- `ObjectMappingDef` — one NodeType ↔ one physical relation.
+  Carries `workspace_scope`, `row_filter`, `primary_key_columns`,
+  `valid_from`/`valid_to` (temporal pivot support), `precedence`
+  (for multi-mapping dedup), and `cache_hint`.
+- `LinkMappingDef` — one EdgeType ↔ the relation(s) supplying edges.
+  Four `LinkMappingKind` variants:
+  - `ForeignKey { source_column, target_column }`
+  - `Bridge { bridge_relation, source_join: Vec<ColumnRef>,
+    target_join: Vec<ColumnRef> }` — composite keys are supported.
+  - `Computed { predicate }` — source-dialect SQL predicate;
+    needs adapter-side pushdown.
+  - `Federated { source_match_column, target_match_column }` —
+    cross-source value match.
+- `PropertyMappingDef` — one property ↔ one value location (column /
+  JSON path) plus optional `PropertyTransform`.
+- `SourceId`, `ObjectMappingId`, `LinkMappingId` — id newtypes.
+- `SourceRelationRef`, `ColumnRef`, `EndpointRef` — location
+  primitives.
+
+Legacy `SourceMapping` survives for the current design-flow path and
+is being migrated out (tracked in the Phase 4 plan).
+
+## Governance surfaces
+
+Each has its own file and follows the same structural pattern:
+id newtype + struct + builder + validation entry-points.
+
+- `interface.rs` — `InterfaceDef { required_properties,
+  required_edges }`. Matched by `LabelResolver` in ox-federation.
+- `rule.rs` — SHACL Core rule kinds (pre-execute validation).
+- `action.rs`, `function.rs`, `metric.rs`, `enrichment.rs` —
+  type-bound behaviours; scheduled / triggered from ox-api.
+- `glossary.rs` — domain vocabulary.
+- `provenance.rs` — PROV-O activity/entity/agent.
+- `data_quality.rs` — assertion + severity + threshold.
+
+## Input / command / quality sub-modules
+
+- `src/input/` — DTO layer for user / LLM input before validation.
+  `InputXxxDef` structs convert to their canonical `XxxDef` counterparts.
+- `src/command/` — `OntologyCommand` — incremental schema edits
+  (add / delete / rename node / edge / property). Reconciled into
+  the authoritative `OntologyIR`.
+- `src/quality/` — ontology-level quality assessment (different from
+  `data_quality.rs` which is per-node-type DQ).
+
+## Analysis / scratch surfaces
+
+- `audit.rs`, `diff.rs` — before/after reports for edits.
+- `insight.rs`, `repo_insights.rs`, `source_analysis.rs` — design-time
+  recommendations.
+- `graph_exploration.rs`, `table_clustering.rs`,
+  `widget_spec.rs`, `load_plan.rs`, `design_project.rs` — per-surface
+  DTOs the ox-api routes return. These do not roll into `OntologyIR`;
+  they describe projects / plans / explorations over it.
+
+## Don't
+
+- Don't mutate `OntologyIR` collections directly — go through the
+  `add_X` methods so referential-integrity checks run at insert.
+- Don't introduce a reverse edge from `ox-core` to this crate. The
+  workspace DAG keeps `ox-core ← ox-ontology` strict; `cargo-deny`
+  enforces it.
+- Don't mix the "canonical `XxxDef`" structs with the
+  `InputXxxDef` structs across module boundaries. Input DTOs carry
+  pre-validation shape; canonical defs come out of validation. The
+  compiler / runtime / federation layers only ever see canonical.
+- Don't add raw SQL / Cypher strings here. This crate stays logical —
+  physical translation lives in `ox-compiler` (Cypher) and
+  `ox-federation` (DataFusion LogicalPlan).

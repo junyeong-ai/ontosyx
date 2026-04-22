@@ -2,13 +2,19 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppStore, type ToolCall } from "@/lib/store";
-import type { QueryResult, WidgetSpec } from "@/types/api";
+import type {
+  QueryDiagnostic,
+  QueryProvenance,
+  QueryResult,
+  WidgetSpec,
+} from "@/types/api";
 import { addWidget, normalizeQueryResult } from "@/lib/api";
 import { useDashboards } from "@/hooks/api/use-dashboards";
 import { Message01Icon } from "@hugeicons/core-free-icons";
 import { CopyButton } from "@/components/ui/copy-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { WidgetRenderer } from "@/components/widgets/widget-renderer";
+import { ResponseBasis } from "@/components/widgets/response-basis";
 import { toast } from "sonner";
 import { STEP_TIMING_LABELS } from "@/lib/constants/tool-meta";
 
@@ -224,20 +230,27 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
         </div>
       )}
 
-      <div className="p-3">
+      <div className="p-3 space-y-3">
         {toolCall.name === "query_graph" && parsed ? (
-          <WidgetRenderer
-            spec={{ widget_type: parsed.widget_hint?.widget_type ?? "auto" } as WidgetSpec}
-            data={{
-              ...(normalizeQueryResult(parsed) ?? { columns: parsed.columns, rows: [] }),
-              metadata: {
-                execution_time_ms: toolCall.durationMs ?? 0,
-                rows_returned: parsed.row_count,
-                nodes_affected: null,
-                edges_affected: null,
-              },
-            }}
-          />
+          <>
+            <WidgetRenderer
+              spec={{ widget_type: parsed.widget_hint?.widget_type ?? "auto" } as WidgetSpec}
+              data={{
+                ...(normalizeQueryResult(parsed) ?? { columns: parsed.columns, rows: [] }),
+                metadata: {
+                  execution_time_ms: toolCall.durationMs ?? 0,
+                  rows_returned: parsed.row_count,
+                  nodes_affected: null,
+                  edges_affected: null,
+                  provenance: parsed.provenance,
+                },
+              }}
+            />
+            <ResponseBasis
+              provenance={parsed.provenance}
+              warnings={parsed.warnings}
+            />
+          </>
         ) : toolCall.name === "visualize" && tryParseVisualize(toolCall.output) ? (
           (() => {
             const viz = tryParseVisualize(toolCall.output)!;
@@ -385,7 +398,22 @@ function JsonPreview({ raw }: { raw?: string }) {
 
 function tryParseQueryOutput(
   output: string | undefined,
-): { compiled_query: string; columns: string[]; rows: unknown[][]; row_count: number; widget_hint?: { widget_type: string; title: string }; step_timings?: { step: string; duration_ms: number }[] } | null {
+): {
+  compiled_query: string;
+  columns: string[];
+  rows: unknown[][];
+  row_count: number;
+  widget_hint?: { widget_type: string; title: string };
+  step_timings?: { step: string; duration_ms: number }[];
+  /** Π-3 response-attribution trail. Carried forward from the
+   *  `query_graph` tool output so the Results panel can render the
+   *  same "Response basis" card the /api/query/from-ir handler
+   *  surfaces for raw HTTP callers. */
+  provenance?: QueryProvenance;
+  /** Structured advisory validator diagnostics — same shape as
+   *  `QueryMetadata.warnings` on the HTTP route path. */
+  warnings?: QueryDiagnostic[];
+} | null {
   if (!output) return null;
   try {
     const parsed = JSON.parse(output);
@@ -397,6 +425,8 @@ function tryParseQueryOutput(
         row_count: parsed.row_count,
         widget_hint: parsed.widget_hint ?? undefined,
         step_timings: Array.isArray(parsed.step_timings) ? parsed.step_timings : undefined,
+        provenance: parsed.provenance ?? undefined,
+        warnings: Array.isArray(parsed.warnings) ? parsed.warnings : undefined,
       };
     }
   } catch {

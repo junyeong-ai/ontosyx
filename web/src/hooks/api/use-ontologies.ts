@@ -9,10 +9,16 @@ import {
 } from "@tanstack/react-query";
 import {
   adoptGraph,
+  getOntologyDetail,
   listOntologies,
   reindexSchema,
 } from "@/lib/api/ontology";
-import type { CursorPage, OntologyIR, SavedOntology } from "@/types/api";
+import type {
+  CursorPage,
+  OntologyDetail,
+  OntologyIR,
+  OntologyListItem,
+} from "@/types/api";
 
 // ---------------------------------------------------------------------------
 // Query keys — TanStack convention (hierarchical factory)
@@ -42,13 +48,30 @@ export const ontologiesKeys = {
 export function useOntologies(
   params?: { limit?: number },
   options?: Omit<
-    UseQueryOptions<CursorPage<SavedOntology>>,
+    UseQueryOptions<CursorPage<OntologyListItem>>,
     "queryKey" | "queryFn"
   >,
 ) {
   return useQuery({
     queryKey: ontologiesKeys.list(params),
     queryFn: () => listOntologies(params),
+    ...options,
+  });
+}
+
+/**
+ * Fetch one ontology's detail (identity + hydrated IR). Pass `null` or
+ * `undefined` to disable — the hook parks in idle state until an id
+ * arrives.
+ */
+export function useOntologyDetail(
+  id: string | null | undefined,
+  options?: Omit<UseQueryOptions<OntologyDetail>, "queryKey" | "queryFn" | "enabled">,
+) {
+  return useQuery({
+    queryKey: ontologiesKeys.detail(id ?? ""),
+    queryFn: () => getOntologyDetail(id!),
+    enabled: Boolean(id),
     ...options,
   });
 }

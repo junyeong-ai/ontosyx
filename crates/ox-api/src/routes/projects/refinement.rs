@@ -11,9 +11,9 @@ use crate::principal::Principal;
 use crate::response::ApiResponse;
 use crate::state::AppState;
 use crate::validation::validate_ontology_input;
-use ox_core::design_project::{DesignProjectStatus, SourceConfig};
-use ox_core::ontology_ir::OntologyIR;
-use ox_core::source_analysis::DesignOptions;
+use ox_ontology::design_project::{DesignProjectStatus, SourceConfig};
+use ox_ontology::ir::OntologyIR;
+use ox_ontology::source_analysis::DesignOptions;
 use ox_runtime::profiler;
 use ox_source::analyzer::build_design_context;
 
@@ -79,7 +79,7 @@ pub(crate) async fn design_project(
         .analysis_report
         .as_ref()
         .map(|v| {
-            serde_json::from_value::<ox_core::source_analysis::SourceAnalysisReport>(v.clone())
+            serde_json::from_value::<ox_ontology::source_analysis::SourceAnalysisReport>(v.clone())
                 .map_err(|e| AppError::internal(format!("Corrupt analysis_report: {e}")))
         })
         .transpose()?;
@@ -390,7 +390,7 @@ pub(crate) async fn refine_project(
     }
 
     // Reconcile LLM output against original to preserve lineage IDs
-    let reconciled = ox_core::ontology_command::reconcile_refined(&ontology, llm_refined)
+    let reconciled = ox_ontology::command::reconcile_refined(&ontology, llm_refined)
         .map_err(|e| AppError::internal(format!("Reconcile produced invalid ontology: {e}")))?;
     let _ = refined_mapping; // Source mapping preserved from project; refine does not change it
 
@@ -540,7 +540,7 @@ pub(crate) async fn apply_reconcile(
     }
 
     // Apply user decisions
-    let finalized = ox_core::ontology_command::apply_match_decisions(
+    let finalized = ox_ontology::command::apply_match_decisions(
         req.reconciled_ontology,
         &req.decisions,
         &req.uncertain_matches,
@@ -586,12 +586,12 @@ pub(crate) async fn apply_reconcile(
     Ok(ApiResponse::of(ProjectRefineResponse {
         project: updated,
         profile_summary: "Applied reconcile decisions".to_string(),
-        reconcile_report: ox_core::ReconcileReport {
+        reconcile_report: ox_ontology::ReconcileReport {
             preserved_ids: vec![],
             generated_ids: vec![],
             uncertain_matches: vec![],
             deleted_entities: vec![],
-            confidence: ox_core::ReconcileConfidence::High,
+            confidence: ox_ontology::ReconcileConfidence::High,
         },
     }))
 }

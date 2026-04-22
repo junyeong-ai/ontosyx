@@ -7,8 +7,8 @@ use neo4rs::{ConfigBuilder, Graph, query};
 use tracing::info;
 
 use ox_core::error::{OxError, OxResult};
-use ox_core::graph_exploration::{GraphSchemaOverview, NodeExpansion, SearchResultNode};
-use ox_core::query_ir::{QueryMetadata, QueryResult};
+use ox_ontology::graph_exploration::{GraphSchemaOverview, NodeExpansion, SearchResultNode};
+use ox_query_ir::query::{QueryMetadata, QueryResult};
 use ox_core::types::PropertyValue;
 
 use crate::bolt::{
@@ -193,6 +193,8 @@ impl GraphRuntime for Neo4jRuntime {
                 rows_returned: row_count,
                 nodes_affected: None,
                 edges_affected: None,
+                provenance: None,
+                warnings: Vec::new(),
             },
         })
     }

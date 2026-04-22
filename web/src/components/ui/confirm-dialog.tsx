@@ -68,12 +68,12 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
             <AlertDialog.Title className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
               {options.title}
             </AlertDialog.Title>
-            <AlertDialog.Description className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+            <AlertDialog.Description className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-muted-foreground">
               {options.description}
             </AlertDialog.Description>
             <div className="mt-6 flex justify-end gap-2">
               <AlertDialog.Close
-                className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-muted-foreground dark:hover:bg-zinc-800"
                 onClick={handleCancel}
               >
                 {options.cancelLabel ?? "Cancel"}

@@ -327,6 +327,18 @@ async fn main() -> anyhow::Result<()> {
             repo_policy.allowed_git_hosts
         );
     }
+    if config.server.allowed_secret_file_roots.is_empty() {
+        tracing::warn!(
+            "file: secret-ref sandbox is OPEN — every absolute path the server can \
+             read is a valid secret_ref. Set server.allowed_secret_file_roots in \
+             config.toml for multi-tenant deployments."
+        );
+    } else {
+        tracing::info!(
+            "file: secret-ref sandbox roots: {:?}",
+            config.server.allowed_secret_file_roots
+        );
+    }
     let adapter_registry = Arc::new(AdapterRegistry::with_defaults());
 
     // Load runtime-tunable config from DB (falls back to defaults if unavailable)
@@ -336,6 +348,13 @@ async fn main() -> anyhow::Result<()> {
     let cancel_token = tokio_util::sync::CancellationToken::new();
     system_config::spawn_config_refresh(
         Arc::clone(&system_config),
+        Arc::clone(&store),
+        cancel_token.clone(),
+    );
+    // Daily stale-concept scan — proposes deprecations for ontology
+    // types unused beyond the 6-month cutoff. Advisory only; the
+    // admin dashboard flips the decision.
+    ox_api::background::spawn_stale_concept_scan(
         Arc::clone(&store),
         cancel_token.clone(),
     );
@@ -439,6 +458,10 @@ async fn main() -> anyhow::Result<()> {
         auth_config: config.auth.clone(),
         repo_policy,
         adapter_registry,
+        federation_resolvers: Arc::new(dashmap::DashMap::new()),
+        secret_resolver: ox_api::credential::secret_resolver_with_file_roots(
+            config.server.allowed_secret_file_roots.clone(),
+        ),
         system_config,
         rate_limiter,
         memory,
@@ -544,7 +567,7 @@ async fn main() -> anyhow::Result<()> {
         // this commit. Adding the middleware scopes `WORKSPACE_ID` and
         // `GRAPH_WORKSPACE_ID` for the StreamableHttpService future, which
         // stays alive for the entire session — so every tool invocation
-        // inside that session runs under RLS, and `get_latest_ontology`
+        // inside that session runs under RLS, and `find_ontology_by_name`
         // etc. only ever return rows owned by the caller's workspace.
         //
         // Machine principals (API keys) must send `X-Workspace-Id`;
@@ -1084,7 +1107,7 @@ async fn evaluate_quality_rules(
     // validation but still run safety + workspace-scope.
     let mut ontology_cache: std::collections::HashMap<
         String,
-        Option<Arc<ox_core::ontology_ir::OntologyIR>>,
+        Option<Arc<ox_ontology::ir::OntologyIR>>,
     > = std::collections::HashMap::new();
 
     for rule in rules {
@@ -1095,19 +1118,21 @@ async fn evaluate_quality_rules(
         let ontology = match ontology_cache.get(&rule.ontology_lineage_id) {
             Some(cached) => cached.clone(),
             None => {
+                // Lineage → identity → current version → hydrated IR.
+                // Three separate failure modes (unknown lineage, no
+                // committed version, hydrate error) all degrade to a
+                // `None` here — rules still evaluate, they just skip
+                // the label-conformance gate.
                 let fetched = match store
-                    .get_latest_ontology_by_lineage(&rule.ontology_lineage_id)
+                    .find_ontology_by_lineage(&rule.ontology_lineage_id)
                     .await
                 {
-                    Ok(Some(saved)) => {
-                        let version = saved.version;
-                        match serde_json::from_value::<ox_core::ontology_ir::OntologyIR>(
-                            saved.ontology_ir,
-                        ) {
+                    Ok(Some(identity)) => match store.get_current_version(identity.id).await {
+                        Ok(Some(version)) => match store.load_version(version.id).await {
                             Ok(ir) => {
                                 tracing::info!(
                                     lineage = %rule.ontology_lineage_id,
-                                    version,
+                                    version = %version.version,
                                     "Quality sweep loaded ontology"
                                 );
                                 Some(Arc::new(ir))
@@ -1115,14 +1140,29 @@ async fn evaluate_quality_rules(
                             Err(e) => {
                                 tracing::warn!(
                                     lineage = %rule.ontology_lineage_id,
-                                    version,
+                                    version = %version.version,
                                     error = %e,
-                                    "Quality sweep failed to deserialize ontology; rule runs without label validation"
+                                    "Quality sweep failed to hydrate ontology IR; rule runs without label validation"
                                 );
                                 None
                             }
+                        },
+                        Ok(None) => {
+                            tracing::warn!(
+                                lineage = %rule.ontology_lineage_id,
+                                "Quality sweep: lineage has no committed version"
+                            );
+                            None
                         }
-                    }
+                        Err(e) => {
+                            tracing::warn!(
+                                lineage = %rule.ontology_lineage_id,
+                                error = %e,
+                                "Quality sweep current-version lookup failed"
+                            );
+                            None
+                        }
+                    },
                     Ok(None) => None,
                     Err(e) => {
                         tracing::warn!(

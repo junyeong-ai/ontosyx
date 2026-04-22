@@ -18,7 +18,7 @@ mod tests {
 
     #[test]
     fn load_plan_schema_within_optional_params_limit() {
-        let schema = schemars::schema_for!(ox_core::load_plan::LoadPlan);
+        let schema = schemars::schema_for!(ox_ontology::load_plan::LoadPlan);
         let value = schema.to_value();
         let count = count_optional_params(&value);
         let total = count_total_properties(&value);
@@ -31,7 +31,7 @@ mod tests {
 
     #[test]
     fn structured_match_query_within_structured_output_limits() {
-        let schema = schemars::schema_for!(ox_core::structured_match_query::StructuredMatchQuery);
+        let schema = schemars::schema_for!(ox_query_ir::structured_match::StructuredMatchQuery);
         let value = schema.to_value();
         let optional = count_optional_params(&value);
         let total = count_total_properties(&value);

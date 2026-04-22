@@ -9,18 +9,32 @@
 )]
 
 pub mod models;
+pub mod navigation;
 pub mod postgres;
+pub mod quality_signal;
 pub mod secret_token;
 pub mod store;
 
 pub use models::*;
+pub use navigation::{
+    BlendWeights, EntityRef, EntitySearchHit, EntryPointSearchOptions, FacetFilter,
+    HierarchyExpand, HierarchyFacetOptions, LlmRenderOptions, NeighborDirection,
+    NeighborExpandOptions, Subgraph, SubgraphEdge, SubgraphNode,
+};
+pub use quality_signal::{
+    MetricValue, MetricWindow, QualityMetricsReport, QueryExecutionSignal, ShaclFailureCount,
+    ShaclFailureKind, StaleConceptProposal, StaleProposalDecision, StaleTypeEntry,
+};
 pub use postgres::PostgresStore;
 pub use postgres::{SYSTEM_BYPASS, WORKSPACE_ID};
 pub use store::{
-    AclStore, AgentSessionStore, AnalysisResultStore, AnalysisSnapshot, ApprovalStore, AuditStore,
-    ConfigStore, CursorPage, CursorParams, DashboardStore, EmbeddingRetryStore, ExtendResult,
-    HealthStore, KnowledgeStore, LineageStore, LoadCheckpointStore, MeteringStore,
-    ModelConfigStore, NotificationStore, OntologyStore, PatternStore, PerspectiveStore, PinStore,
-    ProjectStore, PromptTemplateStore, QualityStore, QueryStore, RecipeStore, ReportStore,
-    ScheduledTaskStore, Store, ToolApprovalStore, UserStore, VerificationStore, WorkspaceStore,
+    AclStore, AgentSessionStore, AmbiguityStore, AnalysisResultStore, AnalysisSnapshot,
+    ApiKeyStore, ApprovalStore, AuditStore, ChangeRoutingStore, ConfigStore, CursorPage,
+    CursorParams, DashboardStore, DataSourceStore, EmbeddingRetryStore, ExtendResult, HealthStore,
+    KnowledgeStore, LineageStore, LoadCheckpointStore, MeteringStore, ModelConfigStore,
+    NotificationStore, OntologyNavigationStore, OntologyVersionStore, PatternStore,
+    PerspectiveStore, PinStore, ProjectStore, PromptTemplateStore, QualitySignalStore,
+    QualityStore, QueryStore, RecipeStore, ReportStore, ScheduledTaskStore,
+    StaleConceptProposalStore, Store, ToolApprovalStore, UserStore, VerificationStore,
+    WorkspaceStore,
 };

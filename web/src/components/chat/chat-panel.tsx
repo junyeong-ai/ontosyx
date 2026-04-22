@@ -38,7 +38,7 @@ export function ChatPanel() {
     setIsLoading,
     sessionId,
     setSessionId,
-    savedOntologyId,
+    ontologyId,
   } = useAppStore();
   const workspaceMode = useWorkspaceMode();
 
@@ -67,7 +67,7 @@ export function ChatPanel() {
   // Load insight suggestions when ontology is present and chat is empty.
   // Depend on the full `ontology` (not just `?.id`) so the lint can see the
   // same reference that `suggestInsights(ontology)` actually closes over.
-  // The zustand `selectOntology` returns a stable reference between
+  // The zustand `selectStateOntology` returns a stable reference between
   // structural changes, so this won't churn the effect on every render.
   useEffect(() => {
     if (!ontology || messages.length > 0) {
@@ -216,9 +216,9 @@ export function ChatPanel() {
           {
             message: text,
             ontology,
-            saved_ontology_id: isDesignMode
-              ? (activeProject?.saved_ontology_id ?? undefined)
-              : (savedOntologyId ?? undefined),
+            ontology_id: isDesignMode
+              ? (activeProject?.ontology_id ?? undefined)
+              : (ontologyId ?? undefined),
             project_id: isDesignMode ? activeProject?.id : undefined,
             project_revision: isDesignMode ? activeProject?.revision : undefined,
             session_id: sessionId ?? undefined,
@@ -402,7 +402,7 @@ export function ChatPanel() {
       updateMessage,
       setIsLoading,
       getState,
-      savedOntologyId,
+      ontologyId,
       sessionId,
       setSessionId,
       workspaceMode,

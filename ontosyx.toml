@@ -6,6 +6,10 @@
 host = "0.0.0.0"
 port = 3101
 cors_origins = ["http://localhost:3000", "http://localhost:3100"]
+# Sandbox for `file:/...` credential secret-refs. Empty = sandbox off
+# (single-tenant dev). Production multi-tenant deployments should
+# restrict to a known secrets mount, e.g. ["/run/secrets"].
+# allowed_secret_file_roots = ["/run/secrets"]
 
 [graph]
 backend = "neo4j"

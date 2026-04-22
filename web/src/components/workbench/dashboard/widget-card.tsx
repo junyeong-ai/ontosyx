@@ -133,6 +133,7 @@ export function WidgetCard({ widget, selected, refreshKey, onClick }: WidgetCard
           <WidgetRenderer
             spec={{ widget_type: widget.widget_type, ...widget.widget_spec } as WidgetSpec}
             data={filteredResult}
+            dashboardId={widget.dashboard_id}
           />
         ) : widget.query ? (
           <div className="flex items-center justify-center h-full">

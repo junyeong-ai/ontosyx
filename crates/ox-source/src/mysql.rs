@@ -17,14 +17,21 @@
 //!   created table.
 //! - **Safe identifier quoting**: backtick-escape with doubling.
 
+use std::sync::Arc;
+
+use arrow::array::{ArrayBuilder, ArrayRef, RecordBatch};
+use arrow::datatypes::Schema;
 use async_trait::async_trait;
-use sqlx::mysql::{MySqlPool, MySqlPoolOptions};
+use sqlx::Row;
+use sqlx::mysql::{MySqlPool, MySqlPoolOptions, MySqlRow};
 use tracing::{info, warn};
 
 use ox_core::error::{OxError, OxResult};
 use ox_core::source_schema::{ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef};
 
 use crate::DataSourceAdapter;
+use crate::normalize::describe_to_arrow_schema;
+use crate::text_scan::{append_text_cell, make_builder};
 
 /// Maximum distinct values to collect per column as samples.
 const MAX_DISTINCT_VALUES: i64 = 30;
@@ -275,4 +282,110 @@ impl DataSourceAdapter for MysqlAdapter {
             )
             .collect())
     }
+
+    async fn scan(
+        &self,
+        table: &str,
+        projection: Option<Vec<usize>>,
+        limit: Option<usize>,
+    ) -> OxResult<RecordBatch> {
+        // Mirrors the Postgres adapter's shape: push every column
+        // through a `CAST … AS CHAR` so the Rust layer only handles
+        // `Option<String>`, then reuse a per-Arrow-type builder
+        // factory that parses the text back into typed cells. MySQL
+        // `CAST(... AS CHAR)` is deterministic per type, same as
+        // Postgres's `::text`.
+        let table_def = self.describe_table(table).await?;
+        let arrow_schema = describe_to_arrow_schema("mysql", &table_def);
+
+        let selected_indices: Vec<usize> =
+            projection.unwrap_or_else(|| (0..table_def.columns.len()).collect());
+
+        let projected_schema = if selected_indices.len() == table_def.columns.len() {
+            arrow_schema.clone()
+        } else {
+            arrow_schema
+                .project(&selected_indices)
+                .map_err(|e| OxError::Runtime {
+                    message: format!("mysql scan: projection error: {e}"),
+                })?
+        };
+
+        let projected_columns: Vec<&SourceColumnDef> = selected_indices
+            .iter()
+            .map(|i| &table_def.columns[*i])
+            .collect();
+        let select_list = projected_columns
+            .iter()
+            .map(|c| {
+                format!(
+                    "CAST({ident} AS CHAR) AS {ident}",
+                    ident = quote_ident(&c.name)
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        let limit_clause = limit
+            .map(|n| format!(" LIMIT {n}"))
+            .unwrap_or_default();
+        let sql = format!(
+            "SELECT {select_list} FROM {schema}.{table}{limit}",
+            schema = quote_ident(&self.schema_name),
+            table = quote_ident(table),
+            limit = limit_clause,
+        );
+
+        let rows: Vec<MySqlRow> = sqlx::query(&sql)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| OxError::Runtime {
+                message: format!("Failed to scan table `{table}`: {e}"),
+            })?;
+
+        build_record_batch_from_mysql_rows(&rows, &projected_columns, &projected_schema)
+    }
+}
+
+/// Assemble an Arrow `RecordBatch` from a sequence of
+/// `CAST … AS CHAR`-returned MySQL rows. Cell parsing lives in
+/// [`crate::text_scan::append_text_cell`]; this function drives the
+/// per-row sqlx extraction into the shared helper. MySQL's CAST-to-
+/// CHAR renders bools as `0`/`1` (tinyint(1) is the underlying
+/// representation); both pairs are accepted by `append_text_cell`.
+fn build_record_batch_from_mysql_rows(
+    rows: &[MySqlRow],
+    columns: &[&SourceColumnDef],
+    arrow_schema: &Schema,
+) -> OxResult<RecordBatch> {
+    let mut builders: Vec<Box<dyn ArrayBuilder>> = arrow_schema
+        .fields()
+        .iter()
+        .map(|f| make_builder(f.data_type()))
+        .collect();
+
+    for row in rows {
+        for (idx, col) in columns.iter().enumerate() {
+            let raw: Option<String> =
+                row.try_get(idx).map_err(|e| OxError::Runtime {
+                    message: format!(
+                        "mysql scan: failed to read column `{name}` at row \
+                         offset {idx}: {e}",
+                        name = col.name
+                    ),
+                })?;
+            append_text_cell(
+                "mysql",
+                builders[idx].as_mut(),
+                arrow_schema.field(idx).data_type(),
+                raw.as_deref(),
+            )?;
+        }
+    }
+
+    let arrays: Vec<ArrayRef> = builders.into_iter().map(|mut b| b.finish()).collect();
+    RecordBatch::try_new(Arc::new(arrow_schema.clone()), arrays).map_err(|e| {
+        OxError::Runtime {
+            message: format!("mysql scan: RecordBatch::try_new failed: {e}"),
+        }
+    })
 }

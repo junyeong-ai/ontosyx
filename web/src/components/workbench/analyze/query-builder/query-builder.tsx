@@ -57,7 +57,7 @@ function isKnownReadOnlyReason(s: string): s is KnownReadOnlyReason {
 export function QueryBuilder() {
   const t = useTranslations("workbench.queryBuilder");
   const ontology = useAppStore((s) => s.ontology);
-  const savedOntologyId = useAppStore((s) => s.savedOntologyId);
+  const ontologyId = useAppStore((s) => s.ontologyId);
 
   // Pattern state
   const [nodes, setNodes] = useState<PatternNode[]>([]);
@@ -432,7 +432,7 @@ export function QueryBuilder() {
 
     try {
       const ir = buildQueryIR({ nodes, edges, returnFields: effectiveReturnFields, orderBy, limit });
-      const res = await executeFromIr(ir, savedOntologyId ?? undefined);
+      const res = await executeFromIr(ir, ontologyId ?? undefined);
       setCompiledCypher(res.compiled_query ?? null);
       const normalized = normalizeQueryResult(res.result) ?? {
         columns: res.result.columns,
@@ -444,7 +444,7 @@ export function QueryBuilder() {
     } finally {
       setIsRunning(false);
     }
-  }, [nodes, edges, returnFields, orderBy, limit, savedOntologyId, blockingIssues, t]);
+  }, [nodes, edges, returnFields, orderBy, limit, ontologyId, blockingIssues, t]);
 
   const handleClear = useCallback(() => {
     setNodes([]);
@@ -799,7 +799,10 @@ export function QueryBuilder() {
                   spec={{ widget_type: "auto" }}
                   data={{
                     ...result,
-                    metadata: { rows_returned: result.rows.length },
+                    metadata: {
+                      execution_time_ms: 0,
+                      rows_returned: result.rows.length,
+                    },
                   }}
                 />
               </div>

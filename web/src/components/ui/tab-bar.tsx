@@ -20,7 +20,7 @@ export function TabBar({ tabs, activeTab, onTabChange }: TabBarProps) {
               "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors outline-none",
               "data-[active]:border-b-2 data-[active]:border-emerald-600 data-[active]:text-emerald-600",
               "dark:data-[active]:border-emerald-400 dark:data-[active]:text-emerald-400",
-              "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300",
+              "text-zinc-500 hover:text-zinc-700 dark:text-muted-foreground dark:hover:text-zinc-300",
             )}
           >
             {icon && <HugeiconsIcon icon={icon} className="h-3 w-3" size="100%" />}

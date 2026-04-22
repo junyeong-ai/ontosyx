@@ -8,7 +8,7 @@ use tracing::{info, warn};
 use ox_brain::Brain;
 use ox_compiler::GraphCompiler;
 use ox_core::LocalizedText;
-use ox_core::ontology_ir::OntologyIR;
+use ox_ontology::ir::OntologyIR;
 use ox_core::types::PropertyValue;
 use ox_runtime::GraphRuntime;
 use ox_store::Store;
@@ -154,6 +154,9 @@ pub struct OntosyxMcpServer {
     store: Arc<dyn Store>,
     limiter: Arc<SessionLimiter>,
     call_timeout: Duration,
+    /// Mirror of `AgentConfig::reject_high_cost` — MCP tools enforce the
+    /// same pre-execute gate as the chat tool surface.
+    reject_high_cost: bool,
     /// Touched only via the `#[tool_handler]` macro expansion — looks
     /// dead to the compiler but is required for the rmcp dispatch table.
     #[allow(dead_code)]
@@ -169,6 +172,7 @@ impl OntosyxMcpServer {
         store: Arc<dyn Store>,
         call_timeout: Duration,
         rate_limit: &McpRateLimitConfig,
+        reject_high_cost: bool,
     ) -> Self {
         if readonly_runtime.is_none() {
             warn!(
@@ -188,6 +192,7 @@ impl OntosyxMcpServer {
             store,
             limiter,
             call_timeout,
+            reject_high_cost,
             tool_router: Self::tool_router(),
         }
     }
@@ -267,10 +272,25 @@ struct QueryResponse {
 struct OntologySummary {
     id: String,
     name: String,
-    version: i32,
+    /// Current-version tag (free-form; `"0"` when the identity has no
+    /// committed version yet).
+    version: String,
     description: Option<String>,
     node_count: usize,
     edge_count: usize,
+}
+
+/// Flatten the `ontologies.description` LocalizedText JSON into a plain
+/// string suitable for MCP output. The stored shape is
+/// `{"default": "...", "translations": {...}}`; we surface the default.
+/// Returns `None` when the stored value is empty / malformed.
+fn localized_description_text(value: &serde_json::Value) -> Option<String> {
+    let text = value.get("default").and_then(|v| v.as_str())?;
+    if text.is_empty() {
+        None
+    } else {
+        Some(text.to_string())
+    }
 }
 
 #[derive(Serialize)]
@@ -331,14 +351,25 @@ struct ExecuteCypherResponse {
 // ---------------------------------------------------------------------------
 
 async fn load_ontology(store: &dyn Store, name: &str) -> Result<OntologyIR, McpError> {
-    let saved = store
-        .get_latest_ontology(name)
+    let identity = store
+        .find_ontology_by_name(name)
         .await
         .map_err(|e| McpError::internal_error(format!("Store error: {e}"), None))?
         .ok_or_else(|| McpError::invalid_params(format!("Ontology '{name}' not found"), None))?;
-
-    serde_json::from_value::<OntologyIR>(saved.ontology_ir)
-        .map_err(|e| McpError::internal_error(format!("Failed to deserialize ontology: {e}"), None))
+    let version = store
+        .get_current_version(identity.id)
+        .await
+        .map_err(|e| McpError::internal_error(format!("Store error: {e}"), None))?
+        .ok_or_else(|| {
+            McpError::invalid_params(
+                format!("Ontology '{name}' has no committed version"),
+                None,
+            )
+        })?;
+    store
+        .load_version(version.id)
+        .await
+        .map_err(|e| McpError::internal_error(format!("Hydrate error: {e}"), None))
 }
 
 /// Serialize a response struct to pretty JSON text, mapping errors to McpError.
@@ -564,6 +595,21 @@ impl OntosyxMcpServer {
                 McpError::internal_error(format!("Query translation failed: {e}"), None)
             })?;
 
+        // Pre-execute cost gating: reject High-risk shapes before they hit
+        // the driver. Mirrors the check in `QueryGraphTool` so the MCP
+        // path gets the same protection as the chat tool surface.
+        let cost_estimate = ox_compiler::cost::estimate_cost(&query_ir, &ontology);
+        if cost_estimate.risk_level == ox_compiler::cost::RiskLevel::High && self.reject_high_cost {
+            let detail = cost_estimate.warnings.join("; ");
+            return Err(McpError::invalid_request(
+                format!(
+                    "Query rejected: cost estimator flagged this as high-risk ({detail}). \
+                     Reformulate with a bounded path length / indexed filter / connected pattern."
+                ),
+                None,
+            ));
+        }
+
         // Compile QueryIR -> target language
         let compiled = self.compiler.compile_query(&query_ir).map_err(|e| {
             McpError::internal_error(format!("Query compilation failed: {e}"), None)
@@ -652,42 +698,46 @@ impl OntosyxMcpServer {
 
         let page = self
             .store
-            .list_saved_ontologies(&pagination)
+            .list_ontologies(&pagination)
             .await
             .map_err(|e| McpError::internal_error(format!("Store error: {e}"), None))?;
 
-        let ontologies: Vec<OntologySummary> = page
-            .items
-            .into_iter()
-            .map(|saved| {
-                let (node_count, edge_count) = saved
-                    .ontology_ir
-                    .as_object()
-                    .map(|obj| {
-                        let nc = obj
-                            .get("node_types")
-                            .and_then(|v| v.as_array())
-                            .map(|a| a.len())
-                            .unwrap_or(0);
-                        let ec = obj
-                            .get("edge_types")
-                            .and_then(|v| v.as_array())
-                            .map(|a| a.len())
-                            .unwrap_or(0);
-                        (nc, ec)
-                    })
-                    .unwrap_or((0, 0));
+        // Per-row current-version probe: each call hits the partial
+        // `ontology_version_snapshots_current_idx`, and the page size is
+        // bounded at 100 so the sequential await cost stays well under a
+        // single MCP request budget.
+        let mut ontologies = Vec::with_capacity(page.items.len());
+        for identity in page.items {
+            let version_row = self
+                .store
+                .get_current_version(identity.id)
+                .await
+                .map_err(|e| McpError::internal_error(format!("Store error: {e}"), None))?;
 
-                OntologySummary {
-                    id: saved.id.to_string(),
-                    name: saved.name,
-                    version: saved.version,
-                    description: saved.description,
-                    node_count,
-                    edge_count,
-                }
-            })
-            .collect();
+            let (version_tag, node_count, edge_count) = if let Some(version) = version_row {
+                let ir = self.store.load_version(version.id).await.map_err(|e| {
+                    McpError::internal_error(format!("Hydrate error: {e}"), None)
+                })?;
+                (
+                    version.version,
+                    ir.node_types().len(),
+                    ir.edge_types().len(),
+                )
+            } else {
+                // Identity exists but no committed version — rare transitional
+                // state. Surface as "v0 / empty" rather than hiding the row.
+                (String::from("0"), 0, 0)
+            };
+
+            ontologies.push(OntologySummary {
+                id: identity.id.to_string(),
+                name: identity.name,
+                version: version_tag,
+                description: localized_description_text(&identity.description),
+                node_count,
+                edge_count,
+            });
+        }
 
         info!(
             count = ontologies.len(),

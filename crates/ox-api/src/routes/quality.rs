@@ -9,7 +9,10 @@ use tracing::{info, warn};
 use uuid::Uuid;
 
 use ox_core::types::PropertyValue;
-use ox_store::{QualityDashboardEntry, QualityResult, QualityRule};
+use ox_store::{
+    MetricWindow, QualityDashboardEntry, QualityMetricsReport, QualityResult, QualityRule,
+    ShaclFailureCount, StaleConceptProposal, StaleProposalDecision, StaleTypeEntry,
+};
 
 use crate::error::AppError;
 use crate::principal::Principal;
@@ -475,7 +478,7 @@ fn build_quality_cypher(rule: &QualityRule) -> Result<String, AppError> {
 ///
 /// Expects the query to return columns named `violations` and `total`.
 /// Falls back to first two numeric columns if names don't match.
-fn parse_violations(result: &ox_core::query_ir::QueryResult) -> (i64, i64) {
+fn parse_violations(result: &ox_query_ir::query::QueryResult) -> (i64, i64) {
     if result.rows.is_empty() {
         return (0, 0);
     }
@@ -556,4 +559,141 @@ async fn execute_single_rule(
         }),
         evaluated_at: Utc::now(),
     })
+}
+
+// ===========================================================================
+// Six-window metrics — patent's "6 창" dashboard. Backs
+// `/quality/metrics`, `/quality/shacl-failures`, `/quality/stale-types`.
+// ===========================================================================
+
+fn parse_window(s: Option<&str>) -> MetricWindow {
+    match s {
+        Some("30d") => MetricWindow::Last30d,
+        Some("90d") => MetricWindow::Last90d,
+        _ => MetricWindow::Last7d,
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MetricsParams {
+    /// `"7d"` | `"30d"` | `"90d"`. Defaults to `7d`.
+    pub window: Option<String>,
+}
+
+/// `GET /api/quality/metrics?window=7d` — six-window summary.
+pub(crate) async fn get_quality_metrics(
+    State(state): State<AppState>,
+    _principal: Principal,
+    _ws: WorkspaceContext,
+    Query(params): Query<MetricsParams>,
+) -> Result<Json<ApiResponse<QualityMetricsReport>>, AppError> {
+    let report = state
+        .store
+        .aggregate_quality_metrics(parse_window(params.window.as_deref()))
+        .await
+        .map_err(AppError::from)?;
+    Ok(ApiResponse::of(report))
+}
+
+/// `GET /api/quality/shacl-failures?window=7d` — failure-kind histogram.
+pub(crate) async fn list_shacl_failures(
+    State(state): State<AppState>,
+    _principal: Principal,
+    _ws: WorkspaceContext,
+    Query(params): Query<MetricsParams>,
+) -> Result<Json<ApiResponse<Vec<ShaclFailureCount>>>, AppError> {
+    let rows = state
+        .store
+        .list_shacl_failure_distribution(parse_window(params.window.as_deref()))
+        .await
+        .map_err(AppError::from)?;
+    Ok(ApiResponse::of(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct StaleTypesParams {
+    /// Staleness cutoff in days. Defaults to 180 — matches the
+    /// patent matrix's "6개월 미사용" threshold.
+    pub stale_after_days: Option<i64>,
+}
+
+/// `GET /api/quality/stale-types?stale_after_days=180` — types
+/// whose `last_used_at` is older than the cutoff. Candidates for
+/// deprecation (always HITL — the list is advisory, not an
+/// auto-delete trigger).
+pub(crate) async fn list_stale_types(
+    State(state): State<AppState>,
+    _principal: Principal,
+    _ws: WorkspaceContext,
+    Query(params): Query<StaleTypesParams>,
+) -> Result<Json<ApiResponse<Vec<StaleTypeEntry>>>, AppError> {
+    let rows = state
+        .store
+        .list_stale_types(params.stale_after_days.unwrap_or(180))
+        .await
+        .map_err(AppError::from)?;
+    Ok(ApiResponse::of(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct StaleProposalsParams {
+    /// `true` (default) — only pending proposals (admin's open queue).
+    /// `false` — include terminal (approved / dismissed) for history.
+    #[serde(default)]
+    pub include_decided: Option<bool>,
+}
+
+/// `GET /api/quality/stale-proposals` — durable proposals written by
+/// the daily cron. Natural key guarantees one open row per type.
+pub(crate) async fn list_stale_proposals(
+    State(state): State<AppState>,
+    _principal: Principal,
+    _ws: WorkspaceContext,
+    Query(params): Query<StaleProposalsParams>,
+) -> Result<Json<ApiResponse<Vec<StaleConceptProposal>>>, AppError> {
+    let pending_only = !params.include_decided.unwrap_or(false);
+    let rows = state
+        .store
+        .list_stale_concept_proposals(pending_only)
+        .await
+        .map_err(AppError::from)?;
+    Ok(ApiResponse::of(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct StaleProposalDecisionRequest {
+    /// `"approved"` or `"dismissed"`. `"pending"` is rejected —
+    /// there's no "un-decide" op; admins clear the row instead.
+    pub decision: String,
+    /// Optional admin comment. Surfaces in audit log + the
+    /// proposal's row detail.
+    #[serde(default)]
+    pub reason: Option<String>,
+}
+
+/// `PATCH /api/quality/stale-proposals/{id}` — admin decision on
+/// one proposal. Returns the updated row.
+pub(crate) async fn decide_stale_proposal(
+    State(state): State<AppState>,
+    principal: Principal,
+    _ws: WorkspaceContext,
+    Path(id): Path<Uuid>,
+    Json(req): Json<StaleProposalDecisionRequest>,
+) -> Result<Json<ApiResponse<StaleConceptProposal>>, AppError> {
+    principal.require_designer()?;
+    let decision = match req.decision.as_str() {
+        "approved" => StaleProposalDecision::Approved,
+        "dismissed" => StaleProposalDecision::Dismissed,
+        other => {
+            return Err(AppError::bad_request(format!(
+                "decision must be \"approved\" or \"dismissed\"; got \"{other}\""
+            )));
+        }
+    };
+    let row = state
+        .store
+        .record_stale_proposal_decision(id, decision, principal.user_uuid().ok(), req.reason)
+        .await
+        .map_err(AppError::from)?;
+    Ok(ApiResponse::of(row))
 }

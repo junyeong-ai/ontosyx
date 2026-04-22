@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useAppStore, selectSelectedNodeId, selectSelectedEdgeId } from "@/lib/store";
+import { useAppStore, selectStateSelectedNodeId, selectStateSelectedEdgeId } from "@/lib/store";
 import { applyOntologyCommands } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -19,8 +19,8 @@ import { NodeDetail, EdgeDetail } from "./entity-detail";
 export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
   const ontology = useAppStore((s) => s.ontology);
   const setOntology = useAppStore((s) => s.setOntology);
-  const selectedNodeId = useAppStore(selectSelectedNodeId);
-  const selectedEdgeId = useAppStore(selectSelectedEdgeId);
+  const selectedNodeId = useAppStore(selectStateSelectedNodeId);
+  const selectedEdgeId = useAppStore(selectStateSelectedEdgeId);
   const commandStack = useAppStore((s) => s.commandStack);
   const redoStack = useAppStore((s) => s.redoStack);
   const undo = useAppStore((s) => s.undo);

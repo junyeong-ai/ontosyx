@@ -21,7 +21,7 @@ use std::hint::black_box;
 use ox_compiler::GraphCompiler;
 use ox_compiler::cypher::CypherCompiler;
 use ox_core::{GraphLabel, PropertyKey, VariableName};
-use ox_core::query_ir::{
+use ox_query_ir::query::{
     AggFunction, AggregationExpr, ComparisonOp, Expr, FieldRef, GraphPattern, OrderClause,
     Projection, QueryIR, QueryOp, SortDirection,
 };
@@ -42,7 +42,7 @@ fn pk(s: &'static str) -> PropertyKey {
 fn bench_simple_match(c: &mut Criterion) {
     let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("p"),
@@ -98,7 +98,7 @@ fn bench_simple_match(c: &mut Criterion) {
 fn bench_relationship_traversal(c: &mut Criterion) {
     let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![
                 GraphPattern::Node {
@@ -161,7 +161,7 @@ fn bench_relationship_traversal(c: &mut Criterion) {
 fn bench_aggregation(c: &mut Criterion) {
     let compiler = CypherCompiler::neo4j();
     let inner = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("o"),
@@ -200,7 +200,7 @@ fn bench_aggregation(c: &mut Criterion) {
     };
 
     let query = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Aggregate {
             source: Box::new(inner),
             group_by: vec![FieldRef {

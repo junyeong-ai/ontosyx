@@ -50,7 +50,7 @@ function DesignActions() {
   const [auditing, setAuditing] = useState(false);
 
   const handleAudit = async () => {
-    const ontologyId = activeProject?.saved_ontology_id;
+    const ontologyId = activeProject?.ontology_id;
     if (!ontologyId) {
       toast.error(t("saveOntologyFirst"));
       return;
@@ -144,7 +144,7 @@ function DesignActions() {
             variant="ghost"
             size="icon-sm"
             onClick={handleAudit}
-            disabled={auditing || !activeProject?.saved_ontology_id}
+            disabled={auditing || !activeProject?.ontology_id}
             aria-label={t("auditAria")}
           >
             {auditing ? (

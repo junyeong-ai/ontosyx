@@ -36,7 +36,7 @@ export function EmptyState({ icon, title, description, hint, action, secondaryAc
           {secondaryAction && (
             <button
               onClick={secondaryAction.onClick}
-              className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+              className="text-xs text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300"
             >
               {secondaryAction.label}
             </button>
@@ -44,7 +44,7 @@ export function EmptyState({ icon, title, description, hint, action, secondaryAc
         </div>
       )}
       {hint && (
-        <p className="text-[11px] text-zinc-400">{hint}</p>
+        <p className="text-[11px] text-muted-foreground">{hint}</p>
       )}
     </div>
   );

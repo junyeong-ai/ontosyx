@@ -1,58 +1,67 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useSyncExternalStore } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
 const STORAGE_KEY = "ontosyx.onboarded";
 
-const STEPS = [
-  {
-    title: "Connect Your Data",
-    description:
-      "Link any database — PostgreSQL, MySQL, MongoDB, or upload CSV/JSON files. Ontosyx analyzes your schema automatically.",
-    icon: "\u{1F517}",
-  },
-  {
-    title: "Design Your Ontology",
-    description:
-      "AI designs a knowledge graph from your data structure. Refine nodes, edges, and properties visually on the canvas.",
-    icon: "\u{1F9E0}",
-  },
-  {
-    title: "Discover Insights",
-    description:
-      "Ask natural language questions to explore multi-hop relationships impossible in traditional SQL. Build dashboards and reports.",
-    icon: "\u{1F4A1}",
-  },
-];
+/**
+ * Step icons — kept outside the component so the glyph set is
+ * locale-independent. Titles and descriptions come from `messages/*.json`
+ * via `useTranslations("welcome")`.
+ */
+const STEP_ICONS = ["\u{1F517}", "\u{1F9E0}", "\u{1F4A1}"] as const;
+const STEP_KEYS = ["step1", "step2", "step3"] as const;
+
+/**
+ * Subscribe to `localStorage` changes (cross-tab via the native `storage`
+ * event; same-tab via the manual dispatch in `dismiss`).
+ */
+function subscribeToOnboardingStatus(onChange: () => void): () => void {
+  window.addEventListener("storage", onChange);
+  return () => window.removeEventListener("storage", onChange);
+}
+
+function getOnboardedStatus(): boolean {
+  return !!localStorage.getItem(STORAGE_KEY);
+}
+
+/** SSR: assume already onboarded so the modal never flashes during SSR HTML. */
+function getServerOnboardedStatus(): boolean {
+  return true;
+}
 
 export function WelcomeModal() {
   const [step, setStep] = useState(0);
-  const [show, setShow] = useState(false);
+  const t = useTranslations("welcome");
+  const onboarded = useSyncExternalStore(
+    subscribeToOnboardingStatus,
+    getOnboardedStatus,
+    getServerOnboardedStatus,
+  );
 
-  useEffect(() => {
-    if (typeof window !== "undefined" && !localStorage.getItem(STORAGE_KEY)) {
-      setShow(true);
-    }
-  }, []);
+  if (onboarded) return null;
 
   const dismiss = () => {
     localStorage.setItem(STORAGE_KEY, "true");
-    setShow(false);
+    // `storage` fires only across tabs; dispatch manually so THIS tab's
+    // `useSyncExternalStore` re-reads and this modal unmounts on the
+    // next render pass.
+    window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY }));
   };
 
-  if (!show) return null;
-
-  const current = STEPS[step];
-  const isLast = step === STEPS.length - 1;
+  const currentKey = STEP_KEYS[step];
+  const currentIcon = STEP_ICONS[step];
+  const isLast = step === STEP_KEYS.length - 1;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="w-full max-w-md rounded-xl bg-white p-8 shadow-2xl dark:bg-zinc-900">
         {/* Step indicator */}
         <div className="mb-6 flex justify-center gap-2">
-          {STEPS.map((_, i) => (
+          {STEP_KEYS.map((_, i) => (
             <div
               key={i}
               className={cn(
@@ -67,12 +76,12 @@ export function WelcomeModal() {
 
         {/* Content */}
         <div className="text-center">
-          <span className="text-4xl">{current.icon}</span>
+          <span className="text-4xl">{currentIcon}</span>
           <h2 className="mt-4 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-            {current.title}
+            {t(`${currentKey}Title`)}
           </h2>
-          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-            {current.description}
+          <p className="mt-2 text-sm text-zinc-500 dark:text-muted-foreground">
+            {t(`${currentKey}Description`)}
           </p>
         </div>
 
@@ -80,16 +89,16 @@ export function WelcomeModal() {
         <div className="mt-8 flex items-center justify-between">
           <button
             onClick={dismiss}
-            className="text-xs text-zinc-400 hover:text-zinc-600"
+            className="text-xs text-muted-foreground hover:text-zinc-600"
           >
-            Skip
+            {t("skip")}
           </button>
           <Button
             variant="primary"
             size="sm"
             onClick={isLast ? dismiss : () => setStep((s) => s + 1)}
           >
-            {isLast ? "Get Started" : "Next"}
+            {isLast ? t("getStarted") : t("next")}
           </Button>
         </div>
       </div>

@@ -21,6 +21,7 @@
 //! cases would be a silent isolation failure — the same class of bug
 //! substring-based rewriters used to hide.
 
+use std::collections::{BTreeMap, HashSet};
 use std::fmt;
 
 use crate::cypher::ast::{
@@ -254,19 +255,36 @@ impl fmt::Debug for CypherRewriterPipeline {
 /// statement in the AST is rewritten independently so a UNION fragment
 /// cannot read or write outside its own workspace.
 ///
-/// Read path: the first MATCH / OPTIONAL MATCH clause with a bound node
-/// variable receives `var.<property> = $<param>`. If the statement
-/// already has a WHERE clause following that MATCH, the predicate is
-/// prepended with AND; otherwise a new WHERE is inserted between the
-/// MATCH and whatever comes next.
+/// Read path: for **every** MATCH / OPTIONAL MATCH clause in the
+/// statement, **every** bound node variable in its pattern receives
+/// `var.<property> = $<param>`. A single WHERE clause per MATCH
+/// carries all injected conditions; if the statement already has a
+/// WHERE immediately following that MATCH, the conditions are
+/// prepended as a conjunction; otherwise a new WHERE is inserted
+/// between the MATCH and whatever comes next.
+///
+/// A chained pattern (`MATCH (a:A)-[r]->(b:B)`) binds two node
+/// variables — both are scoped. Sequential clauses
+/// (`MATCH (a:A) WITH a MATCH (b:B) RETURN a, b`) bind separate node
+/// variables — both are scoped. The pre-rewrite design that only
+/// scoped the first variable was an isolation gap: the query
+/// `MATCH (a:A) MATCH (b:B) RETURN a, b` is a Cartesian product and
+/// `b` was unconstrained.
 ///
 /// Write path: the first CREATE / MERGE clause with a bound node
 /// variable receives `var.<property> = $<param>` as a SET assignment.
 /// Existing SETs are preserved and prepended; otherwise a new SET
 /// clause is appended to the CREATE/MERGE.
 ///
-/// Both paths are idempotent — a statement that already references
-/// the workspace property is left alone.
+/// Idempotency: a per-variable guard checks whether some clause in the
+/// statement already binds `<var>.<property> = $<param>` (the
+/// system-injected shape). If so, that variable is skipped — a
+/// pipeline that runs the rewriter twice does not double-inject. A
+/// user-supplied literal such as `WHERE n._workspace_id = 'other'`
+/// does **not** match the guard; it is AND-neutralised by the
+/// injected system predicate, so a query attempting to read another
+/// workspace evaluates to the empty set rather than silently
+/// bypassing isolation.
 #[derive(Debug, Clone)]
 pub struct WorkspaceScopeRewriter {
     pub property: &'static str,
@@ -313,28 +331,68 @@ impl CypherRewriter for WorkspaceScopeRewriter {
 
 impl WorkspaceScopeRewriter {
     fn inject_read_scope(&self, statement: &mut CypherStatement) -> bool {
-        if self.statement_references_property(statement) {
-            return false;
-        }
-        let Some((match_idx, var)) = first_variable_in_clause(statement, |k| {
-            matches!(k, ClauseKind::Match | ClauseKind::OptionalMatch)
-        }) else {
-            return false;
-        };
-        let condition = format!("{var}.{} = ${}", self.property, self.param_name);
+        // Collect (clause_idx, variable) pairs for every bound node
+        // variable in every MATCH / OPTIONAL MATCH clause. A single
+        // MATCH can bind multiple variables (chained pattern); a
+        // statement can contain multiple sequential MATCHes. Both must
+        // be scoped.
+        //
+        // `queued` dedupes across the whole statement — once a variable
+        // is slated for injection (or is already system-bound), it is
+        // not queued again in a later clause. Order preserved via
+        // `BTreeMap<clause_idx, Vec<var>>` so the rendering is stable.
+        let mut plan: BTreeMap<usize, Vec<String>> = BTreeMap::new();
+        let mut queued: HashSet<String> = HashSet::new();
 
-        if let Some(where_idx) = find_following_where(statement, match_idx) {
-            prepend_to_where(&mut statement.clauses[where_idx], &condition);
-        } else {
-            let where_clause = CypherClause {
-                kind: ClauseKind::Where,
-                tokens: Vec::new(),
-                text: format!(" WHERE {condition}"),
-                span: Span::default(),
-                patterns: Vec::new(),
-            };
-            statement.clauses.insert(match_idx + 1, where_clause);
+        for (idx, clause) in statement.clauses.iter().enumerate() {
+            if !matches!(clause.kind, ClauseKind::Match | ClauseKind::OptionalMatch) {
+                continue;
+            }
+            for var in bound_node_variables(clause) {
+                if queued.contains(&var) {
+                    continue;
+                }
+                if statement_binds_system_param_for(
+                    statement,
+                    &var,
+                    self.property,
+                    self.param_name,
+                ) {
+                    queued.insert(var);
+                    continue;
+                }
+                queued.insert(var.clone());
+                plan.entry(idx).or_default().push(var);
+            }
         }
+
+        if plan.is_empty() {
+            return false;
+        }
+
+        // Iterate in reverse order so inserting a new WHERE at
+        // `clause_idx + 1` does not shift earlier indices.
+        for (clause_idx, vars) in plan.iter().rev() {
+            let combined = vars
+                .iter()
+                .map(|v| format!("{v}.{} = ${}", self.property, self.param_name))
+                .collect::<Vec<_>>()
+                .join(" AND ");
+
+            if let Some(where_idx) = find_following_where(statement, *clause_idx) {
+                prepend_to_where(&mut statement.clauses[where_idx], &combined);
+            } else {
+                let where_clause = CypherClause {
+                    kind: ClauseKind::Where,
+                    tokens: Vec::new(),
+                    text: format!(" WHERE {combined}"),
+                    span: Span::default(),
+                    patterns: Vec::new(),
+                };
+                statement.clauses.insert(*clause_idx + 1, where_clause);
+            }
+        }
+
         true
     }
 
@@ -386,55 +444,61 @@ impl WorkspaceScopeRewriter {
         }
         any_injected
     }
-
-    /// Does any clause in the statement already mention `self.property`?
-    /// If yes the rewriter's read phase is a no-op (idempotency).
-    fn statement_references_property(&self, statement: &CypherStatement) -> bool {
-        statement
-            .clauses
-            .iter()
-            .any(|c| c.text.contains(self.property))
-    }
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Find the first clause matching `predicate` that has a pattern with a
-/// bound node variable; return (clause_index, variable).
-fn first_variable_in_clause(
-    statement: &CypherStatement,
-    predicate: impl Fn(ClauseKind) -> bool,
-) -> Option<(usize, String)> {
-    for (idx, clause) in statement.clauses.iter().enumerate() {
-        if !predicate(clause.kind) {
-            continue;
-        }
-        if let Some(var) = first_pattern_variable(clause) {
-            return Some((idx, var));
-        }
-    }
-    None
-}
-
-fn first_variable_in_clause_at(statement: &CypherStatement, idx: usize) -> Option<String> {
-    first_pattern_variable(statement.clauses.get(idx)?)
-}
-
-/// First node variable in a clause's patterns (`MATCH (n)-(:R)->(m)` → `n`).
-fn first_pattern_variable(clause: &CypherClause) -> Option<String> {
+/// Node variables bound by a clause's patterns, in order, deduplicated.
+/// `MATCH (a)-[:R]->(b)-[:S]->(a)` returns `["a", "b"]` — each variable
+/// at most once, preserving first-occurrence order for stable rendering.
+fn bound_node_variables(clause: &CypherClause) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
     for pattern in &clause.patterns {
         for element in &pattern.elements {
             if let CypherPatternElement::Node(NodePattern {
                 variable: Some(v), ..
             }) = element
+                && !out.iter().any(|existing| existing == v)
             {
-                return Some(v.clone());
+                out.push(v.clone());
             }
         }
     }
-    None
+    out
+}
+
+/// First node variable bound by the clause at `idx`, if any. Used by the
+/// write path, which still targets a single variable per CREATE/MERGE
+/// (the write surface has not been lifted to per-variable coverage yet;
+/// see Phase 1 follow-up).
+fn first_variable_in_clause_at(statement: &CypherStatement, idx: usize) -> Option<String> {
+    bound_node_variables(statement.clauses.get(idx)?)
+        .into_iter()
+        .next()
+}
+
+/// Does some clause in `statement` already contain the literal
+/// `<var>.<property> = $<param_name>` — the system-injected shape?
+/// Signal for idempotency: a rewriter running twice on the same AST,
+/// or a pipeline where a previous pass already stamped the predicate,
+/// should not inject a duplicate.
+///
+/// Only the system-param form satisfies the guard. A user-supplied
+/// predicate such as `n._workspace_id = 'other_ws'` does NOT match —
+/// the rewriter still injects its own `$_ws_id` predicate, and the
+/// two are AND-combined, which evaluates to the empty set for any
+/// non-matching literal. That is the point: the rewriter's gate is
+/// authoritative, not the author's prior text.
+fn statement_binds_system_param_for(
+    statement: &CypherStatement,
+    var: &str,
+    property: &str,
+    param_name: &str,
+) -> bool {
+    let needle = format!("{var}.{property} = ${param_name}");
+    statement.clauses.iter().any(|c| c.text.contains(&needle))
 }
 
 /// Find the WHERE clause that belongs to the MATCH at `match_idx`. WHERE
@@ -561,13 +625,32 @@ mod tests {
     }
 
     #[test]
-    fn scope_read_is_idempotent_when_property_already_mentioned() {
-        let input = "MATCH (n:Person) WHERE n._workspace_id = 'existing' RETURN n";
+    fn scope_user_supplied_literal_is_and_neutralised() {
+        // A user-supplied literal workspace predicate does not satisfy
+        // the system-param idempotency guard (that guard looks for
+        // `$_ws_id` specifically). The rewriter still injects its own
+        // system predicate, AND-combined with the author's text, so a
+        // query attempting to read another workspace evaluates to the
+        // empty set rather than silently bypassing isolation.
+        let input = "MATCH (n:Person) WHERE n._workspace_id = 'other_ws' RETURN n";
+        let out = rewrite(input);
+        assert!(
+            out.contains("n._workspace_id = $_ws_id AND n._workspace_id = 'other_ws'"),
+            "author literal must be AND-neutralised by the system predicate: {out}"
+        );
+    }
+
+    #[test]
+    fn scope_read_is_idempotent_when_system_param_already_bound() {
+        // The system-injected shape (`= $_ws_id`) is exactly what
+        // dedup detects. A prior pass (or a human who wrote the
+        // canonical predicate) leaves the statement alone.
+        let input = "MATCH (n:Person) WHERE n._workspace_id = $_ws_id RETURN n";
         let out = rewrite(input);
         assert_eq!(
-            out.matches("_workspace_id").count(),
+            out.matches("_workspace_id = $_ws_id").count(),
             1,
-            "must not double-inject: {out}"
+            "must not double-inject the system predicate: {out}"
         );
     }
 
@@ -611,13 +694,16 @@ mod tests {
     }
 
     #[test]
-    fn scope_multi_node_pattern_filters_first_variable_only() {
+    fn scope_multi_node_pattern_scopes_every_bound_variable() {
+        // Every node variable bound by the pattern gets its own
+        // predicate, joined with AND. The WHERE still follows the
+        // entire pattern — pattern boundaries are never split.
         let out = rewrite(
             "MATCH (p:Product)-[:MADE_BY]->(b:Brand) RETURN b.name AS brand, count(p) AS products",
         );
         assert!(
-            out.contains("(b:Brand) WHERE p._workspace_id = $_ws_id"),
-            "WHERE must follow the entire pattern: {out}"
+            out.contains("p._workspace_id = $_ws_id AND b._workspace_id = $_ws_id"),
+            "both p and b must be scoped: {out}"
         );
         assert!(
             !out.contains("(p:Product) WHERE"),
@@ -626,22 +712,29 @@ mod tests {
     }
 
     #[test]
-    fn scope_multi_node_with_existing_where_prepends_conjunction() {
+    fn scope_multi_node_with_existing_where_prepends_all_conjunctions() {
         let out = rewrite(
             "MATCH (c:Customer)-[:PLACED]->(o:Order) WHERE o.status = 'delivered' RETURN c, o",
         );
         assert!(
-            out.contains("c._workspace_id = $_ws_id AND o.status"),
-            "{out}"
+            out.contains(
+                "c._workspace_id = $_ws_id AND o._workspace_id = $_ws_id AND o.status"
+            ),
+            "injected predicates must precede the author WHERE body: {out}"
         );
     }
 
     #[test]
-    fn scope_three_node_chain_filters_first_variable() {
+    fn scope_three_node_chain_scopes_every_bound_variable() {
         let out = rewrite(
             "MATCH (c:Customer)-[:PLACED]->(o:Order)-[:CONTAINS]->(p:Product) RETURN c.name, p.name",
         );
-        assert!(out.contains("(p:Product) WHERE c._workspace_id"), "{out}");
+        for var in ["c", "o", "p"] {
+            assert!(
+                out.contains(&format!("{var}._workspace_id = $_ws_id")),
+                "chain variable {var} must be scoped: {out}"
+            );
+        }
     }
 
     // --- New coverage: tokenizer / AST unlocks these ---
@@ -720,19 +813,46 @@ mod tests {
     }
 
     #[test]
-    fn scope_multi_match_scopes_only_first() {
-        // Current policy: inject on the first MATCH; subsequent MATCH
-        // clauses reuse its variable via the WHERE predicate. If
-        // real-world usage requires per-MATCH scoping we revisit — but
-        // double-injection would silently AND two workspace predicates,
-        // which is what idempotency is designed to block.
+    fn scope_multi_match_scopes_every_match_clause() {
+        // `MATCH (a:A) MATCH (b:B) RETURN a, b` is a Cartesian product.
+        // Scoping only `a` was an isolation gap — `b` was unconstrained
+        // and any matching node from any workspace would join in.
+        // Every MATCH clause now receives its own WHERE, each bound
+        // variable scoped to the active workspace.
         let out = rewrite("MATCH (a:A) MATCH (b:B) RETURN a, b");
         assert_eq!(
-            out.matches("_workspace_id").count(),
-            1,
-            "one predicate per statement unless idempotency breaks: {out}",
+            out.matches("_workspace_id = $_ws_id").count(),
+            2,
+            "each MATCH must produce its own predicate: {out}",
         );
-        assert!(out.contains("a._workspace_id"));
+        assert!(out.contains("a._workspace_id = $_ws_id"), "{out}");
+        assert!(out.contains("b._workspace_id = $_ws_id"), "{out}");
+    }
+
+    #[test]
+    fn scope_match_then_with_then_match_covers_both_matches() {
+        // A WITH projection separates two MATCH clauses. Both bind
+        // their own variable; both need scoping.
+        let out = rewrite("MATCH (a:A) WITH a MATCH (b:B) RETURN a, b");
+        assert!(out.contains("a._workspace_id = $_ws_id"), "{out}");
+        assert!(out.contains("b._workspace_id = $_ws_id"), "{out}");
+    }
+
+    #[test]
+    fn scope_optional_match_reusing_variable_does_not_double_inject() {
+        // `OPTIONAL MATCH (a)-->(b)` introduces `b`; `a` is already
+        // bound by the outer MATCH and already scoped, so only `b`
+        // gets a fresh predicate on the OPTIONAL MATCH.
+        let out = rewrite("MATCH (a:A) OPTIONAL MATCH (a)-->(b:B) RETURN a, b");
+        assert_eq!(
+            out.matches("a._workspace_id = $_ws_id").count(),
+            1,
+            "a scoped once, not once per MATCH: {out}",
+        );
+        assert!(
+            out.contains("b._workspace_id = $_ws_id"),
+            "b must be scoped on the OPTIONAL MATCH: {out}",
+        );
     }
 
     #[test]
@@ -762,10 +882,14 @@ mod tests {
     }
 
     #[test]
-    fn scope_relationship_property_does_not_affect_injection() {
+    fn scope_relationship_property_does_not_affect_node_injection() {
+        // A relationship variable with its own property map does not
+        // change node-variable injection: both `a` and `b` are scoped.
+        // (The relationship variable `r` is not scoped — phase-1 write
+        // coverage of edges is tracked as a follow-up.)
         let out = rewrite("MATCH (a)-[r:R {active: true}]->(b) RETURN a, r, b");
-        // Scope is still on the first node variable `a`.
-        assert!(out.contains("a._workspace_id"), "{out}");
+        assert!(out.contains("a._workspace_id = $_ws_id"), "{out}");
+        assert!(out.contains("b._workspace_id = $_ws_id"), "{out}");
     }
 
     #[test]

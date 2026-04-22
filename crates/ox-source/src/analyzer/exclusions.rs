@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use ox_core::source_analysis::{TableExclusionReason, TableExclusionSuggestion};
+use ox_ontology::source_analysis::{TableExclusionReason, TableExclusionSuggestion};
 use ox_core::source_schema::{SourceProfile, SourceSchema};
 
 const AUDIT_PREFIXES: &[&str] = &["audit_", "log_", "history_"];

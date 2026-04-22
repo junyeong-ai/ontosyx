@@ -56,19 +56,96 @@ license-files = [
 ]
 
 # ---------------------------------------------------------------------------
-# Bans — duplicate versions, wildcard deps, denied crates.
+# Bans — duplicate versions, wildcard deps, denied crates, layered deps.
 # Duplicates are "warn" to avoid gate flakiness until the tree is clean.
+#
+# Layered crate DAG is enforced by `wrappers`: listed crates may only be
+# depended on by the wrapper list. Reverse-direction edges (e.g. storage
+# layer pulling in the LLM layer) break the build.
+#
+# Target DAG (see docs/architecture/crate-dag.md):
+#
+#   ox-core ← ox-ontology ← ox-query-ir ← ox-federation ← ox-agent ← ox-api
+#                         ← ox-runtime ←┘
+#   ox-core ← ox-source   ←┘
+#   ox-core ← ox-store    ← ox-federation / ox-agent / ox-api
+#   ox-core ← ox-memory   ← ox-brain ← ox-agent
+#
+# Storage / introspection / runtime layers must never acquire a reverse
+# dependency on the orchestration layer (ox-brain, ox-agent).
 # ---------------------------------------------------------------------------
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
+# Internal path dependencies have no explicit version and would otherwise
+# trip `wildcards = "deny"`. This flag exempts only the in-repo
+# `path = "crates/..."` edges; external wildcard deps still fail.
+allow-wildcard-paths = true
 highlight = "all"
 workspace-default-features = "allow"
 external-default-features = "allow"
 allow = []
-deny = []
 skip = []
 skip-tree = []
+
+# Reverse-dep guards. Each entry pins a crate (`crate`) and the exhaustive
+# list of crates allowed to depend on it (`wrappers`). Anything outside
+# the wrapper list pulling in the pinned crate is a `cargo deny` error.
+[[bans.deny]]
+crate = "ox-brain"
+wrappers = ["ox-agent", "ox-api"]
+
+[[bans.deny]]
+crate = "ox-agent"
+wrappers = ["ox-api"]
+
+[[bans.deny]]
+crate = "ox-memory"
+wrappers = ["ox-brain", "ox-agent", "ox-api"]
+
+# ox-federation is the VOL execution engine (ADR 0001 + 0002). Only the
+# orchestration / API layer should link against it; anything closer to
+# the DB (ox-store, ox-source, ox-runtime, ox-brain) must not flip the
+# dependency direction.
+[[bans.deny]]
+crate = "ox-federation"
+wrappers = ["ox-agent", "ox-api"]
+
+# ox-ontology (Phase 3) lives above ox-core. Any crate above the base
+# may depend on it; ox-core itself must not (that would re-enter the
+# loop ox-ontology is being split out of). Wildcards here include the
+# full upstream set, and the list is intentionally maintained manually
+# so a reverse edge from ox-core (re-exports, etc.) is rejected.
+[[bans.deny]]
+crate = "ox-ontology"
+wrappers = [
+    "ox-query-ir",
+    "ox-compiler",
+    "ox-runtime",
+    "ox-brain",
+    "ox-agent",
+    "ox-memory",
+    "ox-store",
+    "ox-source",
+    "ox-federation",
+    "ox-api",
+]
+
+# ox-query-ir (Phase 3) lives above ox-ontology. ox-store also needs it
+# because SavedQueryPattern persists a PatternIR JSONB blob; every other
+# layer that composes ox-query-ir is above persistence.
+[[bans.deny]]
+crate = "ox-query-ir"
+wrappers = [
+    "ox-compiler",
+    "ox-runtime",
+    "ox-store",
+    "ox-brain",
+    "ox-agent",
+    "ox-federation",
+    "ox-memory",
+    "ox-api",
+]
 
 # ---------------------------------------------------------------------------
 # Sources — registries and git allow-lists.

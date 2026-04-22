@@ -1,11 +1,14 @@
 use tracing::{info, warn};
 
-use ox_core::design_project::{SourceConfig, SourceTypeKind};
-use ox_core::repo_insights::{RepoSource, ValidatedRepoSource};
-use ox_core::source_analysis::{RepoAnalysisStatus, RepoAnalysisSummary, SourceAnalysisReport};
+use ox_ontology::design_project::{SourceConfig, SourceTypeKind};
+use ox_ontology::mapping::refs::SourceId;
+use ox_ontology::repo_insights::{RepoSource, ValidatedRepoSource};
+use ox_ontology::source_analysis::{RepoAnalysisStatus, RepoAnalysisSummary, SourceAnalysisReport};
 use ox_core::source_schema::{SourceProfile, SourceSchema};
 use ox_source::analyzer::{build_analysis_report, enrich_with_repo};
 use ox_source::repo::{RepoIntrospector, clone_repo, repo_insights_to_schema};
+
+use super::fingerprint::schema_fingerprint;
 
 use crate::error::AppError;
 use crate::state::AppState;
@@ -338,8 +341,13 @@ pub(crate) async fn analyze_code_repository(
         ));
     }
 
-    // Build analysis report from the derived schema
-    let mut report = build_analysis_report(&schema, &profile);
+    // Build analysis report from the derived schema. Repo-origin sources
+    // don't have a remote fingerprint, so hash the reconstructed schema
+    // content itself — the same fingerprint the non-repo flow uses for
+    // ambiguity-resolution staleness.
+    let fingerprint = schema_fingerprint(&schema);
+    let src_id = SourceId::new(format!("repo:{fingerprint}"));
+    let mut report = build_analysis_report(&src_id, &fingerprint, &schema, &profile);
 
     // Enrich report with repo-specific data (enum suggestions, etc.)
     enrich_with_repo(&mut report, &insights);

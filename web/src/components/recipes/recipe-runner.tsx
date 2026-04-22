@@ -101,7 +101,7 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
 
   const ontology = useAppStore((s) => s.ontology);
   const sessionId = useAppStore((s) => s.sessionId);
-  const savedOntologyId = useAppStore((s) => s.savedOntologyId);
+  const ontologyId = useAppStore((s) => s.ontologyId);
 
   const handleParamChange = useCallback((name: string, val: string) => {
     setValues((prev) => ({ ...prev, [name]: val }));
@@ -137,7 +137,7 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
         {
           message,
           ontology,
-          saved_ontology_id: savedOntologyId ?? undefined,
+          ontology_id: ontologyId ?? undefined,
           session_id: sessionId ?? undefined,
         },
         {
@@ -155,7 +155,7 @@ export function RecipeRunner({ recipe, onClose }: RecipeRunnerProps) {
     } finally {
       setIsRunning(false);
     }
-  }, [ontology, sessionId, savedOntologyId, recipe.name, paramEntries, values, useLastResult, cypherQuery, t]);
+  }, [ontology, sessionId, ontologyId, recipe.name, paramEntries, values, useLastResult, cypherQuery, t]);
 
   const handleCancel = useCallback(() => {
     abortRef.current?.abort();

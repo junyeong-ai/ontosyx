@@ -6,6 +6,7 @@ mod report;
 #[cfg(test)]
 mod test_utils;
 
+pub use pii::detect_pii;
 pub use report::{
     apply_pii_masking, build_analysis_report, build_design_context, enrich_with_repo,
 };

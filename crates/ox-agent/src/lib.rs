@@ -27,14 +27,14 @@ use branchforge::{Agent, Auth, CacheConfig, ExecutionMode, ToolSurface};
 use hooks::{EmbeddingHook, RecoveryDetectionHook, RecoveryHookConfig};
 use ox_compiler::GraphCompiler;
 use ox_core::error::OxResult;
-use ox_core::ontology_ir::OntologyIR;
+use ox_ontology::ir::OntologyIR;
 use ox_memory::MemoryStore;
 use ox_runtime::GraphRuntime;
 use ox_store::Store;
 use tools::{
     ApplyOntologyTool, ConsultKnowledgeTool, EditOntologyTool, ExecuteAnalysisTool,
     ExplainOntologyTool, IntrospectSourceTool, QueryGraphTool, RecallMemoryTool,
-    SchemaEvolutionTool, SearchRecipesTool, VisualizeTool,
+    ResolveAmbiguityTool, SchemaEvolutionTool, SearchRecipesTool, VisualizeTool,
 };
 
 // Agent system prompt is loaded from DB (prompt_templates, name="agent_system").
@@ -59,7 +59,10 @@ pub struct DomainContext {
     pub ontology: Option<ArcSwap<OntologyIR>>,
     pub user_id: String,
     pub workspace_id: uuid::Uuid,
-    pub saved_ontology_id: Option<uuid::Uuid>,
+    /// Identity of the ontology this session is pinned to (matches
+    /// `ontologies.id`). `None` for ad-hoc sessions operating on a draft
+    /// IR that has not been committed through `OntologyVersionStore` yet.
+    pub ontology_id: Option<uuid::Uuid>,
     pub project_id: Option<uuid::Uuid>,
     pub project_revision: Option<i32>,
     /// Source schema for introspection (available when project has been analyzed).
@@ -67,9 +70,14 @@ pub struct DomainContext {
     /// Source profile (column statistics) for introspection.
     pub source_profile: Option<ox_core::source_schema::SourceProfile>,
     /// Repo analysis summary (framework, domain notes, field hints) from project creation.
-    pub repo_insights: Option<ox_core::repo_insights::RepoInsights>,
+    pub repo_insights: Option<ox_ontology::repo_insights::RepoInsights>,
     /// Knowledge store for failure-driven learning corrections.
     pub knowledge_store: Option<Arc<dyn ox_store::KnowledgeStore>>,
+    /// Ambiguity resolver store. Wired when the session has access to a
+    /// source — the `resolve_ambiguity` tool is registered only when
+    /// this is populated, so ad-hoc sessions without a source surface
+    /// aren't offered a tool that has nothing to resolve against.
+    pub ambiguity_store: Option<Arc<dyn ox_store::AmbiguityStore>>,
     /// Original user question — always passed to translate_query as primary context.
     /// Prevents agent-driven question fragmentation that defeats graph traversal.
     pub user_question: Option<String>,
@@ -120,7 +128,22 @@ pub struct OntosyxAgentConfig {
     /// Runtime thresholds for the `RecoveryDetectionHook`. Pass
     /// `RecoveryHookConfig::default()` for the previous behavior.
     pub recovery: RecoveryHookConfig,
+    /// Upper bound on planner iterations (LLM turn + tool call).
+    /// 0 falls back to a sensible built-in default so older callers
+    /// don't need to know about the ceiling.
+    #[allow(clippy::struct_field_names)]
+    pub max_iterations: u32,
+    /// Reject `RiskLevel::High` queries in `QueryGraphTool` before they
+    /// reach the driver. Applied uniformly across tools; the value
+    /// is injected here rather than read via another task-local so
+    /// a headless test harness can vary it without touching globals.
+    pub reject_high_cost: bool,
 }
+
+/// Built-in ceiling used when the caller passes `max_iterations = 0`.
+/// Matches the previous hard-coded value so no caller sees a behavior
+/// change until they opt into a different budget.
+pub const DEFAULT_MAX_ITERATIONS: u32 = 16;
 
 // ---------------------------------------------------------------------------
 // build_agent — construct a fully-equipped Ontosyx agent
@@ -149,6 +172,8 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
         user_role: &str,
         system_prompt: &str,
         execution_mode: ExecutionMode,
+        max_iterations: u32,
+        reject_high_cost: bool,
         domain: &Arc<DomainContext>,
         brain: &Arc<dyn ox_brain::Brain>,
         memory: &Option<Arc<MemoryStore>>,
@@ -165,6 +190,7 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
             .tool(QueryGraphTool {
                 domain: Arc::clone(domain),
                 brain: Arc::clone(brain),
+                reject_high_cost,
             })
             .tool(EditOntologyTool {
                 domain: Arc::clone(domain),
@@ -190,7 +216,7 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
             .tool(VisualizeTool)
             .system_prompt(system_prompt.to_owned())
             .execution_mode(execution_mode)
-            .max_iterations(16)
+            .max_iterations(max_iterations as usize)
             .cache(CacheConfig::static_and_tools());
 
         // RAG tools
@@ -240,12 +266,23 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
             });
         }
 
+        // Ambiguity resolver tool. Only meaningful when an
+        // `AmbiguityStore` has been threaded through — ad-hoc ontology
+        // sessions without a source surface register no resolver, so
+        // the agent doesn't see a tool that has nothing to resolve.
+        if let Some(ambig) = &domain.ambiguity_store {
+            builder = builder.tool(ResolveAmbiguityTool {
+                ambiguity_store: Arc::clone(ambig),
+            });
+        }
+
         // Embedding hook for long-term memory
         if let Some(mem) = memory {
             // Embed content with the lineage so later RAG filters hit it.
-            // Previously passed `saved_ontology_id.to_string()` — a UUID
-            // that never matched the lineage-string field it was compared
-            // against (silent mismatch). Fixed during the lineage rename.
+            // Historical note: an earlier refactor passed the ontology
+            // identity UUID here; it never matched the lineage-string
+            // field the RAG filter compared against. Keep lineage_id as
+            // the canonical embedding scope.
             let ontology_lineage_id = current_ontology_at_build.as_ref().map(|o| o.id.clone());
             let retry_store: Option<Arc<dyn ox_store::EmbeddingRetryStore>> =
                 Some(Arc::clone(&domain.store) as Arc<dyn ox_store::EmbeddingRetryStore>);
@@ -274,12 +311,19 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
         Ok(builder)
     }
 
+    let max_iterations = if config.max_iterations == 0 {
+        DEFAULT_MAX_ITERATIONS
+    } else {
+        config.max_iterations
+    };
     let mut builder = configure_builder(
         config.auth.clone(),
         &config.model,
         &config.user_role,
         &system_prompt,
         config.execution_mode.clone(),
+        max_iterations,
+        config.reject_high_cost,
         &domain,
         &brain,
         &config.memory,
@@ -306,6 +350,8 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
                     &config.user_role,
                     &system_prompt,
                     config.execution_mode,
+                    max_iterations,
+                    config.reject_high_cost,
                     &domain,
                     &brain,
                     &config.memory,

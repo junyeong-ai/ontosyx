@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAppStore, selectSelectedWidgetId } from "@/lib/store";
+import { useAppStore, selectStateSelectedWidgetId } from "@/lib/store";
 import { Group, Panel } from "react-resizable-panels";
 import { ResizeHandle } from "@/components/ui/resize-handle";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -39,7 +39,7 @@ import { AddWidgetButton } from "./dashboard/add-widget-button";
 export function DashboardLayout() {
   const activeDashboardId = useAppStore((s) => s.activeDashboardId);
   const setActiveDashboardId = useAppStore((s) => s.setActiveDashboardId);
-  const selectedWidgetId = useAppStore(selectSelectedWidgetId);
+  const selectedWidgetId = useAppStore(selectStateSelectedWidgetId);
   const dashboardFilters = useAppStore((s) => s.dashboardFilters);
   const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);

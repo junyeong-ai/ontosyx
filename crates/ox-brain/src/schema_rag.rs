@@ -11,7 +11,7 @@
 
 use std::collections::HashSet;
 
-use ox_core::ontology_ir::OntologyIR;
+use ox_ontology::ir::OntologyIR;
 use ox_memory::store::{MemoryEntry, MemoryMetadata, MemorySource, MemoryStore};
 use ox_memory::vector::MemoryFilter;
 use tracing::{info, warn};
@@ -54,8 +54,9 @@ pub async fn index_ontology_schema(
     ontology_lineage_id: &str,
 ) {
     // Use ontology.id (internal IR ID) for consistency with discover_schema lookups.
-    // The caller may pass saved_ontology_lineage_id, but discovery falls back to ontology.id
-    // when Brain.ontology_lineage_id is None (the common case in Analyze mode).
+    // The caller may pass an externally-scoped id (e.g., the `ontologies.id`
+    // identity uuid), but discovery falls back to ontology.id when
+    // Brain.ontology_lineage_id is None (the common case in Analyze mode).
     let effective_id = if ontology.id.is_empty() {
         ontology_lineage_id
     } else {
@@ -261,16 +262,30 @@ pub(crate) fn build_progressive_schema(ontology: &OntologyIR, expanded_labels: &
     // NOTE: Uses expanded_labels (not just seeds) so that BFS-discovered neighbor
     // nodes also get property descriptions — critical for LLM to distinguish
     // between similarly-named properties (e.g., name vs name_inci).
+    // Tier 3 carries description + Ω-9 terminology enrichment. A property
+    // with a bound value_set / notation / range / unit contributes even
+    // without a description, so the enrichment line stands in when
+    // `description.present()` is empty.
     let mut has_details = false;
     for label in expanded_labels {
         if let Some(node) = ontology.node_by_label(label) {
-            let mut described_props: Vec<(&str, &str)> = node
+            let mut described_props: Vec<(&ox_ontology::ir::PropertyDef, &str, String)> = node
                 .properties
                 .iter()
-                .filter_map(|p| p.description.present().map(|d| (p.name.as_str(), d)))
+                .filter_map(|p| {
+                    let desc = p.description.present().unwrap_or("");
+                    let enrichment = format_property_enrichment(ontology, p);
+                    if desc.is_empty() && enrichment.is_empty() {
+                        None
+                    } else {
+                        Some((p, desc, enrichment))
+                    }
+                })
                 .collect();
-            // Rank by description length (descending) — longer = more informative
-            described_props.sort_by(|a, b| b.1.len().cmp(&a.1.len()));
+            // Rank by total informative payload (description + enrichment)
+            // so enrichment-rich terminology props aren't starved out by
+            // long-described free-text ones.
+            described_props.sort_by(|a, b| (b.1.len() + b.2.len()).cmp(&(a.1.len() + a.2.len())));
             let total = described_props.len();
             let pruned = &described_props[..total.min(MAX_DESCRIBED_PROPS_PER_NODE)];
 
@@ -279,8 +294,15 @@ pub(crate) fn build_progressive_schema(ontology: &OntologyIR, expanded_labels: &
                     output.push_str("\nProperty details:\n");
                     has_details = true;
                 }
-                for (prop_name, desc) in pruned {
-                    output.push_str(&format!("  {label}.{prop_name}: {desc}\n"));
+                for (prop, desc, enrichment) in pruned {
+                    if desc.is_empty() {
+                        output.push_str(&format!("  {label}.{}:{enrichment}\n", prop.name));
+                    } else {
+                        output.push_str(&format!(
+                            "  {label}.{}: {desc}{enrichment}\n",
+                            prop.name
+                        ));
+                    }
                 }
                 if total > MAX_DESCRIBED_PROPS_PER_NODE {
                     output.push_str(&format!(
@@ -301,24 +323,36 @@ pub(crate) fn build_progressive_schema(ontology: &OntologyIR, expanded_labels: &
             .node_label(edge.target_node_id.as_ref())
             .unwrap_or("?");
         if expanded_set.contains(src) && expanded_set.contains(tgt) {
-            let mut described: Vec<(&str, &str)> = edge
+            let mut described: Vec<(&ox_ontology::ir::PropertyDef, &str, String)> = edge
                 .properties
                 .iter()
-                .filter_map(|p| p.description.present().map(|d| (p.name.as_str(), d)))
+                .filter_map(|p| {
+                    let desc = p.description.present().unwrap_or("");
+                    let enrichment = format_property_enrichment(ontology, p);
+                    if desc.is_empty() && enrichment.is_empty() {
+                        None
+                    } else {
+                        Some((p, desc, enrichment))
+                    }
+                })
                 .collect();
-            described.sort_by(|a, b| b.1.len().cmp(&a.1.len()));
+            described.sort_by(|a, b| (b.1.len() + b.2.len()).cmp(&(a.1.len() + a.2.len())));
             let total = described.len();
-            let pruned: Vec<_> = described
-                .into_iter()
-                .take(MAX_DESCRIBED_PROPS_PER_EDGE)
-                .collect();
+            let pruned: Vec<_> = described.into_iter().take(MAX_DESCRIBED_PROPS_PER_EDGE).collect();
             if !pruned.is_empty() {
                 if !has_details {
                     output.push_str("\nProperty details:\n");
                     has_details = true;
                 }
-                for (prop_name, desc) in pruned {
-                    output.push_str(&format!("  {}.{prop_name}: {desc}\n", edge.label));
+                for (prop, desc, enrichment) in pruned {
+                    if desc.is_empty() {
+                        output.push_str(&format!("  {}.{}:{enrichment}\n", edge.label, prop.name));
+                    } else {
+                        output.push_str(&format!(
+                            "  {}.{}: {desc}{enrichment}\n",
+                            edge.label, prop.name
+                        ));
+                    }
                 }
                 if total > MAX_DESCRIBED_PROPS_PER_EDGE {
                     output.push_str(&format!(
@@ -347,6 +381,165 @@ fn format_property_type(pt: &ox_core::types::PropertyType) -> String {
         ox_core::types::PropertyType::List { element } => {
             format!("list<{}>", format_property_type(element))
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Ω-9 — property terminology enrichment
+//
+// Each `PropertyDef` can reference a value_set / notation_pattern /
+// value_range_set / unit. Bare name+type+description is not enough
+// for the LLM to author a correct query filter ("status = 'A' " when
+// the actual code is "ACTIVE"). We append a 1-line summary per binding
+// to the Tier 3 block so the LLM sees the valid code list, the
+// notation layout, the numeric band boundaries, and the unit symbol
+// inline with the property it describes.
+//
+// Budgets are deliberately tight — every extra character competes with
+// other schema context for the cache-warm prefix budget.
+// ---------------------------------------------------------------------------
+
+/// Max concrete codes listed per bound value_set. Ten covers the
+/// overwhelming majority of enum-style terminologies; over that, we
+/// flatten into a "+N more" tail.
+const MAX_VS_CODES_INLINED: usize = 10;
+
+/// Max value-range bands listed per property. Range sets with dozens
+/// of fine-grained bands (e.g., clinical lab ranges) are unusual;
+/// when they occur, we show the first N and truncate.
+const MAX_RS_BANDS_INLINED: usize = 8;
+
+/// Produce the terminology-enrichment suffix for a single property.
+/// Empty string iff no bindings — caller appends verbatim so the
+/// common "no bindings" path costs zero bytes.
+pub(crate) fn format_property_enrichment(
+    ontology: &OntologyIR,
+    prop: &ox_ontology::ir::PropertyDef,
+) -> String {
+    let mut out = String::new();
+
+    if let Some(vs_id) = &prop.value_set_id
+        && let Some(vs) = ontology.value_set_by_id(vs_id)
+    {
+        out.push_str(&format!(" [values: {}]", format_value_set_summary(ontology, vs)));
+    }
+
+    if let Some(np_id) = &prop.notation_pattern_id
+        && let Some(np) = ontology.notation_pattern_by_id(np_id)
+    {
+        out.push_str(&format!(" [format: {}]", format_notation_summary(np)));
+    }
+
+    if let Some(rs_id) = &prop.value_range_set_id
+        && let Some(rs) = ontology.value_range_set_by_id(rs_id)
+    {
+        out.push_str(&format!(" [bands: {}]", format_range_summary(rs)));
+    }
+
+    if let Some(unit_id) = &prop.unit_id
+        && let Some((_, cv)) = ontology.coded_value_by_id(unit_id)
+    {
+        out.push_str(&format!(" [unit: {}]", cv.code));
+    }
+
+    out
+}
+
+/// Resolve a value set to its concrete codes (via `expand_value_set`) and
+/// produce a comma-separated list capped at `MAX_VS_CODES_INLINED`.
+/// Falls back to the value-set *name* when expansion fails (e.g.
+/// malformed selector) — the LLM still gets a handle it can ask about.
+fn format_value_set_summary(
+    ontology: &OntologyIR,
+    vs: &ox_ontology::value_set::ValueSetDef,
+) -> String {
+    // `expand_value_set` reports ambiguity / missing refs through a
+    // `warnings` side-channel rather than `Result` — an empty codes
+    // vector is the signal that the value set couldn't be resolved
+    // to any concrete codes.
+    let expansion = ox_ontology::value_set::expand_value_set(vs, ontology.code_systems());
+    if expansion.codes.is_empty() {
+        return vs.name.clone();
+    }
+    let total = expansion.codes.len();
+    let head: Vec<String> = expansion
+        .codes
+        .iter()
+        .take(MAX_VS_CODES_INLINED)
+        .map(|cv| cv.code.clone())
+        .collect();
+    let joined = head.join(", ");
+    if total > MAX_VS_CODES_INLINED {
+        format!("{joined}, +{} more", total - MAX_VS_CODES_INLINED)
+    } else {
+        joined
+    }
+}
+
+/// One-line notation pattern summary: template (if authored) + any
+/// authored examples. `AAA_NNN` + first example gives the LLM concrete
+/// ground to match user strings against.
+fn format_notation_summary(np: &ox_ontology::notation_pattern::NotationPatternDef) -> String {
+    let mut parts = Vec::new();
+    if !np.template.is_empty() {
+        parts.push(np.template.clone());
+    }
+    if let Some(example) = np.examples.first() {
+        parts.push(format!("e.g. {example}"));
+    }
+    if parts.is_empty() {
+        np.name.clone()
+    } else {
+        parts.join(" ")
+    }
+}
+
+/// One-line value-range summary: `min..max=label` tuples separated by
+/// `|`. Unbounded ends render as `-∞` / `+∞`. Bands without a
+/// `default`-locale label fall back to `(band N)`.
+fn format_range_summary(rs: &ox_ontology::value_range::ValueRangeSetDef) -> String {
+    let bands: Vec<String> = rs
+        .bands
+        .iter()
+        .enumerate()
+        .take(MAX_RS_BANDS_INLINED)
+        .map(|(i, b)| {
+            let lo = b
+                .min
+                .map(|v| format_range_bound(v, b.inclusive_min, true))
+                .unwrap_or_else(|| "-∞".to_string());
+            let hi = b
+                .max
+                .map(|v| format_range_bound(v, b.inclusive_max, false))
+                .unwrap_or_else(|| "+∞".to_string());
+            let label = b
+                .label
+                .present()
+                .map(str::to_string)
+                .unwrap_or_else(|| format!("(band {})", i + 1));
+            format!("{lo}..{hi}={label}")
+        })
+        .collect();
+
+    let total = rs.bands.len();
+    let joined = bands.join(" | ");
+    if total > MAX_RS_BANDS_INLINED {
+        format!("{joined} | +{} more", total - MAX_RS_BANDS_INLINED)
+    } else if joined.is_empty() {
+        rs.name.clone()
+    } else {
+        joined
+    }
+}
+
+/// `[v` or `(v` / `v]` or `v)` — bracket-style inclusivity notation
+/// is standard math; the LLM training corpus parses it cleanly.
+fn format_range_bound(value: f64, inclusive: bool, is_low: bool) -> String {
+    match (is_low, inclusive) {
+        (true, true) => format!("[{value}"),
+        (true, false) => format!("({value}"),
+        (false, true) => format!("{value}]"),
+        (false, false) => format!("{value})"),
     }
 }
 
@@ -420,5 +613,297 @@ fn fallback_compact_schema(ontology: &OntologyIR) -> String {
             summary.push_str(&format!("- ({src})-[:{}]->({tgt})\n", edge.label));
         }
         summary
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Ω-9 unit tests — property terminology enrichment formatters.
+//
+// The full `format_property_enrichment` path requires an `OntologyIR`
+// lookup index (value_set_by_id / coded_value_by_id), so we build a
+// real minimal IR and exercise each binding shape through it rather
+// than mocking the accessors. Covers the empty-bindings short-circuit,
+// value-set expansion + truncation, notation template + example,
+// range band rendering across inclusive / exclusive / unbounded, and
+// unit code pickup.
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ox_core::graph_label::GraphLabel;
+    use ox_core::i18n::LocalizedText;
+    use ox_core::property_key::PropertyKey;
+    use ox_core::types::PropertyType;
+    use ox_ontology::code_system::{
+        CodeSystemDef, CodeSystemId, CodeSystemKind, CodedValue, CodedValueId,
+    };
+    use ox_ontology::ir::{NodeTypeDef, OntologyIR, OntologyVersion, PropertyDef};
+    use ox_ontology::notation_pattern::{
+        NotationComponent, NotationComponentKind, NotationPatternDef, NotationPatternId,
+    };
+    use ox_ontology::value_range::{ValueBand, ValueRangeSetDef, ValueRangeSetId};
+    use ox_ontology::value_set::{
+        IncludeMode, ValueSetDef, ValueSetId, ValueSetIncludeRule, ValueSetSelector,
+    };
+
+    fn label(s: &str) -> GraphLabel {
+        GraphLabel::new(s).expect("graph label")
+    }
+
+    fn coded(id: &str, code: &str) -> CodedValue {
+        CodedValue {
+            id: CodedValueId::new(id),
+            code: code.to_string(),
+            display: LocalizedText::default(),
+            definition: LocalizedText::default(),
+            aliases: vec![],
+            broader_id: None,
+            examples: vec![],
+            scope_note: LocalizedText::default(),
+            valid_from: None,
+            valid_to: None,
+            deprecated_at: None,
+            replaced_by_id: None,
+        }
+    }
+
+    fn system_with_codes(id: &str, codes: Vec<CodedValue>) -> CodeSystemDef {
+        CodeSystemDef {
+            id: CodeSystemId::new(id),
+            name: id.to_string(),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            uri: None,
+            version: "1".into(),
+            kind: CodeSystemKind::Internal,
+            hierarchical: false,
+            codes,
+            deprecated_at: None,
+            replaced_by_id: None,
+        }
+    }
+
+    /// Empty-bindings short-circuit: a plain String property returns an
+    /// empty string so callers can concatenate without a trailing marker.
+    #[test]
+    fn enrichment_empty_for_unbound_property() {
+        let ontology = minimal_ontology(vec![], vec![], vec![], vec![]);
+        let prop = PropertyDef {
+            id: "nt_a.prop_a".into(),
+            name: PropertyKey::new("x").unwrap(),
+            property_type: PropertyType::String,
+            description: LocalizedText::default(),
+            nullable: true,
+            ..Default::default()
+        };
+        assert_eq!(format_property_enrichment(&ontology, &prop), "");
+    }
+
+    /// Value-set enrichment inlines codes up to the cap, then emits a
+    /// `+N more` tail. Order mirrors the CodeSystemDef declaration —
+    /// `expand_value_set` is stable when the selector is `All`.
+    #[test]
+    fn enrichment_value_set_inlines_codes_with_tail() {
+        let codes: Vec<CodedValue> = (0..12).map(|i| coded(&format!("cv_{i}"), &format!("C{i}"))).collect();
+        let system = system_with_codes("sys", codes);
+
+        let vs = ValueSetDef {
+            id: ValueSetId::new("vs_status"),
+            name: "Status".into(),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            version: "1".into(),
+            composition: vec![ValueSetIncludeRule {
+                system_id: CodeSystemId::new("sys"),
+                selector: ValueSetSelector::All,
+                mode: IncludeMode::Include,
+            }],
+        };
+
+        let ontology = minimal_ontology(vec![system], vec![vs], vec![], vec![]);
+
+        let prop = PropertyDef {
+            id: "nt_a.status".into(),
+            name: PropertyKey::new("status").unwrap(),
+            property_type: PropertyType::String,
+            description: LocalizedText::default(),
+            nullable: false,
+            value_set_id: Some(ValueSetId::new("vs_status")),
+            ..Default::default()
+        };
+
+        let enriched = format_property_enrichment(&ontology, &prop);
+        assert!(enriched.contains("[values:"), "enrichment present: {enriched}");
+        assert!(enriched.contains("C0"), "first code visible");
+        assert!(
+            enriched.contains("+2 more"),
+            "12 codes → 10 inlined + 2 tail: {enriched}",
+        );
+    }
+
+    /// Notation pattern enrichment shows template + first example.
+    #[test]
+    fn enrichment_notation_pattern_shows_template_and_example() {
+        let pattern = NotationPatternDef {
+            id: NotationPatternId::new("np_spring"),
+            name: "SpringCode".into(),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            template: "SPRING_{NNN}".into(),
+            separator: "_".into(),
+            components: vec![NotationComponent {
+                name: "n".into(),
+                display: LocalizedText::default(),
+                kind: NotationComponentKind::IntegerRange {
+                    min: 0,
+                    max: 999,
+                    width: 3,
+                },
+            }],
+            examples: vec!["SPRING_001".into(), "SPRING_042".into()],
+        };
+
+        let ontology = minimal_ontology(vec![], vec![], vec![pattern], vec![]);
+
+        let prop = PropertyDef {
+            id: "nt_a.ticket".into(),
+            name: PropertyKey::new("ticket").unwrap(),
+            property_type: PropertyType::String,
+            description: LocalizedText::default(),
+            nullable: false,
+            notation_pattern_id: Some(NotationPatternId::new("np_spring")),
+            ..Default::default()
+        };
+
+        let enriched = format_property_enrichment(&ontology, &prop);
+        assert!(enriched.contains("[format:"), "notation tag: {enriched}");
+        assert!(enriched.contains("SPRING_{NNN}"), "template visible");
+        assert!(enriched.contains("e.g. SPRING_001"), "first example visible");
+    }
+
+    /// Value-range enrichment renders each band as `[lo..hi]=Label`.
+    /// Unbounded ends come out as `-∞` / `+∞`. Brackets match inclusivity.
+    #[test]
+    fn enrichment_value_range_renders_bands_with_inclusivity() {
+        let range = ValueRangeSetDef {
+            id: ValueRangeSetId::new("rs_bp"),
+            name: "BP".into(),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            version: "1".into(),
+            bands: vec![
+                ValueBand {
+                    min: None,
+                    max: Some(90.0),
+                    inclusive_min: false,
+                    inclusive_max: false,
+                    label: LocalizedText::new("Low"),
+                    severity: None,
+                },
+                ValueBand {
+                    min: Some(90.0),
+                    max: Some(120.0),
+                    inclusive_min: true,
+                    inclusive_max: false,
+                    label: LocalizedText::new("Normal"),
+                    severity: None,
+                },
+                ValueBand {
+                    min: Some(120.0),
+                    max: None,
+                    inclusive_min: true,
+                    inclusive_max: false,
+                    label: LocalizedText::new("High"),
+                    severity: None,
+                },
+            ],
+        };
+
+        let ontology = minimal_ontology(vec![], vec![], vec![], vec![range]);
+
+        let prop = PropertyDef {
+            id: "nt_a.bp".into(),
+            name: PropertyKey::new("bp").unwrap(),
+            property_type: PropertyType::Int,
+            description: LocalizedText::default(),
+            nullable: false,
+            value_range_set_id: Some(ValueRangeSetId::new("rs_bp")),
+            ..Default::default()
+        };
+
+        let enriched = format_property_enrichment(&ontology, &prop);
+        assert!(enriched.contains("-∞..90)=Low"), "low band: {enriched}");
+        assert!(enriched.contains("[90..120)=Normal"), "normal band: {enriched}");
+        assert!(enriched.contains("[120..+∞=High"), "high band: {enriched}");
+    }
+
+    /// Unit enrichment surfaces the coded-value `code` (e.g. `kg`).
+    #[test]
+    fn enrichment_unit_shows_coded_value_code() {
+        let system = system_with_codes(
+            "ucum",
+            vec![coded("ucum.kg", "kg"), coded("ucum.m", "m")],
+        );
+        let ontology = minimal_ontology(vec![system], vec![], vec![], vec![]);
+
+        let prop = PropertyDef {
+            id: "nt_a.mass".into(),
+            name: PropertyKey::new("mass").unwrap(),
+            property_type: PropertyType::Float,
+            description: LocalizedText::default(),
+            nullable: false,
+            unit_id: Some(CodedValueId::new("ucum.kg")),
+            ..Default::default()
+        };
+
+        let enriched = format_property_enrichment(&ontology, &prop);
+        assert_eq!(enriched, " [unit: kg]");
+    }
+
+    /// Build a fresh OntologyIR carrying the supplied terminology
+    /// registry items. A single node type is attached so the IR passes
+    /// its own invariant checks.
+    fn minimal_ontology(
+        code_systems: Vec<CodeSystemDef>,
+        value_sets: Vec<ValueSetDef>,
+        notation_patterns: Vec<NotationPatternDef>,
+        value_range_sets: Vec<ValueRangeSetDef>,
+    ) -> OntologyIR {
+        let mut ir = OntologyIR::new(
+            "ont-test".to_string(),
+            "Enrichment Test".to_string(),
+            LocalizedText::default(),
+            OntologyVersion {
+                number: 1,
+                valid_from: None,
+                valid_to: None,
+                committed_by: None,
+                commit_message: None,
+            },
+            vec![NodeTypeDef {
+                id: "nt_a".into(),
+                label: label("A"),
+                description: LocalizedText::default(),
+                properties: vec![],
+                constraints: vec![],
+                ..Default::default()
+            }],
+            vec![],
+            vec![],
+        );
+        for cs in code_systems {
+            ir.add_code_system(cs).expect("add code system");
+        }
+        for vs in value_sets {
+            ir.add_value_set(vs).expect("add value set");
+        }
+        for np in notation_patterns {
+            ir.add_notation_pattern(np).expect("add notation pattern");
+        }
+        for rs in value_range_sets {
+            ir.add_value_range_set(rs).expect("add value range set");
+        }
+        ir
     }
 }

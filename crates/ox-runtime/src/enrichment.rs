@@ -7,7 +7,7 @@
 //! Works independently of the LLM-based `refine_ontology` pipeline — can be
 //! triggered after data load, manually via API, or as a post-refinement step.
 
-use ox_core::ontology_ir::OntologyIR;
+use ox_ontology::ir::OntologyIR;
 use serde::Serialize;
 
 use crate::profiler::{DataProfile, PropertyStats};

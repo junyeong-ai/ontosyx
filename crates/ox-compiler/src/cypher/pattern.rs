@@ -1,5 +1,5 @@
 use ox_core::error::OxResult;
-use ox_core::query_ir::{ChainStep, GraphPattern, PathElement, PropertyFilter};
+use ox_query_ir::query::{ChainStep, GraphPattern, PathElement, PropertyFilter};
 use ox_core::types::{Direction, sanitize_variable};
 
 use super::expr::{compile_expr, compile_projection};

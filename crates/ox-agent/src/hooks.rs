@@ -97,6 +97,10 @@ impl EmbeddingHook {
             created_at: Utc::now(),
         };
 
+        // Workspace context is explicitly threaded through `context_scope.wrap_tool_future`
+        // inside the spawned task, which is the sanctioned agent-side replacement for the
+        // `ox-api` spawn helpers.
+        #[allow(clippy::disallowed_methods)]
         tokio::spawn(async move {
             let _ = context_scope
                 .wrap_tool_future(Box::pin(async move {
@@ -699,6 +703,10 @@ impl Hook for RecoveryDetectionHook {
                     match ctx.context_scope.clone() {
                         Some(scope) => {
                             let store = Arc::clone(&self.knowledge_store);
+                            // `scope.wrap_tool_future` reapplies the caller's
+                            // workspace context inside the spawned future, so
+                            // this is a legitimate cross-boundary spawn.
+                            #[allow(clippy::disallowed_methods)]
                             tokio::spawn(async move {
                                 let _ = scope
                                     .wrap_tool_future(Box::pin(async move {
@@ -725,23 +733,36 @@ impl Hook for RecoveryDetectionHook {
                         }
                     }
 
-                    // Clean stale session memories (poisoned by failed queries)
+                    // Clean stale session memories (poisoned by failed queries).
+                    //
+                    // `tokio::spawn` detaches from the caller's task-local
+                    // scope, so the `memory_entries` INSERT/DELETE would hit
+                    // the pool's `before_acquire` hook without a workspace
+                    // binding and fall through to RLS deny-all. This is a
+                    // cross-session background sweep — scope SYSTEM_BYPASS
+                    // explicitly so the cleanup runs regardless of whose
+                    // session we're pruning.
                     if let Some(ref memory) = self.memory {
                         let sid = session_id.to_string();
                         let mem = Arc::clone(memory);
-                        tokio::spawn(async move {
-                            match mem.cleanup_by_session(&sid).await {
-                                Ok(n) if n > 0 => info!(
-                                    session_id = %sid,
-                                    count = n,
-                                    "Cleaned stale session memories after recovery"
-                                ),
-                                Err(e) => {
-                                    warn!(error = %e, "Failed to clean stale session memories")
+                        // SYSTEM_BYPASS is scoped inline so the spawned
+                        // future has the task-local it needs.
+                        #[allow(clippy::disallowed_methods)]
+                        tokio::spawn(
+                            ox_store::SYSTEM_BYPASS.scope(true, async move {
+                                match mem.cleanup_by_session(&sid).await {
+                                    Ok(n) if n > 0 => info!(
+                                        session_id = %sid,
+                                        count = n,
+                                        "Cleaned stale session memories after recovery"
+                                    ),
+                                    Err(e) => {
+                                        warn!(error = %e, "Failed to clean stale session memories")
+                                    }
+                                    _ => {}
                                 }
-                                _ => {}
-                            }
-                        });
+                            }),
+                        );
                     }
 
                     // Clear session outcomes after extraction

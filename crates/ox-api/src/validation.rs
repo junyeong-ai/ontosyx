@@ -1,4 +1,4 @@
-use ox_core::ontology_ir::OntologyIR;
+use ox_ontology::ir::OntologyIR;
 
 use crate::error::AppError;
 

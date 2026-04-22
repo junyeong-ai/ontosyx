@@ -11,9 +11,9 @@ pub use migration::DataMigrationStep;
 mod tests;
 
 use ox_core::error::{OxError, OxResult};
-use ox_core::load_plan::{LoadPlan, LoadStep};
-use ox_core::ontology_ir::OntologyIR;
-use ox_core::query_ir::QueryIR;
+use ox_ontology::load_plan::{LoadPlan, LoadStep};
+use ox_ontology::ir::OntologyIR;
+use ox_query_ir::query::QueryIR;
 
 use crate::{CompiledQuery, GraphCompiler};
 

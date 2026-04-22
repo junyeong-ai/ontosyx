@@ -44,12 +44,18 @@ const NAV_GROUPS: NavGroup[] = [
       { labelKey: "reports", href: "/settings/reports" },
       { labelKey: "schedules", href: "/settings/schedules", adminOnly: true },
       { labelKey: "knowledge", href: "/settings/knowledge", adminOnly: true },
+      { labelKey: "federation", href: "/settings/federation", adminOnly: true },
     ],
   },
   {
     titleKey: "governance",
     items: [
       { labelKey: "qualityRules", href: "/settings/quality", adminOnly: true },
+      {
+        labelKey: "qualitySignals",
+        href: "/settings/quality/signals",
+        adminOnly: true,
+      },
       { labelKey: "accessControl", href: "/settings/acl", adminOnly: true },
       { labelKey: "dataLineage", href: "/settings/lineage" },
       { labelKey: "auditLog", href: "/settings/audit", adminOnly: true },

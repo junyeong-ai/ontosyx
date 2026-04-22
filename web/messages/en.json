@@ -169,6 +169,17 @@
       "lineChart": "Line Chart",
       "statCard": "Stat Card"
     },
+    "responseBasis": {
+      "title": "Response basis",
+      "ontologyLabel": "Ontology",
+      "versionLabel": "Version",
+      "asOfLabel": "As of",
+      "sourcesLabel": "Sources",
+      "typesLabel": "Types",
+      "filterLabel": "Filter",
+      "warningsLabel": "Advisory warnings",
+      "empty": "No provenance recorded for this response."
+    },
     "errorBoundary": {
       "title": "Widget rendering failed",
       "unknownError": "Unknown error"
@@ -344,13 +355,15 @@
         "knowledge": "Knowledge",
         "governance": "Governance",
         "qualityRules": "Quality Rules",
+        "qualitySignals": "Quality Signals",
         "accessControl": "Access Control",
         "dataLineage": "Data Lineage",
         "auditLog": "Audit Log",
         "approvals": "Approvals",
         "development": "Development",
         "prompts": "Prompts",
-        "sessions": "Sessions"
+        "sessions": "Sessions",
+        "federation": "Federation Adapters"
       }
     },
     "roles": {
@@ -726,6 +739,74 @@
         "deleteFailed": "Delete failed",
         "versionCreated": "Version v{version} created",
         "versionCreateFailed": "Failed to create version"
+      }
+    },
+    "federation": {
+      "title": "Federation Adapters",
+      "description": "Manage CSV/JSON and PostgreSQL/MySQL/BigQuery adapters for VOL queries. Registrations persist to the `data_sources` table.",
+      "adminOnly": "Federation adapter management requires admin privileges.",
+      "empty": "No adapters registered yet.",
+      "list": {
+        "sourceId": "Source ID",
+        "kind": "Kind",
+        "actions": "Actions"
+      },
+      "health": {
+        "title": "Health",
+        "hydrated": "Resolver hydrated",
+        "resolverCount": "In-memory adapters",
+        "storeCount": "Persisted adapters",
+        "inSync": "In sync",
+        "outOfSync": "Refresh recommended",
+        "orphans": "In-memory orphans without a store row: {count}",
+        "missing": "Store rows absent from memory: {count}",
+        "refresh": "Rebuild resolver"
+      },
+      "register": {
+        "title": "Register adapter",
+        "sourceId": "Source ID",
+        "sourceIdPlaceholder": "e.g. csv-orders",
+        "kind": "Kind",
+        "csv": "CSV (inline)",
+        "json": "JSON (inline)",
+        "postgres": "PostgreSQL",
+        "mysql": "MySQL",
+        "bigquery": "BigQuery",
+        "data": "Data",
+        "dataPlaceholder": "Inline CSV/JSON payload",
+        "connectionString": "Connection string",
+        "connectionStringPlaceholder": "postgres://user:pass@host/db or bigquery://project/dataset",
+        "schemaName": "Schema",
+        "schemaNamePlaceholder": "public",
+        "useSecretRef": "Use env-var secret reference",
+        "secretRefHint": "Specify as env:VAR_NAME",
+        "submit": "Register",
+        "submitting": "Registering…",
+        "preview": "Preview schema",
+        "previewing": "Previewing…"
+      },
+      "preview": {
+        "title": "Schema preview · {sourceType}",
+        "summary": "{tables} tables, {columns} columns",
+        "empty": "Adapter connected but reported no tables.",
+        "dismiss": "Dismiss",
+        "columnName": "Column",
+        "columnType": "Type",
+        "columnNullable": "Nullable"
+      },
+      "deleteConfirmTitle": "Delete adapter {sourceId}?",
+      "deleteConfirmDescription": "Removed from both the persistent row and the in-memory cache.",
+      "deleteConfirmLabel": "Delete",
+      "toast": {
+        "loadFailed": "Failed to load adapter list",
+        "registered": "Adapter {sourceId} registered",
+        "registerFailed": "Registration failed",
+        "deleted": "Adapter {sourceId} deleted",
+        "deleteFailed": "Delete failed",
+        "refreshed": "Resolver rebuilt ({count} adapters)",
+        "refreshFailed": "Refresh failed",
+        "healthLoadFailed": "Failed to load health status",
+        "previewFailed": "Preview failed — check credentials and connectivity"
       }
     },
     "sessions": {
@@ -1189,6 +1270,72 @@
       "deleteConfirm": {
         "title": "Delete quality rule '{name}'?",
         "description": "This action cannot be undone. The rule and its evaluation history will be permanently removed."
+      }
+    },
+    "qualitySignals": {
+      "title": "Ontology Quality — Signals",
+      "subtitle": "Six windows into how well the ontology serves live queries. Each tile is signal-backed: if an operator edits the glossary or a code system, these numbers move.",
+      "window": {
+        "label": "Time window",
+        "last7d": "Last 7 days",
+        "last30d": "Last 30 days",
+        "last90d": "Last 90 days"
+      },
+      "tiles": {
+        "title": "Six windows",
+        "sampleSize": "n = {n}",
+        "anchor_match_rate": {
+          "label": "Anchor match rate",
+          "description": "Fraction of queries where the top anchor score ≥ 0.5 — the ontology index surfaced a relevant entry point."
+        },
+        "glossary_hit_rate": {
+          "label": "Glossary hit rate",
+          "description": "Fraction of queries that consulted a glossary term during NL→Cypher translation."
+        },
+        "clarification_success_rate": {
+          "label": "Clarification success rate",
+          "description": "When a query used an ambiguity clarification, how often did the follow-up pass SHACL?"
+        },
+        "query_reproducibility": {
+          "label": "Query reproducibility",
+          "description": "Share of queries whose canonical plan appears more than once in this window — the same question yields the same plan."
+        },
+        "shacl_pass_rate": {
+          "label": "SHACL pass rate",
+          "description": "Fraction of compiled queries the strict SHACL validator accepted."
+        },
+        "stale_concept_ratio": {
+          "label": "Stale concept ratio",
+          "description": "Fraction of tracked ontology types whose last reference is older than 180 days. Candidates for deprecation (advisory)."
+        }
+      },
+      "shacl": {
+        "title": "SHACL failure distribution",
+        "empty": "No SHACL failures recorded in this window.",
+        "kind": {
+          "cardinality_violation": "Cardinality violation",
+          "measure_group_by": "Measure in GROUP BY",
+          "unknown_coded_value": "Unknown coded value",
+          "mandatory_property_missing": "Mandatory property missing",
+          "temporal_grain_mismatch": "Temporal grain mismatch",
+          "other": "Other"
+        }
+      },
+      "stale": {
+        "title": "Stale concept candidates",
+        "subtitle": "Ontology types unused for more than {days} days — advisory list, not auto-deprecated.",
+        "thresholdLabel": "Staleness cutoff",
+        "days90": "90 days",
+        "days180": "180 days",
+        "days365": "365 days",
+        "empty": "No stale types over the selected cutoff.",
+        "never": "never",
+        "col": {
+          "kind": "Kind",
+          "typeId": "Type ID",
+          "lastUsed": "Last used",
+          "daysSince": "Days since"
+        }
       }
     }
   },

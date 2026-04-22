@@ -66,7 +66,8 @@ export interface DesignDecisions {
 
 export function useDesignDecisions(designOptions: DesignOptions, report: {
   pii_findings: { table: string; column: string }[];
-  ambiguous_columns: { table: string; column: string }[];
+  /** `AmbiguityContext`-shaped rows (structured `column: {relation, column}`). */
+  ambiguous_columns: { column: { relation: string; column: string } }[];
   analysis_completeness?: string;
 } | null): DesignDecisions {
   const [confirmedRelationships, setConfirmedRelationships] = useState<Record<string, boolean>>(
@@ -111,7 +112,7 @@ export function useDesignDecisions(designOptions: DesignOptions, report: {
 
   const unresolvedClarificationCount = report
     ? report.ambiguous_columns.filter(
-        (c) => !clarifications[columnKey(c.table, c.column)]?.trim(),
+        (c) => !clarifications[columnKey(c.column.relation, c.column.column)]?.trim(),
       ).length
     : 0;
 

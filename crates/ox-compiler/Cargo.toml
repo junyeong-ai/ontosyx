@@ -4,9 +4,12 @@ description = "Ontosyx IR → target query language compilers"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+publish.workspace = true
 
 [dependencies]
 ox-core = { workspace = true }
+ox-ontology = { workspace = true }
+ox-query-ir = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
@@ -18,7 +21,7 @@ chrono = { workspace = true }
 
 [dev-dependencies]
 chrono = { workspace = true }
-ox-core = { workspace = true, features = ["test-fixtures"] }
+ox-ontology = { workspace = true, features = ["test-fixtures"] }
 
 [lints]
 workspace = true

@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use ox_core::ontology_ir::{Cardinality, NodeConstraint, NodeTypeDef, OntologyIR};
+use ox_ontology::ir::{Cardinality, NodeConstraint, NodeTypeDef, OntologyIR};
 use ox_core::types::PropertyType;
 
 /// Generate a Mermaid ER diagram from an OntologyIR.
@@ -125,7 +125,7 @@ fn push_tag_comment(lines: &mut Vec<String>, indent: &str, tags: &[String], depr
 /// Return `" (src→tgt)"` when at least one endpoint role is present,
 /// empty string otherwise. Prefers the explicit role; falls back to `?`
 /// so the reader sees exactly which side is unnamed.
-fn edge_role_suffix(edge: &ox_core::ontology_ir::EdgeTypeDef) -> String {
+fn edge_role_suffix(edge: &ox_ontology::ir::EdgeTypeDef) -> String {
     if edge.source_role.is_none() && edge.target_role.is_none() {
         return String::new();
     }
@@ -195,7 +195,7 @@ mod tests {
     use ox_core::GraphLabel;
     use ox_core::LocalizedText;
     use ox_core::PropertyKey;
-    use ox_core::ontology_ir::{Cardinality, EdgeTypeDef, Governance, NodeTypeDef, PropertyDef};
+    use ox_ontology::ir::{Cardinality, EdgeTypeDef, Governance, NodeTypeDef, PropertyDef};
 
     fn gl(s: &'static str) -> GraphLabel {
         GraphLabel::new(s).expect("test label literal must be valid")

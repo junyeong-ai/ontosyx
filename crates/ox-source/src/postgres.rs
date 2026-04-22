@@ -15,15 +15,22 @@
 //! with no autovacuum stats yet (freshly created, never analyzed) falls
 //! back to an exact `count(*)`.
 
+use std::sync::Arc;
+
+use arrow::array::{ArrayBuilder, ArrayRef, RecordBatch};
+use arrow::datatypes::Schema;
 use async_trait::async_trait;
-use sqlx::postgres::{PgPool, PgPoolOptions};
+use sqlx::Row;
+use sqlx::postgres::{PgPool, PgPoolOptions, PgRow};
 use tracing::{info, warn};
 
 use ox_core::error::{OxError, OxResult};
-use ox_core::source_analysis::ENUM_CARDINALITY_THRESHOLD;
+use ox_ontology::source_analysis::ENUM_CARDINALITY_THRESHOLD;
 use ox_core::source_schema::{ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef};
 
 use crate::DataSourceAdapter;
+use crate::normalize::describe_to_arrow_schema;
+use crate::text_scan::{append_text_cell, make_builder};
 
 /// Returns true for PostgreSQL types that typically contain large
 /// structured/binary data. These columns produce meaningless multi-KB
@@ -335,4 +342,110 @@ impl DataSourceAdapter for PostgresAdapter {
             )
             .collect())
     }
+
+    async fn scan(
+        &self,
+        table: &str,
+        projection: Option<Vec<usize>>,
+        limit: Option<usize>,
+    ) -> OxResult<RecordBatch> {
+        // Reuse `describe_table` for the column schema — projection
+        // is a list of column indices into *that* schema, mirroring
+        // the CSV adapter's contract.
+        let table_def = self.describe_table(table).await?;
+        let arrow_schema = describe_to_arrow_schema("postgresql", &table_def);
+
+        let selected_indices: Vec<usize> =
+            projection.unwrap_or_else(|| (0..table_def.columns.len()).collect());
+
+        let projected_schema = if selected_indices.len() == table_def.columns.len() {
+            arrow_schema.clone()
+        } else {
+            arrow_schema
+                .project(&selected_indices)
+                .map_err(|e| OxError::Runtime {
+                    message: format!("postgres scan: projection error: {e}"),
+                })?
+        };
+
+        // Emit each selected column casted to TEXT. Postgres's text
+        // output is deterministic per type, so the downstream parse
+        // path reuses the same logic the CSV adapter already has.
+        // This keeps the sqlx type-handling surface minimal — every
+        // cell is `Option<String>` regardless of the source column's
+        // actual Postgres type.
+        let projected_columns: Vec<&SourceColumnDef> = selected_indices
+            .iter()
+            .map(|i| &table_def.columns[*i])
+            .collect();
+        let select_list = projected_columns
+            .iter()
+            .map(|c| format!("{}::text AS {}", quote_ident(&c.name), quote_ident(&c.name)))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let limit_clause = limit
+            .map(|n| format!(" LIMIT {n}"))
+            .unwrap_or_default();
+        let sql = format!(
+            "SELECT {select_list} FROM {schema}.{table}{limit}",
+            schema = quote_ident(&self.schema_name),
+            table = quote_ident(table),
+            limit = limit_clause,
+        );
+
+        let rows: Vec<PgRow> = sqlx::query(&sql)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| OxError::Runtime {
+                message: format!("Failed to scan table `{table}`: {e}"),
+            })?;
+
+        build_record_batch_from_pg_rows(&rows, &projected_columns, &projected_schema)
+    }
+}
+
+/// Convert TEXT-cast Postgres rows into an Arrow `RecordBatch` that
+/// matches `arrow_schema`. Cell parsing lives in
+/// [`crate::text_scan::append_text_cell`]; this function just drives
+/// the per-row sqlx extraction into the shared helper.
+fn build_record_batch_from_pg_rows(
+    rows: &[PgRow],
+    columns: &[&SourceColumnDef],
+    arrow_schema: &Schema,
+) -> OxResult<RecordBatch> {
+    let mut builders: Vec<Box<dyn ArrayBuilder>> = arrow_schema
+        .fields()
+        .iter()
+        .map(|f| make_builder(f.data_type()))
+        .collect();
+
+    for row in rows {
+        for (idx, col) in columns.iter().enumerate() {
+            // `::text` casts render NULL as a real null; sqlx's
+            // `try_get::<Option<String>, _>` surfaces that. The
+            // column index matches `idx` because the SELECT list
+            // was emitted in the same order as `columns`.
+            let raw: Option<String> =
+                row.try_get(idx).map_err(|e| OxError::Runtime {
+                    message: format!(
+                        "postgres scan: failed to read column `{name}` at row \
+                         offset {idx}: {e}",
+                        name = col.name
+                    ),
+                })?;
+            append_text_cell(
+                "postgres",
+                builders[idx].as_mut(),
+                arrow_schema.field(idx).data_type(),
+                raw.as_deref(),
+            )?;
+        }
+    }
+
+    let arrays: Vec<ArrayRef> = builders.into_iter().map(|mut b| b.finish()).collect();
+    RecordBatch::try_new(Arc::new(arrow_schema.clone()), arrays).map_err(|e| {
+        OxError::Runtime {
+            message: format!("postgres scan: RecordBatch::try_new failed: {e}"),
+        }
+    })
 }

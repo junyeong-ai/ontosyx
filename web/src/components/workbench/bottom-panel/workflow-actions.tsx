@@ -142,9 +142,9 @@ export function WorkflowActions({
         .map((s) => s.table_name),
       column_clarifications: report.ambiguous_columns
         .map((col) => {
-          const hint = clarifications[columnKey(col.table, col.column)]?.trim();
+          const hint = clarifications[columnKey(col.column.relation, col.column.column)]?.trim();
           if (!hint) return null;
-          return { table: col.table, column: col.column, hint };
+          return { table: col.column.relation, column: col.column.column, hint };
         })
         .filter((e): e is NonNullable<typeof e> => e !== null),
       allow_partial_source_analysis: allowPartialAnalysis,
@@ -752,7 +752,7 @@ export function WorkflowActions({
             </h4>
           </div>
           <p className="text-[10px] text-emerald-700 dark:text-emerald-400">
-            {project.saved_ontology_id ? t("savedDescription") : t("completedDescription")}
+            {project.ontology_id ? t("savedDescription") : t("completedDescription")}
           </p>
         </div>
       )}
@@ -818,8 +818,8 @@ export function WorkflowActions({
       )}
 
       {/* Graph Audit & Sync */}
-      {isCompleted && project.saved_ontology_id && (
-        <GraphAuditSection ontologyId={project.saved_ontology_id} />
+      {isCompleted && project.ontology_id && (
+        <GraphAuditSection ontologyId={project.ontology_id} />
       )}
 
       {/* Load Data */}

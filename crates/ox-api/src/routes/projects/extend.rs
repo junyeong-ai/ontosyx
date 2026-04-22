@@ -5,8 +5,8 @@ use tokio::time::Instant;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use ox_core::design_project::{DesignProjectStatus, SourceHistoryEntry};
-use ox_core::ontology_ir::OntologyIR;
+use ox_ontology::design_project::{DesignProjectStatus, SourceHistoryEntry};
+use ox_ontology::ir::OntologyIR;
 use ox_core::source_schema::{SourceProfile, SourceSchema};
 use ox_source::analyzer::build_design_context;
 
@@ -176,13 +176,13 @@ pub(crate) async fn extend_project(
     );
 
     // 5. Reconcile: merge new ontology with existing (preserves existing IDs)
-    let reconciled = ox_core::ontology_command::reconcile_refined(&existing_ontology, new_ontology)
+    let reconciled = ox_ontology::command::reconcile_refined(&existing_ontology, new_ontology)
         .map_err(|e| AppError::internal(format!("Reconcile produced invalid ontology: {e}")))?;
 
     let merged = reconciled.ontology;
 
     // 6. Merge source mappings: existing + new
-    let existing_mapping: ox_core::source_mapping::SourceMapping = project
+    let existing_mapping: ox_ontology::mapping::SourceMapping = project
         .source_mapping
         .as_ref()
         .map(|v| serde_json::from_value(v.clone()))
@@ -249,14 +249,14 @@ pub(crate) async fn extend_project(
     }
 
     // 8. Re-assess quality with merged schema/profile
-    let quality_report = ox_core::quality::assess_quality(
+    let quality_report = ox_ontology::quality::assess_quality(
         &merged,
         Some(&merged_schema),
         Some(&merged_profile),
         &merged_mapping,
         &existing_opts.excluded_tables,
         &existing_opts.column_clarifications,
-        &ox_core::quality::QualityConfig::default(),
+        &ox_ontology::quality::QualityConfig::default(),
     );
 
     // 9. Build source history entry for the new source

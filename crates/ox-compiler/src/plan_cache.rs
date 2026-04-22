@@ -42,9 +42,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use dashmap::DashMap;
 use ox_core::error::OxResult;
-use ox_core::load_plan::LoadPlan;
-use ox_core::ontology_ir::OntologyIR;
-use ox_core::query_ir::QueryIR;
+use ox_ontology::load_plan::LoadPlan;
+use ox_ontology::ir::OntologyIR;
+use ox_query_ir::query::QueryIR;
 
 use crate::{CompiledQuery, GraphCompiler};
 
@@ -267,7 +267,7 @@ mod tests {
     use super::*;
     use crate::cypher::CypherCompiler;
     use ox_core::graph_label::GraphLabel;
-    use ox_core::query_ir::{
+    use ox_query_ir::query::{
         GraphPattern, Projection, QUERY_IR_SCHEMA_VERSION, QueryOp,
     };
     use ox_core::variable_name::VariableName;

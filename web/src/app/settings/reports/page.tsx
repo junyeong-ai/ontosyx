@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import type {
   SavedReport,
-  SavedOntology,
+  OntologyListItem,
   ReportCreateRequest,
   ReportUpdateRequest,
   ReportParameter,
@@ -41,7 +41,7 @@ function isKnownWidgetType(s: string): s is KnownWidgetType {
 export default function ReportsPage() {
   const t = useTranslations("settings.reports");
   const [reports, setReports] = useState<SavedReport[]>([]);
-  const [ontologies, setOntologies] = useState<SavedOntology[]>([]);
+  const [ontologies, setOntologies] = useState<OntologyListItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   // URL-backed filter + selection. Sharing a URL with `?ontology=X&report=Y`
@@ -63,7 +63,11 @@ export default function ReportsPage() {
       .then((page) => {
         setOntologies(page.items);
         if (page.items.length > 0 && !ontologyFilter) {
-          setOntologyFilter(page.items[0].id);
+          // Reports index by `ontology_lineage_id` (the cross-version handle),
+          // so the URL state stores the lineage string rather than the
+          // identity uuid. Clicking through a shared URL with a lineage id
+          // resolves stably even after the ontology bumps a new version.
+          setOntologyFilter(page.items[0].lineage_id);
         }
       })
       .catch(() => toast.error(t("toast.loadOntologiesFailed")))
@@ -151,8 +155,11 @@ export default function ReportsPage() {
           className="w-64"
         >
           {ontologies.map((o) => (
-            <option key={o.id} value={o.id}>
-              {t("ontologyOption", { name: o.name, version: o.version })}
+            <option key={o.id} value={o.lineage_id}>
+              {t("ontologyOption", {
+                name: o.name,
+                version: o.current_version?.version ?? "—",
+              })}
             </option>
           ))}
         </SettingsSelect>

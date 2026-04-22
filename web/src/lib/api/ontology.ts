@@ -2,31 +2,58 @@ import type {
   CursorPage,
   ElementVerification,
   InsightSuggestion,
+  OntologyDetail,
   OntologyIR,
-  SavedOntology,
+  OntologyListItem,
 } from "@/types/api";
 import { request, requestText } from "./client";
-import { CursorPageSchema, SavedOntologySchema, OntologyIRSchema } from "@/lib/validation";
+import {
+  CursorPageSchema,
+  OntologyDetailSchema,
+  OntologyIRSchema,
+  OntologyListItemSchema,
+} from "@/lib/validation";
 
 // ---------------------------------------------------------------------------
-// Saved Ontologies
+// Ontologies (Λ storage model)
+//
+// The list endpoint returns identity rows + current-version summaries.
+// The IR itself lives behind the detail endpoint — a single list page
+// could otherwise pull 50 full hydrated ontologies.
 // ---------------------------------------------------------------------------
 
 export async function listOntologies(params?: {
   cursor?: string;
   limit?: number;
-}): Promise<CursorPage<SavedOntology>> {
+}): Promise<CursorPage<OntologyListItem>> {
   const qs = new URLSearchParams();
   if (params?.cursor) qs.set("cursor", params.cursor);
   if (params?.limit) qs.set("limit", String(params.limit));
   const query = qs.toString();
   const data = await request(`/ontologies${query ? `?${query}` : ""}`);
-  const result = CursorPageSchema(SavedOntologySchema).safeParse(data);
+  const result = CursorPageSchema(OntologyListItemSchema).safeParse(data);
   if (!result.success) {
     console.warn("Ontology list validation failed:", result.error.issues);
-    return data as ReturnType<typeof CursorPageSchema<typeof SavedOntologySchema>>["_output"];
+    return data as ReturnType<
+      typeof CursorPageSchema<typeof OntologyListItemSchema>
+    >["_output"];
   }
   return result.data;
+}
+
+/**
+ * Fetch a single ontology's identity row + current-version summary +
+ * fully hydrated `OntologyIR`. `ontology_ir` is `undefined` iff the
+ * identity has no committed version yet (rare transitional state).
+ */
+export async function getOntologyDetail(id: string): Promise<OntologyDetail> {
+  const data = await request(`/ontologies/${encodeURIComponent(id)}`);
+  const result = OntologyDetailSchema.safeParse(data);
+  if (!result.success) {
+    console.warn("Ontology detail validation failed:", result.error.issues);
+    return data as OntologyDetail;
+  }
+  return result.data as OntologyDetail;
 }
 
 // ---------------------------------------------------------------------------

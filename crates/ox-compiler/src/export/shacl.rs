@@ -1,4 +1,4 @@
-use ox_core::ontology_ir::{Cardinality, NodeConstraint, OntologyIR};
+use ox_ontology::ir::{Cardinality, NodeConstraint, OntologyIR};
 use ox_core::types::PropertyType;
 
 /// Generate SHACL shapes in Turtle format from an OntologyIR.
@@ -183,7 +183,7 @@ fn emit_block(out: &mut String, lines: &[String]) {
 /// source/target role hint. Roles describe the functional endpoints of
 /// the relationship (e.g. MANAGES has "manager" / "direct_report") and
 /// are what a data consumer actually needs to interpret the triple.
-fn build_edge_description(edge: &ox_core::ontology_ir::EdgeTypeDef) -> Option<String> {
+fn build_edge_description(edge: &ox_ontology::ir::EdgeTypeDef) -> Option<String> {
     let base = edge.description.present();
     let role_hint = match (edge.source_role.as_deref(), edge.target_role.as_deref()) {
         (None, None) => None,
@@ -285,7 +285,7 @@ mod tests {
     use ox_core::GraphLabel;
     use ox_core::LocalizedText;
     use ox_core::PropertyKey;
-    use ox_core::ontology_ir::{
+    use ox_ontology::ir::{
         Cardinality, ConstraintDef, EdgeTypeDef, NodeConstraint, NodeTypeDef, OntologyIR,
         PropertyDef,
     };

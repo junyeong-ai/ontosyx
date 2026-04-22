@@ -1,5 +1,5 @@
 use ox_core::error::OxResult;
-use ox_core::query_ir::{AnalyticsSource, GraphAlgorithm, PathAlgorithm, QueryOp};
+use ox_query_ir::query::{AnalyticsSource, GraphAlgorithm, PathAlgorithm, QueryOp};
 
 use super::expr::{compile_agg_function, compile_expr, compile_order_by, compile_projection};
 use super::mutate::compile_mutate_op;

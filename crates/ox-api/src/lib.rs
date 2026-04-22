@@ -19,7 +19,11 @@
 )]
 
 pub mod acl_enforcement;
+pub mod arrow_conversion;
 pub mod audit_middleware;
+pub mod background;
+pub mod credential;
+pub mod federation_resolver;
 pub mod collaboration;
 pub mod config;
 pub mod error;
@@ -34,6 +38,7 @@ pub mod routes;
 pub mod schedule;
 pub mod spawn_scoped;
 pub mod sso;
+pub mod stream_limiter;
 pub mod state;
 pub mod system_config;
 pub mod validation;

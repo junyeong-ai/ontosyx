@@ -1,4 +1,4 @@
-use ox_core::ontology_ir::{Cardinality, NodeConstraint, OntologyIR};
+use ox_ontology::ir::{Cardinality, NodeConstraint, OntologyIR};
 use ox_core::types::PropertyType;
 
 /// Generate an OWL ontology in Turtle format from an OntologyIR.
@@ -389,7 +389,7 @@ mod tests {
     use ox_core::GraphLabel;
     use ox_core::LocalizedText;
     use ox_core::PropertyKey;
-    use ox_core::ontology_ir::{
+    use ox_ontology::ir::{
         Cardinality, ConstraintDef, EdgeTypeDef, NodeConstraint, NodeTypeDef, OntologyIR,
         PropertyDef,
     };

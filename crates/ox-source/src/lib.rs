@@ -17,18 +17,22 @@ pub mod fetcher;
 pub mod kernel;
 pub mod mongodb;
 pub mod mysql;
+pub mod normalize;
 pub mod postgres;
 pub mod postgres_fetcher;
+pub mod json_scan;
 pub mod registry;
 pub mod repo;
 pub mod sample;
 pub mod snowflake;
+pub mod text_scan;
 
 pub use config::AdapterConfig;
 
+use arrow_array::RecordBatch;
 use async_trait::async_trait;
-use ox_core::error::OxResult;
-use ox_core::source_analysis::AnalysisWarning;
+use ox_core::error::{OxError, OxResult};
+use ox_ontology::source_analysis::AnalysisWarning;
 use ox_core::source_schema::{
     ColumnStats, ForeignKeyDef, SourceColumnDef, SourceProfile, SourceSchema, SourceTableDef,
 };
@@ -100,5 +104,39 @@ pub trait DataSourceAdapter: Send + Sync {
     /// discover FKs override this.
     async fn list_foreign_keys(&self) -> OxResult<Vec<ForeignKeyDef>> {
         Ok(Vec::new())
+    }
+
+    /// Materialise rows from `table` as an Arrow `RecordBatch`, so the
+    /// federation layer (`ox-federation`) can plug this adapter into
+    /// DataFusion's `TableProvider` surface.
+    ///
+    /// Contract:
+    /// - `projection`, when `Some`, is a list of column indices into
+    ///   the schema returned by `describe_table`. Adapters SHOULD push
+    ///   the projection down to the source when the dialect allows it
+    ///   and fall back to returning every column otherwise (DataFusion
+    ///   re-projects on top).
+    /// - `limit`, when `Some`, caps the number of rows the adapter
+    ///   returns. It is advisory — returning fewer rows is always
+    ///   correct; returning more means the federation engine has to
+    ///   truncate.
+    /// - Filters are not part of this primitive in Phase 2. DataFusion
+    ///   still applies them after scan (we report
+    ///   `TableProviderFilterPushDown::Inexact`). Phase 6 lifts filters
+    ///   into this signature and lets adapters promote to `Exact`.
+    ///
+    /// The default implementation refuses — adapters without a scan
+    /// path (e.g. a FK-only introspection stub) stay explicit about
+    /// not supporting federation queries.
+    async fn scan(
+        &self,
+        table: &str,
+        _projection: Option<Vec<usize>>,
+        _limit: Option<usize>,
+    ) -> OxResult<RecordBatch> {
+        Err(OxError::UnsupportedOperation {
+            target: self.source_type().to_string(),
+            operation: format!("scan(table={table})"),
+        })
     }
 }

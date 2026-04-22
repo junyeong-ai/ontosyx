@@ -28,16 +28,9 @@ describe("ChromeSlice", () => {
     store = createTestStore();
   });
 
-  it("defaults to design workspace mode", () => {
-    expect(store.getState().workspaceMode).toBe("design");
-  });
-
-  it("setWorkspaceMode changes mode and clears selection", () => {
-    store.getState().select({ type: "node", nodeId: "n1" });
-    store.getState().setWorkspaceMode("analyze");
-    expect(store.getState().workspaceMode).toBe("analyze");
-    expect(store.getState().selection).toEqual({ type: "none" });
-  });
+  // `workspaceMode` moved to the URL in Phase 2-4 — the slice no longer
+  // carries it. See `useWorkspaceMode()` for the replacement; tests for
+  // pathname-derived mode live with that hook.
 
   it("designBottomTab defaults to workflow", () => {
     expect(store.getState().designBottomTab).toBe("workflow");

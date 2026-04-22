@@ -23,7 +23,7 @@ use async_trait::async_trait;
 use snowflake_api::{QueryResult, SnowflakeApi};
 
 use ox_core::error::{OxError, OxResult};
-use ox_core::source_analysis::ENUM_CARDINALITY_THRESHOLD;
+use ox_ontology::source_analysis::ENUM_CARDINALITY_THRESHOLD;
 use ox_core::source_schema::{ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef};
 
 use crate::DataSourceAdapter;

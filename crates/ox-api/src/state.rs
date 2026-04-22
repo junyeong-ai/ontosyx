@@ -1,21 +1,25 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use axum::extract::FromRef;
 use dashmap::DashMap;
-use tokio::sync::RwLock;
+use tokio::sync::{OnceCell, RwLock};
 
 use branchforge::Auth;
 use ox_brain::Brain;
 use ox_brain::client_pool::ClientPool;
 use ox_compiler::{GraphCompiler, PlanCacheHandle};
+use ox_federation::InMemoryAdapterResolver;
 use ox_runtime::GraphRuntime;
 use ox_source::registry::AdapterRegistry;
 use ox_store::{Store, ToolApproval};
+use uuid::Uuid;
 
 use crate::model_router::DbModelRouter;
 
 use crate::collaboration::CollaborationHub;
 use crate::config::{AgentConfig, AuthConfig, DashboardsConfig, RecoveryConfig, TimeoutsConfig};
+use crate::credential::SecretResolver;
 use crate::middleware::RateLimiter;
 use crate::sso::OidcProviderRegistry;
 use crate::system_config::SystemConfig;
@@ -46,6 +50,15 @@ pub struct AppState {
     pub auth_config: AuthConfig,
     pub repo_policy: RepoPolicy,
     pub adapter_registry: Arc<AdapterRegistry>,
+    /// Per-workspace runtime resolvers. See [`WorkspaceResolverSlot`]
+    /// for the per-workspace slot shape.
+    pub federation_resolvers: Arc<DashMap<Uuid, Arc<WorkspaceResolverSlot>>>,
+    /// Dereferences `Credential::SecretRef { value: "env:X" }` (and
+    /// any future `vault:` / `aws-sm:` schemes) to concrete secret
+    /// values at adapter-build time. Kept as a trait object so the
+    /// prod server wires `EnvSecretResolver` while tests can inject
+    /// a deterministic fake.
+    pub secret_resolver: Arc<dyn SecretResolver>,
     pub system_config: Arc<RwLock<SystemConfig>>,
     pub rate_limiter: Option<Arc<RateLimiter>>,
     pub memory: Option<Arc<ox_memory::MemoryStore>>,
@@ -79,6 +92,108 @@ impl AppState {
             jaccard_threshold: self.recovery.jaccard_threshold,
             session_window_minutes: self.recovery.session_window_minutes,
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// FederationState
+//
+// The federation admin + query paths only need three pieces of
+// shared state: the persistent store, the per-workspace adapter
+// resolver cache, and the secret resolver. Carving those out into
+// their own state lets the handlers declare their dependencies
+// precisely (a federation handler cannot accidentally reach for
+// the chat `Brain` or the model router) and lets tests build a
+// real handler input without populating 25+ unrelated fields on
+// `AppState`.
+//
+// Axum's `FromRef<AppState>` impl makes the extraction transparent:
+// a handler typed as `State(FederationState)` extracts directly
+// against the live `AppState` the server wires in at startup.
+// ---------------------------------------------------------------------------
+
+/// Narrow view of `AppState` carrying only what the federation
+/// admin handlers and the federation-backed query handler touch.
+///
+/// This state is constructed once at startup (indirectly, by
+/// `AppState`) and cheaply cloned per request — every field is
+/// already an `Arc`, so clones share backing storage.
+#[derive(Clone)]
+pub struct FederationState {
+    pub store: Arc<dyn Store>,
+    pub federation_resolvers: Arc<DashMap<Uuid, Arc<WorkspaceResolverSlot>>>,
+    pub secret_resolver: Arc<dyn SecretResolver>,
+}
+
+impl FromRef<AppState> for FederationState {
+    fn from_ref(app: &AppState) -> Self {
+        Self {
+            store: Arc::clone(&app.store),
+            federation_resolvers: Arc::clone(&app.federation_resolvers),
+            secret_resolver: Arc::clone(&app.secret_resolver),
+        }
+    }
+}
+
+/// Per-workspace federation adapter slot.
+///
+/// Hydration is singleflight: the first request for a workspace
+/// runs `list_data_sources + build_adapter × N` to populate the
+/// inner resolver; concurrent first-requests await the same
+/// initialisation future instead of each rebuilding the adapter
+/// graph. Subsequent register / delete mutate the inner resolver
+/// through its own `RwLock` — the `OnceCell` commits only once per
+/// slot lifetime, and the lock handles post-hydration mutation.
+///
+/// A `refresh` operation throws the slot away (the outer `DashMap`
+/// entry is removed) so the next access starts a fresh `OnceCell`.
+pub struct WorkspaceResolverSlot {
+    /// Populated exactly once per workspace slot. The lock inside
+    /// the cell keeps post-hydration mutations possible without
+    /// re-initialising the cell.
+    inner: OnceCell<RwLock<InMemoryAdapterResolver>>,
+}
+
+impl WorkspaceResolverSlot {
+    pub fn new() -> Self {
+        Self {
+            inner: OnceCell::new(),
+        }
+    }
+
+    /// Access the hydrated resolver, initialising it exactly once
+    /// through `init`. Concurrent callers see the same future.
+    pub async fn get_or_init<F, Fut, E>(&self, init: F) -> Result<&RwLock<InMemoryAdapterResolver>, E>
+    where
+        F: FnOnce() -> Fut,
+        Fut: std::future::Future<Output = Result<InMemoryAdapterResolver, E>>,
+    {
+        self.inner
+            .get_or_try_init(|| async {
+                let resolver = init().await?;
+                Ok::<_, E>(RwLock::new(resolver))
+            })
+            .await
+    }
+
+    /// Whether this slot has been hydrated. Useful for the admin
+    /// `/health` endpoint to report a cold vs warm workspace
+    /// without triggering lazy initialisation.
+    pub fn is_hydrated(&self) -> bool {
+        self.inner.initialized()
+    }
+
+    /// Returns a reference to the hydrated RwLock, or `None` when
+    /// the slot is cold. Callers that need the hydrated path
+    /// (writers) should prefer [`get_or_init`].
+    pub fn get(&self) -> Option<&RwLock<InMemoryAdapterResolver>> {
+        self.inner.get()
+    }
+}
+
+impl Default for WorkspaceResolverSlot {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

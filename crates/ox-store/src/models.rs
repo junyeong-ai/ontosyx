@@ -8,9 +8,10 @@ use uuid::Uuid;
 
 /// A single query execution record: NL question → QueryIR → compiled → results.
 ///
-/// Ontology reproducibility: when `saved_ontology_id` is set, the ontology is
-/// resolved via JOIN to `saved_ontologies` (no inline snapshot duplication).
-/// Draft/unsaved ontology executions store `ontology_snapshot` inline.
+/// Ontology reproducibility: when `ontology_id` is set, the ontology identity
+/// is referenced directly and the caller resolves a concrete version through
+/// `OntologyVersionStore`. Draft / unsaved executions store `ontology_snapshot`
+/// inline so an ad-hoc query that never gets committed still round-trips.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct QueryExecution {
     pub id: Uuid,
@@ -21,10 +22,10 @@ pub struct QueryExecution {
     /// executions under one ontology even when its version changes.
     pub ontology_lineage_id: String,
     pub ontology_version: i32,
-    /// FK to saved_ontologies — pinned version snapshot. When set,
-    /// ontology_snapshot is NULL (resolved via JOIN).
-    pub saved_ontology_id: Option<Uuid>,
-    /// Full OntologyIR snapshot (NULL when saved_ontology_id is set)
+    /// FK to `ontologies.id` — the committed ontology identity this query
+    /// ran against. When set, `ontology_snapshot` is NULL.
+    pub ontology_id: Option<Uuid>,
+    /// Full OntologyIR snapshot (NULL when ontology_id is set)
     pub ontology_snapshot: Option<serde_json::Value>,
     pub query_ir: serde_json::Value,
     /// Compiler target language (e.g., "cypher")
@@ -60,17 +61,134 @@ pub struct QueryExecutionSummary {
     pub created_at: DateTime<Utc>,
 }
 
+// ---------------------------------------------------------------------------
+// Λ Phase — Level 1 identity + version snapshot models.
+//
+// These mirror the migration-0016 tables `ontologies` and
+// `ontology_version_snapshots`. They pair with
+// `ox_ontology::storage::{ExtractedEntity, EntityKind}` to form
+// the full commit / load pipeline the new
+// `OntologyVersionStore` trait exposes.
+// ---------------------------------------------------------------------------
+
+/// A logical ontology identity (pre-version). Authored once per
+/// business ontology; carries the stable `lineage_id` that
+/// downstream systems (quality rules, saved queries, mappings)
+/// reference by string.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
-pub struct SavedOntology {
+pub struct OntologyRow {
     pub id: Uuid,
+    pub lineage_id: String,
     pub workspace_id: Uuid,
     pub name: String,
-    pub description: Option<String>,
-    pub version: i32,
-    pub ontology_ir: serde_json::Value,
-    pub created_by: String,
+    pub description: serde_json::Value,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// One immutable version snapshot of an ontology. The version's
+/// *content* lives in the Level 2 entity store; this row records
+/// "version V of ontology O was committed by U at time T" plus
+/// the bitemporal window metadata.
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct OntologyVersionSnapshot {
+    pub id: Uuid,
+    pub ontology_id: Uuid,
+    pub version: String,
+    pub valid_from: DateTime<Utc>,
+    pub valid_to: Option<DateTime<Utc>>,
+    pub sys_from: DateTime<Utc>,
+    pub sys_to: Option<DateTime<Utc>>,
+    pub parent_version_id: Option<Uuid>,
+    pub committed_by: String,
+    pub commit_message: String,
+    pub created_at: DateTime<Utc>,
+    pub workspace_id: Uuid,
+}
+
+/// A single entity in the Level 2 content-addressed store. The
+/// tuple `(entity_kind, logical_id)` identifies the entity across
+/// versions; `entity_hash` changes when the entity's content
+/// changes and stays stable when the author edits an unrelated
+/// entity.
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct OntologyEntityRow {
+    pub entity_hash: String,
+    pub entity_kind: String,
+    pub content: serde_json::Value,
     pub created_at: DateTime<Utc>,
 }
+
+/// Version → entity pointer row. Joins a version snapshot to
+/// every entity that belongs to it.
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct OntologyVersionEntityRow {
+    pub version_id: Uuid,
+    pub entity_kind: String,
+    pub entity_logical_id: String,
+    pub entity_hash: String,
+    pub workspace_id: Uuid,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Incremental change of one entity between two version
+/// snapshots. Produced by `OntologyVersionStore::diff_versions`;
+/// used by the admin UI's version-diff panel and by
+/// `TemporalRewriter` to walk rename chains.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EntityChange {
+    pub entity_kind: String,
+    pub entity_logical_id: String,
+    pub kind: EntityChangeKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum EntityChangeKind {
+    /// Entity existed in `from` but not in `to`.
+    Removed { from_hash: String },
+    /// Entity exists in `to` but not in `from`.
+    Added { to_hash: String },
+    /// Entity present in both but with different content.
+    Modified { from_hash: String, to_hash: String },
+}
+
+/// Hydration join row — one output of the SELECT behind
+/// `OntologyVersionStore::load_version`. Packs the pointer row
+/// with the resolved entity content in a single round trip.
+/// Not surfaced on the public API — internal to the PostgreSQL
+/// implementation.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct OntologyEntityJoinRow {
+    pub entity_kind: String,
+    pub entity_logical_id: String,
+    pub entity_hash: String,
+    pub content: serde_json::Value,
+}
+
+/// Diff row — internal SELECT output for
+/// `OntologyVersionStore::diff_versions`. Mapped into
+/// [`EntityChange`] once PostgreSQL has joined the two sides.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct DiffRow {
+    pub entity_kind: String,
+    pub entity_logical_id: String,
+    pub from_hash: Option<String>,
+    pub to_hash: Option<String>,
+}
+
+// ---------------------------------------------------------------------------
+// Λ-11 — Progressive Disclosure navigation results.
+//
+// These rows surface from the `OntologyNavigationStore` queries
+// and feed the admin UI's schema browser + the LLM prompt
+// builder's subgraph-extraction path.
+// ---------------------------------------------------------------------------
+
+// Navigation result types (EntitySearchHit, EntityNeighbor, HierarchyRow)
+// moved to `crate::navigation`. The trait methods there consume / return
+// structured `Subgraph` + `EntitySearchHit` instead of the three former
+// row-shape DTOs.
 
 /// A pinned query result for quick access.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -172,8 +290,9 @@ pub struct DesignProject {
     pub ontology: Option<serde_json::Value>,
     /// OntologyQualityReport
     pub quality_report: Option<serde_json::Value>,
-    /// Links to saved_ontologies after completion
-    pub saved_ontology_id: Option<Uuid>,
+    /// FK to `ontologies.id` — the logical ontology identity this project
+    /// was completed into. `None` until the design is completed.
+    pub ontology_id: Option<Uuid>,
     /// History of data sources added to this project
     pub source_history: serde_json::Value,
     pub created_at: DateTime<Utc>,
@@ -190,7 +309,7 @@ pub struct DesignProjectSummary {
     pub user_id: String,
     pub title: Option<String>,
     pub source_config: serde_json::Value,
-    pub saved_ontology_id: Option<Uuid>,
+    pub ontology_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub analyzed_at: Option<DateTime<Utc>>,
@@ -917,6 +1036,30 @@ pub struct KnowledgeEntry {
     pub review_notes: Option<String>,
     pub use_count: i64,
     pub last_used_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// One registered federation (VOL) data-source adapter.
+///
+/// Rows in this table are the durable form of every `source_id` the
+/// `ox-federation` planner might resolve at query time. The admin
+/// CRUD routes write here; the AppState bootstrap (slice W3b) will
+/// stream the rows back into `InMemoryAdapterResolver` at server
+/// start so a restart does not drop registrations.
+///
+/// `config` is adapter-specific JSON — for CSV/JSON it carries a
+/// `data` field holding the inline payload, for future Postgres /
+/// Snowflake adapters it will carry a `connection_string` or a
+/// secret-manager reference. Keeping it typeless here means new
+/// adapter kinds land without another migration.
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct DataSource {
+    pub id: Uuid,
+    pub workspace_id: Uuid,
+    pub source_id: String,
+    pub kind: String,
+    pub config: serde_json::Value,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

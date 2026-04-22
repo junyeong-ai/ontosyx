@@ -1,4 +1,4 @@
-use ox_core::ontology_ir::{IndexDef, NodeConstraint, NodeTypeDef, OntologyIR, VectorSimilarity};
+use ox_ontology::ir::{IndexDef, NodeConstraint, NodeTypeDef, OntologyIR, VectorSimilarity};
 use ox_core::types::PropertyType;
 
 /// Generate Cypher DDL (constraints, indexes, structure comments) from an OntologyIR.
@@ -211,7 +211,7 @@ fn resolve_prop_name(node: &NodeTypeDef, prop_id: &str) -> Option<String> {
 
 fn resolve_prop_names(
     node: &NodeTypeDef,
-    prop_ids: &[ox_core::ontology_ir::PropertyId],
+    prop_ids: &[ox_ontology::ir::PropertyId],
 ) -> Vec<String> {
     prop_ids
         .iter()

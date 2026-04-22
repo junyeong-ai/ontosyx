@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 
-use ox_core::repo_insights::RepoInsights;
-use ox_core::source_analysis::{
+use ox_ontology::ambiguity::RepoHint;
+use ox_ontology::mapping::refs::SourceId;
+use ox_ontology::repo_insights::RepoInsights;
+use ox_ontology::source_analysis::{
     AnalysisCompleteness, DesignOptions, LARGE_SCHEMA_WARNING_THRESHOLD, LargeSchemaWarning,
     PiiDecision, PiiDecisionEntry, RepoAnalysisStatus, RepoAnalysisSummary, RepoColumnSuggestion,
-    RepoSuggestion, SchemaStats, SourceAnalysisReport,
+    SchemaStats, SourceAnalysisReport,
 };
 use ox_core::source_schema::{SourceProfile, SourceSchema};
 
@@ -14,8 +16,14 @@ use super::fk_inference::infer_implied_fks;
 use super::pii::detect_pii;
 
 /// Build a SourceAnalysisReport from schema + profile (no LLM, no I/O).
-/// Detects implied FKs, PII columns, ambiguous columns, and table exclusion candidates.
+///
+/// Detects implied FKs, PII columns, ambiguous columns, and table
+/// exclusion candidates. `source_id` + `source_hash` flow through into
+/// every `AmbiguityContext` so a later schema change invalidates stale
+/// resolutions deterministically (hash mismatch ⇒ re-ask the admin).
 pub fn build_analysis_report(
+    source_id: &SourceId,
+    source_hash: &str,
     schema: &SourceSchema,
     profile: &SourceProfile,
 ) -> SourceAnalysisReport {
@@ -33,7 +41,7 @@ pub fn build_analysis_report(
 
     let implied_relationships = infer_implied_fks(schema);
     let pii_findings = detect_pii(schema, profile);
-    let ambiguous_columns = detect_ambiguous(schema, profile);
+    let ambiguous_columns = detect_ambiguous(source_id, source_hash, schema, profile);
     let table_exclusion_suggestions = suggest_exclusions(schema, profile);
 
     let large_schema_warning = if table_count >= LARGE_SCHEMA_WARNING_THRESHOLD {
@@ -98,8 +106,8 @@ pub fn enrich_with_repo(report: &mut SourceAnalysisReport, insights: &RepoInsigh
     for ambig in &mut report.ambiguous_columns {
         let found = insights.enum_definitions.iter().find(|def| {
             // Deterministic match: LLM provides explicit table_name — no heuristic conversion.
-            def.table_name.eq_ignore_ascii_case(&ambig.table)
-                && def.field.eq_ignore_ascii_case(&ambig.column)
+            def.table_name.eq_ignore_ascii_case(&ambig.column.relation)
+                && def.field.eq_ignore_ascii_case(&ambig.column.column)
         });
 
         if let Some(def) = found {
@@ -110,14 +118,14 @@ pub fn enrich_with_repo(report: &mut SourceAnalysisReport, insights: &RepoInsigh
                 .collect::<Vec<_>>()
                 .join(", ");
 
-            ambig.repo_suggestion = Some(RepoSuggestion {
+            ambig.repo_hint = Some(RepoHint {
                 suggested_values: suggested_values.clone(),
                 source_file: def.source_file.clone(),
             });
 
             suggestions.push(RepoColumnSuggestion {
-                table: ambig.table.clone(),
-                column: ambig.column.clone(),
+                table: ambig.column.relation.clone(),
+                column: ambig.column.column.clone(),
                 suggested_values,
                 source_file: def.source_file.clone(),
             });
@@ -362,7 +370,7 @@ mod tests {
 
     #[test]
     fn enrich_with_repo_priority1_explicit_table_name() {
-        use ox_core::repo_insights::{CodeLabel, RepoEnumDef};
+        use ox_ontology::repo_insights::{CodeLabel, RepoEnumDef};
 
         let schema = make_schema(&[("tb_stores", &["id", "store_type"])], &[]);
         let profile = SourceProfile {
@@ -379,7 +387,12 @@ mod tests {
                 }],
             }],
         };
-        let mut report = build_analysis_report(&schema, &profile);
+        let mut report = build_analysis_report(
+            &SourceId::new("src-test"),
+            "sha256:test",
+            &schema,
+            &profile,
+        );
         // Verify ambiguous column was detected
         assert_eq!(report.ambiguous_columns.len(), 1);
 
@@ -411,12 +424,12 @@ mod tests {
 
         enrich_with_repo(&mut report, &insights);
 
-        // Column stays in ambiguous_columns with repo_suggestion (user must accept)
+        // Column stays in ambiguous_columns with repo_hint (user must accept)
         assert_eq!(report.ambiguous_columns.len(), 1);
-        assert!(report.ambiguous_columns[0].repo_suggestion.is_some());
+        assert!(report.ambiguous_columns[0].repo_hint.is_some());
         assert!(
             report.ambiguous_columns[0]
-                .repo_suggestion
+                .repo_hint
                 .as_ref()
                 .unwrap()
                 .suggested_values
@@ -429,7 +442,7 @@ mod tests {
 
     #[test]
     fn enrich_with_repo_heuristic_matching() {
-        use ox_core::repo_insights::{CodeLabel, RepoEnumDef};
+        use ox_ontology::repo_insights::{CodeLabel, RepoEnumDef};
 
         // table_name = None -> falls back to heuristic (Rails: Order model -> orders table)
         let schema = make_schema(&[("orders", &["id", "status"])], &[]);
@@ -447,7 +460,12 @@ mod tests {
                 }],
             }],
         };
-        let mut report = build_analysis_report(&schema, &profile);
+        let mut report = build_analysis_report(
+            &SourceId::new("src-test"),
+            "sha256:test",
+            &schema,
+            &profile,
+        );
         assert_eq!(report.ambiguous_columns.len(), 1);
 
         let insights = RepoInsights {
@@ -481,12 +499,12 @@ mod tests {
 
         enrich_with_repo(&mut report, &insights);
 
-        // Column stays in ambiguous_columns with repo_suggestion (user must accept)
+        // Column stays in ambiguous_columns with repo_hint (user must accept)
         assert_eq!(report.ambiguous_columns.len(), 1);
-        assert!(report.ambiguous_columns[0].repo_suggestion.is_some());
+        assert!(report.ambiguous_columns[0].repo_hint.is_some());
         assert!(
             report.ambiguous_columns[0]
-                .repo_suggestion
+                .repo_hint
                 .as_ref()
                 .unwrap()
                 .suggested_values
@@ -500,7 +518,7 @@ mod tests {
 
     #[test]
     fn enrich_with_repo_fk_confidence_upgrade() {
-        use ox_core::repo_insights::{OrmRelationType, OrmRelationship, RepoInsights};
+        use ox_ontology::repo_insights::{OrmRelationType, OrmRelationship, RepoInsights};
 
         let schema = make_schema(
             &[("orders", &["id", "customer_id"]), ("customers", &["id"])],
@@ -509,7 +527,12 @@ mod tests {
         let profile = SourceProfile {
             table_profiles: vec![],
         };
-        let mut report = build_analysis_report(&schema, &profile);
+        let mut report = build_analysis_report(
+            &SourceId::new("src-test"),
+            "sha256:test",
+            &schema,
+            &profile,
+        );
 
         assert_eq!(report.implied_relationships.len(), 1);
         assert_eq!(report.implied_relationships[0].confidence, 0.85);
@@ -542,7 +565,7 @@ mod tests {
 
     #[test]
     fn enrich_with_repo_reverse_orm_direction() {
-        use ox_core::repo_insights::{OrmRelationType, OrmRelationship};
+        use ox_ontology::repo_insights::{OrmRelationType, OrmRelationship};
         // HasMany on Customer side is the inverse of orders.customer_id -> customers.
         // Reverse matching must upgrade the FK confidence regardless of direction.
         let schema = make_schema(
@@ -552,7 +575,12 @@ mod tests {
         let profile = SourceProfile {
             table_profiles: vec![],
         };
-        let mut report = build_analysis_report(&schema, &profile);
+        let mut report = build_analysis_report(
+            &SourceId::new("src-test"),
+            "sha256:test",
+            &schema,
+            &profile,
+        );
         assert_eq!(report.implied_relationships[0].confidence, 0.85);
 
         let insights = RepoInsights {
@@ -595,7 +623,7 @@ mod tests {
 
     #[test]
     fn build_design_context_all_sections() {
-        use ox_core::source_analysis::{ColumnClarification, ConfirmedRelationship};
+        use ox_ontology::source_analysis::{ColumnClarification, ConfirmedRelationship};
         let options = DesignOptions {
             confirmed_relationships: vec![ConfirmedRelationship {
                 from_table: "orders".to_string(),

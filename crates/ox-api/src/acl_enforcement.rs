@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
-use ox_core::graph_exploration::{NodeExpansion, SearchResultNode};
-use ox_core::query_ir::QueryResult;
+use ox_ontology::graph_exploration::{NodeExpansion, SearchResultNode};
+use ox_query_ir::query::QueryResult;
 use ox_core::types::PropertyValue;
 use ox_store::AclPolicy;
 

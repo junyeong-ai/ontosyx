@@ -1,0 +1,36 @@
+# Clippy workspace-level configuration.
+#
+# Most lint levels live in the root `Cargo.toml` under `[workspace.lints.clippy]`.
+# Entries that need structured arguments (like the `disallowed_methods` list)
+# cannot be expressed in `Cargo.toml` and are collected here instead.
+
+# ---------------------------------------------------------------------------
+# Disallowed methods — enforced by `clippy::disallowed_methods` (workspace
+# lint level set to `deny` in `Cargo.toml`).
+#
+# `tokio::spawn` is banned in application code because it detaches from the
+# current task-local scope. Ontosyx relies on `WORKSPACE_ID` /
+# `SYSTEM_BYPASS` / `GRAPH_WORKSPACE_ID` being bound across every DB and
+# graph call; a raw spawn silently drops those locals and the next store
+# call hits the RLS deny-all branch (or, worse, writes to the wrong
+# workspace if the spawned caller happens to be admin).
+#
+# Use one of the workspace-aware wrappers instead:
+#   - `ox_api::spawn_scoped::spawn_scoped(fut)` — preserves the caller's
+#     workspace scope (JWT users).
+#   - `ox_api::spawn_scoped::spawn_system(fut)` — wraps the future in
+#     SYSTEM_BYPASS (retention workers, scheduled tasks, maintenance).
+#
+# `spawn_scoped.rs` itself needs `tokio::spawn` to implement these helpers;
+# that single legitimate call site is exempted via a targeted
+# `#[allow(clippy::disallowed_methods)]`.
+#
+# `ox-agent` depends on `ox-store` directly (not on `ox-api`), so it
+# cannot import the helpers. Agent-side spawns wrap futures in
+# `ox_store::SYSTEM_BYPASS.scope(...)` or
+# `branchforge::SharedContextScope::wrap_tool_future(...)` by hand.
+# ---------------------------------------------------------------------------
+
+disallowed-methods = [
+    { path = "tokio::spawn", reason = "use ox_api::spawn_scoped::spawn_scoped / spawn_system — raw tokio::spawn drops WORKSPACE_ID / SYSTEM_BYPASS task-locals and the next store call hits the RLS deny-all branch" },
+]

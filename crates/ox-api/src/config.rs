@@ -34,6 +34,8 @@ pub struct OxConfig {
     pub dashboards: DashboardsConfig,
     #[serde(default)]
     pub recovery: RecoveryConfig,
+    #[serde(default)]
+    pub agent: AgentConfig,
 }
 
 fn default_cypher_config() -> CypherConfig {
@@ -371,6 +373,81 @@ pub struct TimeoutsConfig {
     pub health_check_secs: u64,
     /// Analysis sandbox execution timeout in seconds (default: 120)
     pub analysis_secs: u64,
+    /// Upper wall-clock bound on a single chat-stream agent loop, in
+    /// seconds (default: 900 / 15 min).
+    ///
+    /// The agent's `max_iterations` bounds the number of LLM turns, but
+    /// each turn can itself run for minutes (deep analysis, large
+    /// introspection). This timeout is the hard ceiling — if the route
+    /// hasn't finished streaming to the client by then, the stream is
+    /// terminated and the client sees an `error` SSE event. Prevents
+    /// a single stuck session from burning tokens and holding a
+    /// connection open indefinitely.
+    #[serde(default = "default_chat_wall_clock_secs")]
+    pub chat_wall_clock_secs: u64,
+}
+
+fn default_chat_wall_clock_secs() -> u64 {
+    900
+}
+
+/// Agent-loop budgets — paired with branchforge's per-turn and per-tool
+/// timeouts to cap runaway executions before they cost the workspace
+/// real money.
+#[derive(Debug, Deserialize, Clone)]
+pub struct AgentConfig {
+    /// Maximum number of planner iterations (LLM turn + tool call) the
+    /// agent may perform per request (default: 16).
+    ///
+    /// Raising this past ~24 rarely helps — the model usually either
+    /// converges inside a few turns or thrashes; a lower ceiling makes
+    /// thrashing cheap to cut off.
+    #[serde(default = "default_agent_max_iterations")]
+    pub max_iterations: u32,
+    /// Reject queries whose `estimate_cost` returns `RiskLevel::High`
+    /// before they hit the graph driver (default: `true`).
+    ///
+    /// Set `false` only when the workspace intentionally runs
+    /// unbounded-variable-length traversals or Cartesian-product-shaped
+    /// analytics and accepts the graph-side cost. The heuristic only
+    /// flags obvious shapes (disconnected patterns, `*` depth,
+    /// unindexed high-fanout labels); false positives should be rare
+    /// on real queries.
+    #[serde(default = "default_reject_high_cost")]
+    pub reject_high_cost: bool,
+    /// Maximum number of concurrent chat streams a single user may
+    /// hold open (default: 5).
+    ///
+    /// Each stream spawns an agent loop that burns tokens until its
+    /// wall-clock ceiling; without a concurrency cap a rogue client
+    /// can open dozens of streams in parallel and run up a six-figure
+    /// inference bill before the rate limiter catches them. 5 is
+    /// generous enough for normal multi-tab usage while blocking the
+    /// obvious abuse pattern. Set `0` to disable the cap entirely.
+    #[serde(default = "default_max_concurrent_streams_per_user")]
+    pub max_concurrent_streams_per_user: u32,
+}
+
+fn default_max_concurrent_streams_per_user() -> u32 {
+    5
+}
+
+fn default_agent_max_iterations() -> u32 {
+    16
+}
+
+fn default_reject_high_cost() -> bool {
+    true
+}
+
+impl Default for AgentConfig {
+    fn default() -> Self {
+        Self {
+            max_iterations: default_agent_max_iterations(),
+            reject_high_cost: default_reject_high_cost(),
+            max_concurrent_streams_per_user: default_max_concurrent_streams_per_user(),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -386,6 +463,17 @@ pub struct ServerConfig {
     /// If empty, git URL repo enrichment is disabled for safety.
     #[serde(default)]
     pub allowed_git_hosts: Vec<String>,
+    /// Sandbox for `file:/...` secret-ref resolution. Each entry is an
+    /// absolute directory path; a `file:` secret reference is only
+    /// dereferenced when its canonicalised path lies under at least
+    /// one of these roots. When empty, any absolute path the server
+    /// process can read is accepted — suitable for single-tenant /
+    /// trusted-admin deployments, unsafe for multi-tenant ones.
+    ///
+    /// Recommended production shape on Kubernetes:
+    /// `["/run/secrets", "/var/lib/ontosyx/secrets"]`.
+    #[serde(default)]
+    pub allowed_secret_file_roots: Vec<String>,
 }
 
 #[derive(Deserialize, Clone)]

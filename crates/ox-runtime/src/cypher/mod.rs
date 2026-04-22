@@ -26,8 +26,10 @@
 //!    is a new `impl CypherRewriter`, not a new ad-hoc string function.
 
 pub mod ast;
+pub mod diagnostics;
 pub mod parse;
 pub mod rewrite;
+pub mod shacl_validator;
 pub mod token;
 pub mod validate;
 
@@ -35,13 +37,16 @@ pub use ast::{
     ClauseKind, CypherAst, CypherClause, CypherPattern, CypherPatternElement, CypherStatement,
     NodePattern, RelDirection, RelationshipPattern, UnionKind,
 };
+pub use diagnostics::strict_advisory_diagnostics;
 pub use parse::parse;
 pub use rewrite::{
     CypherRewriter, CypherRewriterPipeline, RewriteContext, RewriteError, RewritePhase,
     RewrittenAst, WorkspaceScopeRewriter,
 };
+pub use shacl_validator::ShaclValidator;
 pub use token::{CypherToken, Span, TokenKind, tokenize};
 pub use validate::{
-    CypherValidator, CypherValidatorPipeline, IssueLevel, OntologyValidator, SafetyValidator,
-    ValidateContext, ValidatePhase, ValidationIssue, ValidationReport,
+    ComplexityValidator, CypherValidator, CypherValidatorPipeline, IssueLevel, OntologyValidator,
+    SafetyValidator, SemanticGuardValidator, ValidateContext, ValidatePhase, ValidationIssue,
+    ValidationReport,
 };

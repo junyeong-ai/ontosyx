@@ -3,8 +3,8 @@ use axum::extract::State;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
-use ox_core::load_plan::LoadPlan;
-use ox_core::ontology_ir::OntologyIR;
+use ox_ontology::load_plan::LoadPlan;
+use ox_ontology::ir::OntologyIR;
 use ox_runtime::{LoadBatch, LoadResult};
 
 use crate::error::AppError;

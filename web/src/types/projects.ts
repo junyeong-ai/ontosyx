@@ -60,7 +60,9 @@ export interface DesignProject {
   source_mapping: SourceMapping | null;
   ontology: OntologyIR | null;
   quality_report: OntologyQualityReport | null;
-  saved_ontology_id: string | null;
+  /** FK to `ontologies.id` — the committed identity this project was
+   *  completed into. `null` until completion. */
+  ontology_id: string | null;
   source_history: SourceHistoryEntry[];
   user_id: string;
   created_at: string;
@@ -74,7 +76,7 @@ export interface DesignProjectSummary {
   revision: number;
   title: string | null;
   source_config: SourceConfig;
-  saved_ontology_id: string | null;
+  ontology_id: string | null;
   user_id: string;
   created_at: string;
   updated_at: string;
@@ -97,7 +99,7 @@ export type CreateProjectRequest =
   | {
       title?: string;
       origin_type: "base_ontology";
-      base_saved_ontology_id: string;
+      base_ontology_id: string;
     };
 
 export interface UpdateDecisionsRequest {
@@ -246,20 +248,39 @@ export interface PiiFinding {
   masked_preview?: string;
 }
 
-export type AmbiguityType = "numeric_code" | "opaque_short_code";
+/**
+ * Persistent ambiguity context — matches the Rust
+ * `ox_ontology::ambiguity::AmbiguityContext`. One row per
+ * `(source_id, relation, column)`; a resolution attached at
+ * `context_id` carries the chosen interpretation.
+ */
+export type AmbiguityKind =
+  | { kind: "numeric_code" }
+  | { kind: "opaque_short_code" }
+  | { kind: "overloaded_name" };
 
-export interface RepoSuggestion {
+export interface RepoHint {
   suggested_values: string;
   source_file: string;
 }
 
-export interface AmbiguousColumn {
-  table: string;
+export interface AmbiguityColumnRef {
+  relation: string;
   column: string;
-  ambiguity_type: AmbiguityType;
+}
+
+export interface AmbiguityContext {
+  id: string;
+  source_id: string;
+  column: AmbiguityColumnRef;
+  kind: AmbiguityKind;
   sample_values: string[];
+  distinct_estimate?: number;
+  nullable: boolean;
   clarification_prompt: string;
-  repo_suggestion?: RepoSuggestion;
+  detection_source_hash: string;
+  repo_hint?: RepoHint;
+  detected_at: string;
 }
 
 export type TableExclusionReason = "audit_log" | "temporary" | "empty";
@@ -305,7 +326,7 @@ export interface SourceAnalysisReport {
   schema_stats: SchemaStats;
   implied_relationships: ImpliedRelationship[];
   pii_findings: PiiFinding[];
-  ambiguous_columns: AmbiguousColumn[];
+  ambiguous_columns: AmbiguityContext[];
   table_exclusion_suggestions: TableExclusionSuggestion[];
   large_schema_warning?: LargeSchemaWarning;
   repo_suggestions: RepoColumnSuggestion[];

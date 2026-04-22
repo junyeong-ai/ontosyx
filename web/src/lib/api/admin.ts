@@ -306,3 +306,142 @@ export async function deleteScheduledTask(id: string): Promise<void> {
     method: "DELETE",
   });
 }
+
+// ---------------------------------------------------------------------------
+// Federation adapters (VOL)
+// ---------------------------------------------------------------------------
+
+export type FederationAdapterSummary = {
+  source_id: string;
+  source_type: string;
+};
+
+// Discriminated on `kind`. `inline` carries the raw value; `secret_ref`
+// carries an opaque reference string (`env:VAR_NAME` today, with
+// `vault:` / `aws-sm:` coming later). The server rejects any shape
+// that does not match one of these variants at deserialization time,
+// so the frontend never has to enforce the "exactly one" invariant.
+export type Credential =
+  | { kind: "inline"; value: string }
+  | { kind: "secret_ref"; value: string };
+
+// GET response omits inline values by design — an inline credential
+// surfaces only as `{kind: "inline"}` with no `value`, so curious
+// clients cannot read back a raw secret.
+export type CredentialSource =
+  | { kind: "inline" }
+  | { kind: "secret_ref"; value: string };
+
+// GET response shape. Mirrors RegisterFederationAdapterRequest
+// exactly, except `credential` is the redacted CredentialSource
+// (inline values never echoed back). The outer `kind` tag and
+// the variant-specific fields (schema_name where present) are
+// flat at the object's top level via serde(flatten) on the server
+// side, so the wire form round-trips with the register request.
+export type FederationAdapterDetail = { source_id: string } & (
+  | { kind: "csv"; credential: CredentialSource }
+  | { kind: "json"; credential: CredentialSource }
+  | { kind: "postgres"; credential: CredentialSource; schema_name?: string }
+  | { kind: "mysql"; credential: CredentialSource; schema_name: string }
+  | { kind: "bigquery"; credential: CredentialSource }
+);
+
+export type FederationHealthResponse = {
+  workspace_id: string;
+  resolver_hydrated: boolean;
+  resolver_count: number;
+  store_count: number;
+  in_sync: boolean;
+  orphans_in_resolver: string[];
+  missing_from_resolver: string[];
+};
+
+export type RegisterFederationAdapterRequest = { source_id: string } & (
+  | { kind: "csv"; credential: Credential }
+  | { kind: "json"; credential: Credential }
+  | { kind: "postgres"; credential: Credential; schema_name?: string }
+  | { kind: "mysql"; credential: Credential; schema_name: string }
+  | { kind: "bigquery"; credential: Credential }
+);
+
+export type RegisterFederationAdapterResponse = {
+  replaced: boolean;
+  adapter: FederationAdapterSummary;
+};
+
+export async function listFederationAdapters(): Promise<FederationAdapterSummary[]> {
+  return request("/admin/federation/adapters");
+}
+
+export async function getFederationAdapter(
+  sourceId: string,
+): Promise<FederationAdapterDetail> {
+  return request(`/admin/federation/adapters/${encodeURIComponent(sourceId)}`);
+}
+
+export async function registerFederationAdapter(
+  req: RegisterFederationAdapterRequest,
+): Promise<RegisterFederationAdapterResponse> {
+  return request("/admin/federation/adapters", {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+}
+
+export async function deleteFederationAdapter(sourceId: string): Promise<void> {
+  await request(`/admin/federation/adapters/${encodeURIComponent(sourceId)}`, {
+    method: "DELETE",
+  });
+}
+
+export async function refreshFederationAdapters(): Promise<{
+  refreshed: boolean;
+  count: number;
+}> {
+  return request("/admin/federation/adapters/refresh", {
+    method: "POST",
+  });
+}
+
+export async function getFederationHealth(): Promise<FederationHealthResponse> {
+  return request("/admin/federation/health");
+}
+
+// ---------------------------------------------------------------------------
+// Preview adapter — dry-run schema introspection before registering. Uses
+// the same discriminated-union body as Register minus the `source_id`
+// (the server doesn't persist anything, just builds a transient adapter
+// and calls `list_tables` + `describe_table`).
+// ---------------------------------------------------------------------------
+
+export type PreviewFederationAdapterRequest =
+  | { kind: "csv"; credential: Credential }
+  | { kind: "json"; credential: Credential }
+  | { kind: "postgres"; credential: Credential; schema_name?: string }
+  | { kind: "mysql"; credential: Credential; schema_name: string }
+  | { kind: "bigquery"; credential: Credential };
+
+export type PreviewFederationColumn = {
+  name: string;
+  data_type: string;
+  nullable: boolean;
+};
+
+export type PreviewFederationTable = {
+  name: string;
+  columns: PreviewFederationColumn[];
+};
+
+export type PreviewFederationAdapterResponse = {
+  source_type: string;
+  tables: PreviewFederationTable[];
+};
+
+export async function previewFederationAdapter(
+  req: PreviewFederationAdapterRequest,
+): Promise<PreviewFederationAdapterResponse> {
+  return request("/admin/federation/adapters/preview", {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+}

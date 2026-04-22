@@ -42,9 +42,9 @@
 use std::collections::HashSet;
 use std::fmt;
 
-use ox_core::ontology_ir::OntologyIR;
+use ox_ontology::ir::OntologyIR;
 
-use crate::cypher::ast::{ClauseKind, CypherAst, CypherPatternElement};
+use crate::cypher::ast::{ClauseKind, CypherAst, CypherClause, CypherPatternElement};
 use crate::cypher::parse;
 use crate::cypher::token::Span;
 
@@ -529,6 +529,524 @@ fn is_system_property(key: &str) -> bool {
 }
 
 // ---------------------------------------------------------------------------
+// SemanticGuardValidator
+// ---------------------------------------------------------------------------
+
+/// Strengthens [`SafetyValidator`]'s destructive-write gate by
+/// inspecting the *content* of the WHERE clause — not just its
+/// presence.
+///
+/// SafetyValidator refuses `DELETE` / `DETACH DELETE` / `REMOVE`
+/// without a WHERE somewhere in the statement. That check is
+/// structural and cheap; it intentionally doesn't try to reason
+/// about the predicate. An LLM that wrote a naked `DELETE` and got
+/// back "add a WHERE" can slip past by appending `WHERE true` — the
+/// structural gate opens, the nothing-constrains predicate leaves
+/// every row exposed, and the request bulk-deletes the workspace.
+///
+/// This validator catches the trivial tautology cases. The
+/// detection is token-level (not a full expression parser) and
+/// targets the forms an LLM-generated "make the validator happy"
+/// retry would emit:
+///
+/// - `WHERE true` (case-insensitive)
+/// - `WHERE NOT false`
+/// - `WHERE <same-literal> = <same-literal>` — `1 = 1`, `'x' = 'x'`,
+///   `$p = $p`
+///
+/// A determined adversary can slip past (e.g. `WHERE 1 + 0 = 1`)
+/// but the goal here isn't a full SMT solver — it's raising the bar
+/// high enough that LLM-default misuse stops working. Legitimate
+/// WHERE clauses with real predicates (`WHERE n.id = $id`) pass
+/// through.
+///
+/// Phase `PreRewriteSafety` — same slot as `SafetyValidator`; the
+/// two run together so a destructive op with a tautological WHERE
+/// receives one consolidated "this delete has no effective bound"
+/// error rather than two near-duplicates.
+#[derive(Debug, Clone, Default)]
+pub struct SemanticGuardValidator;
+
+impl SemanticGuardValidator {
+    pub const fn new() -> Self {
+        Self
+    }
+}
+
+impl CypherValidator for SemanticGuardValidator {
+    fn name(&self) -> &str {
+        "semantic-guard"
+    }
+
+    fn phase(&self) -> ValidatePhase {
+        ValidatePhase::PreRewriteSafety
+    }
+
+    fn validate(&self, ast: &CypherAst, _ctx: &ValidateContext) -> Vec<ValidationIssue> {
+        let mut issues = Vec::new();
+
+        for statement in &ast.statements {
+            // Statement-level summary: which destructive clauses appear,
+            // and do the WHERE clauses (if any) actually constrain?
+            let has_destructive = statement.clauses.iter().any(|c| {
+                matches!(
+                    c.kind,
+                    ClauseKind::Delete | ClauseKind::DetachDelete | ClauseKind::Remove
+                )
+            });
+            if !has_destructive {
+                continue;
+            }
+
+            // At least one WHERE must carry a real predicate. We scan
+            // every WHERE and flag only when *every* WHERE is
+            // tautological — that matches the user's intent: a
+            // selective MATCH-WHERE followed by a DELETE is safe,
+            // and we only fire when the gating predicate actually
+            // gates nothing.
+            let where_clauses: Vec<&CypherClause> = statement
+                .clauses
+                .iter()
+                .filter(|c| c.kind == ClauseKind::Where)
+                .collect();
+
+            if where_clauses.is_empty() {
+                // SafetyValidator already flags this case; don't emit
+                // a duplicate "no predicate" error from a different
+                // validator.
+                continue;
+            }
+
+            if where_clauses
+                .iter()
+                .all(|w| is_tautological_where(&w.tokens))
+            {
+                // Use the destructive clause's span — that's what the
+                // editor should underline since the WHERE's emptiness
+                // is a property *of the delete*, not of the WHERE
+                // itself.
+                let destructive_span = statement
+                    .clauses
+                    .iter()
+                    .find(|c| {
+                        matches!(
+                            c.kind,
+                            ClauseKind::Delete | ClauseKind::DetachDelete | ClauseKind::Remove
+                        )
+                    })
+                    .map(|c| c.span);
+                let mut issue = ValidationIssue::error(
+                    "semantic-guard",
+                    "destructive operation is gated only by a tautological WHERE predicate \
+                     (e.g. `WHERE true`, `WHERE 1 = 1`) — add a real constraint (a property \
+                     filter on the matched variables) before DELETE / DETACH DELETE / REMOVE",
+                );
+                if let Some(span) = destructive_span {
+                    issue = issue.with_span(span);
+                }
+                issues.push(issue);
+            }
+        }
+
+        issues
+    }
+}
+
+/// Is the sequence of WHERE-clause tokens a trivial tautology?
+/// Token-level heuristic — deliberately simple, deliberately narrow.
+///
+/// Recognises:
+/// - `WHERE true`
+/// - `WHERE NOT false`
+/// - `WHERE <lit> = <lit>` with the two literals identical
+/// - `WHERE <var> = <var>` — bare identifier self-reference
+/// - `WHERE <var>.<key> = <var>.<key>` — property self-reference
+///   (LLMs occasionally emit `n.id = n.id` as a "safe" predicate)
+///
+/// The WHERE keyword itself is the clause's first significant token;
+/// we strip it + whitespace/comments and then inspect the remainder
+/// as a vector. Anything outside the recognised patterns returns
+/// false — validator stays narrow on purpose.
+fn is_tautological_where(tokens: &[crate::cypher::token::CypherToken]) -> bool {
+    use crate::cypher::token::{CypherToken, TokenKind};
+
+    // Keep only tokens the heuristic cares about. Whitespace,
+    // comments, and a leading WHERE keyword are noise.
+    let significant: Vec<&CypherToken> = tokens
+        .iter()
+        .filter(|t| {
+            !matches!(
+                t.kind,
+                TokenKind::Whitespace | TokenKind::LineComment | TokenKind::BlockComment
+            )
+        })
+        .skip_while(|t| t.is_keyword("WHERE"))
+        .collect();
+
+    match significant.len() {
+        // `WHERE` followed by nothing — empty predicate, vacuously
+        // "no constraint".
+        0 => return true,
+        // `WHERE true`
+        1 => return significant[0].is_keyword("TRUE"),
+        // `WHERE NOT false`
+        2 => {
+            return significant[0].is_keyword("NOT")
+                && significant[1].is_keyword("FALSE");
+        }
+        // `WHERE <lit> = <lit>` | `WHERE <var> = <var>` — single
+        // equality, both sides single-token.
+        3 => {
+            return is_equality(significant[1])
+                && is_self_equality_operand(significant[0])
+                && token_equal(significant[0], significant[2]);
+        }
+        _ => {}
+    }
+
+    // `WHERE <var>.<key> = <var>.<key>` — property access on both
+    // sides with matching variable + property key.
+    if significant.len() == 7 {
+        let lhs = &significant[0..3];
+        let op = significant[3];
+        let rhs = &significant[4..7];
+        if is_equality(op) && is_property_access(lhs) && is_property_access(rhs) {
+            return token_equal(lhs[0], rhs[0]) && token_equal(lhs[2], rhs[2]);
+        }
+    }
+
+    false
+}
+
+fn is_equality(tok: &crate::cypher::token::CypherToken) -> bool {
+    use crate::cypher::token::TokenKind;
+    tok.kind == TokenKind::Operator && tok.text == "="
+}
+
+/// Operand shapes the "`WHERE <x> = <x>`" rule accepts on each side:
+/// identifiers (variable names) or literals (number / string / parameter).
+/// Rejecting operators or punctuation keeps `=`/`.` from slipping in as
+/// a false operand match.
+fn is_self_equality_operand(tok: &crate::cypher::token::CypherToken) -> bool {
+    use crate::cypher::token::TokenKind;
+    matches!(
+        tok.kind,
+        TokenKind::Identifier
+            | TokenKind::QuotedIdentifier
+            | TokenKind::Number
+            | TokenKind::StringLiteral
+            | TokenKind::Parameter
+    )
+}
+
+/// `<Identifier><.><Identifier>` triple — the tokenizer treats `.` as
+/// an Operator, so a property access is exactly three tokens.
+fn is_property_access(run: &[&crate::cypher::token::CypherToken]) -> bool {
+    use crate::cypher::token::TokenKind;
+    run.len() == 3
+        && matches!(run[0].kind, TokenKind::Identifier | TokenKind::QuotedIdentifier)
+        && run[1].kind == TokenKind::Operator
+        && run[1].text == "."
+        && matches!(run[2].kind, TokenKind::Identifier | TokenKind::QuotedIdentifier)
+}
+
+fn token_equal(
+    a: &crate::cypher::token::CypherToken,
+    b: &crate::cypher::token::CypherToken,
+) -> bool {
+    a.kind == b.kind && a.text == b.text
+}
+
+// ---------------------------------------------------------------------------
+// ComplexityValidator
+// ---------------------------------------------------------------------------
+
+/// Flag query shapes that commonly blow up in execution time without the
+/// author noticing: an unbounded variable-length path (`MATCH
+/// (a)-[*]->(b)`), a disconnected MATCH that fans out into a cartesian
+/// product, or a comma-separated pattern list whose components share
+/// no variables.
+///
+/// ## Policy
+///
+/// - **Unbounded var-length** (`*` with no upper bound, or
+///   `*{min}..` / `*..{max}` where only one side is pinned but no
+///   cap lands inside a small sanity window): every hop depth after
+///   ~5 materialises a cartesian blow-up on typical graphs. Emitted
+///   as `IssueLevel::Error` when `reject_unbounded` is `true` (the
+///   default — this catches the LLM-generated tier of queries that
+///   meant `*1..5`), or `Warning` when the validator is configured
+///   in permissive mode for power users.
+/// - **Cartesian components** within a single MATCH clause (e.g.
+///   `MATCH (a:A), (b:B) RETURN a, b`). Every comma-separated
+///   pattern is a join boundary; two patterns that share no variable
+///   and no reachable path between them is the canonical cartesian
+///   footgun. Always `IssueLevel::Error` — a query that wanted a
+///   cross product should say so explicitly via `CROSS JOIN`-shaped
+///   intermediates or compute both sides separately.
+/// - **Cross-clause disconnection** (multiple MATCH clauses whose
+///   aggregate variable sets don't overlap) — `IssueLevel::Warning`.
+///   Less immediately wrong than within-clause disconnection; a
+///   pipeline like `MATCH (a), WITH …, MATCH (b)` is legal when the
+///   WITH carries shared state.
+///
+/// ## Why inside the pre-execute pipeline and not the compiler?
+///
+/// The Cypher compiler already emits conservative plans. What the
+/// compiler cannot catch is LLM-authored Cypher that threaded
+/// around the compiler's checks by passing free-form text (the
+/// `raw_query` path). The validator lands at the gate every Bolt
+/// execution crosses, so the LLM hallucination path gets caught
+/// regardless of whether it came through a compiled QueryIR or a
+/// direct Cypher string.
+#[derive(Debug, Clone)]
+pub struct ComplexityValidator {
+    /// When `true`, an unbounded variable-length path emits an Error.
+    /// When `false`, it emits a Warning so power-user workflows
+    /// (ad-hoc graph exploration with explicit caps) aren't blocked.
+    /// Default: `true` — the common case is an LLM-generated query
+    /// that meant to pin an upper bound and forgot.
+    pub reject_unbounded: bool,
+}
+
+impl Default for ComplexityValidator {
+    fn default() -> Self {
+        Self {
+            reject_unbounded: true,
+        }
+    }
+}
+
+impl ComplexityValidator {
+    pub const fn new() -> Self {
+        Self {
+            reject_unbounded: true,
+        }
+    }
+
+    /// Permissive mode: unbounded var-length downgrades from Error to
+    /// Warning. Cartesian detection stays Error either way.
+    pub const fn permissive() -> Self {
+        Self {
+            reject_unbounded: false,
+        }
+    }
+}
+
+impl CypherValidator for ComplexityValidator {
+    fn name(&self) -> &str {
+        "complexity"
+    }
+
+    fn phase(&self) -> ValidatePhase {
+        // Runs alongside Ontology — both are pre-rewrite structural
+        // checks that don't mutate the AST.
+        ValidatePhase::PreRewriteOntology
+    }
+
+    fn validate(&self, ast: &CypherAst, _ctx: &ValidateContext) -> Vec<ValidationIssue> {
+        let mut issues = Vec::new();
+
+        for statement in &ast.statements {
+            // --- Per-clause cartesian within a single MATCH --------
+            //
+            // A clause's `patterns: Vec<CypherPattern>` holds every
+            // comma-separated sub-pattern. We compute the variable set
+            // for each and flag any pair that shares no variable with
+            // the others. Single-pattern clauses skip the check.
+            for clause in &statement.clauses {
+                if clause.patterns.len() < 2 {
+                    continue;
+                }
+                if !clause.kind.has_patterns() {
+                    // Only MATCH / OPTIONAL MATCH / CREATE / MERGE
+                    // carry patterns; skip defensively.
+                    continue;
+                }
+                let components: Vec<std::collections::HashSet<String>> = clause
+                    .patterns
+                    .iter()
+                    .map(pattern_variables)
+                    .collect();
+                if !components_all_connected(&components) {
+                    issues.push(
+                        ValidationIssue::error(
+                            "complexity",
+                            "comma-separated MATCH patterns share no variables — this is a cartesian product; \
+                             break into separate MATCHes joined by WITH, or add a shared variable",
+                        )
+                        .with_span(clause.span),
+                    );
+                }
+            }
+
+            // --- Cross-clause disconnection (warning) --------------
+            //
+            // When a statement has multiple MATCH / OPTIONAL MATCH
+            // clauses and their aggregate variable sets are
+            // completely disjoint, execution still crosses a
+            // cartesian boundary. A WITH clause between them is
+            // fine — it carries shared state and we trust the author;
+            // the warning is only for the plain "two MATCHes, no
+            // shared variable" shape.
+            issues.extend(flag_cross_clause_disconnection(statement));
+
+            // --- Unbounded variable-length path --------------------
+            for element in statement.clauses.iter().flat_map(|c| {
+                c.patterns
+                    .iter()
+                    .flat_map(|p| p.elements.iter())
+            }) {
+                if let CypherPatternElement::Relationship(rel) = element
+                    && is_unbounded_var_length(&rel.var_length)
+                {
+                    let msg = "variable-length relationship has no upper bound — pin a max depth (e.g. `*1..5`) \
+                               to avoid unbounded traversal";
+                    let issue = if self.reject_unbounded {
+                        ValidationIssue::error("complexity", msg)
+                    } else {
+                        ValidationIssue::warning("complexity", msg)
+                    };
+                    issues.push(issue.with_span(rel.span));
+                }
+            }
+        }
+
+        issues
+    }
+}
+
+/// Collect every variable bound by a single pattern — nodes' `variable:
+/// Option<String>` plus relationships' `variable: Option<String>`. An
+/// anonymous pattern element contributes nothing, which is correct:
+/// `(:A)-[:X]->(:B)` with no bindings can never share a variable with
+/// any other pattern, so the caller will flag it as disconnected even
+/// if both elements are, physically, on the same path.
+fn pattern_variables(pattern: &crate::cypher::ast::CypherPattern) -> std::collections::HashSet<String> {
+    let mut vars = std::collections::HashSet::new();
+    for el in &pattern.elements {
+        match el {
+            CypherPatternElement::Node(n) => {
+                if let Some(v) = &n.variable {
+                    vars.insert(v.clone());
+                }
+            }
+            CypherPatternElement::Relationship(r) => {
+                if let Some(v) = &r.variable {
+                    vars.insert(v.clone());
+                }
+            }
+        }
+    }
+    vars
+}
+
+/// Are the per-pattern variable sets transitively connected? Uses a
+/// simple union-find over variable names: two sets overlap iff they
+/// share a variable. Returns true when every component is reachable
+/// from every other. Empty-variable components (`MATCH (), ()` — no
+/// bindings) count as disconnected and trip the check.
+fn components_all_connected(components: &[std::collections::HashSet<String>]) -> bool {
+    if components.len() < 2 {
+        return true;
+    }
+    // Build a graph where each component is a node and shared
+    // variables are edges. A single DFS from component 0 must reach
+    // every other component.
+    let n = components.len();
+    let mut adj: Vec<Vec<usize>> = vec![Vec::new(); n];
+    for i in 0..n {
+        for j in (i + 1)..n {
+            if components[i].intersection(&components[j]).next().is_some() {
+                adj[i].push(j);
+                adj[j].push(i);
+            }
+        }
+    }
+    let mut visited = vec![false; n];
+    let mut stack = vec![0];
+    visited[0] = true;
+    while let Some(node) = stack.pop() {
+        for &next in &adj[node] {
+            if !visited[next] {
+                visited[next] = true;
+                stack.push(next);
+            }
+        }
+    }
+    visited.iter().all(|&v| v)
+}
+
+/// Cross-clause disconnection: within a single WITH-segment of a
+/// statement, MATCH clauses whose aggregate variable sets share
+/// nothing indicate an accidental cartesian join. A WITH clause is
+/// the author's "I'm carrying shared state" signal — it splits the
+/// statement into segments, and each segment is checked independently.
+///
+/// - `MATCH (a) MATCH (b) RETURN a,b` — one segment, two disjoint
+///   groups → warning.
+/// - `MATCH (a) WITH a MATCH (b) RETURN a,b` — two segments, one
+///   group each → silent.
+/// - `MATCH (a), (b) WITH a,b MATCH (c) RETURN ...` — segment 1
+///   already flags the within-clause cartesian (via the other
+///   check); segment 2 is a single group, silent.
+fn flag_cross_clause_disconnection(
+    statement: &crate::cypher::ast::CypherStatement,
+) -> Vec<ValidationIssue> {
+    use crate::cypher::ast::ClauseKind;
+
+    let mut segments: Vec<Vec<std::collections::HashSet<String>>> = vec![Vec::new()];
+    for clause in &statement.clauses {
+        match clause.kind {
+            ClauseKind::With => {
+                // Open a fresh segment — the WITH pins the author's
+                // intent "anything after this runs in a new scope
+                // whose connectedness I vouch for".
+                segments.push(Vec::new());
+            }
+            ClauseKind::Match | ClauseKind::OptionalMatch => {
+                let mut vars = std::collections::HashSet::new();
+                for p in &clause.patterns {
+                    vars.extend(pattern_variables(p));
+                }
+                if !vars.is_empty()
+                    && let Some(current) = segments.last_mut()
+                {
+                    current.push(vars);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    for segment in &segments {
+        if segment.len() < 2 {
+            continue;
+        }
+        if !components_all_connected(segment) {
+            return vec![ValidationIssue::warning(
+                "complexity",
+                "multiple MATCH clauses do not share a variable — execution crosses a cartesian boundary. \
+                 If intentional, add a `WITH` clause to carry shared state; if not, connect them by a \
+                 common variable.",
+            )];
+        }
+    }
+    Vec::new()
+}
+
+fn is_unbounded_var_length(var_length: &Option<(Option<u32>, Option<u32>)>) -> bool {
+    match var_length {
+        // No var-length marker — single hop.
+        None => false,
+        // `*` with no bounds at all, or `*min..` / `*..max` where the
+        // missing side leaves one endpoint open. A pinned `*1..5` is
+        // Some((Some, Some)) and fine.
+        Some((_lo, hi)) => hi.is_none(),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -538,7 +1056,7 @@ mod tests {
     use ox_core::GraphLabel;
     use ox_core::PropertyKey;
     use ox_core::i18n::LocalizedText;
-    use ox_core::ontology_ir::{Cardinality, EdgeTypeDef, NodeTypeDef, PropertyDef};
+    use ox_ontology::ir::{Cardinality, EdgeTypeDef, NodeTypeDef, PropertyDef};
     use ox_core::types::PropertyType;
 
     use crate::cypher::rewrite::{CypherRewriterPipeline, RewriteContext, WorkspaceScopeRewriter};
@@ -1053,6 +1571,289 @@ mod tests {
         assert!(
             report.has_errors(),
             "pre-rewrite ontology gate must catch unknown label"
+        );
+    }
+
+    // =====================================================================
+    // SemanticGuardValidator
+    // =====================================================================
+
+    /// Bare DELETE with no WHERE at all — SafetyValidator's job, not
+    /// ours. SemanticGuard stays silent so the error set doesn't
+    /// duplicate.
+    #[test]
+    fn semantic_guard_silent_when_no_where() {
+        let p = CypherValidatorPipeline::new().with(SemanticGuardValidator::new());
+        let r = run(&p, "MATCH (n) DELETE n");
+        assert!(!r.has_errors(), "no WHERE is SafetyValidator's concern: {:?}", r.issues);
+    }
+
+    /// Destructive write with a legitimate predicate — silent.
+    #[test]
+    fn semantic_guard_accepts_real_predicate() {
+        let p = CypherValidatorPipeline::new().with(SemanticGuardValidator::new());
+        let r = run(&p, "MATCH (n:Person) WHERE n.id = $id DELETE n");
+        assert!(!r.has_errors(), "real predicate must pass: {:?}", r.issues);
+    }
+
+    /// `WHERE true` is the canonical tautology LLMs append when the
+    /// SafetyValidator rejects a naked DELETE. Must now fail.
+    #[test]
+    fn semantic_guard_rejects_where_true_delete() {
+        let p = CypherValidatorPipeline::new().with(SemanticGuardValidator::new());
+        let r = run(&p, "MATCH (n) WHERE true DELETE n");
+        assert!(r.has_errors(), "WHERE true + DELETE must error: {:?}", r.issues);
+        assert!(
+            r.errors()
+                .any(|e| e.validator_name == "semantic-guard"
+                    && e.message.contains("tautological"))
+        );
+    }
+
+    /// Case-insensitive `where TRUE` — Cypher keywords are
+    /// case-insensitive and the tautology check must be too.
+    #[test]
+    fn semantic_guard_case_insensitive() {
+        let p = CypherValidatorPipeline::new().with(SemanticGuardValidator::new());
+        let r = run(&p, "MATCH (n) where TRUE detach delete n");
+        assert!(r.has_errors(), "case insensitive: {:?}", r.issues);
+    }
+
+    /// `WHERE NOT false` — the other keyword-level tautology.
+    #[test]
+    fn semantic_guard_rejects_not_false() {
+        let p = CypherValidatorPipeline::new().with(SemanticGuardValidator::new());
+        let r = run(&p, "MATCH (n) WHERE NOT false REMOVE n:Label");
+        assert!(r.has_errors(), "WHERE NOT false must error: {:?}", r.issues);
+    }
+
+    /// `WHERE 1 = 1` — literal-equals-literal tautology.
+    #[test]
+    fn semantic_guard_rejects_int_literal_self_equality() {
+        let p = CypherValidatorPipeline::new().with(SemanticGuardValidator::new());
+        let r = run(&p, "MATCH (n) WHERE 1 = 1 DELETE n");
+        assert!(r.has_errors(), "1 = 1 must error: {:?}", r.issues);
+    }
+
+    /// `WHERE 'x' = 'x'` — string literal variant.
+    #[test]
+    fn semantic_guard_rejects_string_literal_self_equality() {
+        let p = CypherValidatorPipeline::new().with(SemanticGuardValidator::new());
+        let r = run(&p, "MATCH (n) WHERE 'x' = 'x' DELETE n");
+        assert!(r.has_errors(), "'x' = 'x' must error: {:?}", r.issues);
+    }
+
+    /// `WHERE 1 = 2` — literal inequality is NOT a tautology (it's a
+    /// contradiction, but either way it constrains). Must pass.
+    #[test]
+    fn semantic_guard_accepts_literal_inequality() {
+        let p = CypherValidatorPipeline::new().with(SemanticGuardValidator::new());
+        let r = run(&p, "MATCH (n) WHERE 1 = 2 DELETE n");
+        assert!(!r.has_errors(), "inequality constrains (to nothing) but is not a tautology: {:?}", r.issues);
+    }
+
+    /// `WHERE n.id = $id` — normal property equality must pass. The
+    /// left-hand side is a property access (multi-token `n.id`), so
+    /// the helper's "bare literal" shape rejects the tautology match.
+    #[test]
+    fn semantic_guard_accepts_property_equality() {
+        let p = CypherValidatorPipeline::new().with(SemanticGuardValidator::new());
+        let r = run(&p, "MATCH (n:Person) WHERE n.id = 42 DELETE n");
+        assert!(!r.has_errors(), "property equality must pass: {:?}", r.issues);
+    }
+
+    /// Destructive op with two WHEREs — one tautological, one real.
+    /// "At least one WHERE is real" passes; the policy is "every
+    /// WHERE is tautological" before we flag.
+    #[test]
+    fn semantic_guard_passes_when_any_where_is_real() {
+        let p = CypherValidatorPipeline::new().with(SemanticGuardValidator::new());
+        let r = run(
+            &p,
+            "MATCH (n:Person) WHERE n.id = $id MATCH (m) WHERE true DELETE n, m",
+        );
+        assert!(!r.has_errors(), "one real WHERE is enough: {:?}", r.issues);
+    }
+
+    /// Non-destructive WHERE true is fine — the concern is only
+    /// when paired with DELETE/REMOVE/DETACH DELETE.
+    #[test]
+    fn semantic_guard_silent_on_read_only_tautology() {
+        let p = CypherValidatorPipeline::new().with(SemanticGuardValidator::new());
+        let r = run(&p, "MATCH (n) WHERE true RETURN n");
+        assert!(!r.has_errors(), "read-only tautology is allowed: {:?}", r.issues);
+    }
+
+    /// `WHERE n = n` — bare variable self-reference. Structurally
+    /// equivalent to `WHERE true` against any matched node, so the
+    /// destructive gate should trip.
+    #[test]
+    fn semantic_guard_rejects_bare_variable_self_reference() {
+        let p = CypherValidatorPipeline::new().with(SemanticGuardValidator::new());
+        let r = run(&p, "MATCH (n) WHERE n = n DELETE n");
+        assert!(r.has_errors(), "n = n must error: {:?}", r.issues);
+    }
+
+    /// `WHERE n.id = n.id` — property self-reference. Common LLM
+    /// "make the validator happy" output; the new rule catches it.
+    #[test]
+    fn semantic_guard_rejects_property_self_reference() {
+        let p = CypherValidatorPipeline::new().with(SemanticGuardValidator::new());
+        let r = run(&p, "MATCH (n:Person) WHERE n.id = n.id DELETE n");
+        assert!(r.has_errors(), "n.id = n.id must error: {:?}", r.issues);
+    }
+
+    /// Different variables on each side — not a self-reference.
+    /// `a.id = b.id` is a legitimate join predicate and must pass.
+    #[test]
+    fn semantic_guard_accepts_cross_variable_equality() {
+        let p = CypherValidatorPipeline::new().with(SemanticGuardValidator::new());
+        let r = run(
+            &p,
+            "MATCH (a)-[:KNOWS]->(b) WHERE a.id = b.id DELETE a",
+        );
+        assert!(!r.has_errors(), "cross-variable equality must pass: {:?}", r.issues);
+    }
+
+    /// Same variable, different property keys — still constrains. Must pass.
+    #[test]
+    fn semantic_guard_accepts_same_var_different_keys() {
+        let p = CypherValidatorPipeline::new().with(SemanticGuardValidator::new());
+        let r = run(&p, "MATCH (n) WHERE n.id = n.name DELETE n");
+        assert!(!r.has_errors(), "{:?}", r.issues);
+    }
+
+    /// Three-token operand shape but with an `=`-like operator that
+    /// isn't `=` (e.g. `!=`) — the rule must key on the exact `=`
+    /// token so a negated self-reference doesn't trigger.
+    #[test]
+    fn semantic_guard_accepts_self_inequality() {
+        let p = CypherValidatorPipeline::new().with(SemanticGuardValidator::new());
+        let r = run(&p, "MATCH (n) WHERE n != n DELETE n");
+        assert!(!r.has_errors(), "n != n is a contradiction, not a tautology: {:?}", r.issues);
+    }
+
+    // =====================================================================
+    // ComplexityValidator
+    // =====================================================================
+
+    /// Single-hop MATCH with a connected pattern — no complaints.
+    #[test]
+    fn complexity_accepts_simple_connected_match() {
+        let p = CypherValidatorPipeline::new().with(ComplexityValidator::new());
+        let r = run(&p, "MATCH (a:Person)-[:WORKS_AT]->(b:Company) RETURN a, b");
+        assert!(!r.has_errors(), "{:?}", r.issues);
+        assert!(r.warnings().count() == 0);
+    }
+
+    /// Unbounded `*` without an upper bound is the canonical footgun —
+    /// emits Error in the default (strict) mode.
+    #[test]
+    fn complexity_rejects_unbounded_variable_length() {
+        let p = CypherValidatorPipeline::new().with(ComplexityValidator::new());
+        let r = run(&p, "MATCH (a)-[*]->(b) RETURN a, b");
+        assert!(r.has_errors(), "unbounded * must error: {:?}", r.issues);
+        assert!(r.errors().any(|e| e.message.contains("variable-length")));
+    }
+
+    /// `*1..` (no upper) also triggers — lack of upper bound is the
+    /// dangerous half, regardless of whether min is pinned.
+    #[test]
+    fn complexity_rejects_missing_upper_bound() {
+        let p = CypherValidatorPipeline::new().with(ComplexityValidator::new());
+        let r = run(&p, "MATCH (a)-[*1..]->(b) RETURN a, b");
+        assert!(r.has_errors(), "missing upper bound must error: {:?}", r.issues);
+    }
+
+    /// `*1..5` is a pinned range — allowed.
+    #[test]
+    fn complexity_accepts_bounded_variable_length() {
+        let p = CypherValidatorPipeline::new().with(ComplexityValidator::new());
+        let r = run(&p, "MATCH (a)-[*1..5]->(b) RETURN a, b");
+        assert!(!r.has_errors(), "{:?}", r.issues);
+    }
+
+    /// Permissive mode downgrades unbounded var-length to a Warning so
+    /// power users running ad-hoc explores aren't blocked.
+    #[test]
+    fn complexity_permissive_downgrades_unbounded_to_warning() {
+        let p = CypherValidatorPipeline::new().with(ComplexityValidator::permissive());
+        let r = run(&p, "MATCH (a)-[*]->(b) RETURN a, b");
+        assert!(!r.has_errors(), "permissive must not error: {:?}", r.issues);
+        assert!(r.warnings().any(|w| w.message.contains("variable-length")));
+    }
+
+    /// Two patterns in the same MATCH with no shared variable — that's
+    /// a cartesian product. Always an Error regardless of mode.
+    #[test]
+    fn complexity_rejects_within_clause_cartesian() {
+        let p = CypherValidatorPipeline::new().with(ComplexityValidator::new());
+        let r = run(&p, "MATCH (a:Person), (b:Company) RETURN a, b");
+        assert!(r.has_errors(), "disconnected comma-patterns must error: {:?}", r.issues);
+        assert!(r.errors().any(|e| e.message.contains("cartesian")));
+    }
+
+    /// Same shape but now the two patterns share `a` — no cartesian.
+    #[test]
+    fn complexity_accepts_within_clause_patterns_sharing_variable() {
+        let p = CypherValidatorPipeline::new().with(ComplexityValidator::new());
+        let r = run(
+            &p,
+            "MATCH (a:Person)-[:WORKS_AT]->(b:Company), (a)-[:KNOWS]->(c:Person) RETURN a",
+        );
+        assert!(!r.has_errors(), "{:?}", r.issues);
+    }
+
+    /// Cross-clause disconnection (no WITH boundary) — a Warning,
+    /// not an Error. The author may have meant it; the warning gives
+    /// them a chance to notice in tooling without blocking the query.
+    #[test]
+    fn complexity_warns_on_cross_clause_disconnection() {
+        let p = CypherValidatorPipeline::new().with(ComplexityValidator::new());
+        let r = run(
+            &p,
+            "MATCH (a:Person) MATCH (b:Company) RETURN a, b",
+        );
+        assert!(!r.has_errors(), "cross-clause disconnect is a warning: {:?}", r.issues);
+        assert!(
+            r.warnings().any(|w| w.message.contains("cartesian")),
+            "expected cross-clause warning: {:?}",
+            r.issues
+        );
+    }
+
+    /// A WITH between the two MATCHes signals author intent — no warning.
+    #[test]
+    fn complexity_accepts_cross_clause_with_boundary() {
+        let p = CypherValidatorPipeline::new().with(ComplexityValidator::new());
+        let r = run(
+            &p,
+            "MATCH (a:Person) WITH a MATCH (b:Company) RETURN a, b",
+        );
+        assert!(!r.has_errors(), "{:?}", r.issues);
+        assert!(
+            r.warnings().count() == 0,
+            "WITH between MATCHes must silence the warning: {:?}",
+            r.issues
+        );
+    }
+
+    /// The three failure modes compose: unbounded path inside a
+    /// cartesian-product pair yields two issues, correctly attributed
+    /// to the complexity validator.
+    #[test]
+    fn complexity_reports_multiple_issues_in_one_query() {
+        let p = CypherValidatorPipeline::new().with(ComplexityValidator::new());
+        let r = run(&p, "MATCH (a)-[*]->(x), (b:Company) RETURN a, b");
+        let complexity: Vec<_> = r
+            .issues
+            .iter()
+            .filter(|i| i.validator_name == "complexity")
+            .collect();
+        assert!(
+            complexity.len() >= 2,
+            "expected ≥2 complexity issues: {:?}",
+            r.issues
         );
     }
 }

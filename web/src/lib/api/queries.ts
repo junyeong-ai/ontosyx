@@ -244,7 +244,7 @@ export async function deleteSavedPattern(id: string): Promise<void> {
 
 export async function executeFromIr(
   queryIr: unknown,
-  savedOntologyId?: string,
+  ontologyId?: string,
 ): Promise<{
   compiled_query: string;
   compiled_target: string;
@@ -258,6 +258,6 @@ export async function executeFromIr(
     widget_hint?: unknown;
   }>("/query/from-ir", {
     method: "POST",
-    body: JSON.stringify({ query_ir: queryIr, saved_ontology_id: savedOntologyId }),
+    body: JSON.stringify({ query_ir: queryIr, ontology_id: ontologyId }),
   });
 }

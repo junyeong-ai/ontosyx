@@ -10,12 +10,12 @@ import { createDashboardSlice } from "./dashboard-slice";
 import { createProjectSlice } from "./project-slice";
 import { createVerificationSlice } from "./verification-slice";
 import {
-  selectHasOntology,
-  selectHasUnsavedEdits,
-  selectSelectedNodeId,
-  selectSelectedEdgeId,
-  selectSelectedWidgetId,
-  selectCanChat,
+  selectStateHasOntology,
+  selectStateHasUnsavedEdits,
+  selectStateSelectedNodeId,
+  selectStateSelectedEdgeId,
+  selectStateSelectedWidgetId,
+  selectStateCanChat,
 } from "./selectors";
 
 function createTestStore() {
@@ -39,57 +39,57 @@ const MINIMAL_ONTOLOGY: OntologyIR = {
 };
 
 describe("Selectors", () => {
-  it("selectHasOntology returns false when null", () => {
+  it("selectStateHasOntology returns false when null", () => {
     const store = createTestStore();
-    expect(selectHasOntology(store.getState())).toBe(false);
+    expect(selectStateHasOntology(store.getState())).toBe(false);
   });
 
-  it("selectHasOntology returns true when set", () => {
+  it("selectStateHasOntology returns true when set", () => {
     const store = createTestStore();
     store.getState().setOntology(MINIMAL_ONTOLOGY);
-    expect(selectHasOntology(store.getState())).toBe(true);
+    expect(selectStateHasOntology(store.getState())).toBe(true);
   });
 
-  it("selectHasUnsavedEdits reflects command stack", () => {
+  it("selectStateHasUnsavedEdits reflects command stack", () => {
     const store = createTestStore();
-    expect(selectHasUnsavedEdits(store.getState())).toBe(false);
+    expect(selectStateHasUnsavedEdits(store.getState())).toBe(false);
 
     store.getState().setOntology(MINIMAL_ONTOLOGY);
     store.getState().applyCommand({ op: "add_node", id: "n2", label: "Product" });
-    expect(selectHasUnsavedEdits(store.getState())).toBe(true);
+    expect(selectStateHasUnsavedEdits(store.getState())).toBe(true);
   });
 
-  it("selectSelectedNodeId extracts from selection", () => {
+  it("selectStateSelectedNodeId extracts from selection", () => {
     const store = createTestStore();
-    expect(selectSelectedNodeId(store.getState())).toBeNull();
+    expect(selectStateSelectedNodeId(store.getState())).toBeNull();
 
     store.getState().select({ type: "node", nodeId: "n1" });
-    expect(selectSelectedNodeId(store.getState())).toBe("n1");
+    expect(selectStateSelectedNodeId(store.getState())).toBe("n1");
 
     store.getState().select({ type: "edge", edgeId: "e1" });
-    expect(selectSelectedNodeId(store.getState())).toBeNull();
+    expect(selectStateSelectedNodeId(store.getState())).toBeNull();
   });
 
-  it("selectSelectedEdgeId extracts from selection", () => {
+  it("selectStateSelectedEdgeId extracts from selection", () => {
     const store = createTestStore();
     store.getState().select({ type: "edge", edgeId: "e1" });
-    expect(selectSelectedEdgeId(store.getState())).toBe("e1");
+    expect(selectStateSelectedEdgeId(store.getState())).toBe("e1");
 
     store.getState().clearSelection();
-    expect(selectSelectedEdgeId(store.getState())).toBeNull();
+    expect(selectStateSelectedEdgeId(store.getState())).toBeNull();
   });
 
-  it("selectSelectedWidgetId extracts from selection", () => {
+  it("selectStateSelectedWidgetId extracts from selection", () => {
     const store = createTestStore();
     store.getState().select({ type: "widget", widgetId: "w1" });
-    expect(selectSelectedWidgetId(store.getState())).toBe("w1");
+    expect(selectStateSelectedWidgetId(store.getState())).toBe("w1");
   });
 
-  it("selectCanChat mirrors selectHasOntology", () => {
+  it("selectStateCanChat mirrors selectStateHasOntology", () => {
     const store = createTestStore();
-    expect(selectCanChat(store.getState())).toBe(false);
+    expect(selectStateCanChat(store.getState())).toBe(false);
 
     store.getState().setOntology(MINIMAL_ONTOLOGY);
-    expect(selectCanChat(store.getState())).toBe(true);
+    expect(selectStateCanChat(store.getState())).toBe(true);
   });
 });

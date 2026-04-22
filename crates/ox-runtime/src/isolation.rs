@@ -191,14 +191,36 @@ mod tests {
     }
 
     #[test]
-    fn scope_no_double_inject_read() {
+    fn scope_system_param_literal_is_not_double_injected() {
+        // Idempotency pivots on the system-param shape (`= $_ws_id`),
+        // not on the author's text. A prior pass that already stamped
+        // the canonical predicate is detected and skipped.
         let strategy = PropertyStrategy;
-        let query = "MATCH (n:Person) WHERE n._workspace_id = 'existing' RETURN n";
+        let query = "MATCH (n:Person) WHERE n._workspace_id = $_ws_id RETURN n";
         let result = scope_text(&strategy, query, "ws-123");
         assert_eq!(
-            result.ast.render().matches("_workspace_id").count(),
+            result.ast.render().matches("_workspace_id = $_ws_id").count(),
             1,
-            "Should not double-inject WHERE filter"
+            "Should not double-inject the system predicate"
+        );
+    }
+
+    #[test]
+    fn scope_user_literal_is_and_neutralised() {
+        // A user-supplied literal that would reach into another
+        // workspace does not satisfy the idempotency guard. The
+        // rewriter still injects its own `$_ws_id` predicate; the two
+        // AND-combine, so the query evaluates to the empty set for any
+        // literal that is not the active workspace.
+        let strategy = PropertyStrategy;
+        let query = "MATCH (n:Person) WHERE n._workspace_id = 'other_ws' RETURN n";
+        let result = scope_text(&strategy, query, "ws-123");
+        assert!(
+            result.ast.render().contains(
+                "n._workspace_id = $_ws_id AND n._workspace_id = 'other_ws'"
+            ),
+            "author literal must be AND-neutralised: {}",
+            result.ast.render(),
         );
     }
 
@@ -278,6 +300,9 @@ mod tests {
 
     #[test]
     fn scope_multi_node_pattern() {
+        // Every node variable bound by the pattern is scoped, with a
+        // single WHERE following the complete pattern (pattern
+        // boundaries are never split by injection).
         let strategy = PropertyStrategy;
         let result = scope_text(
             &strategy,
@@ -286,12 +311,12 @@ mod tests {
         );
         let rendered = result.ast.render();
         assert!(
-            rendered.contains("(b:Brand) WHERE p._workspace_id = $_ws_id"),
-            "WHERE should be after the full pattern: {rendered}"
+            rendered.contains("p._workspace_id = $_ws_id AND b._workspace_id = $_ws_id"),
+            "both p and b must be scoped: {rendered}"
         );
         assert!(
             !rendered.contains("(p:Product) WHERE"),
-            "WHERE must NOT be after first node only: {rendered}"
+            "WHERE must NOT split the pattern: {rendered}"
         );
     }
 
@@ -304,11 +329,11 @@ mod tests {
             "ws-123",
         );
         assert!(
-            result
-                .ast
-                .render()
-                .contains("c._workspace_id = $_ws_id AND o.status"),
-            "Should prepend to existing WHERE"
+            result.ast.render().contains(
+                "c._workspace_id = $_ws_id AND o._workspace_id = $_ws_id AND o.status"
+            ),
+            "every bound variable scoped before the author WHERE body: {}",
+            result.ast.render(),
         );
     }
 
@@ -320,13 +345,13 @@ mod tests {
             "MATCH (c:Customer)-[:PLACED]->(o:Order)-[:CONTAINS]->(p:Product) RETURN c.name, p.name",
             "ws-123",
         );
-        assert!(
-            result
-                .ast
-                .render()
-                .contains("(p:Product) WHERE c._workspace_id"),
-            "WHERE after last node in chain"
-        );
+        let rendered = result.ast.render();
+        for var in ["c", "o", "p"] {
+            assert!(
+                rendered.contains(&format!("{var}._workspace_id = $_ws_id")),
+                "chain variable {var} must be scoped: {rendered}"
+            );
+        }
     }
 
     // --- DatabaseStrategy tests ---

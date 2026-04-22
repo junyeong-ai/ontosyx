@@ -4,10 +4,10 @@ use crate::GraphCompiler;
 use ox_core::GraphLabel;
 use ox_core::LocalizedText;
 use ox_core::PropertyKey;
-use ox_core::load_plan::PropertyMapping;
-use ox_core::load_plan::{ConflictStrategy, LoadMode, LoadOp, LoadPlan, LoadStep};
-use ox_core::ontology_ir::*;
-use ox_core::query_ir::*;
+use ox_ontology::load_plan::PropertyMapping;
+use ox_ontology::load_plan::{ConflictStrategy, LoadMode, LoadOp, LoadPlan, LoadStep};
+use ox_ontology::ir::*;
+use ox_query_ir::query::*;
 use ox_core::types::*;
 
 fn gl(s: &'static str) -> GraphLabel {
@@ -25,7 +25,7 @@ fn pk(s: &'static str) -> PropertyKey {
 fn test_compile_simple_match() {
     let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("n"),
@@ -85,7 +85,7 @@ fn test_compile_simple_match() {
 fn test_compile_relationship_pattern() {
     let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Relationship {
                 variable: Some(vn("r")),
@@ -187,7 +187,7 @@ fn test_compile_schema_constraints() {
 #[test]
 fn test_korean_ontology_compiles_schema() {
     let compiler = CypherCompiler::neo4j();
-    let ontology = ox_core::test_fixtures::korean_ecommerce_ontology();
+    let ontology = ox_ontology::test_fixtures::korean_ecommerce_ontology();
 
     let statements = compiler.compile_schema(&ontology).unwrap();
     let joined = statements.join("\n");
@@ -241,12 +241,12 @@ fn test_korean_ontology_compiles_schema() {
 
 #[test]
 fn test_korean_ontology_match_query_escapes_labels() {
-    use ox_core::query_ir::*;
+    use ox_query_ir::query::*;
 
     let compiler = CypherCompiler::neo4j();
     // MATCH (c:고객)-[r:주문함]->(o:주문) WHERE c.이름 = '홍길동' RETURN o.주문번호
     let query = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![
                 GraphPattern::Node {
@@ -326,9 +326,9 @@ fn test_korean_backtick_in_label_is_doubled() {
 fn test_korean_ontology_json_round_trip() {
     // An OntologyIR with Korean labels must serialize to JSON and
     // deserialize back to an equivalent structure (lookup indices rebuild).
-    let original = ox_core::test_fixtures::korean_ecommerce_ontology();
+    let original = ox_ontology::test_fixtures::korean_ecommerce_ontology();
     let json = serde_json::to_string(&original).expect("serialize");
-    let round: ox_core::ontology_ir::OntologyIR = serde_json::from_str(&json).expect("deserialize");
+    let round: ox_ontology::ir::OntologyIR = serde_json::from_str(&json).expect("deserialize");
 
     // Lookup indices must be functional post-deserialize
     assert_eq!(
@@ -353,7 +353,7 @@ fn test_korean_ontology_json_round_trip() {
 fn test_compile_merge_node() {
     let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Mutate {
             context: None,
             operations: vec![MutateOp::MergeNode {
@@ -414,7 +414,7 @@ fn test_compile_load_plan() {
         ontology_lineage_id: "test".to_string(),
         ontology_version: 1,
         mode: LoadMode::Full,
-        source: ox_core::load_plan::DataSourceSpec::Csv {
+        source: ox_ontology::load_plan::DataSourceSpec::Csv {
             delimiter: ',',
             has_header: true,
             columns: vec![],
@@ -438,7 +438,7 @@ fn test_compile_load_plan() {
             },
             description: "Load products".to_string(),
         }],
-        batch_config: ox_core::load_plan::BatchConfig::default(),
+        batch_config: ox_ontology::load_plan::BatchConfig::default(),
     };
 
     let result = compiler.compile_load(&plan).unwrap();
@@ -459,7 +459,7 @@ fn test_compile_load_plan() {
 fn test_parameterization_string_values() {
     let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("n"),
@@ -476,7 +476,7 @@ fn test_parameterization_string_values() {
                     variable: vn("n"),
                     field: Some(pk("city")),
                 }),
-                op: ox_core::query_ir::ComparisonOp::Eq,
+                op: ox_query_ir::query::ComparisonOp::Eq,
                 right: Box::new(Expr::Literal {
                     value: PropertyValue::String("Seoul".to_string()),
                 }),
@@ -525,7 +525,7 @@ fn test_parameterization_string_values() {
 fn test_parameterization_in_clause() {
     let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("n"),
@@ -594,7 +594,7 @@ fn test_parameterization_in_clause() {
 fn test_parameterization_null_stays_inline() {
     let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("n"),
@@ -606,7 +606,7 @@ fn test_parameterization_null_stays_inline() {
                     variable: vn("n"),
                     field: Some(pk("status")),
                 }),
-                op: ox_core::query_ir::ComparisonOp::Eq,
+                op: ox_query_ir::query::ComparisonOp::Eq,
                 right: Box::new(Expr::Literal {
                     value: PropertyValue::Null,
                 }),
@@ -639,7 +639,7 @@ fn test_parameterization_date_values() {
     let compiler = CypherCompiler::neo4j();
     let date_val = chrono::NaiveDate::from_ymd_opt(2025, 6, 15).unwrap();
     let query = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("n"),
@@ -651,7 +651,7 @@ fn test_parameterization_date_values() {
                     variable: vn("n"),
                     field: Some(pk("date")),
                 }),
-                op: ox_core::query_ir::ComparisonOp::Gte,
+                op: ox_query_ir::query::ComparisonOp::Gte,
                 right: Box::new(Expr::Literal {
                     value: PropertyValue::Date(date_val),
                 }),
@@ -683,7 +683,7 @@ fn test_parameterization_date_values() {
 fn test_compile_aggregate_query() {
     let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("o"),
@@ -744,7 +744,7 @@ fn test_compile_aggregate_query() {
 fn test_compile_union_query() {
     let compiler = CypherCompiler::neo4j();
     let q1 = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("n"),
@@ -766,7 +766,7 @@ fn test_compile_union_query() {
         as_of: None,
     };
     let q2 = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("n"),
@@ -789,7 +789,7 @@ fn test_compile_union_query() {
     };
 
     let union_query = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Union {
             queries: vec![q1, q2],
             all: true,
@@ -811,7 +811,7 @@ fn test_compile_union_query() {
 fn test_compile_chain_with_pass_through() {
     let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Chain {
             steps: vec![
                 ChainStep {
@@ -879,7 +879,7 @@ fn test_compile_chain_with_pass_through() {
 
 #[test]
 fn test_compile_load_edge_upsert() {
-    use ox_core::load_plan::{BatchConfig, DataSourceSpec, NodeMatch, PropertyMapping};
+    use ox_ontology::load_plan::{BatchConfig, DataSourceSpec, NodeMatch, PropertyMapping};
 
     let compiler = CypherCompiler::neo4j();
     let plan = LoadPlan {
@@ -942,7 +942,7 @@ fn test_compile_load_edge_upsert() {
 
 #[test]
 fn test_compile_load_merge_non_null() {
-    use ox_core::load_plan::{BatchConfig, DataSourceSpec, PropertyMapping};
+    use ox_ontology::load_plan::{BatchConfig, DataSourceSpec, PropertyMapping};
 
     let compiler = CypherCompiler::neo4j();
     let plan = LoadPlan {
@@ -1013,7 +1013,7 @@ fn test_compile_load_merge_non_null() {
 fn test_call_subquery_compilation() {
     let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Chain {
             steps: vec![
                 ChainStep {
@@ -1040,7 +1040,7 @@ fn test_call_subquery_compilation() {
                     }],
                     operation: QueryOp::CallSubquery {
                         inner: Box::new(QueryIR {
-                            schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+                            schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
                             operation: QueryOp::Match {
                                 patterns: vec![GraphPattern::Relationship {
                                     variable: None,
@@ -1098,7 +1098,7 @@ fn test_call_subquery_compilation() {
 fn test_subquery_expr_count() {
     let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("n"),
@@ -1114,7 +1114,7 @@ fn test_subquery_expr_count() {
                 Projection::Expression {
                     expr: Expr::Subquery {
                         query: Box::new(QueryIR {
-                            schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+                            schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
                             operation: QueryOp::Match {
                                 patterns: vec![GraphPattern::Relationship {
                                     variable: None,
@@ -1170,10 +1170,10 @@ fn test_call_subquery_standalone() {
     // Test CallSubquery as a top-level operation
     let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::CallSubquery {
             inner: Box::new(QueryIR {
-                schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+                schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
                 operation: QueryOp::Match {
                     patterns: vec![GraphPattern::Node {
                         variable: vn("x"),
@@ -1228,7 +1228,7 @@ fn test_call_subquery_standalone() {
 fn test_collect_list_aggregation() {
     let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Relationship {
                 variable: None,
@@ -1281,7 +1281,7 @@ fn test_collect_list_aggregation() {
 fn test_compile_shortest_path() {
     let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::PathFind {
             start: NodeRef {
                 variable: vn("a"),
@@ -1333,7 +1333,7 @@ fn test_compile_shortest_path() {
 fn test_compile_all_shortest_paths() {
     let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::PathFind {
             start: NodeRef {
                 variable: vn("a"),
@@ -1378,7 +1378,7 @@ fn test_compile_all_shortest_paths() {
 fn test_compile_all_paths_variable_length() {
     let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::PathFind {
             start: NodeRef {
                 variable: vn("a"),
@@ -1431,7 +1431,7 @@ fn test_compile_all_paths_variable_length() {
 fn test_compile_case_expression() {
     let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("n"),
@@ -1689,7 +1689,7 @@ fn temporal_as_of_is_rejected_with_compilation_error() {
 
     let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("p"),
@@ -1724,7 +1724,7 @@ fn temporal_as_of_is_rejected_with_compilation_error() {
 fn temporal_as_of_none_compiles_normally() {
     let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("p"),
@@ -1758,7 +1758,7 @@ fn temporal_as_of_none_compiles_normally() {
 fn aggregate_with_having_emits_with_where_return() {
     let compiler = CypherCompiler::neo4j();
     let inner = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("c"),
@@ -1776,7 +1776,7 @@ fn aggregate_with_having_emits_with_where_return() {
         as_of: None,
     };
     let query = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Aggregate {
             source: Box::new(inner),
             group_by: vec![FieldRef {
@@ -1798,7 +1798,7 @@ fn aggregate_with_having_emits_with_where_return() {
                     variable: vn("customer_count"),
                     field: None,
                 }),
-                op: ox_core::query_ir::ComparisonOp::Gt,
+                op: ox_query_ir::query::ComparisonOp::Gt,
                 right: Box::new(Expr::Literal {
                     value: PropertyValue::Int(10),
                 }),
@@ -1833,7 +1833,7 @@ fn aggregate_with_having_emits_with_where_return() {
 fn aggregate_without_having_preserves_existing_shape() {
     let compiler = CypherCompiler::neo4j();
     let inner = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("c"),
@@ -1851,7 +1851,7 @@ fn aggregate_without_having_preserves_existing_shape() {
         as_of: None,
     };
     let query = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Aggregate {
             source: Box::new(inner),
             group_by: vec![FieldRef {
@@ -1895,7 +1895,7 @@ fn aggregate_without_having_preserves_existing_shape() {
 fn named_param_compiles_to_dollar_name() {
     let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("p"),
@@ -1907,7 +1907,7 @@ fn named_param_compiles_to_dollar_name() {
                     variable: vn("p"),
                     field: Some(pk("name")),
                 }),
-                op: ox_core::query_ir::ComparisonOp::Eq,
+                op: ox_query_ir::query::ComparisonOp::Eq,
                 right: Box::new(Expr::Param {
                     name: "target_name".to_string(),
                 }),
@@ -1949,7 +1949,7 @@ fn named_param_compiles_to_dollar_name() {
 fn named_param_rejects_injection_shaped_name() {
     let compiler = CypherCompiler::neo4j();
     let query = QueryIR {
-        schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
         operation: QueryOp::Match {
             patterns: vec![GraphPattern::Node {
                 variable: vn("p"),
@@ -1961,7 +1961,7 @@ fn named_param_rejects_injection_shaped_name() {
                     variable: vn("p"),
                     field: Some(pk("name")),
                 }),
-                op: ox_core::query_ir::ComparisonOp::Eq,
+                op: ox_query_ir::query::ComparisonOp::Eq,
                 right: Box::new(Expr::Param {
                     name: "bad name } RETURN p //".to_string(),
                 }),

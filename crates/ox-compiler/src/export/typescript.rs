@@ -1,4 +1,4 @@
-use ox_core::ontology_ir::{EdgeTypeDef, NodeTypeDef, OntologyIR, PropertyDef};
+use ox_ontology::ir::{EdgeTypeDef, NodeTypeDef, OntologyIR, PropertyDef};
 use ox_core::types::PropertyType;
 
 /// Generate TypeScript type definitions from an OntologyIR.
@@ -241,7 +241,7 @@ mod tests {
     use ox_core::GraphLabel;
     use ox_core::LocalizedText;
     use ox_core::PropertyKey;
-    use ox_core::ontology_ir::{
+    use ox_ontology::ir::{
         EdgeTypeDef, EdgeTypeId, NodeTypeDef, NodeTypeId, PropertyDef, PropertyId,
     };
 
@@ -366,7 +366,7 @@ mod tests {
                     classification: None,
                     ..Default::default()
                 }],
-                cardinality: ox_core::ontology_ir::Cardinality::ManyToMany,
+                cardinality: ox_ontology::ir::Cardinality::ManyToMany,
                 ..Default::default()
             }],
             vec![],

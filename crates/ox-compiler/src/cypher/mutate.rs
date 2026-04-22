@@ -1,5 +1,5 @@
 use ox_core::error::OxResult;
-use ox_core::query_ir::{MutateOp, PropertyAssignment};
+use ox_query_ir::query::{MutateOp, PropertyAssignment};
 
 use super::expr::compile_expr;
 use super::params::{ParamCollector, escape_identifier};

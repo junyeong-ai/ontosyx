@@ -20,7 +20,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useGuardPendingEdits } from "@/lib/guard-pending-edits";
 import type { OntologyIR } from "@/types/api";
-import { getProject, createProject } from "@/lib/api";
+import { getProject, createProject, getOntologyDetail } from "@/lib/api";
 import { useProjects } from "@/hooks/api/use-projects";
 import { useCreateDashboard, useDashboards } from "@/hooks/api/use-dashboards";
 import { useOntologies } from "@/hooks/api/use-ontologies";
@@ -145,7 +145,7 @@ function DesignSelector() {
                     {p.status}
                   </span>
                 </button>
-                {p.saved_ontology_id && (
+                {p.ontology_id && (
                   <button
                     title={t("forkTitle")}
                     aria-label={t("forkAria")}
@@ -156,7 +156,7 @@ function DesignSelector() {
                       try {
                         const forked = await createProject({
                           origin_type: "base_ontology",
-                          base_saved_ontology_id: p.saved_ontology_id!,
+                          base_ontology_id: p.ontology_id!,
                           title: `${p.title || t("untitledProject")} (fork)`,
                         });
                         setActiveProject(forked);
@@ -200,13 +200,31 @@ function AnalyzeSelector() {
     { enabled: workspaceReady },
   );
 
+  // Two-step load: list gives us the newest identity + current version
+  // summary, then a detail fetch hydrates the IR. The detail fetch is
+  // unconditional once a list item is in hand, so it can be inlined
+  // inside the effect without its own `useQuery` — we don't need cache
+  // reuse here (Analyze opens once per mode switch).
   useEffect(() => {
     if (!data || data.items.length === 0) return;
-    const saved = data.items[0];
-    const store = useAppStore.getState();
-    store.loadSavedOntology(saved.ontology_ir as OntologyIR);
-    store.setSavedOntologyId(saved.id);
-  }, [data]);
+    const item = data.items[0];
+    let cancelled = false;
+    (async () => {
+      try {
+        const detail = await getOntologyDetail(item.id);
+        if (cancelled || !detail.ontology_ir) return;
+        const store = useAppStore.getState();
+        store.loadOntology(detail.ontology_ir as OntologyIR);
+        store.setOntologyId(detail.id);
+      } catch (err) {
+        console.error("Failed to hydrate ontology:", err);
+        if (!cancelled) toast.error(t("toast.loadOntologyFailed"));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [data, t]);
 
   const loading = isFetching;
   const error = isError;
@@ -266,10 +284,22 @@ function ExploreSelector() {
 
   useEffect(() => {
     if (!data || data.items.length === 0) return;
-    const saved = data.items[0];
-    const store = useAppStore.getState();
-    store.loadSavedOntology(saved.ontology_ir as OntologyIR);
-    store.setSavedOntologyId(saved.id);
+    const item = data.items[0];
+    let cancelled = false;
+    (async () => {
+      try {
+        const detail = await getOntologyDetail(item.id);
+        if (cancelled || !detail.ontology_ir) return;
+        const store = useAppStore.getState();
+        store.loadOntology(detail.ontology_ir as OntologyIR);
+        store.setOntologyId(detail.id);
+      } catch (err) {
+        console.error("Failed to hydrate ontology:", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [data]);
 
   const loading = isFetching;

@@ -16,7 +16,7 @@ use uuid::Uuid;
 
 use branchforge::{AgentEvent, ExecutionMode};
 use ox_agent::{BuildAgentResult, DomainContext, OntosyxAgentConfig, build_agent};
-use ox_core::ontology_ir::OntologyIR;
+use ox_ontology::ir::OntologyIR;
 use ox_store::AgentSession;
 
 use crate::error::AppError;
@@ -34,7 +34,7 @@ pub struct ChatStreamRequest {
     #[schema(value_type = Object)]
     pub ontology: OntologyIR,
     #[serde(default)]
-    pub saved_ontology_id: Option<Uuid>,
+    pub ontology_id: Option<Uuid>,
     #[serde(default)]
     pub project_id: Option<Uuid>,
     #[serde(default)]
@@ -81,6 +81,27 @@ pub(crate) async fn chat_stream(
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppError> {
     validate_chat_stream_request(&req)?;
 
+    // Acquire a per-user chat-stream slot BEFORE we start setting up the
+    // stream. Rejecting early keeps the ceiling enforced even under the
+    // slowest-possible-handler-startup attack and gives the client a
+    // structured 429 instead of a dropped SSE connection.
+    //
+    // The `StreamSlot` guard lives through the SSE stream — `async_stream`
+    // will drop it when the handler future is cancelled (client
+    // disconnect or agent completion), releasing the permit for the next
+    // request from the same user.
+    let stream_slot = match state.stream_limiter.try_acquire(&principal.id) {
+        Some(slot) => slot,
+        None => {
+            return Err(AppError::too_many_requests(format!(
+                "Chat stream concurrency cap reached ({} simultaneous streams per user). \
+                 Close an existing conversation before starting a new one, or raise \
+                 `agent.max_concurrent_streams_per_user` in config.",
+                state.stream_limiter.max_per_user(),
+            )));
+        }
+    };
+
     let user_message = req.message.clone();
     let ontology = req.ontology.clone();
     let user_id = principal.id.clone();
@@ -125,13 +146,14 @@ pub(crate) async fn chat_stream(
         ontology: Some(arc_swap::ArcSwap::from_pointee(ontology)),
         user_id: user_id.clone(),
         workspace_id: ws.workspace_id,
-        saved_ontology_id: req.saved_ontology_id,
+        ontology_id: req.ontology_id,
         project_id: req.project_id,
         project_revision: req.project_revision,
         source_schema,
         source_profile,
         repo_insights,
         knowledge_store: Some(Arc::clone(&state.store) as Arc<dyn ox_store::KnowledgeStore>),
+        ambiguity_store: Some(Arc::clone(&state.store) as Arc<dyn ox_store::AmbiguityStore>),
         user_question: Some(user_message.clone()),
     });
 
@@ -156,6 +178,8 @@ pub(crate) async fn chat_stream(
         session_id: requested_session_id.clone(),
         user_role: principal.role.as_str().to_string(),
         recovery: state.recovery_hook_config(),
+        max_iterations: state.agent.max_iterations,
+        reject_high_cost: state.agent.reject_high_cost,
     })
     .await
     .map_err(|e| AppError::internal(format!("Agent initialization failed: {e}")))?;
@@ -227,7 +251,7 @@ pub(crate) async fn chat_stream(
     );
 
     // Capture ontology_id for embedding scoping in the stream closure
-    let ontology_id_for_stream = req.saved_ontology_id.map(|id| id.to_string());
+    let ontology_id_for_stream = req.ontology_id.map(|id| id.to_string());
 
     // Capture values for metering inside the stream closure
     let principal_user_uuid = principal.user_uuid().ok();
@@ -235,7 +259,15 @@ pub(crate) async fn chat_stream(
 
     // Stream agent events as SSE
     let store_for_events = Arc::clone(&state.store);
+    // Move the concurrency-cap guard into the stream body. It releases
+    // its permit when the stream terminates (cancel, complete, or drop),
+    // which is exactly the lifetime we want to bound.
+    let _stream_slot = stream_slot;
     let stream = async_stream::stream! {
+        // Keep the permit alive for the stream's lifetime — capturing it
+        // by move into the generator means the `Drop` fires when the SSE
+        // stream ends, not when the handler returns to axum.
+        let _stream_slot = _stream_slot;
         // Notify the client when a requested session could not be resumed.
         if session_expired {
             let expired_id = requested_session_id.as_deref().unwrap_or("");
@@ -259,7 +291,34 @@ pub(crate) async fn chat_stream(
                 let memory_for_stream = state.memory.clone();
                 let mut event_sequence: i32 = 0;
 
+                // Wall-clock ceiling on the entire agent loop. `max_iterations`
+                // (ox-agent build) caps planner turns; this cap protects the
+                // workspace when a single turn (deep analysis, large
+                // introspection) stalls indefinitely. Once the deadline is
+                // reached we surface one `error` SSE event and break out
+                // cleanly so the client sees a bounded failure instead of a
+                // silently-held connection.
+                let stream_deadline =
+                    tokio::time::Instant::now() + state.timeouts.chat_wall_clock;
+
                 while let Some(event_result) = event_stream.next().await {
+                    if tokio::time::Instant::now() >= stream_deadline {
+                        tracing::warn!(
+                            session_id = %audit_session_id,
+                            wall_clock_secs = state.timeouts.chat_wall_clock.as_secs(),
+                            "Chat stream exceeded wall-clock budget — terminating"
+                        );
+                        yield Ok(Event::default().event("error").data(
+                            serde_json::json!({
+                                "type": "timeout",
+                                "message": format!(
+                                    "Agent loop exceeded {}s ceiling. Shorten the question or raise `timeouts.chat_wall_clock_secs` in config.",
+                                    state.timeouts.chat_wall_clock.as_secs()
+                                ),
+                            }).to_string()
+                        ));
+                        break;
+                    }
                     {
                     match event_result {
                         Ok(ref agent_event) => {

@@ -167,8 +167,9 @@ export async function chatStream(
       },
       error: (data) => {
         const d = data as Record<string, unknown>;
-        handleSseError(d, callbacks.onError) ||
+        if (!handleSseError(d, callbacks.onError)) {
           callbacks.onError?.("Unknown error");
+        }
       },
     },
     { signal, onError: callbacks.onError },

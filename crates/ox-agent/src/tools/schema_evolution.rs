@@ -192,7 +192,7 @@ impl SchemaTool for SchemaEvolutionTool {
     }
 }
 
-fn detect_drift(schema: &SourceSchema, ontology: &ox_core::ontology_ir::OntologyIR) -> DriftReport {
+fn detect_drift(schema: &SourceSchema, ontology: &ox_ontology::ir::OntologyIR) -> DriftReport {
     let schema_checksum = compute_schema_checksum(schema);
 
     // Extract source table names

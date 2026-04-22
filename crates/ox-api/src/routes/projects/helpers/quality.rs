@@ -1,7 +1,7 @@
-use ox_core::ontology_ir::OntologyIR;
-use ox_core::quality::{OntologyQualityReport, assess_quality};
-use ox_core::source_analysis::ColumnClarification;
-use ox_core::source_mapping::SourceMapping;
+use ox_ontology::ir::OntologyIR;
+use ox_ontology::quality::{OntologyQualityReport, assess_quality};
+use ox_ontology::source_analysis::ColumnClarification;
+use ox_ontology::mapping::SourceMapping;
 use ox_core::source_schema::{SourceProfile, SourceSchema};
 use ox_store::DesignProject;
 
@@ -60,6 +60,6 @@ pub(crate) fn assess_quality_from_project_with_mapping(
         source_mapping,
         excluded_tables,
         column_clarifications,
-        &ox_core::quality::QualityConfig::default(),
+        &ox_ontology::quality::QualityConfig::default(),
     ))
 }

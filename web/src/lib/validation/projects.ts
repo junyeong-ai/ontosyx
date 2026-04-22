@@ -109,18 +109,34 @@ export const PiiFindingSchema = z.object({
   masked_preview: z.string().optional(),
 });
 
-export const RepoSuggestionInlineSchema = z.object({
+export const RepoHintSchema = z.object({
   suggested_values: z.string(),
   source_file: z.string(),
 });
 
-export const AmbiguousColumnSchema = z.object({
-  table: z.string(),
+export const AmbiguityColumnRefSchema = z.object({
+  relation: z.string(),
   column: z.string(),
-  ambiguity_type: z.enum(["numeric_code", "opaque_short_code"]),
+});
+
+export const AmbiguityKindSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("numeric_code") }),
+  z.object({ kind: z.literal("opaque_short_code") }),
+  z.object({ kind: z.literal("overloaded_name") }),
+]);
+
+export const AmbiguityContextSchema = z.object({
+  id: z.string(),
+  source_id: z.string(),
+  column: AmbiguityColumnRefSchema,
+  kind: AmbiguityKindSchema,
   sample_values: z.array(z.string()),
+  distinct_estimate: z.number().optional(),
+  nullable: z.boolean(),
   clarification_prompt: z.string(),
-  repo_suggestion: RepoSuggestionInlineSchema.optional(),
+  detection_source_hash: z.string(),
+  repo_hint: RepoHintSchema.optional(),
+  detected_at: z.string(),
 });
 
 export const TableExclusionSuggestionSchema = z.object({
@@ -182,7 +198,7 @@ export const SourceAnalysisReportSchema = z.object({
   }),
   implied_relationships: z.array(ImpliedRelationshipSchema),
   pii_findings: z.array(PiiFindingSchema),
-  ambiguous_columns: z.array(AmbiguousColumnSchema),
+  ambiguous_columns: z.array(AmbiguityContextSchema),
   table_exclusion_suggestions: z.array(TableExclusionSuggestionSchema),
   large_schema_warning: LargeSchemaWarningSchema.optional(),
   repo_suggestions: z.array(RepoColumnSuggestionSchema),
@@ -232,7 +248,7 @@ export const DesignProjectSchema = z.object({
   source_mapping: SourceMappingSchema.nullable(),
   ontology: OntologyIRSchema.nullable(),
   quality_report: OntologyQualityReportSchema.nullable(),
-  saved_ontology_id: z.string().nullable(),
+  ontology_id: z.string().nullable(),
   source_history: z.array(SourceHistoryEntrySchema),
   user_id: z.string(),
   created_at: z.string(),
@@ -246,7 +262,7 @@ export const DesignProjectSummarySchema = z.object({
   revision: z.number(),
   title: z.string().nullable(),
   source_config: SourceConfigSchema,
-  saved_ontology_id: z.string().nullable(),
+  ontology_id: z.string().nullable(),
   user_id: z.string(),
   created_at: z.string(),
   updated_at: z.string(),

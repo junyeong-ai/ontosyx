@@ -163,6 +163,12 @@ impl SchemaTool for ExecuteAnalysisTool {
         let store = Arc::clone(&self.store);
         let system_bypass = ox_store::SYSTEM_BYPASS.try_with(|b| *b).unwrap_or(false);
         let workspace_id = ox_store::WORKSPACE_ID.try_with(|id| *id).ok();
+        // Workspace context is captured above and re-scoped inside the
+        // spawned future (see the match arms below). This is the
+        // sanctioned agent-side spawn pattern; the ox-api spawn helpers
+        // can't be used here because `ox-agent` must not depend on
+        // `ox-api`.
+        #[allow(clippy::disallowed_methods)]
         tokio::spawn(async move {
             let run = async move {
                 if let Err(e) = store.create_analysis_result(&analysis_result).await {

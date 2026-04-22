@@ -6,7 +6,7 @@ use tokio::time::Instant;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use ox_core::ontology_ir::OntologyIR;
+use ox_ontology::ir::OntologyIR;
 
 use crate::error::AppError;
 use crate::principal::Principal;

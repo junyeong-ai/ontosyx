@@ -1,13 +1,30 @@
+//! Heuristic detector for columns whose values can't be interpreted
+//! from schema alone.
+//!
+//! Produces [`AmbiguityContext`] rows — the persistent, resolver-
+//! facing shape. The detector is deliberately narrow: two patterns
+//! (numeric-code + opaque-short-code) cover the cases where a raw
+//! column value is definitely-a-code and the admin's only recourse
+//! is to name what each code means. Wider disambiguation
+//! (`OverloadedName` across sources) lands when the cross-source
+//! schema catalogue does — this detector is single-source.
+
 use std::collections::{HashMap, HashSet};
 
-use ox_core::quality::is_cryptic_short;
-use ox_core::source_analysis::{AmbiguityType, AmbiguousColumn};
+use ox_ontology::ambiguity::{AmbiguityContext, AmbiguityKind};
+use ox_ontology::mapping::refs::{ColumnRef, SourceId};
+use ox_ontology::quality::is_cryptic_short;
 use ox_core::source_schema::{SourceProfile, SourceSchema};
 
+/// Detect ambiguous columns in a profiled schema. Each returned
+/// context is hashed against `source_hash` so a later schema change
+/// invalidates stale resolutions automatically.
 pub(super) fn detect_ambiguous(
+    source_id: &SourceId,
+    source_hash: &str,
     schema: &SourceSchema,
     profile: &SourceProfile,
-) -> Vec<AmbiguousColumn> {
+) -> Vec<AmbiguityContext> {
     // Pre-build O(1) lookups to avoid repeated O(n) scans inside the hot column loop.
     let schema_table_map: HashMap<&str, _> =
         schema.tables.iter().map(|t| (t.name.as_str(), t)).collect();
@@ -38,6 +55,11 @@ pub(super) fn detect_ambiguous(
                 }
             }
 
+            let column_ref = ColumnRef {
+                relation: tp.table_name.clone(),
+                column: cs.column_name.clone(),
+            };
+
             // NumericCode: all values parse as i64, low cardinality (2-20).
             //
             // Dual ID guard — intentional defense-in-depth:
@@ -48,20 +70,25 @@ pub(super) fn detect_ambiguous(
             let is_id_column = cs.column_name == "id" || cs.column_name.ends_with("_id");
             let all_numeric = cs.sample_values.iter().all(|v| v.parse::<i64>().is_ok());
             if !is_id_column && all_numeric && cs.distinct_count >= 2 && cs.distinct_count <= 20 {
-                results.push(AmbiguousColumn {
-                    table: tp.table_name.clone(),
-                    column: cs.column_name.clone(),
-                    ambiguity_type: AmbiguityType::NumericCode,
-                    sample_values: cs.sample_values.clone(),
-                    clarification_prompt: format!(
-                        "Column `{}.{}` contains numeric codes [{}]. What does each value mean? \
-                         (e.g., 1=active, 2=inactive, 3=suspended)",
-                        tp.table_name,
-                        cs.column_name,
-                        cs.sample_values.join(", ")
-                    ),
-                    repo_suggestion: None,
-                });
+                let prompt = format!(
+                    "Column `{}.{}` contains numeric codes [{}]. What does each value mean? \
+                     (e.g., 1=active, 2=inactive, 3=suspended)",
+                    tp.table_name,
+                    cs.column_name,
+                    cs.sample_values.join(", ")
+                );
+                results.push(
+                    AmbiguityContext::new(
+                        source_id.clone(),
+                        column_ref,
+                        AmbiguityKind::NumericCode,
+                        cs.sample_values.clone(),
+                        prompt,
+                        source_hash.to_string(),
+                    )
+                    .with_distinct_estimate(cs.distinct_count)
+                    .with_nullable(cs.null_count > 0),
+                );
                 continue;
             }
 
@@ -75,26 +102,32 @@ pub(super) fn detect_ambiguous(
             let has_longer = cs.sample_values.iter().any(|v| v.len() > 2);
 
             if !short_cryptic.is_empty() && has_longer {
-                results.push(AmbiguousColumn {
-                    table: tp.table_name.clone(),
-                    column: cs.column_name.clone(),
-                    ambiguity_type: AmbiguityType::OpaqueShortCode,
-                    sample_values: cs.sample_values.clone(),
-                    clarification_prompt: format!(
-                        "Column `{}.{}` has cryptic code(s) [{}] alongside longer values [{}]. \
-                         What do the short codes mean?",
-                        tp.table_name,
-                        cs.column_name,
-                        short_cryptic.join(", "),
-                        cs.sample_values
-                            .iter()
-                            .filter(|v| v.len() > 2)
-                            .cloned()
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ),
-                    repo_suggestion: None,
-                });
+                let longer_values: Vec<String> = cs
+                    .sample_values
+                    .iter()
+                    .filter(|v| v.len() > 2)
+                    .cloned()
+                    .collect();
+                let prompt = format!(
+                    "Column `{}.{}` has cryptic code(s) [{}] alongside longer values [{}]. \
+                     What do the short codes mean?",
+                    tp.table_name,
+                    cs.column_name,
+                    short_cryptic.join(", "),
+                    longer_values.join(", ")
+                );
+                results.push(
+                    AmbiguityContext::new(
+                        source_id.clone(),
+                        column_ref,
+                        AmbiguityKind::OpaqueShortCode,
+                        cs.sample_values.clone(),
+                        prompt,
+                        source_hash.to_string(),
+                    )
+                    .with_distinct_estimate(cs.distinct_count)
+                    .with_nullable(cs.null_count > 0),
+                );
             }
         }
     }
@@ -107,6 +140,10 @@ mod tests {
     use super::*;
     use crate::analyzer::test_utils::make_schema;
     use ox_core::source_schema::{ColumnStats, TableProfile};
+
+    fn source_id() -> SourceId {
+        SourceId::new("src-test")
+    }
 
     #[test]
     fn detect_ambiguous_numeric_code() {
@@ -125,13 +162,12 @@ mod tests {
                 }],
             }],
         };
-        let results = detect_ambiguous(&schema, &profile);
+        let results = detect_ambiguous(&source_id(), "sha256:test", &schema, &profile);
         assert_eq!(results.len(), 1);
-        assert_eq!(results[0].column, "status");
-        assert!(matches!(
-            results[0].ambiguity_type,
-            AmbiguityType::NumericCode
-        ));
+        assert_eq!(results[0].column.column, "status");
+        assert!(matches!(results[0].kind, AmbiguityKind::NumericCode));
+        assert_eq!(results[0].detection_source_hash, "sha256:test");
+        assert_eq!(results[0].distinct_estimate, Some(3));
     }
 
     #[test]
@@ -152,13 +188,10 @@ mod tests {
                 }],
             }],
         };
-        let results = detect_ambiguous(&schema, &profile);
+        let results = detect_ambiguous(&source_id(), "sha256:test", &schema, &profile);
         assert_eq!(results.len(), 1);
-        assert_eq!(results[0].column, "store_type");
-        assert!(matches!(
-            results[0].ambiguity_type,
-            AmbiguityType::OpaqueShortCode
-        ));
+        assert_eq!(results[0].column.column, "store_type");
+        assert!(matches!(results[0].kind, AmbiguityKind::OpaqueShortCode));
 
         // Pure binary pair ['Y', 'N'] must NOT trigger — has_longer is false
         let schema2 = make_schema(&[("stores", &["id", "is_active"])], &[]);
@@ -176,7 +209,8 @@ mod tests {
                 }],
             }],
         };
-        let binary_results = detect_ambiguous(&schema2, &profile_binary);
+        let binary_results =
+            detect_ambiguous(&source_id(), "sha256:test", &schema2, &profile_binary);
         assert!(
             binary_results.is_empty(),
             "pure binary ['Y','N'] must not be flagged"
@@ -201,7 +235,7 @@ mod tests {
                 }],
             }],
         };
-        let results = detect_ambiguous(&schema, &profile);
+        let results = detect_ambiguous(&source_id(), "sha256:test", &schema, &profile);
         assert!(
             results.is_empty(),
             "id/fk columns must not be flagged as ambiguous"

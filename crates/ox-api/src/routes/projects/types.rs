@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use ox_core::ontology_command::OntologyCommand;
-use ox_core::ontology_ir::OntologyIR;
-use ox_core::source_analysis::DesignOptions;
+use ox_ontology::command::OntologyCommand;
+use ox_ontology::ir::OntologyIR;
+use ox_ontology::source_analysis::DesignOptions;
 use ox_store::DesignProject;
 
 // ---------------------------------------------------------------------------
@@ -26,10 +26,13 @@ pub enum ProjectOrigin {
         source: ProjectSource,
         #[serde(default)]
         #[schema(value_type = Option<Object>)]
-        repo_source: Option<ox_core::repo_insights::RepoSource>,
+        repo_source: Option<ox_ontology::repo_insights::RepoSource>,
     },
     BaseOntology {
-        base_saved_ontology_id: Uuid,
+        /// Identity of the ontology to seed the project from —
+        /// matches `ontologies.id`. The server resolves the current
+        /// version and hydrates its IR into the new project.
+        base_ontology_id: Uuid,
     },
 }
 
@@ -137,7 +140,7 @@ pub struct ProjectReanalyzeRequest {
     /// Optional repository source for enrichment.
     #[serde(default)]
     #[schema(value_type = Option<Object>)]
-    pub repo_source: Option<ox_core::repo_insights::RepoSource>,
+    pub repo_source: Option<ox_ontology::repo_insights::RepoSource>,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
@@ -164,7 +167,7 @@ pub struct ProjectRefineResponse {
     pub profile_summary: String,
     /// Report on ID reconciliation between original and refined ontology.
     #[schema(value_type = Object)]
-    pub reconcile_report: ox_core::ReconcileReport,
+    pub reconcile_report: ox_ontology::ReconcileReport,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -175,10 +178,10 @@ pub struct ProjectReconcileRequest {
     pub reconciled_ontology: OntologyIR,
     /// User accept/reject decisions for uncertain matches.
     #[schema(value_type = Vec<Object>)]
-    pub decisions: Vec<ox_core::MatchDecision>,
+    pub decisions: Vec<ox_ontology::MatchDecision>,
     /// The uncertain matches being decided upon.
     #[schema(value_type = Vec<Object>)]
-    pub uncertain_matches: Vec<ox_core::UncertainMatch>,
+    pub uncertain_matches: Vec<ox_ontology::UncertainMatch>,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -194,7 +197,7 @@ pub struct ProjectExtendResponse {
     pub project: DesignProject,
     /// Report on ID reconciliation between existing and new ontology entities.
     #[schema(value_type = Object)]
-    pub reconcile_report: ox_core::ReconcileReport,
+    pub reconcile_report: ox_ontology::ReconcileReport,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]

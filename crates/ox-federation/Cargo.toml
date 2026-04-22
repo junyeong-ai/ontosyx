@@ -1,0 +1,40 @@
+[package]
+name = "ox-federation"
+description = "Ontosyx virtual ontology layer — DataFusion-backed federated execution over data source adapters"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+ox-core = { workspace = true }
+ox-ontology = { workspace = true }
+ox-query-ir = { workspace = true }
+ox-source = { workspace = true }
+
+# Federation engine.
+datafusion = { workspace = true }
+
+# Arrow schema + array building — the federation layer translates
+# DataSourceAdapter outputs into Arrow RecordBatches.
+arrow = { workspace = true }
+arrow-schema = { workspace = true }
+arrow-array = { workspace = true }
+
+# Async + traits.
+async-trait = { workspace = true }
+futures = { workspace = true }
+tokio = { workspace = true }
+
+# Error propagation.
+thiserror = { workspace = true }
+
+# Temporal windows on mappings (ADR 0007 bitemporal support).
+chrono = { workspace = true }
+
+# Observability.
+tracing = { workspace = true }
+
+[dev-dependencies]
+ox-source = { workspace = true, features = [] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

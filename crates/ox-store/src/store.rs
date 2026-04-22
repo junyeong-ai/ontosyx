@@ -121,57 +121,217 @@ pub trait QueryStore: Send + Sync {
     ) -> OxResult<bool>;
 }
 
+// ---------------------------------------------------------------------------
+// Λ Phase — OntologyVersionStore.
+//
+// Commits extract an `OntologyIR` into content-addressed entities
+// (via `ox_ontology::storage::extract_entities`), INSERT ON CONFLICT
+// DO NOTHING into the Level 2 store, and write a new pointer set.
+// Loads rehydrate a version by joining the pointer set with the
+// entity store.
+// ---------------------------------------------------------------------------
+
 #[async_trait]
-pub trait OntologyStore: Send + Sync {
-    async fn get_saved_ontology(&self, id: Uuid) -> OxResult<Option<SavedOntology>>;
-
-    async fn list_saved_ontologies(
-        &self,
-        pagination: &CursorParams,
-    ) -> OxResult<CursorPage<SavedOntology>>;
-
-    async fn get_latest_ontology(&self, name: &str) -> OxResult<Option<SavedOntology>>;
-
-    /// Fetch the newest `saved_ontologies` row whose embedded
-    /// `ontology_ir.id` matches `lineage_id`. This is the lineage-keyed
-    /// sibling of [`Self::get_latest_ontology`] (which keys by display
-    /// name). Used by the quality / report evaluators to resolve a
-    /// `QualityRule.ontology_lineage_id` into a loadable ontology
-    /// snapshot.
-    async fn get_latest_ontology_by_lineage(
-        &self,
-        lineage_id: &str,
-    ) -> OxResult<Option<SavedOntology>>;
-
-    /// Fetch the ontology snapshot that was live at `as_of` for the
-    /// given lineage id.
-    ///
-    /// "Live at" means the newest version whose `created_at <= as_of`.
-    /// A row with `created_at > as_of` is a future version from the
-    /// requested timestamp's perspective and is not eligible. Returns
-    /// `None` when no version predates `as_of` (query asked for a time
-    /// before the lineage was first saved).
-    ///
-    /// The resolver pairs with [`ox_compiler::rewrite_temporal_with_renames`]:
-    /// callers resolve the snapshot here, then pass `(query, snapshot,
-    /// current)` to the rewriter to get a compile-ready QueryIR.
-    async fn get_ontology_version_at(
-        &self,
-        lineage_id: &str,
-        as_of: chrono::DateTime<chrono::Utc>,
-    ) -> OxResult<Option<SavedOntology>>;
-
-    /// Save a standalone ontology (not tied to a design project).
-    /// Used by Graph Adopt flow to persist adopted ontologies.
-    async fn create_standalone_ontology(
+pub trait OntologyVersionStore: Send + Sync {
+    /// Create a new logical ontology. Assigns a fresh lineage_id
+    /// if `lineage_id` is `None`.
+    async fn create_ontology(
         &self,
         name: &str,
-        ontology_ir: &serde_json::Value,
-    ) -> OxResult<Uuid>;
+        description: &serde_json::Value,
+        lineage_id: Option<&str>,
+    ) -> OxResult<crate::models::OntologyRow>;
 
-    /// Update ontology IR in place (e.g., after enrichment with sample values).
-    /// Does not change version or metadata — only the ontology_ir JSON content.
-    async fn update_ontology_ir(&self, id: Uuid, ontology_ir: &serde_json::Value) -> OxResult<()>;
+    /// Look up a logical ontology by UUID. Workspace-scoped.
+    async fn get_ontology(&self, id: Uuid) -> OxResult<Option<crate::models::OntologyRow>>;
+
+    /// Paginated list of ontology identities visible to the
+    /// current workspace. Ordered newest-first by `created_at`
+    /// (then `id` for tie-break). Returns the identity row only;
+    /// callers that need the current version or IR call
+    /// `get_current_version` + `load_version` per row.
+    async fn list_ontologies(
+        &self,
+        pagination: &CursorParams,
+    ) -> OxResult<CursorPage<crate::models::OntologyRow>>;
+
+    /// Look up a logical ontology by lineage id. The lineage id
+    /// is the stable cross-version handle referenced by quality
+    /// rules, saved queries, and external mappings.
+    async fn find_ontology_by_lineage(
+        &self,
+        lineage_id: &str,
+    ) -> OxResult<Option<crate::models::OntologyRow>>;
+
+    /// Look up a logical ontology by its short name within the
+    /// current workspace. Names are unique per workspace (see
+    /// `ontologies_ws_name_uq`); the RLS policy scopes the query.
+    async fn find_ontology_by_name(
+        &self,
+        name: &str,
+    ) -> OxResult<Option<crate::models::OntologyRow>>;
+
+    /// Commit a new immutable version of `ontology_id`.
+    ///
+    /// Pipeline:
+    /// 1. Extract entities from `ir` via
+    ///    `ox_ontology::storage::extract_entities`.
+    /// 2. `INSERT ... ON CONFLICT (entity_hash) DO NOTHING`
+    ///    into `ontology_entity_versions` — automatic dedup of
+    ///    unchanged entities across versions.
+    /// 3. Insert a fresh `ontology_version_snapshots` row with
+    ///    the new version tag + bitemporal columns.
+    /// 4. Bulk-insert the pointer set into
+    ///    `ontology_version_entities`.
+    ///
+    /// Executes in a single transaction — either the whole
+    /// commit lands or none of it does.
+    async fn commit_version(
+        &self,
+        ontology_id: Uuid,
+        ir: &ox_ontology::OntologyIR,
+        version: &str,
+        parent_version_id: Option<Uuid>,
+        committed_by: &str,
+        commit_message: &str,
+    ) -> OxResult<crate::models::OntologyVersionSnapshot>;
+
+    /// Hydrate the ontology at a given version. Joins pointer set
+    /// with entity store, rehydrates each entity's `content`
+    /// JSONB into the typed `XxxDef`, and assembles the full
+    /// `OntologyIR`.
+    async fn load_version(&self, version_id: Uuid) -> OxResult<ox_ontology::OntologyIR>;
+
+    /// Fetch a version snapshot record by id (without hydrating
+    /// the full IR). Used by routes that need version metadata
+    /// (committed_by, commit_message, valid_from) separate from
+    /// the IR content.
+    async fn get_version_snapshot(
+        &self,
+        version_id: Uuid,
+    ) -> OxResult<Option<crate::models::OntologyVersionSnapshot>>;
+
+    /// List the version history of an ontology, newest first.
+    async fn list_versions(
+        &self,
+        ontology_id: Uuid,
+        limit: u32,
+    ) -> OxResult<Vec<crate::models::OntologyVersionSnapshot>>;
+
+    /// "Live at" version resolver. Picks the newest version
+    /// whose `valid_from <= as_of` AND (`valid_to IS NULL OR
+    /// valid_to > as_of`). Used by TemporalRewriter for AS-OF
+    /// queries.
+    async fn resolve_version_at(
+        &self,
+        ontology_id: Uuid,
+        as_of: chrono::DateTime<chrono::Utc>,
+    ) -> OxResult<Option<crate::models::OntologyVersionSnapshot>>;
+
+    /// The current (valid_to IS NULL) version for an ontology.
+    async fn get_current_version(
+        &self,
+        ontology_id: Uuid,
+    ) -> OxResult<Option<crate::models::OntologyVersionSnapshot>>;
+
+    /// Diff two versions. Returns one `EntityChange` per
+    /// `(kind, logical_id)` whose hash differs. Order: kind then
+    /// logical_id — stable for UI rendering.
+    async fn diff_versions(
+        &self,
+        from_version: Uuid,
+        to_version: Uuid,
+    ) -> OxResult<Vec<crate::models::EntityChange>>;
+}
+
+// ---------------------------------------------------------------------------
+// Λ-11 — Progressive Disclosure Navigation Store.
+//
+// Backed by the Level 3 materialised indexes (migrations 0018-
+// 0021). Every method is version-scoped — the caller picks which
+// ontology version to navigate, matching the temporal-rewriter
+// contract.
+//
+// The four core flows:
+//
+//   1. Entry discovery — user types "orders" → `search_entry_points`
+//      returns ranked hits (fuzzy + full-text + semantic).
+//   2. Expansion — from a selected entity, `expand_neighbors` yields
+//      the 1-hop cross-references (Property→ValueSet, etc).
+//   3. Hierarchy — `walk_hierarchy` traverses closure tables
+//      (CodeSystem broader, GlossaryTerm parent, Interface
+//      implements) in O(1).
+//   4. Similarity — `similar_to` uses the `entity_embedding` HNSW
+//      index for semantic kNN.
+//
+// The trait is separate from OntologyVersionStore because (a)
+// navigation is a read-only surface even when versioning is in
+// play, (b) a future split where the navigation store is a
+// read-replica / cached view stays clean.
+// ---------------------------------------------------------------------------
+
+/// Progressive-Disclosure navigation over the Level-3 flat indexes.
+/// See the patent 1-pager `Progressive Disclosure` section for the
+/// 4-step contract; each method corresponds to one step so the
+/// layered usage (search → expand → filter → render) is clear at the
+/// trait level.
+///
+/// Options structs in [`crate::navigation`] keep the signatures
+/// parameter-rich without adding positional bloat. `Subgraph` is the
+/// shared value moved through steps 2 + 3 so a caller can chain
+/// without re-allocating.
+#[async_trait]
+pub trait OntologyNavigationStore: Send + Sync {
+    /// Step 1 — anchor search. Blended trigram + full-text + embedding
+    /// scoring over the searchable document. Returned hits are sorted
+    /// by `score` descending; the caller picks the top-K as anchors
+    /// for `expand_neighbors`.
+    async fn search_entry_points(
+        &self,
+        options: crate::navigation::EntryPointSearchOptions,
+    ) -> OxResult<Vec<crate::navigation::EntitySearchHit>>;
+
+    /// Step 2 — BFS from a batch of anchors, depth-limited. Returns a
+    /// single [`crate::navigation::Subgraph`] aggregating every
+    /// reachable node / edge. Sets `Subgraph.truncated` when
+    /// `max_nodes` trimmed the frontier.
+    async fn expand_neighbors(
+        &self,
+        options: crate::navigation::NeighborExpandOptions,
+    ) -> OxResult<crate::navigation::Subgraph>;
+
+    /// Step 3 — merge hierarchy closure into an existing subgraph and
+    /// optionally filter by facet. Called on the result of step 2;
+    /// returns the mutated subgraph so the caller can chain or
+    /// snapshot independently of the input.
+    async fn apply_hierarchy_and_facet(
+        &self,
+        subgraph: crate::navigation::Subgraph,
+        options: crate::navigation::HierarchyFacetOptions,
+    ) -> OxResult<crate::navigation::Subgraph>;
+
+    /// Step 4 — render the subgraph as markdown suited to the LLM
+    /// prompt tail. Pure function; does not touch the store beyond
+    /// needing `&self` for trait-object erasure.
+    fn render_subgraph_for_llm(
+        &self,
+        subgraph: &crate::navigation::Subgraph,
+        options: &crate::navigation::LlmRenderOptions,
+    ) -> String;
+
+    /// Semantic kNN over the Level-3 embedding index. Returns empty
+    /// when the target entity has no embedding yet (cold row —
+    /// background populator hasn't caught up). Surfaced separately
+    /// from `search_entry_points` because the caller typically wants
+    /// either anchor search (blend) *or* pure semantic neighbourhood
+    /// — not both at once.
+    async fn similar_entities(
+        &self,
+        version_id: Uuid,
+        entity_kind: &str,
+        logical_id: &str,
+        top_k: u32,
+    ) -> OxResult<Vec<crate::navigation::EntitySearchHit>>;
 }
 
 #[async_trait]
@@ -232,12 +392,18 @@ pub trait ProjectStore: Send + Sync {
         expected_revision: i32,
     ) -> OxResult<()>;
 
-    /// Atomically save the ontology and mark the project as completed.
-    /// Uses a single transaction to prevent orphan ontologies.
+    /// Mark the project as completed and link it to a committed
+    /// ontology identity. The caller performs
+    /// [`OntologyVersionStore::create_ontology`] + `commit_version`
+    /// separately, then hands the resulting identity UUID here so
+    /// the project row's `ontology_id` column can point at it.
+    ///
+    /// Uses optimistic CAS on `revision` — stale submissions fail
+    /// rather than clobbering a concurrent update.
     async fn complete_design_project(
         &self,
         project_id: Uuid,
-        ontology: &SavedOntology,
+        ontology_id: Uuid,
         expected_revision: i32,
     ) -> OxResult<()>;
 
@@ -1099,12 +1265,244 @@ pub trait NotificationStore: Send + Sync {
 }
 
 // ---------------------------------------------------------------------------
+// DataSourceStore — federation (VOL) adapter configurations
+//
+// One row per registered `source_id` the planner can resolve at
+// query time. Workspace-scoped via RLS — every CRUD below runs
+// through the workspace context set on the pool.
+//
+// `upsert_data_source_by_source_id` is the method the admin HTTP
+// endpoint calls: register-or-replace semantics on the
+// (workspace_id, source_id) natural key.
+// ---------------------------------------------------------------------------
+
+#[async_trait]
+pub trait DataSourceStore: Send + Sync {
+    async fn create_data_source(&self, item: &crate::models::DataSource) -> OxResult<()>;
+
+    async fn get_data_source(&self, id: Uuid) -> OxResult<Option<crate::models::DataSource>>;
+
+    async fn find_data_source_by_source_id(
+        &self,
+        source_id: &str,
+    ) -> OxResult<Option<crate::models::DataSource>>;
+
+    async fn list_data_sources(&self) -> OxResult<Vec<crate::models::DataSource>>;
+
+    async fn upsert_data_source_by_source_id(
+        &self,
+        source_id: &str,
+        kind: &str,
+        config: &serde_json::Value,
+    ) -> OxResult<crate::models::DataSource>;
+
+    async fn delete_data_source_by_source_id(&self, source_id: &str) -> OxResult<bool>;
+}
+
+// ---------------------------------------------------------------------------
 // Store — super-trait combining all sub-traits
 // ---------------------------------------------------------------------------
 
+/// Signal log + aggregation for the "6 창" ontology-quality
+/// dashboard. Sees every successful query (fire-and-forget) and
+/// rolls the log into window-scoped metrics on demand.
+#[async_trait]
+pub trait QualitySignalStore: Send + Sync {
+    /// Append a single query's signal row. Fire-and-forget —
+    /// callers spawn this off the hot path and log write errors
+    /// instead of propagating them.
+    async fn create_query_execution_signal(
+        &self,
+        signal: &crate::quality_signal::QueryExecutionSignal,
+    ) -> OxResult<()>;
+
+    /// Aggregate the six dashboard metrics for the current
+    /// workspace over `window`. Returns Wilson-score bands plus
+    /// trend deltas against the immediately-previous window of the
+    /// same length.
+    async fn aggregate_quality_metrics(
+        &self,
+        window: crate::quality_signal::MetricWindow,
+    ) -> OxResult<crate::quality_signal::QualityMetricsReport>;
+
+    /// Grouped SHACL-failure distribution for the "실패 유형 분포"
+    /// chart over `window`. Returns one row per observed
+    /// `ShaclFailureKind`, zero rows when no failures recorded.
+    async fn list_shacl_failure_distribution(
+        &self,
+        window: crate::quality_signal::MetricWindow,
+    ) -> OxResult<Vec<crate::quality_signal::ShaclFailureCount>>;
+
+    /// Upsert "last used" timestamps + rolling 7/30-day counts for
+    /// every type in `type_ids`. Called from the signal write path
+    /// so the stale scan doesn't have to rescan signal history.
+    async fn upsert_type_last_used(
+        &self,
+        type_ids: &[(uuid::Uuid, &str)],
+    ) -> OxResult<()>;
+
+    /// List types whose `last_used_at` is older than
+    /// `stale_after_days` for the current workspace, sorted by
+    /// `last_used_at` ascending (staleest first).
+    async fn list_stale_types(
+        &self,
+        stale_after_days: i64,
+    ) -> OxResult<Vec<crate::quality_signal::StaleTypeEntry>>;
+}
+
+/// Durable stale-concept deprecation proposals. Populated by the
+/// `scan_stale_concepts` cron; admins decide approve / dismiss.
+#[async_trait]
+pub trait StaleConceptProposalStore: Send + Sync {
+    /// List proposals visible to the current workspace. When
+    /// `pending_only` is true, terminal (approved/dismissed) rows
+    /// are excluded — the admin dashboard hot path.
+    async fn list_stale_concept_proposals(
+        &self,
+        pending_only: bool,
+    ) -> OxResult<Vec<crate::quality_signal::StaleConceptProposal>>;
+
+    /// Get a single proposal by id. Returns `None` when not found
+    /// (RLS-scoped — a cross-workspace id looks like "not found").
+    async fn get_stale_concept_proposal(
+        &self,
+        id: uuid::Uuid,
+    ) -> OxResult<Option<crate::quality_signal::StaleConceptProposal>>;
+
+    /// Insert if not present (natural key = `(workspace_id, type_id)`).
+    /// Cron calls this per stale hit; duplicates are silently no-ops.
+    /// Returns the resulting row (newly inserted OR the existing one).
+    async fn upsert_stale_concept_proposal(
+        &self,
+        proposal: crate::quality_signal::StaleConceptProposal,
+    ) -> OxResult<crate::quality_signal::StaleConceptProposal>;
+
+    /// Record an admin decision on a pending proposal. Noop when
+    /// the proposal is already in a terminal state (returns the
+    /// existing row).
+    async fn record_stale_proposal_decision(
+        &self,
+        id: uuid::Uuid,
+        decision: crate::quality_signal::StaleProposalDecision,
+        decided_by_user_id: Option<uuid::Uuid>,
+        reason: Option<String>,
+    ) -> OxResult<crate::quality_signal::StaleConceptProposal>;
+}
+
+/// Change-type routing rules — one per `(workspace_id?, change_type)`.
+/// Global defaults live with `workspace_id IS NULL` and are seeded
+/// by the migration. Workspace overrides go through
+/// [`ChangeRoutingStore::upsert_change_routing_rule`]; the resolve
+/// path returns the higher-priority row (workspace override > global).
+///
+/// The `change_*` prefix on every method disambiguates from
+/// [`ModelConfigStore`]'s `list_routing_rules` (LLM model routing —
+/// a different concept routing between providers).
+#[async_trait]
+pub trait ChangeRoutingStore: Send + Sync {
+    /// List every rule visible to the current workspace (global +
+    /// overrides), ordered by `change_type` then `priority DESC`.
+    /// Used by the admin UI to render the full routing table.
+    async fn list_change_routing_rules(
+        &self,
+    ) -> OxResult<Vec<ox_ontology::change_routing::ChangeRoutingRule>>;
+
+    /// Resolve the single active rule for `change_type`. Workspace
+    /// override wins over global default via higher `priority`.
+    /// Returns `None` when no rule matches — caller treats that as
+    /// "require approval" by policy, not "silently auto-apply".
+    async fn resolve_change_routing(
+        &self,
+        change_type: ox_ontology::change_routing::ChangeType,
+    ) -> OxResult<Option<ox_ontology::change_routing::ChangeRoutingRule>>;
+
+    /// Upsert a workspace override. Natural key is
+    /// `(workspace_id, change_type)` so a workspace has at most one
+    /// override per change type. The store fills `workspace_id` from
+    /// `app.workspace_id` — callers don't pass it (a caller writing
+    /// global defaults uses the SYSTEM_BYPASS path at migration time).
+    async fn upsert_change_routing_rule(
+        &self,
+        rule: ox_ontology::change_routing::ChangeRoutingRule,
+    ) -> OxResult<ox_ontology::change_routing::ChangeRoutingRule>;
+
+    /// Drop a workspace override, reverting to the global default.
+    /// Returns `true` when a row was deleted.
+    async fn delete_change_routing_rule(
+        &self,
+        change_type: ox_ontology::change_routing::ChangeType,
+    ) -> OxResult<bool>;
+}
+
+/// Closed-loop ambiguity resolver storage.
+///
+/// Context rows are detected during source analysis and upserted by
+/// natural key `(source_id, relation, column)`. Resolutions append to
+/// a history log; at most one non-revoked resolution is active per
+/// context (DB-enforced by partial unique index). Superseding a
+/// resolution revokes the previous active row *and* writes the new
+/// row in the same transaction — the store impl is responsible for
+/// the atomicity.
+#[async_trait]
+pub trait AmbiguityStore: Send + Sync {
+    async fn list_ambiguity_contexts(
+        &self,
+        source_id: &ox_ontology::mapping::refs::SourceId,
+    ) -> OxResult<Vec<ox_ontology::ambiguity::AmbiguityContext>>;
+
+    async fn get_ambiguity_context(
+        &self,
+        id: &ox_ontology::ambiguity::AmbiguityId,
+    ) -> OxResult<Option<ox_ontology::ambiguity::AmbiguityContext>>;
+
+    async fn find_ambiguity_context_by_column(
+        &self,
+        source_id: &ox_ontology::mapping::refs::SourceId,
+        column: &ox_ontology::mapping::refs::ColumnRef,
+    ) -> OxResult<Option<ox_ontology::ambiguity::AmbiguityContext>>;
+
+    /// Upsert by natural key. Replaces the row when
+    /// `(source_id, relation, column)` already exists — the refresh
+    /// path for re-running analysis against a changed schema.
+    async fn upsert_ambiguity_context(
+        &self,
+        context: ox_ontology::ambiguity::AmbiguityContext,
+    ) -> OxResult<ox_ontology::ambiguity::AmbiguityContext>;
+
+    async fn delete_ambiguity_context(
+        &self,
+        id: &ox_ontology::ambiguity::AmbiguityId,
+    ) -> OxResult<bool>;
+
+    async fn list_ambiguity_resolutions(
+        &self,
+        context_id: &ox_ontology::ambiguity::AmbiguityId,
+    ) -> OxResult<Vec<ox_ontology::ambiguity::AmbiguityResolution>>;
+
+    async fn get_active_ambiguity_resolution(
+        &self,
+        source_id: &ox_ontology::mapping::refs::SourceId,
+        column: &ox_ontology::mapping::refs::ColumnRef,
+    ) -> OxResult<Option<ox_ontology::ambiguity::AmbiguityResolution>>;
+
+    /// Atomically revoke the prior active resolution (if any) and
+    /// record the new resolution as active. `supersedes` on the new
+    /// row points at the revoked one. Returns the inserted row.
+    async fn create_ambiguity_resolution(
+        &self,
+        resolution: ox_ontology::ambiguity::AmbiguityResolution,
+    ) -> OxResult<ox_ontology::ambiguity::AmbiguityResolution>;
+
+    /// Revoke the currently-active resolution for `context_id`, if any.
+    /// Returns `true` when a row transitioned to revoked.
+    async fn revoke_active_ambiguity_resolution(
+        &self,
+        context_id: &ox_ontology::ambiguity::AmbiguityId,
+    ) -> OxResult<bool>;
+}
+
 pub trait Store:
     QueryStore
-    + OntologyStore
     + PinStore
     + ProjectStore
     + PerspectiveStore
@@ -1134,12 +1532,18 @@ pub trait Store:
     + HealthStore
     + NotificationStore
     + ApiKeyStore
+    + DataSourceStore
+    + OntologyVersionStore
+    + OntologyNavigationStore
+    + AmbiguityStore
+    + ChangeRoutingStore
+    + QualitySignalStore
+    + StaleConceptProposalStore
 {
 }
 
 impl<T> Store for T where
     T: QueryStore
-        + OntologyStore
         + PinStore
         + ProjectStore
         + PerspectiveStore
@@ -1169,5 +1573,12 @@ impl<T> Store for T where
         + HealthStore
         + NotificationStore
         + ApiKeyStore
+        + DataSourceStore
+        + OntologyVersionStore
+        + OntologyNavigationStore
+        + AmbiguityStore
+        + ChangeRoutingStore
+        + QualitySignalStore
+        + StaleConceptProposalStore
 {
 }

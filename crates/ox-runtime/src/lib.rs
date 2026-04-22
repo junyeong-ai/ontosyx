@@ -25,7 +25,7 @@ use async_trait::async_trait;
 use uuid::Uuid;
 
 use ox_core::error::{OxError, OxResult};
-use ox_core::ontology_ir::OntologyIR;
+use ox_ontology::ir::OntologyIR;
 
 // ---------------------------------------------------------------------------
 // Per-request graph workspace context via task-local
@@ -49,8 +49,8 @@ tokio::task_local! {
     /// Active ontology snapshot for the OntologyValidator pre-execute gate.
     pub static GRAPH_ONTOLOGY: Arc<OntologyIR>;
 }
-use ox_core::graph_exploration::{GraphSchemaOverview, NodeExpansion, SearchResultNode};
-use ox_core::query_ir::QueryResult;
+use ox_ontology::graph_exploration::{GraphSchemaOverview, NodeExpansion, SearchResultNode};
+use ox_query_ir::query::QueryResult;
 use ox_core::types::PropertyValue;
 
 // ---------------------------------------------------------------------------

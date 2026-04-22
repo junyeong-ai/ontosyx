@@ -4,9 +4,12 @@ description = "Ontosyx LLM orchestration — natural language to IR translation"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+publish.workspace = true
 
 [dependencies]
 ox-core = { workspace = true }
+ox-ontology = { workspace = true }
+ox-query-ir = { workspace = true }
 ox-memory = { workspace = true }
 ox-store = { workspace = true }
 branchforge = { workspace = true, features = ["aws", "cli-auth"] }

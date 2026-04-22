@@ -1,7 +1,8 @@
 use tracing::info;
 
-use ox_core::design_project::{SourceConfig, SourceTypeKind};
-use ox_core::source_analysis::SourceAnalysisReport;
+use ox_ontology::design_project::{SourceConfig, SourceTypeKind};
+use ox_ontology::mapping::refs::SourceId;
+use ox_ontology::source_analysis::SourceAnalysisReport;
 use ox_core::source_schema::{SourceProfile, SourceSchema};
 use ox_source::IntrospectionKernel;
 use ox_source::analyzer::build_analysis_report;
@@ -14,6 +15,17 @@ use super::fingerprint::{
     bigquery_fingerprint, mongodb_fingerprint, mysql_fingerprint, pg_fingerprint,
     schema_fingerprint, snowflake_fingerprint,
 };
+
+/// Deterministic `(SourceId, source_hash)` pair for analysis-time
+/// ambiguity detection. `fingerprint` captures schema content — the
+/// same fingerprint under a different source kind (CSV vs Postgres)
+/// must not collide, so the kind's canonical string lands in the id.
+fn ambiguity_source_handle(kind: &SourceTypeKind, fingerprint: &str) -> (SourceId, String) {
+    (
+        SourceId::new(format!("{kind}:{fingerprint}")),
+        fingerprint.to_string(),
+    )
+}
 
 /// Analyze a source and return (config, raw_data, schema, profile, report).
 ///
@@ -72,7 +84,10 @@ pub(crate) async fn analyze_source(
                 .await
                 .map_err(AppError::from)?;
             let fingerprint = schema_fingerprint(&analysis.schema);
-            let report = build_analysis_report(&analysis.schema, &analysis.profile);
+            let (src_id, src_hash) =
+                ambiguity_source_handle(&SourceTypeKind::Csv, &fingerprint);
+            let report =
+                build_analysis_report(&src_id, &src_hash, &analysis.schema, &analysis.profile);
             Ok((
                 SourceConfig {
                     source_type: SourceTypeKind::Csv,
@@ -106,7 +121,10 @@ pub(crate) async fn analyze_source(
                 .await
                 .map_err(AppError::from)?;
             let fingerprint = schema_fingerprint(&analysis.schema);
-            let report = build_analysis_report(&analysis.schema, &analysis.profile);
+            let (src_id, src_hash) =
+                ambiguity_source_handle(&SourceTypeKind::Json, &fingerprint);
+            let report =
+                build_analysis_report(&src_id, &src_hash, &analysis.schema, &analysis.profile);
             Ok((
                 SourceConfig {
                     source_type: SourceTypeKind::Json,
@@ -152,8 +170,15 @@ pub(crate) async fn analyze_source(
                 .await
                 .map_err(AppError::from)?;
 
-            let report = build_analysis_report(&analysis.schema, &analysis.profile)
-                .with_analysis_warnings(analysis.warnings.clone());
+            let (src_id, src_hash) =
+                ambiguity_source_handle(&SourceTypeKind::Postgresql, &fingerprint);
+            let report = build_analysis_report(
+                &src_id,
+                &src_hash,
+                &analysis.schema,
+                &analysis.profile,
+            )
+            .with_analysis_warnings(analysis.warnings.clone());
 
             info!(
                 tables = analysis.schema.tables.len(),
@@ -199,8 +224,15 @@ pub(crate) async fn analyze_source(
                 .await
                 .map_err(AppError::from)?;
 
-            let report = build_analysis_report(&analysis.schema, &analysis.profile)
-                .with_analysis_warnings(analysis.warnings.clone());
+            let (src_id, src_hash) =
+                ambiguity_source_handle(&SourceTypeKind::Mysql, &fingerprint);
+            let report = build_analysis_report(
+                &src_id,
+                &src_hash,
+                &analysis.schema,
+                &analysis.profile,
+            )
+            .with_analysis_warnings(analysis.warnings.clone());
 
             info!(
                 tables = analysis.schema.tables.len(),
@@ -246,8 +278,15 @@ pub(crate) async fn analyze_source(
                 .await
                 .map_err(AppError::from)?;
 
-            let report = build_analysis_report(&analysis.schema, &analysis.profile)
-                .with_analysis_warnings(analysis.warnings.clone());
+            let (src_id, src_hash) =
+                ambiguity_source_handle(&SourceTypeKind::Mongodb, &fingerprint);
+            let report = build_analysis_report(
+                &src_id,
+                &src_hash,
+                &analysis.schema,
+                &analysis.profile,
+            )
+            .with_analysis_warnings(analysis.warnings.clone());
 
             info!(
                 collections = analysis.schema.tables.len(),
@@ -302,8 +341,15 @@ pub(crate) async fn analyze_source(
                 .await
                 .map_err(AppError::from)?;
 
-            let report = build_analysis_report(&analysis.schema, &analysis.profile)
-                .with_analysis_warnings(analysis.warnings.clone());
+            let (src_id, src_hash) =
+                ambiguity_source_handle(&SourceTypeKind::Snowflake, &fingerprint);
+            let report = build_analysis_report(
+                &src_id,
+                &src_hash,
+                &analysis.schema,
+                &analysis.profile,
+            )
+            .with_analysis_warnings(analysis.warnings.clone());
 
             info!(
                 tables = analysis.schema.tables.len(),
@@ -356,8 +402,15 @@ pub(crate) async fn analyze_source(
                 .await
                 .map_err(AppError::from)?;
 
-            let report = build_analysis_report(&analysis.schema, &analysis.profile)
-                .with_analysis_warnings(analysis.warnings.clone());
+            let (src_id, src_hash) =
+                ambiguity_source_handle(&SourceTypeKind::Bigquery, &fingerprint);
+            let report = build_analysis_report(
+                &src_id,
+                &src_hash,
+                &analysis.schema,
+                &analysis.profile,
+            )
+            .with_analysis_warnings(analysis.warnings.clone());
 
             info!(
                 tables = analysis.schema.tables.len(),
@@ -400,8 +453,15 @@ pub(crate) async fn analyze_source(
                 .map_err(AppError::from)?;
             let fingerprint = schema_fingerprint(&analysis.schema);
 
-            let report = build_analysis_report(&analysis.schema, &analysis.profile)
-                .with_analysis_warnings(analysis.warnings.clone());
+            let (src_id, src_hash) =
+                ambiguity_source_handle(&SourceTypeKind::DuckDb, &fingerprint);
+            let report = build_analysis_report(
+                &src_id,
+                &src_hash,
+                &analysis.schema,
+                &analysis.profile,
+            )
+            .with_analysis_warnings(analysis.warnings.clone());
 
             info!(
                 tables = analysis.schema.tables.len(),

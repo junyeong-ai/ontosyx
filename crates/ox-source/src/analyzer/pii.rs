@@ -1,4 +1,4 @@
-use ox_core::source_analysis::{PiiDetectionMethod, PiiFinding, PiiType};
+use ox_ontology::source_analysis::{PiiDetectionMethod, PiiFinding, PiiType};
 use ox_core::source_schema::{SourceProfile, SourceSchema};
 use std::collections::HashSet;
 
@@ -63,7 +63,7 @@ pub(super) const PII_KEYWORDS: &[(&str, PiiType)] = &[
     ("voiceprint", PiiType::Biometric),
 ];
 
-pub(super) fn detect_pii(schema: &SourceSchema, profile: &SourceProfile) -> Vec<PiiFinding> {
+pub fn detect_pii(schema: &SourceSchema, profile: &SourceProfile) -> Vec<PiiFinding> {
     let mut findings = Vec::new();
 
     for table in &schema.tables {

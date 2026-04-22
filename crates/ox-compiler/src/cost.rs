@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
-use ox_core::ontology_ir::OntologyIR;
-use ox_core::query_ir::{ChainStep, GraphPattern, QueryIR, QueryOp};
+use ox_ontology::ir::OntologyIR;
+use ox_query_ir::query::{ChainStep, GraphPattern, QueryIR, QueryOp};
 use serde::Serialize;
 
 // ---------------------------------------------------------------------------
@@ -194,7 +194,7 @@ fn walk_op(op: &QueryOp, ctx: &mut CostCtx) {
         }
 
         QueryOp::Analytics { source, .. } => {
-            if let ox_core::query_ir::AnalyticsSource::Subgraph { filter } = source {
+            if let ox_query_ir::query::AnalyticsSource::Subgraph { filter } = source {
                 walk_op(filter, ctx);
             }
         }
@@ -250,7 +250,7 @@ fn collect_pattern_signals(pattern: &GraphPattern, ctx: &mut CostCtx) {
             // Path elements are fixed-length hops — no variable-length depth.
             // Only collect relationship labels for cardinality check.
             for e in elements {
-                if let ox_core::query_ir::PathElement::Edge {
+                if let ox_query_ir::query::PathElement::Edge {
                     label: Some(lbl), ..
                 } = e
                 {
@@ -275,22 +275,22 @@ fn check_indexed_filters(filters: &[(String, String)], ontology: &OntologyIR) ->
     let mut indexed: HashSet<(&str, &str)> = HashSet::new();
     for idx in ontology.indexes() {
         let (node_id, prop_ids) = match idx {
-            ox_core::ontology_ir::IndexDef::Single {
+            ox_ontology::ir::IndexDef::Single {
                 node_id,
                 property_id,
                 ..
             } => (node_id, vec![property_id]),
-            ox_core::ontology_ir::IndexDef::Composite {
+            ox_ontology::ir::IndexDef::Composite {
                 node_id,
                 property_ids,
                 ..
             } => (node_id, property_ids.iter().collect()),
-            ox_core::ontology_ir::IndexDef::FullText {
+            ox_ontology::ir::IndexDef::FullText {
                 node_id,
                 property_ids,
                 ..
             } => (node_id, property_ids.iter().collect()),
-            ox_core::ontology_ir::IndexDef::Vector {
+            ox_ontology::ir::IndexDef::Vector {
                 node_id,
                 property_id,
                 ..
@@ -310,13 +310,13 @@ fn check_indexed_filters(filters: &[(String, String)], ontology: &OntologyIR) ->
     for node in ontology.node_types() {
         for cdef in node.constraints.iter() {
             let prop_ids: Vec<&str> = match &cdef.constraint {
-                ox_core::ontology_ir::NodeConstraint::Unique { property_ids } => {
+                ox_ontology::ir::NodeConstraint::Unique { property_ids } => {
                     property_ids.iter().map(|id| id.as_ref()).collect()
                 }
-                ox_core::ontology_ir::NodeConstraint::NodeKey { property_ids } => {
+                ox_ontology::ir::NodeConstraint::NodeKey { property_ids } => {
                     property_ids.iter().map(|id| id.as_ref()).collect()
                 }
-                ox_core::ontology_ir::NodeConstraint::Exists { .. } => continue,
+                ox_ontology::ir::NodeConstraint::Exists { .. } => continue,
             };
             for pid in prop_ids {
                 if let Some(prop) = node.properties.iter().find(|p| p.id == pid) {
@@ -336,7 +336,7 @@ fn check_high_fanout(rel_labels: &[String], ontology: &OntologyIR) -> bool {
     rel_labels.iter().any(|label| {
         ontology.edge_types().iter().any(|e| {
             e.label == *label
-                && matches!(e.cardinality, ox_core::ontology_ir::Cardinality::ManyToMany)
+                && matches!(e.cardinality, ox_ontology::ir::Cardinality::ManyToMany)
         })
     })
 }
@@ -370,7 +370,7 @@ fn has_cartesian_product(patterns: &[GraphPattern]) -> bool {
                 let path_indices: Vec<usize> = elements
                     .iter()
                     .filter_map(|e| match e {
-                        ox_core::query_ir::PathElement::Node { variable, .. } => {
+                        ox_query_ir::query::PathElement::Node { variable, .. } => {
                             Some(get_or_insert(variable, &mut var_index))
                         }
                         _ => None,
@@ -416,10 +416,10 @@ mod tests {
     use ox_core::GraphLabel;
     use ox_core::LocalizedText;
     use ox_core::PropertyKey;
-    use ox_core::ontology_ir::{
+    use ox_ontology::ir::{
         Cardinality, ConstraintDef, EdgeTypeDef, NodeConstraint, NodeTypeDef, PropertyDef,
     };
-    use ox_core::query_ir::*;
+    use ox_query_ir::query::*;
     use ox_core::types::{Direction, PropertyType};
 
     fn gl(s: &'static str) -> GraphLabel {
@@ -489,7 +489,7 @@ mod tests {
 
     fn simple_match(patterns: Vec<GraphPattern>) -> QueryIR {
         QueryIR {
-            schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+            schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns,
                 filter: None,
@@ -631,7 +631,7 @@ mod tests {
     #[test]
     fn optional_matches_tracked() {
         let ir = QueryIR {
-            schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+            schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Chain {
                 steps: vec![
                     ChainStep {
@@ -691,7 +691,7 @@ mod tests {
     #[test]
     fn aggregate_walks_into_source() {
         let inner = QueryIR {
-            schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+            schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Match {
                 patterns: vec![
                     GraphPattern::Node {
@@ -716,7 +716,7 @@ mod tests {
             as_of: None,
         };
         let ir = QueryIR {
-            schema_version: ox_core::query_ir::QUERY_IR_SCHEMA_VERSION,
+            schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
             operation: QueryOp::Aggregate {
                 source: Box::new(inner),
                 group_by: vec![],

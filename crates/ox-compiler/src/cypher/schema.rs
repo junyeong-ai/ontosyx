@@ -1,6 +1,6 @@
 use std::sync::OnceLock;
 
-use ox_core::ontology_ir::{IndexDef, NodeConstraint, NodeTypeDef, OntologyIR, PropertyDef};
+use ox_ontology::ir::{IndexDef, NodeConstraint, NodeTypeDef, OntologyIR, PropertyDef};
 use ox_core::types::PropertyType;
 
 use super::CypherDialect;
@@ -289,8 +289,8 @@ pub(super) fn compile_index(
                     .unwrap_or("UNKNOWN"),
             );
             let sim = match similarity {
-                ox_core::ontology_ir::VectorSimilarity::Cosine => "cosine",
-                ox_core::ontology_ir::VectorSimilarity::Euclidean => "euclidean",
+                ox_ontology::ir::VectorSimilarity::Cosine => "cosine",
+                ox_ontology::ir::VectorSimilarity::Euclidean => "euclidean",
             };
             Some(format!(
                 "CREATE VECTOR INDEX IF NOT EXISTS FOR (n:{label}) ON (n.{prop_name}) \

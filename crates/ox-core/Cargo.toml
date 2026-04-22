@@ -4,12 +4,7 @@ description = "Ontosyx IR (Intermediate Representation) type definitions"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-
-[features]
-default = []
-## Expose `test_fixtures` module (Korean golden ontology, helpers) to
-## downstream crates for use in their tests. Not intended for production.
-test-fixtures = []
+publish.workspace = true
 
 [dependencies]
 serde = { workspace = true }

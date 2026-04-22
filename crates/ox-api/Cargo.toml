@@ -4,6 +4,7 @@ description = "Ontosyx HTTP/WebSocket API server"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+publish.workspace = true
 
 [[bin]]
 name = "ontosyx"
@@ -11,12 +12,18 @@ path = "src/main.rs"
 
 [dependencies]
 ox-core = { workspace = true }
+ox-ontology = { workspace = true }
+ox-query-ir = { workspace = true }
 ox-compiler = { workspace = true }
 ox-runtime = { workspace = true }
 ox-brain = { workspace = true }
 ox-agent = { workspace = true }
 ox-store = { workspace = true }
 ox-source = { workspace = true, features = ["duckdb"] }
+ox-federation = { workspace = true }
+arrow = { workspace = true }
+arrow-array = { workspace = true }
+arrow-schema = { workspace = true }
 ox-memory = { workspace = true, features = ["onnx"] }
 branchforge = { workspace = true, features = ["aws"] }
 async-trait = { workspace = true }
@@ -57,6 +64,8 @@ reqwest = { workspace = true }
 
 [dev-dependencies]
 criterion = { version = "0.7", features = ["html_reports"] }
+sqlx = { workspace = true }
+tempfile = { workspace = true }
 
 [[bench]]
 name = "query_compile"

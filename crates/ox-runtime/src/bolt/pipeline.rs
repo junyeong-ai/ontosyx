@@ -47,12 +47,12 @@ use std::sync::Arc;
 use tracing::{info, warn};
 
 use ox_core::error::{OxError, OxResult};
-use ox_core::ontology_ir::OntologyIR;
+use ox_ontology::ir::OntologyIR;
 use ox_core::types::PropertyValue;
 
 use crate::cypher::{
-    CypherAst, CypherValidatorPipeline, OntologyValidator, SafetyValidator, ValidateContext,
-    ValidationReport, parse,
+    ComplexityValidator, CypherAst, CypherValidatorPipeline, OntologyValidator, SafetyValidator,
+    SemanticGuardValidator, ShaclValidator, ValidateContext, ValidationReport, parse,
 };
 use crate::isolation::{GraphIsolationStrategy, ScopedAst};
 use crate::{GRAPH_ONTOLOGY, GRAPH_SYSTEM_BYPASS, GRAPH_WORKSPACE_ID};
@@ -207,9 +207,24 @@ fn run_pre_rewrite_validation(
     workspace_id: &str,
     ontology: Option<&OntologyIR>,
 ) -> OxResult<()> {
-    let mut pipeline = CypherValidatorPipeline::new().with(SafetyValidator::new());
+    // `SemanticGuardValidator` tightens Safety's destructive-write
+    // gate — a tautological WHERE (`WHERE true`, `WHERE 1 = 1`) no
+    // longer slips past by merely existing. `ComplexityValidator::permissive()`
+    // downgrades unbounded variable-length to a Warning so ad-hoc
+    // power-user traversal isn't blocked; the structural cartesian
+    // check still errors.
+    let mut pipeline = CypherValidatorPipeline::new()
+        .with(SafetyValidator::new())
+        .with(SemanticGuardValidator::new())
+        .with(ComplexityValidator::permissive());
     if let Some(onto) = ontology {
-        pipeline = pipeline.with(OntologyValidator::new(onto.clone()));
+        // OntologyValidator = schema conformance (label / property exists).
+        // ShaclValidator    = domain semantics (rules authored on the IR).
+        // Both sit in the `PreRewriteOntology` slot so a violation of
+        // either surfaces in the same aggregated error.
+        pipeline = pipeline
+            .with(OntologyValidator::new(onto.clone()))
+            .with(ShaclValidator::new(onto.clone()));
     }
     let report = pipeline.run_ast(ast, &ValidateContext::new(workspace_id));
     log_non_errors(&report, "pre-rewrite", workspace_id);
@@ -275,7 +290,7 @@ mod tests {
     use ox_core::GraphLabel;
     use ox_core::PropertyKey;
     use ox_core::i18n::LocalizedText;
-    use ox_core::ontology_ir::{Cardinality, EdgeTypeDef, NodeTypeDef, PropertyDef};
+    use ox_ontology::ir::{Cardinality, EdgeTypeDef, NodeTypeDef, PropertyDef};
     use ox_core::types::PropertyType;
     use uuid::Uuid;
 

@@ -45,6 +45,10 @@ pub fn spawn_with_ws<F>(scope: WsScope, fut: F)
 where
     F: Future<Output = ()> + Send + 'static,
 {
+    // The whole point of this module is to be the single legitimate caller
+    // of `tokio::spawn`; the workspace-wide clippy gate forbids raw use
+    // anywhere else.
+    #[allow(clippy::disallowed_methods)]
     tokio::spawn(async move {
         match scope {
             WsScope::System => {
@@ -70,4 +74,21 @@ where
     F: Future<Output = ()> + Send + 'static,
 {
     spawn_with_ws(WsScope::capture(), fut);
+}
+
+/// Spawn a fire-and-forget **system** task — scheduled workers, retention
+/// sweeps, rate-limiter cleanup, platform-wide maintenance loops.
+///
+/// Wraps the future in both `SYSTEM_BYPASS` task-locals so any store /
+/// graph call inside the spawned task runs outside workspace isolation.
+/// Equivalent to `spawn_with_ws(WsScope::System, fut)` but reads
+/// clearly at the call-site as "this is intentional cross-tenant work".
+///
+/// Never call this from an authenticated request path — use
+/// `spawn_scoped` (workspace-preserving) instead.
+pub fn spawn_system<F>(fut: F)
+where
+    F: Future<Output = ()> + Send + 'static,
+{
+    spawn_with_ws(WsScope::System, fut);
 }

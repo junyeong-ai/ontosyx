@@ -101,7 +101,76 @@ export interface OrderClause {
 export interface QueryResult {
   columns: string[];
   rows: Record<string, unknown>[];
-  metadata?: Record<string, unknown>;
+  /** Structured execution metadata. Shape mirrors the Rust
+   *  `QueryMetadata` so fields added on the backend surface here
+   *  once types are regenerated. Unknown extra keys stay in the
+   *  same object. */
+  metadata?: QueryMetadata;
+}
+
+/**
+ * Execution-time facts about a completed query. The Rust
+ * `QueryMetadata` struct carries these — `rows_returned`,
+ * `execution_time_ms`, optional mutation counts, and the Π-3
+ * `provenance` field.
+ */
+export interface QueryMetadata {
+  execution_time_ms: number;
+  rows_returned: number;
+  nodes_affected?: number | null;
+  edges_affected?: number | null;
+  provenance?: QueryProvenance;
+  /**
+   * Non-blocking diagnostics produced by the advisory validator pass
+   * (Cypher complexity + semantic-guard). Errors would have rejected
+   * the query upstream; strict-pass errors that slipped through a
+   * *permissive* runtime pipeline surface here as `level: "error"`.
+   *
+   * Structured rather than pre-formatted so the UI can filter by
+   * `level` or `validator` without parsing a string. Empty on the
+   * federation / DataFusion path — the Cypher-specific validators
+   * don't apply to a DataFusion LogicalPlan. Treat `[]` and missing
+   * identically.
+   */
+  warnings?: QueryDiagnostic[];
+  [extra: string]: unknown;
+}
+
+/** Severity tier for a {@link QueryDiagnostic}. */
+export type DiagnosticLevel = "error" | "warning" | "info";
+
+/**
+ * Structured advisory diagnostic mirroring the Rust
+ * `ox_query_ir::query::QueryDiagnostic`. `validator` matches
+ * `CypherValidator::name()` on the backend (e.g. `"complexity"`,
+ * `"semantic-guard"`); `level` drives UI colour/iconography;
+ * `message` is author-level English.
+ */
+export interface QueryDiagnostic {
+  validator: string;
+  level: DiagnosticLevel;
+  message: string;
+}
+
+/**
+ * Π-3 response-attribution trail. All fields are optional — each
+ * planner/runtime layer populates what it knows.
+ *
+ * - `ontology_id` / `ontology_version`: which schema produced this
+ *   response.
+ * - `as_of`: business-time anchor when the temporal rewriter ran.
+ * - `source_ids`: federation-only — data sources the plan touched.
+ * - `type_ids`: node / edge type ids that participated.
+ * - `filter_summary`: compact human-readable description of the
+ *   WHERE clause; `null`/missing on raw-query paths.
+ */
+export interface QueryProvenance {
+  ontology_id?: string;
+  ontology_version?: string;
+  as_of?: string;
+  source_ids?: string[];
+  type_ids?: string[];
+  filter_summary?: string;
 }
 
 export type WidgetSpec = Record<string, unknown> & {
@@ -189,16 +258,60 @@ export interface PropertyPatch {
   source_column?: string | null;
 }
 
-// --- Saved Ontologies ---
+// --- Ontologies (Λ storage model) ---
 
-export interface SavedOntology {
-  id: string;
-  name: string;
-  description: string | null;
-  version: number;
-  ontology_ir: OntologyIR;
-  created_by: string;
+/**
+ * LocalizedText JSONB shape stored on `ontologies.description`.
+ * Matches the Rust `LocalizedText { default, translations }` struct.
+ */
+export interface LocalizedText {
+  default: string;
+  translations?: Record<string, string>;
+}
+
+/**
+ * Summary of an ontology's current committed version. Attached to
+ * identity rows by the list + detail endpoints. `None` when the
+ * identity exists but nothing has been committed yet.
+ */
+export interface CurrentVersionSummary {
+  version_id: string;
+  version: string;
+  committed_by: string;
+  commit_message: string;
   created_at: string;
+}
+
+/**
+ * One row from `GET /api/ontologies`. Identity-only: the IR itself is
+ * intentionally omitted so a 50-row page doesn't pull 50 full hydrated
+ * ontologies. Fetch `OntologyDetail` via `GET /api/ontologies/:id` when
+ * the IR is needed (e.g. loading into the canvas).
+ */
+export interface OntologyListItem {
+  id: string;
+  lineage_id: string;
+  name: string;
+  description: LocalizedText;
+  created_at: string;
+  updated_at: string;
+  current_version?: CurrentVersionSummary;
+}
+
+/**
+ * Full detail: identity + current version summary + hydrated IR.
+ * `ontology_ir` is `undefined` iff `current_version` is also undefined
+ * (identity exists without any committed version yet).
+ */
+export interface OntologyDetail {
+  id: string;
+  lineage_id: string;
+  name: string;
+  description: LocalizedText;
+  created_at: string;
+  updated_at: string;
+  current_version?: CurrentVersionSummary;
+  ontology_ir?: OntologyIR;
 }
 
 export interface PromptInfo {

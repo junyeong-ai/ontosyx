@@ -4,9 +4,11 @@ description = "Ontosyx data source introspection (schema discovery + profiling)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+publish.workspace = true
 
 [dependencies]
 ox-core = { workspace = true }
+ox-ontology = { workspace = true }
 sqlx = { workspace = true }
 tokio = { workspace = true }
 async-trait = { workspace = true }
@@ -16,6 +18,8 @@ csv = { workspace = true }
 mongodb = { workspace = true }
 snowflake-api = { workspace = true }
 arrow = { workspace = true }
+arrow-array = { workspace = true }
+arrow-schema = { workspace = true }
 gcp-bigquery-client = { workspace = true }
 tracing = { workspace = true }
 ignore = { workspace = true }

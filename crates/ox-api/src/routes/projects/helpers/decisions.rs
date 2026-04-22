@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use ox_core::source_analysis::{DesignOptions, SourceAnalysisReport};
+use ox_ontology::source_analysis::{DesignOptions, SourceAnalysisReport};
 use ox_core::source_schema::SourceSchema;
 
 use crate::error::AppError;
@@ -118,12 +118,11 @@ pub(crate) fn maybe_require_review(
         .ambiguous_columns
         .iter()
         .filter(|a| {
-            !options
-                .column_clarifications
-                .iter()
-                .any(|e| e.table == a.table && e.column == a.column)
+            !options.column_clarifications.iter().any(|e| {
+                e.table == a.column.relation && e.column == a.column.column
+            })
         })
-        .map(|a| format!("{}.{}", a.table, a.column))
+        .map(|a| format!("{}.{}", a.column.relation, a.column.column))
         .collect();
 
     let partial_ack_needed = report.is_partial() && !options.allow_partial_source_analysis;

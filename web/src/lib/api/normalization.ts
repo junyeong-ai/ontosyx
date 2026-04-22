@@ -162,5 +162,15 @@ export function normalizeQueryResult(raw: unknown): QueryResult | undefined {
     }
   }
 
-  return { columns, rows, metadata: r.metadata };
+  return {
+    columns,
+    rows,
+    // Backend always populates `metadata` on the wire, but this
+    // normalizer runs on unknown-shape payloads too (cached results,
+    // legacy API responses) — a `Record<string, unknown>` comes in
+    // and we trust the runtime shape matches our `QueryMetadata`
+    // interface. Callers that consume a specific field still guard
+    // with `??` for safety.
+    metadata: r.metadata as QueryResult["metadata"],
+  };
 }

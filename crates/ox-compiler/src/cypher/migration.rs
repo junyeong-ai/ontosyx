@@ -1,5 +1,5 @@
-use ox_core::ontology_diff::*;
-use ox_core::ontology_ir::OntologyIR;
+use ox_ontology::diff::*;
+use ox_ontology::ir::OntologyIR;
 
 use super::CypherDialect;
 use super::params::escape_identifier;
@@ -491,8 +491,8 @@ mod tests {
     use ox_core::GraphLabel;
     use ox_core::LocalizedText;
     use ox_core::PropertyKey;
-    use ox_core::ontology_diff::compute_diff;
-    use ox_core::ontology_ir::{
+    use ox_ontology::diff::compute_diff;
+    use ox_ontology::ir::{
         Cardinality, ConstraintDef, EdgeTypeDef, IndexDef, NodeConstraint, NodeTypeDef, PropertyDef,
     };
     use ox_core::types::PropertyType;

@@ -60,9 +60,9 @@ use chrono::{DateTime, Utc};
 
 use ox_core::error::{OxError, OxResult};
 use ox_core::graph_label::GraphLabel;
-use ox_core::ontology_ir::{EdgeTypeDef, EdgeTypeId, NodeTypeId, OntologyIR};
+use ox_ontology::ir::{EdgeTypeDef, EdgeTypeId, NodeTypeId, OntologyIR};
 use ox_core::property_key::PropertyKey;
-use ox_core::query_ir::{
+use ox_query_ir::query::{
     AnalyticsSource, Expr, GraphPattern, MutateOp, NodeRef, PathElement, PropertyAssignment,
     PropertyFilter, QueryIR, QueryOp,
 };
@@ -1006,8 +1006,8 @@ mod tests {
     use chrono::TimeZone;
     use ox_core::graph_label::GraphLabel;
     use ox_core::i18n::LocalizedText;
-    use ox_core::ontology_ir::{NodeTypeDef, OntologyVersion};
-    use ox_core::query_ir::{
+    use ox_ontology::ir::{NodeTypeDef, OntologyVersion};
+    use ox_query_ir::query::{
         GraphPattern, QUERY_IR_SCHEMA_VERSION, QueryOp,
     };
     use ox_core::variable_name::VariableName;
@@ -1412,9 +1412,9 @@ mod tests {
     // and must be rewritten to `c.email`.
     // ---------------------------------------------------------------
 
-    use ox_core::ontology_ir::PropertyDef;
+    use ox_ontology::ir::PropertyDef;
     use ox_core::property_key::PropertyKey;
-    use ox_core::query_ir::{ComparisonOp, Expr, PropertyFilter};
+    use ox_query_ir::query::{ComparisonOp, Expr, PropertyFilter};
     use ox_core::types::{PropertyType, PropertyValue};
 
     fn pk(s: &'static str) -> PropertyKey {
@@ -1422,25 +1422,16 @@ mod tests {
     }
 
     fn prop(id: &'static str, name: &'static str) -> PropertyDef {
+        // Struct-update from `Default::default()` so new fields on
+        // `PropertyDef` (e.g. Phase 5-B semantic links) do not break
+        // this helper — the defaults are the empty shape a fixture
+        // wants anyway.
         PropertyDef {
             id: id.into(),
             name: pk(name),
-            display_name: LocalizedText::default(),
             property_type: PropertyType::String,
             nullable: false,
-            default_value: None,
-            description: LocalizedText::default(),
-            min_count: None,
-            max_count: None,
-            is_localized: false,
-            classification: None,
-            semantic_type: None,
-            unit: None,
-            pii_kind: None,
-            source_column: None,
-            transform: None,
-            deprecated_at: None,
-            replaced_by_id: None,
+            ..Default::default()
         }
     }
 
@@ -1746,7 +1737,7 @@ mod tests {
     // map was populated.
     // ---------------------------------------------------------------
 
-    use ox_core::query_ir::{MutateOp, PropertyAssignment};
+    use ox_query_ir::query::{MutateOp, PropertyAssignment};
 
     fn mutate_with_one_op(op: MutateOp, as_of: Option<DateTime<Utc>>) -> QueryIR {
         QueryIR {
@@ -1891,7 +1882,7 @@ mod tests {
         // field. The inline filter must be rewritten using the ref's
         // own label to resolve the owner type, mirroring the Match
         // pattern path.
-        use ox_core::query_ir::{NodeRef, PathAlgorithm};
+        use ox_query_ir::query::{NodeRef, PathAlgorithm};
         use ox_core::types::Direction;
 
         let snap = snapshot_with_node_property(

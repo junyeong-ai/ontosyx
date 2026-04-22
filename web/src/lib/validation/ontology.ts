@@ -79,14 +79,38 @@ export const OntologyIRSchema = z.object({
   indexes: z.array(IndexDefSchema).optional(),
 });
 
-export const SavedOntologySchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  description: z.string().nullable(),
-  version: z.number(),
-  ontology_ir: OntologyIRSchema,
-  created_by: z.string(),
+export const LocalizedTextSchema = z.object({
+  default: z.string(),
+  translations: z.record(z.string(), z.string()).optional(),
+});
+
+export const CurrentVersionSummarySchema = z.object({
+  version_id: z.string(),
+  version: z.string(),
+  committed_by: z.string(),
+  commit_message: z.string(),
   created_at: z.string(),
+});
+
+export const OntologyListItemSchema = z.object({
+  id: z.string(),
+  lineage_id: z.string(),
+  name: z.string(),
+  description: LocalizedTextSchema,
+  created_at: z.string(),
+  updated_at: z.string(),
+  current_version: CurrentVersionSummarySchema.optional(),
+});
+
+export const OntologyDetailSchema = z.object({
+  id: z.string(),
+  lineage_id: z.string(),
+  name: z.string(),
+  description: LocalizedTextSchema,
+  created_at: z.string(),
+  updated_at: z.string(),
+  current_version: CurrentVersionSummarySchema.optional(),
+  ontology_ir: OntologyIRSchema.optional(),
 });
 
 export const CursorPageSchema = <T extends z.ZodType>(itemSchema: T) =>

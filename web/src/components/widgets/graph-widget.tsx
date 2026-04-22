@@ -19,7 +19,7 @@ import type {
 import { cn } from "@/lib/cn";
 import { useIsDarkMode } from "@/lib/use-dark-mode";
 import { useContainerWidth } from "@/lib/use-container-width";
-import { useTypeFilter } from "@/lib/use-type-filter";
+import { useDashboardTypeFilter } from "@/lib/use-dashboard-type-filter";
 import { formatValue } from "./chart-utils";
 import type { GraphNodeData, FGNode, FGLink } from "./graph/graph-types";
 import { DEFAULT_MAX_NODES, DARK_BG, LIGHT_BG } from "./graph/graph-constants";
@@ -43,11 +43,21 @@ const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
 interface GraphWidgetProps {
   spec: WidgetSpec;
   data: QueryResult;
+  /**
+   * When this widget is mounted inside a dashboard grid, the parent
+   * passes the dashboard id so the type-visibility legend becomes a
+   * cross-widget filter — toggling "hide Person" in one widget hides
+   * Person nodes in every other GraphWidget on the same dashboard.
+   * Omit for standalone / query-panel mounts (falls back to local
+   * widget state).
+   */
+  dashboardId?: string | null;
 }
 
 export const GraphWidget = memo(function GraphWidget({
   spec,
   data,
+  dashboardId,
 }: GraphWidgetProps) {
   const t = useTranslations("widget.graph");
   const containerRef = useRef<HTMLDivElement>(null);
@@ -85,8 +95,14 @@ export const GraphWidget = memo(function GraphWidget({
   // Type filter — clickable legend chips hide nodes (and edges whose
   // endpoints are hidden) of the selected types. Defaults to "nothing
   // hidden" so the widget behaves identically to before until someone
-  // interacts with the legend.
-  const typeFilter = useTypeFilter<(typeof extracted.nodes)[number], (typeof extracted.links)[number]>({
+  // interacts with the legend. When `dashboardId` is passed, the
+  // hidden-types set is shared across every GraphWidget mounted inside
+  // the same dashboard (cross-widget filter).
+  const typeFilter = useDashboardTypeFilter<
+    (typeof extracted.nodes)[number],
+    (typeof extracted.links)[number]
+  >({
+    dashboardId,
     allTypes: useMemo(() => Array.from(typeColorIndex.keys()), [typeColorIndex]),
     getNodeType: (n) => n.type ?? "default",
     getEdgeSource: (e) => (typeof e.source === "string" ? e.source : (e.source as { id: string }).id),

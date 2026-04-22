@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import type {
   PiiDecision,
   PiiFinding,
-  AmbiguousColumn,
+  AmbiguityContext,
   ImpliedRelationship,
   TableExclusionSuggestion,
   SourceAnalysisReport,
@@ -39,8 +39,8 @@ function inferPiiDecision(): PiiDecision {
  * hint renders in the user's active locale — the hint is stored verbatim
  * and shown in the UI. Locale is captured once at invocation time.
  */
-function inferClarification(column: AmbiguousColumn, t: AnalysisTranslator): string {
-  const col = column.column.toLowerCase();
+function inferClarification(column: AmbiguityContext, t: AnalysisTranslator): string {
+  const col = column.column.column.toLowerCase();
   const samples = column.sample_values;
 
   // Year: 4-digit numbers
@@ -284,12 +284,15 @@ export function AnalysisReviewSection({
   }, [report.pii_findings]);
 
   const clarGroups = useMemo(() => {
-    const grouped = groupByTable(report.ambiguous_columns, (c) => c.table);
-    const result = new Map<string, { key: string; item: AmbiguousColumn }[]>();
+    const grouped = groupByTable(report.ambiguous_columns, (c) => c.column.relation);
+    const result = new Map<string, { key: string; item: AmbiguityContext }[]>();
     for (const [table, items] of grouped) {
       result.set(
         table,
-        items.map((c) => ({ key: columnKey(c.table, c.column), item: c })),
+        items.map((c) => ({
+          key: columnKey(c.column.relation, c.column.column),
+          item: c,
+        })),
       );
     }
     return result;
@@ -380,9 +383,9 @@ export function AnalysisReviewSection({
       const updates: Record<string, string> = {};
       for (const e of items) {
         if (!clarifications[e.key]?.trim()) {
-          const col = e.item as AmbiguousColumn;
-          updates[e.key] = col.repo_suggestion
-            ? col.repo_suggestion.suggested_values
+          const col = e.item as AmbiguityContext;
+          updates[e.key] = col.repo_hint
+            ? col.repo_hint.suggested_values
             : inferClarification(col, t);
         }
       }
@@ -427,10 +430,10 @@ export function AnalysisReviewSection({
     if (report.ambiguous_columns.length > 0) {
       const newClar: Record<string, string> = {};
       for (const column of report.ambiguous_columns) {
-        const key = columnKey(column.table, column.column);
+        const key = columnKey(column.column.relation, column.column.column);
         if (!clarifications[key]?.trim()) {
-          if (column.repo_suggestion) {
-            newClar[key] = column.repo_suggestion.suggested_values;
+          if (column.repo_hint) {
+            newClar[key] = column.repo_hint.suggested_values;
           } else {
             newClar[key] = inferClarification(column, t);
           }
@@ -726,20 +729,26 @@ export function AnalysisReviewSection({
             ) : null;
           }}
           renderItem={(entry) => {
-            const column = entry.item as AmbiguousColumn;
+            const column = entry.item as AmbiguityContext;
             return (
               <div className="rounded border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950/60">
                 <p className="text-[10px] font-medium text-zinc-700 dark:text-zinc-200">
-                  {t("clarificationRowHeader", { table: column.table, column: column.column })}
+                  {t("clarificationRowHeader", {
+                    table: column.column.relation,
+                    column: column.column.column,
+                  })}
                 </p>
                 <p className="text-[10px] text-muted-foreground">{column.clarification_prompt}</p>
-                {column.repo_suggestion && (
+                {column.repo_hint && (
                   <div className="mt-0.5 flex items-center gap-1.5">
-                    <span className="text-[10px] text-emerald-600">{column.repo_suggestion.suggested_values}</span>
+                    <span className="text-[10px] text-emerald-600">{column.repo_hint.suggested_values}</span>
                     {!clarifications[entry.key]?.trim() && (
                       <button
                         onClick={() =>
-                          setClarifications((c) => ({ ...c, [entry.key]: column.repo_suggestion!.suggested_values }))
+                          setClarifications((c) => ({
+                            ...c,
+                            [entry.key]: column.repo_hint!.suggested_values,
+                          }))
                         }
                         className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 hover:bg-emerald-200"
                       >

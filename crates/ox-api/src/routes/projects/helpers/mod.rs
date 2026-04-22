@@ -7,7 +7,7 @@ mod source;
 
 use uuid::Uuid;
 
-use ox_core::design_project::DesignProjectStatus;
+use ox_ontology::design_project::DesignProjectStatus;
 use ox_store::DesignProject;
 
 use crate::error::AppError;
@@ -32,7 +32,7 @@ pub(crate) use self::source::analyze_source;
 /// Extract `DesignOptions` from a project's JSON field, falling back to defaults.
 pub(crate) fn get_design_options(
     project: &ox_store::DesignProject,
-) -> ox_core::source_analysis::DesignOptions {
+) -> ox_ontology::source_analysis::DesignOptions {
     serde_json::from_value(project.design_options.clone()).unwrap_or_default()
 }
 
@@ -71,4 +71,16 @@ pub(crate) async fn reload_project(state: &AppState, id: Uuid) -> Result<DesignP
         .await
         .map_err(AppError::from)?
         .ok_or_else(AppError::project_not_found)
+}
+
+/// Pick the next ontology version tag after `previous`. Integer-only
+/// deployments bump the counter by one; everything else falls back to
+/// `{previous}+<epoch>` so the TEXT column stays unique without forcing
+/// a semver parser on callers. Shared between the design-lifecycle
+/// completion flow and ad-hoc schema-ops paths (enrichment, etc).
+pub(crate) fn next_ontology_version_tag(previous: &str) -> String {
+    match previous.parse::<u64>() {
+        Ok(n) => (n + 1).to_string(),
+        Err(_) => format!("{previous}+{}", chrono::Utc::now().timestamp()),
+    }
 }

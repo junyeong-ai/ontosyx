@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Alert } from "@/components/ui/alert";
 import { WidgetWithToolbar } from "@/components/widgets/widget-toolbar";
+import { ResponseBasis } from "@/components/widgets/response-basis";
 import { rawQuery } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import type { QueryResult } from "@/types/api";
@@ -110,15 +111,18 @@ export function QueryPanel() {
           )}
 
           {result && result.rows?.length > 0 && (
-            <WidgetWithToolbar
-              spec={{ widget: "table" }}
-              data={result}
-            />
+            <div className="space-y-3">
+              <WidgetWithToolbar spec={{ widget: "table" }} data={result} />
+              <ResponseBasis provenance={result.metadata?.provenance} warnings={result.metadata?.warnings} />
+            </div>
           )}
           {result && result.rows?.length === 0 && (
-            <p className="py-4 text-center text-sm text-muted-foreground">
-              {t("noRows")}
-            </p>
+            <div className="space-y-3">
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                {t("noRows")}
+              </p>
+              <ResponseBasis provenance={result.metadata?.provenance} warnings={result.metadata?.warnings} />
+            </div>
           )}
 
           {!result && !error && (

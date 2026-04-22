@@ -74,12 +74,12 @@ export function KeyboardShortcutsDialog() {
           <div className="space-y-1.5">
             {SHORTCUTS.map((s) => (
               <div key={s.keys} className="flex items-center justify-between">
-                <span className="text-xs text-zinc-600 dark:text-zinc-400">{s.description}</span>
-                <kbd className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-[10px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">{s.keys}</kbd>
+                <span className="text-xs text-zinc-600 dark:text-muted-foreground">{s.description}</span>
+                <kbd className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-[10px] text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground">{s.keys}</kbd>
               </div>
             ))}
           </div>
-          <p className="mt-3 text-center text-[10px] text-zinc-400">Press ⌘/ to toggle this dialog</p>
+          <p className="mt-3 text-center text-[10px] text-muted-foreground">Press ⌘/ to toggle this dialog</p>
         </div>
       </div>
     </FocusTrap>

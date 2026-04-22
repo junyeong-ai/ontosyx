@@ -10,7 +10,7 @@ use tokio::time::{Instant, timeout};
 use tracing::{info, warn};
 
 use ox_core::error::{OxError, OxResult};
-use ox_core::ontology_ir::OntologyIR;
+use ox_ontology::ir::OntologyIR;
 use ox_core::types::{PropertyValue, escape_cypher_identifier};
 
 use crate::GraphRuntime;
@@ -58,7 +58,7 @@ impl ProfileConfig {
     /// - Small (≤100 entities): concurrency 8, full samples — fast profiling for common case
     /// - Large (>100 entities): concurrency 4, reduced samples — protect Neo4j under load
     pub fn for_ontology_size(node_count: usize) -> Self {
-        use ox_core::source_analysis::LARGE_ONTOLOGY_THRESHOLD;
+        use ox_ontology::source_analysis::LARGE_ONTOLOGY_THRESHOLD;
         if node_count >= LARGE_ONTOLOGY_THRESHOLD {
             Self {
                 query_timeout: Duration::from_secs(10),
@@ -246,7 +246,7 @@ async fn next_bounded<T>(
     Some(result)
 }
 
-fn property_names(props: &[ox_core::ontology_ir::PropertyDef]) -> Vec<String> {
+fn property_names(props: &[ox_ontology::ir::PropertyDef]) -> Vec<String> {
     props.iter().map(|p| p.name.to_string()).collect()
 }
 
@@ -434,7 +434,7 @@ async fn timed_query(
     runtime: &dyn GraphRuntime,
     cypher: &str,
     deadline: Duration,
-) -> OxResult<ox_core::query_ir::QueryResult> {
+) -> OxResult<ox_query_ir::query::QueryResult> {
     let empty_params: HashMap<String, PropertyValue> = HashMap::new();
     timeout(deadline, runtime.execute_query(cypher, &empty_params))
         .await
@@ -447,11 +447,11 @@ async fn timed_query(
 // Helpers — extract typed values from QueryResult
 // ---------------------------------------------------------------------------
 
-fn col_index(result: &ox_core::query_ir::QueryResult, name: &str) -> Option<usize> {
+fn col_index(result: &ox_query_ir::query::QueryResult, name: &str) -> Option<usize> {
     result.columns.iter().position(|c| c == name)
 }
 
-fn extract_u64(result: &ox_core::query_ir::QueryResult, col: &str) -> Option<u64> {
+fn extract_u64(result: &ox_query_ir::query::QueryResult, col: &str) -> Option<u64> {
     let idx = col_index(result, col)?;
     let row = result.rows.first()?;
     let val = row.get(idx)?;
@@ -462,7 +462,7 @@ fn extract_u64(result: &ox_core::query_ir::QueryResult, col: &str) -> Option<u64
     }
 }
 
-fn extract_f64(result: &ox_core::query_ir::QueryResult, col: &str) -> Option<f64> {
+fn extract_f64(result: &ox_query_ir::query::QueryResult, col: &str) -> Option<f64> {
     let idx = col_index(result, col)?;
     let row = result.rows.first()?;
     let val = row.get(idx)?;
@@ -473,7 +473,7 @@ fn extract_f64(result: &ox_core::query_ir::QueryResult, col: &str) -> Option<f64
     }
 }
 
-fn extract_string(result: &ox_core::query_ir::QueryResult, col: &str) -> Option<String> {
+fn extract_string(result: &ox_query_ir::query::QueryResult, col: &str) -> Option<String> {
     let idx = col_index(result, col)?;
     let row = result.rows.first()?;
     let val = row.get(idx)?;
@@ -484,7 +484,7 @@ fn extract_string(result: &ox_core::query_ir::QueryResult, col: &str) -> Option<
     }
 }
 
-fn extract_string_list(result: &ox_core::query_ir::QueryResult, col: &str) -> Vec<String> {
+fn extract_string_list(result: &ox_query_ir::query::QueryResult, col: &str) -> Vec<String> {
     let Some(idx) = col_index(result, col) else {
         return Vec::new();
     };

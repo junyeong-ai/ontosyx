@@ -6,9 +6,12 @@
  * UI doesn't jump when the real content swaps in.
  */
 
+import { getTranslations } from "next-intl/server";
 import { Spinner } from "@/components/ui/spinner";
 
-export default function RootLoading() {
+export default async function RootLoading() {
+  const t = await getTranslations("loading");
+
   return (
     <div className="flex h-dvh overflow-hidden bg-zinc-50 dark:bg-zinc-950">
       {/* Sidebar skeleton */}
@@ -22,7 +25,9 @@ export default function RootLoading() {
         <main className="relative flex-1 overflow-hidden">
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
             <Spinner size="md" className="text-emerald-500" />
-            <p className="text-xs text-zinc-400">불러오는 중… (Loading)</p>
+            <p className="text-xs text-muted-foreground" aria-label={t("messageAria")}>
+              {t("message")}
+            </p>
           </div>
         </main>
       </div>

@@ -4,9 +4,12 @@ description = "Ontosyx graph DB runtime drivers and sample data loader"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+publish.workspace = true
 
 [dependencies]
 ox-core = { workspace = true }
+ox-ontology = { workspace = true }
+ox-query-ir = { workspace = true }
 ox-compiler = { workspace = true }
 neo4rs = { workspace = true }
 tokio = { workspace = true }

@@ -9,6 +9,14 @@ BEGIN
 END
 $$;
 
+-- Required Postgres extensions used by migrations 0001+:
+--   vector  — pgvector (embedding columns on knowledge / memory tables)
+--   pg_trgm — trigram indexes for fuzzy search
+-- Must be created as the superuser (POSTGRES_USER) before the app user
+-- opens its first connection, since migrations run as `ontosyx_app`.
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
 -- Grant full access to public schema objects
 GRANT ALL ON ALL TABLES IN SCHEMA public TO ontosyx_app;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO ontosyx_app;

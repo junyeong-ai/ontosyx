@@ -4,7 +4,7 @@ use serde::Serialize;
 use tracing::warn;
 use uuid::Uuid;
 
-use ox_core::{OntologyDiff, OntologyIR, compute_diff};
+use ox_ontology::{OntologyDiff, OntologyIR, compute_diff};
 use ox_store::{DesignProject, OntologySnapshot, OntologySnapshotSummary};
 
 use crate::error::AppError;

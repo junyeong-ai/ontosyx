@@ -78,7 +78,7 @@ export function PromptProvider({ children }: { children: React.ReactNode }) {
               {options.title}
             </Dialog.Title>
             {options.description && (
-              <Dialog.Description className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+              <Dialog.Description className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-muted-foreground">
                 {options.description}
               </Dialog.Description>
             )}
@@ -98,7 +98,7 @@ export function PromptProvider({ children }: { children: React.ReactNode }) {
             />
             <div className="mt-6 flex justify-end gap-2">
               <Dialog.Close
-                className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-muted-foreground dark:hover:bg-zinc-800"
                 onClick={handleCancel}
               >
                 {options.cancelLabel ?? "Cancel"}

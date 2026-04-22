@@ -17,8 +17,9 @@ import type {
 export interface ChatStreamRequest {
   message: string;
   ontology: OntologyIR;
-  /** When querying against a saved ontology, pass its UUID to avoid redundant snapshot storage */
-  saved_ontology_id?: string;
+  /** Identity uuid (`ontologies.id`) to pin this session to. Omit for
+   *  ad-hoc sessions against a draft IR that hasn't been committed yet. */
+  ontology_id?: string;
   /** Active project ID for edit operations */
   project_id?: string;
   /** Current project revision (required for edit operations) */
@@ -58,10 +59,11 @@ export interface PinCreateRequest {
 
 export interface QueryRawRequest {
   query: string;
-  /** Optional saved-ontology id. When provided the backend's OntologyValidator
-   *  rejects unknown labels / relationship types / properties before the
-   *  query hits the driver. Omit to run with safety + workspace-scope only. */
-  saved_ontology_id?: string;
+  /** Optional ontology identity id. When provided the backend's
+   *  OntologyValidator rejects unknown labels / relationship types /
+   *  properties before the query hits the driver. Omit to run with
+   *  safety + workspace-scope only. */
+  ontology_id?: string;
 }
 
 // --- Query Execution (returned by GET /api/query/history/:id) ---
@@ -72,9 +74,11 @@ export interface QueryExecution {
   question: string;
   ontology_lineage_id: string;
   ontology_version: number;
-  saved_ontology_id: string | null;
-  /** Resolved ontology snapshot (inline or via saved_ontology JOIN) */
-  ontology_snapshot: OntologyIR;
+  ontology_id: string | null;
+  /** Resolved ontology snapshot. Inline when the execution was a draft
+   *  (`ontology_id` null); otherwise `null` — the caller resolves the
+   *  hydrated IR via `OntologyVersionStore` using `ontology_id` + `created_at`. */
+  ontology_snapshot: OntologyIR | null;
   query_ir: QueryIR;
   compiled_target: string;
   compiled_query: string;

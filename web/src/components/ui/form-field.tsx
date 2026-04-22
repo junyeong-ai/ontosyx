@@ -38,7 +38,7 @@ export function FormField({
 }: FormFieldProps) {
   return (
     <label className={cn("block space-y-1", className)}>
-      <span className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+      <span className="block text-xs font-medium text-zinc-600 dark:text-muted-foreground">
         {label}
         {required && (
           <span className="ml-0.5 text-red-500" aria-label="required">*</span>
@@ -54,7 +54,7 @@ export function FormField({
         </span>
       )}
       {hint && !error && (
-        <span className="block text-[11px] text-zinc-400">{hint}</span>
+        <span className="block text-[11px] text-muted-foreground">{hint}</span>
       )}
     </label>
   );

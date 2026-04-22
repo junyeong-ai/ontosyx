@@ -4,7 +4,7 @@ import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowDown01Icon, ArrowRight01Icon, Search01Icon } from "@hugeicons/core-free-icons";
-import { useAppStore, selectSelectedNodeId, selectSelectedEdgeId } from "@/lib/store";
+import { useAppStore, selectStateSelectedNodeId, selectStateSelectedEdgeId } from "@/lib/store";
 import { cn } from "@/lib/cn";
 import { Tooltip } from "@/components/ui/tooltip";
 import type { QualityGap, NodeTypeDef, EdgeTypeDef } from "@/types/api";
@@ -166,8 +166,8 @@ const EdgeItem = memo(function EdgeItem({
 
 export function ExplorerPanel({ gaps }: { gaps: QualityGap[] }) {
   const ontology = useAppStore((s) => s.ontology);
-  const selectedNodeId = useAppStore(selectSelectedNodeId);
-  const selectedEdgeId = useAppStore(selectSelectedEdgeId);
+  const selectedNodeId = useAppStore(selectStateSelectedNodeId);
+  const selectedEdgeId = useAppStore(selectStateSelectedEdgeId);
   const select = useAppStore((s) => s.select);
   const setDesignBottomTab = useAppStore((s) => s.setDesignBottomTab);
 
