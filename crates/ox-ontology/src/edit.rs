@@ -160,6 +160,29 @@ pub enum OntologyEditOp {
         id: ValueSetId,
     },
 
+    // --- Type deprecation ---
+    //
+    // Emitted when an admin approves a `StaleConceptProposal` (Phase
+    // 4.7). The handler writes `deprecated_at = now()` plus an
+    // optional `replaced_by_id` on the target type; downstream tools
+    // treat the timestamp as a soft-delete marker, so queries
+    // against historical data still resolve labels.
+    /// Mark a NodeType as deprecated. Stamps `deprecated_at` with
+    /// the current UTC time; `replaced_by_id`, when present,
+    /// records the successor so temporal queries can chain through.
+    DeprecateNodeType {
+        id: NodeTypeId,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        replaced_by_id: Option<NodeTypeId>,
+    },
+    /// Mark an EdgeType as deprecated. Same shape as the node-type
+    /// variant.
+    DeprecateEdgeType {
+        id: EdgeTypeId,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        replaced_by_id: Option<EdgeTypeId>,
+    },
+
     // --- Property → registry bindings ---
     //
     // These variants write single-field pointers on PropertyDef
@@ -247,6 +270,14 @@ impl OntologyEditOp {
             Self::BindPropertyToTerm { .. }
             | Self::BindPropertyToValueSet { .. }
             | Self::BindPropertyToNotationPattern { .. } => ChangeType::GlossaryAliasAdd,
+
+            // Type deprecation is the exact matrix row for
+            // `StaleConceptDeprecate` — 95% auto, which fits because
+            // the proposal layer already did HITL review; this is
+            // the mechanical write-back.
+            Self::DeprecateNodeType { .. } | Self::DeprecateEdgeType { .. } => {
+                ChangeType::StaleConceptDeprecate
+            }
         }
     }
 
@@ -502,6 +533,29 @@ impl OntologyEditOp {
             } => mutate_property(ir, &owner, &property_id, |p| {
                 p.notation_pattern_id = notation_pattern_id;
             }),
+
+            Self::DeprecateNodeType { id, replaced_by_id } => {
+                let now = chrono::Utc::now();
+                let node = ir
+                    .node_types_mut()
+                    .iter_mut()
+                    .find(|n| n.id == id)
+                    .ok_or_else(|| format!("node_type `{}` not found", id.as_str()))?;
+                node.deprecated_at = Some(now);
+                node.replaced_by_id = replaced_by_id;
+                Ok(())
+            }
+            Self::DeprecateEdgeType { id, replaced_by_id } => {
+                let now = chrono::Utc::now();
+                let edge = ir
+                    .edge_types_mut()
+                    .iter_mut()
+                    .find(|e| e.id == id)
+                    .ok_or_else(|| format!("edge_type `{}` not found", id.as_str()))?;
+                edge.deprecated_at = Some(now);
+                edge.replaced_by_id = replaced_by_id;
+                Ok(())
+            }
         }
     }
 }
@@ -859,6 +913,86 @@ mod tests {
         .apply_to(&mut ir)
         .unwrap_err();
         assert!(err.contains("property `p-missing` not found"));
+    }
+
+    // ------------------------------------------------------------------
+    // Type-deprecation ops (Phase 4.7 follow-up).
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn deprecate_node_type_stamps_timestamp_and_replacement() {
+        let mut ir = sample_ir_with_property();
+        let before = chrono::Utc::now();
+        OntologyEditOp::DeprecateNodeType {
+            id: NodeTypeId::new("Customer"),
+            replaced_by_id: Some(NodeTypeId::new("CustomerV2")),
+        }
+        .apply_to(&mut ir)
+        .unwrap();
+        let node = &ir.node_types()[0];
+        let ts = node.deprecated_at.expect("deprecated_at set");
+        assert!(ts >= before);
+        assert_eq!(
+            node.replaced_by_id.as_ref().unwrap().as_str(),
+            "CustomerV2"
+        );
+    }
+
+    #[test]
+    fn deprecate_node_type_without_replacement_still_sets_timestamp() {
+        let mut ir = sample_ir_with_property();
+        OntologyEditOp::DeprecateNodeType {
+            id: NodeTypeId::new("Customer"),
+            replaced_by_id: None,
+        }
+        .apply_to(&mut ir)
+        .unwrap();
+        let node = &ir.node_types()[0];
+        assert!(node.deprecated_at.is_some());
+        assert!(node.replaced_by_id.is_none());
+    }
+
+    #[test]
+    fn deprecate_missing_node_type_surfaces_error() {
+        let mut ir = sample_ir_with_property();
+        let err = OntologyEditOp::DeprecateNodeType {
+            id: NodeTypeId::new("Missing"),
+            replaced_by_id: None,
+        }
+        .apply_to(&mut ir)
+        .unwrap_err();
+        assert!(err.contains("node_type `Missing` not found"));
+    }
+
+    #[test]
+    fn deprecate_type_classifies_as_stale_concept_deprecate() {
+        assert_eq!(
+            OntologyEditOp::DeprecateNodeType {
+                id: NodeTypeId::new("Customer"),
+                replaced_by_id: None,
+            }
+            .classify_change_type(),
+            ChangeType::StaleConceptDeprecate,
+        );
+        assert_eq!(
+            OntologyEditOp::DeprecateEdgeType {
+                id: EdgeTypeId::new("OWNS"),
+                replaced_by_id: None,
+            }
+            .classify_change_type(),
+            ChangeType::StaleConceptDeprecate,
+        );
+    }
+
+    #[test]
+    fn deprecate_node_type_wire_format_is_snake_case() {
+        let op = OntologyEditOp::DeprecateNodeType {
+            id: NodeTypeId::new("Customer"),
+            replaced_by_id: Some(NodeTypeId::new("CustomerV2")),
+        };
+        let j = serde_json::to_string(&op).unwrap();
+        assert!(j.contains("\"op\":\"deprecate_node_type\""));
+        assert!(j.contains("\"replaced_by_id\":\"CustomerV2\""));
     }
 
     #[test]

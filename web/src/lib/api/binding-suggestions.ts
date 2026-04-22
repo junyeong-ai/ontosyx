@@ -136,6 +136,16 @@ export type BindingEditOp =
       owner: PropertyOwnerPath;
       property_id: string;
       notation_pattern_id: string | null;
+    }
+  | {
+      op: "deprecate_node_type";
+      id: string;
+      replaced_by_id?: string | null;
+    }
+  | {
+      op: "deprecate_edge_type";
+      id: string;
+      replaced_by_id?: string | null;
     };
 
 export interface OntologyEditRequest {
