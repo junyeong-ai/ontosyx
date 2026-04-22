@@ -372,6 +372,7 @@
         "governance": "거버넌스",
         "qualityRules": "품질 규칙",
         "qualitySignals": "품질 지표",
+        "ambiguity": "모호성 해결",
         "accessControl": "접근 제어",
         "dataLineage": "데이터 계보",
         "auditLog": "감사 로그",
@@ -1286,6 +1287,79 @@
       "deleteConfirm": {
         "title": "품질 규칙 '{name}'을(를) 삭제하시겠습니까?",
         "description": "이 작업은 되돌릴 수 없으며 규칙과 평가 이력이 영구적으로 제거됩니다."
+      }
+    },
+    "ambiguity": {
+      "title": "모호성 해결",
+      "subtitle": "스키마만으로 값의 의미를 해석할 수 없는 컬럼은 '모호성 컨텍스트'로 감지됩니다. 각 컨텍스트를 CodeSystem·용어·값 매핑 중 하나로 해결하세요.",
+      "tabsLabel": "상태 필터",
+      "loading": "불러오는 중…",
+      "tabs": {
+        "pending": "해결 필요",
+        "stale": "스테일 (재검증)",
+        "resolved": "해결됨"
+      },
+      "empty": {
+        "pending": "해결이 필요한 항목이 없습니다. 모든 컨텍스트에 최신 결정이 연결되어 있습니다.",
+        "stale": "스테일 결정이 없습니다. 모든 활성 결정이 컨텍스트 해시와 일치합니다.",
+        "resolved": "해결된 모호성이 아직 없습니다."
+      },
+      "columns": {
+        "source": "소스",
+        "column": "컬럼",
+        "kind": "유형",
+        "mapping": "매핑",
+        "detected": "감지일",
+        "actions": "작업"
+      },
+      "kind": {
+        "numeric_code": "숫자 코드",
+        "opaque_short_code": "축약 코드",
+        "overloaded_name": "중의적 이름"
+      },
+      "mappingBadge": {
+        "valueMap": "값 매핑 ({count}개)"
+      },
+      "actions": {
+        "resolve": "해결",
+        "edit": "편집",
+        "revoke": "취소"
+      },
+      "toast": {
+        "resolved": "결정이 저장되었습니다",
+        "resolveFailed": "결정 저장에 실패했습니다",
+        "revoked": "결정이 취소되었습니다",
+        "revokeFailed": "취소에 실패했습니다"
+      },
+      "modal": {
+        "title": "{relation}.{column} 해결",
+        "modeLabel": "해결 방식",
+        "mode": {
+          "value_map": "값 매핑",
+          "code_system_ref": "코드 시스템",
+          "glossary_ref": "용어"
+        },
+        "valueHeader": "원시 값",
+        "displayHeader": "표시",
+        "definitionHeader": "정의 (선택)",
+        "valueInput": "{index}행 원시 값",
+        "displayInput": "{index}행 표시 라벨",
+        "definitionInput": "{index}행 정의",
+        "removeRow": "{index}행 삭제",
+        "addRow": "값 추가",
+        "codeSystemIdLabel": "코드 시스템 ID",
+        "codeSystemHint": "온톨로지에 존재하는 CodeSystemDef를 참조해야 합니다.",
+        "termIdLabel": "용어 ID",
+        "termHint": "온톨로지에 존재하는 GlossaryTermDef를 참조해야 합니다.",
+        "repoHintLabel": "저장소 힌트 — 소스 코드에서 감지됨",
+        "cancel": "취소",
+        "save": "결정 저장",
+        "saving": "저장 중…",
+        "errors": {
+          "valueMapEmpty": "값 → 표시 쌍을 하나 이상 추가하세요",
+          "codeSystemRequired": "코드 시스템 ID가 필요합니다",
+          "termRequired": "용어 ID가 필요합니다"
+        }
       }
     },
     "qualitySignals": {

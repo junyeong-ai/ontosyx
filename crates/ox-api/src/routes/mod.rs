@@ -7,6 +7,7 @@ use crate::middleware::{require_auth, workspace_context};
 use crate::state::AppState;
 
 pub mod acl;
+pub mod ambiguity;
 pub mod approvals;
 pub mod audit;
 pub mod auth;
@@ -383,6 +384,17 @@ pub fn router(state: AppState) -> Router {
         .route("/quality/rules/{id}/results", get(quality::rule_results))
         .route("/quality/rules/{id}/execute", post(quality::execute_rule))
         .route("/quality/execute-all", post(quality::execute_all_rules))
+        // Ambiguity admin — closed-loop resolver surface
+        .route("/ambiguities", get(ambiguity::list_ambiguities))
+        .route("/ambiguities/{id}", get(ambiguity::get_ambiguity))
+        .route(
+            "/ambiguities/{id}/resolve",
+            post(ambiguity::resolve_ambiguity),
+        )
+        .route(
+            "/ambiguities/{id}/revoke",
+            post(ambiguity::revoke_ambiguity),
+        )
         // Notification channels
         .route(
             "/notifications/channels",

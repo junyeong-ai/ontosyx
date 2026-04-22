@@ -1450,6 +1450,14 @@ pub trait AmbiguityStore: Send + Sync {
         source_id: &ox_ontology::mapping::refs::SourceId,
     ) -> OxResult<Vec<ox_ontology::ambiguity::AmbiguityContext>>;
 
+    /// List every context visible in the current workspace (RLS
+    /// bounded). Backs the admin `/settings/ambiguity` dashboard,
+    /// which can't scope by source_id because it shows all pending
+    /// ambiguities across data sources at once.
+    async fn list_ambiguity_contexts_in_workspace(
+        &self,
+    ) -> OxResult<Vec<ox_ontology::ambiguity::AmbiguityContext>>;
+
     async fn get_ambiguity_context(
         &self,
         id: &ox_ontology::ambiguity::AmbiguityId,

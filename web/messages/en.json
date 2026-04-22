@@ -372,6 +372,7 @@
         "governance": "Governance",
         "qualityRules": "Quality Rules",
         "qualitySignals": "Quality Signals",
+        "ambiguity": "Ambiguity",
         "accessControl": "Access Control",
         "dataLineage": "Data Lineage",
         "auditLog": "Audit Log",
@@ -1286,6 +1287,79 @@
       "deleteConfirm": {
         "title": "Delete quality rule '{name}'?",
         "description": "This action cannot be undone. The rule and its evaluation history will be permanently removed."
+      }
+    },
+    "ambiguity": {
+      "title": "Ambiguity Resolution",
+      "subtitle": "Columns whose values cannot be interpreted from schema alone become 'ambiguity contexts'. Resolve each one by mapping the values to a CodeSystem, a Glossary term, or an inline value map.",
+      "tabsLabel": "Status filter",
+      "loading": "Loading…",
+      "tabs": {
+        "pending": "Needs attention",
+        "stale": "Stale (re-check)",
+        "resolved": "Resolved"
+      },
+      "empty": {
+        "pending": "Nothing to resolve — every ambiguous column has an up-to-date resolution.",
+        "stale": "No stale resolutions — every active resolution matches its context hash.",
+        "resolved": "No resolved ambiguities yet."
+      },
+      "columns": {
+        "source": "Source",
+        "column": "Column",
+        "kind": "Kind",
+        "mapping": "Mapping",
+        "detected": "Detected",
+        "actions": "Actions"
+      },
+      "kind": {
+        "numeric_code": "Numeric code",
+        "opaque_short_code": "Short code",
+        "overloaded_name": "Overloaded name"
+      },
+      "mappingBadge": {
+        "valueMap": "Value map ({count})"
+      },
+      "actions": {
+        "resolve": "Resolve",
+        "edit": "Edit",
+        "revoke": "Revoke"
+      },
+      "toast": {
+        "resolved": "Resolution saved",
+        "resolveFailed": "Failed to save resolution",
+        "revoked": "Resolution revoked",
+        "revokeFailed": "Failed to revoke"
+      },
+      "modal": {
+        "title": "Resolve {relation}.{column}",
+        "modeLabel": "Resolution type",
+        "mode": {
+          "value_map": "Value map",
+          "code_system_ref": "Code system",
+          "glossary_ref": "Glossary term"
+        },
+        "valueHeader": "Raw value",
+        "displayHeader": "Display",
+        "definitionHeader": "Definition (optional)",
+        "valueInput": "Raw value row {index}",
+        "displayInput": "Display label row {index}",
+        "definitionInput": "Definition row {index}",
+        "removeRow": "Remove row {index}",
+        "addRow": "Add value",
+        "codeSystemIdLabel": "Code system id",
+        "codeSystemHint": "Must reference an existing CodeSystemDef in the ontology.",
+        "termIdLabel": "Glossary term id",
+        "termHint": "Must reference an existing GlossaryTermDef in the ontology.",
+        "repoHintLabel": "Repo hint — detected in source",
+        "cancel": "Cancel",
+        "save": "Save resolution",
+        "saving": "Saving…",
+        "errors": {
+          "valueMapEmpty": "Add at least one value → display pair",
+          "codeSystemRequired": "Code system id is required",
+          "termRequired": "Glossary term id is required"
+        }
       }
     },
     "qualitySignals": {

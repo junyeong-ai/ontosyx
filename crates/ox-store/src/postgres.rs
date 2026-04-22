@@ -6733,6 +6733,25 @@ impl AmbiguityStore for PostgresStore {
         rows.iter().map(ambiguity_context_from_row).collect()
     }
 
+    async fn list_ambiguity_contexts_in_workspace(
+        &self,
+    ) -> OxResult<Vec<ox_ontology::ambiguity::AmbiguityContext>> {
+        // RLS narrows the rows to the current workspace; the query
+        // itself carries no workspace bind so the admin dashboard
+        // and agent code-paths share one SQL.
+        let rows = sqlx::query(
+            "SELECT id::text AS id, source_id, relation, column_name, kind, sample_values, \
+             distinct_estimate, nullable, clarification_prompt, detection_source_hash, \
+             repo_hint, detected_at \
+             FROM ambiguity_contexts \
+             ORDER BY detected_at DESC",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        rows.iter().map(ambiguity_context_from_row).collect()
+    }
+
     async fn get_ambiguity_context(
         &self,
         id: &ox_ontology::ambiguity::AmbiguityId,
