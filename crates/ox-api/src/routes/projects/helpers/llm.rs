@@ -1,12 +1,12 @@
 use std::collections::{HashMap, HashSet};
 
-use ox_core::design_project::{SourceConfig, SourceTypeKind};
-use ox_core::ontology_input::OntologyInputIR;
-use ox_core::source_analysis::{
+use ox_ontology::design_project::{SourceConfig, SourceTypeKind};
+use ox_ontology::input::InputOntologyDef;
+use ox_ontology::source_analysis::{
     AnalysisWarning, DesignOptions, ENUM_CARDINALITY_THRESHOLD, PiiDecision, SourceAnalysisReport,
 };
 use ox_core::source_schema::{ForeignKeyDef, SourceProfile, SourceSchema};
-use ox_core::table_clustering::TableCluster;
+use ox_ontology::table_clustering::TableCluster;
 use ox_source::analyzer::apply_pii_masking;
 use ox_store::DesignProject;
 
@@ -510,7 +510,7 @@ pub(crate) fn build_batch_llm_input(
 
 /// Format existing nodes from previous batches for the batch prompt.
 /// Compact format: `NodeLabel (source_table)` — no descriptions to save tokens.
-pub(crate) fn format_existing_nodes(previous_batches: &[OntologyInputIR]) -> String {
+pub(crate) fn format_existing_nodes(previous_batches: &[InputOntologyDef]) -> String {
     if previous_batches.is_empty() {
         return "(none — this is the first batch)".to_string();
     }
@@ -534,7 +534,7 @@ pub(crate) fn format_existing_nodes(previous_batches: &[OntologyInputIR]) -> Str
 pub(crate) fn format_cross_fks(
     cross_fks: &[ForeignKeyDef],
     cluster: &TableCluster,
-    previous_batches: &[OntologyInputIR],
+    previous_batches: &[InputOntologyDef],
 ) -> String {
     if cross_fks.is_empty() {
         return "(none)".to_string();
@@ -584,13 +584,13 @@ pub(crate) fn format_cross_fks(
     }
 }
 
-/// Merge multiple batch OntologyInputIR results into a single InputIR.
+/// Merge multiple batch InputOntologyDef results into a single InputIR.
 /// Deduplicates by label (nodes) and (label, source_type, target_type) (edges).
 pub(crate) fn merge_input_irs(
-    batches: Vec<OntologyInputIR>,
+    batches: Vec<InputOntologyDef>,
     name: &str,
     description: Option<&str>,
-) -> OntologyInputIR {
+) -> InputOntologyDef {
     let mut node_types = Vec::new();
     let mut edge_types = Vec::new();
     let mut indexes = Vec::new();
@@ -635,7 +635,7 @@ pub(crate) fn merge_input_irs(
         }
     }
 
-    OntologyInputIR {
+    InputOntologyDef {
         format_version: 1,
         id: None,
         name: name.to_string(),
@@ -649,7 +649,7 @@ pub(crate) fn merge_input_irs(
 
 /// Find cross-cluster FKs not covered by any edge in the merged InputIR.
 pub(crate) fn find_uncovered_cross_fks(
-    merged: &OntologyInputIR,
+    merged: &InputOntologyDef,
     all_cross_fks: &[ForeignKeyDef],
 ) -> Vec<ForeignKeyDef> {
     // Build source_table → node label mapping
@@ -688,7 +688,7 @@ pub(crate) fn find_uncovered_cross_fks(
 }
 
 /// Format all node labels for the edge resolution prompt.
-pub(crate) fn format_node_labels_for_resolution(merged: &OntologyInputIR) -> String {
+pub(crate) fn format_node_labels_for_resolution(merged: &InputOntologyDef) -> String {
     merged
         .node_types
         .iter()
@@ -705,7 +705,7 @@ pub(crate) fn format_node_labels_for_resolution(merged: &OntologyInputIR) -> Str
 }
 
 /// Format existing edges for the edge resolution prompt.
-pub(crate) fn format_existing_edges_for_resolution(merged: &OntologyInputIR) -> String {
+pub(crate) fn format_existing_edges_for_resolution(merged: &InputOntologyDef) -> String {
     merged
         .edge_types
         .iter()
@@ -717,7 +717,7 @@ pub(crate) fn format_existing_edges_for_resolution(merged: &OntologyInputIR) -> 
 /// Format uncovered FK relationships for the edge resolution prompt.
 pub(crate) fn format_uncovered_fks(
     uncovered: &[ForeignKeyDef],
-    merged: &OntologyInputIR,
+    merged: &InputOntologyDef,
 ) -> String {
     let table_to_label: HashMap<&str, &str> = merged
         .node_types
@@ -1000,11 +1000,11 @@ mod tests {
         name: &str,
         nodes: Vec<(&str, Option<&str>)>,
         edges: Vec<(&str, &str, &str)>,
-    ) -> OntologyInputIR {
-        use ox_core::ontology_input::{InputEdgeTypeDef, InputNodeTypeDef, InputPropertyDef};
-        use ox_core::ontology_ir::Cardinality;
+    ) -> InputOntologyDef {
+        use ox_ontology::input::{InputEdgeTypeDef, InputNodeTypeDef, InputPropertyDef};
+        use ox_ontology::ir::Cardinality;
 
-        OntologyInputIR {
+        InputOntologyDef {
             format_version: 1,
             id: None,
             name: name.to_string(),

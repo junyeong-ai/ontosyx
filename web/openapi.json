@@ -9,6 +9,413 @@
     "version": "1.0.0"
   },
   "paths": {
+    "/api/admin/federation/adapters": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "list_adapters",
+        "responses": {
+          "200": {
+            "description": "Registered federation adapters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdapterSummary"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin role required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "register_adapter",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterAdapterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Adapter registered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterAdapterResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid payload for the declared kind",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin role required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/admin/federation/adapters/preview": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "preview_adapter",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewAdapterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Preview of the adapter's schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewAdapterResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Adapter config failed to build",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin role required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/admin/federation/adapters/refresh": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "refresh_adapters",
+        "responses": {
+          "200": {
+            "description": "Workspace resolver rehydrated from the store",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefreshAdaptersResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin role required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/admin/federation/adapters/{source_id}": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "get_adapter",
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "path",
+            "description": "SourceId to look up",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Adapter detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdapterDetail"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin role required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No adapter registered for that source_id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "delete_adapter",
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "path",
+            "description": "SourceId to deregister",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Adapter removed"
+          },
+          "403": {
+            "description": "Admin role required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No adapter registered for that source_id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/admin/federation/health": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "federation_health",
+        "responses": {
+          "200": {
+            "description": "Federation health snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FederationHealthResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin role required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/api/admin/prompts": {
       "get": {
         "tags": [
@@ -573,11 +980,66 @@
         ],
         "responses": {
           "200": {
-            "description": "Paginated list of saved ontologies",
+            "description": "Paginated list of ontology identities",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontologies/{id}": {
+      "get": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "get_ontology_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Ontology identity ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ontology detail with hydrated IR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OntologyDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ontology not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
                 }
               }
             }
@@ -609,7 +1071,7 @@
         },
         "responses": {
           "200": {
-            "description": "OntologyInputIR exchange format",
+            "description": "InputOntologyDef exchange format",
             "content": {
               "application/json": {
                 "schema": {
@@ -910,7 +1372,7 @@
         ],
         "operationId": "normalize_ontology",
         "requestBody": {
-          "description": "OntologyInputIR to normalize",
+          "description": "InputOntologyDef to normalize",
           "content": {
             "application/json": {
               "schema": {
@@ -2857,6 +3319,77 @@
         ]
       }
     },
+    "/api/query/from-ir/federation": {
+      "post": {
+        "tags": [
+          "Query"
+        ],
+        "operationId": "execute_from_ir_federation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecuteFromIrRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Federation-executed query result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecuteFromIrResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing ontology_id or invalid QueryIR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Federation planning or execution failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/api/query/history": {
       "get": {
         "tags": [
@@ -2947,6 +3480,283 @@
             }
           }
         }
+      }
+    },
+    "/api/query/pattern/compile": {
+      "post": {
+        "tags": [
+          "Query"
+        ],
+        "operationId": "compile_pattern",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatternCompileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Compiled QueryIR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatternCompileResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/query/pattern/decompile": {
+      "post": {
+        "tags": [
+          "Query"
+        ],
+        "operationId": "decompile_pattern",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatternDecompileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Reconstructed PatternIR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatternDecompileResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/query/pattern/saved": {
+      "get": {
+        "tags": [
+          "Query"
+        ],
+        "operationId": "list_saved_patterns",
+        "parameters": [
+          {
+            "name": "ontology_lineage_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated saved patterns",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Query"
+        ],
+        "operationId": "create_saved_pattern",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSavedPatternRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Saved pattern created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedPatternResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Name already exists for (user, ontology)"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/query/pattern/saved/{id}": {
+      "get": {
+        "tags": [
+          "Query"
+        ],
+        "operationId": "get_saved_pattern",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Saved pattern ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Saved pattern",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedPatternResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Query"
+        ],
+        "operationId": "delete_saved_pattern",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Saved pattern ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Query"
+        ],
+        "operationId": "update_saved_pattern",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Saved pattern ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSavedPatternRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Updated"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
       }
     },
     "/api/query/raw": {
@@ -3059,6 +3869,146 @@
   },
   "components": {
     "schemas": {
+      "AdapterDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AdapterDetailKind",
+            "description": "Kind-specific body. The `kind` tag + the variant's fields\nappear flat at this struct's top level via `serde(flatten)`."
+          },
+          {
+            "type": "object",
+            "required": [
+              "source_id"
+            ],
+            "properties": {
+              "source_id": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "description": "Detail view of one registered adapter.\n\nWire shape matches [`RegisterAdapterRequest`] exactly, except\n`credential` is the redacted [`CredentialSource`] instead of\nthe raw [`Credential`]. This symmetry means admin clients can\nrender the GET result with the same form UI that drives POST —\nonly the credential field needs a \"re-enter inline value\"\naffordance (since the raw inline bytes are not echoed)."
+      },
+      "AdapterDetailKind": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "credential",
+              "kind"
+            ],
+            "properties": {
+              "credential": {
+                "$ref": "#/components/schemas/CredentialSource"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "csv"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "credential",
+              "kind"
+            ],
+            "properties": {
+              "credential": {
+                "$ref": "#/components/schemas/CredentialSource"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "json"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "credential",
+              "kind"
+            ],
+            "properties": {
+              "credential": {
+                "$ref": "#/components/schemas/CredentialSource"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "postgres"
+                ]
+              },
+              "schema_name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "credential",
+              "schema_name",
+              "kind"
+            ],
+            "properties": {
+              "credential": {
+                "$ref": "#/components/schemas/CredentialSource"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "mysql"
+                ]
+              },
+              "schema_name": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "credential",
+              "kind"
+            ],
+            "properties": {
+              "credential": {
+                "$ref": "#/components/schemas/CredentialSource"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "bigquery"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Per-kind detail body. Mirrors [`RegisterAdapterKind`] with\n[`CredentialSource`] in place of [`Credential`].\n\n`schema_name` appears on the variants that actually use it —\n`Option<String>` on `Postgres` (defaults to `\"public\"` at build\ntime), required `String` on `Mysql`, absent on the other three.\nThe old flat `Option<String>` field on `AdapterDetail` is gone;\ncsv / json / bigquery detail responses no longer carry a\nnullable `schema_name: null` that meant nothing.\n\nAdding a new adapter kind updates both this enum and\n`RegisterAdapterKind`. The `From<&RegisterAdapterKind>`\nconversion below uses an exhaustive `match` (no wildcard), so\nforgetting the new arm surfaces as a compile error — the two\nenums stay in lockstep."
+      },
+      "AdapterSummary": {
+        "type": "object",
+        "required": [
+          "source_id",
+          "source_type"
+        ],
+        "properties": {
+          "source_id": {
+            "type": "string"
+          },
+          "source_type": {
+            "type": "string"
+          }
+        }
+      },
       "ChatStreamRequest": {
         "type": "object",
         "required": [
@@ -3085,6 +4035,13 @@
           "ontology": {
             "type": "object"
           },
+          "ontology_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
           "project_id": {
             "type": [
               "string",
@@ -3098,13 +4055,6 @@
               "null"
             ],
             "format": "int32"
-          },
-          "saved_ontology_id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
           },
           "session_id": {
             "type": [
@@ -3189,6 +4139,146 @@
           }
         ]
       },
+      "CreateSavedPatternRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "ontology_lineage_id",
+          "pattern_ir"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional free-form note."
+          },
+          "name": {
+            "type": "string",
+            "description": "Unique name within (user, ontology) — UI uses it as a handle."
+          },
+          "ontology_lineage_id": {
+            "type": "string",
+            "description": "Ontology the pattern was built against. The saved pattern is tied\nto an ontology; reopening against a different ontology requires\nthe caller to decide how to reconcile unknown labels."
+          },
+          "pattern_ir": {
+            "type": "object",
+            "description": "The full PatternIR — nodes with positions, edges, filters, and\nlayout hints (zoom + pan). QueryIR is computed on demand from\n`pattern_ir.compile()` and does not need to be stored."
+          }
+        }
+      },
+      "Credential": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Raw value stored directly in the data_sources config JSONB.\nThe admin accepts responsibility for the confidentiality of\nthe persisted bytes (use `SecretRef` for credentials).",
+            "required": [
+              "value",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "inline"
+                ]
+              },
+              "value": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Opaque reference to an external secret store. The string's\nscheme (e.g. `env:`) selects the [`SecretResolver`] branch\nthat dereferences it.",
+            "required": [
+              "value",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "secret_ref"
+                ]
+              },
+              "value": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "description": "Either a raw value or an opaque reference to a secret store.\n\nThe `value` field carries the raw value on `Inline` and the\nreference string on `SecretRef`. A `SecretRef` is resolved at\nadapter-build time through a [`SecretResolver`]; the resolver\ndispatches on the reference's scheme prefix (`env:`, future\n`vault:` / `aws-sm:` / `gcp-sm:`).\n\n`Arc<str>` storage: see crate doc-comment — makes the inline\n100 MiB CSV / JSON case zero-copy from request body to adapter."
+      },
+      "CredentialSource": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "A raw value is stored; the raw value is NOT returned.",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "inline"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "A reference string — safe to echo. `Arc<str>` to match\n[`Credential::SecretRef`]; the view is built by cloning the\nArc (refcount bump), not by duplicating bytes.",
+            "required": [
+              "value",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "secret_ref"
+                ]
+              },
+              "value": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "description": "Redacted view of a [`Credential`] for GET responses.\n\n`Inline` credentials have their raw value stripped and reported\nas a single discriminator — the admin API never echoes an inline\nsecret back out. `SecretRef`s carry only a reference string, so\nwe do echo those (operators need to see which env var their\nregistration points at)."
+      },
+      "CurrentVersionSummary": {
+        "type": "object",
+        "required": [
+          "version_id",
+          "version",
+          "committed_by",
+          "commit_message",
+          "created_at"
+        ],
+        "properties": {
+          "commit_message": {
+            "type": "string"
+          },
+          "committed_by": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "string"
+          },
+          "version_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
       "CursorParams": {
         "type": "object",
         "description": "Cursor-based pagination parameters.",
@@ -3244,17 +4334,17 @@
             "format": "uuid"
           },
           "ontology": {},
-          "quality_report": {},
-          "revision": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "saved_ontology_id": {
+          "ontology_id": {
             "type": [
               "string",
               "null"
             ],
             "format": "uuid"
+          },
+          "quality_report": {},
+          "revision": {
+            "type": "integer",
+            "format": "int32"
           },
           "source_config": {},
           "source_data": {
@@ -3313,16 +4403,16 @@
             "type": "string",
             "format": "uuid"
           },
-          "revision": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "saved_ontology_id": {
+          "ontology_id": {
             "type": [
               "string",
               "null"
             ],
             "format": "uuid"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int32"
           },
           "source_config": {},
           "status": {
@@ -3385,7 +4475,8 @@
               "string",
               "null"
             ],
-            "description": "Optional ontology ID for context (used during deserialization)."
+            "format": "uuid",
+            "description": "Optional saved-ontology id. When present, the OntologyValidator\ngates the compiled Cypher against this ontology so a canvas built\non a stale schema gets rejected with a precise \"unknown label\"\nerror instead of a generic driver failure."
           },
           "query_ir": {
             "type": "object",
@@ -3415,6 +4506,50 @@
           },
           "widget_hint": {
             "description": "Widget hint for optimal result visualization."
+          }
+        }
+      },
+      "FederationHealthResponse": {
+        "type": "object",
+        "required": [
+          "workspace_id",
+          "resolver_hydrated",
+          "resolver_count",
+          "store_count",
+          "in_sync",
+          "orphans_in_resolver",
+          "missing_from_resolver"
+        ],
+        "properties": {
+          "in_sync": {
+            "type": "boolean"
+          },
+          "missing_from_resolver": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "orphans_in_resolver": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "resolver_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "resolver_hydrated": {
+            "type": "boolean"
+          },
+          "store_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -3551,6 +4686,55 @@
           }
         }
       },
+      "OntologyDetail": {
+        "type": "object",
+        "required": [
+          "id",
+          "lineage_id",
+          "name",
+          "description",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "current_version": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CurrentVersionSummary"
+              }
+            ]
+          },
+          "description": {
+            "type": "object",
+            "description": "LocalizedText JSONB — `{default, translations}` shape."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lineage_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "ontology_ir": {
+            "type": "object",
+            "description": "Fully hydrated `OntologyIR` at the current version. `None` when the\nidentity exists but has no committed version yet — the caller\nshould treat it as an empty ontology (fresh project seed)."
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "OntologyImportRequest": {
         "type": "object",
         "required": [
@@ -3560,6 +4744,52 @@
           "content": {
             "type": "string",
             "description": "OWL ontology in Turtle format."
+          }
+        }
+      },
+      "OntologyListItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "lineage_id",
+          "name",
+          "description",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "current_version": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CurrentVersionSummary",
+                "description": "`None` iff the identity has no committed version yet — an ontology\ncan exist with no commits during multi-step create flows."
+              }
+            ]
+          },
+          "description": {
+            "type": "object",
+            "description": "LocalizedText JSONB — `{default, translations}` shape."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lineage_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -3638,6 +4868,59 @@
               "null"
             ],
             "description": "Opaque cursor for the next page. `None` when this is the last page."
+          }
+        }
+      },
+      "PatternCompileRequest": {
+        "type": "object",
+        "required": [
+          "pattern_ir"
+        ],
+        "properties": {
+          "pattern_ir": {
+            "type": "object",
+            "description": "The canvas PatternIR to lower."
+          }
+        }
+      },
+      "PatternCompileResponse": {
+        "type": "object",
+        "required": [
+          "query_ir"
+        ],
+        "properties": {
+          "query_ir": {
+            "type": "object",
+            "description": "The lowered QueryIR, ready to execute via `/api/query/from-ir`."
+          }
+        }
+      },
+      "PatternDecompileRequest": {
+        "type": "object",
+        "required": [
+          "query_ir"
+        ],
+        "properties": {
+          "query_ir": {
+            "type": "object",
+            "description": "The QueryIR to reconstruct onto the canvas."
+          }
+        }
+      },
+      "PatternDecompileResponse": {
+        "type": "object",
+        "required": [
+          "pattern_ir",
+          "editable"
+        ],
+        "properties": {
+          "editable": {
+            "type": "boolean",
+            "description": "`true` iff the source QueryIR was a `Match` operation and\ntherefore fully representable on the canvas. `false` for\nPathFind / Union / Chain / Aggregate / CallSubquery / Mutate /\nAnalytics — the UI should surface a \"read-only\" indicator."
+          },
+          "pattern_ir": {
+            "type": "object",
+            "description": "The reconstructed PatternIR. Positions are always `None` — the\nUI runs its own layout pass before rendering."
           }
         }
       },
@@ -3750,6 +5033,68 @@
             "type": "string"
           },
           "widget_spec": {}
+        }
+      },
+      "PreviewAdapterRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RegisterAdapterKind"
+          }
+        ]
+      },
+      "PreviewAdapterResponse": {
+        "type": "object",
+        "required": [
+          "source_type",
+          "tables"
+        ],
+        "properties": {
+          "source_type": {
+            "type": "string"
+          },
+          "tables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreviewTable"
+            }
+          }
+        }
+      },
+      "PreviewColumn": {
+        "type": "object",
+        "required": [
+          "name",
+          "data_type",
+          "nullable"
+        ],
+        "properties": {
+          "data_type": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "nullable": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PreviewTable": {
+        "type": "object",
+        "required": [
+          "name",
+          "columns"
+        ],
+        "properties": {
+          "columns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreviewColumn"
+            }
+          },
+          "name": {
+            "type": "string"
+          }
         }
       },
       "ProjectCompleteRequest": {
@@ -3926,7 +5271,8 @@
             "properties": {
               "base_ontology_id": {
                 "type": "string",
-                "format": "uuid"
+                "format": "uuid",
+                "description": "Identity of the ontology to seed the project from —\nmatches `ontologies.id`. The server resolves the current\nversion and hydrates its IR into the new project."
               },
               "origin_type": {
                 "type": "string",
@@ -4417,7 +5763,7 @@
           "id",
           "user_id",
           "question",
-          "ontology_id",
+          "ontology_lineage_id",
           "ontology_version",
           "query_ir",
           "compiled_target",
@@ -4454,6 +5800,13 @@
             "type": "string"
           },
           "ontology_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "ontology_lineage_id": {
             "type": "string"
           },
           "ontology_snapshot": {},
@@ -4467,13 +5820,6 @@
             "type": "string"
           },
           "results": {},
-          "saved_ontology_id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
           "user_id": {
             "type": "string"
           },
@@ -4486,7 +5832,7 @@
         "required": [
           "id",
           "question",
-          "ontology_id",
+          "ontology_lineage_id",
           "ontology_version",
           "compiled_target",
           "model",
@@ -4517,7 +5863,7 @@
           "model": {
             "type": "string"
           },
-          "ontology_id": {
+          "ontology_lineage_id": {
             "type": "string"
           },
           "ontology_version": {
@@ -4539,6 +5885,14 @@
           "query"
         ],
         "properties": {
+          "ontology_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Optional saved-ontology id. When present, the runtime's\nOntologyValidator gates the query against this ontology (rejects\nunknown labels / relationship types / property keys). When\nomitted, the raw path stays ontology-free and only the safety\n+ workspace-scope gates apply."
+          },
           "query": {
             "type": "string",
             "description": "Raw query statement in the target language (e.g., Cypher)."
@@ -4569,24 +5923,184 @@
           }
         }
       },
-      "SavedOntology": {
+      "RefreshAdaptersResponse": {
         "type": "object",
-        "description": "Saved ontology — a completed, frozen ontology.",
+        "required": [
+          "refreshed",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "refreshed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RegisterAdapterKind": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Register a CSV payload. Columns / types are inferred from the\nheader row; everything lives in one implicit `records`\nrelation (see `ox_source::sample::CsvAdapter`).",
+            "required": [
+              "credential",
+              "kind"
+            ],
+            "properties": {
+              "credential": {
+                "$ref": "#/components/schemas/Credential"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "csv"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Register a JSON payload. Nested objects / arrays of objects\nbecome child relations per `ox_source::sample::JsonAdapter`.",
+            "required": [
+              "credential",
+              "kind"
+            ],
+            "properties": {
+              "credential": {
+                "$ref": "#/components/schemas/Credential"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "json"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Register a PostgreSQL adapter. `schema_name` defaults to\n`\"public\"` when omitted — matches the adapter's default.",
+            "required": [
+              "credential",
+              "kind"
+            ],
+            "properties": {
+              "credential": {
+                "$ref": "#/components/schemas/Credential"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "postgres"
+                ]
+              },
+              "schema_name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Register a MySQL adapter. `schema_name` is *required* — MySQL\nhas no default-database equivalent of Postgres' `public`, so\nthe register call must name the target database up-front.",
+            "required": [
+              "credential",
+              "schema_name",
+              "kind"
+            ],
+            "properties": {
+              "credential": {
+                "$ref": "#/components/schemas/Credential"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "mysql"
+                ]
+              },
+              "schema_name": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Register a BigQuery adapter. The connection string's own\n`?credentials_path=...` carries BigQuery's auth path; no\n`schema_name` because the dataset is already in the URI.",
+            "required": [
+              "credential",
+              "kind"
+            ],
+            "properties": {
+              "credential": {
+                "$ref": "#/components/schemas/Credential"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "bigquery"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Adapter kind + its credential + any kind-specific options.\n\nThe outer `kind` tag on the wire is a `serde(tag)` discriminator,\nso `{\"kind\": \"csv\", \"credential\": {...}}` matches `Csv`. Every\nvariant carries a [`Credential`]; a future `vault:` / `aws-sm:`\nsecret scheme is a resolver change, not an enum change."
+      },
+      "RegisterAdapterRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RegisterAdapterKind",
+            "description": "Adapter kind + its credential + kind-specific options."
+          },
+          {
+            "type": "object",
+            "required": [
+              "source_id"
+            ],
+            "properties": {
+              "source_id": {
+                "type": "string",
+                "description": "Opaque identifier the planner looks up via\n`ObjectMappingDef::source_id`. Stable — ontology authors\nreference it by string in mappings."
+              }
+            }
+          }
+        ],
+        "description": "Request body for `POST /api/admin/federation/adapters`.\n\nWire shape:\n```json\n{\n  \"source_id\": \"sales_csv\",\n  \"kind\": \"csv\",\n  \"credential\": { \"kind\": \"inline\", \"value\": \"id,x\\n1,2\\n\" }\n}\n```\n\n`kind` is the outer tag; the body of each variant carries a\n`Credential` plus adapter-specific options (schema name,\nconnection extras). The same struct deserialises both fresh API\nrequests and rows replayed from the `data_sources` table, so\nregister / preview / hydrate share the one source of truth."
+      },
+      "RegisterAdapterResponse": {
+        "type": "object",
+        "required": [
+          "replaced",
+          "adapter"
+        ],
+        "properties": {
+          "adapter": {
+            "$ref": "#/components/schemas/AdapterSummary",
+            "description": "The inserted row, echoed so the client does not round-trip\nits own input."
+          },
+          "replaced": {
+            "type": "boolean",
+            "description": "`true` when a previous registration under the same `source_id`\nwas replaced. Useful so the admin UI can decide whether to\ntrigger downstream cache invalidation."
+          }
+        }
+      },
+      "SavedPatternResponse": {
+        "type": "object",
         "required": [
           "id",
           "name",
-          "version",
-          "ontology_ir",
-          "created_by",
-          "created_at"
+          "ontology_lineage_id",
+          "pattern_ir",
+          "created_at",
+          "updated_at"
         ],
         "properties": {
           "created_at": {
             "type": "string",
             "format": "date-time"
-          },
-          "created_by": {
-            "type": "string"
           },
           "description": {
             "type": [
@@ -4601,10 +6115,15 @@
           "name": {
             "type": "string"
           },
-          "ontology_ir": {},
-          "version": {
-            "type": "integer",
-            "format": "int32"
+          "ontology_lineage_id": {
+            "type": "string"
+          },
+          "pattern_ir": {
+            "type": "object"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -4652,6 +6171,27 @@
           "revision": {
             "type": "integer",
             "format": "int32"
+          }
+        }
+      },
+      "UpdateSavedPatternRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "pattern_ir"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "pattern_ir": {
+            "type": "object"
           }
         }
       },

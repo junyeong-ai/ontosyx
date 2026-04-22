@@ -1,9 +1,3 @@
-// TODO(phase-2): resolve two residual unwraps as part of the streaming.rs
-// decomposition. The schema_and_profile unwrap is guarded by an earlier
-// branch predicate, and the sem.acquire unwrap is inside a tokio::spawn
-// closure where error propagation requires restructuring the yield loop.
-#![allow(clippy::unwrap_used)]
-
 use std::convert::Infallible;
 
 use axum::{
@@ -21,9 +15,9 @@ use crate::error::AppError;
 use crate::principal::Principal;
 use crate::state::AppState;
 use crate::validation::validate_ontology_input;
-use ox_core::design_project::{DesignProjectStatus, SourceConfig};
-use ox_core::ontology_ir::OntologyIR;
-use ox_core::source_analysis::DesignOptions;
+use ox_ontology::design_project::{DesignProjectStatus, SourceConfig};
+use ox_ontology::ir::OntologyIR;
+use ox_ontology::source_analysis::DesignOptions;
 use ox_runtime::profiler;
 use ox_source::analyzer::build_design_context;
 
@@ -120,7 +114,7 @@ pub(crate) async fn design_project_stream(
         .analysis_report
         .as_ref()
         .map(|v| {
-            serde_json::from_value::<ox_core::source_analysis::SourceAnalysisReport>(v.clone())
+            serde_json::from_value::<ox_ontology::source_analysis::SourceAnalysisReport>(v.clone())
                 .map_err(|e| AppError::internal(format!("Corrupt analysis_report: {e}")))
         })
         .transpose()?;
@@ -170,7 +164,7 @@ pub(crate) async fn design_project_stream(
     // Text sources (no schema) use direct single-call design.
     let use_batch = schema_and_profile.is_some();
 
-    let implied_rels: Vec<ox_core::source_analysis::ImpliedRelationship> = analysis_report
+    let implied_rels: Vec<ox_ontology::source_analysis::ImpliedRelationship> = analysis_report
         .as_ref()
         .map(|r| r.implied_relationships.clone())
         .unwrap_or_default();
@@ -185,7 +179,7 @@ pub(crate) async fn design_project_stream(
         let timeout = std::time::Duration::from_secs(state.system_config.read().await.design_timeout_secs());
         let design_started = Instant::now();
 
-        let design_result: Result<(OntologyIR, ox_core::SourceMapping), ox_core::OxError> = if !use_batch {
+        let design_result: Result<(OntologyIR, ox_ontology::SourceMapping), ox_core::OxError> = if !use_batch {
             // === Text source path (no schema to cluster) ===
             let sample_data = {
                 let ctx = LlmInputContext::from_project(&project);
@@ -232,9 +226,8 @@ pub(crate) async fn design_project_stream(
                     return;
                 }
             }
-        } else {
+        } else if let Some((raw_schema, raw_profile)) = schema_and_profile.as_ref() {
             // === Divide-and-conquer path (structured sources) ===
-            let (raw_schema, raw_profile) = schema_and_profile.as_ref().unwrap();
 
             // Pre-process: filter excluded tables and apply PII masking
             let mut schema = raw_schema.clone();
@@ -249,7 +242,7 @@ pub(crate) async fn design_project_stream(
                 profile.table_profiles.retain(|tp| !excluded.contains(tp.table_name.as_str()));
             }
             if effective_opts.pii_decisions.iter().any(|d| {
-                matches!(d.decision, ox_core::source_analysis::PiiDecision::Mask | ox_core::source_analysis::PiiDecision::Exclude)
+                matches!(d.decision, ox_ontology::source_analysis::PiiDecision::Mask | ox_ontology::source_analysis::PiiDecision::Exclude)
             }) {
                 ox_source::analyzer::apply_pii_masking(&mut profile, &effective_opts.pii_decisions);
             }
@@ -261,7 +254,7 @@ pub(crate) async fn design_project_stream(
                 sse_phase("clustering", Some(&format!("Analyzing {} table relationships...", effective_tables)))
             ));
 
-            let plan = ox_core::cluster_tables(&schema, &implied_rels, batch_size);
+            let plan = ox_ontology::cluster_tables(&schema, &implied_rels, batch_size);
             let all_cross_fks: Vec<ox_core::source_schema::ForeignKeyDef> = {
                 let mut seen = std::collections::HashSet::new();
                 plan.clusters
@@ -281,7 +274,7 @@ pub(crate) async fn design_project_stream(
             );
 
             // Phase 2: Level-by-level parallel batch design
-            let mut batch_results: Vec<ox_core::OntologyInputIR> = Vec::new();
+            let mut batch_results: Vec<ox_ontology::InputOntologyDef> = Vec::new();
             let mut completed = 0usize;
             let total_clusters = plan.clusters.len();
 
@@ -371,14 +364,18 @@ pub(crate) async fn design_project_stream(
                         let cr = cross.clone();
                         let t = timeout;
                         async move {
-                            let _permit = sem.acquire().await.unwrap();
+                            // `acquire().await` only errors when the
+                            // semaphore is closed — which we never do in this
+                            // scope. If it ever happens, drop the concurrency
+                            // bound and proceed so we never silently deadlock.
+                            let _permit = sem.acquire().await.ok();
                             tokio::time::timeout(t, brain.design_ontology_batch(&bi, &ctx, &ex, &cr)).await
                         }
                     }).collect();
 
                     let results = futures::future::join_all(futs).await;
 
-                    let mut level_results: Vec<(usize, ox_core::OntologyInputIR)> = Vec::new();
+                    let mut level_results: Vec<(usize, ox_ontology::InputOntologyDef)> = Vec::new();
                     for (idx, result) in results.into_iter().enumerate() {
                         let cluster_id = tasks[idx].0;
                         match result {
@@ -475,7 +472,7 @@ pub(crate) async fn design_project_stream(
             }
 
             // Phase 5: Normalize (single pass)
-            match ox_core::normalize(merged) {
+            match ox_ontology::normalize(merged) {
                 Ok(nr) => {
                     let errors = nr.ontology.validate();
                     if !errors.is_empty() {
@@ -490,6 +487,13 @@ pub(crate) async fn design_project_stream(
                     message: format!("Batch-designed ontology normalization failed: {}", errors.join("; ")),
                 }),
             }
+        } else {
+            // `use_batch` was derived from `schema_and_profile.is_some()`, so
+            // this branch is unreachable by construction. Fail loudly if it
+            // ever executes rather than unwrapping silently.
+            Err(ox_core::OxError::Runtime {
+                message: "internal: batch path entered without schema+profile snapshot".into(),
+            })
         };
 
         let (mut ontology, source_mapping) = match design_result {
@@ -507,7 +511,7 @@ pub(crate) async fn design_project_stream(
 
         // Enrich ontology properties with data classifications from PII findings
         if let Some(report) = &analysis_report {
-            let classified = ox_core::source_analysis::apply_pii_classifications(
+            let classified = ox_ontology::source_analysis::apply_pii_classifications(
                 &mut ontology,
                 &report.pii_findings,
                 &source_mapping,
@@ -826,7 +830,7 @@ pub(crate) async fn refine_project_stream(
             sse_phase("reconciling", None)
         ));
 
-        let reconciled = match ox_core::ontology_command::reconcile_refined(&ontology, llm_refined) {
+        let reconciled = match ox_ontology::command::reconcile_refined(&ontology, llm_refined) {
             Ok(r) => r,
             Err(e) => {
                 yield Ok(Event::default().event("error").data(

@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/rules-of-hooks */
 "use client";
 
 import { useState } from "react";
@@ -24,6 +23,14 @@ import { WidgetErrorBoundary } from "./widget-error-boundary";
 export interface WidgetRendererProps {
   spec: WidgetSpec;
   data: QueryResult;
+  /**
+   * Optional dashboard id — forwarded to type-filter-aware widgets
+   * (currently `graph`) so they share the hidden-types set across
+   * every widget mounted in the same dashboard. Non-dashboard mount
+   * sites (query panel, chat execution detail) omit it and the
+   * widgets fall back to local-state filtering.
+   */
+  dashboardId?: string | null;
 }
 
 function JsonWidget({ data }: { data: QueryResult }) {
@@ -204,25 +211,24 @@ export function viableTypes(data: QueryResult): Set<string> {
   return viable;
 }
 
-export function WidgetRenderer({ spec, data }: WidgetRendererProps) {
-  const t = useTranslations("widget.renderer");
-  let defaultType = resolveWidgetType(spec);
-
-  // "none" from LLM means text summary is enough
-  if (defaultType === "none") return null;
-
-  // Auto-detect if no explicit type
-  if (defaultType === "auto") {
-    defaultType = autoDetectWidgetType(data);
-  }
-
-  // Normalize "chart" to specific chart type
-  if (defaultType === "chart") {
+function resolveInitialType(spec: WidgetSpec, data: QueryResult): string {
+  const raw = resolveWidgetType(spec);
+  if (raw === "none") return "none";
+  if (raw === "auto") return autoDetectWidgetType(data);
+  if (raw === "chart") {
     const ct = spec.chart_type;
-    defaultType = ct === "pie" ? "pie_chart" : ct === "line" ? "line_chart" : "bar_chart";
+    return ct === "pie" ? "pie_chart" : ct === "line" ? "line_chart" : "bar_chart";
   }
+  return raw;
+}
 
-  const [activeType, setActiveType] = useState(defaultType);
+export function WidgetRenderer({ spec, data, dashboardId }: WidgetRendererProps) {
+  const t = useTranslations("widget.renderer");
+  const initialType = resolveInitialType(spec, data);
+  const [activeType, setActiveType] = useState(initialType);
+
+  if (initialType === "none") return null;
+
   const viable = viableTypes(data);
 
   // Only show switcher when multiple chart types are viable and data has rows
@@ -239,7 +245,7 @@ export function WidgetRenderer({ spec, data }: WidgetRendererProps) {
       case "stat_card": case "text": return <StatCardWidget spec={s} data={data} />;
       case "scatter": return <ScatterChartWidget spec={s} data={data} />;
       case "histogram": return <HistogramWidget spec={s} data={data} />;
-      case "graph": return <GraphWidget spec={s} data={data} />;
+      case "graph": return <GraphWidget spec={s} data={data} dashboardId={dashboardId} />;
       case "heatmap": return <HeatmapWidget spec={s} data={data} />;
       case "timeline": return <TimelineWidget spec={s} data={data} />;
       case "treemap": return <TreemapWidget spec={s} data={data} />;

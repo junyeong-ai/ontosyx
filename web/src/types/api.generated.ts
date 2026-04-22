@@ -4,6 +4,86 @@
  */
 
 export interface paths {
+    "/api/admin/federation/adapters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_adapters"];
+        put?: never;
+        post: operations["register_adapter"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/federation/adapters/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["preview_adapter"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/federation/adapters/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["refresh_adapters"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/federation/adapters/{source_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_adapter"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_adapter"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/federation/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["federation_health"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/prompts": {
         parameters: {
             query?: never;
@@ -140,6 +220,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["list_ontologies"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontologies/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_ontology_detail"];
         put?: never;
         post?: never;
         delete?: never;
@@ -709,6 +805,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/query/from-ir/federation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["execute_from_ir_federation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/query/history": {
         parameters: {
             query?: never;
@@ -741,6 +853,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/query/pattern/compile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["compile_pattern"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/query/pattern/decompile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["decompile_pattern"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/query/pattern/saved": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_saved_patterns"];
+        put?: never;
+        post: operations["create_saved_pattern"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/query/pattern/saved/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_saved_pattern"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_saved_pattern"];
+        options?: never;
+        head?: never;
+        patch: operations["update_saved_pattern"];
+        trace?: never;
+    };
     "/api/query/raw": {
         parameters: {
             query?: never;
@@ -761,6 +937,63 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * @description Detail view of one registered adapter.
+         *
+         *     Wire shape matches [`RegisterAdapterRequest`] exactly, except
+         *     `credential` is the redacted [`CredentialSource`] instead of
+         *     the raw [`Credential`]. This symmetry means admin clients can
+         *     render the GET result with the same form UI that drives POST —
+         *     only the credential field needs a "re-enter inline value"
+         *     affordance (since the raw inline bytes are not echoed).
+         */
+        AdapterDetail: components["schemas"]["AdapterDetailKind"] & {
+            source_id: string;
+        };
+        /**
+         * @description Per-kind detail body. Mirrors [`RegisterAdapterKind`] with
+         *     [`CredentialSource`] in place of [`Credential`].
+         *
+         *     `schema_name` appears on the variants that actually use it —
+         *     `Option<String>` on `Postgres` (defaults to `"public"` at build
+         *     time), required `String` on `Mysql`, absent on the other three.
+         *     The old flat `Option<String>` field on `AdapterDetail` is gone;
+         *     csv / json / bigquery detail responses no longer carry a
+         *     nullable `schema_name: null` that meant nothing.
+         *
+         *     Adding a new adapter kind updates both this enum and
+         *     `RegisterAdapterKind`. The `From<&RegisterAdapterKind>`
+         *     conversion below uses an exhaustive `match` (no wildcard), so
+         *     forgetting the new arm surfaces as a compile error — the two
+         *     enums stay in lockstep.
+         */
+        AdapterDetailKind: {
+            credential: components["schemas"]["CredentialSource"];
+            /** @enum {string} */
+            kind: "csv";
+        } | {
+            credential: components["schemas"]["CredentialSource"];
+            /** @enum {string} */
+            kind: "json";
+        } | {
+            credential: components["schemas"]["CredentialSource"];
+            /** @enum {string} */
+            kind: "postgres";
+            schema_name?: string | null;
+        } | {
+            credential: components["schemas"]["CredentialSource"];
+            /** @enum {string} */
+            kind: "mysql";
+            schema_name: string;
+        } | {
+            credential: components["schemas"]["CredentialSource"];
+            /** @enum {string} */
+            kind: "bigquery";
+        };
+        AdapterSummary: {
+            source_id: string;
+            source_type: string;
+        };
         ChatStreamRequest: {
             execution_mode?: string | null;
             message: string;
@@ -768,11 +1001,11 @@ export interface components {
             model_override?: string | null;
             ontology: Record<string, never>;
             /** Format: uuid */
+            ontology_id?: string | null;
+            /** Format: uuid */
             project_id?: string | null;
             /** Format: int32 */
             project_revision?: number | null;
-            /** Format: uuid */
-            saved_ontology_id?: string | null;
             session_id?: string | null;
         };
         ConfigEntry: {
@@ -791,6 +1024,71 @@ export interface components {
         };
         CreateProjectRequest: Record<string, never> & {
             title?: string | null;
+        };
+        CreateSavedPatternRequest: {
+            /** @description Optional free-form note. */
+            description?: string | null;
+            /** @description Unique name within (user, ontology) — UI uses it as a handle. */
+            name: string;
+            /**
+             * @description Ontology the pattern was built against. The saved pattern is tied
+             *     to an ontology; reopening against a different ontology requires
+             *     the caller to decide how to reconcile unknown labels.
+             */
+            ontology_lineage_id: string;
+            /**
+             * @description The full PatternIR — nodes with positions, edges, filters, and
+             *     layout hints (zoom + pan). QueryIR is computed on demand from
+             *     `pattern_ir.compile()` and does not need to be stored.
+             */
+            pattern_ir: Record<string, never>;
+        };
+        /**
+         * @description Either a raw value or an opaque reference to a secret store.
+         *
+         *     The `value` field carries the raw value on `Inline` and the
+         *     reference string on `SecretRef`. A `SecretRef` is resolved at
+         *     adapter-build time through a [`SecretResolver`]; the resolver
+         *     dispatches on the reference's scheme prefix (`env:`, future
+         *     `vault:` / `aws-sm:` / `gcp-sm:`).
+         *
+         *     `Arc<str>` storage: see crate doc-comment — makes the inline
+         *     100 MiB CSV / JSON case zero-copy from request body to adapter.
+         */
+        Credential: {
+            /** @enum {string} */
+            kind: "inline";
+            value: string;
+        } | {
+            /** @enum {string} */
+            kind: "secret_ref";
+            value: string;
+        };
+        /**
+         * @description Redacted view of a [`Credential`] for GET responses.
+         *
+         *     `Inline` credentials have their raw value stripped and reported
+         *     as a single discriminator — the admin API never echoes an inline
+         *     secret back out. `SecretRef`s carry only a reference string, so
+         *     we do echo those (operators need to see which env var their
+         *     registration points at).
+         */
+        CredentialSource: {
+            /** @enum {string} */
+            kind: "inline";
+        } | {
+            /** @enum {string} */
+            kind: "secret_ref";
+            value: string;
+        };
+        CurrentVersionSummary: {
+            commit_message: string;
+            committed_by: string;
+            /** Format: date-time */
+            created_at: string;
+            version: string;
+            /** Format: uuid */
+            version_id: string;
         };
         /** @description Cursor-based pagination parameters. */
         CursorParams: {
@@ -813,11 +1111,11 @@ export interface components {
             /** Format: uuid */
             id: string;
             ontology?: unknown;
+            /** Format: uuid */
+            ontology_id?: string | null;
             quality_report?: unknown;
             /** Format: int32 */
             revision: number;
-            /** Format: uuid */
-            saved_ontology_id?: string | null;
             source_config: unknown;
             source_data?: string | null;
             source_history: unknown;
@@ -838,10 +1136,10 @@ export interface components {
             created_at: string;
             /** Format: uuid */
             id: string;
+            /** Format: uuid */
+            ontology_id?: string | null;
             /** Format: int32 */
             revision: number;
-            /** Format: uuid */
-            saved_ontology_id?: string | null;
             source_config: unknown;
             status: string;
             title?: string | null;
@@ -861,8 +1159,14 @@ export interface components {
             error: components["schemas"]["ErrorBody"];
         };
         ExecuteFromIrRequest: {
-            /** @description Optional ontology ID for context (used during deserialization). */
-            ontology_lineage_id?: string | null;
+            /**
+             * Format: uuid
+             * @description Optional saved-ontology id. When present, the OntologyValidator
+             *     gates the compiled Cypher against this ontology so a canvas built
+             *     on a stale schema gets rejected with a precise "unknown label"
+             *     error instead of a generic driver failure.
+             */
+            ontology_id?: string | null;
             /** @description The QueryIR to compile and execute. */
             query_ir: Record<string, never>;
         };
@@ -875,6 +1179,16 @@ export interface components {
             result: Record<string, never>;
             /** @description Widget hint for optimal result visualization. */
             widget_hint?: unknown;
+        };
+        FederationHealthResponse: {
+            in_sync: boolean;
+            missing_from_resolver: string[];
+            orphans_in_resolver: string[];
+            resolver_count: number;
+            resolver_hydrated: boolean;
+            store_count: number;
+            /** Format: uuid */
+            workspace_id: string;
         };
         LoadExecuteRequest: {
             /** @description Data batches to load. Each element is a JSON object representing one record. */
@@ -919,9 +1233,41 @@ export interface components {
         OntologyCommandsResponse: {
             project: Record<string, never>;
         };
+        OntologyDetail: {
+            /** Format: date-time */
+            created_at: string;
+            current_version?: null | components["schemas"]["CurrentVersionSummary"];
+            /** @description LocalizedText JSONB — `{default, translations}` shape. */
+            description: Record<string, never>;
+            /** Format: uuid */
+            id: string;
+            lineage_id: string;
+            name: string;
+            /**
+             * @description Fully hydrated `OntologyIR` at the current version. `None` when the
+             *     identity exists but has no committed version yet — the caller
+             *     should treat it as an empty ontology (fresh project seed).
+             */
+            ontology_ir?: Record<string, never>;
+            /** Format: date-time */
+            updated_at: string;
+        };
         OntologyImportRequest: {
             /** @description OWL ontology in Turtle format. */
             content: string;
+        };
+        OntologyListItem: {
+            /** Format: date-time */
+            created_at: string;
+            current_version?: null | components["schemas"]["CurrentVersionSummary"];
+            /** @description LocalizedText JSONB — `{default, translations}` shape. */
+            description: Record<string, never>;
+            /** Format: uuid */
+            id: string;
+            lineage_id: string;
+            name: string;
+            /** Format: date-time */
+            updated_at: string;
         };
         /** @description Ontology revision snapshot. */
         OntologySnapshot: {
@@ -962,6 +1308,32 @@ export interface components {
             /** @description Opaque cursor for the next page. `None` when this is the last page. */
             next_cursor?: string | null;
         };
+        PatternCompileRequest: {
+            /** @description The canvas PatternIR to lower. */
+            pattern_ir: Record<string, never>;
+        };
+        PatternCompileResponse: {
+            /** @description The lowered QueryIR, ready to execute via `/api/query/from-ir`. */
+            query_ir: Record<string, never>;
+        };
+        PatternDecompileRequest: {
+            /** @description The QueryIR to reconstruct onto the canvas. */
+            query_ir: Record<string, never>;
+        };
+        PatternDecompileResponse: {
+            /**
+             * @description `true` iff the source QueryIR was a `Match` operation and
+             *     therefore fully representable on the canvas. `false` for
+             *     PathFind / Union / Chain / Aggregate / CallSubquery / Mutate /
+             *     Analytics — the UI should surface a "read-only" indicator.
+             */
+            editable: boolean;
+            /**
+             * @description The reconstructed PatternIR. Positions are always `None` — the
+             *     UI runs its own layout pass before rendering.
+             */
+            pattern_ir: Record<string, never>;
+        };
         PerspectiveFindParams: {
             topology_signature: string;
         };
@@ -999,6 +1371,20 @@ export interface components {
             title?: string | null;
             user_id: string;
             widget_spec: unknown;
+        };
+        PreviewAdapterRequest: components["schemas"]["RegisterAdapterKind"];
+        PreviewAdapterResponse: {
+            source_type: string;
+            tables: components["schemas"]["PreviewTable"][];
+        };
+        PreviewColumn: {
+            data_type: string;
+            name: string;
+            nullable: boolean;
+        };
+        PreviewTable: {
+            columns: components["schemas"]["PreviewColumn"][];
+            name: string;
         };
         ProjectCompleteRequest: {
             /**
@@ -1056,8 +1442,13 @@ export interface components {
             repo_source?: Record<string, never> | null;
             source: components["schemas"]["ProjectSource"];
         } | {
-            /** Format: uuid */
-            base_saved_ontology_id: string;
+            /**
+             * Format: uuid
+             * @description Identity of the ontology to seed the project from —
+             *     matches `ontologies.id`. The server resolves the current
+             *     version and hydrates its IR into the new project.
+             */
+            base_ontology_id: string;
             /** @enum {string} */
             origin_type: "base_ontology";
         };
@@ -1221,6 +1612,8 @@ export interface components {
             /** Format: uuid */
             id: string;
             model: string;
+            /** Format: uuid */
+            ontology_id?: string | null;
             ontology_lineage_id: string;
             ontology_snapshot?: unknown;
             /** Format: int32 */
@@ -1229,8 +1622,6 @@ export interface components {
             query_ir: unknown;
             question: string;
             results: unknown;
-            /** Format: uuid */
-            saved_ontology_id?: string | null;
             user_id: string;
             widget?: unknown;
         };
@@ -1253,6 +1644,15 @@ export interface components {
             row_count: number;
         };
         QueryRawRequest: {
+            /**
+             * Format: uuid
+             * @description Optional saved-ontology id. When present, the runtime's
+             *     OntologyValidator gates the query against this ontology (rejects
+             *     unknown labels / relationship types / property keys). When
+             *     omitted, the raw path stays ontology-free and only the safety
+             *     + workspace-scope gates apply.
+             */
+            ontology_id?: string | null;
             /** @description Raw query statement in the target language (e.g., Cypher). */
             query: string;
         };
@@ -1264,18 +1664,91 @@ export interface components {
             /** @description Compiler target language (e.g., "cypher"). */
             target: string;
         };
-        /** @description Saved ontology — a completed, frozen ontology. */
-        SavedOntology: {
+        RefreshAdaptersResponse: {
+            count: number;
+            refreshed: boolean;
+        };
+        /**
+         * @description Adapter kind + its credential + any kind-specific options.
+         *
+         *     The outer `kind` tag on the wire is a `serde(tag)` discriminator,
+         *     so `{"kind": "csv", "credential": {...}}` matches `Csv`. Every
+         *     variant carries a [`Credential`]; a future `vault:` / `aws-sm:`
+         *     secret scheme is a resolver change, not an enum change.
+         */
+        RegisterAdapterKind: {
+            credential: components["schemas"]["Credential"];
+            /** @enum {string} */
+            kind: "csv";
+        } | {
+            credential: components["schemas"]["Credential"];
+            /** @enum {string} */
+            kind: "json";
+        } | {
+            credential: components["schemas"]["Credential"];
+            /** @enum {string} */
+            kind: "postgres";
+            schema_name?: string | null;
+        } | {
+            credential: components["schemas"]["Credential"];
+            /** @enum {string} */
+            kind: "mysql";
+            schema_name: string;
+        } | {
+            credential: components["schemas"]["Credential"];
+            /** @enum {string} */
+            kind: "bigquery";
+        };
+        /**
+         * @description Request body for `POST /api/admin/federation/adapters`.
+         *
+         *     Wire shape:
+         *     ```json
+         *     {
+         *       "source_id": "sales_csv",
+         *       "kind": "csv",
+         *       "credential": { "kind": "inline", "value": "id,x\n1,2\n" }
+         *     }
+         *     ```
+         *
+         *     `kind` is the outer tag; the body of each variant carries a
+         *     `Credential` plus adapter-specific options (schema name,
+         *     connection extras). The same struct deserialises both fresh API
+         *     requests and rows replayed from the `data_sources` table, so
+         *     register / preview / hydrate share the one source of truth.
+         */
+        RegisterAdapterRequest: components["schemas"]["RegisterAdapterKind"] & {
+            /**
+             * @description Opaque identifier the planner looks up via
+             *     `ObjectMappingDef::source_id`. Stable — ontology authors
+             *     reference it by string in mappings.
+             */
+            source_id: string;
+        };
+        RegisterAdapterResponse: {
+            /**
+             * @description The inserted row, echoed so the client does not round-trip
+             *     its own input.
+             */
+            adapter: components["schemas"]["AdapterSummary"];
+            /**
+             * @description `true` when a previous registration under the same `source_id`
+             *     was replaced. Useful so the admin UI can decide whether to
+             *     trigger downstream cache invalidation.
+             */
+            replaced: boolean;
+        };
+        SavedPatternResponse: {
             /** Format: date-time */
             created_at: string;
-            created_by: string;
             description?: string | null;
             /** Format: uuid */
             id: string;
             name: string;
-            ontology_ir: unknown;
-            /** Format: int32 */
-            version: number;
+            ontology_lineage_id: string;
+            pattern_ir: Record<string, never>;
+            /** Format: date-time */
+            updated_at: string;
         };
         UiConfig: {
             elk_direction: string;
@@ -1292,6 +1765,11 @@ export interface components {
             design_options: Record<string, never>;
             /** Format: int32 */
             revision: number;
+        };
+        UpdateSavedPatternRequest: {
+            description?: string | null;
+            name: string;
+            pattern_ir: Record<string, never>;
         };
         /** @description Workbench perspective — saved canvas state. */
         WorkbenchPerspective: {
@@ -1322,6 +1800,279 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_adapters: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Registered federation adapters */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdapterSummary"][];
+                };
+            };
+            /** @description Admin role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    register_adapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterAdapterRequest"];
+            };
+        };
+        responses: {
+            /** @description Adapter registered */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegisterAdapterResponse"];
+                };
+            };
+            /** @description Invalid payload for the declared kind */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description Admin role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    preview_adapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreviewAdapterRequest"];
+            };
+        };
+        responses: {
+            /** @description Preview of the adapter's schema */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreviewAdapterResponse"];
+                };
+            };
+            /** @description Adapter config failed to build */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description Admin role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    refresh_adapters: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Workspace resolver rehydrated from the store */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefreshAdaptersResponse"];
+                };
+            };
+            /** @description Admin role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    get_adapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description SourceId to look up */
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Adapter detail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdapterDetail"];
+                };
+            };
+            /** @description Admin role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description No adapter registered for that source_id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    delete_adapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description SourceId to deregister */
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Adapter removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Admin role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description No adapter registered for that source_id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    federation_health: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Federation health snapshot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FederationHealthResponse"];
+                };
+            };
+            /** @description Admin role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
     list_prompt_templates: {
         parameters: {
             query?: never;
@@ -1727,13 +2478,47 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Paginated list of saved ontologies */
+            /** @description Paginated list of ontology identities */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    get_ontology_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ontology identity ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ontology detail with hydrated IR */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OntologyDetail"];
+                };
+            };
+            /** @description Ontology not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
                 };
             };
         };
@@ -1752,7 +2537,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description OntologyInputIR exchange format */
+            /** @description InputOntologyDef exchange format */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1980,7 +2765,7 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        /** @description OntologyInputIR to normalize */
+        /** @description InputOntologyDef to normalize */
         requestBody: {
             content: {
                 "application/json": Record<string, never>;
@@ -3189,6 +3974,52 @@ export interface operations {
             };
         };
     };
+    execute_from_ir_federation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExecuteFromIrRequest"];
+            };
+        };
+        responses: {
+            /** @description Federation-executed query result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExecuteFromIrResponse"];
+                };
+            };
+            /** @description Missing ontology_id or invalid QueryIR */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description Federation planning or execution failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
     list_executions: {
         parameters: {
             query?: {
@@ -3245,6 +4076,199 @@ export interface operations {
                         error: components["schemas"]["ErrorBody"];
                     };
                 };
+            };
+        };
+    };
+    compile_pattern: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatternCompileRequest"];
+            };
+        };
+        responses: {
+            /** @description Compiled QueryIR */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PatternCompileResponse"];
+                };
+            };
+        };
+    };
+    decompile_pattern: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatternDecompileRequest"];
+            };
+        };
+        responses: {
+            /** @description Reconstructed PatternIR */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PatternDecompileResponse"];
+                };
+            };
+        };
+    };
+    list_saved_patterns: {
+        parameters: {
+            query: {
+                ontology_lineage_id: string;
+                limit?: number | null;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated saved patterns */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    create_saved_pattern: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSavedPatternRequest"];
+            };
+        };
+        responses: {
+            /** @description Saved pattern created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedPatternResponse"];
+                };
+            };
+            /** @description Name already exists for (user, ontology) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_saved_pattern: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Saved pattern ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Saved pattern */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedPatternResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_saved_pattern: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Saved pattern ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_saved_pattern: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Saved pattern ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSavedPatternRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

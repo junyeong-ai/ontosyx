@@ -9,16 +9,14 @@ use ox_core::error::{OxError, OxResult};
 
 use crate::models::*;
 use crate::store::{
-    AclStore, AgentSessionStore, AnalysisResultStore, AnalysisSnapshot, ApprovalStore, AuditStore,
-    ConfigStore, CursorPage, CursorParams, DashboardStore, EmbeddingRetryStore, ExtendResult,
-    HealthStore, KnowledgeStore, LineageStore, LoadCheckpointStore, MeteringStore, OntologyStore,
-    PatternStore, PerspectiveStore, PinStore, ProjectStore, PromptTemplateStore, QualityStore,
-    QueryStore, RecipeStore, ReportStore, ScheduledTaskStore, ToolApprovalStore, UserStore,
+    AclStore, AgentSessionStore, AmbiguityStore, AnalysisResultStore, AnalysisSnapshot,
+    ApprovalStore, AuditStore, ChangeRoutingStore, ConfigStore, CursorPage, CursorParams,
+    DashboardStore, EmbeddingRetryStore, ExtendResult, HealthStore, KnowledgeStore, LineageStore,
+    LoadCheckpointStore, MeteringStore, PatternStore, PerspectiveStore, PinStore, ProjectStore,
+    PromptTemplateStore, QualitySignalStore, QualityStore, QueryStore, RecipeStore, ReportStore,
+    ScheduledTaskStore, StaleConceptProposalStore, ToolApprovalStore, UserStore,
     VerificationStore, WorkspaceStore,
 };
-
-/// System user identifier for automated operations (schema adoption, seeding).
-const SYSTEM_USER: &str = "system";
 
 // ---------------------------------------------------------------------------
 // Per-request workspace context via task-local
@@ -204,7 +202,7 @@ impl QueryStore for PostgresStore {
         sqlx::query(
             "INSERT INTO query_executions
              (id, user_id, question, ontology_lineage_id, ontology_version,
-              saved_ontology_id, ontology_snapshot,
+              ontology_id, ontology_snapshot,
               query_ir, compiled_target, compiled_query,
               results, widget, explanation, model, execution_time_ms,
               query_bindings, created_at)
@@ -215,7 +213,7 @@ impl QueryStore for PostgresStore {
         .bind(&exec.question)
         .bind(&exec.ontology_lineage_id)
         .bind(exec.ontology_version)
-        .bind(exec.saved_ontology_id)
+        .bind(exec.ontology_id)
         .bind(&exec.ontology_snapshot)
         .bind(&exec.query_ir)
         .bind(&exec.compiled_target)
@@ -239,17 +237,20 @@ impl QueryStore for PostgresStore {
         user_id: &str,
         id: Uuid,
     ) -> OxResult<Option<QueryExecution>> {
-        // Resolve ontology_snapshot via JOIN when saved_ontology_id is set
+        // Returns the raw row — no JOIN to hydrate `ontology_snapshot`.
+        // Under the Λ storage model, committed ontologies live in a
+        // content-addressed graph spanning four tables; a LEFT JOIN
+        // trick no longer substitutes for `load_version`. Callers that
+        // need the IR follow up with
+        // `OntologyVersionStore::resolve_version_at(ontology_id, created_at)`.
         sqlx::query_as::<_, QueryExecution>(
-            "SELECT qe.id, qe.user_id, qe.question, qe.ontology_lineage_id, qe.ontology_version,
-                    qe.saved_ontology_id,
-                    COALESCE(qe.ontology_snapshot, so.ontology_ir) AS ontology_snapshot,
-                    qe.query_ir, qe.compiled_target, qe.compiled_query,
-                    qe.results, qe.widget, qe.explanation, qe.model,
-                    qe.execution_time_ms, qe.query_bindings, qe.created_at
-             FROM query_executions qe
-             LEFT JOIN saved_ontologies so ON so.id = qe.saved_ontology_id
-             WHERE qe.id = $1 AND qe.user_id = $2",
+            "SELECT id, user_id, question, ontology_lineage_id, ontology_version,
+                    ontology_id, ontology_snapshot,
+                    query_ir, compiled_target, compiled_query,
+                    results, widget, explanation, model,
+                    execution_time_ms, query_bindings, created_at
+             FROM query_executions
+             WHERE id = $1 AND user_id = $2",
         )
         .bind(id)
         .bind(user_id)
@@ -315,148 +316,6 @@ impl QueryStore for PostgresStore {
                 .await
                 .map_err(to_ox_error)?;
         Ok(result.rows_affected() > 0)
-    }
-}
-
-// ---------------------------------------------------------------------------
-// OntologyStore
-// ---------------------------------------------------------------------------
-
-#[async_trait]
-impl OntologyStore for PostgresStore {
-    #[tracing::instrument(level = "debug", skip_all)]
-    async fn get_saved_ontology(&self, id: Uuid) -> OxResult<Option<SavedOntology>> {
-        sqlx::query_as::<_, SavedOntology>("SELECT * FROM saved_ontologies WHERE id = $1")
-            .bind(id)
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(to_ox_error)
-    }
-
-    #[tracing::instrument(level = "debug", skip_all)]
-    async fn list_saved_ontologies(
-        &self,
-        pagination: &CursorParams,
-    ) -> OxResult<CursorPage<SavedOntology>> {
-        let limit = pagination.effective_limit();
-
-        let rows = if let Some((cursor_ts, cursor_id)) = pagination.cursor_parts() {
-            sqlx::query_as::<_, SavedOntology>(
-                "SELECT * FROM saved_ontologies
-                 WHERE (created_at, id) < ($1, $2)
-                 ORDER BY created_at DESC, id DESC
-                 LIMIT $3",
-            )
-            .bind(cursor_ts)
-            .bind(cursor_id)
-            .bind(limit + 1)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(to_ox_error)?
-        } else {
-            sqlx::query_as::<_, SavedOntology>(
-                "SELECT * FROM saved_ontologies
-                 ORDER BY created_at DESC, id DESC
-                 LIMIT $1",
-            )
-            .bind(limit + 1)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(to_ox_error)?
-        };
-
-        Ok(build_cursor_page(rows, limit, |o| (o.created_at, o.id)))
-    }
-
-    #[tracing::instrument(level = "debug", skip_all)]
-    async fn get_latest_ontology(&self, name: &str) -> OxResult<Option<SavedOntology>> {
-        sqlx::query_as::<_, SavedOntology>(
-            "SELECT * FROM saved_ontologies WHERE name = $1 ORDER BY version DESC LIMIT 1",
-        )
-        .bind(name)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(to_ox_error)
-    }
-
-    #[tracing::instrument(level = "debug", skip_all)]
-    async fn get_latest_ontology_by_lineage(
-        &self,
-        lineage_id: &str,
-    ) -> OxResult<Option<SavedOntology>> {
-        sqlx::query_as::<_, SavedOntology>(
-            "SELECT * FROM saved_ontologies
-             WHERE ontology_ir->>'id' = $1
-             ORDER BY version DESC
-             LIMIT 1",
-        )
-        .bind(lineage_id)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(to_ox_error)
-    }
-
-    #[tracing::instrument(level = "debug", skip_all)]
-    async fn get_ontology_version_at(
-        &self,
-        lineage_id: &str,
-        as_of: chrono::DateTime<chrono::Utc>,
-    ) -> OxResult<Option<SavedOntology>> {
-        // Newest row whose commit time predates `as_of`. Ties on
-        // created_at (two saves at the same instant — unusual but
-        // possible under batch migrations) resolve to the higher
-        // version number so the caller sees the final write of that
-        // tick.
-        sqlx::query_as::<_, SavedOntology>(
-            "SELECT * FROM saved_ontologies
-             WHERE ontology_ir->>'id' = $1
-               AND created_at <= $2
-             ORDER BY created_at DESC, version DESC
-             LIMIT 1",
-        )
-        .bind(lineage_id)
-        .bind(as_of)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(to_ox_error)
-    }
-
-    #[tracing::instrument(level = "debug", skip_all)]
-    async fn create_standalone_ontology(
-        &self,
-        name: &str,
-        ontology_ir: &serde_json::Value,
-    ) -> OxResult<Uuid> {
-        let id = Uuid::new_v4();
-        sqlx::query(
-            "INSERT INTO saved_ontologies (id, name, version, ontology_ir, created_by, created_at)
-             VALUES ($1, $2, 1, $3, $4, NOW())",
-        )
-        .bind(id)
-        .bind(name)
-        .bind(ontology_ir)
-        .bind(SYSTEM_USER)
-        .execute(&self.pool)
-        .await
-        .map_err(to_ox_error)?;
-        Ok(id)
-    }
-
-    #[tracing::instrument(level = "debug", skip_all)]
-    async fn update_ontology_ir(&self, id: Uuid, ontology_ir: &serde_json::Value) -> OxResult<()> {
-        let rows = sqlx::query("UPDATE saved_ontologies SET ontology_ir = $1 WHERE id = $2")
-            .bind(ontology_ir)
-            .bind(id)
-            .execute(&self.pool)
-            .await
-            .map_err(to_ox_error)?;
-
-        if rows.rows_affected() == 0 {
-            return Err(OxError::NotFound {
-                entity: format!("saved_ontology {id}"),
-            });
-        }
-        Ok(())
     }
 }
 
@@ -605,7 +464,7 @@ impl ProjectStore for PostgresStore {
 
         let rows = match pagination.cursor_parts() {
             Some((cursor_ts, cursor_id)) => sqlx::query_as::<_, DesignProjectSummary>(
-                "SELECT id, status, revision, user_id, title, source_config, saved_ontology_id,
+                "SELECT id, status, revision, user_id, title, source_config, ontology_id,
                         created_at, updated_at, analyzed_at
                  FROM design_projects
                  WHERE archived_at IS NULL AND (updated_at, id) < ($1, $2)
@@ -619,7 +478,7 @@ impl ProjectStore for PostgresStore {
             .await
             .map_err(to_ox_error)?,
             None => sqlx::query_as::<_, DesignProjectSummary>(
-                "SELECT id, status, revision, user_id, title, source_config, saved_ontology_id,
+                "SELECT id, status, revision, user_id, title, source_config, ontology_id,
                         created_at, updated_at, analyzed_at
                  FROM design_projects
                  WHERE archived_at IS NULL
@@ -746,43 +605,27 @@ impl ProjectStore for PostgresStore {
     async fn complete_design_project(
         &self,
         project_id: Uuid,
-        ontology: &SavedOntology,
+        ontology_id: Uuid,
         expected_revision: i32,
     ) -> OxResult<()> {
-        let mut tx = self.pool.begin().await.map_err(to_ox_error)?;
-
-        sqlx::query(
-            "INSERT INTO saved_ontologies (id, name, description, version, ontology_ir, created_by, created_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)",
-        )
-        .bind(ontology.id)
-        .bind(&ontology.name)
-        .bind(&ontology.description)
-        .bind(ontology.version)
-        .bind(&ontology.ontology_ir)
-        .bind(&ontology.created_by)
-        .bind(ontology.created_at)
-        .execute(&mut *tx)
-        .await
-        .map_err(to_ox_error)?;
-
+        // The caller has already committed a new version through
+        // OntologyVersionStore; this path only links the project row.
+        // Single-statement path — no transaction needed now that the
+        // saved_ontologies INSERT is gone.
         let result = sqlx::query(
             "UPDATE design_projects
-             SET status = 'completed', saved_ontology_id = $1,
+             SET status = 'completed', ontology_id = $1,
                  updated_at = NOW(), revision = revision + 1
              WHERE id = $2 AND revision = $3 AND status = 'designed'",
         )
-        .bind(ontology.id)
+        .bind(ontology_id)
         .bind(project_id)
         .bind(expected_revision)
-        .execute(&mut *tx)
+        .execute(&self.pool)
         .await
         .map_err(to_ox_error)?;
 
-        check_cas_result(result.rows_affected())?;
-
-        tx.commit().await.map_err(to_ox_error)?;
-        Ok(())
+        check_cas_result(result.rows_affected())
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
@@ -2466,9 +2309,11 @@ impl AgentSessionStore for PostgresStore {
         let items: Vec<AgentSession> = match &pagination.cursor {
             Some(cursor) => {
                 let cursor_time: DateTime<Utc> =
-                    cursor.parse().map_err(|_| OxError::Validation {
-                        field: "cursor".into(),
-                        message: "Invalid cursor".into(),
+                    cursor.parse().map_err(|e: chrono::format::ParseError| {
+                        OxError::Parse {
+                            field: "cursor".into(),
+                            source: Box::new(e),
+                        }
                     })?;
                 sqlx::query_as(
                     "SELECT id, user_id, ontology_lineage_id, prompt_hash, tool_schema_hash,
@@ -4639,3 +4484,3195 @@ impl LoadCheckpointStore for PostgresStore {
         Ok(result.rows_affected() > 0)
     }
 }
+
+// ---------------------------------------------------------------------------
+// DataSourceStore
+//
+// Workspace-scoped persistence for federation (VOL) adapter
+// configurations. RLS gates every read + write via the task-local
+// `app.workspace_id` the pool's `before_acquire` injects, so these
+// queries never name `workspace_id` themselves — the column's default
+// (set in migration 0011) picks it up, and RLS enforces isolation.
+// ---------------------------------------------------------------------------
+
+#[async_trait]
+impl crate::store::DataSourceStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn create_data_source(&self, item: &crate::models::DataSource) -> OxResult<()> {
+        sqlx::query(
+            "INSERT INTO data_sources (id, source_id, kind, config, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6)",
+        )
+        .bind(item.id)
+        .bind(&item.source_id)
+        .bind(&item.kind)
+        .bind(&item.config)
+        .bind(item.created_at)
+        .bind(item.updated_at)
+        .execute(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        Ok(())
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn get_data_source(&self, id: Uuid) -> OxResult<Option<crate::models::DataSource>> {
+        sqlx::query_as::<_, crate::models::DataSource>(
+            "SELECT id, workspace_id, source_id, kind, config, created_at, updated_at
+             FROM data_sources
+             WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(to_ox_error)
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn find_data_source_by_source_id(
+        &self,
+        source_id: &str,
+    ) -> OxResult<Option<crate::models::DataSource>> {
+        sqlx::query_as::<_, crate::models::DataSource>(
+            "SELECT id, workspace_id, source_id, kind, config, created_at, updated_at
+             FROM data_sources
+             WHERE source_id = $1",
+        )
+        .bind(source_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(to_ox_error)
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn list_data_sources(&self) -> OxResult<Vec<crate::models::DataSource>> {
+        sqlx::query_as::<_, crate::models::DataSource>(
+            "SELECT id, workspace_id, source_id, kind, config, created_at, updated_at
+             FROM data_sources
+             ORDER BY source_id ASC",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(to_ox_error)
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn upsert_data_source_by_source_id(
+        &self,
+        source_id: &str,
+        kind: &str,
+        config: &serde_json::Value,
+    ) -> OxResult<crate::models::DataSource> {
+        // ON CONFLICT on (workspace_id, source_id) — the unique
+        // constraint declared in migration 0011. The conflicting row's
+        // workspace_id must match the current session's workspace_id
+        // because RLS is enforced against the row already; DO UPDATE
+        // therefore only replaces rows the caller is allowed to see.
+        sqlx::query_as::<_, crate::models::DataSource>(
+            "INSERT INTO data_sources (source_id, kind, config)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (workspace_id, source_id) DO UPDATE
+                SET kind = EXCLUDED.kind,
+                    config = EXCLUDED.config,
+                    updated_at = NOW()
+             RETURNING id, workspace_id, source_id, kind, config, created_at, updated_at",
+        )
+        .bind(source_id)
+        .bind(kind)
+        .bind(config)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(to_ox_error)
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn delete_data_source_by_source_id(&self, source_id: &str) -> OxResult<bool> {
+        let result = sqlx::query("DELETE FROM data_sources WHERE source_id = $1")
+            .bind(source_id)
+            .execute(&self.pool)
+            .await
+            .map_err(to_ox_error)?;
+        Ok(result.rows_affected() > 0)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Λ Phase — OntologyVersionStore implementation
+//
+// Backs the 4-Level storage model with PostgreSQL. Level 1 rows
+// live in `ontologies` / `ontology_version_snapshots`; Level 2
+// in `ontology_entity_versions` / `ontology_version_entities`.
+// Level 3 materialised indexes (Λ-6..Λ-9) are populated by the
+// callbacks inside `commit_version` as each phase lands.
+// ---------------------------------------------------------------------------
+
+#[async_trait]
+impl crate::store::OntologyVersionStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn create_ontology(
+        &self,
+        name: &str,
+        description: &serde_json::Value,
+        lineage_id: Option<&str>,
+    ) -> OxResult<crate::models::OntologyRow> {
+        // Explicit lineage takes precedence; otherwise a fresh UUID
+        // v4 goes into the TEXT column. Clients can always overwrite
+        // later via a sibling update path — for now creation is the
+        // only entry point.
+        let lineage = lineage_id
+            .map(String::from)
+            .unwrap_or_else(|| Uuid::new_v4().to_string());
+        sqlx::query_as::<_, crate::models::OntologyRow>(
+            "INSERT INTO ontologies (lineage_id, name, description) \
+             VALUES ($1, $2, $3) RETURNING *",
+        )
+        .bind(&lineage)
+        .bind(name)
+        .bind(description)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(to_ox_error)
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn get_ontology(
+        &self,
+        id: Uuid,
+    ) -> OxResult<Option<crate::models::OntologyRow>> {
+        sqlx::query_as::<_, crate::models::OntologyRow>(
+            "SELECT * FROM ontologies WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(to_ox_error)
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn list_ontologies(
+        &self,
+        pagination: &CursorParams,
+    ) -> OxResult<CursorPage<crate::models::OntologyRow>> {
+        let limit = pagination.effective_limit();
+
+        let rows = if let Some((cursor_ts, cursor_id)) = pagination.cursor_parts() {
+            sqlx::query_as::<_, crate::models::OntologyRow>(
+                "SELECT * FROM ontologies \
+                 WHERE (created_at, id) < ($1, $2) \
+                 ORDER BY created_at DESC, id DESC \
+                 LIMIT $3",
+            )
+            .bind(cursor_ts)
+            .bind(cursor_id)
+            .bind(limit + 1)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(to_ox_error)?
+        } else {
+            sqlx::query_as::<_, crate::models::OntologyRow>(
+                "SELECT * FROM ontologies \
+                 ORDER BY created_at DESC, id DESC \
+                 LIMIT $1",
+            )
+            .bind(limit + 1)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(to_ox_error)?
+        };
+
+        Ok(build_cursor_page(rows, limit, |o| (o.created_at, o.id)))
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn find_ontology_by_lineage(
+        &self,
+        lineage_id: &str,
+    ) -> OxResult<Option<crate::models::OntologyRow>> {
+        sqlx::query_as::<_, crate::models::OntologyRow>(
+            "SELECT * FROM ontologies WHERE lineage_id = $1",
+        )
+        .bind(lineage_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(to_ox_error)
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn find_ontology_by_name(
+        &self,
+        name: &str,
+    ) -> OxResult<Option<crate::models::OntologyRow>> {
+        // RLS scopes the row set to the caller's workspace;
+        // `ontologies_ws_name_uq` makes this a single-row lookup.
+        sqlx::query_as::<_, crate::models::OntologyRow>(
+            "SELECT * FROM ontologies WHERE name = $1",
+        )
+        .bind(name)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(to_ox_error)
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn commit_version(
+        &self,
+        ontology_id: Uuid,
+        ir: &ox_ontology::OntologyIR,
+        version: &str,
+        parent_version_id: Option<Uuid>,
+        committed_by: &str,
+        commit_message: &str,
+    ) -> OxResult<crate::models::OntologyVersionSnapshot> {
+        // Extract content-addressed entities BEFORE opening the
+        // transaction — serialisation failures should not leave a
+        // half-open tx behind.
+        let entities = ox_ontology::storage::extract_entities(ir)?;
+
+        let mut tx = self.pool.begin().await.map_err(to_ox_error)?;
+
+        // 1) Upsert content-addressed entity rows. ON CONFLICT
+        //    (entity_hash) DO NOTHING → auto dedup across versions.
+        //    Bulk INSERT via unnest to avoid N round trips.
+        let mut hashes: Vec<String> = Vec::with_capacity(entities.len());
+        let mut kinds: Vec<String> = Vec::with_capacity(entities.len());
+        let mut contents: Vec<serde_json::Value> = Vec::with_capacity(entities.len());
+        for ent in &entities {
+            hashes.push(ent.hash.clone());
+            kinds.push(ent.kind.as_str().to_string());
+            contents.push(ent.content.clone());
+        }
+        sqlx::query(
+            "INSERT INTO ontology_entity_versions (entity_hash, entity_kind, content) \
+             SELECT * FROM UNNEST($1::text[], $2::text[], $3::jsonb[]) \
+             ON CONFLICT (entity_hash) DO NOTHING",
+        )
+        .bind(&hashes)
+        .bind(&kinds)
+        .bind(&contents)
+        .execute(&mut *tx)
+        .await
+        .map_err(to_ox_error)?;
+
+        // 2) Create the version snapshot row. Default bitemporal
+        //    columns: valid_from=now, valid_to=NULL, sys_from=now,
+        //    sys_to=NULL. Callers that need retrospective windows
+        //    land later as a separate route; this is the common
+        //    "commit the current state" path.
+        let snapshot = sqlx::query_as::<_, crate::models::OntologyVersionSnapshot>(
+            "INSERT INTO ontology_version_snapshots \
+                (ontology_id, version, parent_version_id, committed_by, commit_message) \
+             VALUES ($1, $2, $3, $4, $5) RETURNING *",
+        )
+        .bind(ontology_id)
+        .bind(version)
+        .bind(parent_version_id)
+        .bind(committed_by)
+        .bind(commit_message)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(to_ox_error)?;
+
+        // 3) Write the pointer set. One row per (kind, logical_id)
+        //    → current hash. Bulk insert via unnest.
+        let version_id = snapshot.id;
+        let mut logical_ids: Vec<String> = Vec::with_capacity(entities.len());
+        // Reuse `kinds` and `hashes` from step 1 — same set, same order.
+        for ent in &entities {
+            logical_ids.push(ent.logical_id.clone());
+        }
+        sqlx::query(
+            "INSERT INTO ontology_version_entities \
+                (version_id, entity_kind, entity_logical_id, entity_hash) \
+             SELECT $1, k.kind, k.lid, k.hash \
+             FROM UNNEST($2::text[], $3::text[], $4::text[]) \
+                AS k(kind, lid, hash)",
+        )
+        .bind(version_id)
+        .bind(&kinds)
+        .bind(&logical_ids)
+        .bind(&hashes)
+        .execute(&mut *tx)
+        .await
+        .map_err(to_ox_error)?;
+
+        // 4) Materialise Level 3 indexes for this new version.
+        //    Inline in the same transaction so a hydrate can see
+        //    the flat/navigation/search rows the moment the
+        //    version commit returns. Embeddings are intentionally
+        //    skipped — they populate asynchronously via a
+        //    background job.
+        materialize_level3(&mut tx, version_id, ir).await?;
+
+        tx.commit().await.map_err(to_ox_error)?;
+        Ok(snapshot)
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn load_version(
+        &self,
+        version_id: Uuid,
+    ) -> OxResult<ox_ontology::OntologyIR> {
+        // Hydrate every entity that belongs to this version.
+        // Order is not important — the extractor / assembler
+        // tolerates arbitrary arrival order and re-keys by
+        // (kind, logical_id).
+        let rows = sqlx::query_as::<_, crate::models::OntologyEntityJoinRow>(
+            "SELECT vs.entity_kind AS entity_kind, \
+                    vs.entity_logical_id AS entity_logical_id, \
+                    vs.entity_hash AS entity_hash, \
+                    ev.content AS content \
+             FROM ontology_version_entities vs \
+             JOIN ontology_entity_versions ev ON ev.entity_hash = vs.entity_hash \
+             WHERE vs.version_id = $1",
+        )
+        .bind(version_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+
+        assemble_ir(&rows).map_err(|e| OxError::Runtime {
+            message: format!("OntologyIR hydration from version {version_id}: {e:?}"),
+        })
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn get_version_snapshot(
+        &self,
+        version_id: Uuid,
+    ) -> OxResult<Option<crate::models::OntologyVersionSnapshot>> {
+        sqlx::query_as::<_, crate::models::OntologyVersionSnapshot>(
+            "SELECT * FROM ontology_version_snapshots WHERE id = $1",
+        )
+        .bind(version_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(to_ox_error)
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn list_versions(
+        &self,
+        ontology_id: Uuid,
+        limit: u32,
+    ) -> OxResult<Vec<crate::models::OntologyVersionSnapshot>> {
+        sqlx::query_as::<_, crate::models::OntologyVersionSnapshot>(
+            "SELECT * FROM ontology_version_snapshots \
+             WHERE ontology_id = $1 \
+             ORDER BY created_at DESC \
+             LIMIT $2",
+        )
+        .bind(ontology_id)
+        .bind(limit as i64)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(to_ox_error)
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn resolve_version_at(
+        &self,
+        ontology_id: Uuid,
+        as_of: DateTime<Utc>,
+    ) -> OxResult<Option<crate::models::OntologyVersionSnapshot>> {
+        // "Live at as_of": valid_from <= as_of AND (valid_to IS
+        // NULL OR valid_to > as_of). Newest-first tiebreak by
+        // valid_from.
+        sqlx::query_as::<_, crate::models::OntologyVersionSnapshot>(
+            "SELECT * FROM ontology_version_snapshots \
+             WHERE ontology_id = $1 \
+               AND valid_from <= $2 \
+               AND (valid_to IS NULL OR valid_to > $2) \
+             ORDER BY valid_from DESC \
+             LIMIT 1",
+        )
+        .bind(ontology_id)
+        .bind(as_of)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(to_ox_error)
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn get_current_version(
+        &self,
+        ontology_id: Uuid,
+    ) -> OxResult<Option<crate::models::OntologyVersionSnapshot>> {
+        sqlx::query_as::<_, crate::models::OntologyVersionSnapshot>(
+            "SELECT * FROM ontology_version_snapshots \
+             WHERE ontology_id = $1 AND valid_to IS NULL \
+             ORDER BY created_at DESC \
+             LIMIT 1",
+        )
+        .bind(ontology_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(to_ox_error)
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn diff_versions(
+        &self,
+        from_version: Uuid,
+        to_version: Uuid,
+    ) -> OxResult<Vec<crate::models::EntityChange>> {
+        // FULL OUTER JOIN on (kind, logical_id) — rows where
+        // `from_hash != to_hash`, or one side is NULL, are
+        // changes. Stable ordering by (kind, logical_id) so the
+        // diff reads predictably in the admin UI.
+        let rows = sqlx::query_as::<_, crate::models::DiffRow>(
+            "SELECT COALESCE(f.entity_kind, t.entity_kind)             AS entity_kind, \
+                    COALESCE(f.entity_logical_id, t.entity_logical_id) AS entity_logical_id, \
+                    f.entity_hash                                       AS from_hash, \
+                    t.entity_hash                                       AS to_hash \
+             FROM (SELECT * FROM ontology_version_entities WHERE version_id = $1) f \
+             FULL OUTER JOIN \
+                  (SELECT * FROM ontology_version_entities WHERE version_id = $2) t \
+               ON f.entity_kind = t.entity_kind \
+              AND f.entity_logical_id = t.entity_logical_id \
+             WHERE f.entity_hash IS DISTINCT FROM t.entity_hash \
+             ORDER BY entity_kind, entity_logical_id",
+        )
+        .bind(from_version)
+        .bind(to_version)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                let kind = match (row.from_hash.clone(), row.to_hash.clone()) {
+                    (None, Some(to_hash)) => crate::models::EntityChangeKind::Added { to_hash },
+                    (Some(from_hash), None) => {
+                        crate::models::EntityChangeKind::Removed { from_hash }
+                    }
+                    (Some(from_hash), Some(to_hash)) => {
+                        crate::models::EntityChangeKind::Modified { from_hash, to_hash }
+                    }
+                    // The SQL WHERE hash DISTINCT filter guarantees
+                    // at least one side is populated. Surface as
+                    // Modified with empty hashes so the admin UI
+                    // still shows the row instead of panicking on a
+                    // theoretically-impossible row the DB could in
+                    // principle produce.
+                    (None, None) => crate::models::EntityChangeKind::Modified {
+                        from_hash: String::new(),
+                        to_hash: String::new(),
+                    },
+                };
+                crate::models::EntityChange {
+                    entity_kind: row.entity_kind,
+                    entity_logical_id: row.entity_logical_id,
+                    kind,
+                }
+            })
+            .collect())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Λ-11 — OntologyNavigationStore implementation.
+//
+// Backed by the Level 3 materialised tables: search_vector
+// (GIN tsvector + trgm), entity_neighbors (1-hop edges),
+// entity_hierarchy (closure), entity_embedding (pgvector HNSW).
+// All queries are version-scoped.
+// ---------------------------------------------------------------------------
+
+#[async_trait]
+impl crate::store::OntologyNavigationStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn search_entry_points(
+        &self,
+        options: crate::navigation::EntryPointSearchOptions,
+    ) -> OxResult<Vec<crate::navigation::EntitySearchHit>> {
+        // Trigram + full-text blend. Embedding weight is folded into
+        // the `similar_entities` path — this query is the cheap
+        // text-first pass so the agent hits it first for prefix / alias
+        // recall; embedding kNN is the slower semantic fallback.
+        //
+        // The kind filter becomes `entity_kind = ANY($kinds)` when
+        // supplied. Passing `NULL` (via `Option::None`) disables the
+        // clause. NULL-safety via `COALESCE($kinds IS NULL, false)`
+        // keeps the filter branch-free on the SQL side.
+        let kind_filter: Option<Vec<String>> = options.kinds.clone();
+        let trigram_w = options.blend.trigram;
+        let full_text_w = options.blend.full_text;
+        sqlx::query_as::<_, crate::navigation::EntitySearchHit>(
+            "SELECT entity_kind::text AS entity_kind, \
+                    logical_id, \
+                    doc, \
+                    GREATEST( \
+                        similarity(doc, $2)::real * $4, \
+                        COALESCE(ts_rank(tsv, plainto_tsquery('simple', $2)), 0) * $5 \
+                    )::real AS score \
+             FROM ontology_entity_search_vector \
+             WHERE version_id = $1 \
+               AND (doc ILIKE '%' || $2 || '%' \
+                    OR similarity(doc, $2) > 0.1 \
+                    OR tsv @@ plainto_tsquery('simple', $2)) \
+               AND ($6::text[] IS NULL OR entity_kind::text = ANY($6)) \
+             ORDER BY score DESC \
+             LIMIT $3",
+        )
+        .bind(options.version_id)
+        .bind(&options.query)
+        .bind(options.limit as i64)
+        .bind(trigram_w)
+        .bind(full_text_w)
+        .bind(kind_filter.as_deref())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(to_ox_error)
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn expand_neighbors(
+        &self,
+        options: crate::navigation::NeighborExpandOptions,
+    ) -> OxResult<crate::navigation::Subgraph> {
+        use crate::navigation::{
+            EntityRef, NeighborDirection, Subgraph, SubgraphEdge, SubgraphNode,
+        };
+        use std::collections::HashMap;
+
+        // Anchors seed the subgraph at depth 0. A shared HashMap keyed
+        // by `(kind, logical_id)` dedups across iterations — the BFS
+        // iterates until `depth` hops or `max_nodes` exceeded,
+        // whichever comes first. `visited` protects against cycles in
+        // the neighbor graph.
+        let mut nodes: HashMap<(String, String), SubgraphNode> = HashMap::new();
+        let mut edges: Vec<SubgraphEdge> = Vec::new();
+        let mut truncated = false;
+
+        for a in &options.anchors {
+            nodes.insert(
+                (a.kind.clone(), a.logical_id.clone()),
+                SubgraphNode {
+                    kind: a.kind.clone(),
+                    logical_id: a.logical_id.clone(),
+                    label: None,
+                    doc: None,
+                    depth: 0,
+                },
+            );
+        }
+
+        let mut frontier: Vec<EntityRef> = options.anchors.clone();
+        let include_kinds = options.include_kinds.clone();
+        let max_nodes = if options.max_nodes == 0 {
+            u32::MAX
+        } else {
+            options.max_nodes
+        };
+
+        for hop in 1..=options.depth {
+            if frontier.is_empty() {
+                break;
+            }
+            let kinds: Vec<String> = frontier.iter().map(|r| r.kind.clone()).collect();
+            let ids: Vec<String> = frontier.iter().map(|r| r.logical_id.clone()).collect();
+
+            // `UNNEST` over the two anchor arrays produces the pair set
+            // without needing tuple-IN support. Casting the column to
+            // text keeps the join condition comparable against the bound
+            // `text[]`s — Postgres enum equality against a text array
+            // requires the explicit `::text` flip.
+            let direction_where = match options.direction {
+                NeighborDirection::Outgoing => {
+                    "JOIN UNNEST($2::text[], $3::text[]) AS a(kind, id) \
+                      ON n.from_kind::text = a.kind AND n.from_logical_id = a.id"
+                }
+                NeighborDirection::Incoming => {
+                    "JOIN UNNEST($2::text[], $3::text[]) AS a(kind, id) \
+                      ON n.to_kind::text = a.kind AND n.to_logical_id = a.id"
+                }
+                NeighborDirection::Both => {
+                    "JOIN UNNEST($2::text[], $3::text[]) AS a(kind, id) \
+                      ON (n.from_kind::text = a.kind AND n.from_logical_id = a.id) \
+                      OR (n.to_kind::text = a.kind   AND n.to_logical_id = a.id)"
+                }
+            };
+            let sql = format!(
+                "SELECT n.from_kind::text AS from_kind, n.from_logical_id, \
+                        n.to_kind::text AS to_kind, n.to_logical_id, n.relation_kind \
+                 FROM ontology_entity_neighbors n \
+                 {direction_where} \
+                 WHERE n.version_id = $1",
+            );
+
+            #[derive(sqlx::FromRow)]
+            struct NeighborRow {
+                from_kind: String,
+                from_logical_id: String,
+                to_kind: String,
+                to_logical_id: String,
+                relation_kind: String,
+            }
+
+            let rows: Vec<NeighborRow> = sqlx::query_as::<_, NeighborRow>(&sql)
+                .bind(options.version_id)
+                .bind(&kinds)
+                .bind(&ids)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(to_ox_error)?;
+
+            let mut next_frontier: Vec<EntityRef> = Vec::new();
+            for r in rows {
+                let from = EntityRef::new(&r.from_kind, &r.from_logical_id);
+                let to = EntityRef::new(&r.to_kind, &r.to_logical_id);
+                edges.push(SubgraphEdge {
+                    from: from.clone(),
+                    to: to.clone(),
+                    relation_kind: r.relation_kind,
+                });
+
+                for side in [from, to] {
+                    let key = (side.kind.clone(), side.logical_id.clone());
+                    let include_this = include_kinds
+                        .as_ref()
+                        .is_none_or(|ks| ks.iter().any(|k| k == &side.kind));
+                    if !include_this {
+                        continue;
+                    }
+                    if nodes.contains_key(&key) {
+                        continue;
+                    }
+                    if (nodes.len() as u32) >= max_nodes {
+                        truncated = true;
+                        continue;
+                    }
+                    nodes.insert(
+                        key,
+                        SubgraphNode {
+                            kind: side.kind.clone(),
+                            logical_id: side.logical_id.clone(),
+                            label: None,
+                            doc: None,
+                            depth: hop,
+                        },
+                    );
+                    next_frontier.push(side);
+                }
+            }
+            frontier = next_frontier;
+        }
+
+        let nodes: Vec<SubgraphNode> = nodes.into_values().collect();
+        Ok(Subgraph {
+            nodes,
+            edges,
+            truncated,
+        })
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn apply_hierarchy_and_facet(
+        &self,
+        subgraph: crate::navigation::Subgraph,
+        options: crate::navigation::HierarchyFacetOptions,
+    ) -> OxResult<crate::navigation::Subgraph> {
+        use crate::navigation::{
+            EntityRef, FacetFilter, HierarchyExpand, Subgraph, SubgraphEdge, SubgraphNode,
+        };
+        use std::collections::HashMap;
+
+        let mut nodes: HashMap<(String, String), SubgraphNode> = subgraph
+            .nodes
+            .into_iter()
+            .map(|n| ((n.kind.clone(), n.logical_id.clone()), n))
+            .collect();
+        let mut edges = subgraph.edges;
+        let mut truncated = subgraph.truncated;
+
+        // Hierarchy closure — walks `ontology_entity_hierarchy` for the
+        // relation + anchor. Descendants can clamp on `max_depth`;
+        // ancestors are always short so no clamp is exposed.
+        if let Some(expand) = options.hierarchy_expand {
+            #[derive(sqlx::FromRow)]
+            struct HierarchyRow {
+                relation_kind: String,
+                ancestor_kind: String,
+                ancestor_logical_id: String,
+                descendant_kind: String,
+                descendant_logical_id: String,
+                depth: i32,
+            }
+
+            let rows: Vec<HierarchyRow> = match expand {
+                HierarchyExpand::Descendants {
+                    relation_kind,
+                    anchor,
+                    max_depth,
+                } => sqlx::query_as::<_, HierarchyRow>(
+                    "SELECT relation_kind, \
+                            ancestor_kind::text AS ancestor_kind, ancestor_logical_id, \
+                            descendant_kind::text AS descendant_kind, descendant_logical_id, \
+                            depth \
+                     FROM ontology_entity_hierarchy \
+                     WHERE version_id = $1 \
+                       AND relation_kind = $2 \
+                       AND ancestor_kind = $3::ontology_entity_kind \
+                       AND ancestor_logical_id = $4 \
+                       AND depth <= $5 \
+                     ORDER BY depth, descendant_logical_id",
+                )
+                .bind(options.version_id)
+                .bind(&relation_kind)
+                .bind(&anchor.kind)
+                .bind(&anchor.logical_id)
+                .bind(max_depth as i32)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(to_ox_error)?,
+                HierarchyExpand::Ancestors {
+                    relation_kind,
+                    anchor,
+                } => sqlx::query_as::<_, HierarchyRow>(
+                    "SELECT relation_kind, \
+                            ancestor_kind::text AS ancestor_kind, ancestor_logical_id, \
+                            descendant_kind::text AS descendant_kind, descendant_logical_id, \
+                            depth \
+                     FROM ontology_entity_hierarchy \
+                     WHERE version_id = $1 \
+                       AND relation_kind = $2 \
+                       AND descendant_kind = $3::ontology_entity_kind \
+                       AND descendant_logical_id = $4 \
+                     ORDER BY depth, ancestor_logical_id",
+                )
+                .bind(options.version_id)
+                .bind(&relation_kind)
+                .bind(&anchor.kind)
+                .bind(&anchor.logical_id)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(to_ox_error)?,
+            };
+
+            // CodeSystem child cap — if a CodeSystem accumulates too
+            // many codes via hierarchy expansion, trim to
+            // `max_codes_per_code_system` descendants ordered by
+            // closest depth first. Keeps the LLM-render budget
+            // predictable on deep taxonomies.
+            let mut codes_per_system: HashMap<(String, String), u32> = HashMap::new();
+
+            for r in rows {
+                let ancestor = EntityRef::new(&r.ancestor_kind, &r.ancestor_logical_id);
+                let descendant =
+                    EntityRef::new(&r.descendant_kind, &r.descendant_logical_id);
+
+                if r.depth == 0 {
+                    // Self-row — already present as the anchor.
+                    continue;
+                }
+
+                if r.ancestor_kind == "CodeSystem" {
+                    let entry = codes_per_system
+                        .entry((r.ancestor_kind.clone(), r.ancestor_logical_id.clone()))
+                        .or_insert(0);
+                    if *entry >= options.max_codes_per_code_system {
+                        truncated = true;
+                        continue;
+                    }
+                    *entry += 1;
+                }
+
+                edges.push(SubgraphEdge {
+                    from: ancestor,
+                    to: descendant.clone(),
+                    relation_kind: r.relation_kind.clone(),
+                });
+
+                nodes
+                    .entry((descendant.kind.clone(), descendant.logical_id.clone()))
+                    .or_insert(SubgraphNode {
+                        kind: descendant.kind,
+                        logical_id: descendant.logical_id,
+                        label: None,
+                        doc: None,
+                        depth: r.depth.max(0) as u8,
+                    });
+            }
+        }
+
+        // Facet filter — applied LAST so hierarchy enrichment can
+        // still carry nodes that the final kind-filter keeps.
+        if let Some(FacetFilter { kinds: Some(ks) }) = options.facet_filter {
+            nodes.retain(|(k, _), _| ks.iter().any(|pat| pat == k));
+            edges.retain(|e| {
+                ks.iter().any(|k| k == &e.from.kind)
+                    && ks.iter().any(|k| k == &e.to.kind)
+            });
+        }
+
+        Ok(Subgraph {
+            nodes: nodes.into_values().collect(),
+            edges,
+            truncated,
+        })
+    }
+
+    fn render_subgraph_for_llm(
+        &self,
+        subgraph: &crate::navigation::Subgraph,
+        options: &crate::navigation::LlmRenderOptions,
+    ) -> String {
+        // Pure formatter — delegated so unit tests can cover the
+        // markdown shape without standing up a pool.
+        crate::navigation::render_subgraph_as_llm_markdown(subgraph, options)
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn similar_entities(
+        &self,
+        version_id: Uuid,
+        entity_kind: &str,
+        logical_id: &str,
+        top_k: u32,
+    ) -> OxResult<Vec<crate::navigation::EntitySearchHit>> {
+        // Find the query vector; if absent (embedding not yet
+        // populated), return empty rather than fall back to
+        // something less precise. Callers can chain with
+        // `search_entry_points` for the fallback behaviour.
+        sqlx::query_as::<_, crate::navigation::EntitySearchHit>(
+            "WITH q AS ( \
+                SELECT embedding \
+                FROM ontology_entity_embedding \
+                WHERE version_id = $1 \
+                  AND entity_kind = $2::ontology_entity_kind \
+                  AND logical_id = $3 \
+                  AND embedding IS NOT NULL \
+                LIMIT 1 \
+             ) \
+             SELECT sv.entity_kind::text AS entity_kind, \
+                    sv.logical_id, \
+                    sv.doc, \
+                    (1.0 - (e.embedding <=> (SELECT embedding FROM q)))::real AS score \
+             FROM ontology_entity_embedding e \
+             JOIN ontology_entity_search_vector sv \
+               ON sv.version_id = e.version_id \
+              AND sv.entity_kind = e.entity_kind \
+              AND sv.logical_id = e.logical_id \
+             WHERE e.version_id = $1 \
+               AND e.embedding IS NOT NULL \
+               AND (SELECT embedding FROM q) IS NOT NULL \
+               AND NOT (e.entity_kind = $2::ontology_entity_kind AND e.logical_id = $3) \
+             ORDER BY e.embedding <=> (SELECT embedding FROM q) \
+             LIMIT $4",
+        )
+        .bind(version_id)
+        .bind(entity_kind)
+        .bind(logical_id)
+        .bind(top_k as i64)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(to_ox_error)
+    }
+}
+
+/// Λ-10 — Level 3 populator. Called at the end of
+/// `commit_version` inside the same transaction. Fans the IR's
+/// already-assembled entities into the per-kind flat indexes,
+/// the `entity_neighbors` 1-hop graph, and the hierarchical
+/// closure table.
+///
+/// The `entity_hash` column on flat rows points at the OWNER's
+/// hash in Level 2 — for nested entities (Property inside
+/// NodeType / EdgeType; CodedValue inside CodeSystem) the hash
+/// is the parent's, since Level 2 stores the parent as the
+/// single immutable unit.
+///
+/// Embedding rows are NOT populated here. Embedding population
+/// is async (Gemini API round trip), handled by a separate
+/// background task that fills `ontology_entity_embedding`
+/// rows when they land.
+async fn materialize_level3(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    version_id: Uuid,
+    ir: &ox_ontology::OntologyIR,
+) -> OxResult<()> {
+    use ox_ontology::storage::extract_entities;
+
+    let entities = extract_entities(ir)?;
+    // Build a quick `(kind, logical_id) → hash` lookup so
+    // neighbour edges reference the right hash without a second
+    // extract pass.
+    let hash_by_id: std::collections::HashMap<
+        (ox_ontology::storage::EntityKind, String),
+        String,
+    > = entities
+        .iter()
+        .map(|e| ((e.kind, e.logical_id.clone()), e.hash.clone()))
+        .collect();
+
+    // ------------------------------------------------------------
+    // (A) Flat per-kind indexes
+    // ------------------------------------------------------------
+
+    // node_type
+    for nt in ir.node_types() {
+        let hash = hash_by_id
+            .get(&(
+                ox_ontology::storage::EntityKind::NodeType,
+                nt.id.to_string(),
+            ))
+            .cloned()
+            .unwrap_or_default();
+        sqlx::query(
+            "INSERT INTO ontology_node_type_index \
+                (version_id, logical_id, entity_hash, label, deprecated_at) \
+             VALUES ($1, $2, $3, $4, $5)",
+        )
+        .bind(version_id)
+        .bind(nt.id.as_str())
+        .bind(&hash)
+        .bind(nt.label.as_str())
+        .bind(nt.deprecated_at)
+        .execute(&mut **tx)
+        .await
+        .map_err(to_ox_error)?;
+
+        // property (nested inside node_type)
+        for prop in &nt.properties {
+            insert_property_row(
+                tx,
+                version_id,
+                "node_type",
+                nt.id.as_str(),
+                &hash,
+                prop,
+            )
+            .await?;
+        }
+    }
+
+    // edge_type
+    for et in ir.edge_types() {
+        let hash = hash_by_id
+            .get(&(
+                ox_ontology::storage::EntityKind::EdgeType,
+                et.id.to_string(),
+            ))
+            .cloned()
+            .unwrap_or_default();
+        sqlx::query(
+            "INSERT INTO ontology_edge_type_index \
+                (version_id, logical_id, entity_hash, label, \
+                 source_type_id, target_type_id, deprecated_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        )
+        .bind(version_id)
+        .bind(et.id.as_str())
+        .bind(&hash)
+        .bind(et.label.as_str())
+        .bind(et.source_node_id.as_str())
+        .bind(et.target_node_id.as_str())
+        .bind(et.deprecated_at)
+        .execute(&mut **tx)
+        .await
+        .map_err(to_ox_error)?;
+
+        for prop in &et.properties {
+            insert_property_row(
+                tx,
+                version_id,
+                "edge_type",
+                et.id.as_str(),
+                &hash,
+                prop,
+            )
+            .await?;
+        }
+    }
+
+    // interface
+    for iface in ir.interfaces() {
+        let hash = hash_for(&hash_by_id, ox_ontology::storage::EntityKind::Interface, &iface.id);
+        sqlx::query(
+            "INSERT INTO ontology_interface_index \
+                (version_id, logical_id, entity_hash, label) \
+             VALUES ($1, $2, $3, $4)",
+        )
+        .bind(version_id)
+        .bind(iface.id.as_str())
+        .bind(&hash)
+        .bind(iface.label.as_str())
+        .execute(&mut **tx)
+        .await
+        .map_err(to_ox_error)?;
+    }
+
+    // object_mapping
+    for om in ir.object_mappings() {
+        let hash = hash_for(
+            &hash_by_id,
+            ox_ontology::storage::EntityKind::ObjectMapping,
+            &om.id,
+        );
+        sqlx::query(
+            "INSERT INTO ontology_object_mapping_index \
+                (version_id, logical_id, entity_hash, node_type_id, \
+                 source_id, precedence) \
+             VALUES ($1, $2, $3, $4, $5, $6)",
+        )
+        .bind(version_id)
+        .bind(om.id.as_str())
+        .bind(&hash)
+        .bind(om.node_type_id.as_str())
+        .bind(om.source_id.as_str())
+        .bind(om.precedence as i16)
+        .execute(&mut **tx)
+        .await
+        .map_err(to_ox_error)?;
+    }
+
+    // link_mapping
+    for lm in ir.link_mappings() {
+        let hash = hash_for(
+            &hash_by_id,
+            ox_ontology::storage::EntityKind::LinkMapping,
+            &lm.id,
+        );
+        let kind_tag = match &lm.kind {
+            ox_ontology::mapping::LinkMappingKind::ForeignKey { .. } => "foreign_key",
+            ox_ontology::mapping::LinkMappingKind::Bridge { .. } => "bridge",
+            ox_ontology::mapping::LinkMappingKind::Computed { .. } => "computed",
+            ox_ontology::mapping::LinkMappingKind::Federated { .. } => "federated",
+        };
+        let cardinality = match lm.cardinality {
+            ox_ontology::mapping::LinkCardinality::OneToOne => "one_to_one",
+            ox_ontology::mapping::LinkCardinality::OneToMany => "one_to_many",
+            ox_ontology::mapping::LinkCardinality::ManyToOne => "many_to_one",
+            ox_ontology::mapping::LinkCardinality::ManyToMany => "many_to_many",
+        };
+        sqlx::query(
+            "INSERT INTO ontology_link_mapping_index \
+                (version_id, logical_id, entity_hash, edge_type_id, \
+                 kind, cardinality, precedence) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        )
+        .bind(version_id)
+        .bind(lm.id.as_str())
+        .bind(&hash)
+        .bind(lm.edge_type_id.as_str())
+        .bind(kind_tag)
+        .bind(cardinality)
+        .bind(lm.precedence as i16)
+        .execute(&mut **tx)
+        .await
+        .map_err(to_ox_error)?;
+    }
+
+    // code_system + nested coded_value
+    for cs in ir.code_systems() {
+        let hash = hash_for(
+            &hash_by_id,
+            ox_ontology::storage::EntityKind::CodeSystem,
+            &cs.id,
+        );
+        let kind_tag = match cs.kind {
+            ox_ontology::code_system::CodeSystemKind::Internal => "internal",
+            ox_ontology::code_system::CodeSystemKind::External { .. } => "external",
+        };
+        sqlx::query(
+            "INSERT INTO ontology_code_system_index \
+                (version_id, logical_id, entity_hash, name, uri, kind, hierarchical) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        )
+        .bind(version_id)
+        .bind(cs.id.as_str())
+        .bind(&hash)
+        .bind(&cs.name)
+        .bind(cs.uri.as_deref())
+        .bind(kind_tag)
+        .bind(cs.hierarchical)
+        .execute(&mut **tx)
+        .await
+        .map_err(to_ox_error)?;
+
+        for cv in &cs.codes {
+            sqlx::query(
+                "INSERT INTO ontology_coded_value_index \
+                    (version_id, logical_id, entity_hash, code_system_id, \
+                     code, broader_id, deprecated_at) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)",
+            )
+            .bind(version_id)
+            .bind(cv.id.as_str())
+            .bind(&hash)
+            .bind(cs.id.as_str())
+            .bind(&cv.code)
+            .bind(cv.broader_id.as_ref().map(|id| id.as_str()))
+            .bind(cv.deprecated_at)
+            .execute(&mut **tx)
+            .await
+            .map_err(to_ox_error)?;
+        }
+    }
+
+    // value_set
+    for vs in ir.value_sets() {
+        let hash = hash_for(
+            &hash_by_id,
+            ox_ontology::storage::EntityKind::ValueSet,
+            &vs.id,
+        );
+        sqlx::query(
+            "INSERT INTO ontology_value_set_index \
+                (version_id, logical_id, entity_hash, name) \
+             VALUES ($1, $2, $3, $4)",
+        )
+        .bind(version_id)
+        .bind(vs.id.as_str())
+        .bind(&hash)
+        .bind(&vs.name)
+        .execute(&mut **tx)
+        .await
+        .map_err(to_ox_error)?;
+    }
+
+    // notation_pattern
+    for np in ir.notation_patterns() {
+        let hash = hash_for(
+            &hash_by_id,
+            ox_ontology::storage::EntityKind::NotationPattern,
+            &np.id,
+        );
+        sqlx::query(
+            "INSERT INTO ontology_notation_pattern_index \
+                (version_id, logical_id, entity_hash, name) \
+             VALUES ($1, $2, $3, $4)",
+        )
+        .bind(version_id)
+        .bind(np.id.as_str())
+        .bind(&hash)
+        .bind(&np.name)
+        .execute(&mut **tx)
+        .await
+        .map_err(to_ox_error)?;
+    }
+
+    // concept_map
+    for cm in ir.concept_maps() {
+        let hash = hash_for(
+            &hash_by_id,
+            ox_ontology::storage::EntityKind::ConceptMap,
+            &cm.id,
+        );
+        sqlx::query(
+            "INSERT INTO ontology_concept_map_index \
+                (version_id, logical_id, entity_hash, name, \
+                 source_system_id, target_system_id) \
+             VALUES ($1, $2, $3, $4, $5, $6)",
+        )
+        .bind(version_id)
+        .bind(cm.id.as_str())
+        .bind(&hash)
+        .bind(&cm.name)
+        .bind(cm.source_system_id.as_str())
+        .bind(cm.target_system_id.as_str())
+        .execute(&mut **tx)
+        .await
+        .map_err(to_ox_error)?;
+    }
+
+    // value_range_set
+    for rs in ir.value_range_sets() {
+        let hash = hash_for(
+            &hash_by_id,
+            ox_ontology::storage::EntityKind::ValueRangeSet,
+            &rs.id,
+        );
+        sqlx::query(
+            "INSERT INTO ontology_value_range_set_index \
+                (version_id, logical_id, entity_hash, name) \
+             VALUES ($1, $2, $3, $4)",
+        )
+        .bind(version_id)
+        .bind(rs.id.as_str())
+        .bind(&hash)
+        .bind(&rs.name)
+        .execute(&mut **tx)
+        .await
+        .map_err(to_ox_error)?;
+    }
+
+    // glossary_term
+    for term in ir.glossary() {
+        let hash = hash_for(
+            &hash_by_id,
+            ox_ontology::storage::EntityKind::GlossaryTerm,
+            &term.id,
+        );
+        sqlx::query(
+            "INSERT INTO ontology_glossary_term_index \
+                (version_id, logical_id, entity_hash, term, category, parent_term_id) \
+             VALUES ($1, $2, $3, $4, $5, $6)",
+        )
+        .bind(version_id)
+        .bind(term.id.as_str())
+        .bind(&hash)
+        .bind(&term.term)
+        .bind(term.category.as_deref())
+        .bind(term.parent_term_id.as_ref().map(|id| id.as_str()))
+        .execute(&mut **tx)
+        .await
+        .map_err(to_ox_error)?;
+    }
+
+    // rule
+    for rule in ir.rules() {
+        let hash = hash_for(
+            &hash_by_id,
+            ox_ontology::storage::EntityKind::Rule,
+            &rule.id,
+        );
+        let kind_tag = match &rule.kind {
+            ox_ontology::rule::RuleKind::NodeShape { .. } => "node_shape",
+            ox_ontology::rule::RuleKind::PropertyShape { .. } => "property_shape",
+            ox_ontology::rule::RuleKind::EdgeShape { .. } => "edge_shape",
+            ox_ontology::rule::RuleKind::CrossEntityShape { .. } => "cross_entity_shape",
+            ox_ontology::rule::RuleKind::StateMachine { .. } => "state_machine",
+        };
+        let severity_tag = match rule.severity {
+            ox_ontology::rule::Severity::Violation => "violation",
+            ox_ontology::rule::Severity::Warning => "warning",
+            ox_ontology::rule::Severity::Info => "info",
+        };
+        sqlx::query(
+            "INSERT INTO ontology_rule_index \
+                (version_id, logical_id, entity_hash, kind, severity) \
+             VALUES ($1, $2, $3, $4, $5)",
+        )
+        .bind(version_id)
+        .bind(rule.id.as_str())
+        .bind(&hash)
+        .bind(kind_tag)
+        .bind(severity_tag)
+        .execute(&mut **tx)
+        .await
+        .map_err(to_ox_error)?;
+    }
+
+    // function
+    for func in ir.functions() {
+        let hash = hash_for(
+            &hash_by_id,
+            ox_ontology::storage::EntityKind::Function,
+            &func.id,
+        );
+        let purity_tag = match func.purity {
+            ox_ontology::function::FunctionPurity::Pure => "pure",
+            ox_ontology::function::FunctionPurity::Impure => "impure",
+        };
+        sqlx::query(
+            "INSERT INTO ontology_function_index \
+                (version_id, logical_id, entity_hash, name, purity) \
+             VALUES ($1, $2, $3, $4, $5)",
+        )
+        .bind(version_id)
+        .bind(func.id.as_str())
+        .bind(&hash)
+        .bind(&func.name)
+        .bind(purity_tag)
+        .execute(&mut **tx)
+        .await
+        .map_err(to_ox_error)?;
+    }
+
+    // metric
+    for metric in ir.metrics() {
+        let hash = hash_for(
+            &hash_by_id,
+            ox_ontology::storage::EntityKind::Metric,
+            &metric.id,
+        );
+        let grain_tag = match metric.temporal_grain {
+            ox_ontology::metric::TemporalGrain::Snapshot => "snapshot",
+            ox_ontology::metric::TemporalGrain::Daily => "daily",
+            ox_ontology::metric::TemporalGrain::Weekly => "weekly",
+            ox_ontology::metric::TemporalGrain::Monthly => "monthly",
+            ox_ontology::metric::TemporalGrain::Quarterly => "quarterly",
+            ox_ontology::metric::TemporalGrain::Yearly => "yearly",
+        };
+        sqlx::query(
+            "INSERT INTO ontology_metric_index \
+                (version_id, logical_id, entity_hash, name, temporal_grain) \
+             VALUES ($1, $2, $3, $4, $5)",
+        )
+        .bind(version_id)
+        .bind(metric.id.as_str())
+        .bind(&hash)
+        .bind(&metric.name)
+        .bind(grain_tag)
+        .execute(&mut **tx)
+        .await
+        .map_err(to_ox_error)?;
+    }
+
+    // ------------------------------------------------------------
+    // (B) Neighbor edges — cross-references between entities.
+    // ------------------------------------------------------------
+
+    insert_neighbors_from_ir(tx, version_id, ir).await?;
+
+    // ------------------------------------------------------------
+    // (C) Hierarchical closure — code_system broader, glossary
+    //     parent, interface implements.
+    // ------------------------------------------------------------
+
+    insert_hierarchy_closure(tx, version_id, ir).await?;
+
+    // ------------------------------------------------------------
+    // (D) Search vectors — flattened text + tsvector.
+    // ------------------------------------------------------------
+
+    insert_search_vectors(tx, version_id, ir).await?;
+
+    Ok(())
+}
+
+/// Lookup helper for the `(kind, logical_id) → hash` cache built
+/// at the start of `materialize_level3`. Missing entries return
+/// an empty string, which then fails the FK check on the flat
+/// insert — defensive: if the hash cache is out of sync with the
+/// IR it is better to fail loudly here than to insert a flat row
+/// pointing at nothing.
+fn hash_for(
+    cache: &std::collections::HashMap<(ox_ontology::storage::EntityKind, String), String>,
+    kind: ox_ontology::storage::EntityKind,
+    id: &impl ToString,
+) -> String {
+    cache
+        .get(&(kind, id.to_string()))
+        .cloned()
+        .unwrap_or_default()
+}
+
+/// Insert one property row. Property is nested at the IR level,
+/// so `owner_hash` is the NodeType / EdgeType's hash (the
+/// content-addressed unit that owns this property).
+#[allow(clippy::too_many_arguments)]
+async fn insert_property_row(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    version_id: Uuid,
+    owner_kind: &str,
+    owner_logical_id: &str,
+    owner_hash: &str,
+    prop: &ox_ontology::ir::PropertyDef,
+) -> OxResult<()> {
+    let property_type_tag = match &prop.property_type {
+        ox_core::types::PropertyType::Bool => "bool",
+        ox_core::types::PropertyType::Int => "int",
+        ox_core::types::PropertyType::Float => "float",
+        ox_core::types::PropertyType::String => "string",
+        ox_core::types::PropertyType::Date => "date",
+        ox_core::types::PropertyType::DateTime => "datetime",
+        ox_core::types::PropertyType::Duration => "duration",
+        ox_core::types::PropertyType::Bytes => "bytes",
+        ox_core::types::PropertyType::List { .. } => "list",
+        ox_core::types::PropertyType::Map => "map",
+    };
+    let aggregation_role_tag = prop.aggregation_role.map(|r| match r {
+        ox_ontology::ir::AggregationRole::Measure => "measure",
+        ox_ontology::ir::AggregationRole::Dimension => "dimension",
+        ox_ontology::ir::AggregationRole::Attribute => "attribute",
+        ox_ontology::ir::AggregationRole::Identifier => "identifier",
+    });
+    let semantic_type_tag = prop.semantic_type.as_ref().map(|st| match st {
+        ox_ontology::ir::SemanticType::Email => "email".to_string(),
+        ox_ontology::ir::SemanticType::Phone => "phone".to_string(),
+        ox_ontology::ir::SemanticType::Url => "url".to_string(),
+        ox_ontology::ir::SemanticType::Address => "address".to_string(),
+        ox_ontology::ir::SemanticType::Coordinate => "coordinate".to_string(),
+        ox_ontology::ir::SemanticType::Currency => "currency".to_string(),
+        ox_ontology::ir::SemanticType::Percentage => "percentage".to_string(),
+        ox_ontology::ir::SemanticType::Iso8601 => "iso8601".to_string(),
+        ox_ontology::ir::SemanticType::LocalizedText => "localized_text".to_string(),
+        ox_ontology::ir::SemanticType::Other(s) => format!("other:{s}"),
+    });
+    let pii_kind_tag = prop.pii_kind.as_ref().map(|k| {
+        // Use the enum's tag-only rendering. `serde_json::to_value`
+        // on an internally-tagged enum produces {"kind": "...", ...}
+        // — we pull the tag out for the flat index.
+        serde_json::to_value(k)
+            .ok()
+            .and_then(|v| v.get("kind").and_then(|t| t.as_str()).map(String::from))
+            .unwrap_or_else(|| "unknown".into())
+    });
+
+    sqlx::query(
+        "INSERT INTO ontology_property_index \
+            (version_id, owner_kind, owner_logical_id, logical_id, \
+             entity_hash, key, property_type, nullable, is_localized, \
+             aggregation_role, value_set_id, notation_pattern_id, \
+             value_range_set_id, semantic_type, pii_kind, unit_id, \
+             glossary_term_id, deprecated_at) \
+         VALUES ($1, $2::ontology_entity_kind, $3, $4, $5, $6, $7, $8, $9, \
+                 $10, $11, $12, $13, $14, $15, $16, $17, $18)",
+    )
+    .bind(version_id)
+    .bind(owner_kind)
+    .bind(owner_logical_id)
+    .bind(prop.id.as_str())
+    .bind(owner_hash)
+    .bind(prop.name.as_str())
+    .bind(property_type_tag)
+    .bind(prop.nullable)
+    .bind(prop.is_localized)
+    .bind(aggregation_role_tag)
+    .bind(prop.value_set_id.as_ref().map(|id| id.as_str()))
+    .bind(prop.notation_pattern_id.as_ref().map(|id| id.as_str()))
+    .bind(prop.value_range_set_id.as_ref().map(|id| id.as_str()))
+    .bind(semantic_type_tag)
+    .bind(pii_kind_tag)
+    .bind(prop.unit_id.as_ref().map(|id| id.as_str()))
+    .bind(prop.glossary_term_id.as_ref().map(|id| id.as_str()))
+    .bind(prop.deprecated_at)
+    .execute(&mut **tx)
+    .await
+    .map_err(to_ox_error)?;
+    Ok(())
+}
+
+/// Harvest cross-entity references from the IR and emit 1-hop
+/// neighbor edges. Kept as a free function rather than expanding
+/// `materialize_level3` further so the edge-kind taxonomy is in
+/// one place.
+async fn insert_neighbors_from_ir(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    version_id: Uuid,
+    ir: &ox_ontology::OntologyIR,
+) -> OxResult<()> {
+    let mut from_kinds: Vec<&str> = Vec::new();
+    let mut from_ids: Vec<String> = Vec::new();
+    let mut to_kinds: Vec<&str> = Vec::new();
+    let mut to_ids: Vec<String> = Vec::new();
+    let mut relations: Vec<&str> = Vec::new();
+
+    let mut push = |fk: &'static str, fi: &str, tk: &'static str, ti: &str, rk: &'static str| {
+        from_kinds.push(fk);
+        from_ids.push(fi.to_string());
+        to_kinds.push(tk);
+        to_ids.push(ti.to_string());
+        relations.push(rk);
+    };
+
+    // Property → value_set / notation_pattern / value_range_set /
+    // glossary_term / unit (coded_value).
+    let walk_properties = |props: &[ox_ontology::ir::PropertyDef], cb: &mut dyn FnMut(&ox_ontology::ir::PropertyDef)| {
+        for p in props {
+            cb(p);
+        }
+    };
+
+    // `push` is an FnMut closure that borrows the vecs; we call
+    // it from the property walk below.
+    let mut on_prop = |prop: &ox_ontology::ir::PropertyDef| {
+        if let Some(vs_id) = &prop.value_set_id {
+            push("property", prop.id.as_str(), "value_set", vs_id.as_str(), "references_value_set");
+        }
+        if let Some(np_id) = &prop.notation_pattern_id {
+            push("property", prop.id.as_str(), "notation_pattern", np_id.as_str(), "references_notation_pattern");
+        }
+        if let Some(rs_id) = &prop.value_range_set_id {
+            push("property", prop.id.as_str(), "value_range_set", rs_id.as_str(), "references_value_range_set");
+        }
+        if let Some(gt_id) = &prop.glossary_term_id {
+            push("property", prop.id.as_str(), "glossary_term", gt_id.as_str(), "references_glossary_term");
+        }
+        if let Some(unit_id) = &prop.unit_id {
+            push("property", prop.id.as_str(), "coded_value", unit_id.as_str(), "uses_unit");
+        }
+        if let Some(fn_id) = &prop.derived_from {
+            push("property", prop.id.as_str(), "function", fn_id.as_str(), "derived_from");
+        }
+    };
+    for nt in ir.node_types() {
+        walk_properties(&nt.properties, &mut on_prop);
+    }
+    for et in ir.edge_types() {
+        walk_properties(&et.properties, &mut on_prop);
+    }
+
+    // ObjectMapping → NodeType
+    for om in ir.object_mappings() {
+        push("object_mapping", om.id.as_str(), "node_type", om.node_type_id.as_str(), "maps_node_type");
+    }
+
+    // LinkMapping → EdgeType
+    for lm in ir.link_mappings() {
+        push("link_mapping", lm.id.as_str(), "edge_type", lm.edge_type_id.as_str(), "maps_edge_type");
+    }
+
+    // ConceptMap → source_system / target_system
+    for cm in ir.concept_maps() {
+        push("concept_map", cm.id.as_str(), "code_system", cm.source_system_id.as_str(), "concept_map_source");
+        push("concept_map", cm.id.as_str(), "code_system", cm.target_system_id.as_str(), "concept_map_target");
+    }
+
+    // ValueSet → CodeSystem (composition rules)
+    for vs in ir.value_sets() {
+        for rule in &vs.composition {
+            push(
+                "value_set",
+                vs.id.as_str(),
+                "code_system",
+                rule.system_id.as_str(),
+                "value_set_includes_system",
+            );
+        }
+    }
+
+    if from_kinds.is_empty() {
+        return Ok(());
+    }
+
+    let from_kinds_owned: Vec<String> = from_kinds.iter().map(|s| s.to_string()).collect();
+    let to_kinds_owned: Vec<String> = to_kinds.iter().map(|s| s.to_string()).collect();
+    let relations_owned: Vec<String> = relations.iter().map(|s| s.to_string()).collect();
+
+    sqlx::query(
+        "INSERT INTO ontology_entity_neighbors \
+            (version_id, from_kind, from_logical_id, to_kind, to_logical_id, relation_kind) \
+         SELECT $1, fk.fkind::ontology_entity_kind, fk.fid, \
+                    fk.tkind::ontology_entity_kind, fk.tid, fk.rk \
+         FROM UNNEST($2::text[], $3::text[], $4::text[], $5::text[], $6::text[]) \
+              AS fk(fkind, fid, tkind, tid, rk) \
+         ON CONFLICT DO NOTHING",
+    )
+    .bind(version_id)
+    .bind(&from_kinds_owned)
+    .bind(&from_ids)
+    .bind(&to_kinds_owned)
+    .bind(&to_ids)
+    .bind(&relations_owned)
+    .execute(&mut **tx)
+    .await
+    .map_err(to_ox_error)?;
+
+    Ok(())
+}
+
+/// Materialise the hierarchical closure. Three relations today:
+///
+///   code_system_broader      CodedValue.broader_id inside a
+///                            hierarchical CodeSystem.
+///   glossary_term_parent     GlossaryTermDef.parent_term_id.
+///   interface_implements     NodeType.implements → Interface.
+///
+/// Closure is built in-memory via iterative fixpoint. Input
+/// sizes are small (low thousands), so the O(n²) worst case is
+/// fine; a future enterprise-scale growth would migrate this
+/// to a recursive CTE stored proc.
+async fn insert_hierarchy_closure(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    version_id: Uuid,
+    ir: &ox_ontology::OntologyIR,
+) -> OxResult<()> {
+    // Each row: (relation_kind, ancestor_kind, ancestor_id,
+    // descendant_kind, descendant_id, depth).
+    let mut rows: Vec<(String, String, String, String, String, i32)> = Vec::new();
+
+    // 1) code_system_broader — walk CodedValue.broader_id per system.
+    for cs in ir.code_systems() {
+        if !cs.hierarchical {
+            continue;
+        }
+        // Build immediate parent map.
+        let parent_of: std::collections::HashMap<&str, &str> = cs
+            .codes
+            .iter()
+            .filter_map(|cv| cv.broader_id.as_ref().map(|b| (cv.id.as_str(), b.as_str())))
+            .collect();
+        for cv in &cs.codes {
+            // self — depth 0
+            rows.push((
+                "code_system_broader".into(),
+                "coded_value".into(),
+                cv.id.to_string(),
+                "coded_value".into(),
+                cv.id.to_string(),
+                0,
+            ));
+            // Walk ancestors.
+            let mut current = cv.id.as_str();
+            let mut depth = 1;
+            let limit = cs.codes.len() + 1;
+            let mut guard = 0;
+            while let Some(parent) = parent_of.get(current) {
+                rows.push((
+                    "code_system_broader".into(),
+                    "coded_value".into(),
+                    parent.to_string(),
+                    "coded_value".into(),
+                    cv.id.to_string(),
+                    depth,
+                ));
+                current = parent;
+                depth += 1;
+                guard += 1;
+                if guard >= limit {
+                    break; // cycle guard
+                }
+            }
+        }
+    }
+
+    // 2) glossary_term_parent — walk GlossaryTermDef.parent_term_id.
+    let terms: Vec<_> = ir.glossary().iter().collect();
+    let parent_map: std::collections::HashMap<&str, &str> = terms
+        .iter()
+        .filter_map(|t| t.parent_term_id.as_ref().map(|p| (t.id.as_str(), p.as_str())))
+        .collect();
+    for term in &terms {
+        rows.push((
+            "glossary_term_parent".into(),
+            "glossary_term".into(),
+            term.id.to_string(),
+            "glossary_term".into(),
+            term.id.to_string(),
+            0,
+        ));
+        let mut current = term.id.as_str();
+        let mut depth = 1;
+        let limit = terms.len() + 1;
+        let mut guard = 0;
+        while let Some(parent) = parent_map.get(current) {
+            rows.push((
+                "glossary_term_parent".into(),
+                "glossary_term".into(),
+                parent.to_string(),
+                "glossary_term".into(),
+                term.id.to_string(),
+                depth,
+            ));
+            current = parent;
+            depth += 1;
+            guard += 1;
+            if guard >= limit {
+                break;
+            }
+        }
+    }
+
+    // 3) interface_implements — NodeType → Interface for each of
+    //    the node's `implements` entries. NodeTypeDef's
+    //    `implements` field holds `Vec<InterfaceId>`.
+    for nt in ir.node_types() {
+        for iface_id in &nt.implements {
+            rows.push((
+                "interface_implements".into(),
+                "node_type".into(),
+                nt.id.to_string(),
+                "interface".into(),
+                iface_id.to_string(),
+                1,
+            ));
+        }
+    }
+
+    if rows.is_empty() {
+        return Ok(());
+    }
+
+    // Bulk insert via UNNEST of six parallel arrays.
+    let mut rel: Vec<String> = Vec::with_capacity(rows.len());
+    let mut ak: Vec<String> = Vec::with_capacity(rows.len());
+    let mut ai: Vec<String> = Vec::with_capacity(rows.len());
+    let mut dk: Vec<String> = Vec::with_capacity(rows.len());
+    let mut di: Vec<String> = Vec::with_capacity(rows.len());
+    let mut dp: Vec<i32> = Vec::with_capacity(rows.len());
+    for r in rows {
+        rel.push(r.0);
+        ak.push(r.1);
+        ai.push(r.2);
+        dk.push(r.3);
+        di.push(r.4);
+        dp.push(r.5);
+    }
+    sqlx::query(
+        "INSERT INTO ontology_entity_hierarchy \
+            (version_id, relation_kind, ancestor_kind, ancestor_logical_id, \
+             descendant_kind, descendant_logical_id, depth) \
+         SELECT $1, \
+                r.rel, \
+                r.ak::ontology_entity_kind, r.ai, \
+                r.dk::ontology_entity_kind, r.di, \
+                r.dp \
+         FROM UNNEST($2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::int[]) \
+              AS r(rel, ak, ai, dk, di, dp) \
+         ON CONFLICT DO NOTHING",
+    )
+    .bind(version_id)
+    .bind(&rel)
+    .bind(&ak)
+    .bind(&ai)
+    .bind(&dk)
+    .bind(&di)
+    .bind(&dp)
+    .execute(&mut **tx)
+    .await
+    .map_err(to_ox_error)?;
+
+    Ok(())
+}
+
+/// Build the `ontology_entity_search_vector` row per entity.
+/// `doc` is the concatenated searchable text; `tsv` is
+/// `to_tsvector('simple', doc)`. `simple` dictionary preserves
+/// exact tokens across the mixed-language content our customers
+/// author.
+async fn insert_search_vectors(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    version_id: Uuid,
+    ir: &ox_ontology::OntologyIR,
+) -> OxResult<()> {
+    // Per-entity docs. The ontology_header row covers the
+    // ontology-level searchable text (name + description).
+    let mut kinds: Vec<String> = Vec::new();
+    let mut lids: Vec<String> = Vec::new();
+    let mut docs: Vec<String> = Vec::new();
+
+    let mut emit = |kind: &'static str, lid: &str, doc: String| {
+        kinds.push(kind.to_string());
+        lids.push(lid.to_string());
+        docs.push(doc);
+    };
+
+    let localized_flat = |t: &ox_core::i18n::LocalizedText| {
+        // Default + every translation joined with spaces. Skips
+        // empty strings so the docvector doesn't inflate with
+        // whitespace.
+        let mut parts = Vec::new();
+        if !t.default.is_empty() {
+            parts.push(t.default.clone());
+        }
+        for v in t.translations.values() {
+            if !v.is_empty() {
+                parts.push(v.clone());
+            }
+        }
+        parts.join(" ")
+    };
+
+    emit(
+        "ontology_header",
+        &ir.id,
+        format!("{} {}", ir.name, localized_flat(&ir.description)),
+    );
+
+    for nt in ir.node_types() {
+        emit(
+            "node_type",
+            nt.id.as_str(),
+            format!(
+                "{} {}",
+                nt.label.as_str(),
+                localized_flat(&nt.description)
+            ),
+        );
+        for prop in &nt.properties {
+            let aliases = prop
+                .aliases
+                .iter()
+                .map(localized_flat)
+                .collect::<Vec<_>>()
+                .join(" ");
+            emit(
+                "property",
+                prop.id.as_str(),
+                format!(
+                    "{} {} {} {}",
+                    prop.name.as_str(),
+                    localized_flat(&prop.display_name),
+                    aliases,
+                    localized_flat(&prop.description)
+                ),
+            );
+        }
+    }
+    for et in ir.edge_types() {
+        emit(
+            "edge_type",
+            et.id.as_str(),
+            format!(
+                "{} {}",
+                et.label.as_str(),
+                localized_flat(&et.description)
+            ),
+        );
+    }
+    for cs in ir.code_systems() {
+        emit(
+            "code_system",
+            cs.id.as_str(),
+            format!(
+                "{} {} {}",
+                cs.name,
+                localized_flat(&cs.display_name),
+                localized_flat(&cs.description)
+            ),
+        );
+        for cv in &cs.codes {
+            let alias = cv.aliases.join(" ");
+            emit(
+                "coded_value",
+                cv.id.as_str(),
+                format!(
+                    "{} {} {} {} {}",
+                    cv.code,
+                    localized_flat(&cv.display),
+                    localized_flat(&cv.definition),
+                    alias,
+                    localized_flat(&cv.scope_note)
+                ),
+            );
+        }
+    }
+    for vs in ir.value_sets() {
+        emit(
+            "value_set",
+            vs.id.as_str(),
+            format!(
+                "{} {} {}",
+                vs.name,
+                localized_flat(&vs.display_name),
+                localized_flat(&vs.description)
+            ),
+        );
+    }
+    for np in ir.notation_patterns() {
+        emit(
+            "notation_pattern",
+            np.id.as_str(),
+            format!(
+                "{} {} {}",
+                np.name,
+                localized_flat(&np.display_name),
+                localized_flat(&np.description)
+            ),
+        );
+    }
+    for term in ir.glossary() {
+        let aliases = term.aliases.join(" ");
+        emit(
+            "glossary_term",
+            term.id.as_str(),
+            format!(
+                "{} {} {} {}",
+                term.term,
+                localized_flat(&term.display_name),
+                aliases,
+                localized_flat(&term.description)
+            ),
+        );
+    }
+
+    if kinds.is_empty() {
+        return Ok(());
+    }
+
+    sqlx::query(
+        "INSERT INTO ontology_entity_search_vector \
+            (version_id, entity_kind, logical_id, doc, tsv) \
+         SELECT $1, k::ontology_entity_kind, l, d, to_tsvector('simple', d) \
+         FROM UNNEST($2::text[], $3::text[], $4::text[]) AS s(k, l, d)",
+    )
+    .bind(version_id)
+    .bind(&kinds)
+    .bind(&lids)
+    .bind(&docs)
+    .execute(&mut **tx)
+    .await
+    .map_err(to_ox_error)?;
+
+    Ok(())
+}
+
+/// Assemble an `OntologyIR` from a flat list of
+/// `(kind, logical_id, hash, content)` rows. Groups rows by kind
+/// and routes each group into the matching IR collection. The
+/// header row produces the outer IR struct.
+///
+/// Returns `OxResult` so a malformed stored row (kind that
+/// doesn't parse, content that doesn't deserialise, missing
+/// header) surfaces with a specific error — downstream callers
+/// map to a 500 rather than silently filling a half-empty IR.
+fn assemble_ir(
+    rows: &[crate::models::OntologyEntityJoinRow],
+) -> OxResult<ox_ontology::OntologyIR> {
+    use ox_ontology::storage::EntityKind;
+
+    let mut header: Option<serde_json::Value> = None;
+    let mut node_types: Vec<ox_ontology::ir::NodeTypeDef> = Vec::new();
+    let mut edge_types: Vec<ox_ontology::ir::EdgeTypeDef> = Vec::new();
+    let mut indexes: Vec<ox_ontology::ir::IndexDef> = Vec::new();
+    let mut interfaces: Vec<ox_ontology::interface::InterfaceDef> = Vec::new();
+    let mut object_mappings: Vec<ox_ontology::mapping::ObjectMappingDef> = Vec::new();
+    let mut link_mappings: Vec<ox_ontology::mapping::LinkMappingDef> = Vec::new();
+    let mut rules: Vec<ox_ontology::rule::RuleDef> = Vec::new();
+    let mut data_quality: Vec<ox_ontology::data_quality::DataQualityDef> = Vec::new();
+    let mut actions: Vec<ox_ontology::action::ActionDef> = Vec::new();
+    let mut provenance: Vec<ox_ontology::provenance::ProvenanceDef> = Vec::new();
+    let mut functions: Vec<ox_ontology::function::FunctionDef> = Vec::new();
+    let mut metrics: Vec<ox_ontology::metric::MetricDef> = Vec::new();
+    let mut enrichments: Vec<ox_ontology::enrichment::EnrichmentDef> = Vec::new();
+    let mut glossary: Vec<ox_ontology::glossary::GlossaryTermDef> = Vec::new();
+    let mut code_systems: Vec<ox_ontology::code_system::CodeSystemDef> = Vec::new();
+    let mut value_sets: Vec<ox_ontology::value_set::ValueSetDef> = Vec::new();
+    let mut notation_patterns: Vec<ox_ontology::notation_pattern::NotationPatternDef> =
+        Vec::new();
+    let mut concept_maps: Vec<ox_ontology::concept_map::ConceptMapDef> = Vec::new();
+    let mut value_range_sets: Vec<ox_ontology::value_range::ValueRangeSetDef> = Vec::new();
+
+    for row in rows {
+        let kind = EntityKind::parse(&row.entity_kind)?;
+        match kind {
+            EntityKind::OntologyHeader => {
+                header = Some(row.content.clone());
+            }
+            EntityKind::NodeType => node_types.push(serde_json::from_value(row.content.clone())?),
+            EntityKind::EdgeType => edge_types.push(serde_json::from_value(row.content.clone())?),
+            EntityKind::IndexDef => indexes.push(serde_json::from_value(row.content.clone())?),
+            EntityKind::Interface => interfaces.push(serde_json::from_value(row.content.clone())?),
+            EntityKind::ObjectMapping => {
+                object_mappings.push(serde_json::from_value(row.content.clone())?)
+            }
+            EntityKind::LinkMapping => {
+                link_mappings.push(serde_json::from_value(row.content.clone())?)
+            }
+            EntityKind::PropertyMapping => {
+                // PropertyMappingDef is nested inside ObjectMappingDef in
+                // the current IR — it rides along with its parent. When
+                // the IR model promotes it to a top-level collection,
+                // this arm routes into the new vector.
+            }
+            EntityKind::Rule => rules.push(serde_json::from_value(row.content.clone())?),
+            EntityKind::DataQuality => {
+                data_quality.push(serde_json::from_value(row.content.clone())?)
+            }
+            EntityKind::Action => actions.push(serde_json::from_value(row.content.clone())?),
+            EntityKind::Provenance => {
+                provenance.push(serde_json::from_value(row.content.clone())?)
+            }
+            EntityKind::Function => functions.push(serde_json::from_value(row.content.clone())?),
+            EntityKind::Metric => metrics.push(serde_json::from_value(row.content.clone())?),
+            EntityKind::Enrichment => {
+                enrichments.push(serde_json::from_value(row.content.clone())?)
+            }
+            EntityKind::GlossaryTerm => {
+                glossary.push(serde_json::from_value(row.content.clone())?)
+            }
+            EntityKind::Taxonomy => {
+                // Same deferral as PropertyMapping — not yet an
+                // independent IR collection. Lands when the IR model
+                // promotes Taxonomy out of the glossary module.
+            }
+            EntityKind::CodeSystem => {
+                code_systems.push(serde_json::from_value(row.content.clone())?)
+            }
+            EntityKind::ValueSet => value_sets.push(serde_json::from_value(row.content.clone())?),
+            EntityKind::NotationPattern => {
+                notation_patterns.push(serde_json::from_value(row.content.clone())?)
+            }
+            EntityKind::ConceptMap => {
+                concept_maps.push(serde_json::from_value(row.content.clone())?)
+            }
+            EntityKind::ValueRangeSet => {
+                value_range_sets.push(serde_json::from_value(row.content.clone())?)
+            }
+        }
+    }
+
+    // Header parse — must be present exactly once. Deserialising it
+    // gives the outer-struct scalars (id, name, description, version,
+    // schema_version).
+    let header = header.ok_or_else(|| OxError::Runtime {
+        message: "version pointer set is missing the ontology_header entity".into(),
+    })?;
+    #[derive(serde::Deserialize)]
+    struct HeaderWire {
+        id: String,
+        name: String,
+        #[serde(default)]
+        description: ox_core::i18n::LocalizedText,
+        version: ox_ontology::ir::OntologyVersion,
+        #[serde(default)]
+        schema_version: u32,
+    }
+    let h: HeaderWire = serde_json::from_value(header)?;
+    let _ = h.schema_version; // the current build's version is authoritative
+
+    let mut ir = ox_ontology::OntologyIR::try_new(
+        h.id,
+        h.name,
+        h.description,
+        h.version,
+        node_types,
+        edge_types,
+        indexes,
+    )
+    .map_err(|e| OxError::Runtime {
+        message: format!("OntologyIR::try_new rejected rebuilt topology: {e:?}"),
+    })?;
+
+    for iface in interfaces {
+        ir.add_interface(iface).map_err(|e| OxError::Runtime {
+            message: format!("add_interface during hydration: {e:?}"),
+        })?;
+    }
+    for om in object_mappings {
+        ir.add_object_mapping(om).map_err(|e| OxError::Runtime {
+            message: format!("add_object_mapping during hydration: {e:?}"),
+        })?;
+    }
+    for lm in link_mappings {
+        ir.add_link_mapping(lm).map_err(|e| OxError::Runtime {
+            message: format!("add_link_mapping during hydration: {e:?}"),
+        })?;
+    }
+    for rule in rules {
+        ir.add_rule(rule).map_err(|e| OxError::Runtime {
+            message: format!("add_rule during hydration: {e:?}"),
+        })?;
+    }
+    for dq in data_quality {
+        ir.add_data_quality(dq).map_err(|e| OxError::Runtime {
+            message: format!("add_data_quality during hydration: {e:?}"),
+        })?;
+    }
+    for action in actions {
+        ir.add_action(action).map_err(|e| OxError::Runtime {
+            message: format!("add_action during hydration: {e:?}"),
+        })?;
+    }
+    for prov in provenance {
+        ir.add_provenance(prov);
+    }
+    for f in functions {
+        ir.add_function(f).map_err(|e| OxError::Runtime {
+            message: format!("add_function during hydration: {e:?}"),
+        })?;
+    }
+    for m in metrics {
+        ir.add_metric(m).map_err(|e| OxError::Runtime {
+            message: format!("add_metric during hydration: {e:?}"),
+        })?;
+    }
+    for e in enrichments {
+        ir.add_enrichment(e).map_err(|err| OxError::Runtime {
+            message: format!("add_enrichment during hydration: {err:?}"),
+        })?;
+    }
+    for term in glossary {
+        ir.add_glossary_term(term).map_err(|e| OxError::Runtime {
+            message: format!("add_glossary_term during hydration: {e:?}"),
+        })?;
+    }
+    for cs in code_systems {
+        ir.add_code_system(cs).map_err(|e| OxError::Runtime {
+            message: format!("add_code_system during hydration: {e:?}"),
+        })?;
+    }
+    for vs in value_sets {
+        ir.add_value_set(vs).map_err(|e| OxError::Runtime {
+            message: format!("add_value_set during hydration: {e:?}"),
+        })?;
+    }
+    for np in notation_patterns {
+        ir.add_notation_pattern(np).map_err(|e| OxError::Runtime {
+            message: format!("add_notation_pattern during hydration: {e:?}"),
+        })?;
+    }
+    for cm in concept_maps {
+        ir.add_concept_map(cm).map_err(|e| OxError::Runtime {
+            message: format!("add_concept_map during hydration: {e:?}"),
+        })?;
+    }
+    for rs in value_range_sets {
+        ir.add_value_range_set(rs).map_err(|e| OxError::Runtime {
+            message: format!("add_value_range_set during hydration: {e:?}"),
+        })?;
+    }
+
+    Ok(ir)
+}
+
+// ---------------------------------------------------------------------------
+// AmbiguityStore — detector outputs + resolver history
+// ---------------------------------------------------------------------------
+//
+// Schema: see `migrations/0024_ambiguity.sql`. All access is workspace-scoped
+// via RLS; the active-resolution invariant (one per context) is enforced by
+// a partial unique index plus an in-transaction revoke step on create.
+
+fn ambiguity_context_from_row(row: &sqlx::postgres::PgRow) -> OxResult<ox_ontology::ambiguity::AmbiguityContext> {
+    use sqlx::Row;
+    let id_text: &str = row.try_get("id").map_err(to_ox_error)?;
+    let id_uuid: uuid::Uuid = id_text.parse().map_err(|e: uuid::Error| OxError::Runtime {
+        message: format!("ambiguity context id parse: {e}"),
+    })?;
+    let source_id: &str = row.try_get("source_id").map_err(to_ox_error)?;
+    let relation: &str = row.try_get("relation").map_err(to_ox_error)?;
+    let column_name: &str = row.try_get("column_name").map_err(to_ox_error)?;
+    let kind_text: &str = row.try_get("kind").map_err(to_ox_error)?;
+    let kind = match kind_text {
+        "numeric_code" => ox_ontology::ambiguity::AmbiguityKind::NumericCode,
+        "opaque_short_code" => ox_ontology::ambiguity::AmbiguityKind::OpaqueShortCode,
+        "overloaded_name" => ox_ontology::ambiguity::AmbiguityKind::OverloadedName,
+        other => {
+            return Err(OxError::Runtime {
+                message: format!("unknown ambiguity kind in DB row: {other}"),
+            });
+        }
+    };
+    let sample_values_json: serde_json::Value =
+        row.try_get("sample_values").map_err(to_ox_error)?;
+    let sample_values: Vec<String> =
+        serde_json::from_value(sample_values_json).map_err(|e| OxError::Runtime {
+            message: format!("sample_values decode: {e}"),
+        })?;
+    let distinct_estimate: Option<i64> = row.try_get("distinct_estimate").map_err(to_ox_error)?;
+    let nullable: bool = row.try_get("nullable").map_err(to_ox_error)?;
+    let clarification_prompt: &str =
+        row.try_get("clarification_prompt").map_err(to_ox_error)?;
+    let detection_source_hash: &str =
+        row.try_get("detection_source_hash").map_err(to_ox_error)?;
+    let repo_hint_json: Option<serde_json::Value> =
+        row.try_get("repo_hint").map_err(to_ox_error)?;
+    let repo_hint = match repo_hint_json {
+        Some(v) => Some(
+            serde_json::from_value::<ox_ontology::ambiguity::RepoHint>(v).map_err(|e| {
+                OxError::Runtime {
+                    message: format!("repo_hint decode: {e}"),
+                }
+            })?,
+        ),
+        None => None,
+    };
+    let detected_at: DateTime<Utc> = row.try_get("detected_at").map_err(to_ox_error)?;
+
+    Ok(ox_ontology::ambiguity::AmbiguityContext {
+        id: ox_ontology::ambiguity::AmbiguityId::new(id_uuid.to_string()),
+        source_id: ox_ontology::mapping::refs::SourceId::new(source_id),
+        column: ox_ontology::mapping::refs::ColumnRef {
+            relation: relation.to_string(),
+            column: column_name.to_string(),
+        },
+        kind,
+        sample_values,
+        distinct_estimate: distinct_estimate.map(|v| v as u64),
+        nullable,
+        clarification_prompt: clarification_prompt.to_string(),
+        detection_source_hash: detection_source_hash.to_string(),
+        repo_hint,
+        detected_at,
+    })
+}
+
+fn ambiguity_resolution_from_row(
+    row: &sqlx::postgres::PgRow,
+) -> OxResult<ox_ontology::ambiguity::AmbiguityResolution> {
+    use sqlx::Row;
+    let id_text: &str = row.try_get("id").map_err(to_ox_error)?;
+    let id_uuid: uuid::Uuid = id_text.parse().map_err(|e: uuid::Error| OxError::Runtime {
+        message: format!("ambiguity resolution id parse: {e}"),
+    })?;
+    let context_id_text: &str = row.try_get("context_id").map_err(to_ox_error)?;
+    let context_uuid: uuid::Uuid = context_id_text.parse().map_err(|e: uuid::Error| {
+        OxError::Runtime {
+            message: format!("context_id parse: {e}"),
+        }
+    })?;
+    let context_source_hash: &str =
+        row.try_get("context_source_hash").map_err(to_ox_error)?;
+    let mapping_json: serde_json::Value = row.try_get("mapping").map_err(to_ox_error)?;
+    let mapping = serde_json::from_value::<ox_ontology::ambiguity::AmbiguityMapping>(mapping_json)
+        .map_err(|e| OxError::Runtime {
+            message: format!("ambiguity mapping decode: {e}"),
+        })?;
+    let resolved_at: DateTime<Utc> = row.try_get("resolved_at").map_err(to_ox_error)?;
+    let resolved_by_user_id: Option<Uuid> =
+        row.try_get("resolved_by_user_id").map_err(to_ox_error)?;
+    let supersedes_uuid: Option<Uuid> = row.try_get("supersedes_id").map_err(to_ox_error)?;
+    let revoked_at: Option<DateTime<Utc>> = row.try_get("revoked_at").map_err(to_ox_error)?;
+
+    Ok(ox_ontology::ambiguity::AmbiguityResolution {
+        id: ox_ontology::ambiguity::AmbiguityResolutionId::new(id_uuid.to_string()),
+        context_id: ox_ontology::ambiguity::AmbiguityId::new(context_uuid.to_string()),
+        context_source_hash: context_source_hash.to_string(),
+        mapping,
+        resolved_at,
+        resolved_by_user_id,
+        supersedes: supersedes_uuid
+            .map(|u| ox_ontology::ambiguity::AmbiguityResolutionId::new(u.to_string())),
+        revoked_at,
+    })
+}
+
+#[async_trait]
+impl AmbiguityStore for PostgresStore {
+    async fn list_ambiguity_contexts(
+        &self,
+        source_id: &ox_ontology::mapping::refs::SourceId,
+    ) -> OxResult<Vec<ox_ontology::ambiguity::AmbiguityContext>> {
+        let rows = sqlx::query(
+            "SELECT id::text AS id, source_id, relation, column_name, kind, sample_values, \
+             distinct_estimate, nullable, clarification_prompt, detection_source_hash, \
+             repo_hint, detected_at \
+             FROM ambiguity_contexts \
+             WHERE source_id = $1 \
+             ORDER BY relation, column_name",
+        )
+        .bind(source_id.as_str())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        rows.iter().map(ambiguity_context_from_row).collect()
+    }
+
+    async fn get_ambiguity_context(
+        &self,
+        id: &ox_ontology::ambiguity::AmbiguityId,
+    ) -> OxResult<Option<ox_ontology::ambiguity::AmbiguityContext>> {
+        let uuid: Uuid = id.as_str().parse().map_err(|e: uuid::Error| OxError::Runtime {
+            message: format!("ambiguity id must be a uuid: {e}"),
+        })?;
+        let row = sqlx::query(
+            "SELECT id::text AS id, source_id, relation, column_name, kind, sample_values, \
+             distinct_estimate, nullable, clarification_prompt, detection_source_hash, \
+             repo_hint, detected_at \
+             FROM ambiguity_contexts WHERE id = $1",
+        )
+        .bind(uuid)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        row.as_ref().map(ambiguity_context_from_row).transpose()
+    }
+
+    async fn find_ambiguity_context_by_column(
+        &self,
+        source_id: &ox_ontology::mapping::refs::SourceId,
+        column: &ox_ontology::mapping::refs::ColumnRef,
+    ) -> OxResult<Option<ox_ontology::ambiguity::AmbiguityContext>> {
+        let row = sqlx::query(
+            "SELECT id::text AS id, source_id, relation, column_name, kind, sample_values, \
+             distinct_estimate, nullable, clarification_prompt, detection_source_hash, \
+             repo_hint, detected_at \
+             FROM ambiguity_contexts \
+             WHERE source_id = $1 AND relation = $2 AND column_name = $3",
+        )
+        .bind(source_id.as_str())
+        .bind(&column.relation)
+        .bind(&column.column)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        row.as_ref().map(ambiguity_context_from_row).transpose()
+    }
+
+    async fn upsert_ambiguity_context(
+        &self,
+        context: ox_ontology::ambiguity::AmbiguityContext,
+    ) -> OxResult<ox_ontology::ambiguity::AmbiguityContext> {
+        // Workspace column uses the `app.workspace_id` setting the pool
+        // injects on each connection acquisition — we read it back via
+        // `current_setting(...)::uuid` so the row lands in the right
+        // tenant without an extra bind variable.
+        let ctx_uuid: Uuid = context.id.as_str().parse().map_err(|e: uuid::Error| {
+            OxError::Runtime {
+                message: format!("ambiguity id must be uuid: {e}"),
+            }
+        })?;
+        let kind_text = match context.kind {
+            ox_ontology::ambiguity::AmbiguityKind::NumericCode => "numeric_code",
+            ox_ontology::ambiguity::AmbiguityKind::OpaqueShortCode => "opaque_short_code",
+            ox_ontology::ambiguity::AmbiguityKind::OverloadedName => "overloaded_name",
+        };
+        let sample_json = serde_json::to_value(&context.sample_values).map_err(|e| {
+            OxError::Runtime {
+                message: format!("sample_values encode: {e}"),
+            }
+        })?;
+        let repo_hint_json = match &context.repo_hint {
+            Some(h) => Some(serde_json::to_value(h).map_err(|e| OxError::Runtime {
+                message: format!("repo_hint encode: {e}"),
+            })?),
+            None => None,
+        };
+
+        sqlx::query(
+            "INSERT INTO ambiguity_contexts \
+             (id, workspace_id, source_id, relation, column_name, kind, sample_values, \
+              distinct_estimate, nullable, clarification_prompt, detection_source_hash, \
+              repo_hint, detected_at) \
+             VALUES ($1, current_setting('app.workspace_id', true)::uuid, $2, $3, $4, $5, $6, \
+                     $7, $8, $9, $10, $11, $12) \
+             ON CONFLICT (workspace_id, source_id, relation, column_name) DO UPDATE SET \
+                 id = EXCLUDED.id, \
+                 kind = EXCLUDED.kind, \
+                 sample_values = EXCLUDED.sample_values, \
+                 distinct_estimate = EXCLUDED.distinct_estimate, \
+                 nullable = EXCLUDED.nullable, \
+                 clarification_prompt = EXCLUDED.clarification_prompt, \
+                 detection_source_hash = EXCLUDED.detection_source_hash, \
+                 repo_hint = EXCLUDED.repo_hint, \
+                 detected_at = EXCLUDED.detected_at",
+        )
+        .bind(ctx_uuid)
+        .bind(context.source_id.as_str())
+        .bind(&context.column.relation)
+        .bind(&context.column.column)
+        .bind(kind_text)
+        .bind(&sample_json)
+        .bind(context.distinct_estimate.map(|v| v as i64))
+        .bind(context.nullable)
+        .bind(&context.clarification_prompt)
+        .bind(&context.detection_source_hash)
+        .bind(repo_hint_json.as_ref())
+        .bind(context.detected_at)
+        .execute(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+
+        Ok(context)
+    }
+
+    async fn delete_ambiguity_context(
+        &self,
+        id: &ox_ontology::ambiguity::AmbiguityId,
+    ) -> OxResult<bool> {
+        let uuid: Uuid = id.as_str().parse().map_err(|e: uuid::Error| OxError::Runtime {
+            message: format!("ambiguity id must be uuid: {e}"),
+        })?;
+        let result = sqlx::query("DELETE FROM ambiguity_contexts WHERE id = $1")
+            .bind(uuid)
+            .execute(&self.pool)
+            .await
+            .map_err(to_ox_error)?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    async fn list_ambiguity_resolutions(
+        &self,
+        context_id: &ox_ontology::ambiguity::AmbiguityId,
+    ) -> OxResult<Vec<ox_ontology::ambiguity::AmbiguityResolution>> {
+        let uuid: Uuid = context_id.as_str().parse().map_err(|e: uuid::Error| {
+            OxError::Runtime {
+                message: format!("context id must be uuid: {e}"),
+            }
+        })?;
+        let rows = sqlx::query(
+            "SELECT id::text AS id, context_id::text AS context_id, context_source_hash, \
+             mapping, resolved_at, resolved_by_user_id, \
+             supersedes_id, revoked_at \
+             FROM ambiguity_resolutions WHERE context_id = $1 \
+             ORDER BY resolved_at DESC",
+        )
+        .bind(uuid)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        rows.iter().map(ambiguity_resolution_from_row).collect()
+    }
+
+    async fn get_active_ambiguity_resolution(
+        &self,
+        source_id: &ox_ontology::mapping::refs::SourceId,
+        column: &ox_ontology::mapping::refs::ColumnRef,
+    ) -> OxResult<Option<ox_ontology::ambiguity::AmbiguityResolution>> {
+        let row = sqlx::query(
+            "SELECT r.id::text AS id, r.context_id::text AS context_id, r.context_source_hash, \
+             r.mapping, r.resolved_at, r.resolved_by_user_id, \
+             r.supersedes_id, r.revoked_at \
+             FROM ambiguity_resolutions r \
+             JOIN ambiguity_contexts c ON c.id = r.context_id \
+             WHERE c.source_id = $1 AND c.relation = $2 AND c.column_name = $3 \
+               AND r.revoked_at IS NULL \
+             LIMIT 1",
+        )
+        .bind(source_id.as_str())
+        .bind(&column.relation)
+        .bind(&column.column)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        row.as_ref().map(ambiguity_resolution_from_row).transpose()
+    }
+
+    async fn create_ambiguity_resolution(
+        &self,
+        resolution: ox_ontology::ambiguity::AmbiguityResolution,
+    ) -> OxResult<ox_ontology::ambiguity::AmbiguityResolution> {
+        // Atomic: revoke the current active row (if any) and insert the
+        // new one in a single transaction so the partial unique index
+        // (one active per context) is never violated at read time.
+        let res_uuid: Uuid = resolution.id.as_str().parse().map_err(|e: uuid::Error| {
+            OxError::Runtime {
+                message: format!("resolution id must be uuid: {e}"),
+            }
+        })?;
+        let ctx_uuid: Uuid = resolution.context_id.as_str().parse().map_err(
+            |e: uuid::Error| OxError::Runtime {
+                message: format!("context id must be uuid: {e}"),
+            },
+        )?;
+        let supersedes_uuid: Option<Uuid> = match &resolution.supersedes {
+            Some(s) => Some(s.as_str().parse().map_err(|e: uuid::Error| {
+                OxError::Runtime {
+                    message: format!("supersedes id must be uuid: {e}"),
+                }
+            })?),
+            None => None,
+        };
+        let mapping_json = serde_json::to_value(&resolution.mapping).map_err(|e| {
+            OxError::Runtime {
+                message: format!("mapping encode: {e}"),
+            }
+        })?;
+
+        let mut tx = self.pool.begin().await.map_err(to_ox_error)?;
+
+        // Revoke the current active resolution, if any. UPDATE ... RETURNING
+        // gives us the row id to chain as `supersedes` when the caller
+        // didn't supply one explicitly.
+        let revoked = sqlx::query(
+            "UPDATE ambiguity_resolutions \
+             SET revoked_at = now() \
+             WHERE context_id = $1 AND revoked_at IS NULL \
+             RETURNING id",
+        )
+        .bind(ctx_uuid)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(to_ox_error)?;
+
+        let supersedes_final: Option<Uuid> = supersedes_uuid.or_else(|| {
+            use sqlx::Row;
+            revoked.as_ref().and_then(|r| r.try_get("id").ok())
+        });
+
+        sqlx::query(
+            "INSERT INTO ambiguity_resolutions \
+             (id, workspace_id, context_id, context_source_hash, mapping, \
+              resolved_at, resolved_by_user_id, supersedes_id, revoked_at) \
+             VALUES ($1, current_setting('app.workspace_id', true)::uuid, $2, $3, $4, \
+                     $5, $6, $7, NULL)",
+        )
+        .bind(res_uuid)
+        .bind(ctx_uuid)
+        .bind(&resolution.context_source_hash)
+        .bind(&mapping_json)
+        .bind(resolution.resolved_at)
+        .bind(resolution.resolved_by_user_id)
+        .bind(supersedes_final)
+        .execute(&mut *tx)
+        .await
+        .map_err(to_ox_error)?;
+
+        tx.commit().await.map_err(to_ox_error)?;
+
+        Ok(ox_ontology::ambiguity::AmbiguityResolution {
+            supersedes: supersedes_final
+                .map(|u| ox_ontology::ambiguity::AmbiguityResolutionId::new(u.to_string())),
+            ..resolution
+        })
+    }
+
+    async fn revoke_active_ambiguity_resolution(
+        &self,
+        context_id: &ox_ontology::ambiguity::AmbiguityId,
+    ) -> OxResult<bool> {
+        let ctx_uuid: Uuid = context_id.as_str().parse().map_err(|e: uuid::Error| {
+            OxError::Runtime {
+                message: format!("context id must be uuid: {e}"),
+            }
+        })?;
+        let result = sqlx::query(
+            "UPDATE ambiguity_resolutions \
+             SET revoked_at = now() \
+             WHERE context_id = $1 AND revoked_at IS NULL",
+        )
+        .bind(ctx_uuid)
+        .execute(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        Ok(result.rows_affected() > 0)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ChangeRoutingStore — resolves workspace override vs global default
+// ---------------------------------------------------------------------------
+
+fn change_type_to_str(ct: ox_ontology::change_routing::ChangeType) -> &'static str {
+    use ox_ontology::change_routing::ChangeType;
+    match ct {
+        ChangeType::CodedValueCreate => "coded_value_create",
+        ChangeType::CodedValueDeprecate => "coded_value_deprecate",
+        ChangeType::GlossaryTermCreate => "glossary_term_create",
+        ChangeType::GlossaryAliasAdd => "glossary_alias_add",
+        ChangeType::NotationPatternCreate => "notation_pattern_create",
+        ChangeType::CustomerSegmentCreate => "customer_segment_create",
+        ChangeType::ColumnRename => "column_rename",
+        ChangeType::TableMerge => "table_merge",
+        ChangeType::DataSourceRegister => "data_source_register",
+        ChangeType::StaleConceptDeprecate => "stale_concept_deprecate",
+        ChangeType::OntologyVersionRollback => "ontology_version_rollback",
+    }
+}
+
+fn change_type_from_str(
+    s: &str,
+) -> OxResult<ox_ontology::change_routing::ChangeType> {
+    use ox_ontology::change_routing::ChangeType;
+    Ok(match s {
+        "coded_value_create" => ChangeType::CodedValueCreate,
+        "coded_value_deprecate" => ChangeType::CodedValueDeprecate,
+        "glossary_term_create" => ChangeType::GlossaryTermCreate,
+        "glossary_alias_add" => ChangeType::GlossaryAliasAdd,
+        "notation_pattern_create" => ChangeType::NotationPatternCreate,
+        "customer_segment_create" => ChangeType::CustomerSegmentCreate,
+        "column_rename" => ChangeType::ColumnRename,
+        "table_merge" => ChangeType::TableMerge,
+        "data_source_register" => ChangeType::DataSourceRegister,
+        "stale_concept_deprecate" => ChangeType::StaleConceptDeprecate,
+        "ontology_version_rollback" => ChangeType::OntologyVersionRollback,
+        other => {
+            return Err(OxError::Runtime {
+                message: format!("unknown change_type in DB row: {other}"),
+            });
+        }
+    })
+}
+
+fn risk_level_to_str(r: ox_ontology::change_routing::RiskLevel) -> &'static str {
+    use ox_ontology::change_routing::RiskLevel;
+    match r {
+        RiskLevel::Low => "low",
+        RiskLevel::Medium => "medium",
+        RiskLevel::High => "high",
+    }
+}
+
+fn risk_level_from_str(
+    s: &str,
+) -> OxResult<ox_ontology::change_routing::RiskLevel> {
+    use ox_ontology::change_routing::RiskLevel;
+    Ok(match s {
+        "low" => RiskLevel::Low,
+        "medium" => RiskLevel::Medium,
+        "high" => RiskLevel::High,
+        other => {
+            return Err(OxError::Runtime {
+                message: format!("unknown risk_level in DB row: {other}"),
+            });
+        }
+    })
+}
+
+fn routing_rule_from_row(
+    row: &sqlx::postgres::PgRow,
+) -> OxResult<ox_ontology::change_routing::ChangeRoutingRule> {
+    use sqlx::Row;
+    let id_uuid: Uuid = row.try_get("id").map_err(to_ox_error)?;
+    let workspace_id: Option<Uuid> = row.try_get("workspace_id").map_err(to_ox_error)?;
+    let change_type_text: &str = row.try_get("change_type").map_err(to_ox_error)?;
+    let routing_json: serde_json::Value = row.try_get("routing").map_err(to_ox_error)?;
+    let risk_level_text: &str = row.try_get("risk_level").map_err(to_ox_error)?;
+    let priority: i32 = row.try_get("priority").map_err(to_ox_error)?;
+    let created_at: DateTime<Utc> = row.try_get("created_at").map_err(to_ox_error)?;
+
+    let routing = serde_json::from_value::<
+        ox_ontology::change_routing::ApprovalRouting,
+    >(routing_json)
+    .map_err(|e| OxError::Runtime {
+        message: format!("routing JSONB decode: {e}"),
+    })?;
+
+    Ok(ox_ontology::change_routing::ChangeRoutingRule {
+        id: ox_ontology::change_routing::ChangeRoutingRuleId::new(id_uuid.to_string()),
+        workspace_id,
+        change_type: change_type_from_str(change_type_text)?,
+        routing,
+        risk_level: risk_level_from_str(risk_level_text)?,
+        priority,
+        created_at,
+    })
+}
+
+#[async_trait]
+impl ChangeRoutingStore for PostgresStore {
+    async fn list_change_routing_rules(
+        &self,
+    ) -> OxResult<Vec<ox_ontology::change_routing::ChangeRoutingRule>> {
+        let rows = sqlx::query(
+            "SELECT id, workspace_id, change_type, routing, risk_level, priority, created_at \
+             FROM change_routing_rules \
+             ORDER BY change_type, priority DESC",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        rows.iter().map(routing_rule_from_row).collect()
+    }
+
+    async fn resolve_change_routing(
+        &self,
+        change_type: ox_ontology::change_routing::ChangeType,
+    ) -> OxResult<Option<ox_ontology::change_routing::ChangeRoutingRule>> {
+        // Workspace row wins when present via the RLS `ws_or_global_read`
+        // policy unioning global + override rows; priority DESC then
+        // workspace-row first on tie keeps the resolution deterministic.
+        let row = sqlx::query(
+            "SELECT id, workspace_id, change_type, routing, risk_level, priority, created_at \
+             FROM change_routing_rules \
+             WHERE change_type = $1 \
+             ORDER BY priority DESC, (workspace_id IS NOT NULL) DESC \
+             LIMIT 1",
+        )
+        .bind(change_type_to_str(change_type))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        row.as_ref().map(routing_rule_from_row).transpose()
+    }
+
+    async fn upsert_change_routing_rule(
+        &self,
+        rule: ox_ontology::change_routing::ChangeRoutingRule,
+    ) -> OxResult<ox_ontology::change_routing::ChangeRoutingRule> {
+        let id_uuid: Uuid = rule.id.as_str().parse().map_err(|e: uuid::Error| {
+            OxError::Runtime {
+                message: format!("routing rule id must be uuid: {e}"),
+            }
+        })?;
+        let routing_json = serde_json::to_value(&rule.routing).map_err(|e| {
+            OxError::Runtime {
+                message: format!("routing JSONB encode: {e}"),
+            }
+        })?;
+
+        sqlx::query(
+            "INSERT INTO change_routing_rules \
+             (id, workspace_id, change_type, routing, risk_level, priority, created_at) \
+             VALUES ($1, current_setting('app.workspace_id', true)::uuid, $2, $3, $4, $5, $6) \
+             ON CONFLICT (workspace_id, change_type) DO UPDATE SET \
+                 routing = EXCLUDED.routing, \
+                 risk_level = EXCLUDED.risk_level, \
+                 priority = EXCLUDED.priority",
+        )
+        .bind(id_uuid)
+        .bind(change_type_to_str(rule.change_type))
+        .bind(&routing_json)
+        .bind(risk_level_to_str(rule.risk_level))
+        .bind(rule.priority)
+        .bind(rule.created_at)
+        .execute(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+
+        Ok(rule)
+    }
+
+    async fn delete_change_routing_rule(
+        &self,
+        change_type: ox_ontology::change_routing::ChangeType,
+    ) -> OxResult<bool> {
+        // Delete only the workspace override — the global default row
+        // lives under `workspace_id IS NULL` and is never touched
+        // through this path (migrations or SYSTEM_BYPASS own it).
+        let result = sqlx::query(
+            "DELETE FROM change_routing_rules \
+             WHERE workspace_id = current_setting('app.workspace_id', true)::uuid \
+               AND change_type = $1",
+        )
+        .bind(change_type_to_str(change_type))
+        .execute(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        Ok(result.rows_affected() > 0)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// QualitySignalStore — per-query signal log + dashboard aggregation
+// ---------------------------------------------------------------------------
+
+fn shacl_failure_from_str(
+    s: &str,
+) -> OxResult<crate::quality_signal::ShaclFailureKind> {
+    use crate::quality_signal::ShaclFailureKind;
+    Ok(match s {
+        "cardinality_violation" => ShaclFailureKind::CardinalityViolation,
+        "measure_group_by" => ShaclFailureKind::MeasureGroupBy,
+        "unknown_coded_value" => ShaclFailureKind::UnknownCodedValue,
+        "mandatory_property_missing" => ShaclFailureKind::MandatoryPropertyMissing,
+        "temporal_grain_mismatch" => ShaclFailureKind::TemporalGrainMismatch,
+        "other" => ShaclFailureKind::Other,
+        other => {
+            return Err(OxError::Runtime {
+                message: format!("unknown shacl_failure_kind: {other}"),
+            });
+        }
+    })
+}
+
+fn shacl_failure_to_str(
+    k: crate::quality_signal::ShaclFailureKind,
+) -> &'static str {
+    use crate::quality_signal::ShaclFailureKind;
+    match k {
+        ShaclFailureKind::CardinalityViolation => "cardinality_violation",
+        ShaclFailureKind::MeasureGroupBy => "measure_group_by",
+        ShaclFailureKind::UnknownCodedValue => "unknown_coded_value",
+        ShaclFailureKind::MandatoryPropertyMissing => "mandatory_property_missing",
+        ShaclFailureKind::TemporalGrainMismatch => "temporal_grain_mismatch",
+        ShaclFailureKind::Other => "other",
+    }
+}
+
+/// Row used only inside `aggregate_quality_metrics` — flat numeric
+/// counters so a single SQL round-trip collects every window stat.
+/// Not exposed outside this file.
+#[derive(Debug, sqlx::FromRow)]
+struct WindowCounters {
+    samples: i64,
+    anchor_matched: i64,
+    glossary_hit: i64,
+    clarified: i64,
+    clarified_success: i64,
+    reproducible: i64,
+    shacl_passed: i64,
+}
+
+async fn fetch_window_counters(
+    pool: &PgPool,
+    days: i64,
+    older_than_days: i64,
+) -> OxResult<WindowCounters> {
+    // `older_than_days > 0` picks the PREVIOUS window (for trend
+    // calc): rows older than `older_than_days` days but still
+    // within `days + older_than_days` days. `older_than_days == 0`
+    // picks the CURRENT window (last `days` days).
+    //
+    // Reproducibility = count of signal rows whose
+    // `query_ir_normalized_hash` appears more than once in the
+    // window (meaning "the same plan ran at least twice" → the
+    // question is reproducible). Computed against the window's
+    // signal set so a one-off query never counts against itself.
+    let sql = "WITH window_rows AS ( \
+                   SELECT * FROM query_execution_signals \
+                   WHERE captured_at >= now() - ($1::bigint || ' days')::interval \
+                         - ($2::bigint || ' days')::interval \
+                     AND captured_at < now() - ($2::bigint || ' days')::interval \
+               ), hashes AS ( \
+                   SELECT query_ir_normalized_hash, COUNT(*) AS c \
+                   FROM window_rows \
+                   GROUP BY query_ir_normalized_hash \
+               ) \
+               SELECT \
+                 (SELECT COUNT(*) FROM window_rows)::bigint AS samples, \
+                 (SELECT COUNT(*) FROM window_rows \
+                    WHERE anchor_top_score IS NOT NULL AND anchor_top_score >= 0.5)::bigint AS anchor_matched, \
+                 (SELECT COUNT(*) FROM window_rows \
+                    WHERE array_length(glossary_term_hits, 1) > 0)::bigint AS glossary_hit, \
+                 (SELECT COUNT(*) FROM window_rows \
+                    WHERE ambiguity_was_clarified)::bigint AS clarified, \
+                 (SELECT COUNT(*) FROM window_rows \
+                    WHERE ambiguity_was_clarified AND shacl_passed)::bigint AS clarified_success, \
+                 COALESCE((SELECT SUM(c) FROM hashes WHERE c > 1), 0)::bigint AS reproducible, \
+                 (SELECT COUNT(*) FROM window_rows WHERE shacl_passed)::bigint AS shacl_passed";
+    sqlx::query_as::<_, WindowCounters>(sql)
+        .bind(days)
+        .bind(older_than_days)
+        .fetch_one(pool)
+        .await
+        .map_err(to_ox_error)
+}
+
+#[async_trait]
+impl QualitySignalStore for PostgresStore {
+    async fn create_query_execution_signal(
+        &self,
+        signal: &crate::quality_signal::QueryExecutionSignal,
+    ) -> OxResult<()> {
+        let failure_text = signal.shacl_failure_kind.map(shacl_failure_to_str);
+        sqlx::query(
+            "INSERT INTO query_execution_signals \
+             (execution_id, workspace_id, captured_at, anchor_top_score, anchor_hit_kinds, \
+              glossary_term_hits, ambiguity_resolution_ids, ambiguity_was_clarified, \
+              shacl_passed, shacl_failure_kind, query_ir_normalized_hash, referenced_type_ids) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) \
+             ON CONFLICT (execution_id) DO NOTHING",
+        )
+        .bind(signal.execution_id)
+        .bind(signal.workspace_id)
+        .bind(signal.captured_at)
+        .bind(signal.anchor_top_score.map(|v| v as f64))
+        .bind(&signal.anchor_hit_kinds)
+        .bind(&signal.glossary_term_hits)
+        .bind(&signal.ambiguity_resolution_ids)
+        .bind(signal.ambiguity_was_clarified)
+        .bind(signal.shacl_passed)
+        .bind(failure_text)
+        .bind(&signal.query_ir_normalized_hash)
+        .bind(&signal.referenced_type_ids)
+        .execute(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        Ok(())
+    }
+
+    async fn aggregate_quality_metrics(
+        &self,
+        window: crate::quality_signal::MetricWindow,
+    ) -> OxResult<crate::quality_signal::QualityMetricsReport> {
+        use crate::quality_signal::{MetricValue, QualityMetricsReport};
+
+        let days = window.as_days();
+        let current = fetch_window_counters(&self.pool, days, 0).await?;
+        let previous = fetch_window_counters(&self.pool, days, days).await?;
+
+        #[derive(sqlx::FromRow)]
+        struct StaleRatio {
+            total: i64,
+            stale: i64,
+        }
+        let ratio: StaleRatio = sqlx::query_as::<_, StaleRatio>(
+            "SELECT COUNT(*)::bigint AS total, \
+                    COUNT(*) FILTER (WHERE last_used_at < now() - INTERVAL '180 days')::bigint AS stale \
+             FROM ontology_type_last_used",
+        )
+        .fetch_one(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+
+        fn prop(counters: &WindowCounters, numerator: i64) -> f64 {
+            if counters.samples == 0 {
+                0.0
+            } else {
+                (numerator as f64) / (counters.samples as f64)
+            }
+        }
+
+        fn prop_clarified(counters: &WindowCounters) -> f64 {
+            if counters.clarified == 0 {
+                0.0
+            } else {
+                (counters.clarified_success as f64) / (counters.clarified as f64)
+            }
+        }
+
+        let prev_anchor = prop(&previous, previous.anchor_matched);
+        let prev_gloss = prop(&previous, previous.glossary_hit);
+        let prev_clar = prop_clarified(&previous);
+        let prev_repro = prop(&previous, previous.reproducible);
+        let prev_shacl = prop(&previous, previous.shacl_passed);
+
+        let report = QualityMetricsReport {
+            anchor_match_rate: MetricValue::wilson_proportion(
+                current.anchor_matched as u64,
+                current.samples as u64,
+                prev_anchor,
+            ),
+            glossary_hit_rate: MetricValue::wilson_proportion(
+                current.glossary_hit as u64,
+                current.samples as u64,
+                prev_gloss,
+            ),
+            clarification_success_rate: MetricValue::wilson_proportion(
+                current.clarified_success as u64,
+                current.clarified as u64,
+                prev_clar,
+            ),
+            query_reproducibility: MetricValue::wilson_proportion(
+                current.reproducible as u64,
+                current.samples as u64,
+                prev_repro,
+            ),
+            shacl_pass_rate: MetricValue::wilson_proportion(
+                current.shacl_passed as u64,
+                current.samples as u64,
+                prev_shacl,
+            ),
+            stale_concept_ratio: if ratio.total == 0 {
+                MetricValue::empty()
+            } else {
+                MetricValue::wilson_proportion(ratio.stale as u64, ratio.total as u64, 0.0)
+            },
+            sample_size: current.samples as u64,
+            window,
+        };
+        Ok(report)
+    }
+
+    async fn list_shacl_failure_distribution(
+        &self,
+        window: crate::quality_signal::MetricWindow,
+    ) -> OxResult<Vec<crate::quality_signal::ShaclFailureCount>> {
+        use crate::quality_signal::ShaclFailureCount;
+
+        #[derive(sqlx::FromRow)]
+        struct Row {
+            kind: String,
+            count: i64,
+        }
+        let rows: Vec<Row> = sqlx::query_as::<_, Row>(
+            "SELECT shacl_failure_kind AS kind, COUNT(*)::bigint AS count \
+             FROM query_execution_signals \
+             WHERE captured_at >= now() - ($1::bigint || ' days')::interval \
+               AND shacl_failure_kind IS NOT NULL \
+             GROUP BY shacl_failure_kind \
+             ORDER BY count DESC",
+        )
+        .bind(window.as_days())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+
+        rows.into_iter()
+            .map(|r| {
+                Ok(ShaclFailureCount {
+                    kind: shacl_failure_from_str(&r.kind)?,
+                    count: r.count as u64,
+                })
+            })
+            .collect()
+    }
+
+    async fn upsert_type_last_used(
+        &self,
+        type_ids: &[(uuid::Uuid, &str)],
+    ) -> OxResult<()> {
+        if type_ids.is_empty() {
+            return Ok(());
+        }
+        for (id, kind) in type_ids {
+            sqlx::query(
+                "INSERT INTO ontology_type_last_used \
+                 (workspace_id, type_id, type_kind, last_used_at, use_count_7d, use_count_30d) \
+                 VALUES (current_setting('app.workspace_id', true)::uuid, $1, $2, now(), 1, 1) \
+                 ON CONFLICT (workspace_id, type_id) DO UPDATE SET \
+                     last_used_at  = now(), \
+                     use_count_7d  = ontology_type_last_used.use_count_7d + 1, \
+                     use_count_30d = ontology_type_last_used.use_count_30d + 1, \
+                     updated_at    = now()",
+            )
+            .bind(id)
+            .bind(kind)
+            .execute(&self.pool)
+            .await
+            .map_err(to_ox_error)?;
+        }
+        Ok(())
+    }
+
+    async fn list_stale_types(
+        &self,
+        stale_after_days: i64,
+    ) -> OxResult<Vec<crate::quality_signal::StaleTypeEntry>> {
+        use crate::quality_signal::StaleTypeEntry;
+
+        #[derive(sqlx::FromRow)]
+        struct Row {
+            workspace_id: Uuid,
+            type_id: Uuid,
+            type_kind: String,
+            last_used_at: Option<DateTime<Utc>>,
+            days_since: Option<f64>,
+        }
+        let rows: Vec<Row> = sqlx::query_as::<_, Row>(
+            "SELECT workspace_id, type_id, type_kind, last_used_at, \
+                    EXTRACT(EPOCH FROM (now() - last_used_at)) / 86400.0 AS days_since \
+             FROM ontology_type_last_used \
+             WHERE last_used_at < now() - ($1::bigint || ' days')::interval \
+             ORDER BY last_used_at ASC \
+             LIMIT 500",
+        )
+        .bind(stale_after_days)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+
+        Ok(rows
+            .into_iter()
+            .map(|r| StaleTypeEntry {
+                workspace_id: r.workspace_id,
+                type_id: r.type_id,
+                type_kind: r.type_kind,
+                last_used_at: r.last_used_at,
+                days_since_last_use: r.days_since.map(|v| v as i64).unwrap_or(0),
+            })
+            .collect())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// StaleConceptProposalStore — durable deprecation proposals
+// ---------------------------------------------------------------------------
+
+fn proposal_from_row(
+    row: &sqlx::postgres::PgRow,
+) -> OxResult<crate::quality_signal::StaleConceptProposal> {
+    use sqlx::Row;
+    let id: Uuid = row.try_get("id").map_err(to_ox_error)?;
+    let workspace_id: Uuid = row.try_get("workspace_id").map_err(to_ox_error)?;
+    let type_id: Uuid = row.try_get("type_id").map_err(to_ox_error)?;
+    let type_kind: String = row.try_get("type_kind").map_err(to_ox_error)?;
+    let last_used_at: Option<DateTime<Utc>> =
+        row.try_get("last_used_at").map_err(to_ox_error)?;
+    let days_since_last_use: i32 =
+        row.try_get("days_since_last_use").map_err(to_ox_error)?;
+    let proposed_at: DateTime<Utc> = row.try_get("proposed_at").map_err(to_ox_error)?;
+    let decision_text: String = row.try_get("decision").map_err(to_ox_error)?;
+    let decision = crate::quality_signal::StaleProposalDecision::try_from_db(&decision_text)
+        .ok_or_else(|| OxError::Runtime {
+            message: format!("unknown stale_concept decision: {decision_text}"),
+        })?;
+    let decided_at: Option<DateTime<Utc>> = row.try_get("decided_at").map_err(to_ox_error)?;
+    let decided_by_user_id: Option<Uuid> = row.try_get("decided_by_user_id").map_err(to_ox_error)?;
+    let reason: Option<String> = row.try_get("reason").map_err(to_ox_error)?;
+
+    Ok(crate::quality_signal::StaleConceptProposal {
+        id,
+        workspace_id,
+        type_id,
+        type_kind,
+        last_used_at,
+        days_since_last_use: days_since_last_use as i64,
+        proposed_at,
+        decision,
+        decided_at,
+        decided_by_user_id,
+        reason,
+    })
+}
+
+#[async_trait]
+impl StaleConceptProposalStore for PostgresStore {
+    async fn list_stale_concept_proposals(
+        &self,
+        pending_only: bool,
+    ) -> OxResult<Vec<crate::quality_signal::StaleConceptProposal>> {
+        // RLS scopes workspace automatically; the `pending_only`
+        // filter feeds the admin dashboard's "open work" view.
+        let sql = if pending_only {
+            "SELECT id, workspace_id, type_id, type_kind, last_used_at, \
+                    days_since_last_use, proposed_at, decision, decided_at, \
+                    decided_by_user_id, reason \
+             FROM stale_concept_proposals \
+             WHERE decision = 'pending' \
+             ORDER BY proposed_at DESC \
+             LIMIT 500"
+        } else {
+            "SELECT id, workspace_id, type_id, type_kind, last_used_at, \
+                    days_since_last_use, proposed_at, decision, decided_at, \
+                    decided_by_user_id, reason \
+             FROM stale_concept_proposals \
+             ORDER BY proposed_at DESC \
+             LIMIT 500"
+        };
+        let rows = sqlx::query(sql)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(to_ox_error)?;
+        rows.iter().map(proposal_from_row).collect()
+    }
+
+    async fn get_stale_concept_proposal(
+        &self,
+        id: Uuid,
+    ) -> OxResult<Option<crate::quality_signal::StaleConceptProposal>> {
+        let row = sqlx::query(
+            "SELECT id, workspace_id, type_id, type_kind, last_used_at, \
+                    days_since_last_use, proposed_at, decision, decided_at, \
+                    decided_by_user_id, reason \
+             FROM stale_concept_proposals WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        row.as_ref().map(proposal_from_row).transpose()
+    }
+
+    async fn upsert_stale_concept_proposal(
+        &self,
+        proposal: crate::quality_signal::StaleConceptProposal,
+    ) -> OxResult<crate::quality_signal::StaleConceptProposal> {
+        // Cron-friendly: natural key dedup. A re-proposal after a
+        // previous `dismissed` decision needs the admin to clear the
+        // old row first — we don't auto-resurrect, because that
+        // would flap every scan.
+        let row = sqlx::query(
+            "INSERT INTO stale_concept_proposals \
+             (id, workspace_id, type_id, type_kind, last_used_at, \
+              days_since_last_use, proposed_at, decision) \
+             VALUES ($1, current_setting('app.workspace_id', true)::uuid, $2, $3, $4, \
+                     $5, $6, 'pending') \
+             ON CONFLICT (workspace_id, type_id) DO UPDATE SET \
+                 last_used_at = EXCLUDED.last_used_at, \
+                 days_since_last_use = EXCLUDED.days_since_last_use \
+             RETURNING id, workspace_id, type_id, type_kind, last_used_at, \
+                       days_since_last_use, proposed_at, decision, decided_at, \
+                       decided_by_user_id, reason",
+        )
+        .bind(proposal.id)
+        .bind(proposal.type_id)
+        .bind(&proposal.type_kind)
+        .bind(proposal.last_used_at)
+        .bind(proposal.days_since_last_use as i32)
+        .bind(proposal.proposed_at)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        proposal_from_row(&row)
+    }
+
+    async fn record_stale_proposal_decision(
+        &self,
+        id: Uuid,
+        decision: crate::quality_signal::StaleProposalDecision,
+        decided_by_user_id: Option<Uuid>,
+        reason: Option<String>,
+    ) -> OxResult<crate::quality_signal::StaleConceptProposal> {
+        // Only transition from `pending` — repeated decisions are
+        // silent no-ops that return the existing row (so the UI can
+        // double-click the button without error). Terminal → terminal
+        // transitions would erode the audit trail and aren't useful.
+        let row = sqlx::query(
+            "UPDATE stale_concept_proposals \
+             SET decision = $2, \
+                 decided_at = now(), \
+                 decided_by_user_id = $3, \
+                 reason = $4 \
+             WHERE id = $1 AND decision = 'pending' \
+             RETURNING id, workspace_id, type_id, type_kind, last_used_at, \
+                       days_since_last_use, proposed_at, decision, decided_at, \
+                       decided_by_user_id, reason",
+        )
+        .bind(id)
+        .bind(decision.as_str())
+        .bind(decided_by_user_id)
+        .bind(reason.as_deref())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+
+        if let Some(row) = row {
+            return proposal_from_row(&row);
+        }
+        // No row updated → already terminal OR RLS-invisible. Return
+        // the current row when visible, otherwise propagate a
+        // `NotFound` shape callers already expect from `.get_*`.
+        let current = self.get_stale_concept_proposal(id).await?;
+        current.ok_or_else(|| OxError::Runtime {
+            message: format!("stale_concept_proposal {id} not found"),
+        })
+    }
+}
+

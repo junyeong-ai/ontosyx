@@ -148,6 +148,19 @@ impl AppError {
         }
     }
 
+    /// 429 TOO_MANY_REQUESTS with a caller-supplied message — used by the
+    /// per-user chat-stream concurrency limiter where the relevant
+    /// signal isn't "slow down" but "close an existing stream first".
+    pub fn too_many_requests(message: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::TOO_MANY_REQUESTS,
+            error_type: "concurrency_cap",
+            message: message.into(),
+            details: None,
+            headers: None,
+        }
+    }
+
     pub fn conflict(message: impl Into<String>) -> Self {
         Self {
             status: StatusCode::CONFLICT,
@@ -226,6 +239,7 @@ impl AppError {
 fn ox_error_status(err: &OxError) -> (StatusCode, &'static str) {
     match err {
         OxError::Validation { .. } => (StatusCode::BAD_REQUEST, "validation_error"),
+        OxError::Parse { .. } => (StatusCode::BAD_REQUEST, "parse_error"),
         OxError::NotFound { .. } => (StatusCode::NOT_FOUND, "not_found"),
         OxError::Conflict { .. } => (StatusCode::CONFLICT, "conflict"),
         OxError::Ontology { .. } => (StatusCode::UNPROCESSABLE_ENTITY, "ontology_error"),

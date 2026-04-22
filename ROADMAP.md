@@ -41,6 +41,19 @@ lineage naming, ArcSwap live-refresh, parse-once pipeline, JSONB
   hooks (`useGraphInteractions`, `useGraphContextMenu`,
   `useTypeFilter`) live in `web/src/lib/use-*.ts` and compose across
   every graph surface.
+- **Federation (VOL) path.** `ox-federation` lowers a `QueryIR` to a
+  DataFusion `LogicalPlan` via `build_query_ir_scoped` and executes
+  it through `FederationContext::execute_plan`, emitting Arrow
+  `RecordBatch`es. `POST /api/query/from-ir/federation` is the live
+  HTTP surface; admin CRUD on `data_sources` (POST/GET/DELETE +
+  `/refresh`) persists registrations in a workspace-scoped Postgres
+  table and hydrates an `InMemoryAdapterResolver` per workspace on
+  first query. Today's scan-ready adapters are CSV (top-level rows)
+  and JSON (top-level records + single-level nested
+  `records_<field>` tables). Link-mapping lowering covers the four
+  variants: ForeignKey, Federated, Bridge, and multi-mapping UNION
+  at seed position (including heterogeneous FK + Bridge branches in
+  the same seed).
 
 ## Near-term
 
@@ -88,18 +101,44 @@ lineage naming, ArcSwap live-refresh, parse-once pipeline, JSONB
   panel. Both changes are additive — no migration pressure on today's
   call-sites.
 
+### Federation (VOL)
+
+- **`LinkMappingKind::Computed` — per-dialect parsing.** Seed-
+  position Computed ships today (DataFusion SQL dialect, via
+  `SessionContext::parse_sql_expr`). Extend and close-cycle
+  positions still refuse; source-dialect-specific syntax (PG
+  `ILIKE`, Snowflake `PARSE_JSON`, MySQL backticks) also falls
+  through the DataFusion parser with a descriptive error. A follow-
+  up slice delegates parsing to the underlying adapter when the
+  Computed edge carries source-pinned SQL.
+- **New adapter kinds with scan().** Only CSV and JSON adapters
+  materialise rows today. PostgreSQL / MySQL / Snowflake / BigQuery
+  / DuckDB ship introspection but not scan. DuckDB specifically is
+  blocked on an arrow-version upgrade (the workspace pins arrow 55
+  via DataFusion 49; duckdb 1.x needs arrow 58). The upgrade bundles
+  DataFusion + snowflake-api + gcp-bigquery-client together.
+- **Extended secret-store backends for `data_sources.config`.** The
+  `env:VAR_NAME` and `file:/path/to/secret` schemes work today via
+  `EnvSecretResolver` + `FileSecretResolver` in `credential.rs`
+  (the latter aimed at Kubernetes projected-volume mounts —
+  reads the target file, trims trailing whitespace, refuses
+  empty / relative-path references). Future schemes (`vault:`,
+  `aws-sm:`, `gcp-sm:`) plug into `CompositeSecretResolver` via one
+  `impl SecretResolver` + one `.register("<scheme>:", …)` call —
+  the call-sites do not change.
+- **Full axum handler test harness.** Pipeline-level tests cover
+  every crate individually (federation planner, admin store CRUD,
+  Arrow conversion); a test that constructs a hand-built `AppState`
+  and exercises the HTTP handlers through `Router::oneshot` would
+  pin the JSON wire format and the auth/ACL plumbing at the same
+  time.
+- **Frontend admin UI for federation adapters.** `/api/admin/federation/adapters`
+  is curl-only today. The workbench needs a small registration form
+  (source_id + kind + payload) and a listing panel in the admin
+  surface.
+
 ### Graph surfaces
 
-- **`useGraphInteractions` for OntologyCanvas.** OntologyCanvas still
-  ships its own context-menu plumbing in `useCanvasContextMenu`. The
-  shared hook could replace that with identical behaviour; the
-  migration is only waiting on the canvas' own large state machine
-  stabilising first.
-- **ExploreCanvas worker layout.** ELK's `stress` algorithm runs on
-  the main thread today. Graphs above ~100 nodes would benefit from
-  the worker path the ontology canvas already uses; the blocker is
-  the hardcoded layered options in `elk-layout.worker.ts` — a small
-  refactor to parameterize algorithm per canvas.
 - **Dashboard widget cross-filter.** `useTypeFilter` works per-widget
   today. A dashboard-scoped version (multiple widgets share a hidden
   set) is the natural next step for the dashboards surface.

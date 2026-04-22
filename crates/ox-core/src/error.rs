@@ -21,6 +21,13 @@ pub enum OxError {
     #[error("Validation error: {field} — {message}")]
     Validation { field: String, message: String },
 
+    #[error("Parse error in {field}: {source}")]
+    Parse {
+        field: String,
+        #[source]
+        source: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
+
     #[error("Ontology error: {message}")]
     Ontology { message: String },
 

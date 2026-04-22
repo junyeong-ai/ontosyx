@@ -25,12 +25,12 @@ use std::sync::Arc;
 use tracing::info;
 
 use ox_core::error::{OxError, OxResult};
-use ox_core::load_plan::LoadPlan;
-use ox_core::ontology_command::OntologyCommand;
-use ox_core::ontology_ir::OntologyIR;
-use ox_core::query_ir::QueryIR;
-use ox_core::repo_insights::{FileContent, RepoInsights};
-use ox_core::source_mapping::SourceMapping;
+use ox_ontology::load_plan::LoadPlan;
+use ox_ontology::command::OntologyCommand;
+use ox_ontology::ir::OntologyIR;
+use ox_query_ir::query::QueryIR;
+use ox_ontology::repo_insights::{FileContent, RepoInsights};
+use ox_ontology::mapping::SourceMapping;
 use ox_core::source_schema::SourceSchema;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -134,14 +134,14 @@ pub trait OntologyDesigner: Send + Sync {
     ) -> OxResult<(OntologyIR, SourceMapping)>;
 
     /// Design a partial ontology for a batch of tables (divide-and-conquer pipeline).
-    /// Returns raw `OntologyInputIR` (not normalized) for later merging.
+    /// Returns raw `InputOntologyDef` (not normalized) for later merging.
     async fn design_ontology_batch(
         &self,
         batch_data: &str,
         context: &str,
         existing_nodes: &str,
         cross_fks: &str,
-    ) -> OxResult<ox_core::ontology_input::OntologyInputIR>;
+    ) -> OxResult<ox_ontology::input::InputOntologyDef>;
 
     /// Generate missing cross-domain edges for uncovered FK relationships.
     /// Returns edge definitions to be appended to the merged InputIR.
@@ -150,7 +150,7 @@ pub trait OntologyDesigner: Send + Sync {
         node_labels: &str,
         existing_edges: &str,
         uncovered_fks: &str,
-    ) -> OxResult<Vec<ox_core::InputEdgeTypeDef>>;
+    ) -> OxResult<Vec<ox_ontology::InputEdgeTypeDef>>;
 
     /// Refine an ontology's metadata using graph profile statistics and/or additional context.
     /// `refinement_context` is pre-formatted and may contain graph profile data,
@@ -208,7 +208,7 @@ pub trait Explainer: Send + Sync {
         &self,
         ontology: &OntologyIR,
         graph_stats: Option<&serde_json::Value>,
-    ) -> OxResult<Vec<ox_core::InsightSuggestion>>;
+    ) -> OxResult<Vec<ox_ontology::InsightSuggestion>>;
 }
 
 /// Repository analysis capabilities.
@@ -403,7 +403,7 @@ impl OntologyDesigner for DefaultBrain {
         vars.insert("sample_data", sample_data);
         vars.insert("context", context);
 
-        let input: ox_core::ontology_input::OntologyInputIR = self
+        let input: ox_ontology::input::InputOntologyDef = self
             .call_structured(
                 "design_ontology",
                 Some("1.0.0"),
@@ -414,7 +414,7 @@ impl OntologyDesigner for DefaultBrain {
             .await?;
 
         let norm_result =
-            ox_core::ontology_input::normalize(input).map_err(|errors| OxError::Ontology {
+            ox_ontology::input::normalize(input).map_err(|errors| OxError::Ontology {
                 message: format!(
                     "LLM-generated ontology normalization failed: {}",
                     errors.join("; ")
@@ -444,7 +444,7 @@ impl OntologyDesigner for DefaultBrain {
         context: &str,
         existing_nodes: &str,
         cross_fks: &str,
-    ) -> OxResult<ox_core::ontology_input::OntologyInputIR> {
+    ) -> OxResult<ox_ontology::input::InputOntologyDef> {
         let base_prompt = self.prompts.get("design_ontology")?;
         let batch_tmpl = self.prompts.checked_for("design_ontology_batch", "1.0.0")?;
 
@@ -483,7 +483,7 @@ impl OntologyDesigner for DefaultBrain {
         node_labels: &str,
         existing_edges: &str,
         uncovered_fks: &str,
-    ) -> OxResult<Vec<ox_core::InputEdgeTypeDef>> {
+    ) -> OxResult<Vec<ox_ontology::InputEdgeTypeDef>> {
         let mut vars = HashMap::new();
         vars.insert("node_labels", node_labels);
         vars.insert("existing_edges", existing_edges);
@@ -510,7 +510,7 @@ impl OntologyDesigner for DefaultBrain {
         vars.insert("ontology", ontology_json.as_str());
         vars.insert("refinement_context", refinement_context);
 
-        let input: ox_core::ontology_input::OntologyInputIR = self
+        let input: ox_ontology::input::InputOntologyDef = self
             .call_structured(
                 "refine_ontology",
                 Some("1.0.0"),
@@ -521,7 +521,7 @@ impl OntologyDesigner for DefaultBrain {
             .await?;
 
         let norm_result =
-            ox_core::ontology_input::normalize(input).map_err(|errors| OxError::Ontology {
+            ox_ontology::input::normalize(input).map_err(|errors| OxError::Ontology {
                 message: format!(
                     "Refined ontology normalization failed: {}",
                     errors.join("; ")
@@ -659,7 +659,7 @@ impl QueryTranslator for DefaultBrain {
         ctx.progress("llm_primary").started();
         let t_llm = std::time::Instant::now();
         let query_ir = match self
-            .call_structured::<ox_core::StructuredMatchQuery>(
+            .call_structured::<ox_query_ir::StructuredMatchQuery>(
                 "translate_match_query",
                 Some("1.0.0"),
                 "translate_match_query",
@@ -750,7 +750,7 @@ impl QueryTranslator for DefaultBrain {
         // still produces unknowns, surface them to the runtime — it will
         // reject consistently, so the agent can still learn via the
         // tool-error path.
-        let query_ir = match ontology.unknown_labels_in_query(&query_ir) {
+        let query_ir = match ox_query_ir::unknown_labels_in_query(ontology, &query_ir) {
             unknown if unknown.is_empty() => query_ir,
             unknown => {
                 ctx.progress("llm_label_retry").started();
@@ -964,7 +964,7 @@ impl Explainer for DefaultBrain {
         &self,
         ontology: &OntologyIR,
         graph_stats: Option<&serde_json::Value>,
-    ) -> OxResult<Vec<ox_core::InsightSuggestion>> {
+    ) -> OxResult<Vec<ox_ontology::InsightSuggestion>> {
         let nodes: Vec<String> = ontology
             .node_types()
             .iter()
@@ -1032,7 +1032,7 @@ impl Explainer for DefaultBrain {
             "Generating insight suggestions"
         );
 
-        match structured_completion::<Vec<ox_core::InsightSuggestion>>(
+        match structured_completion::<Vec<ox_ontology::InsightSuggestion>>(
             client.as_ref(),
             &resolved.model_id,
             system,
@@ -1057,7 +1057,7 @@ impl RepoAnalyzer for DefaultBrain {
         let mut vars = HashMap::new();
         vars.insert("file_tree", file_tree);
 
-        let selection: ox_core::repo_insights::FileSelection = self
+        let selection: ox_ontology::repo_insights::FileSelection = self
             .call_structured(
                 "repo_navigate",
                 None,

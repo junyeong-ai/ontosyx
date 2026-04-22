@@ -2,22 +2,22 @@ use axum::Json;
 
 use ox_compiler::export;
 use ox_compiler::import;
-use ox_core::ontology_input::{OntologyInputIR, normalize, to_exchange_format};
-use ox_core::ontology_ir::OntologyIR;
-use ox_core::source_mapping::SourceMapping;
+use ox_ontology::input::{InputOntologyDef, normalize, to_exchange_format};
+use ox_ontology::ir::OntologyIR;
+use ox_ontology::mapping::SourceMapping;
 use serde::Deserialize;
 
 use crate::error::AppError;
 use crate::response::ApiResponse;
 
 // ---------------------------------------------------------------------------
-// Normalize — OntologyInputIR → OntologyIR
+// Normalize — InputOntologyDef → OntologyIR
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
     post,
     path = "/api/ontology/normalize",
-    request_body(content = Object, description = "OntologyInputIR to normalize"),
+    request_body(content = Object, description = "InputOntologyDef to normalize"),
     responses(
         (status = 200, description = "Normalized OntologyIR", body = Object),
         (status = 400, description = "Validation errors", body = inline(crate::openapi::ErrorResponse)),
@@ -26,7 +26,7 @@ use crate::response::ApiResponse;
     tag = "Ontologies",
 )]
 pub(crate) async fn normalize_ontology(
-    Json(input): Json<OntologyInputIR>,
+    Json(input): Json<InputOntologyDef>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let result = normalize(input).map_err(|errors| AppError::bad_request(errors.join("; ")))?;
     Ok(ApiResponse::of(serde_json::json!({
@@ -36,7 +36,7 @@ pub(crate) async fn normalize_ontology(
 }
 
 // ---------------------------------------------------------------------------
-// Export — OntologyIR → OntologyInputIR (exchange format)
+// Export — OntologyIR → InputOntologyDef (exchange format)
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
@@ -44,14 +44,14 @@ pub(crate) async fn normalize_ontology(
     path = "/api/ontology/export",
     request_body(content = Object, description = "OntologyIR to export"),
     responses(
-        (status = 200, description = "OntologyInputIR exchange format", body = Object),
+        (status = 200, description = "InputOntologyDef exchange format", body = Object),
     ),
     security(("api_key" = [])),
     tag = "Ontologies",
 )]
 pub(crate) async fn export_ontology(
     Json(ontology): Json<OntologyIR>,
-) -> Result<Json<ApiResponse<OntologyInputIR>>, AppError> {
+) -> Result<Json<ApiResponse<InputOntologyDef>>, AppError> {
     let exchange = to_exchange_format(&ontology, &SourceMapping::new());
     Ok(ApiResponse::of(exchange))
 }

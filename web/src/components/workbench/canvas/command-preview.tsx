@@ -1,7 +1,6 @@
-/* eslint-disable react-hooks/rules-of-hooks */
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { OntologyCommand, OntologyIR } from "@/types/api";
 import { formatCommand, commandOpBadge } from "@/lib/command-format";
@@ -33,7 +32,36 @@ export function CommandPreview({
   // Flatten batch commands for individual selection
   const flatCommands = useMemo(() => flattenCommands(commands), [commands]);
 
-  // Guard: no structural changes
+  // React canonical "reset-state-when-prop-changes" pattern:
+  // track the previous prop identity in state, and reset `checked`
+  // synchronously during render when it drifts.
+  const [prevFlatCommands, setPrevFlatCommands] = useState(flatCommands);
+  const [checked, setChecked] = useState<boolean[]>(() =>
+    flatCommands.map(() => true),
+  );
+  if (prevFlatCommands !== flatCommands) {
+    setPrevFlatCommands(flatCommands);
+    setChecked(flatCommands.map(() => true));
+  }
+
+  const toggleAll = useCallback(
+    (value: boolean) => setChecked(flatCommands.map(() => value)),
+    [flatCommands],
+  );
+
+  const toggle = useCallback(
+    (index: number) =>
+      setChecked((prev) => prev.map((v, i) => (i === index ? !v : v))),
+    [],
+  );
+
+  const handleApply = useCallback(() => {
+    const accepted = flatCommands.filter((_, i) => checked[i]);
+    if (accepted.length === 0) return;
+    onApply(accepted);
+  }, [flatCommands, checked, onApply]);
+
+  // Guard: no structural changes — render after all hooks
   if (flatCommands.length === 0) {
     return (
       <div
@@ -66,37 +94,8 @@ export function CommandPreview({
     );
   }
 
-  const prevRef = useRef(flatCommands);
-  const [checked, setChecked] = useState<boolean[]>(
-    () => flatCommands.map(() => true),
-  );
-
-  // Reset checked state when flatCommands reference changes (new commands prop)
-  if (prevRef.current !== flatCommands) {
-    prevRef.current = flatCommands;
-    setChecked(flatCommands.map(() => true));
-  }
-
   const allChecked = checked.every(Boolean);
   const noneChecked = checked.every((v) => !v);
-
-  const toggleAll = useCallback(
-    (value: boolean) => setChecked(flatCommands.map(() => value)),
-    [flatCommands],
-  );
-
-  const toggle = useCallback(
-    (index: number) =>
-      setChecked((prev) => prev.map((v, i) => (i === index ? !v : v))),
-    [],
-  );
-
-  const handleApply = useCallback(() => {
-    const accepted = flatCommands.filter((_, i) => checked[i]);
-    if (accepted.length === 0) return;
-    onApply(accepted);
-  }, [flatCommands, checked, onApply]);
-
   const selectedCount = checked.filter(Boolean).length;
 
   return (

@@ -6,11 +6,11 @@ use rio_turtle::TurtleParser;
 use tracing::warn;
 
 use ox_core::error::{OxError, OxResult};
-use ox_core::ontology_input::{
-    InputEdgeTypeDef, InputNodeConstraint, InputNodeTypeDef, InputPropertyDef, OntologyInputIR,
+use ox_ontology::input::{
+    InputEdgeTypeDef, InputNodeConstraint, InputNodeTypeDef, InputPropertyDef, InputOntologyDef,
     normalize,
 };
-use ox_core::ontology_ir::{Cardinality, OntologyIR};
+use ox_ontology::ir::{Cardinality, OntologyIR};
 use ox_core::types::PropertyType;
 
 // ---------------------------------------------------------------------------
@@ -227,7 +227,7 @@ fn parse_triples(turtle: &str) -> OxResult<Vec<OwnedTriple>> {
 // Phase 2-6: Extract ontology structures from triples
 // ---------------------------------------------------------------------------
 
-fn extract_ontology_input(triples: &[OwnedTriple]) -> OxResult<OntologyInputIR> {
+fn extract_ontology_input(triples: &[OwnedTriple]) -> OxResult<InputOntologyDef> {
     // Build lookup indexes
     let mut subject_index: HashMap<&str, Vec<&OwnedTriple>> = HashMap::new();
     for t in triples {
@@ -671,7 +671,7 @@ fn extract_ontology_input(triples: &[OwnedTriple]) -> OxResult<OntologyInputIR> 
         });
     }
 
-    Ok(OntologyInputIR {
+    Ok(InputOntologyDef {
         format_version: 1,
         id: None,
         name,
@@ -734,7 +734,7 @@ mod tests {
     use ox_core::GraphLabel;
     use ox_core::LocalizedText;
     use ox_core::PropertyKey;
-    use ox_core::ontology_ir::{
+    use ox_ontology::ir::{
         Cardinality, ConstraintDef, EdgeTypeDef, NodeConstraint, NodeTypeDef, OntologyIR,
         PropertyDef,
     };
