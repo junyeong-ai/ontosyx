@@ -72,6 +72,12 @@ struct ResolveAmbiguityOutput {
 
 pub struct ResolveAmbiguityTool {
     pub ambiguity_store: Arc<dyn AmbiguityStore>,
+    /// Shared "session → last-resolve-ts" map. A successful resolution
+    /// stamps the caller's `ctx.session_id()`; the next `query_graph`
+    /// invocation in the same session reads the stamp within a ~10
+    /// minute window to flip the `ambiguity_was_clarified` signal
+    /// that drives the Phase 4.6 `clarification_success_rate` tile.
+    pub clarification_tracker: crate::clarification_tracker::SharedClarificationTracker,
 }
 
 #[async_trait]
@@ -88,11 +94,11 @@ impl SchemaTool for ResolveAmbiguityTool {
          context; the chain is preserved for audit.";
     const READ_ONLY: bool = false;
 
-    async fn handle(&self, input: Self::Input, _ctx: &ExecutionContext) -> ToolResult {
+    async fn handle(&self, input: Self::Input, exec_ctx: &ExecutionContext) -> ToolResult {
         let context_id = AmbiguityId::new(input.context_id.clone());
         // Verify context exists up-front so we give the caller a clear
         // "no such context" error instead of a FK violation on insert.
-        let ctx = match self.ambiguity_store.get_ambiguity_context(&context_id).await {
+        let ambig_ctx = match self.ambiguity_store.get_ambiguity_context(&context_id).await {
             Ok(Some(c)) => c,
             Ok(None) => {
                 return ToolResult::error(format!(
@@ -130,23 +136,33 @@ impl SchemaTool for ResolveAmbiguityTool {
             },
         };
 
-        let resolution =
-            AmbiguityResolution::new(context_id.clone(), ctx.detection_source_hash.clone(), mapping);
+        let resolution = AmbiguityResolution::new(
+            context_id.clone(),
+            ambig_ctx.detection_source_hash.clone(),
+            mapping,
+        );
 
         match self
             .ambiguity_store
             .create_ambiguity_resolution(resolution)
             .await
         {
-            Ok(saved) => ToolResult::success(
-                serde_json::to_string_pretty(&ResolveAmbiguityOutput {
-                    resolution_id: saved.id.as_str().to_string(),
-                    context_id: saved.context_id.as_str().to_string(),
-                    supersedes: saved.supersedes.map(|s| s.as_str().to_string()),
-                    active: saved.revoked_at.is_none(),
-                })
-                .unwrap_or_default(),
-            ),
+            Ok(saved) => {
+                // Phase 4.6 signal wire — stamp "this session just
+                // clarified" so the next `query_graph` in the same
+                // branchforge session counts toward the
+                // clarification_success_rate tile.
+                self.clarification_tracker.record(exec_ctx.session_id());
+                ToolResult::success(
+                    serde_json::to_string_pretty(&ResolveAmbiguityOutput {
+                        resolution_id: saved.id.as_str().to_string(),
+                        context_id: saved.context_id.as_str().to_string(),
+                        supersedes: saved.supersedes.map(|s| s.as_str().to_string()),
+                        active: saved.revoked_at.is_none(),
+                    })
+                    .unwrap_or_default(),
+                )
+            }
             Err(e) => ToolResult::error(format!("Failed to save resolution: {e:?}")),
         }
     }

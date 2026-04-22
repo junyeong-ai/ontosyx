@@ -16,6 +16,7 @@
 //! data analysis, and visualization. Built on the branchforge agent runtime
 //! for durable sessions, tool execution, and human-in-the-loop workflows.
 
+pub mod clarification_tracker;
 pub mod hooks;
 pub mod recipes;
 pub mod tools;
@@ -78,6 +79,12 @@ pub struct DomainContext {
     /// this is populated, so ad-hoc sessions without a source surface
     /// aren't offered a tool that has nothing to resolve against.
     pub ambiguity_store: Option<Arc<dyn ox_store::AmbiguityStore>>,
+    /// Per-agent-process "session has resolved an ambiguity recently"
+    /// tracker. Populated by `ResolveAmbiguityTool` and read by
+    /// `QueryGraphTool` so the Phase 4.6 `clarification_success_rate`
+    /// signal can flip `ambiguity_was_clarified = true` on a query
+    /// that followed a clarification in the same session.
+    pub clarification_tracker: clarification_tracker::SharedClarificationTracker,
     /// Original user question — always passed to translate_query as primary context.
     /// Prevents agent-driven question fragmentation that defeats graph traversal.
     pub user_question: Option<String>,
@@ -273,6 +280,7 @@ pub async fn build_agent(config: OntosyxAgentConfig) -> OxResult<BuildAgentResul
         if let Some(ambig) = &domain.ambiguity_store {
             builder = builder.tool(ResolveAmbiguityTool {
                 ambiguity_store: Arc::clone(ambig),
+                clarification_tracker: Arc::clone(&domain.clarification_tracker),
             });
         }
 

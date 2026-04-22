@@ -465,6 +465,21 @@ impl SchemaTool for QueryGraphTool {
         // `query_execution_signals.execution_id → query_executions(id)`
         // always resolves.
         {
+            // Phase 4.6 signal: did a `resolve_ambiguity` call in this
+            // same branchforge session land a resolution in the
+            // recent past? Read the shared tracker — it's process-wide
+            // and lives on `AppState` so the resolve + query turns
+            // can land on different chat-stream requests and still
+            // correlate.
+            let ambiguity_was_clarified = self
+                .domain
+                .clarification_tracker
+                .was_clarified_within(
+                    ctx.session_id(),
+                    chrono::Duration::minutes(
+                        crate::clarification_tracker::DEFAULT_WINDOW_MINUTES,
+                    ),
+                );
             let signal = build_query_execution_signal(
                 execution_id,
                 self.domain.workspace_id,
@@ -473,6 +488,7 @@ impl SchemaTool for QueryGraphTool {
                 &validator_notes,
                 Some(ontology.as_ref()),
                 anchor_hit.as_ref(),
+                ambiguity_was_clarified,
             );
             let type_kinds = signal_type_kinds(provenance.as_ref());
             let store = Arc::clone(&self.domain.store);
@@ -617,6 +633,7 @@ fn build_query_execution_signal(
     validator_notes: &[ox_query_ir::query::QueryDiagnostic],
     ontology: Option<&ox_ontology::OntologyIR>,
     anchor_hit: Option<&(f32, Vec<String>)>,
+    ambiguity_was_clarified: bool,
 ) -> ox_store::QueryExecutionSignal {
     // SHACL failure: any `validator: "shacl"` entry with `Error` level
     // in the strict re-pass means the runtime's permissive pass let
@@ -651,7 +668,7 @@ fn build_query_execution_signal(
         anchor_hit_kinds,
         glossary_term_hits,
         ambiguity_resolution_ids: Vec::new(),
-        ambiguity_was_clarified: false,
+        ambiguity_was_clarified,
         shacl_passed,
         shacl_failure_kind,
         query_ir_normalized_hash: query_ir.canonical_hash(),

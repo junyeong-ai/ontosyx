@@ -479,6 +479,9 @@ async fn main() -> anyhow::Result<()> {
         stream_limiter: Arc::new(ox_api::stream_limiter::StreamLimiter::new(
             config.agent.max_concurrent_streams_per_user,
         )),
+        clarification_tracker: Arc::new(
+            ox_agent::clarification_tracker::ClarificationTracker::new(),
+        ),
     };
 
     // CORS policy: explicit origins required. No permissive fallback.

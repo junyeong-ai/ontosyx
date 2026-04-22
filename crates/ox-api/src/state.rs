@@ -82,6 +82,14 @@ pub struct AppState {
     /// Per-user concurrent chat-stream limiter (defense-in-depth alongside
     /// the global request rate limiter).
     pub stream_limiter: Arc<crate::stream_limiter::StreamLimiter>,
+    /// Process-wide "has this session resolved an ambiguity recently?"
+    /// tracker. Lives on `AppState` because a chat session spans
+    /// multiple independent chat-stream requests; a per-request
+    /// `DomainContext` field would reset the timestamp between a
+    /// `resolve_ambiguity` call and the follow-up `query_graph`
+    /// call. Feeds the Phase 4.6 `clarification_success_rate`
+    /// quality signal.
+    pub clarification_tracker: ox_agent::clarification_tracker::SharedClarificationTracker,
 }
 
 impl AppState {

@@ -154,6 +154,7 @@ pub(crate) async fn chat_stream(
         repo_insights,
         knowledge_store: Some(Arc::clone(&state.store) as Arc<dyn ox_store::KnowledgeStore>),
         ambiguity_store: Some(Arc::clone(&state.store) as Arc<dyn ox_store::AmbiguityStore>),
+        clarification_tracker: Arc::clone(&state.clarification_tracker),
         user_question: Some(user_message.clone()),
     });
 
