@@ -9,6 +9,8 @@ import { Tooltip } from "@/components/ui/tooltip";
 import type { PropertyDef, PropertyPatch, OntologyCommand, DataClassification } from "@/types/api";
 import { formatPropertyType } from "@/types/api";
 import { InlineEdit } from "./inline-edit";
+import { LinkTermDropdown } from "./link-term-dropdown";
+import type { OwnerKind } from "@/lib/api/binding-suggestions";
 
 // ---------------------------------------------------------------------------
 // Classification badge
@@ -146,14 +148,29 @@ export function AddPropertyForm({
 // Property row (editable)
 // ---------------------------------------------------------------------------
 
+export interface PropertyRowBindingContext {
+  ontologyId: string;
+  expectedVersion: number;
+  ownerKind: OwnerKind;
+  ownerTypeId: string;
+}
+
 export function PropertyRow({
   prop,
   onDelete,
   onUpdate,
+  binding,
 }: {
   prop: PropertyDef;
   onDelete: () => void;
   onUpdate: (patch: PropertyPatch) => void;
+  /**
+   * When provided, the row renders the Phase 4.5 "Link term"
+   * affordance using the shared ontology-id + owner coordinates.
+   * Absent in contexts (e.g. project-design editor) where the
+   * edit log is not yet wired.
+   */
+  binding?: PropertyRowBindingContext;
 }) {
   const [editingType, setEditingType] = useState(false);
 
@@ -206,6 +223,16 @@ export function PropertyRow({
           </Tooltip>
           {prop.classification && (
             <ClassificationBadge classification={prop.classification} />
+          )}
+          {binding && (
+            <LinkTermDropdown
+              ontologyId={binding.ontologyId}
+              expectedVersion={binding.expectedVersion}
+              ownerKind={binding.ownerKind}
+              ownerTypeId={binding.ownerTypeId}
+              propertyId={prop.id}
+              boundTermId={prop.glossary_term_id ?? undefined}
+            />
           )}
         </div>
         <InlineEdit

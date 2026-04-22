@@ -1,4 +1,20 @@
 {
+  "inspector": {
+    "binding": {
+      "linkTooltip": "Link to glossary term",
+      "linkAria": "Link this property to a glossary term",
+      "unlinkTooltip": "Bound to {term} — click to unbind",
+      "unlinkAria": "Unbind from {term}",
+      "suggestionsLabel": "Suggested glossary terms",
+      "loading": "Loading suggestions…",
+      "fetchFailed": "Could not fetch suggestions",
+      "noSuggestions": "No matching terms — try renaming the property or adding a glossary entry",
+      "applying": "Applying…",
+      "applyFailed": "Binding failed",
+      "linkedToast": "Bound to {term}",
+      "unlinkedToast": "Binding removed"
+    }
+  },
   "common": {
     "loading": "Loading…",
     "cancel": "Cancel",

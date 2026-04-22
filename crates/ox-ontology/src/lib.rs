@@ -137,6 +137,7 @@ pub use change_routing::{
 };
 pub use edit::{
     OntologyEditOp, OntologyEditPreCheck, OntologyEditReceipt, OntologyEditRequest,
+    PropertyOwnerPath,
 };
 pub use source_analysis::{
     AnalysisCompleteness, AnalysisPhase, AnalysisWarning, AnalysisWarningKind,

@@ -64,6 +64,22 @@ export interface PropertyDef {
   source_column?: string | null;
   /** Data sensitivity classification (derived from PII detection) */
   classification?: DataClassification | null;
+  /**
+   * Phase 5-B semantic pointer. Links the technical property to the
+   * business concept it realises. Set via
+   * `OntologyEditOp::BindPropertyToTerm` through `/api/ontologies/{id}/edits`.
+   */
+  glossary_term_id?: string | null;
+  /**
+   * Phase Ω pointer. When set, values must be codes from the named
+   * ValueSet; the runtime SHACL validator enforces it.
+   */
+  value_set_id?: string | null;
+  /**
+   * Phase Ω pointer. When set, values must match the named
+   * NotationPattern.
+   */
+  notation_pattern_id?: string | null;
 }
 
 export type ConstraintDef =

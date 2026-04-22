@@ -253,6 +253,16 @@ export function NodeDetail({
             prop={prop}
             onDelete={() => handleDeleteProperty(prop.id, prop.name)}
             onUpdate={(patch) => handleUpdateProperty(prop.id, patch)}
+            binding={
+              ontology.id
+                ? {
+                    ontologyId: ontology.id,
+                    expectedVersion: ontology.version,
+                    ownerKind: "node",
+                    ownerTypeId: node.id,
+                  }
+                : undefined
+            }
           />
         ))}
       </Section>
@@ -479,6 +489,16 @@ export function EdgeDetail({
             prop={prop}
             onDelete={() => handleDeleteProperty(prop.id, prop.name)}
             onUpdate={(patch) => handleUpdateProperty(prop.id, patch)}
+            binding={
+              ontology.id
+                ? {
+                    ontologyId: ontology.id,
+                    expectedVersion: ontology.version,
+                    ownerKind: "edge",
+                    ownerTypeId: edge.id,
+                  }
+                : undefined
+            }
           />
         ))}
       </Section>
