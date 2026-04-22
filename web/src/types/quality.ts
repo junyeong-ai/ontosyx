@@ -348,3 +348,25 @@ export interface StaleTypeEntry {
   last_used_at: string | null;
   days_since_last_use: number;
 }
+
+/** Decision status for a `StaleConceptProposal`. */
+export type StaleProposalDecision = "pending" | "approved" | "dismissed";
+
+/**
+ * One durable deprecation proposal written by the daily stale-concept
+ * cron. Natural key guarantees one open row per type; a terminal
+ * decision is preserved across re-runs.
+ */
+export interface StaleConceptProposal {
+  id: string;
+  workspace_id: string;
+  type_id: string;
+  type_kind: string;
+  last_used_at: string | null;
+  days_since_last_use: number;
+  proposed_at: string;
+  decision: StaleProposalDecision;
+  decided_at: string | null;
+  decided_by_user_id: string | null;
+  reason: string | null;
+}

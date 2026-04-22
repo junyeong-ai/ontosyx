@@ -372,6 +372,7 @@
         "governance": "Governance",
         "qualityRules": "Quality Rules",
         "qualitySignals": "Quality Signals",
+        "staleConcepts": "Stale Concepts",
         "ambiguity": "Ambiguity",
         "accessControl": "Access Control",
         "dataLineage": "Data Lineage",
@@ -1287,6 +1288,52 @@
       "deleteConfirm": {
         "title": "Delete quality rule '{name}'?",
         "description": "This action cannot be undone. The rule and its evaluation history will be permanently removed."
+      }
+    },
+    "staleConcepts": {
+      "title": "Stale Concepts",
+      "subtitle": "Types the daily cron flagged as unused for 180+ days. Approving a row records intent to deprecate — the actual ontology edit still goes through the normal edit-log path.",
+      "tabsLabel": "Status filter",
+      "loading": "Loading…",
+      "tabs": {
+        "pending": "Pending",
+        "decided": "History"
+      },
+      "empty": {
+        "pending": "No stale-concept proposals pending. The cron writes fresh rows daily.",
+        "decided": "No decisions recorded yet."
+      },
+      "columns": {
+        "type": "Type id",
+        "kind": "Kind",
+        "daysSince": "Days idle",
+        "proposedAt": "Proposed",
+        "decision": "Decision",
+        "reason": "Reason",
+        "actions": "Actions"
+      },
+      "actions": {
+        "review": "Review"
+      },
+      "decisionLabel": {
+        "approved": "Approved",
+        "dismissed": "Dismissed",
+        "pending": "Pending"
+      },
+      "toast": {
+        "approved": "Proposal approved — deprecation intent recorded",
+        "dismissed": "Proposal dismissed",
+        "failed": "Failed to record decision"
+      },
+      "modal": {
+        "title": "Review stale-concept proposal",
+        "daysSince": "Idle for {days} days",
+        "reasonLabel": "Reason (optional)",
+        "reasonPlaceholder": "Context the next reviewer should know — e.g. \"replaced by Customer v2\", \"dedup candidate\"",
+        "cancel": "Cancel",
+        "dismiss": "Dismiss",
+        "approve": "Approve",
+        "saving": "Saving…"
       }
     },
     "ambiguity": {

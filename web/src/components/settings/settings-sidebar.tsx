@@ -56,6 +56,11 @@ const NAV_GROUPS: NavGroup[] = [
         href: "/settings/quality/signals",
         adminOnly: true,
       },
+      {
+        labelKey: "staleConcepts",
+        href: "/settings/quality/stale",
+        adminOnly: true,
+      },
       { labelKey: "ambiguity", href: "/settings/ambiguity", adminOnly: true },
       { labelKey: "accessControl", href: "/settings/acl", adminOnly: true },
       { labelKey: "dataLineage", href: "/settings/lineage" },

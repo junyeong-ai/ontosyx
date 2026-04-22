@@ -372,6 +372,7 @@
         "governance": "거버넌스",
         "qualityRules": "품질 규칙",
         "qualitySignals": "품질 지표",
+        "staleConcepts": "비활성 타입",
         "ambiguity": "모호성 해결",
         "accessControl": "접근 제어",
         "dataLineage": "데이터 계보",
@@ -1287,6 +1288,52 @@
       "deleteConfirm": {
         "title": "품질 규칙 '{name}'을(를) 삭제하시겠습니까?",
         "description": "이 작업은 되돌릴 수 없으며 규칙과 평가 이력이 영구적으로 제거됩니다."
+      }
+    },
+    "staleConcepts": {
+      "title": "비활성 타입 관리",
+      "subtitle": "180일 이상 미사용으로 감지된 타입 목록입니다. 승인 시 사용 중단 의사가 기록되며, 실제 온톨로지 편집은 편집 로그 경로를 따릅니다.",
+      "tabsLabel": "상태 필터",
+      "loading": "불러오는 중…",
+      "tabs": {
+        "pending": "대기",
+        "decided": "결정 이력"
+      },
+      "empty": {
+        "pending": "대기 중인 제안이 없습니다. 크론이 매일 새 제안을 기록합니다.",
+        "decided": "결정 이력이 아직 없습니다."
+      },
+      "columns": {
+        "type": "타입 ID",
+        "kind": "종류",
+        "daysSince": "미사용 일수",
+        "proposedAt": "제안일",
+        "decision": "결정",
+        "reason": "사유",
+        "actions": "작업"
+      },
+      "actions": {
+        "review": "검토"
+      },
+      "decisionLabel": {
+        "approved": "승인됨",
+        "dismissed": "기각됨",
+        "pending": "대기"
+      },
+      "toast": {
+        "approved": "승인되었습니다 — 사용 중단 의사가 기록됨",
+        "dismissed": "기각되었습니다",
+        "failed": "결정 기록에 실패했습니다"
+      },
+      "modal": {
+        "title": "비활성 타입 제안 검토",
+        "daysSince": "{days}일 동안 미사용",
+        "reasonLabel": "사유 (선택)",
+        "reasonPlaceholder": "다음 리뷰어가 참고할 정보 — 예: \"Customer v2로 대체됨\", \"중복 제거 후보\"",
+        "cancel": "취소",
+        "dismiss": "기각",
+        "approve": "승인",
+        "saving": "저장 중…"
       }
     },
     "ambiguity": {
