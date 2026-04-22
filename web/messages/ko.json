@@ -1528,7 +1528,12 @@
       "toast": {
         "approved": "승인되었습니다 — 사용 중단 의사가 기록됨",
         "dismissed": "기각되었습니다",
-        "failed": "결정 기록에 실패했습니다"
+        "failed": "결정 기록에 실패했습니다",
+        "deprecated": "{ontology}에서 타입을 사용 중단 처리했습니다",
+        "emitFailed": "승인됨 — 사용 중단 편집을 적용하지 못했습니다",
+        "lookupFailed": "승인됨 — 소유 온톨로지 조회에 실패했습니다",
+        "noCandidate": "승인됨 — 이 워크스페이스에서 해당 타입을 가진 온톨로지가 없습니다",
+        "alreadyDeprecated": "승인됨 — 모든 일치 온톨로지에서 이미 사용 중단 상태입니다"
       },
       "modal": {
         "title": "비활성 타입 제안 검토",
@@ -1539,6 +1544,12 @@
         "dismiss": "기각",
         "approve": "승인",
         "saving": "저장 중…"
+      },
+      "picker": {
+        "title": "사용 중단 대상 온톨로지 선택",
+        "countHit": "{count}개 온톨로지가 이 타입을 포함하고 있습니다",
+        "pick": "사용 중단",
+        "skip": "건너뛰기 — 승인만 유지"
       }
     },
     "ambiguity": {

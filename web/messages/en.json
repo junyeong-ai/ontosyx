@@ -1546,7 +1546,12 @@
       "toast": {
         "approved": "Proposal approved — deprecation intent recorded",
         "dismissed": "Proposal dismissed",
-        "failed": "Failed to record decision"
+        "failed": "Failed to record decision",
+        "deprecated": "Type deprecated in {ontology}",
+        "emitFailed": "Approved — failed to apply the deprecation edit",
+        "lookupFailed": "Approved — could not look up owning ontologies",
+        "noCandidate": "Approved — no ontology in this workspace carries this type",
+        "alreadyDeprecated": "Approved — type is already deprecated in every matching ontology"
       },
       "modal": {
         "title": "Review stale-concept proposal",
@@ -1557,6 +1562,12 @@
         "dismiss": "Dismiss",
         "approve": "Approve",
         "saving": "Saving…"
+      },
+      "picker": {
+        "title": "Pick the ontology to deprecate in",
+        "countHit": "{count} ontologies carry this type",
+        "pick": "Deprecate",
+        "skip": "Skip — keep approval only"
       }
     },
     "ambiguity": {

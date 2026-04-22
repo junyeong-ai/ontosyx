@@ -12,7 +12,9 @@ import {
   listShaclFailures,
   listStaleProposals,
   listStaleTypes,
+  listTypeCandidates,
   type MetricWindow,
+  type TypeCandidate,
 } from "@/lib/api/quality";
 import type { StaleConceptProposal } from "@/types/api";
 
@@ -59,6 +61,30 @@ export interface DecideStaleVariables {
   id: string;
   decision: "approved" | "dismissed";
   reason?: string;
+}
+
+/**
+ * Fetch which ontologies in the workspace carry a node/edge type
+ * with the given logical id. Feeds the Phase 4.7 auto-deprecate
+ * flow on the stale-approval page — enabled is gated so the lookup
+ * only runs when the page explicitly opts in (after approve).
+ */
+export function useTypeCandidates(
+  logicalId: string | null,
+  kind: string | null,
+  options?: { enabled?: boolean },
+) {
+  return useQuery<TypeCandidate[]>({
+    queryKey: [
+      ...qualityKeys.all,
+      "type-candidates",
+      logicalId ?? "",
+      kind ?? "",
+    ] as const,
+    queryFn: () => listTypeCandidates(logicalId!, kind!),
+    enabled:
+      (options?.enabled ?? true) && Boolean(logicalId) && Boolean(kind),
+  });
 }
 
 export function useDecideStaleProposal(

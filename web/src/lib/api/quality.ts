@@ -57,3 +57,27 @@ export async function decideStaleProposal(
     },
   );
 }
+
+// Phase 4.7 — given a stale type proposal, find which ontologies
+// in the workspace currently carry that type. The approval UI
+// reads this to decide whether to auto-emit a
+// `DeprecateNodeType` / `DeprecateEdgeType` edit op and, if
+// multiple ontologies match, which one to target.
+export interface TypeCandidate {
+  ontology_id: string;
+  ontology_name: string;
+  current_version: string;
+  label: string;
+  deprecated_at?: string | null;
+}
+
+export async function listTypeCandidates(
+  logicalId: string,
+  kind: string,
+): Promise<TypeCandidate[]> {
+  const qs = new URLSearchParams({
+    logical_id: logicalId,
+    kind,
+  });
+  return request<TypeCandidate[]>(`/ontologies/type-candidates?${qs}`);
+}

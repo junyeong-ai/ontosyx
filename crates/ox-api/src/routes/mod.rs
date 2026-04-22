@@ -122,6 +122,10 @@ pub fn router(state: AppState) -> Router {
         )
         // Ontology management
         .route("/ontologies", get(ontology::list_ontologies))
+        .route(
+            "/ontologies/type-candidates",
+            get(ontology::list_type_candidates),
+        )
         .route("/ontologies/{id}", get(ontology::get_ontology_detail))
         .route("/ontologies/{id}/edits", post(ontology::apply_ontology_edits))
         .route("/ontologies/{id}/map-summary", get(ontology::map_summary))

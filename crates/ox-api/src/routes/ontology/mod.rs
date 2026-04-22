@@ -13,6 +13,7 @@ mod edits;
 mod exchange;
 mod map_summary;
 mod schema_ops;
+mod type_candidates;
 mod value_sets;
 mod verifications;
 
@@ -21,6 +22,7 @@ mod verifications;
 pub(crate) use crud::{apply_ontology_commands, get_ontology_detail, list_ontologies};
 pub(crate) use map_summary::map_summary;
 pub(crate) use edits::apply_ontology_edits;
+pub(crate) use type_candidates::list_type_candidates;
 pub(crate) use exchange::{
     export_cypher, export_graphql, export_mermaid, export_ontology, export_owl, export_python,
     export_shacl, export_typescript, import_owl, normalize_ontology,
