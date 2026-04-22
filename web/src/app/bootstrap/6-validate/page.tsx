@@ -1,25 +1,58 @@
 "use client";
 
-// Final step — render a summary card and let the operator either
-// "Finish" (navigate to the design workbench with their collected
-// intent, which the workbench can seed from localStorage) or restart.
-// The wizard does NOT persist to backend yet — the workbench picks
-// up the localStorage state and wires it into the first project
-// creation call. That keeps the wizard fully client-side and
-// restart-safe.
+// Final step — shows a summary card and, on Finish, creates a
+// DesignProject seeded from the wizard's captured intent. The
+// request shape depends on sourceKind: for connection-string based
+// sources (postgresql / mysql / bigquery) we pass the user-supplied
+// connection; for file-based kinds (csv / json) we skip the
+// backend call and just land on the workbench with the bootstrap
+// state in localStorage for the workbench to pick up.
 
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
+
+import { createProject } from "@/lib/api/projects";
+import type { CreateProjectRequest, DesignSource } from "@/types/api";
 
 import { useBootstrap } from "../bootstrap-state";
 import { StepShell } from "../step-shell";
+
+/**
+ * Map a wizard source kind + connection string to a
+ * `CreateProjectRequest`, or `null` when the pair can't be
+ * materialised without extra user input (file upload, etc.).
+ */
+function buildCreateRequest(
+  pilotName: string,
+  sourceKind: string,
+  sourceConnection: string,
+): CreateProjectRequest | null {
+  const title = pilotName.trim() || undefined;
+  const conn = sourceConnection.trim();
+  if (!conn) return null;
+  let source: DesignSource | null = null;
+  switch (sourceKind) {
+    case "postgresql":
+      source = { type: "postgresql", connection_string: conn };
+      break;
+    case "mysql":
+      // Mysql requires a schema — use `public` as the conservative
+      // default and let the admin retarget from the workbench.
+      source = { type: "mysql", connection_string: conn, schema: "public" };
+      break;
+    default:
+      return null;
+  }
+  return { title, origin_type: "source", source };
+}
 
 export default function ValidateStep() {
   const t = useTranslations("bootstrap.step6");
   const router = useRouter();
   const { state, reset, markComplete } = useBootstrap();
+  const [submitting, setSubmitting] = useState(false);
 
   const glossaryCount = useMemo(
     () => state.glossaryDraft.split("\n").filter((l) => l.trim().length > 0).length,
@@ -31,12 +64,39 @@ export default function ValidateStep() {
     [state.rulesDraft],
   );
 
-  const onFinish = () => {
+  const onFinish = async () => {
     markComplete("6-validate");
-    toast.success(t("toast.finished", { name: state.pilotName || "(unnamed)" }));
-    // Land on the design workbench — the /(workbench) segment reads
-    // the bootstrap state from localStorage if present.
-    router.push("/design");
+    const req = buildCreateRequest(
+      state.pilotName,
+      state.sourceKind,
+      state.sourceConnection,
+    );
+    if (!req) {
+      // The wizard is still useful even without a DB source — land
+      // on /design and leave the bootstrap state in localStorage
+      // for the workbench to pick up.
+      toast.info(t("toast.skippedCreate"));
+      router.push("/design");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const project = await createProject(req);
+      toast.success(
+        t("toast.created", { name: state.pilotName || t("summary.unnamed") }),
+      );
+      // The design workbench resolves the project by path slot; we
+      // pass the id so the workbench opens focused on this project.
+      router.push(`/design?project=${encodeURIComponent(project.id)}`);
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? t("toast.createFailed", { message: err.message })
+          : t("toast.createFailedUnknown"),
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleRestart = () => {
@@ -49,7 +109,7 @@ export default function ValidateStep() {
       stepKey="6-validate"
       nextPath={null}
       backPath="/bootstrap/5-map"
-      canAdvance
+      canAdvance={!submitting}
       onFinish={onFinish}
       title={t("title")}
       subtitle={t("subtitle")}

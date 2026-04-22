@@ -152,7 +152,11 @@
       },
       "restart": "처음부터 다시",
       "toast": {
-        "finished": "파일럿 \"{name}\" 준비 완료 — 디자인 워크벤치를 엽니다"
+        "finished": "파일럿 \"{name}\" 준비 완료 — 디자인 워크벤치를 엽니다",
+        "created": "프로젝트 \"{name}\" 생성 완료 — 디자인 워크벤치를 엽니다",
+        "skippedCreate": "연결 기반 소스가 아닙니다 — 디자인 워크벤치에서 파일 업로드로 이어주세요.",
+        "createFailed": "프로젝트 생성 실패: {message}",
+        "createFailedUnknown": "프로젝트 생성 실패 (알 수 없는 오류)."
       }
     }
   },

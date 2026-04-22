@@ -170,7 +170,11 @@
       },
       "restart": "Start over",
       "toast": {
-        "finished": "Pilot \"{name}\" ready — opening the design workbench"
+        "finished": "Pilot \"{name}\" ready — opening the design workbench",
+        "created": "Project \"{name}\" created — opening the design workbench",
+        "skippedCreate": "Source not connection-based — opening the design workbench; upload the file from there.",
+        "createFailed": "Project creation failed: {message}",
+        "createFailedUnknown": "Project creation failed (unknown error)."
       }
     }
   },
