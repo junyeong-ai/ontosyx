@@ -1652,6 +1652,23 @@
     }
   },
   "workbench": {
+    "explore": {
+      "facet": {
+        "title": "Explore facets",
+        "loading": "Loading…",
+        "depth": {
+          "label": "Expand depth",
+          "hops": "{n}-hop",
+          "cmdHint": "⌘-click a node to temporarily switch to 3-hop expansion."
+        },
+        "types": {
+          "label": "Types",
+          "clear": "Clear",
+          "empty": "No types found in the current graph."
+        },
+        "saveSegment": "Save {count} type(s) as segment"
+      }
+    },
     "chat": {
       "input": {
         "messageAria": "Chat message",

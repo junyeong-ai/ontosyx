@@ -1634,6 +1634,23 @@
     }
   },
   "workbench": {
+    "explore": {
+      "facet": {
+        "title": "탐색 필터",
+        "loading": "불러오는 중…",
+        "depth": {
+          "label": "확장 깊이",
+          "hops": "{n}단계",
+          "cmdHint": "노드를 ⌘+클릭하면 일시적으로 3단계 확장으로 전환됩니다."
+        },
+        "types": {
+          "label": "타입",
+          "clear": "지우기",
+          "empty": "현재 그래프에 타입이 없습니다."
+        },
+        "saveSegment": "{count}개 타입을 세그먼트로 저장"
+      }
+    },
     "chat": {
       "input": {
         "messageAria": "채팅 메시지",

@@ -22,6 +22,8 @@ import {
   ExploreCanvas,
   type FocusedNode,
 } from "./explore/explore-canvas";
+import { ExploreFacetSidebar } from "./explore/facet-sidebar";
+import { toast } from "sonner";
 import {
   type SearchResultNode,
   toSearchResultNodes,
@@ -79,6 +81,27 @@ export function ExploreLayout() {
   const [neighbors, setNeighbors] = useState<ExpandNeighbor[]>([]);
   const [expanding, setExpanding] = useState(false);
   const [breadcrumb, setBreadcrumb] = useState<BreadcrumbEntry[]>([]);
+
+  // Phase 4.4 — facet state
+  const [expandDepth, setExpandDepth] = useState<1 | 2 | 3>(1);
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
+  const toggleLabel = useCallback((label: string) => {
+    setSelectedLabels((prev) =>
+      prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label],
+    );
+  }, []);
+  const clearLabels = useCallback(() => setSelectedLabels([]), []);
+  const handleSaveSegment = useCallback(() => {
+    // Segment creation is a two-step: construct SegmentDef from the
+    // current selection + post through the (forthcoming) /segments
+    // endpoint. Until that endpoint lands, we surface the intent so
+    // the operator sees the button wires up and the selection is
+    // preserved for the follow-up session.
+    toast.info(
+      `Segment intent captured: ${selectedLabels.length} type(s). ` +
+        `Persistence lands with the /segments endpoint.`,
+    );
+  }, [selectedLabels.length]);
 
   // ---- Fetch schema overview on mount ----
 
@@ -290,6 +313,18 @@ export function ExploreLayout() {
   return (
     <ErrorBoundary name="Explore">
     <div className="flex h-full">
+      {/* Phase 4.4 — Facet sidebar */}
+      <ExploreFacetSidebar
+        overview={overview}
+        loading={overviewLoading}
+        selectedLabels={selectedLabels}
+        onToggleLabel={toggleLabel}
+        onClearLabels={clearLabels}
+        expandDepth={expandDepth}
+        onChangeDepth={setExpandDepth}
+        onSaveSegment={handleSaveSegment}
+      />
+
       {/* Left: Search + Results */}
       <div className="flex h-full w-72 shrink-0 flex-col border-r border-zinc-200 dark:border-zinc-800">
         {/* Search input */}
