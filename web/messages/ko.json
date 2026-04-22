@@ -1,4 +1,90 @@
 {
+  "bootstrap": {
+    "sidebar": {
+      "title": "파일럿 온보딩",
+      "subtitle": "아이디어를 온톨로지로 연결하는 6단계 여정.",
+      "exit": "나가기",
+      "saveExit": "저장하고 나가기",
+      "steps": {
+        "1-pilot": { "title": "파일럿 범위", "summary": "이름과 목적" },
+        "2-source": { "title": "소스 연결", "summary": "데이터 위치" },
+        "3-glossary": { "title": "용어 시드", "summary": "비즈니스 용어" },
+        "4-rules": { "title": "규칙 포착", "summary": "불변식·SHACL" },
+        "5-map": { "title": "토폴로지 매핑", "summary": "타입과 관계" },
+        "6-validate": { "title": "검증 및 런칭", "summary": "요약과 인계" }
+      }
+    },
+    "step": {
+      "back": "뒤로",
+      "skip": "건너뛰기",
+      "next": "다음",
+      "finish": "완료"
+    },
+    "step1": {
+      "title": "파일럿 범위 정의",
+      "subtitle": "파일럿은 한 영역에서 온톨로지의 가치를 검증하는 좁은 슬라이스입니다. 하나의 프로세스, 한 팀, 1~2주 분량의 데이터로 시작하세요.",
+      "nameLabel": "파일럿 이름",
+      "namePlaceholder": "예: 주문 이행 파일럿",
+      "scopeLabel": "범위 메모",
+      "scopePlaceholder": "어떤 질문에 답하나요? 누가 답을 필요로 하나요?",
+      "scopeHint": "1~2문장이면 충분합니다. 디자인 워크벤치에서 언제든 편집할 수 있습니다."
+    },
+    "step2": {
+      "title": "소스 연결",
+      "subtitle": "파일럿이 읽을 데이터 소스를 선택하세요. 페더레이션 레이어가 디커플링을 유지하므로 나중에 소스를 추가할 수 있습니다.",
+      "kindLabel": "소스 유형",
+      "kinds": {
+        "postgresql": { "label": "PostgreSQL", "hint": "관계형 DB" },
+        "mysql": { "label": "MySQL", "hint": "관계형 DB" },
+        "bigquery": { "label": "BigQuery", "hint": "클라우드 분석 DW" },
+        "csv": { "label": "CSV 파일", "hint": "로컬·마운트 파일" },
+        "json": { "label": "JSON 파일", "hint": "최상위·중첩 레코드" }
+      },
+      "connectionLabel": "연결 문자열 또는 경로",
+      "connectionPlaceholder": "postgres://user:pass@host:5432/db  OR  /mnt/data/orders.csv",
+      "connectionHint": "자격 증명은 브라우저에 저장되지 않으며, 마지막 단계에서 페더레이션 관리 API를 통해 암호화되어 등록됩니다."
+    },
+    "step3": {
+      "title": "용어집 시드",
+      "subtitle": "용어집은 비즈니스 어휘입니다. 한 줄에 하나씩, 대표 용어를 먼저 쓰고 별칭은 쉼표로 구분하세요.",
+      "draftLabel": "용어 초안",
+      "draftPlaceholder": "주문 — 구매, 거래\n고객 — 구매자\nVIP 등급 — 최상위 고객, 로열티",
+      "draftHint": "작성한 용어는 완료 시 CreateGlossaryTerm 작업으로 전환됩니다. 관리자 UI에서 나중에 다듬을 수 있습니다."
+    },
+    "step4": {
+      "title": "규칙 포착",
+      "subtitle": "규칙은 LLM이 생성한 쿼리가 지켜야 할 불변식(SHACL)입니다. 한 줄에 하나씩 평범한 한국어로 쓰세요. 나중에 디자인 에이전트가 SHACL로 변환합니다.",
+      "draftLabel": "규칙 초안",
+      "draftPlaceholder": "주문마다 고객은 정확히 한 명\n주문.상태는 placed, paid, fulfilled, cancelled 중 하나\n금액은 음수가 될 수 없다",
+      "draftHint": "모호한 줄은 조용한 실패가 아닌 확인 질문으로 전환됩니다. 에이전트가 되묻습니다."
+    },
+    "step5": {
+      "title": "토폴로지 매핑",
+      "subtitle": "소스 테이블이 노드 타입과 어떻게 대응되는지 대략 알려주세요. 테이블-노드 1:1 매핑이 일반적이며, 메모로 예외를 설명할 수 있습니다.",
+      "notesLabel": "매핑 메모",
+      "notesPlaceholder": "orders → Order\ncustomers → Customer\norder_items → Order←contains→Product 브리지",
+      "notesHint": "디자인 에이전트가 이 메모와 소스 스키마를 바탕으로 ObjectMapping + LinkMapping을 제안합니다."
+    },
+    "step6": {
+      "title": "검증 및 런칭",
+      "subtitle": "의도를 모두 포착했습니다. 완료를 누르면 디자인 에이전트가 온톨로지를 구체화하고, 소스를 인트로스펙션하며, 워크벤치를 파일럿에 맞게 엽니다.",
+      "summary": {
+        "title": "{name} — 런칭 준비 완료",
+        "unnamed": "(이름 없는 파일럿)",
+        "scopeLabel": "범위",
+        "sourceLabel": "소스 유형",
+        "glossaryLabel": "용어 라인",
+        "rulesLabel": "규칙 라인",
+        "notSet": "미설정",
+        "count": "{n}",
+        "nextStepHint": "디자인 에이전트가 프로젝트를 생성하고 소스를 인트로스펙션하며 ObjectMapping + LinkMapping을 제안합니다. 워크벤치에서 확정하세요."
+      },
+      "restart": "처음부터 다시",
+      "toast": {
+        "finished": "파일럿 \"{name}\" 준비 완료 — 디자인 워크벤치를 엽니다"
+      }
+    }
+  },
   "inspector": {
     "binding": {
       "linkTooltip": "용어 연결",

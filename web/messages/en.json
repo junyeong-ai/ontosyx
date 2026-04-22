@@ -1,4 +1,108 @@
 {
+  "bootstrap": {
+    "sidebar": {
+      "title": "Pilot onboarding",
+      "subtitle": "Six steps from an idea to a live ontology.",
+      "exit": "Exit",
+      "saveExit": "Save & exit",
+      "steps": {
+        "1-pilot": {
+          "title": "Scope the pilot",
+          "summary": "Name and purpose"
+        },
+        "2-source": {
+          "title": "Connect a source",
+          "summary": "Where the data lives"
+        },
+        "3-glossary": {
+          "title": "Seed the glossary",
+          "summary": "Business terms"
+        },
+        "4-rules": {
+          "title": "Capture rules",
+          "summary": "Invariants and SHACL"
+        },
+        "5-map": {
+          "title": "Map to topology",
+          "summary": "Types + relations"
+        },
+        "6-validate": {
+          "title": "Validate and launch",
+          "summary": "Summary + hand-off"
+        }
+      }
+    },
+    "step": {
+      "back": "Back",
+      "skip": "Skip for now",
+      "next": "Next",
+      "finish": "Finish"
+    },
+    "step1": {
+      "title": "Scope the pilot",
+      "subtitle": "A pilot is a narrow slice that proves the ontology in one domain before you scale out. Keep it focused — one process, one team, one or two weeks of data.",
+      "nameLabel": "Pilot name",
+      "namePlaceholder": "e.g. Order-fulfilment pilot",
+      "scopeLabel": "Scope notes",
+      "scopePlaceholder": "Which question will the pilot answer? Who needs the answer?",
+      "scopeHint": "One or two sentences. You can edit this later from the design workbench."
+    },
+    "step2": {
+      "title": "Connect a source",
+      "subtitle": "Pick the data source the pilot reads from. The federation layer stays decoupled — you can register more sources later.",
+      "kindLabel": "Source kind",
+      "kinds": {
+        "postgresql": { "label": "PostgreSQL", "hint": "Relational database" },
+        "mysql": { "label": "MySQL", "hint": "Relational database" },
+        "bigquery": { "label": "BigQuery", "hint": "Cloud analytical warehouse" },
+        "csv": { "label": "CSV file", "hint": "Local or mounted file" },
+        "json": { "label": "JSON file", "hint": "Top-level records or nested" }
+      },
+      "connectionLabel": "Connection string or path",
+      "connectionPlaceholder": "postgres://user:pass@host:5432/db  OR  /mnt/data/orders.csv",
+      "connectionHint": "Credentials are never stored in the browser — the final step registers them through the encrypted federation admin API."
+    },
+    "step3": {
+      "title": "Seed the glossary",
+      "subtitle": "Glossary terms are the business vocabulary. One per line, with the canonical term first and optional aliases separated by commas.",
+      "draftLabel": "Glossary draft",
+      "draftPlaceholder": "Order — purchase, transaction\nCustomer — buyer\nVIP tier — top-tier customer, loyalty",
+      "draftHint": "Drafted terms become CreateGlossaryTerm ops on Finish. You can refine them in the admin UI afterwards."
+    },
+    "step4": {
+      "title": "Capture rules",
+      "subtitle": "Rules express invariants the LLM-generated queries must respect (SHACL). One per line in plain English — the design agent turns them into SHACL shapes later.",
+      "draftLabel": "Rules draft",
+      "draftPlaceholder": "Every Order has exactly one Customer\nOrder.status must be one of: placed, paid, fulfilled, cancelled\nAmount is always non-negative",
+      "draftHint": "Ambiguous lines become clarification questions, not silent failures — the agent will ask."
+    },
+    "step5": {
+      "title": "Map to topology",
+      "subtitle": "Tell us roughly how the source tables correspond to node types — one table per node is the common case; use the notes to describe exceptions.",
+      "notesLabel": "Mapping notes",
+      "notesPlaceholder": "orders → Order\ncustomers → Customer\norder_items → bridge for Order←contains→Product",
+      "notesHint": "The design agent proposes ObjectMapping + LinkMapping entries from this plus the source schema."
+    },
+    "step6": {
+      "title": "Validate and launch",
+      "subtitle": "You've captured the intent. Finish to hand over to the design agent — it materialises the ontology, runs introspection, and opens the workbench focused on your pilot.",
+      "summary": {
+        "title": "{name} — ready to launch",
+        "unnamed": "(unnamed pilot)",
+        "scopeLabel": "Scope",
+        "sourceLabel": "Source kind",
+        "glossaryLabel": "Glossary lines",
+        "rulesLabel": "Rule lines",
+        "notSet": "Not set",
+        "count": "{n}",
+        "nextStepHint": "Design agent will create the project, introspect the source, and propose ObjectMapping + LinkMapping entries. You confirm in the workbench."
+      },
+      "restart": "Start over",
+      "toast": {
+        "finished": "Pilot \"{name}\" ready — opening the design workbench"
+      }
+    }
+  },
   "inspector": {
     "binding": {
       "linkTooltip": "Link to glossary term",
