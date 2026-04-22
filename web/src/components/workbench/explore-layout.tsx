@@ -10,8 +10,9 @@ import {
   DatabaseIcon,
 } from "@hugeicons/core-free-icons";
 import { z } from "zod";
-import { searchGraph, expandNode, fetchGraphOverview } from "@/lib/api";
+import { searchGraph, fetchGraphOverview } from "@/lib/api";
 import type { ExpandNeighbor, GraphOverview } from "@/lib/api/queries";
+import { expandMultiHop } from "@/lib/explore/multi-hop";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/cn";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
@@ -163,6 +164,7 @@ export function ExploreLayout() {
       labels: string[],
       props: Record<string, unknown>,
       appendBreadcrumb: boolean,
+      overrideDepth?: 1 | 2 | 3,
     ) => {
       setExpanding(true);
       const node: FocusedNode = { elementId, labels, props };
@@ -175,15 +177,19 @@ export function ExploreLayout() {
       }
 
       try {
-        const result = await expandNode(elementId, 50);
-        setNeighbors(result.neighbors);
+        const neighbors = await expandMultiHop(elementId, {
+          depth: overrideDepth ?? expandDepth,
+          maxNodes: 100,
+          perHopLimit: 50,
+        });
+        setNeighbors(neighbors);
       } catch {
         setNeighbors([]);
       } finally {
         setExpanding(false);
       }
     },
-    [],
+    [expandDepth],
   );
 
   // ---- Select a search result ----
