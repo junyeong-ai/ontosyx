@@ -398,21 +398,63 @@ impl SchemaTool for QueryGraphTool {
         // lookup is a cheap btree seek (partial index); a failure
         // downgrades to `ontology_version: None` rather than failing
         // the whole tool call.
-        let provenance = if let Some(ontology_id) = self.domain.ontology_id {
-            let ontology_version = match self.domain.store.get_current_version(ontology_id).await {
-                Ok(Some(v)) => Some(v.version),
-                _ => None,
-            };
+        //
+        // Phase 4.6 — the same snapshot feeds the anchor-search below,
+        // so fetch it once and reuse.
+        let current_version_snapshot = match self.domain.ontology_id {
+            Some(ontology_id) => self
+                .domain
+                .store
+                .get_current_version(ontology_id)
+                .await
+                .ok()
+                .flatten(),
+            None => None,
+        };
+        let provenance = if let (Some(ontology_id), Some(snapshot)) =
+            (self.domain.ontology_id, current_version_snapshot.as_ref())
+        {
             Some(ox_compiler::build_provenance(
                 &query_ir,
                 &ox_compiler::ProvenanceContext {
                     ontology_id: Some(ontology_id.to_string()),
-                    ontology_version,
+                    ontology_version: Some(snapshot.version.clone()),
                     as_of: None,
                     source_ids: Vec::new(),
                     ontology: Some(ontology.as_ref()),
                 },
             ))
+        } else {
+            None
+        };
+
+        // Phase 4.6 — anchor search. Runs `search_entry_points` against
+        // the current version's searchable document index and records
+        // the top blended score + hit kinds in the signal. Off-path
+        // for the user-facing query result (we don't surface anchors
+        // in the tool output today), but the `anchor_match_rate` tile
+        // on /settings/quality/signals needs the reading.
+        let anchor_hit: Option<(f32, Vec<String>)> = if let Some(snapshot) =
+            current_version_snapshot.as_ref()
+        {
+            let opts = ox_store::navigation::EntryPointSearchOptions::new(
+                snapshot.id,
+                &question,
+                5,
+            );
+            match self.domain.store.search_entry_points(opts).await {
+                Ok(hits) if !hits.is_empty() => {
+                    let top = hits[0].score;
+                    let kinds: Vec<String> =
+                        hits.iter().map(|h| h.entity_kind.clone()).collect();
+                    Some((top, kinds))
+                }
+                Ok(_) => Some((0.0, Vec::new())),
+                Err(e) => {
+                    warn!(error = %e, "anchor search failed (signal tile will show stale window)");
+                    None
+                }
+            }
         } else {
             None
         };
@@ -430,6 +472,7 @@ impl SchemaTool for QueryGraphTool {
                 provenance.as_ref(),
                 &validator_notes,
                 Some(ontology.as_ref()),
+                anchor_hit.as_ref(),
             );
             let type_kinds = signal_type_kinds(provenance.as_ref());
             let store = Arc::clone(&self.domain.store);
@@ -552,10 +595,13 @@ fn first_shacl_failure_kind(
 
 /// Assemble a `QueryExecutionSignal` from the agent-path context.
 ///
-/// `anchor_top_score` is always `None` here — the agent's NL→Cypher
-/// path doesn't yet route through [`OntologyNavigationStore::search_entry_points`],
-/// so anchor telemetry is captured only where that API is called
-/// (future Progressive Disclosure wiring).
+/// Phase 4.6 — the signal now carries the top anchor-search
+/// score + the list of hit entity kinds for the question that
+/// triggered the query. When `anchor_hit` is `Some((score, kinds))`
+/// those populate `anchor_top_score` and `anchor_hit_kinds`; the
+/// quality-signal aggregation thresholds at `score >= 0.5` so a
+/// zero is still a valid reading ("ontology under-indexed for
+/// this phrasing").
 ///
 /// `glossary_term_hits` is populated from the ontology: every
 /// property on a referenced type that carries a
@@ -570,6 +616,7 @@ fn build_query_execution_signal(
     provenance: Option<&ox_query_ir::query::QueryProvenance>,
     validator_notes: &[ox_query_ir::query::QueryDiagnostic],
     ontology: Option<&ox_ontology::OntologyIR>,
+    anchor_hit: Option<&(f32, Vec<String>)>,
 ) -> ox_store::QueryExecutionSignal {
     // SHACL failure: any `validator: "shacl"` entry with `Error` level
     // in the strict re-pass means the runtime's permissive pass let
@@ -591,13 +638,17 @@ fn build_query_execution_signal(
         .unwrap_or_default();
 
     let glossary_term_hits = collect_glossary_hits(ontology, provenance);
+    let (anchor_top_score, anchor_hit_kinds) = match anchor_hit {
+        Some((score, kinds)) => (Some(*score), kinds.clone()),
+        None => (None, Vec::new()),
+    };
 
     ox_store::QueryExecutionSignal {
         execution_id,
         workspace_id,
         captured_at: Utc::now(),
-        anchor_top_score: None,
-        anchor_hit_kinds: Vec::new(),
+        anchor_top_score,
+        anchor_hit_kinds,
         glossary_term_hits,
         ambiguity_resolution_ids: Vec::new(),
         ambiguity_was_clarified: false,
