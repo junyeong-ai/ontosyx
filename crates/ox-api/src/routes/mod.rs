@@ -136,6 +136,10 @@ pub fn router(state: AppState) -> Router {
             "/ontologies/{id}/axis-items",
             get(ontology::list_axis_items),
         )
+        .route(
+            "/ontologies/{id}/cross-refs",
+            get(ontology::list_cross_refs),
+        )
         .route("/ontologies/{id}/enrich", post(ontology::enrich_ontology))
         .route(
             "/ontologies/{id}/value-sets/propose",

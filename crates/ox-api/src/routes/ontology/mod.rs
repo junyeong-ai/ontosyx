@@ -9,6 +9,7 @@
 
 mod axis_items;
 mod binding_suggestions;
+mod cross_refs;
 mod crud;
 mod edits;
 mod exchange;
@@ -22,6 +23,7 @@ mod verifications;
 // these module-local names, so `pub(crate) use` keeps the surface minimal.
 pub(crate) use crud::{apply_ontology_commands, get_ontology_detail, list_ontologies};
 pub(crate) use axis_items::list_axis_items;
+pub(crate) use cross_refs::list_cross_refs;
 pub(crate) use map_summary::map_summary;
 pub(crate) use edits::apply_ontology_edits;
 pub(crate) use type_candidates::list_type_candidates;

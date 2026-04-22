@@ -20,6 +20,23 @@
         "unknownError": "Unknown error",
         "close": "Close"
       },
+      "crossRef": {
+        "title": "Cross-axis connections",
+        "subtitle": "Every pointer field in the current version, aggregated by axis. Click an arrow to list the individual references.",
+        "loadError": "Failed to load cross-references: {message}",
+        "unknownError": "Unknown error",
+        "empty": "No cross-axis references at the current version.",
+        "bucketSubtitle": "{count} references in this bucket",
+        "close": "Close",
+        "axisLabel": {
+          "topology": "Topology",
+          "vocabulary": "Vocabulary",
+          "registry": "Registry",
+          "strategy": "Strategy",
+          "vol": "Mapping (VOL)",
+          "governance": "Governance"
+        }
+      },
       "axes": {
         "topology": {
           "title": "Topology",

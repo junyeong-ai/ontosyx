@@ -16,6 +16,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { request } from "@/lib/api/client";
 import { Spinner } from "@/components/ui/spinner";
+import { CrossRefFlow } from "@/components/ontology/cross-ref-flow";
 
 interface AxisEntry {
   kind: string;
@@ -164,6 +165,8 @@ export default function OntologyMapPage({
           />
         ))}
       </div>
+
+      <CrossRefFlow ontologyId={id} />
 
       {drill && (
         <AxisDrillModal

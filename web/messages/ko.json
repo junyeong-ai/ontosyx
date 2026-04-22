@@ -20,6 +20,23 @@
         "unknownError": "알 수 없는 오류",
         "close": "닫기"
       },
+      "crossRef": {
+        "title": "축간 연결",
+        "subtitle": "현재 버전의 모든 포인터 필드를 축 단위로 집계. 화살표를 클릭하면 개별 참조 목록이 열립니다.",
+        "loadError": "축간 참조 정보를 불러오지 못했습니다: {message}",
+        "unknownError": "알 수 없는 오류",
+        "empty": "현재 버전에 축간 참조가 없습니다.",
+        "bucketSubtitle": "이 버킷에 {count}개 참조",
+        "close": "닫기",
+        "axisLabel": {
+          "topology": "토폴로지",
+          "vocabulary": "용어",
+          "registry": "레지스트리",
+          "strategy": "전략",
+          "vol": "매핑 (VOL)",
+          "governance": "거버넌스"
+        }
+      },
       "axes": {
         "topology": {
           "title": "토폴로지",
