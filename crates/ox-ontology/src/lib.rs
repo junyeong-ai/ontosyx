@@ -50,6 +50,7 @@ pub mod edit;
 pub mod integrity;
 pub mod locale_consistency;
 pub mod rule_suggestions;
+pub mod segment;
 pub mod source_analysis;
 pub mod storage;
 pub mod table_clustering;
@@ -166,4 +167,7 @@ pub use rule_suggestions::{
     RegistryChange, RuleProposal, RuleProposalTrigger, suggest_rules_for_change,
 };
 pub use locale_consistency::{LocaleGap, LocaleSubject, detect_locale_gaps};
+pub use segment::{
+    OverlapPolicy, SegmentDef, SegmentFilter, SegmentId, SegmentLiteral, SegmentRefreshPolicy,
+};
 pub use widget_spec::WidgetSpec;

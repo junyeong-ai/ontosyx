@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Noto_Sans_KR } from "next/font/google";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getMessages } from "next-intl/server";
 import { Toaster } from "sonner";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 import { WelcomeModal } from "@/components/onboarding/welcome-modal";
@@ -32,13 +34,20 @@ export const metadata: Metadata = {
   description: "Knowledge Graph Lifecycle Platform",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Locale is resolved server-side from the `ontosyx_locale` cookie
+  // (see `src/i18n/request.ts`). `getMessages()` then serialises the
+  // active locale's JSON bundle into the client provider below, so
+  // every descendant — RSC or client — reads from the same snapshot.
+  const locale = await getLocale();
+  const messages = await getMessages();
+
   return (
-    <html lang="ko">
+    <html lang={locale}>
       <head>
         {/* Pretendard via CDN — primary Korean typeface. Preload +
             stylesheet so CJK-heavy pages avoid FOUT. Variable weight. */}
@@ -55,21 +64,31 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${notoSansKr.variable} antialiased`}
       >
-        <QueryProvider>
-          <ConfirmProvider>
-            {children}
-          </ConfirmProvider>
-          <WelcomeModal />
-        </QueryProvider>
-        {/* Dev-only axe-core runtime — tree-shaken in production. */}
-        {process.env.NODE_ENV === "development" && <A11yProvider />}
-        <div id="modal-root" />
-        <Toaster
-          position="bottom-right"
-          toastOptions={{
-            className: "text-sm",
-          }}
-        />
+        {/* Skip-to-main — hidden until focused, lets keyboard users
+            jump past the shell chrome straight to the content. */}
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-emerald-600 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2"
+        >
+          본문으로 건너뛰기
+        </a>
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <QueryProvider>
+            <ConfirmProvider>
+              <div id="main">{children}</div>
+            </ConfirmProvider>
+            <WelcomeModal />
+          </QueryProvider>
+          {/* Dev-only axe-core runtime — tree-shaken in production. */}
+          {process.env.NODE_ENV === "development" && <A11yProvider />}
+          <div id="modal-root" />
+          <Toaster
+            position="bottom-right"
+            toastOptions={{
+              className: "text-sm",
+            }}
+          />
+        </NextIntlClientProvider>
       </body>
     </html>
   );
