@@ -3,17 +3,18 @@ use std::sync::Arc;
 
 use axum::{
     Json,
-    extract::{Path, Query, State},
+    extract::{FromRef, Path, Query, State},
     http::StatusCode,
 };
 use serde::{Deserialize, Serialize};
 use tracing::{error, info};
 use uuid::Uuid;
 
-use ox_core::ontology_ir::OntologyIR;
-use ox_core::pattern_ir::PatternIR;
-use ox_core::query_ir::{QueryIR, QueryResult};
+use ox_ontology::ir::OntologyIR;
+use ox_query_ir::pattern::PatternIR;
+use ox_query_ir::query::{QueryIR, QueryResult};
 use ox_core::types::PropertyValue;
+use ox_runtime::cypher::strict_advisory_diagnostics;
 use ox_store::{CursorParams, QueryExecution, QueryExecutionSummary, SavedQueryPattern};
 
 use crate::error::AppError;
@@ -27,35 +28,58 @@ use crate::workspace::WorkspaceContext;
 //
 // `GRAPH_ONTOLOGY` drives the runtime's OntologyValidator. The agent path
 // sets it from `DomainContext.ontology` automatically; raw HTTP paths
-// opt in with a `saved_ontology_id` so a power user who submits raw
+// opt in with a `ontology_id` so a power user who submits raw
 // Cypher against a known ontology gets label-conformance checking for
 // free. When no id is supplied, validation falls back to safety +
 // workspace-scope only.
+//
+// `ontology_id` on the wire is interpreted as
+// `ontologies.id` (Level 1 identity row). Each load walks identity →
+// current version → hydrated IR through `OntologyVersionStore`.
 // ---------------------------------------------------------------------------
 
-async fn load_ontology_for_raw(
+/// Hydrate the current-version `OntologyIR` of the identity referenced by
+/// `ontology_id`. Returns `None` iff `ontology_id` is `None`.
+/// A present-but-unknown id yields 404; a present id whose lineage has no
+/// committed version yields 422 — both expose the concrete failure to the
+/// caller instead of silently falling back to unvalidated execution.
+async fn load_ontology_current(
     state: &AppState,
-    saved_ontology_id: Option<Uuid>,
+    ontology_id: Option<Uuid>,
 ) -> Result<Option<Arc<OntologyIR>>, AppError> {
-    let Some(id) = saved_ontology_id else {
+    let Some(id) = ontology_id else {
         return Ok(None);
     };
-    let saved = state
+    let identity = state
         .store
-        .get_saved_ontology(id)
+        .get_ontology(id)
         .await
         .map_err(AppError::from)?
-        .ok_or_else(|| AppError::not_found("Saved ontology"))?;
-    let ontology: OntologyIR = serde_json::from_value(saved.ontology_ir)
-        .map_err(|e| AppError::unprocessable(format!("Stored ontology is malformed: {e}")))?;
-    Ok(Some(Arc::new(ontology)))
+        .ok_or_else(|| AppError::not_found("Ontology"))?;
+    let version = state
+        .store
+        .get_current_version(identity.id)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| {
+            AppError::unprocessable(format!(
+                "Ontology `{}` has no committed version",
+                identity.lineage_id
+            ))
+        })?;
+    let ir = state
+        .store
+        .load_version(version.id)
+        .await
+        .map_err(AppError::from)?;
+    Ok(Some(Arc::new(ir)))
 }
 
 /// Resolve `query_ir.as_of` against stored ontology versions and
 /// rewrite the query to the snapshot's label space. Leaves the
 /// request untouched when no temporal pivot is present.
 ///
-/// Requires `saved_ontology_id` — the request must identify which
+/// Requires `ontology_id` — the request must identify which
 /// lineage to walk back through. Anonymous raw-IR queries (no saved
 /// ontology) can't pivot because there's no version history to
 /// consult; we reject with a clear 400 rather than silently compile
@@ -69,40 +93,42 @@ async fn resolve_temporal(
         return Ok(req);
     };
 
-    let Some(saved_id) = req.saved_ontology_id else {
+    let Some(ontology_id) = req.ontology_id else {
         return Err(AppError::bad_request(
-            "Temporal queries (`as_of`) require `saved_ontology_id` so the \
+            "Temporal queries (`as_of`) require `ontology_id` so the \
              server can resolve the ontology lineage to walk back through.",
         ));
     };
 
-    // Pull the current snapshot (what the query's labels refer to) so
-    // we can diff it against the snapshot at as_of for the label-rename
-    // pass.
-    let current_saved = state
+    let identity = state
         .store
-        .get_saved_ontology(saved_id)
+        .get_ontology(ontology_id)
         .await
         .map_err(AppError::from)?
-        .ok_or_else(|| AppError::not_found("Saved ontology"))?;
-    let current: OntologyIR = serde_json::from_value(current_saved.ontology_ir.clone())
-        .map_err(|e| AppError::unprocessable(format!("Current ontology is malformed: {e}")))?;
+        .ok_or_else(|| AppError::not_found("Ontology"))?;
+    let lineage_id = identity.lineage_id.clone();
 
-    // Extract the lineage id from the current ontology. `ontology_ir.id`
-    // is the stable lineage identifier; every save in the same lineage
-    // carries the same id and monotonically increments `version`.
-    let lineage_id = current_saved
-        .ontology_ir
-        .get("id")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| {
-            AppError::internal("Stored ontology is missing the top-level `id` field")
-        })?
-        .to_string();
-
-    let snapshot_saved = state
+    // Current version — the label space the caller's QueryIR is authored in.
+    let current_version = state
         .store
-        .get_ontology_version_at(&lineage_id, as_of)
+        .get_current_version(identity.id)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| {
+            AppError::unprocessable(format!(
+                "Ontology `{lineage_id}` has no committed version to compare against"
+            ))
+        })?;
+    let current = state
+        .store
+        .load_version(current_version.id)
+        .await
+        .map_err(AppError::from)?;
+
+    // Snapshot version — the bitemporally-live version at `as_of`.
+    let snapshot_version = state
+        .store
+        .resolve_version_at(identity.id, as_of)
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| {
@@ -111,8 +137,11 @@ async fn resolve_temporal(
                  The lineage's oldest version was committed after the requested timestamp."
             ))
         })?;
-    let snapshot: OntologyIR = serde_json::from_value(snapshot_saved.ontology_ir)
-        .map_err(|e| AppError::unprocessable(format!("Snapshot ontology is malformed: {e}")))?;
+    let snapshot = state
+        .store
+        .load_version(snapshot_version.id)
+        .await
+        .map_err(AppError::from)?;
 
     let rewritten =
         ox_compiler::rewrite_temporal_with_renames(req.query_ir, &snapshot, &current).map_err(
@@ -172,7 +201,7 @@ pub(crate) async fn search_graph(
     principal: Principal,
     ws: WorkspaceContext,
     Json(req): Json<GraphSearchRequest>,
-) -> Result<Json<ApiResponse<Vec<ox_core::graph_exploration::SearchResultNode>>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<ox_ontology::graph_exploration::SearchResultNode>>>, AppError> {
     let search_term = req.query.trim().to_string();
     if search_term.is_empty() {
         return Err(AppError::bad_request("query must not be empty"));
@@ -229,7 +258,7 @@ pub struct QueryRawRequest {
     /// omitted, the raw path stays ontology-free and only the safety
     /// + workspace-scope gates apply.
     #[serde(default)]
-    pub saved_ontology_id: Option<Uuid>,
+    pub ontology_id: Option<Uuid>,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
@@ -286,7 +315,22 @@ pub(crate) async fn raw_query(
     // OntologyValidator can reject unknown labels before they hit the
     // driver. Raw path is opt-in: no id → ontology gate is skipped
     // (safety + workspace-scope still apply).
-    let ontology = load_ontology_for_raw(&state, req.saved_ontology_id).await?;
+    let ontology = load_ontology_current(&state, req.ontology_id).await?;
+
+    // Π-3 pre-fetch. Raw path has no QueryIR to walk for `type_ids` /
+    // `filter_summary` — the identity + version pair is still useful
+    // for response attribution, so we capture those before execution
+    // and stamp them onto the result metadata below.
+    let ontology_version = if let Some(id) = req.ontology_id {
+        state
+            .store
+            .get_current_version(id)
+            .await
+            .map_err(AppError::from)?
+            .map(|v| v.version)
+    } else {
+        None
+    };
 
     let timeout = state.timeouts.raw_query;
     let empty_params: HashMap<String, PropertyValue> = HashMap::new();
@@ -321,6 +365,29 @@ pub(crate) async fn raw_query(
     {
         crate::acl_enforcement::apply_acl_policies(&mut results, &policies);
     }
+
+    // Π-3 provenance — raw path. `type_ids` / `filter_summary` are
+    // intentionally empty here: we have no QueryIR to walk, and
+    // substituting the raw statement would leak free-form text the
+    // LLM/admin UI cannot trust as structured provenance. The
+    // identity + version pair (when supplied) is still the right
+    // handle for "which schema did this run against".
+    if req.ontology_id.is_some() {
+        results.metadata.provenance = Some(ox_query_ir::query::QueryProvenance {
+            ontology_id: req.ontology_id.map(|id| id.to_string()),
+            ontology_version,
+            as_of: None,
+            source_ids: Vec::new(),
+            type_ids: Vec::new(),
+            filter_summary: None,
+            registry_versions: std::collections::BTreeMap::new(),
+        });
+    }
+
+    // Advisory diagnostics — strict-mode revalidation of the executed
+    // Cypher. The runtime's permissive pass let the query through; this
+    // pass captures the warnings the user should see.
+    results.metadata.warnings = strict_advisory_diagnostics(&req.query, &ws.workspace_id.to_string());
 
     // Record metering (fire-and-forget)
     let execution_time_ms = start.elapsed().as_millis() as i64;
@@ -479,7 +546,7 @@ pub struct ExecuteFromIrRequest {
     /// on a stale schema gets rejected with a precise "unknown label"
     /// error instead of a generic driver failure.
     #[serde(default)]
-    pub saved_ontology_id: Option<Uuid>,
+    pub ontology_id: Option<Uuid>,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
@@ -520,6 +587,10 @@ pub(crate) async fn execute_from_ir(
     let target = state.compiler.name().to_string();
     info!(user_id = %principal.id, target = %target, "QueryIR execution submitted");
 
+    // Capture the raw `as_of` before the temporal rewriter consumes it —
+    // Π-3 provenance needs the original pivot for the response summary.
+    let original_as_of = req.query_ir.as_of;
+
     // Step 0: Resolve the temporal pivot, if any. `query_ir.as_of` asks
     // the compiler to evaluate the query as it would have run at a past
     // timestamp — we load the ontology snapshot that was live then,
@@ -527,10 +598,38 @@ pub(crate) async fn execute_from_ir(
     // compiler a QueryIR with as_of cleared.
     //
     // Surfaces three distinct failure modes so the UI can present them
-    // individually: (a) no saved_ontology_id supplied, (b) the lineage
+    // individually: (a) no ontology_id supplied, (b) the lineage
     // predates the requested timestamp, (c) window / rename
     // inconsistency from the rewriter itself.
-    let req = resolve_temporal(&state, req).await?;
+    let mut req = resolve_temporal(&state, req).await?;
+
+    // Step 0.5: Auto-DISTINCT pass. When the caller supplied an
+    // ontology id we load it here and rewrite any aggregation that
+    // crosses a OneToMany / ManyToMany link so every AggregationExpr
+    // carries `distinct: true`. Without this pass a query like
+    // `MATCH (a)-[:HAS_MANY]->(b) RETURN sum(b.value)` silently
+    // double-counts when the physical mapping is a fan-out join.
+    // (Π-2.) Idempotent — re-running on an already-rewritten IR is
+    // a no-op, which matters because a client that pre-set
+    // `distinct: true` stays unchanged.
+    let ontology = load_ontology_current(&state, req.ontology_id).await?;
+    if let Some(ont) = ontology.as_ref() {
+        req.query_ir = ox_compiler::rewrite_auto_distinct(req.query_ir, ont);
+    }
+
+    // Fetch the committed version tag for Π-3 provenance. Cheap — hits
+    // the partial `ontology_version_snapshots_current_idx`. `None` when
+    // no ontology_id is supplied.
+    let ontology_version = if let Some(id) = req.ontology_id {
+        state
+            .store
+            .get_current_version(id)
+            .await
+            .map_err(AppError::from)?
+            .map(|v| v.version)
+    } else {
+        None
+    };
 
     // Step 1: Compile QueryIR → target language
     let compiled = state.compiler.compile_query(&req.query_ir).map_err(|e| {
@@ -541,12 +640,10 @@ pub(crate) async fn execute_from_ir(
     // Step 2: Execute the compiled query
     let runtime = state.runtime.as_ref().ok_or_else(AppError::no_runtime)?;
 
-    let ontology = load_ontology_for_raw(&state, req.saved_ontology_id).await?;
-
     let timeout = state.timeouts.raw_query;
     let start = std::time::Instant::now();
     let exec_fut = runtime.execute_query(&compiled.statement, &compiled.params);
-    let results = tokio::time::timeout(timeout, scope_with_ontology(ontology, exec_fut))
+    let results = tokio::time::timeout(timeout, scope_with_ontology(ontology.clone(), exec_fut))
         .await
         .map_err(|_| {
             crate::metrics::record_query("timeout", start.elapsed());
@@ -591,6 +688,29 @@ pub(crate) async fn execute_from_ir(
         crate::acl_enforcement::apply_acl_policies(&mut results, &policies);
     }
 
+    // Advisory diagnostics: strict revalidation of the compiled Cypher.
+    // Non-blocking — the runtime already let the query through via the
+    // permissive validator pass.
+    results.metadata.warnings =
+        strict_advisory_diagnostics(&compiled.statement, &ws.workspace_id.to_string());
+
+    // Π-3 provenance — stamp the response envelope with the ontology
+    // identity / version / temporal pivot / touched types / filter
+    // summary the LLM + admin UI need to explain where the numbers
+    // came from. `source_ids` stays empty on the Cypher path (graph
+    // runtime owns a single backend); the federation handler below
+    // populates it from the plan's resolver set.
+    results.metadata.provenance = Some(ox_compiler::build_provenance(
+        &req.query_ir,
+        &ox_compiler::ProvenanceContext {
+            ontology_id: req.ontology_id.map(|id| id.to_string()),
+            ontology_version,
+            as_of: original_as_of,
+            source_ids: Vec::new(),
+            ontology: ontology.as_deref(),
+        },
+    ));
+
     // Record metering (fire-and-forget)
     let execution_time_ms = start.elapsed().as_millis() as i64;
     let row_count = results.metadata.rows_returned;
@@ -620,6 +740,209 @@ pub(crate) async fn execute_from_ir(
         compiled_target: target,
         result: results,
         widget_hint,
+    }))
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/query/from-ir/federation — execute a QueryIR via the
+// virtual-ontology-layer (VOL) federation engine instead of the
+// Cypher / Neo4j path.
+//
+// The planner walks the OntologyIR referenced by `ontology_id`,
+// resolves every `ObjectMappingDef.source_id` through the per-request
+// `AppState::federation_resolver`, and emits a DataFusion LogicalPlan
+// that scans the registered adapters directly. Results are projected
+// from Arrow RecordBatches into the standard `QueryResult` shape so
+// downstream tooling (widget selector, ACL pass) works unchanged.
+//
+// `ontology_id` is required on this path — unlike the Cypher
+// handler (where an unknown label can at worst surface as a driver
+// error), the federation planner has no fallback when it cannot map
+// a label to a node type.
+// ---------------------------------------------------------------------------
+
+#[utoipa::path(
+    post,
+    path = "/api/query/from-ir/federation",
+    request_body = ExecuteFromIrRequest,
+    responses(
+        (
+            status = 200,
+            description = "Federation-executed query result",
+            body = ExecuteFromIrResponse
+        ),
+        (
+            status = 400,
+            description = "Missing ontology_id or invalid QueryIR",
+            body = inline(crate::openapi::ErrorResponse)
+        ),
+        (
+            status = 422,
+            description = "Federation planning or execution failed",
+            body = inline(crate::openapi::ErrorResponse)
+        ),
+    ),
+    security(("api_key" = [])),
+    tag = "Query",
+)]
+#[tracing::instrument(skip(state, principal, req))]
+pub(crate) async fn execute_from_ir_federation(
+    State(state): State<AppState>,
+    principal: Principal,
+    ws: WorkspaceContext,
+    Json(req): Json<ExecuteFromIrRequest>,
+) -> Result<Json<ApiResponse<ExecuteFromIrResponse>>, AppError> {
+    info!(user_id = %principal.id, "federation QueryIR execution submitted");
+
+    let ontology_id = req.ontology_id.ok_or_else(|| {
+        AppError::bad_request(
+            "Federation path requires `ontology_id` so the planner can \
+             resolve labels and mappings against a specific ontology version",
+        )
+    })?;
+
+    // Capture as_of before temporal rewrite consumes it (Π-3).
+    let original_as_of = req.query_ir.as_of;
+
+    // Temporal rewriting is identical to the Cypher path — the label
+    // renames get applied before planning so the federation planner
+    // sees the snapshot's label space.
+    let mut req = resolve_temporal(&state, req).await?;
+
+    let ontology = load_ontology_current(&state, Some(ontology_id))
+        .await?
+        .ok_or_else(|| AppError::not_found("Ontology"))?;
+
+    // Π-2 auto-DISTINCT. The federation planner (DataFusion-backed)
+    // inherits the same fan-out risk as the Cypher compiler when an
+    // aggregation traverses a OneToMany / ManyToMany edge, so the
+    // same pre-pass runs on this path. Idempotent — a client can
+    // always override by setting `distinct: false` after this rewrite
+    // lands, but the default now matches schema semantics.
+    req.query_ir = ox_compiler::rewrite_auto_distinct(req.query_ir, ontology.as_ref());
+
+    // Π-3 provenance pre-fetch — same pattern as the Cypher path.
+    let ontology_version = state
+        .store
+        .get_current_version(ontology_id)
+        .await
+        .map_err(AppError::from)?
+        .map(|v| v.version);
+
+    let start = std::time::Instant::now();
+
+    // Look up — or lazily hydrate from the data_sources store —
+    // the workspace's federation resolver. `ensure_workspace_resolver`
+    // takes the narrowed `FederationState`, which extracts cleanly
+    // from the full `AppState` this handler holds. The helper
+    // returns an owned clone so we don't hold the outer map lock
+    // across the planner's async `describe_table` calls.
+    let federation_state = crate::state::FederationState::from_ref(&state);
+    let resolver =
+        crate::federation_resolver::ensure_workspace_resolver(&federation_state, ws.workspace_id)
+            .await?;
+    let plan = ox_federation::build_query_ir_scoped(
+        &ontology,
+        &req.query_ir,
+        &ws.workspace_id.to_string(),
+        &resolver,
+    )
+    .await
+    .map_err(|e| {
+        crate::metrics::record_query("error", start.elapsed());
+        error!("Federation planning failed: {e}");
+        AppError::unprocessable(format!("Federation planning failed: {e}"))
+    })?;
+
+    // Preserve the plan's EXPLAIN-style rendering as `compiled_query`
+    // for parity with the Cypher response shape. Clients that
+    // previously rendered Cypher get a DataFusion logical plan here
+    // — useful for debugging and for showing the user *what ran*.
+    let compiled_display = format!("{plan}");
+
+    let ctx = ox_federation::FederationContext::new(
+        ox_federation::context::WorkspaceRef::new(ws.workspace_id.to_string()),
+    );
+    let batches = ctx.execute_plan(plan).await.map_err(|e| {
+        crate::metrics::record_query("error", start.elapsed());
+        error!("Federation execution failed: {e}");
+        AppError::unprocessable(format!("Federation execution failed: {e}"))
+    })?;
+    crate::metrics::record_query("ok", start.elapsed());
+
+    let elapsed_ms = u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX);
+    let mut results = crate::arrow_conversion::record_batches_to_query_result(&batches, elapsed_ms)
+        .map_err(AppError::unprocessable)?;
+
+    // ACL enforcement — same call as the Cypher path. Works on the
+    // materialised QueryResult regardless of upstream execution engine.
+    if let Ok(policies) = state
+        .store
+        .get_effective_policies(
+            principal.role.as_str(),
+            ws.workspace_role.as_str(),
+            principal.user_uuid().ok(),
+        )
+        .await
+    {
+        crate::acl_enforcement::apply_acl_policies(&mut results, &policies);
+    }
+
+    // Advisory diagnostics: the federation path executes a DataFusion
+    // LogicalPlan, not Cypher, so the Cypher-specific validators
+    // (complexity, semantic-guard) don't apply. A future DataFusion
+    // complexity gate would drop in here; for now the field stays
+    // empty on the federation path so the frontend treats it as
+    // "no warnings" rather than "validator didn't run".
+    results.metadata.warnings = Vec::new();
+
+    // Π-3 provenance — `source_ids` is left empty here and filled in
+    // by `build_provenance` from the ontology's ObjectMappingDef /
+    // LinkMappingDef declarations. This is strictly tighter than
+    // "every adapter registered on this workspace" — only the
+    // sources the ontology says the query's labels can reach
+    // contribute. Follow-up Π-2 (LogicalPlan inspection for the
+    // exact scans the planner chose) would further narrow this; the
+    // IR-level set is the right default until that lands.
+    results.metadata.provenance = Some(ox_compiler::build_provenance(
+        &req.query_ir,
+        &ox_compiler::ProvenanceContext {
+            ontology_id: Some(ontology_id.to_string()),
+            ontology_version,
+            as_of: original_as_of,
+            source_ids: Vec::new(),
+            ontology: Some(ontology.as_ref()),
+        },
+    ));
+
+    let row_count = results.metadata.rows_returned;
+    let execution_time_ms = i64::try_from(elapsed_ms).unwrap_or(i64::MAX);
+    {
+        let meter_store = Arc::clone(&state.store);
+        let meter_user = principal.user_uuid().ok();
+        crate::spawn_scoped::spawn_scoped(async move {
+            let _ = meter_store
+                .record_usage(
+                    meter_user,
+                    "query",
+                    None,
+                    None,
+                    Some("from_ir_federation"),
+                    0,
+                    0,
+                    execution_time_ms,
+                    0.0,
+                    serde_json::json!({"rows": row_count}),
+                )
+                .await;
+        });
+    }
+
+    Ok(ApiResponse::of(ExecuteFromIrResponse {
+        compiled_query: compiled_display,
+        compiled_target: "datafusion/logical-plan".to_string(),
+        result: results,
+        widget_hint: None,
     }))
 }
 
@@ -710,7 +1033,7 @@ pub(crate) async fn decompile_pattern(
 ) -> Result<Json<ApiResponse<PatternDecompileResponse>>, AppError> {
     let editable = matches!(
         req.query_ir.operation,
-        ox_core::query_ir::QueryOp::Match { .. }
+        ox_query_ir::query::QueryOp::Match { .. }
     );
     let pattern_ir = PatternIR::decompile(&req.query_ir);
     Ok(ApiResponse::of(PatternDecompileResponse {
@@ -955,7 +1278,7 @@ pub(crate) async fn delete_saved_pattern(
 // GET /api/graph/overview — graph schema overview (delegated to GraphRuntime)
 // ---------------------------------------------------------------------------
 
-use ox_core::graph_exploration::GraphSchemaOverview;
+use ox_ontology::graph_exploration::GraphSchemaOverview;
 
 #[utoipa::path(
     get,
@@ -991,7 +1314,7 @@ pub(crate) async fn graph_overview(
 // POST /api/search/expand — get 1-hop neighbors (delegated to GraphRuntime)
 // ---------------------------------------------------------------------------
 
-use ox_core::graph_exploration::NodeExpansion;
+use ox_ontology::graph_exploration::NodeExpansion;
 
 fn default_expand_limit() -> usize {
     50

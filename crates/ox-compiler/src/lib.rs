@@ -8,22 +8,31 @@
     )
 )]
 
+pub mod auto_distinct;
+pub mod concept_map_rewrite;
 pub mod cost;
 pub mod cypher;
 pub mod export;
 pub mod import;
 pub mod plan_cache;
+pub mod provenance;
 pub mod temporal;
 
+pub use auto_distinct::rewrite_auto_distinct;
+pub use concept_map_rewrite::{
+    RewriteReport, TranslationDirection, TranslationEvent, TranslationPolicy, TranslationTable,
+    UntranslatedLiteral, rewrite_concept_map_values,
+};
 pub use plan_cache::{DEFAULT_PLAN_CACHE_CAPACITY, PlanCache, PlanCacheHandle, PlanCacheStats};
+pub use provenance::{ProvenanceContext, build_provenance};
 pub use temporal::{rewrite_temporal, rewrite_temporal_with_renames};
 
 use std::collections::HashMap;
 
 use ox_core::error::OxResult;
-use ox_core::load_plan::LoadPlan;
-use ox_core::ontology_ir::OntologyIR;
-use ox_core::query_ir::QueryIR;
+use ox_ontology::load_plan::LoadPlan;
+use ox_ontology::ir::OntologyIR;
+use ox_query_ir::query::QueryIR;
 use ox_core::types::PropertyValue;
 
 // ---------------------------------------------------------------------------

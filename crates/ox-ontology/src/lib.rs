@@ -48,6 +48,7 @@ pub mod binding_suggestions;
 pub mod change_routing;
 pub mod edit;
 pub mod integrity;
+pub mod locale_consistency;
 pub mod rule_suggestions;
 pub mod source_analysis;
 pub mod storage;
@@ -164,4 +165,5 @@ pub use integrity::{
 pub use rule_suggestions::{
     RegistryChange, RuleProposal, RuleProposalTrigger, suggest_rules_for_change,
 };
+pub use locale_consistency::{LocaleGap, LocaleSubject, detect_locale_gaps};
 pub use widget_spec::WidgetSpec;
