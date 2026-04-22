@@ -13,6 +13,7 @@ pub mod auth;
 pub mod chat;
 pub mod config;
 pub mod dashboards;
+pub mod federation_admin;
 pub mod health;
 pub mod knowledge;
 pub mod lineage;
@@ -120,7 +121,21 @@ pub fn router(state: AppState) -> Router {
         )
         // Ontology management
         .route("/ontologies", get(ontology::list_ontologies))
+        .route("/ontologies/{id}", get(ontology::get_ontology_detail))
+        .route("/ontologies/{id}/edits", post(ontology::apply_ontology_edits))
         .route("/ontologies/{id}/enrich", post(ontology::enrich_ontology))
+        .route(
+            "/ontologies/{id}/value-sets/propose",
+            post(ontology::propose_ontology_value_sets),
+        )
+        .route(
+            "/ontologies/{id}/glossary/suggest-bindings",
+            post(ontology::suggest_glossary_bindings),
+        )
+        .route(
+            "/ontologies/{id}/properties/{owner_kind}/{owner_type_id}/{property_id}/suggest-terms",
+            post(ontology::suggest_glossary_terms_for_property),
+        )
         // Ontology import/export (stateless transforms)
         .route("/ontology/normalize", post(ontology::normalize_ontology))
         .route("/ontology/export", post(ontology::export_ontology))
@@ -158,6 +173,13 @@ pub fn router(state: AppState) -> Router {
         .route("/query/raw", post(query::raw_query))
         // QueryIR-based query (visual query builder)
         .route("/query/from-ir", post(query::execute_from_ir))
+        // QueryIR-based query via the federation (VOL) path — bypasses
+        // Cypher/Neo4j entirely, executes through DataFusion against
+        // registered data-source adapters.
+        .route(
+            "/query/from-ir/federation",
+            post(query::execute_from_ir_federation),
+        )
         // PatternIR <-> QueryIR transforms (visual query builder)
         .route("/query/pattern/compile", post(query::compile_pattern))
         .route("/query/pattern/decompile", post(query::decompile_pattern))
@@ -271,6 +293,27 @@ pub fn router(state: AppState) -> Router {
             patch(prompts_admin::update_prompt_template)
                 .delete(prompts_admin::delete_prompt_template),
         )
+        // Admin: federation adapter registry (VOL query path)
+        .route(
+            "/admin/federation/adapters",
+            get(federation_admin::list_adapters).post(federation_admin::register_adapter),
+        )
+        .route(
+            "/admin/federation/adapters/preview",
+            post(federation_admin::preview_adapter),
+        )
+        .route(
+            "/admin/federation/adapters/refresh",
+            post(federation_admin::refresh_adapters),
+        )
+        .route(
+            "/admin/federation/health",
+            get(federation_admin::federation_health),
+        )
+        .route(
+            "/admin/federation/adapters/{source_id}",
+            get(federation_admin::get_adapter).delete(federation_admin::delete_adapter),
+        )
         // Ontology verifications
         .route(
             "/ontology/{id}/verifications",
@@ -325,6 +368,18 @@ pub fn router(state: AppState) -> Router {
         .route("/quality/rules/{id}", patch(quality::update_rule))
         .route("/quality/rules/{id}", delete(quality::delete_rule))
         .route("/quality/dashboard", get(quality::quality_dashboard))
+        // 6-창 ontology-quality metrics (signal-backed)
+        .route("/quality/metrics", get(quality::get_quality_metrics))
+        .route("/quality/shacl-failures", get(quality::list_shacl_failures))
+        .route("/quality/stale-types", get(quality::list_stale_types))
+        .route(
+            "/quality/stale-proposals",
+            get(quality::list_stale_proposals),
+        )
+        .route(
+            "/quality/stale-proposals/{id}",
+            patch(quality::decide_stale_proposal),
+        )
         .route("/quality/rules/{id}/results", get(quality::rule_results))
         .route("/quality/rules/{id}/execute", post(quality::execute_rule))
         .route("/quality/execute-all", post(quality::execute_all_rules))

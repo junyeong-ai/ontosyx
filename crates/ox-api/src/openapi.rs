@@ -3,7 +3,8 @@ use utoipa::openapi::security::{ApiKey, ApiKeyValue, SecurityScheme};
 use utoipa::{Modify, OpenApi, ToSchema};
 
 use crate::routes::{
-    chat, config, health, load, ontology, perspectives, pins, prompts_admin, query,
+    chat, config, federation_admin, health, load, ontology, perspectives, pins, prompts_admin,
+    query,
 };
 
 // Module aliases for utoipa path resolution — utoipa generates hidden __path_*
@@ -102,6 +103,7 @@ impl Modify for SecurityAddon {
         // Query
         query::raw_query,
         query::execute_from_ir,
+        query::execute_from_ir_federation,
         query::compile_pattern,
         query::decompile_pattern,
         query::create_saved_pattern,
@@ -132,6 +134,7 @@ impl Modify for SecurityAddon {
         project_revisions::restore_revision,
         // Ontologies
         ontology::list_ontologies,
+        ontology::get_ontology_detail,
         ontology::normalize_ontology,
         ontology::export_ontology,
         ontology::apply_ontology_commands,
@@ -143,6 +146,9 @@ impl Modify for SecurityAddon {
         ontology::export_typescript,
         ontology::export_python,
         ontology::import_owl,
+        ontology::propose_ontology_value_sets,
+        ontology::suggest_glossary_bindings,
+        ontology::suggest_glossary_terms_for_property,
         // Pins
         pins::create_pin,
         pins::list_pins,
@@ -167,6 +173,14 @@ impl Modify for SecurityAddon {
         prompts_admin::create_prompt_template,
         prompts_admin::update_prompt_template,
         prompts_admin::delete_prompt_template,
+        // Admin — federation adapter registry
+        federation_admin::list_adapters,
+        federation_admin::register_adapter,
+        federation_admin::get_adapter,
+        federation_admin::preview_adapter,
+        federation_admin::refresh_adapters,
+        federation_admin::delete_adapter,
+        federation_admin::federation_health,
     ),
     components(
         schemas(
@@ -203,6 +217,20 @@ impl Modify for SecurityAddon {
             ontology::OntologyCommandsRequest,
             ontology::OntologyCommandsResponse,
             ontology::OntologyImportRequest,
+            ontology::ProposeValueSetsRequest,
+            ontology::ProposeValueSetsResponse,
+            ontology::ProposePolicyBody,
+            ontology::ProposalBody,
+            ontology::EvidenceBody,
+            ontology::SkipBody,
+            ontology::BindingPolicyBody,
+            ontology::SuggestBindingsRequest,
+            ontology::SuggestBindingsResponse,
+            ontology::SuggestTermsRequest,
+            ontology::SuggestTermsResponse,
+            ontology::PropertyCandidateBody,
+            ontology::TermCandidateBody,
+            ontology::SignalBody,
             // Pins
             pins::PinCreateRequest,
             // Perspectives
@@ -224,12 +252,28 @@ impl Modify for SecurityAddon {
             // Admin — prompt templates
             prompts_admin::PromptCreateRequest,
             prompts_admin::PromptUpdateRequest,
+            federation_admin::RegisterAdapterRequest,
+            federation_admin::RegisterAdapterKind,
+            federation_admin::RegisterAdapterResponse,
+            federation_admin::AdapterSummary,
+            federation_admin::AdapterDetail,
+            federation_admin::AdapterDetailKind,
+            federation_admin::CredentialSource,
+            federation_admin::RefreshAdaptersResponse,
+            federation_admin::PreviewAdapterRequest,
+            federation_admin::PreviewAdapterResponse,
+            federation_admin::PreviewTable,
+            federation_admin::PreviewColumn,
+            federation_admin::FederationHealthResponse,
+            crate::credential::Credential,
             PromptTemplateRow,
             // Store models
             CursorParams,
             DesignProject,
             DesignProjectSummary,
-            SavedOntology,
+            ontology::OntologyListItem,
+            ontology::OntologyDetail,
+            ontology::CurrentVersionSummary,
             QueryExecution,
             QueryExecutionSummary,
             PinboardItem,
@@ -279,7 +323,7 @@ pub struct DesignProject {
     pub source_mapping: Option<serde_json::Value>,
     pub ontology: Option<serde_json::Value>,
     pub quality_report: Option<serde_json::Value>,
-    pub saved_ontology_id: Option<uuid::Uuid>,
+    pub ontology_id: Option<uuid::Uuid>,
     pub source_history: serde_json::Value,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
@@ -297,24 +341,10 @@ pub struct DesignProjectSummary {
     pub user_id: String,
     pub title: Option<String>,
     pub source_config: serde_json::Value,
-    pub saved_ontology_id: Option<uuid::Uuid>,
+    pub ontology_id: Option<uuid::Uuid>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
     pub analyzed_at: Option<chrono::DateTime<chrono::Utc>>,
-}
-
-/// Saved ontology — a completed, frozen ontology.
-#[derive(ToSchema)]
-#[schema(as = SavedOntology)]
-#[allow(dead_code)]
-pub struct SavedOntology {
-    pub id: uuid::Uuid,
-    pub name: String,
-    pub description: Option<String>,
-    pub version: i32,
-    pub ontology_ir: serde_json::Value,
-    pub created_by: String,
-    pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
 /// Query execution record.
@@ -327,7 +357,7 @@ pub struct QueryExecution {
     pub question: String,
     pub ontology_lineage_id: String,
     pub ontology_version: i32,
-    pub saved_ontology_id: Option<uuid::Uuid>,
+    pub ontology_id: Option<uuid::Uuid>,
     pub ontology_snapshot: Option<serde_json::Value>,
     pub query_ir: serde_json::Value,
     pub compiled_target: String,
