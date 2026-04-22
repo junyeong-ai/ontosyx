@@ -22,6 +22,7 @@ import { sortKorean } from "@/lib/locale/sort";
 import {
   ExploreCanvas,
   type FocusedNode,
+  type NodeClickModifiers,
 } from "./explore/explore-canvas";
 import { ExploreFacetSidebar } from "./explore/facet-sidebar";
 import { toast } from "sonner";
@@ -240,15 +241,20 @@ export function ExploreLayout() {
   // ---- Graph node click (handles both schema mode and exploration mode) ----
 
   const handleGraphNodeClick = useCallback(
-    (nodeId: string) => {
-      // Schema mode: node IDs are "schema:LabelName"
+    (nodeId: string, modifiers?: NodeClickModifiers) => {
+      // Schema mode: node IDs are "schema:LabelName". Modifiers are
+      // ignored in schema mode — the browse path doesn't expand by
+      // depth, it drops the user on a label listing.
       if (nodeId.startsWith("schema:")) {
         const label = nodeId.slice("schema:".length);
         handleBrowseLabel(label);
         return;
       }
 
-      // Exploration mode: find neighbor data and navigate
+      // Exploration mode: find neighbor data and navigate. When
+      // Cmd/Ctrl was held at click time the modifier carries a
+      // one-shot `forceDepth` that overrides the sidebar's radio
+      // setting for this single expansion.
       const neighbor = neighbors.find((n) => n.element_id === nodeId);
       if (!neighbor) return;
       expandAndNavigate(
@@ -256,6 +262,7 @@ export function ExploreLayout() {
         neighbor.labels,
         neighbor.props,
         true,
+        modifiers?.forceDepth,
       );
     },
     [neighbors, expandAndNavigate, handleBrowseLabel],

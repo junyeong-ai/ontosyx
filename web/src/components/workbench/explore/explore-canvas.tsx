@@ -54,11 +54,23 @@ export interface FocusedNode {
   props: Record<string, unknown>;
 }
 
+/**
+ * Callback invoked when the user clicks a node on the explore graph.
+ *
+ * `modifiers.forceDepth` is populated when the user held
+ * Cmd (macOS) / Ctrl (Windows / Linux) — the layout uses it as a
+ * one-shot override of the depth-radio setting so a power-user can
+ * jump straight to a 3-hop expansion without rewinding the sidebar.
+ */
+export interface NodeClickModifiers {
+  forceDepth?: 1 | 2 | 3;
+}
+
 export interface ExploreCanvasProps {
   focusedNode: FocusedNode | null;
   neighbors: ExpandNeighbor[];
   schemaOverview: GraphOverview | null;
-  onNodeClick: (nodeId: string) => void;
+  onNodeClick: (nodeId: string, modifiers?: NodeClickModifiers) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -361,16 +373,22 @@ function ExploreCanvasInner({ focusedNode, neighbors, schemaOverview, onNodeClic
   );
 
   const handleNodeClick: NodeMouseHandler = useCallback(
-    (_e, node) => {
+    (e, node) => {
       const id = node.id;
+      // Cmd on macOS, Ctrl on Windows / Linux — one-shot "expand 3
+      // hops from this node" shortcut. Matches the depth-radio's
+      // maximum so the modifier and the radio agree on the upper
+      // bound without the user having to touch the sidebar.
+      const modifiers: NodeClickModifiers | undefined =
+        e.metaKey || e.ctrlKey ? { forceDepth: 3 } : undefined;
       if (isSchemaMode) {
-        onNodeClick(id);
+        onNodeClick(id, modifiers);
         return;
       }
       // In neighborhood mode clicking the focused node itself is a no-op —
       // re-focusing on yourself would just re-run the same query.
       if (built.focusedId && id === built.focusedId) return;
-      onNodeClick(id);
+      onNodeClick(id, modifiers);
     },
     [isSchemaMode, onNodeClick, built.focusedId],
   );
