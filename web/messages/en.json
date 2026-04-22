@@ -11,6 +11,15 @@
         "hint": "Registry pointers that don't resolve. Fix these before the ontology validator accepts a new commit.",
         "more": "+{n} more not shown"
       },
+      "drill": {
+        "openAria": "Open drill-down for {kind} ({count} entries)",
+        "subtitle": "{count} entries at the current version",
+        "loading": "Loading entries…",
+        "empty": "No entries at this version.",
+        "loadError": "Failed to load entries: {message}",
+        "unknownError": "Unknown error",
+        "close": "Close"
+      },
       "axes": {
         "topology": {
           "title": "Topology",
