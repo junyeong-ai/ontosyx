@@ -429,6 +429,7 @@ impl SchemaTool for QueryGraphTool {
                 &query_ir,
                 provenance.as_ref(),
                 &validator_notes,
+                Some(ontology.as_ref()),
             );
             let type_kinds = signal_type_kinds(provenance.as_ref());
             let store = Arc::clone(&self.domain.store);
@@ -550,16 +551,25 @@ fn first_shacl_failure_kind(
 }
 
 /// Assemble a `QueryExecutionSignal` from the agent-path context.
+///
 /// `anchor_top_score` is always `None` here — the agent's NL→Cypher
 /// path doesn't yet route through [`OntologyNavigationStore::search_entry_points`],
 /// so anchor telemetry is captured only where that API is called
 /// (future Progressive Disclosure wiring).
+///
+/// `glossary_term_hits` is populated from the ontology: every
+/// property on a referenced type that carries a
+/// `PropertyDef::glossary_term_id` is treated as a potential hit.
+/// Overcounts if the query only touched a sibling property, but
+/// gives the `glossary_hit_rate` tile a non-zero signal until the
+/// compile-time walk that attributes hits per-property lands.
 fn build_query_execution_signal(
     execution_id: Uuid,
     workspace_id: Uuid,
     query_ir: &ox_query_ir::query::QueryIR,
     provenance: Option<&ox_query_ir::query::QueryProvenance>,
     validator_notes: &[ox_query_ir::query::QueryDiagnostic],
+    ontology: Option<&ox_ontology::OntologyIR>,
 ) -> ox_store::QueryExecutionSignal {
     // SHACL failure: any `validator: "shacl"` entry with `Error` level
     // in the strict re-pass means the runtime's permissive pass let
@@ -580,13 +590,15 @@ fn build_query_execution_signal(
         })
         .unwrap_or_default();
 
+    let glossary_term_hits = collect_glossary_hits(ontology, provenance);
+
     ox_store::QueryExecutionSignal {
         execution_id,
         workspace_id,
         captured_at: Utc::now(),
         anchor_top_score: None,
         anchor_hit_kinds: Vec::new(),
-        glossary_term_hits: Vec::new(),
+        glossary_term_hits,
         ambiguity_resolution_ids: Vec::new(),
         ambiguity_was_clarified: false,
         shacl_passed,
@@ -594,6 +606,44 @@ fn build_query_execution_signal(
         query_ir_normalized_hash: query_ir.canonical_hash(),
         referenced_type_ids,
     }
+}
+
+/// Cross-reference the referenced types with the ontology and return
+/// every glossary-term pointer that fires. UUID-only — id newtypes
+/// that happen to be non-UUID strings (external identifiers, legacy
+/// slugs) are silently dropped since the signal column is
+/// `uuid[]` in postgres.
+fn collect_glossary_hits(
+    ontology: Option<&ox_ontology::OntologyIR>,
+    provenance: Option<&ox_query_ir::query::QueryProvenance>,
+) -> Vec<Uuid> {
+    let (Some(ir), Some(prov)) = (ontology, provenance) else {
+        return Vec::new();
+    };
+    use std::collections::{BTreeSet, HashSet};
+    let type_id_set: HashSet<&str> = prov.type_ids.iter().map(|s| s.as_str()).collect();
+    let mut hits: BTreeSet<Uuid> = BTreeSet::new();
+    let walk_properties =
+        |hits: &mut BTreeSet<Uuid>, properties: &[ox_ontology::ir::PropertyDef]| {
+            for prop in properties {
+                if let Some(gid) = &prop.glossary_term_id
+                    && let Ok(uuid) = Uuid::parse_str(gid.as_str())
+                {
+                    hits.insert(uuid);
+                }
+            }
+        };
+    for node in ir.node_types() {
+        if type_id_set.contains(node.id.as_str()) {
+            walk_properties(&mut hits, &node.properties);
+        }
+    }
+    for edge in ir.edge_types() {
+        if type_id_set.contains(edge.id.as_str()) {
+            walk_properties(&mut hits, &edge.properties);
+        }
+    }
+    hits.into_iter().collect()
 }
 
 /// `(type_id, kind)` pairs feeding the `ontology_type_last_used`
@@ -612,4 +662,85 @@ fn signal_type_kinds(
                 .collect()
         })
         .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::collect_glossary_hits;
+    use ox_core::{GraphLabel, PropertyKey};
+    use ox_ontology::glossary::GlossaryTermId;
+    use ox_ontology::ir::{NodeTypeDef, NodeTypeId, OntologyIR, PropertyDef, PropertyId};
+    use ox_query_ir::query::QueryProvenance;
+
+    fn property_with_term(id: &str, gid_uuid: &str) -> PropertyDef {
+        PropertyDef {
+            id: PropertyId::new(id),
+            name: PropertyKey::new(id).unwrap(),
+            property_type: ox_core::types::PropertyType::String,
+            glossary_term_id: Some(GlossaryTermId::new(gid_uuid)),
+            ..Default::default()
+        }
+    }
+
+    fn sample_ir_with_bound_property(node_id: &str, term_uuid: &str) -> OntologyIR {
+        let node = NodeTypeDef {
+            id: NodeTypeId::new(node_id),
+            label: GraphLabel::new(node_id).unwrap(),
+            properties: vec![property_with_term("tier", term_uuid)],
+            ..Default::default()
+        };
+        OntologyIR::new(
+            "ont-test".into(),
+            "Test".into(),
+            Default::default(),
+            1,
+            vec![node],
+            Vec::new(),
+            Vec::new(),
+        )
+    }
+
+    #[test]
+    fn collect_glossary_hits_empty_when_no_ontology() {
+        let hits = collect_glossary_hits(None, None);
+        assert!(hits.is_empty());
+    }
+
+    #[test]
+    fn collect_glossary_hits_returns_uuid_from_bound_property() {
+        let term_uuid = "00000000-0000-0000-0000-00000000abcd";
+        let ir = sample_ir_with_bound_property("Customer", term_uuid);
+        let prov = QueryProvenance {
+            type_ids: vec!["Customer".into()],
+            ..Default::default()
+        };
+        let hits = collect_glossary_hits(Some(&ir), Some(&prov));
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].to_string(), term_uuid);
+    }
+
+    #[test]
+    fn collect_glossary_hits_skips_unreferenced_types() {
+        let term_uuid = "00000000-0000-0000-0000-00000000abcd";
+        let ir = sample_ir_with_bound_property("Customer", term_uuid);
+        let prov = QueryProvenance {
+            type_ids: vec!["Order".into()], // not in ontology
+            ..Default::default()
+        };
+        let hits = collect_glossary_hits(Some(&ir), Some(&prov));
+        assert!(hits.is_empty());
+    }
+
+    #[test]
+    fn collect_glossary_hits_drops_non_uuid_term_ids() {
+        // `glossary_term_id` that doesn't parse as UUID (legacy slug)
+        // is silently dropped — the signal column is `uuid[]`.
+        let ir = sample_ir_with_bound_property("Customer", "g-vip-legacy");
+        let prov = QueryProvenance {
+            type_ids: vec!["Customer".into()],
+            ..Default::default()
+        };
+        let hits = collect_glossary_hits(Some(&ir), Some(&prov));
+        assert!(hits.is_empty());
+    }
 }
