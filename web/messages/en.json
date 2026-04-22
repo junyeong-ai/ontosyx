@@ -174,7 +174,10 @@
         "created": "Project \"{name}\" created — opening the design workbench",
         "skippedCreate": "Source not connection-based — opening the design workbench; upload the file from there.",
         "createFailed": "Project creation failed: {message}",
-        "createFailedUnknown": "Project creation failed (unknown error)."
+        "createFailedUnknown": "Project creation failed (unknown error).",
+        "glossarySeeded": "Glossary ontology seeded with {count} terms",
+        "glossarySeedFailed": "Glossary seed failed: {message}",
+        "glossarySeedFailedUnknown": "Glossary seed failed (unknown error)."
       }
     }
   },

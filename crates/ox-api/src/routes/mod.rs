@@ -11,6 +11,7 @@ pub mod ambiguity;
 pub mod approvals;
 pub mod audit;
 pub mod auth;
+pub mod bootstrap;
 pub mod chat;
 pub mod config;
 pub mod dashboards;
@@ -126,6 +127,8 @@ pub fn router(state: AppState) -> Router {
             "/ontologies/type-candidates",
             get(ontology::list_type_candidates),
         )
+        // Bootstrap wizard
+        .route("/bootstrap/seed-glossary", post(bootstrap::seed_glossary))
         .route("/ontologies/{id}", get(ontology::get_ontology_detail))
         .route("/ontologies/{id}/edits", post(ontology::apply_ontology_edits))
         .route("/ontologies/{id}/map-summary", get(ontology::map_summary))

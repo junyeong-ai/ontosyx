@@ -156,7 +156,10 @@
         "created": "프로젝트 \"{name}\" 생성 완료 — 디자인 워크벤치를 엽니다",
         "skippedCreate": "연결 기반 소스가 아닙니다 — 디자인 워크벤치에서 파일 업로드로 이어주세요.",
         "createFailed": "프로젝트 생성 실패: {message}",
-        "createFailedUnknown": "프로젝트 생성 실패 (알 수 없는 오류)."
+        "createFailedUnknown": "프로젝트 생성 실패 (알 수 없는 오류).",
+        "glossarySeeded": "용어집 온톨로지에 {count}개 용어가 저장되었습니다",
+        "glossarySeedFailed": "용어집 저장 실패: {message}",
+        "glossarySeedFailedUnknown": "용어집 저장 실패 (알 수 없는 오류)."
       }
     }
   },

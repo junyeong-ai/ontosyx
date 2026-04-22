@@ -13,6 +13,10 @@ import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import {
+  parseGlossaryDraft,
+  seedBootstrapGlossary,
+} from "@/lib/api/bootstrap";
 import { createProject } from "@/lib/api/projects";
 import type { CreateProjectRequest, DesignSource } from "@/types/api";
 
@@ -64,29 +68,71 @@ export default function ValidateStep() {
     [state.rulesDraft],
   );
 
+  /**
+   * Persist the glossary draft as a bootstrap ontology (one commit
+   * containing every parsed term). Fire-and-report: a failure is
+   * surfaced as a toast but never rolls back the project creation
+   * below — the drafts stay in localStorage so the user can retry.
+   *
+   * Returns the new ontology's id on success so we can deep-link
+   * the user to the Complete Map after Finish.
+   */
+  const seedGlossaryIfNeeded = async (): Promise<string | null> => {
+    const terms = parseGlossaryDraft(state.glossaryDraft);
+    if (terms.length === 0) return null;
+    const name =
+      state.pilotName.trim() ||
+      `Bootstrap ${new Date().toISOString().slice(0, 10)}`;
+    try {
+      const resp = await seedBootstrapGlossary({
+        name,
+        description: state.pilotScope.trim() || undefined,
+        terms,
+      });
+      toast.success(
+        t("toast.glossarySeeded", { count: resp.committed_terms }),
+      );
+      return resp.ontology_id;
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? t("toast.glossarySeedFailed", { message: err.message })
+          : t("toast.glossarySeedFailedUnknown"),
+      );
+      return null;
+    }
+  };
+
   const onFinish = async () => {
     markComplete("6-validate");
-    const req = buildCreateRequest(
-      state.pilotName,
-      state.sourceKind,
-      state.sourceConnection,
-    );
-    if (!req) {
-      // The wizard is still useful even without a DB source — land
-      // on /design and leave the bootstrap state in localStorage
-      // for the workbench to pick up.
-      toast.info(t("toast.skippedCreate"));
-      router.push("/design");
-      return;
-    }
     setSubmitting(true);
     try {
+      // Always try to persist the glossary first — the ontology it
+      // produces is useful even on source-less flows (CSV/JSON
+      // still land on /design, and the operator can browse the
+      // seeded ontology directly from /ontologies).
+      const seededOntologyId = await seedGlossaryIfNeeded();
+
+      const req = buildCreateRequest(
+        state.pilotName,
+        state.sourceKind,
+        state.sourceConnection,
+      );
+      if (!req) {
+        toast.info(t("toast.skippedCreate"));
+        if (seededOntologyId) {
+          router.push(
+            `/ontology/${encodeURIComponent(seededOntologyId)}/map`,
+          );
+        } else {
+          router.push("/design");
+        }
+        return;
+      }
       const project = await createProject(req);
       toast.success(
         t("toast.created", { name: state.pilotName || t("summary.unnamed") }),
       );
-      // The design workbench resolves the project by path slot; we
-      // pass the id so the workbench opens focused on this project.
       router.push(`/design?project=${encodeURIComponent(project.id)}`);
     } catch (err) {
       toast.error(
