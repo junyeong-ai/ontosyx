@@ -45,6 +45,11 @@ const NAV_GROUPS: NavGroup[] = [
       { labelKey: "schedules", href: "/settings/schedules", adminOnly: true },
       { labelKey: "knowledge", href: "/settings/knowledge", adminOnly: true },
       { labelKey: "federation", href: "/settings/federation", adminOnly: true },
+      {
+        labelKey: "glossaryBindings",
+        href: "/settings/glossary/bindings",
+        adminOnly: true,
+      },
     ],
   },
   {

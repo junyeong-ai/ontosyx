@@ -502,6 +502,49 @@
     }
   },
   "settings": {
+    "glossaryBinding": {
+      "pageTitle": "용어 일괄 바인딩",
+      "pageSubtitle": "용어와 별칭을 입력하면 현재 온톨로지의 모든 속성을 점수화합니다. 승인된 매칭은 하나의 /edits 배치로 커밋됩니다.",
+      "noOntology": "커밋된 온톨로지가 없습니다. 일괄 바인딩 전에 디자인 모드에서 하나를 만들어야 합니다.",
+      "fields": {
+        "term": { "label": "용어", "placeholder": "VIP 등급" },
+        "termId": {
+          "label": "용어 ID",
+          "placeholder": "g-vip-tier",
+          "hint": "바인딩 저장에 필수 — 저장된 GlossaryTermDef의 ID. 비워두면 점수 미리보기만."
+        },
+        "aliases": {
+          "label": "별칭 (쉼표 구분)",
+          "placeholder": "로열티 등급, 프리미엄 고객"
+        },
+        "description": {
+          "label": "설명",
+          "placeholder": "시맨틱 매칭에 사용될 짧은 설명."
+        }
+      },
+      "actions": {
+        "search": "후보 점수 계산",
+        "searching": "점수 계산 중…",
+        "bind": "{n}개 연결",
+        "binding": "연결 중…"
+      },
+      "columns": {
+        "owner": "소유자",
+        "property": "속성",
+        "score": "점수",
+        "signals": "시그널"
+      },
+      "rowAria": "{owner}.{property}를 바인딩 대상으로 선택",
+      "empty": "임계값을 넘는 후보가 없습니다. 용어/별칭/설명을 조정하고 다시 점수를 계산하세요.",
+      "toast": {
+        "applied": "{n}개 바인딩이 커밋됨",
+        "failed": "바인딩 커밋 실패"
+      },
+      "errors": {
+        "termRequired": "용어를 입력하세요",
+        "termIdRequired": "저장된 용어 ID가 있어야 바인딩을 커밋할 수 있습니다"
+      }
+    },
     "chrome": {
       "rootTitle": "설정",
       "pageTitle": "설정 — {page}",
@@ -538,7 +581,8 @@
         "development": "개발",
         "prompts": "프롬프트",
         "sessions": "세션",
-        "federation": "연합 데이터 소스"
+        "federation": "연합 데이터 소스",
+        "glossaryBindings": "용어 바인딩"
       }
     },
     "roles": {

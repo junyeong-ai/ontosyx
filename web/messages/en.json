@@ -520,6 +520,49 @@
     }
   },
   "settings": {
+    "glossaryBinding": {
+      "pageTitle": "Glossary — Batch bindings",
+      "pageSubtitle": "Enter a glossary term and alias list; the engine scores every property in the current ontology and you commit the accepted matches in one /edits batch.",
+      "noOntology": "No committed ontology available — create one in Design mode before batch-binding.",
+      "fields": {
+        "term": { "label": "Term", "placeholder": "VIP tier" },
+        "termId": {
+          "label": "Term id",
+          "placeholder": "g-vip-tier",
+          "hint": "Required to persist a binding — the id of the saved GlossaryTermDef. Leave blank to preview scores only."
+        },
+        "aliases": {
+          "label": "Aliases (comma-separated)",
+          "placeholder": "loyalty tier, premium customer"
+        },
+        "description": {
+          "label": "Description",
+          "placeholder": "Short gloss used for semantic matching."
+        }
+      },
+      "actions": {
+        "search": "Score candidates",
+        "searching": "Scoring…",
+        "bind": "Bind {n} selected",
+        "binding": "Binding…"
+      },
+      "columns": {
+        "owner": "Owner",
+        "property": "Property",
+        "score": "Score",
+        "signals": "Signals"
+      },
+      "rowAria": "Select {owner}.{property} for binding",
+      "empty": "No property candidates above the threshold — tweak the term / aliases / description and re-score.",
+      "toast": {
+        "applied": "{n} binding(s) committed",
+        "failed": "Binding commit failed"
+      },
+      "errors": {
+        "termRequired": "Term is required",
+        "termIdRequired": "Enter the saved term id to commit bindings"
+      }
+    },
     "chrome": {
       "rootTitle": "Settings",
       "pageTitle": "Settings — {page}",
@@ -556,7 +599,8 @@
         "development": "Development",
         "prompts": "Prompts",
         "sessions": "Sessions",
-        "federation": "Federation Adapters"
+        "federation": "Federation Adapters",
+        "glossaryBindings": "Glossary Bindings"
       }
     },
     "roles": {
