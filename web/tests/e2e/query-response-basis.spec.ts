@@ -1,4 +1,12 @@
 import { test, expect } from "./fixtures";
+import {
+  mockOntologyDetail,
+  mockOntologyIR,
+  mockQueryDiagnostic,
+  mockQueryMetadata,
+  mockQueryProvenance,
+  mockQueryResult,
+} from "./mocks";
 
 /**
  * Phase 5 — Query → ResponseBasis end-to-end.
@@ -13,54 +21,31 @@ import { test, expect } from "./fixtures";
  *     (provenance + warnings).
  *   - `GET  /api/proxy/ontologies/<id>` — used by ResponseBasis to
  *     resolve `type_ids` to human labels with description tooltips.
- *
- * Browser binaries land via `pnpm exec playwright install chromium`
- * — the test is part of the CI Playwright matrix even when local
- * doesn't have the browser cached.
  */
 
 const ONT_ID = "00000000-0000-0000-0000-0000000010ff";
 
+// `rawQuery` in `src/lib/api/queries.ts` unwraps `raw.results`, so
+// the mock body wraps the QueryResult in `{ query, target, results }`
+// — matching what the backend returns today.
 const QUERY_RESULT = {
   query: "MATCH (n) RETURN n LIMIT 1",
   target: "graph",
-  results: {
-    columns: ["n"],
+  results: mockQueryResult({
     rows: [{ n: { id: 1, labels: ["Customer"], properties: { tier: "gold" } } }],
-    metadata: {
-      provenance: {
-        ontology_id: ONT_ID,
-        ontology_version: "v3",
-        as_of: "2026-04-23T00:00:00Z",
-        source_ids: ["src-postgres"],
-        type_ids: ["type-customer"],
-        filter_summary: "n.active = true",
-      },
-      warnings: [
-        {
-          validator: "Complexity",
-          level: "warning",
-          message: "unbounded variable-length pattern",
-        },
-      ],
-    },
-  },
+    metadata: mockQueryMetadata({
+      provenance: mockQueryProvenance({ ontology_id: ONT_ID }),
+      warnings: [mockQueryDiagnostic()],
+    }),
+  }),
 };
 
 // `resolveTypeIds` inside ResponseBasis reads
-// `detail.ontology_ir.node_types[].{id,label}`; the mocked detail
-// has to mirror the full `OntologyDetail` wire shape so the
-// component doesn't trip on missing identity fields.
-const ONTOLOGY_DETAIL = {
+// `detail.ontology_ir.node_types[].{id,label}` to map
+// `type-customer` → "Customer".
+const ONTOLOGY_DETAIL = mockOntologyDetail({
   id: ONT_ID,
-  lineage_id: "lin-pilot",
-  name: "Pilot",
-  description: { default: "Pilot ontology" },
-  created_at: "2026-04-22T00:00:00Z",
-  updated_at: "2026-04-22T00:00:00Z",
-  current_version: { version: 3, version_id: "ver-3" },
-  ontology_ir: {
-    metadata: {},
+  ontology_ir: mockOntologyIR({
     node_types: [
       {
         id: "type-customer",
@@ -69,10 +54,8 @@ const ONTOLOGY_DETAIL = {
         properties: [],
       },
     ],
-    edge_types: [],
-    rules: [],
-  },
-};
+  }),
+});
 
 test.describe("query → response basis", () => {
   test.beforeEach(async ({ page }) => {

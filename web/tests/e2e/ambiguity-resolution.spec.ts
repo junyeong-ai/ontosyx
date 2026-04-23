@@ -1,4 +1,9 @@
 import { test, expect } from "./fixtures";
+import {
+  mockAmbiguityContext,
+  mockAmbiguityResolution,
+  mockAmbiguitySummary,
+} from "./mocks";
 
 /**
  * Phase 5 — Ambiguity resolution end-to-end.
@@ -10,35 +15,24 @@ import { test, expect } from "./fixtures";
  * about to make.
  *
  * Mocked hops:
- *   - `GET /api/proxy/ambiguity-contexts` — list with a single pending
- *     entry.
+ *   - `GET /api/proxy/ambiguities` — list with a single pending entry.
+ *   - `POST /api/proxy/ambiguities/:id/resolve` — resolution commit.
  */
 
-const PENDING_ENTRY = {
-  context: {
+const PENDING_ENTRY = mockAmbiguitySummary({
+  context: mockAmbiguityContext({
     id: "ctx-pending-1",
-    source_id: "src-postgres",
-    column: { relation: "orders", column: "status" },
-    kind: { kind: "numeric_code" },
-    sample_values: ["1", "2", "3"],
     clarification_prompt:
       "Which code system catalogs 1/2/3 as order statuses?",
     detection_source_hash: "sha256:abc123",
-    detected_at: "2026-04-22T00:00:00Z",
-  },
-  active_resolution: null,
-};
+  }),
+});
 
-const RESOLVE_RESPONSE = {
-  id: "res-1",
+const RESOLVE_RESPONSE = mockAmbiguityResolution({
   context_id: "ctx-pending-1",
   context_source_hash: "sha256:abc123",
-  mapping: {
-    kind: "glossary_ref",
-    term_id: "glossary-order-status",
-  },
-  resolved_at: "2026-04-23T00:00:00Z",
-};
+  mapping: { kind: "glossary_ref", term_id: "glossary-order-status" },
+});
 
 test.describe("ambiguity resolution", () => {
   test.beforeEach(async ({ page }) => {

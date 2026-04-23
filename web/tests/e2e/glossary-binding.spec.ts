@@ -1,4 +1,10 @@
 import { test, expect } from "./fixtures";
+import {
+  mockOntologyEditReceipt,
+  mockOntologyListItem,
+  mockPropertyCandidate,
+  mockSuggestBindingsResponse,
+} from "./mocks";
 
 /**
  * Phase 5 — Glossary binding → rule suggestion end-to-end.
@@ -13,62 +19,49 @@ import { test, expect } from "./fixtures";
  *   - `GET  /api/proxy/ontologies?limit=1` — current ontology
  *   - `POST /api/proxy/ontologies/{id}/binding-suggestions/suggest`
  *     — scorer output with two candidates
+ *
+ * Factory-backed mocks (`./mocks`) — the schema drift that bricked
+ * this spec last month (missing `PropertyCandidate.signals`) can't
+ * happen now; the factory fails to compile if the wire type adds a
+ * required field without a default.
  */
 
 const ONT_ID = "00000000-0000-0000-0000-0000000030bb";
 
 const LIST_RESPONSE = {
   items: [
-    {
+    mockOntologyListItem({
       id: ONT_ID,
       lineage_id: "lin-pilot",
       name: "Pilot",
       description: { default: "E2E glossary pilot" },
-      created_at: "2026-04-22T00:00:00Z",
-      updated_at: "2026-04-22T00:00:00Z",
-      current_version: { version: 3, version_id: "ver-3" },
-    },
+    }),
   ],
   next_cursor: null,
 };
 
-// `PropertyCandidate` requires `signals: BindingSignal[]`; the
-// panel renders `c.signals.map(...)` unguarded, so leaving the
-// field out bricks the row with "Cannot read properties of
-// undefined (reading 'map')". The signal variants come from the
-// wire enum in `src/lib/api/binding-suggestions.ts`.
-const SUGGEST_RESPONSE = {
+const SUGGEST_RESPONSE = mockSuggestBindingsResponse({
   ontology_id: ONT_ID,
   candidates: [
-    {
-      owner_kind: "node",
-      owner_type_id: "type-customer",
-      owner_label: "Customer",
+    mockPropertyCandidate({
       property_id: "prop-email",
       property_name: "email",
       score: 0.92,
       signals: [{ kind: "canonical_name" }],
-    },
-    {
-      owner_kind: "node",
-      owner_type_id: "type-customer",
-      owner_label: "Customer",
+    }),
+    mockPropertyCandidate({
       property_id: "prop-phone",
       property_name: "phone",
       score: 0.68,
       signals: [{ kind: "alias", detail: "contact_number" }],
-    },
+    }),
   ],
-};
+});
 
-const EDIT_RECEIPT = {
-  ontology_id: ONT_ID,
-  base_version: 3,
-  commit_version: 4,
-  commit_version_id: "ver-4",
-  change_type: "bind_property_to_term",
+const EDIT_RECEIPT = mockOntologyEditReceipt({
+  new_version: 4,
   applied_operations: 1,
-};
+});
 
 test.describe("glossary binding", () => {
   test.beforeEach(async ({ page }) => {
