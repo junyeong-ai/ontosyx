@@ -105,4 +105,97 @@ test.describe("bootstrap wizard", () => {
     await page.getByRole("button", { name: /next|다음/i }).click();
     await expect(page).toHaveURL(/\/bootstrap\/3-glossary$/);
   });
+
+  test("Finish fires seed-glossary + createProject and redirects to /design", async ({
+    page,
+  }) => {
+    // Wait for the mocked POSTs so the asserts can verify the
+    // exact request payloads fired, not just that the redirect
+    // happened.
+    const seedRequest = page.waitForRequest(
+      (req) =>
+        req.url().includes("/api/proxy/bootstrap/seed-glossary") &&
+        req.method() === "POST",
+    );
+    const projectRequest = page.waitForRequest(
+      (req) =>
+        /\/api\/proxy\/projects(\?.*)?$/.test(req.url()) &&
+        req.method() === "POST",
+    );
+
+    // --- Step 1: pilot name + scope -------------------------
+    await page.goto("/bootstrap/1-pilot");
+    await page
+      .locator("input[type='text'], input:not([type])")
+      .first()
+      .fill("E2E Pilot");
+    await page.getByRole("button", { name: /next|다음/i }).click();
+    await expect(page).toHaveURL(/\/bootstrap\/2-source$/);
+
+    // --- Step 2: source = postgres + connection -----------
+    await page.getByRole("combobox").first().selectOption("postgresql");
+    await page
+      .getByPlaceholder(/postgres|connection|url/i)
+      .first()
+      .fill("postgresql://localhost:5432/pilot");
+    await page.getByRole("button", { name: /next|다음/i }).click();
+    await expect(page).toHaveURL(/\/bootstrap\/3-glossary$/);
+
+    // --- Step 3: glossary draft (triggers seed-glossary) ----
+    // Two terms with descriptions — the parser collapses into
+    // two `SeedGlossaryTerm` rows the endpoint spy then sees.
+    const glossaryTextarea = page.locator("#glossary-draft");
+    await glossaryTextarea.fill(
+      "Customer: a buyer of goods\nOrder: a placed purchase\n",
+    );
+    await page.getByRole("button", { name: /next|다음/i }).click();
+    await expect(page).toHaveURL(/\/bootstrap\/4-rules$/);
+
+    // --- Step 4: rules draft (optional content; skip) -----
+    await page.getByRole("button", { name: /next|다음/i }).click();
+    await expect(page).toHaveURL(/\/bootstrap\/5-map$/);
+
+    // --- Step 5: mapping notes (optional; skip) -----------
+    await page.getByRole("button", { name: /next|다음/i }).click();
+    await expect(page).toHaveURL(/\/bootstrap\/6-validate$/);
+
+    // --- Step 6: Finish ---------------------------------
+    // The StepShell renders a "Finish" button on the last step
+    // (nextPath === null). Match "Finish" or its ko
+    // equivalent "완료".
+    await page.getByRole("button", { name: /^finish$|완료/i }).click();
+
+    // Both backend calls fire — wait on each, then assert the
+    // payloads carry what the wizard captured.
+    const [seed, project] = await Promise.all([seedRequest, projectRequest]);
+
+    const seedBody = seed.postDataJSON() as {
+      name: string;
+      terms: Array<{ term: string }>;
+    };
+    expect(seedBody.name).toBe("E2E Pilot");
+    // `parseGlossaryDraft` splits on newlines; both rows survive.
+    expect(seedBody.terms.map((t) => t.term)).toEqual([
+      "Customer",
+      "Order",
+    ]);
+
+    const projectBody = project.postDataJSON() as {
+      title: string;
+      origin_type: string;
+      source: { type: string; connection_string: string };
+    };
+    expect(projectBody.title).toBe("E2E Pilot");
+    expect(projectBody.origin_type).toBe("source");
+    expect(projectBody.source.type).toBe("postgresql");
+    expect(projectBody.source.connection_string).toBe(
+      "postgresql://localhost:5432/pilot",
+    );
+
+    // Finally — the page redirects to /design with the new
+    // project id on the query string.
+    await expect(page).toHaveURL(
+      new RegExp(`/design\\?project=${MOCK_PROJECT.id}`),
+    );
+  });
 });
