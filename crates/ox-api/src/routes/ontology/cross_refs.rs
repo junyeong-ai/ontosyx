@@ -285,6 +285,256 @@ fn emit_edges(ir: &ox_ontology::OntologyIR, out: &mut Vec<CrossRefEdge>) {
             });
         }
     }
+
+    // --- Node-type pointers into Vocabulary + Strategy ----------
+    //
+    // `implements` lifts topology up to vocabulary (interfaces),
+    // while `actions`, `metrics`, `rules` are convenience indexes
+    // into strategy collections the node chooses to expose. Each
+    // vector can be empty, so iterating is a no-op when the node
+    // hasn't opted in.
+    for node in ir.node_types() {
+        for iface in &node.implements {
+            out.push(CrossRefEdge {
+                source_axis: Axis::Topology,
+                source_kind: "node_type".into(),
+                source_id: node.id.as_str().into(),
+                edge_kind: "implements".into(),
+                target_axis: Axis::Vocabulary,
+                target_kind: "interface".into(),
+                target_id: iface.as_str().into(),
+            });
+        }
+        for action in &node.actions {
+            out.push(CrossRefEdge {
+                source_axis: Axis::Topology,
+                source_kind: "node_type".into(),
+                source_id: node.id.as_str().into(),
+                edge_kind: "exposes".into(),
+                target_axis: Axis::Strategy,
+                target_kind: "action".into(),
+                target_id: action.as_str().into(),
+            });
+        }
+        for metric in &node.metrics {
+            out.push(CrossRefEdge {
+                source_axis: Axis::Topology,
+                source_kind: "node_type".into(),
+                source_id: node.id.as_str().into(),
+                edge_kind: "tracks".into(),
+                target_axis: Axis::Strategy,
+                target_kind: "metric".into(),
+                target_id: metric.as_str().into(),
+            });
+        }
+        for rule in &node.rules {
+            out.push(CrossRefEdge {
+                source_axis: Axis::Topology,
+                source_kind: "node_type".into(),
+                source_id: node.id.as_str().into(),
+                edge_kind: "governed_by".into(),
+                target_axis: Axis::Strategy,
+                target_kind: "rule".into(),
+                target_id: rule.as_str().into(),
+            });
+        }
+    }
+
+    // --- ActionDef pointers -------------------------------------
+    //
+    // Target is always topology (node or edge). Pre/postcondition
+    // rules surface the action → rule dependency both for the
+    // visualiser and for a future "which actions use rule X?"
+    // filter on the FE.
+    for action in ir.actions() {
+        use ox_ontology::action::ActionTarget;
+        match &action.target {
+            ActionTarget::NodeType { node_type_id } => {
+                out.push(CrossRefEdge {
+                    source_axis: Axis::Strategy,
+                    source_kind: "action".into(),
+                    source_id: action.id.as_str().into(),
+                    edge_kind: "writes_to".into(),
+                    target_axis: Axis::Topology,
+                    target_kind: "node_type".into(),
+                    target_id: node_type_id.as_str().into(),
+                });
+            }
+            ActionTarget::EdgeType { edge_type_id } => {
+                out.push(CrossRefEdge {
+                    source_axis: Axis::Strategy,
+                    source_kind: "action".into(),
+                    source_id: action.id.as_str().into(),
+                    edge_kind: "writes_to".into(),
+                    target_axis: Axis::Topology,
+                    target_kind: "edge_type".into(),
+                    target_id: edge_type_id.as_str().into(),
+                });
+            }
+        }
+        for rule_id in &action.preconditions {
+            out.push(CrossRefEdge {
+                source_axis: Axis::Strategy,
+                source_kind: "action".into(),
+                source_id: action.id.as_str().into(),
+                edge_kind: "precondition".into(),
+                target_axis: Axis::Strategy,
+                target_kind: "rule".into(),
+                target_id: rule_id.as_str().into(),
+            });
+        }
+        for rule_id in &action.postconditions {
+            out.push(CrossRefEdge {
+                source_axis: Axis::Strategy,
+                source_kind: "action".into(),
+                source_id: action.id.as_str().into(),
+                edge_kind: "postcondition".into(),
+                target_axis: Axis::Strategy,
+                target_kind: "rule".into(),
+                target_id: rule_id.as_str().into(),
+            });
+        }
+    }
+
+    // --- FunctionDef dependencies -------------------------------
+    //
+    // Functions depend on properties (attribute reads) and edge
+    // types (traversals). Both land as `depends_on` edges since
+    // the cache-invalidation trigger is identical from the FE's
+    // perspective; the source_kind distinguishes edge vs. property.
+    for f in ir.functions() {
+        for dep in &f.property_dependencies {
+            let source_id =
+                format!("node:{}/{}", dep.node_type_id.as_str(), dep.property_id.as_str());
+            out.push(CrossRefEdge {
+                source_axis: Axis::Strategy,
+                source_kind: "function".into(),
+                source_id: f.id.as_str().into(),
+                edge_kind: "depends_on".into(),
+                target_axis: Axis::Topology,
+                target_kind: "property".into(),
+                target_id: source_id,
+            });
+        }
+        for edge_id in &f.edge_dependencies {
+            out.push(CrossRefEdge {
+                source_axis: Axis::Strategy,
+                source_kind: "function".into(),
+                source_id: f.id.as_str().into(),
+                edge_kind: "depends_on".into(),
+                target_axis: Axis::Topology,
+                target_kind: "edge_type".into(),
+                target_id: edge_id.as_str().into(),
+            });
+        }
+    }
+
+    // --- MetricDef scope ----------------------------------------
+    for metric in ir.metrics() {
+        use ox_ontology::metric::MetricScope;
+        match &metric.target_scope {
+            MetricScope::NodeType { node_type_id } => {
+                out.push(CrossRefEdge {
+                    source_axis: Axis::Strategy,
+                    source_kind: "metric".into(),
+                    source_id: metric.id.as_str().into(),
+                    edge_kind: "scopes".into(),
+                    target_axis: Axis::Topology,
+                    target_kind: "node_type".into(),
+                    target_id: node_type_id.as_str().into(),
+                });
+            }
+            MetricScope::EdgeType { edge_type_id } => {
+                out.push(CrossRefEdge {
+                    source_axis: Axis::Strategy,
+                    source_kind: "metric".into(),
+                    source_id: metric.id.as_str().into(),
+                    edge_kind: "scopes".into(),
+                    target_axis: Axis::Topology,
+                    target_kind: "edge_type".into(),
+                    target_id: edge_type_id.as_str().into(),
+                });
+            }
+            MetricScope::Global => {
+                // A global metric aggregates across the whole
+                // ontology; no typed target — it becomes a
+                // "floating" metric on the FE graph.
+            }
+        }
+    }
+
+    // --- EnrichmentDef pointers ---------------------------------
+    //
+    // Every enrichment lands three edges: target node type, join
+    // key property (implicitly co-owned by the target), target
+    // property (same). Property source_ids use the owner-prefix
+    // convention so they're unique across the IR.
+    for e in ir.enrichments() {
+        let owner_id = e.target_node_type_id.as_str();
+        out.push(CrossRefEdge {
+            source_axis: Axis::Governance,
+            source_kind: "enrichment".into(),
+            source_id: e.id.as_str().into(),
+            edge_kind: "enriches".into(),
+            target_axis: Axis::Topology,
+            target_kind: "node_type".into(),
+            target_id: owner_id.into(),
+        });
+        out.push(CrossRefEdge {
+            source_axis: Axis::Governance,
+            source_kind: "enrichment".into(),
+            source_id: e.id.as_str().into(),
+            edge_kind: "join_key".into(),
+            target_axis: Axis::Topology,
+            target_kind: "property".into(),
+            target_id: format!("node:{}/{}", owner_id, e.join_key_property_id.as_str()),
+        });
+        out.push(CrossRefEdge {
+            source_axis: Axis::Governance,
+            source_kind: "enrichment".into(),
+            source_id: e.id.as_str().into(),
+            edge_kind: "writes".into(),
+            target_axis: Axis::Topology,
+            target_kind: "property".into(),
+            target_id: format!("node:{}/{}", owner_id, e.target_property_id.as_str()),
+        });
+    }
+
+    // --- InterfaceDef requirements ------------------------------
+    //
+    // Interfaces declare *expected* shapes — their required_*
+    // vectors may pin a specific id or match by name. Only the
+    // pinned ones produce hard pointer edges; name-only
+    // requirements stay invisible here because the matching is
+    // structural, not referential.
+    for iface in ir.interfaces() {
+        for req in &iface.required_properties {
+            if let Some(pid) = &req.expected_property_id {
+                out.push(CrossRefEdge {
+                    source_axis: Axis::Vocabulary,
+                    source_kind: "interface".into(),
+                    source_id: iface.id.as_str().into(),
+                    edge_kind: "requires_property".into(),
+                    target_axis: Axis::Topology,
+                    target_kind: "property_id".into(),
+                    target_id: pid.as_str().into(),
+                });
+            }
+        }
+        for req in &iface.required_edges {
+            if let Some(eid) = &req.expected_edge_type_id {
+                out.push(CrossRefEdge {
+                    source_axis: Axis::Vocabulary,
+                    source_kind: "interface".into(),
+                    source_id: iface.id.as_str().into(),
+                    edge_kind: "requires_edge".into(),
+                    target_axis: Axis::Topology,
+                    target_kind: "edge_type".into(),
+                    target_id: eid.as_str().into(),
+                });
+            }
+        }
+    }
 }
 
 /// Emit every pointer-field edge a single PropertyDef owns. The
@@ -373,4 +623,260 @@ fn rule_scope_summary(rule: &ox_ontology::RuleDef) -> ScopeSummary {
 struct ScopeSummary {
     node_type_ids: Vec<String>,
     edge_type_ids: Vec<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ox_core::{GraphLabel, PropertyKey};
+    use ox_ontology::glossary::{GlossaryTermDef, GlossaryTermId};
+    use ox_ontology::ir::{
+        EdgeTypeDef, EdgeTypeId, NodeTypeDef, NodeTypeId, OntologyIR, PropertyDef, PropertyId,
+    };
+    use ox_ontology::value_set::ValueSetId;
+
+    fn gl(s: &str) -> GraphLabel {
+        GraphLabel::new(s).expect("valid label")
+    }
+
+    fn pk(s: &str) -> PropertyKey {
+        PropertyKey::new(s).expect("valid key")
+    }
+
+    // --- helpers to find emitted edges by their (source_kind,
+    //     edge_kind, target_kind) triple. Keep the test assertions
+    //     readable.
+    fn count_where(
+        edges: &[CrossRefEdge],
+        source_kind: &str,
+        edge_kind: &str,
+        target_kind: &str,
+    ) -> usize {
+        edges
+            .iter()
+            .filter(|e| {
+                e.source_kind == source_kind
+                    && e.edge_kind == edge_kind
+                    && e.target_kind == target_kind
+            })
+            .count()
+    }
+
+    fn empty_ir() -> OntologyIR {
+        OntologyIR::new(
+            "ont-test".into(),
+            "Test".into(),
+            Default::default(),
+            1u32,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        )
+    }
+
+    #[test]
+    fn property_glossary_binding_emits_binds_to() {
+        let mut ir = empty_ir();
+        let prop = PropertyDef {
+            id: PropertyId::new("tier"),
+            name: pk("tier"),
+            property_type: ox_core::types::PropertyType::String,
+            glossary_term_id: Some(GlossaryTermId::new("g-tier")),
+            ..Default::default()
+        };
+        let node = NodeTypeDef {
+            id: NodeTypeId::new("Customer"),
+            label: gl("Customer"),
+            properties: vec![prop],
+            ..Default::default()
+        };
+        ir.add_node_type(node).unwrap();
+        ir.add_glossary_term(GlossaryTermDef {
+            id: GlossaryTermId::new("g-tier"),
+            term: "Tier".into(),
+            display_name: Default::default(),
+            description: Default::default(),
+            category: None,
+            aliases: Vec::new(),
+            parent_term_id: None,
+        })
+        .unwrap();
+
+        let mut edges = Vec::new();
+        emit_edges(&ir, &mut edges);
+        assert_eq!(
+            count_where(&edges, "property", "binds_to", "glossary_term"),
+            1,
+        );
+    }
+
+    #[test]
+    fn property_value_set_pointer_emits_values_in() {
+        let mut ir = empty_ir();
+        let prop = PropertyDef {
+            id: PropertyId::new("country"),
+            name: pk("country"),
+            property_type: ox_core::types::PropertyType::String,
+            value_set_id: Some(ValueSetId::new("v-iso")),
+            ..Default::default()
+        };
+        let node = NodeTypeDef {
+            id: NodeTypeId::new("Customer"),
+            label: gl("Customer"),
+            properties: vec![prop],
+            ..Default::default()
+        };
+        ir.add_node_type(node).unwrap();
+
+        let mut edges = Vec::new();
+        emit_edges(&ir, &mut edges);
+        assert_eq!(
+            count_where(&edges, "property", "values_in", "value_set"),
+            1,
+        );
+    }
+
+    #[test]
+    fn edge_type_source_and_target_both_emit_topology_edges() {
+        let mut ir = empty_ir();
+        ir.add_node_type(NodeTypeDef {
+            id: NodeTypeId::new("Customer"),
+            label: gl("Customer"),
+            ..Default::default()
+        })
+        .unwrap();
+        ir.add_node_type(NodeTypeDef {
+            id: NodeTypeId::new("Order"),
+            label: gl("Order"),
+            ..Default::default()
+        })
+        .unwrap();
+        ir.add_edge_type(EdgeTypeDef {
+            id: EdgeTypeId::new("PLACED"),
+            label: gl("PLACED"),
+            source_node_id: NodeTypeId::new("Customer"),
+            target_node_id: NodeTypeId::new("Order"),
+            ..Default::default()
+        })
+        .unwrap();
+
+        let mut edges = Vec::new();
+        emit_edges(&ir, &mut edges);
+        assert_eq!(count_where(&edges, "edge_type", "source", "node_type"), 1);
+        assert_eq!(count_where(&edges, "edge_type", "target", "node_type"), 1);
+    }
+
+    #[test]
+    fn node_type_parent_emits_topology_self_edge() {
+        let mut ir = empty_ir();
+        ir.add_node_type(NodeTypeDef {
+            id: NodeTypeId::new("Person"),
+            label: gl("Person"),
+            ..Default::default()
+        })
+        .unwrap();
+        ir.add_node_type(NodeTypeDef {
+            id: NodeTypeId::new("Employee"),
+            label: gl("Employee"),
+            parent: Some(NodeTypeId::new("Person")),
+            ..Default::default()
+        })
+        .unwrap();
+
+        let mut edges = Vec::new();
+        emit_edges(&ir, &mut edges);
+        assert_eq!(count_where(&edges, "node_type", "parent", "node_type"), 1);
+    }
+
+    #[test]
+    fn empty_ir_emits_no_edges() {
+        let ir = empty_ir();
+        let mut edges = Vec::new();
+        emit_edges(&ir, &mut edges);
+        assert!(edges.is_empty());
+    }
+
+    #[test]
+    fn property_with_no_pointers_emits_no_edges() {
+        let mut ir = empty_ir();
+        ir.add_node_type(NodeTypeDef {
+            id: NodeTypeId::new("Customer"),
+            label: gl("Customer"),
+            properties: vec![PropertyDef {
+                id: PropertyId::new("tier"),
+                name: pk("tier"),
+                property_type: ox_core::types::PropertyType::String,
+                ..Default::default()
+            }],
+            ..Default::default()
+        })
+        .unwrap();
+
+        let mut edges = Vec::new();
+        emit_edges(&ir, &mut edges);
+        // Only the node exists — no property pointers, no edges,
+        // no mappings — so emit_edges produces nothing.
+        assert!(edges.is_empty());
+    }
+
+    #[test]
+    fn property_source_id_encodes_owner_type() {
+        let mut ir = empty_ir();
+        let prop = PropertyDef {
+            id: PropertyId::new("name"),
+            name: pk("name"),
+            property_type: ox_core::types::PropertyType::String,
+            glossary_term_id: Some(GlossaryTermId::new("g-name")),
+            ..Default::default()
+        };
+        // Same property id on a node and on an edge — the compound
+        // source_id is what keeps them distinct in the emitted
+        // edge list.
+        ir.add_node_type(NodeTypeDef {
+            id: NodeTypeId::new("Customer"),
+            label: gl("Customer"),
+            properties: vec![prop.clone()],
+            ..Default::default()
+        })
+        .unwrap();
+        ir.add_node_type(NodeTypeDef {
+            id: NodeTypeId::new("Order"),
+            label: gl("Order"),
+            ..Default::default()
+        })
+        .unwrap();
+        ir.add_edge_type(EdgeTypeDef {
+            id: EdgeTypeId::new("PLACED"),
+            label: gl("PLACED"),
+            source_node_id: NodeTypeId::new("Customer"),
+            target_node_id: NodeTypeId::new("Order"),
+            properties: vec![prop],
+            ..Default::default()
+        })
+        .unwrap();
+        ir.add_glossary_term(GlossaryTermDef {
+            id: GlossaryTermId::new("g-name"),
+            term: "Name".into(),
+            display_name: Default::default(),
+            description: Default::default(),
+            category: None,
+            aliases: Vec::new(),
+            parent_term_id: None,
+        })
+        .unwrap();
+
+        let mut edges = Vec::new();
+        emit_edges(&ir, &mut edges);
+        let prop_edges: Vec<&CrossRefEdge> = edges
+            .iter()
+            .filter(|e| e.edge_kind == "binds_to")
+            .collect();
+        assert_eq!(prop_edges.len(), 2);
+        assert!(prop_edges
+            .iter()
+            .any(|e| e.source_id == "node:Customer/name"));
+        assert!(prop_edges
+            .iter()
+            .any(|e| e.source_id == "edge:PLACED/name"));
+    }
 }
