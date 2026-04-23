@@ -115,7 +115,12 @@ export function ReanalyzeForm({
 // Extend source form
 // ---------------------------------------------------------------------------
 
-export const SOURCE_TYPE_OPTIONS: DesignSource["type"][] = [
+// `as const` is load-bearing here: without it TypeScript widens
+// this to `DesignSource["type"][]` and the i18n auditor / type
+// guards below can't prove `snowflake` / `bigquery` can't show up
+// at runtime. The SSoT for which sources the extend form actually
+// renders is this tuple — keep it narrow.
+export const SOURCE_TYPE_OPTIONS = [
   "text",
   "csv",
   "json",
@@ -124,15 +129,14 @@ export const SOURCE_TYPE_OPTIONS: DesignSource["type"][] = [
   "postgresql",
   "mysql",
   "mongodb",
-];
+] as const satisfies readonly DesignSource["type"][];
 
-// Which SOURCE_TYPE_OPTIONS entries have a translation key in
-// workbench.bottomPanel.workflowForms.sourceTypeLabels — narrows the
-// label lookup to the subset the extend form actually renders.
-const EXTEND_SOURCE_TYPE_KEYS = SOURCE_TYPE_OPTIONS;
-type ExtendSourceType = (typeof EXTEND_SOURCE_TYPE_KEYS)[number];
+// `ExtendSourceType` is now a precise 8-variant union. The type
+// guard narrows `DesignSource["type"]` values that flow in from
+// the wider wire schema onto this subset for label lookup.
+type ExtendSourceType = (typeof SOURCE_TYPE_OPTIONS)[number];
 function isExtendSourceType(s: DesignSource["type"]): s is ExtendSourceType {
-  return (EXTEND_SOURCE_TYPE_KEYS as readonly string[]).includes(s);
+  return (SOURCE_TYPE_OPTIONS as readonly string[]).includes(s);
 }
 
 export function ExtendSourceForm({
