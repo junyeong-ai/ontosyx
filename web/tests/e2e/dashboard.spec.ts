@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 /**
  * Phase 6.4 — Dashboard CRUD smoke.
@@ -62,9 +62,14 @@ test.describe("dashboard", () => {
   });
 
   test("dashboard API mock returns data shape", async ({ page }) => {
-    const resp = await page.request.get("/api/proxy/dashboards");
-    expect(resp.ok()).toBeTruthy();
-    const body = await resp.json();
+    // `page.request.get` uses APIRequestContext which bypasses
+    // `page.route`. Navigate first, then fetch from inside the page
+    // so the mocked payload comes back.
+    await page.goto("/");
+    const body = await page.evaluate(async () => {
+      const res = await fetch("/api/proxy/dashboards");
+      return (await res.json()) as { dashboards: Array<{ widgets: unknown[] }> };
+    });
     expect(body.dashboards).toHaveLength(1);
     expect(body.dashboards[0].widgets).toHaveLength(1);
   });

@@ -24,13 +24,16 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   projects: [
+    // Chromium only. The frontend is vanilla React + Tailwind — there
+    // is no browser-specific code path (no IE-era hacks, no
+    // Firefox-only IntersectionObserver quirks) so firefox parity
+    // wouldn't buy real regression coverage, just 2× the CI time.
+    // If we ever ship a feature that touches engine-specific behavior
+    // (MediaRecorder, custom element polyfills, …), add the targeted
+    // engines back here.
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
-    },
-    {
-      name: "firefox",
-      use: { ...devices["Desktop Firefox"] },
     },
   ],
   webServer: process.env.PLAYWRIGHT_NO_SERVER

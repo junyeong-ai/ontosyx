@@ -1,4 +1,9 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
+
+// Korean-locale test — override the fixture default (`en`) so next-intl
+// loads ko.json and the chat pane renders Korean copy around the
+// Hangul stream payload.
+test.use({ locale: "ko" });
 
 /**
  * Phase 6.4 — Korean NL query renders Korean response.
@@ -42,8 +47,11 @@ test.describe("korean query", () => {
     page,
   }) => {
     // Sanity: navigate and inject a Korean string into the DOM to confirm
-    // UTF-8 rendering works in Playwright for both chromium and firefox.
+    // UTF-8 rendering works in Playwright. `/` redirects to `/design`
+    // after hydration, which replaces the <body> we'd inject into —
+    // wait for the workbench layout to settle before probing.
     await page.goto("/");
+    await page.waitForURL(/\/design(\?.*)?$/);
     await page.evaluate(() => {
       const el = document.createElement("div");
       el.setAttribute("data-testid", "korean-probe");

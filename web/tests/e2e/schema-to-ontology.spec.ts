@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 /**
  * Phase 5 — Schema → ontology proposal.
@@ -18,23 +18,28 @@ import { test, expect } from "@playwright/test";
 
 const ONT_ID = "00000000-0000-0000-0000-0000000020aa";
 
+// Wire-shape note: the backend emits `kind` tokens in snake_case
+// (`node_types`, `edge_types`, `glossary_terms`, …) — the i18n
+// bundle for `ontology.map.axes.*.kinds.*` is keyed on the same
+// tokens. PascalCase here would make next-intl fall through to raw
+// keys in axis labels, so stick to the canonical enum.
 const MAP_SUMMARY = {
   ontology_id: ONT_ID,
   version: "v2",
   topology: {
     entries: [
-      { kind: "NodeType", count: 3 },
-      { kind: "EdgeType", count: 2 },
+      { kind: "node_types", count: 3 },
+      { kind: "edge_types", count: 2 },
     ],
   },
-  vocabulary: { entries: [{ kind: "GlossaryTerm", count: 4 }] },
+  vocabulary: { entries: [{ kind: "glossary_terms", count: 4 }] },
   registry: { entries: [] },
   strategy: { entries: [] },
-  vol: { entries: [{ kind: "ObjectMapping", count: 3 }] },
+  vol: { entries: [{ kind: "object_mappings", count: 3 }] },
   governance: { entries: [] },
   danglers: [
     {
-      kind: "ObjectMapping",
+      kind: "object_mappings",
       source_path: "ontology.vol.mappings[0]",
       missing_id: "CustomerV2",
     },
@@ -78,10 +83,13 @@ test.describe("schema → ontology proposal", () => {
         `/api/proxy/ontologies/${ONT_ID}/cross-refs(\\?.*)?$`,
       ),
       async (route) => {
+        // `fetchCrossRefs` returns the raw `CrossRefEdge[]`; wrapping
+        // it in `{ edges: [] }` makes `.map(...)` inside the flow
+        // component throw "e is not iterable" and bricks the page.
         await route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify({ edges: [] }),
+          body: JSON.stringify([]),
         });
       },
     );
@@ -130,11 +138,11 @@ test.describe("schema → ontology proposal", () => {
     await page.waitForLoadState("domcontentloaded");
 
     // Wait for the Topology card to render. Each axis card lists
-    // its kinds as clickable rows; the NodeType row shows the
-    // localized label "Node Types" or similar — match the raw
-    // `NodeType` kind token via the `kinds.NodeType` i18n fallback.
+    // its kinds as clickable rows; `node_types` renders via the
+    // `ontology.map.axes.topology.kinds.node_types` bundle key as
+    // "Node types".
     const nodeTypeRow = page
-      .getByRole("button", { name: /NodeType/i })
+      .getByRole("button", { name: /Node types/i })
       .first();
     await expect(nodeTypeRow).toBeVisible();
 
@@ -152,7 +160,7 @@ test.describe("schema → ontology proposal", () => {
     // `URL.searchParams.get('kind')` is the contract between the
     // UI drill-down and the `ontology_axis_items_get_handler`.
     const url = new URL(req.url());
-    expect(url.searchParams.get("kind")).toBe("NodeType");
+    expect(url.searchParams.get("kind")).toBe("node_types");
 
     // Modal renders the three Customer/Order/Product labels from
     // the mocked axis-items payload.

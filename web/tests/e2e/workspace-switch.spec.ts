@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 /**
  * Phase 6.4 — Workspace switch triggers data refetch.
@@ -15,21 +15,32 @@ const WORKSPACES = [
 
 test.describe("workspace switch", () => {
   test.beforeEach(async ({ page }) => {
+    // `listWorkspaces` returns a bare `WorkspaceSummary[]` — not
+    // wrapped. The seeded fixture already mocks this path, but we
+    // override here so the test can pin an exact payload for its
+    // own assertions.
     await page.route("**/api/proxy/workspaces**", async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ workspaces: WORKSPACES }),
+        body: JSON.stringify(WORKSPACES),
       });
     });
   });
 
   test("workspaces endpoint returns seeded list", async ({ page }) => {
-    const resp = await page.request.get("/api/proxy/workspaces");
-    expect(resp.ok()).toBeTruthy();
-    const body = await resp.json();
-    expect(body.workspaces).toHaveLength(2);
-    expect(body.workspaces[0].name).toBe("Default");
+    // `page.evaluate` starts in `about:blank` — navigate first so
+    // relative fetches resolve against the app origin and Playwright's
+    // `page.route` interceptor can catch them. `page.request.get`
+    // would skip routing entirely (it uses APIRequestContext, which
+    // doesn't traverse the browser network stack).
+    await page.goto("/");
+    const body = await page.evaluate(async () => {
+      const res = await fetch("/api/proxy/workspaces");
+      return (await res.json()) as Array<{ name: string }>;
+    });
+    expect(body).toHaveLength(2);
+    expect(body[0].name).toBe("Default");
   });
 
   test("switching workspace via query string reloads page", async ({

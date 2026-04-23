@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 /**
  * Phase 5 — Bootstrap wizard happy path.
@@ -93,12 +93,18 @@ test.describe("bootstrap wizard", () => {
     await page.getByRole("button", { name: /next|다음/i }).click();
     await expect(page).toHaveURL(/\/bootstrap\/2-source$/);
 
-    // Step 2 — pick a connection-based source + fill the URL
-    // field so Finish triggers the createProject call later.
-    // Source kind is a <select> or radio group — pick the
-    // first postgresql-looking control.
-    const sourceKindSelect = page.getByRole("combobox").first();
-    await sourceKindSelect.selectOption("postgresql");
+    // Step 2 — pick a connection-based source. The source-kind
+    // control is a visually-hidden radio group (`input[type='radio']
+    // .sr-only`) wrapped by labels; Playwright can toggle the input
+    // directly by value. `role="radio"` resolves via the input, not
+    // the label, so `.check()` works end-to-end.
+    // The radio input itself is `.sr-only` (visually hidden); the
+    // click target is the wrapping label. `.check({ force: true })`
+    // skips the visibility gate since the input remains interactive
+    // for assistive tech even when display-hidden.
+    await page
+      .getByRole("radio", { name: /postgresql/i })
+      .check({ force: true });
     const connInput = page.getByPlaceholder(/postgres|connection|url/i).first();
     await connInput.fill("postgresql://localhost:5432/pilot");
 
@@ -133,7 +139,13 @@ test.describe("bootstrap wizard", () => {
     await expect(page).toHaveURL(/\/bootstrap\/2-source$/);
 
     // --- Step 2: source = postgres + connection -----------
-    await page.getByRole("combobox").first().selectOption("postgresql");
+    // The radio input itself is `.sr-only` (visually hidden); the
+    // click target is the wrapping label. `.check({ force: true })`
+    // skips the visibility gate since the input remains interactive
+    // for assistive tech even when display-hidden.
+    await page
+      .getByRole("radio", { name: /postgresql/i })
+      .check({ force: true });
     await page
       .getByPlaceholder(/postgres|connection|url/i)
       .first()
