@@ -235,17 +235,9 @@ fn emit_edges(ir: &ox_ontology::OntologyIR, out: &mut Vec<CrossRefEdge>) {
 
     // --- Strategy (Rules point into Topology / Registry) ---------
     for rule in ir.rules() {
-        // The specific constraint-kind shapes are intentionally
-        // under-covered here — the `Phase-1 RegistryReferenceCheck`
-        // already enumerates them for dangling-ref reporting, and
-        // this view wants a coarser "rule constrains X" link per
-        // rule rather than per constraint. Callers that want the
-        // constraint-level detail can subscribe to /map-summary's
-        // danglers output alongside.
-        //
-        // For now emit one edge per scope the rule's RuleKind
-        // names. `ScopeSummary` is a light helper that keeps this
-        // function from blowing up into a match-on-every-variant.
+        // Kind-level scope: most rules name a target node/edge on
+        // their `RuleKind` variant. Extracted via `ScopeSummary` so
+        // adding a new RuleKind variant surfaces at the match site.
         let scope = rule_scope_summary(rule);
         for node_id in scope.node_type_ids {
             out.push(CrossRefEdge {
@@ -268,6 +260,48 @@ fn emit_edges(ir: &ox_ontology::OntologyIR, out: &mut Vec<CrossRefEdge>) {
                 target_kind: "edge_type".into(),
                 target_id: edge_id,
             });
+        }
+
+        // Constraint-level pointers into Registry — `InValueSet` and
+        // `MatchesPattern` carry ids; the FE shows "this rule
+        // references ValueSet X" arrows so a registry edit can
+        // surface the rules that depend on it.
+        use ox_ontology::rule::ShaclConstraint;
+        for constraint in &rule.constraints {
+            match constraint {
+                ShaclConstraint::InValueSet { value_set_id, .. } => {
+                    out.push(CrossRefEdge {
+                        source_axis: Axis::Strategy,
+                        source_kind: "rule".into(),
+                        source_id: rule.id.as_str().into(),
+                        edge_kind: "references_value_set".into(),
+                        target_axis: Axis::Registry,
+                        target_kind: "value_set".into(),
+                        target_id: value_set_id.as_str().into(),
+                    });
+                }
+                ShaclConstraint::MatchesPattern {
+                    notation_pattern_id,
+                    ..
+                } => {
+                    out.push(CrossRefEdge {
+                        source_axis: Axis::Strategy,
+                        source_kind: "rule".into(),
+                        source_id: rule.id.as_str().into(),
+                        edge_kind: "references_pattern".into(),
+                        target_axis: Axis::Registry,
+                        target_kind: "notation_pattern".into(),
+                        target_id: notation_pattern_id.as_str().into(),
+                    });
+                }
+                // Every other constraint kind is either intrinsic
+                // (MinCount, MaxLength, ...) or references types
+                // the scope summary already covered. Skipping here
+                // keeps the emitted edges precise — "arrow exists
+                // because of a pointer field", not "arrow exists
+                // because a rule mentions a column".
+                _ => {}
+            }
         }
     }
 
@@ -817,6 +851,94 @@ mod tests {
         // Only the node exists — no property pointers, no edges,
         // no mappings — so emit_edges produces nothing.
         assert!(edges.is_empty());
+    }
+
+    #[test]
+    fn rule_in_value_set_constraint_emits_references_value_set() {
+        use ox_ontology::rule::{ConstraintTarget, RuleKind, ShaclConstraint};
+        use ox_ontology::{RuleDef, RuleId, value_set::ValueSetId};
+        let mut ir = empty_ir();
+        ir.add_node_type(NodeTypeDef {
+            id: NodeTypeId::new("Customer"),
+            label: gl("Customer"),
+            ..Default::default()
+        })
+        .unwrap();
+        ir.add_rule(RuleDef {
+            id: RuleId::new("r-country"),
+            name: "Country must be ISO-2".into(),
+            description: Default::default(),
+            kind: RuleKind::NodeShape {
+                target_node_type_id: NodeTypeId::new("Customer"),
+            },
+            severity: Default::default(),
+            enforcement: Default::default(),
+            activation: Default::default(),
+            constraints: vec![ShaclConstraint::InValueSet {
+                target: ConstraintTarget::Inherit,
+                value_set_id: ValueSetId::new("v-iso"),
+            }],
+        })
+        .unwrap();
+
+        let mut edges = Vec::new();
+        emit_edges(&ir, &mut edges);
+        assert_eq!(
+            count_where(
+                &edges,
+                "rule",
+                "references_value_set",
+                "value_set",
+            ),
+            1,
+        );
+        // The kind-level `constrains` edge still fires too.
+        assert_eq!(
+            count_where(&edges, "rule", "constrains", "node_type"),
+            1,
+        );
+    }
+
+    #[test]
+    fn rule_matches_pattern_constraint_emits_references_pattern() {
+        use ox_ontology::notation_pattern::NotationPatternId;
+        use ox_ontology::rule::{ConstraintTarget, RuleKind, ShaclConstraint};
+        use ox_ontology::{RuleDef, RuleId};
+        let mut ir = empty_ir();
+        ir.add_node_type(NodeTypeDef {
+            id: NodeTypeId::new("Customer"),
+            label: gl("Customer"),
+            ..Default::default()
+        })
+        .unwrap();
+        ir.add_rule(RuleDef {
+            id: RuleId::new("r-email"),
+            name: "Email must match RFC 5322".into(),
+            description: Default::default(),
+            kind: RuleKind::NodeShape {
+                target_node_type_id: NodeTypeId::new("Customer"),
+            },
+            severity: Default::default(),
+            enforcement: Default::default(),
+            activation: Default::default(),
+            constraints: vec![ShaclConstraint::MatchesPattern {
+                target: ConstraintTarget::Inherit,
+                notation_pattern_id: NotationPatternId::new("p-email"),
+            }],
+        })
+        .unwrap();
+
+        let mut edges = Vec::new();
+        emit_edges(&ir, &mut edges);
+        assert_eq!(
+            count_where(
+                &edges,
+                "rule",
+                "references_pattern",
+                "notation_pattern",
+            ),
+            1,
+        );
     }
 
     #[test]
