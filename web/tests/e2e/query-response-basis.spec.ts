@@ -47,10 +47,18 @@ const QUERY_RESULT = {
   },
 };
 
+// `resolveTypeIds` inside ResponseBasis reads
+// `detail.ontology_ir.node_types[].{id,label}`; the mocked detail
+// has to mirror the full `OntologyDetail` wire shape so the
+// component doesn't trip on missing identity fields.
 const ONTOLOGY_DETAIL = {
   id: ONT_ID,
+  lineage_id: "lin-pilot",
   name: "Pilot",
-  current_version: 3,
+  description: { default: "Pilot ontology" },
+  created_at: "2026-04-22T00:00:00Z",
+  updated_at: "2026-04-22T00:00:00Z",
+  current_version: { version: 3, version_id: "ver-3" },
   ontology_ir: {
     metadata: {},
     node_types: [
@@ -92,53 +100,47 @@ test.describe("query → response basis", () => {
     );
   });
 
-  // FIXME: the `/analyze` route requires an active ontology (the
-  // chat input is the only `<textarea>` the page exposes until one
-  // is loaded, and it's disabled in that state). The query editor
-  // itself uses CodeMirror with a `contenteditable` div — not a
-  // textarea. To re-enable this spec we need to (1) seed an active
-  // ontology via a POST-to-session mock or a store init script and
-  // (2) target the CodeMirror root instead of `textarea`.
-  test.fixme(
-    "running a raw query renders rows + ResponseBasis with provenance + warning",
-    async ({ page }) => {
+  test("running a raw query renders rows + ResponseBasis with provenance + warning", async ({
+    page,
+  }) => {
     await page.goto("/analyze");
     await page.waitForLoadState("domcontentloaded");
 
-    // Switch the right pane to the Query tab so the editor mounts.
-    // The TabBar renders Base UI `Tabs.Tab` — role is "tab", not
-    // "button" — and the label is "Query" (no i18n suffix).
-    await page.getByRole("tab", { name: /^Query$/ }).first().click();
+    // Switch the right pane to the Query tab — the TabBar uses
+    // Base UI `Tabs.Tab` so the accessibility role is "tab".
+    await page.getByRole("tab", { name: /^Query$/ }).click();
 
-    // Type into the query editor + execute.
-    const editor = page.locator("textarea").first();
-    await editor.fill("MATCH (n) RETURN n LIMIT 1");
+    // QueryPanel renders a plain `<textarea>` with the canonical
+    // "MATCH (n) RETURN n LIMIT 10" placeholder. Targeting by
+    // placeholder skips the disabled chat input at the bottom of
+    // the analyze shell, which also uses a `<textarea>`.
+    await page
+      .getByPlaceholder(/^MATCH \(n\) RETURN n LIMIT/i)
+      .fill("MATCH (n) RETURN n LIMIT 1");
 
     const queryRequest = page.waitForRequest(
       (req) =>
         req.url().includes("/api/proxy/query/raw") &&
         req.method() === "POST",
     );
-    await page.getByRole("button", { name: /^Execute$|^Run$/ }).click();
+    await page.getByRole("button", { name: /^Execute$/ }).click();
     await queryRequest;
 
-    // ResponseBasis section renders — its `aria-label` is the
-    // translated title, "Response basis".
-    const basis = page.getByRole("region", { name: /Response basis/i });
+    // `<section aria-label="Response basis">` — picked up as a
+    // `region` by Playwright's accessibility tree.
+    const basis = page.getByRole("region", { name: /^Response basis$/ });
     await expect(basis).toBeVisible();
 
-    // The version + filter rows render verbatim.
+    // Provenance rows: version + filter render verbatim, type_ids
+    // resolve through the mocked ontology detail to "Customer".
     await expect(basis.getByText("v3")).toBeVisible();
     await expect(basis.getByText("n.active = true")).toBeVisible();
-    // type_ids resolved to "Customer" label.
     await expect(basis.getByText("Customer").first()).toBeVisible();
-    // Source pill present.
     await expect(basis.getByText("src-postgres")).toBeVisible();
 
-    // Warnings list renders the validator name + the message.
+    // Advisory warnings render beneath the provenance grid.
     await expect(
       basis.getByText(/unbounded variable-length pattern/),
     ).toBeVisible();
-    },
-  );
+  });
 });

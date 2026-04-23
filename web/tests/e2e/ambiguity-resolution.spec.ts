@@ -98,15 +98,9 @@ test.describe("ambiguity resolution", () => {
     ).toBeVisible();
   });
 
-  // FIXME: clicking Resolve opens the modal, but the subsequent
-  // mode-switch + term-id fill + submit sequence doesn't persist
-  // — needs the resolution-modal test double refactored so the
-  // glossary_ref mode is addressable by a stable role/name pair
-  // rather than the current "pick whichever button matches the
-  // regex union" heuristic.
-  test.fixme(
-    "submitting a glossary_ref posts {mapping: {kind, term_id}} to /resolve",
-    async ({ page }) => {
+  test("submitting a glossary_ref posts {mapping: {kind, term_id}} to /resolve", async ({
+    page,
+  }) => {
     await page.goto("/settings/ambiguity");
     await page.waitForLoadState("domcontentloaded");
     await page.getByRole("button", { name: /^Resolve$/ }).first().click();
@@ -114,33 +108,27 @@ test.describe("ambiguity resolution", () => {
       page.getByText(/Resolve orders\.status/i),
     ).toBeVisible();
 
-    // Switch the mode to glossary_ref and fill the term id.
-    // The modal has a radio or tab group for the 3 modes — match by
-    // label and pick Glossary.
-    const glossaryTab = page
-      .getByRole("button", { name: /glossary|용어/i })
-      .first();
-    if (await glossaryTab.isVisible()) {
-      await glossaryTab.click();
-    }
-    // The term id input lives under the glossary mode — it's a
-    // regular `<input>`. Try the first input whose placeholder
-    // matches the hint; fall back to any input in the modal.
-    const termInput = page
-      .locator("input[type='text']")
-      .first();
-    await termInput.fill("glossary-order-status");
+    // Mode switcher is a radio group. The `<input type="radio">` is
+    // `.sr-only` wrapped by a `<label>` carrying the translated
+    // "Glossary term" copy — `.check({ force: true })` is required
+    // because the input stays visually hidden.
+    await page
+      .getByRole("radio", { name: /^Glossary term$/ })
+      .check({ force: true });
 
-    // Wait on the POST so we can assert the payload.
+    // Glossary mode reveals `<input id="term-id">` labelled
+    // "Glossary term id" by the adjacent `<label htmlFor>`.
+    await page
+      .getByLabel(/^Glossary term id$/)
+      .fill("glossary-order-status");
+
     const resolveRequest = page.waitForRequest(
       (req) =>
         /\/api\/proxy\/ambiguities\/[^/]+\/resolve$/.test(req.url()) &&
         req.method() === "POST",
     );
-    await page
-      .getByRole("button", { name: /save|submit|apply|저장|확인/i })
-      .last()
-      .click();
+    // Footer's Save button — "Save resolution" in en.
+    await page.getByRole("button", { name: /^Save resolution$/ }).click();
     const req = await resolveRequest;
 
     const body = req.postDataJSON() as {
@@ -150,6 +138,5 @@ test.describe("ambiguity resolution", () => {
     expect(body.mapping.term_id).toBe("glossary-order-status");
     // The resolve URL encodes the context id from the list row.
     expect(req.url()).toMatch(/ambiguities\/ctx-pending-1\/resolve$/);
-    },
-  );
+  });
 });

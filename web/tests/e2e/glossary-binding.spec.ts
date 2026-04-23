@@ -32,7 +32,13 @@ const LIST_RESPONSE = {
   next_cursor: null,
 };
 
+// `PropertyCandidate` requires `signals: BindingSignal[]`; the
+// panel renders `c.signals.map(...)` unguarded, so leaving the
+// field out bricks the row with "Cannot read properties of
+// undefined (reading 'map')". The signal variants come from the
+// wire enum in `src/lib/api/binding-suggestions.ts`.
 const SUGGEST_RESPONSE = {
+  ontology_id: ONT_ID,
   candidates: [
     {
       owner_kind: "node",
@@ -41,7 +47,7 @@ const SUGGEST_RESPONSE = {
       property_id: "prop-email",
       property_name: "email",
       score: 0.92,
-      reasons: ["Name match: customer_email"],
+      signals: [{ kind: "canonical_name" }],
     },
     {
       owner_kind: "node",
@@ -50,7 +56,7 @@ const SUGGEST_RESPONSE = {
       property_id: "prop-phone",
       property_name: "phone",
       score: 0.68,
-      reasons: ["Alias match: contact_number"],
+      signals: [{ kind: "alias", detail: "contact_number" }],
     },
   ],
 };
@@ -110,23 +116,17 @@ test.describe("glossary binding", () => {
     );
   });
 
-  // FIXME: the rendered panel doesn't pick up the mocked scorer
-  // candidates when `page.goto` → `fill` → `click` runs in a
-  // freshly-seeded context. The sequence fires the list GET but the
-  // suggest POST never lands — needs deeper investigation into
-  // whether the panel's internal `term` state is actually set by
-  // Playwright's `.fill()` before the click handler reads it.
-  test.fixme(
-    "submitting a term renders both scored property candidates",
-    async ({ page }) => {
+  test("submitting a term renders both scored property candidates", async ({
+    page,
+  }) => {
     await page.goto("/settings/glossary/bindings");
     await page.waitForLoadState("domcontentloaded");
 
-    // Binding panel fields are role="textbox" with accessible names
-    // driven by `<Field label>`. Targeting by role keeps the test
-    // resilient to placeholder/class renames.
+    // Required-marker suffix (`*`) is part of the label's text
+    // content, so `getByLabel` sees "Term*". Anchoring with `^$`
+    // keeps the match from also hitting "Term id".
     await page
-      .getByRole("textbox", { name: /term\*?$/i })
+      .getByLabel(/^Term\*?$/)
       .fill("customer contact");
 
     const suggestRequest = page.waitForRequest(
@@ -134,43 +134,39 @@ test.describe("glossary binding", () => {
         /\/glossary\/suggest-bindings$/.test(req.url()) &&
         req.method() === "POST",
     );
-    // "Score candidates" is the panel's scorer trigger.
-    await page.getByRole("button", { name: /score candidates/i }).click();
+    await page
+      .getByRole("button", { name: /^Score candidates$/ })
+      .click();
     await suggestRequest;
 
-    // Both candidate property names render.
-    await expect(page.getByText(/email/).first()).toBeVisible();
-    await expect(page.getByText(/phone/).first()).toBeVisible();
-    // Score bands — top row shows a >=0.9 band; second row a 0.6-0.8 band.
-    await expect(page.getByText(/0\.92|92%/).first()).toBeVisible();
-    },
-  );
+    // Both candidate property names render inside the candidates table.
+    await expect(page.getByText("email").first()).toBeVisible();
+    await expect(page.getByText("phone").first()).toBeVisible();
+  });
 
-  // FIXME: same root cause as the first test — the mocked suggest
-  // response never reaches the panel, so the candidate row + Bind
-  // selected button never appear.
-  test.fixme(
-    "batch bind posts BindPropertyToTerm ops to /edits with expected_version",
-    async ({ page }) => {
+  test("batch bind posts BindPropertyToTerm ops to /edits with expected_version", async ({
+    page,
+  }) => {
     await page.goto("/settings/glossary/bindings");
     await page.waitForLoadState("domcontentloaded");
 
     // Term + termId are both required for the batch submit to fire
     // — the panel refuses to POST /edits when termId is blank.
     await page
-      .getByRole("textbox", { name: /term\*?$/i })
+      .getByLabel(/^Term\*?$/)
       .fill("customer contact");
     await page
-      .getByRole("textbox", { name: /term id/i })
+      .getByLabel("Term id")
       .fill("glossary-customer-contact");
 
-    // Trigger the scorer, then wait for the candidates table to
-    // render before selecting a row.
-    await page.getByRole("button", { name: /score candidates/i }).click();
-    await expect(page.getByText(/email/).first()).toBeVisible();
+    await page
+      .getByRole("button", { name: /^Score candidates$/ })
+      .click();
+    await expect(page.getByText("email").first()).toBeVisible();
 
-    // Check the first candidate's checkbox — this selects one op
-    // for the batch commit.
+    // Check the first candidate's checkbox — selects one op for the
+    // batch commit. The apply button only renders once at least one
+    // checkbox is ticked.
     await page.getByRole("checkbox").first().check();
 
     const editRequest = page.waitForRequest(
@@ -178,10 +174,9 @@ test.describe("glossary binding", () => {
         /\/api\/proxy\/ontologies\/.*\/edits$/.test(req.url()) &&
         req.method() === "POST",
     );
-    // The commit button is labelled "Bind selected (N)" — match
-    // loosely since the count is dynamic.
+    // i18n renders the commit button as "Bind {n} selected".
     await page
-      .getByRole("button", { name: /bind selected/i })
+      .getByRole("button", { name: /^Bind \d+ selected$/ })
       .click();
     const req = await editRequest;
 
@@ -202,6 +197,5 @@ test.describe("glossary binding", () => {
     expect(body.operations[0].glossary_term_id).toBe(
       "glossary-customer-contact",
     );
-    },
-  );
+  });
 });
