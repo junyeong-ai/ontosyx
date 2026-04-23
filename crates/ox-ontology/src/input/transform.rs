@@ -4,9 +4,11 @@ use std::collections::HashMap;
 use serde::Serialize;
 use tracing::warn;
 
+use ox_core::error::OxResult;
 use ox_core::graph_label::GraphLabel;
+use ox_core::property_key::PropertyKey;
 use crate::ir::*;
-use crate::mapping::SourceMapping;
+use crate::mapping::{ObjectMappingDef, SourceId, SourceMapping};
 
 use super::dtos::*;
 
@@ -25,6 +27,54 @@ pub struct NormalizeResult {
     pub ontology: OntologyIR,
     pub source_mapping: SourceMapping,
     pub warnings: Vec<NormalizeWarning>,
+}
+
+impl NormalizeResult {
+    /// Project the legacy `SourceMapping` onto the canonical
+    /// `ObjectMappingDef` shape, resolving each property's display
+    /// key from the ontology's own `PropertyDef.name`.
+    ///
+    /// Phase 4-A migration bridge: callers that already have a
+    /// `NormalizeResult` — the single ingress path produces one —
+    /// can obtain the canonical mappings without threading a
+    /// resolver through yet another layer. The `source_id` must be
+    /// supplied because the legacy shape never recorded which data
+    /// source its tables lived in. Returning `OxResult` (via
+    /// `SourceMapping::to_canonical`) surfaces cases where a
+    /// property referenced by the legacy blob has no matching
+    /// `PropertyDef` — that mismatch is a real integrity bug, not
+    /// something to swallow.
+    ///
+    /// Zero-cost when the legacy mapping is empty (returns an empty
+    /// `Vec` without walking the ontology).
+    pub fn canonical_object_mappings(
+        &self,
+        source_id: &SourceId,
+    ) -> OxResult<Vec<ObjectMappingDef>> {
+        self.source_mapping.to_canonical(source_id, |node_id, prop_id| {
+            resolve_property_key(&self.ontology, node_id, prop_id)
+        })
+    }
+}
+
+/// Walk the ontology's node types to find the property whose id
+/// matches `prop_id` under the node named by `node_id`, returning
+/// its validated `PropertyKey`. Returns `None` when the node or
+/// property is not present — `canonical_object_mappings` turns
+/// that into a `Validation` error so integrity bugs surface.
+fn resolve_property_key(
+    ontology: &OntologyIR,
+    node_id: &str,
+    prop_id: &str,
+) -> Option<PropertyKey> {
+    ontology
+        .node_types
+        .iter()
+        .find(|nt| nt.id.as_ref() == node_id)?
+        .properties
+        .iter()
+        .find(|p| p.id.as_ref() == prop_id)
+        .map(|p| p.name.clone())
 }
 
 // ---------------------------------------------------------------------------
@@ -995,6 +1045,113 @@ mod tests {
                 assert_eq!(property_ids[1], node.properties[1].id);
             }
             _ => panic!("expected NodeKey"),
+        }
+    }
+
+    // -- canonical_object_mappings -------------------------------------------
+
+    #[test]
+    fn canonical_object_mappings_empty_when_no_source_tables() {
+        // Product has no source_table; User has one but we'll drop
+        // it for this test by clearing both.
+        let mut input = base_input();
+        input.node_types[0].source_table = None;
+        input.node_types[0].properties[1].source_column = None; // email
+        input.node_types[0].properties[0].source_column = None; // id
+        let nr = normalize(input).expect("normalize");
+        let out = nr
+            .canonical_object_mappings(&SourceId::new("pg-main"))
+            .expect("conversion succeeds");
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn canonical_object_mappings_projects_source_table_and_columns() {
+        let mut input = base_input();
+        // Wire a source column for `email` so the property_mapping
+        // path runs too — base_input only sets source_table.
+        input.node_types[0].properties[1].source_column =
+            Some("email_addr".to_string());
+        let nr = normalize(input).expect("normalize");
+        let user_node = &nr.ontology.node_types[0];
+
+        let out = nr
+            .canonical_object_mappings(&SourceId::new("pg-main"))
+            .expect("conversion succeeds");
+
+        // One mapping, for User → users.
+        assert_eq!(out.len(), 1);
+        let om = &out[0];
+        assert_eq!(om.node_type_id.as_str(), user_node.id.as_str());
+        assert_eq!(om.relation, "users");
+        assert_eq!(om.source_id.as_str(), "pg-main");
+        assert_eq!(om.id.as_str(), format!("om-legacy-{}", user_node.id));
+
+        // One property mapping, for email → users.email_addr,
+        // keyed by the PropertyDef's validated name (not the raw
+        // property_id).
+        assert_eq!(om.property_mappings.len(), 1);
+        let pm = &om.property_mappings[0];
+        assert_eq!(pm.property_id.as_str(), user_node.properties[1].id.as_str());
+        assert_eq!(pm.property_key.as_str(), "email");
+        match &pm.location {
+            crate::mapping::PropertyLocation::Column(col) => {
+                assert_eq!(col.relation, "users");
+                assert_eq!(col.column, "email_addr");
+            }
+            other => panic!("unexpected location: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn canonical_object_mappings_reports_integrity_error_for_orphan_property() {
+        // Stamp the legacy mapping with a column pointing at a
+        // property_id that isn't on any of the ontology's nodes.
+        // The resolver returns None → to_canonical raises Validation.
+        let nr = normalize(base_input()).expect("normalize");
+        let user_id = nr.ontology.node_types[0].id.clone();
+        let mut nr = nr;
+        nr.source_mapping
+            .set_column(&user_id, "bogus-prop-id", "bogus_col".to_string());
+
+        let err = nr
+            .canonical_object_mappings(&SourceId::new("pg-main"))
+            .expect_err("integrity bug must surface");
+        match err {
+            ox_core::error::OxError::Validation { field, .. } => {
+                assert_eq!(field, "property_key");
+            }
+            other => panic!("unexpected error kind: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn canonical_object_mappings_roundtrip_matches_legacy_lookup() {
+        // End-to-end sanity: every legacy column lookup must find a
+        // canonical PropertyMappingDef with the same column name.
+        let mut input = base_input();
+        input.node_types[0].properties[0].source_column = Some("id_col".into());
+        input.node_types[0].properties[1].source_column = Some("email_col".into());
+        let nr = normalize(input).expect("normalize");
+
+        let out = nr
+            .canonical_object_mappings(&SourceId::new("pg-main"))
+            .expect("conversion succeeds");
+        assert_eq!(out.len(), 1);
+        for om in &out {
+            for pm in &om.property_mappings {
+                let expected_col = nr
+                    .source_mapping
+                    .column_for_property(om.node_type_id.as_str(), pm.property_id.as_str())
+                    .expect("legacy lookup finds the column");
+                match &pm.location {
+                    crate::mapping::PropertyLocation::Column(col) => {
+                        assert_eq!(col.column, expected_col);
+                        assert_eq!(col.relation, om.relation);
+                    }
+                    other => panic!("unexpected location: {other:?}"),
+                }
+            }
         }
     }
 }
