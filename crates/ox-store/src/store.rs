@@ -72,6 +72,11 @@ pub struct CursorPage<T: Serialize> {
 
 pub struct AnalysisSnapshot {
     pub source_config: serde_json::Value,
+    /// Canonical source identity recomputed from `source_config`
+    /// via `SourceId::from_source_config`. Reanalyze rewrites this
+    /// when the fingerprint shifts so federation caches invalidate
+    /// naturally on source replacement.
+    pub source_id: String,
     pub source_data: Option<String>,
     pub source_schema: serde_json::Value,
     pub source_profile: serde_json::Value,

@@ -274,6 +274,13 @@ pub struct DesignProject {
     pub title: Option<String>,
     /// SourceConfig JSON (source_type, schema_name — no secrets)
     pub source_config: serde_json::Value,
+    /// Canonical source identity derived via
+    /// `SourceId::from_source_config` at project creation. Stable
+    /// across restarts; federation plan-cache keys, query
+    /// provenance, and ambiguity lookups all refer to this id so
+    /// the same request under the same source shape replays
+    /// deterministically.
+    pub source_id: String,
     /// Raw source data (text/csv/json input; null for postgresql)
     pub source_data: Option<String>,
     /// SourceSchema snapshot from analysis
@@ -286,7 +293,7 @@ pub struct DesignProject {
     pub design_options: serde_json::Value,
     /// SourceMapping (node→table, property→column links)
     pub source_mapping: Option<serde_json::Value>,
-    /// Generated OntologyIR
+    /// Generated OntologyIR (includes canonical `object_mappings`)
     pub ontology: Option<serde_json::Value>,
     /// OntologyQualityReport
     pub quality_report: Option<serde_json::Value>,

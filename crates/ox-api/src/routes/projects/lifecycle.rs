@@ -11,6 +11,7 @@ use uuid::Uuid;
 use ox_ontology::design_project::{
     DesignProjectStatus, SourceConfig, SourceHistoryEntry, SourceTypeKind,
 };
+use ox_ontology::mapping::SourceId;
 use ox_ontology::quality::OntologyQualityReport;
 use ox_ontology::source_analysis::DesignOptions;
 use ox_store::store::CursorParams;
@@ -106,6 +107,7 @@ pub(crate) async fn create_project(
                 status: DesignProjectStatus::Designed.to_string(),
                 revision: 1,
                 title: req.title,
+                source_id: SourceId::from_source_config(&source_config).to_string(),
                 source_config: AppError::to_json(&source_config)?,
                 source_data: None,
                 source_schema: None,
@@ -147,6 +149,7 @@ pub(crate) async fn create_project(
                     status: DesignProjectStatus::Analyzed.to_string(),
                     revision: 1,
                     title: req.title,
+                    source_id: SourceId::from_source_config(&source_config).to_string(),
                     source_config: AppError::to_json(&source_config)?,
                     source_data: None,
                     source_schema: Some(AppError::to_json(&source_schema)?),
@@ -235,6 +238,7 @@ pub(crate) async fn create_project(
                 status: DesignProjectStatus::Analyzed.to_string(),
                 revision: 1,
                 title: req.title,
+                source_id: SourceId::from_source_config(&source_config).to_string(),
                 source_config: AppError::to_json(&source_config)?,
                 source_data,
                 source_schema: source_schema.as_ref().map(AppError::to_json).transpose()?,

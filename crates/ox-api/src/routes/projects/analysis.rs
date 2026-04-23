@@ -4,6 +4,7 @@ use tracing::warn;
 use uuid::Uuid;
 
 use ox_ontology::design_project::{SourceConfig, SourceTypeKind};
+use ox_ontology::mapping::SourceId;
 use ox_store::store::AnalysisSnapshot;
 
 use crate::error::AppError;
@@ -112,8 +113,12 @@ pub(crate) async fn reanalyze_project(
     let (pruned_opts, invalidated) =
         prune_decisions(old_opts, source_schema.as_ref(), source_identity_changed);
 
-    // Persist
+    // Persist. `source_id` is recomputed from the (possibly new)
+    // source_config via the canonical rule — when the fingerprint
+    // shifts, downstream caches (federation plan-cache, ambiguity
+    // detection) see a fresh id and invalidate naturally.
     let snapshot = AnalysisSnapshot {
+        source_id: SourceId::from_source_config(&source_config).to_string(),
         source_config: AppError::to_json(&source_config)?,
         source_data,
         source_schema: source_schema

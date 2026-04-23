@@ -17,14 +17,17 @@ use super::fingerprint::{
 };
 
 /// Deterministic `(SourceId, source_hash)` pair for analysis-time
-/// ambiguity detection. `fingerprint` captures schema content — the
-/// same fingerprint under a different source kind (CSV vs Postgres)
-/// must not collide, so the kind's canonical string lands in the id.
+/// ambiguity detection. The SourceId is derived through the
+/// canonical `SourceId::from_source_config` rule so every call
+/// site in the workspace agrees on the `{kind}:{fingerprint}`
+/// format.
 fn ambiguity_source_handle(kind: &SourceTypeKind, fingerprint: &str) -> (SourceId, String) {
-    (
-        SourceId::new(format!("{kind}:{fingerprint}")),
-        fingerprint.to_string(),
-    )
+    let config = SourceConfig {
+        source_type: kind.clone(),
+        schema_name: None,
+        source_fingerprint: Some(fingerprint.to_string()),
+    };
+    (SourceId::from_source_config(&config), fingerprint.to_string())
 }
 
 /// Analyze a source and return (config, raw_data, schema, profile, report).

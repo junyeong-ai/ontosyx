@@ -418,10 +418,12 @@ impl ProjectStore for PostgresStore {
     async fn create_design_project(&self, project: &DesignProject) -> OxResult<()> {
         sqlx::query(
             "INSERT INTO design_projects
-             (id, user_id, status, revision, title, source_config, source_data,
-              source_schema, source_profile, analysis_report, design_options,
-              source_mapping, ontology, quality_report, source_history, analyzed_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)",
+             (id, user_id, status, revision, title, source_config, source_id,
+              source_data, source_schema, source_profile, analysis_report,
+              design_options, source_mapping, ontology, quality_report,
+              source_history, analyzed_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+                     $14, $15, $16, $17)",
         )
         .bind(project.id)
         .bind(&project.user_id)
@@ -429,6 +431,7 @@ impl ProjectStore for PostgresStore {
         .bind(project.revision)
         .bind(&project.title)
         .bind(&project.source_config)
+        .bind(&project.source_id)
         .bind(&project.source_data)
         .bind(&project.source_schema)
         .bind(&project.source_profile)
@@ -580,14 +583,15 @@ impl ProjectStore for PostgresStore {
     ) -> OxResult<()> {
         let result = sqlx::query(
             "UPDATE design_projects
-             SET source_config = $1, source_data = $2,
-                 source_schema = $3, source_profile = $4, analysis_report = $5,
-                 design_options = $6, source_mapping = NULL, ontology = NULL, quality_report = NULL,
+             SET source_config = $1, source_id = $2, source_data = $3,
+                 source_schema = $4, source_profile = $5, analysis_report = $6,
+                 design_options = $7, source_mapping = NULL, ontology = NULL, quality_report = NULL,
                  status = 'analyzed', analyzed_at = NOW(),
                  updated_at = NOW(), revision = revision + 1
-             WHERE id = $7 AND revision = $8 ",
+             WHERE id = $8 AND revision = $9 ",
         )
         .bind(&snapshot.source_config)
+        .bind(&snapshot.source_id)
         .bind(&snapshot.source_data)
         .bind(&snapshot.source_schema)
         .bind(&snapshot.source_profile)

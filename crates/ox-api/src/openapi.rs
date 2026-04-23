@@ -315,6 +315,9 @@ pub struct DesignProject {
     pub user_id: String,
     pub title: Option<String>,
     pub source_config: serde_json::Value,
+    /// Canonical source identity (`{source_type}:{fingerprint}`)
+    /// derived from `source_config` at project creation / reanalysis.
+    pub source_id: String,
     pub source_data: Option<String>,
     pub source_schema: Option<serde_json::Value>,
     pub source_profile: Option<serde_json::Value>,

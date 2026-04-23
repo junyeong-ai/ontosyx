@@ -23,8 +23,36 @@ ox_core::define_id_newtype!(
     /// connection, a Snowflake warehouse, a CSV file, etc.). Wire
     /// format is a bare string, so the id survives serde round-trips
     /// unchanged.
+    ///
+    /// Construction: prefer [`SourceId::from_source_config`] — the
+    /// canonical rule is `{source_type}:{fingerprint}`, which keeps
+    /// identity deterministic across reanalysis and prevents two
+    /// sources of different kinds that happen to share a
+    /// fingerprint from colliding. The bare `::new` constructor
+    /// stays for tests and for adapters that synthesise an id
+    /// outside the `SourceConfig` lifecycle.
     SourceId
 );
+
+impl SourceId {
+    /// Canonical `{kind}:{fingerprint}` identity derived from a
+    /// [`crate::design_project::SourceConfig`]. When the config has
+    /// no fingerprint yet (e.g. before analysis), the source_type
+    /// alone forms the id — those ids become concrete once the
+    /// analyzer stamps a fingerprint and the project is re-saved.
+    ///
+    /// This is the ONE place that encodes the identity rule so
+    /// callers across the workspace agree on the format. Helpers
+    /// that previously built ids inline (e.g. the ambiguity path
+    /// in `ox-api::routes::projects::helpers::source`) go through
+    /// this method.
+    pub fn from_source_config(config: &crate::design_project::SourceConfig) -> Self {
+        match &config.source_fingerprint {
+            Some(fp) => Self::new(format!("{}:{}", config.source_type, fp)),
+            None => Self::new(config.source_type.to_string()),
+        }
+    }
+}
 
 ox_core::define_id_newtype!(
     /// Stable identifier for an `ObjectMappingDef` — the binding
