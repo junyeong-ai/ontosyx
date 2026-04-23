@@ -6,6 +6,7 @@ import { Header } from "@/components/layout/header";
 import { KeyboardShortcutsDialog } from "@/components/ui/keyboard-shortcuts";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { PromptProvider } from "@/components/ui/prompt-dialog";
+import { QualityBanner } from "@/components/quality/quality-banner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useHydrated } from "@/lib/store/use-hydrated";
 import { useAppStore } from "@/lib/store";
@@ -58,6 +59,12 @@ export default function WorkbenchLayout({
             <Sidebar />
             <div className="flex flex-1 flex-col overflow-hidden">
               <Header />
+              {/* Ambient quality-degradation banner. Gated on
+                  `workspaceReady` so it doesn't fire `/quality/metrics`
+                  before the workspace has been resolved — the RLS
+                  guard would reject that call and TanStack Query
+                  would retry noisily. */}
+              {workspaceReady && <QualityBanner />}
               <main className="flex-1 overflow-hidden">
                 <div className="h-full overflow-hidden">{children}</div>
               </main>

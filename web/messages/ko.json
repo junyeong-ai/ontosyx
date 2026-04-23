@@ -223,6 +223,22 @@
     "deleting": "삭제 중…",
     "creating": "생성 중…"
   },
+  "qualityBanner": {
+    "title": {
+      "warning": "품질 신호: 주의",
+      "critical": "품질 신호: 심각"
+    },
+    "metric": {
+      "anchor_match_rate": "스키마 앵커 매칭률이 {value}(으)로 하락 (임계값 {threshold} 미만).",
+      "glossary_hit_rate": "용어집 히트율이 {value}(으)로 하락 (임계값 {threshold} 미만).",
+      "clarification_success_rate": "되묻기 성공률이 {value}(으)로 하락 (임계값 {threshold} 미만).",
+      "query_reproducibility": "쿼리 재현성이 {value}(으)로 하락 (임계값 {threshold} 미만).",
+      "shacl_pass_rate": "SHACL 통과율이 {value}(으)로 하락 (임계값 {threshold} 미만).",
+      "stale_concept_ratio": "Stale 개념 비율이 {value}(으)로 상승 (임계값 {threshold} 초과)."
+    },
+    "others": "외 {count}건",
+    "viewDetails": "신호 자세히 보기"
+  },
   "auth": {
     "signIn": "로그인",
     "signOut": "로그아웃",

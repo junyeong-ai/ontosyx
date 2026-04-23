@@ -241,6 +241,22 @@
     "deleting": "Deleting…",
     "creating": "Creating…"
   },
+  "qualityBanner": {
+    "title": {
+      "warning": "Quality signal: attention",
+      "critical": "Quality signal: critical"
+    },
+    "metric": {
+      "anchor_match_rate": "Schema anchor match rate dipped to {value} (below {threshold}).",
+      "glossary_hit_rate": "Glossary hit rate dipped to {value} (below {threshold}).",
+      "clarification_success_rate": "Clarification success rate dipped to {value} (below {threshold}).",
+      "query_reproducibility": "Query reproducibility dipped to {value} (below {threshold}).",
+      "shacl_pass_rate": "SHACL pass rate dipped to {value} (below {threshold}).",
+      "stale_concept_ratio": "Stale-concept ratio rose to {value} (above {threshold})."
+    },
+    "others": "{count, plural, one {and # other metric} other {and # other metrics}}",
+    "viewDetails": "View signal details"
+  },
   "auth": {
     "signIn": "Sign in",
     "signOut": "Sign out",
