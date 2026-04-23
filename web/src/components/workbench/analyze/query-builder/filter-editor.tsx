@@ -57,7 +57,7 @@ export function FilterEditor({ properties, filters, onChange }: FilterEditorProp
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          {t("header")}
+          {t("heading")}
         </span>
         <button
           onClick={addFilter}

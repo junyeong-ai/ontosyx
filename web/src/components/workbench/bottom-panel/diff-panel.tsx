@@ -60,7 +60,7 @@ export function DiffPanel({
       {/* Header */}
       <div className="flex items-center justify-between">
         <h4 className="font-semibold text-zinc-700 dark:text-zinc-300">
-          {t("header", { baseLabel, targetLabel })}
+          {t("heading", { baseLabel, targetLabel })}
         </h4>
         <button
           onClick={onDismiss}

@@ -1173,7 +1173,9 @@
       "action": {
         "test": "Test",
         "testing": "...",
-        "deleting": "..."
+        "deleting": "...",
+        "edit": "Edit",
+        "delete": "Delete"
       },
       "channelType": {
         "slack_webhook": "Slack Webhook",
@@ -1202,7 +1204,8 @@
         "create": "Create Channel",
         "creating": "Creating...",
         "update": "Update Channel",
-        "updating": "Updating..."
+        "updating": "Updating...",
+        "cancel": "Cancel"
       },
       "validation": {
         "required": "Required",
@@ -1219,12 +1222,10 @@
         "testSuccess": "Test notification sent successfully",
         "testFailed": "Test failed: {error}",
         "testError": "Failed to send test notification",
-        "toast": {
-          "createFailed": "Failed to create channel",
-          "updateFailed": "Failed to update channel",
-          "deleteFailed": "Failed to delete channel",
-          "unknownError": "Unknown error"
-        },
+        "createFailed": "Failed to create channel",
+        "updateFailed": "Failed to update channel",
+        "deleteFailed": "Failed to delete channel",
+        "unknownError": "Unknown error",
         "loadFailed": "Failed to load notification settings"
       },
       "deleteConfirm": {
@@ -1285,11 +1286,9 @@
         "updated": "Report updated",
         "deleted": "Report deleted",
         "executeError": "Execution failed",
-        "toast": {
-          "deleteFailed": "Delete failed",
-          "updateFailed": "Update failed",
-          "createFailed": "Failed to create report"
-        },
+        "deleteFailed": "Delete failed",
+        "updateFailed": "Update failed",
+        "createFailed": "Failed to create report",
         "loadFailed": "Failed to load reports",
         "loadOntologiesFailed": "Failed to load ontologies"
       },
@@ -1307,7 +1306,10 @@
         "executeReport": "Execute Report",
         "executing": "Executing...",
         "results": "Results ({count} rows)",
-        "showingRows": "Showing 50 of {count} rows"
+        "showingRows": "Showing 50 of {count} rows",
+        "edit": "Edit",
+        "delete": "Delete",
+        "cancel": "Cancel"
       },
       "edit": {
         "title": "Title",
@@ -1334,7 +1336,8 @@
         "widgetTypeSelectLabel": "Widget Type",
         "public": "Public",
         "create": "Create Report",
-        "creating": "Creating..."
+        "creating": "Creating...",
+        "cancel": "Cancel"
       },
       "widgetType": {
         "table": "Table",
@@ -1367,12 +1370,10 @@
         "created": "Recipe created",
         "deleted": "Recipe deleted",
         "versionsError": "Failed to load version history",
-        "toast": {
-          "deleteFailed": "Delete failed",
-          "createFailed": "Failed to create recipe",
-          "statusChanged": "Status changed to {status}",
-          "statusChangeFailed": "Failed to update status"
-        },
+        "deleteFailed": "Delete failed",
+        "createFailed": "Failed to create recipe",
+        "statusChanged": "Status changed to {status}",
+        "statusChangeFailed": "Failed to update status",
         "loadFailed": "Failed to load recipes"
       },
       "status": {
@@ -1426,7 +1427,8 @@
         "outputDescription": "Output Description",
         "outputDescriptionPlaceholder": "Describes what the recipe outputs",
         "create": "Create Recipe",
-        "creating": "Creating..."
+        "creating": "Creating...",
+        "cancel": "Cancel"
       },
       "card": {
         "defaultAction": "Run Analysis",
@@ -1483,7 +1485,9 @@
       "action": {
         "run": "Run",
         "running": "...",
-        "deleting": "..."
+        "deleting": "...",
+        "edit": "Edit",
+        "delete": "Delete"
       },
       "empty": "No quality rules configured",
       "ruleType": {
@@ -1516,7 +1520,8 @@
         "create": "Create Rule",
         "creating": "Creating...",
         "update": "Update Rule",
-        "updating": "Updating..."
+        "updating": "Updating...",
+        "cancel": "Cancel"
       },
       "validation": {
         "required": "Required",
@@ -1531,11 +1536,9 @@
         "executeAllError": "Failed to execute rules",
         "rulePassed": "Rule passed ({value}%)",
         "ruleFailed": "Rule failed ({value}%)",
-        "toast": {
-          "createFailed": "Failed to create rule",
-          "updateFailed": "Failed to update rule",
-          "deleteFailed": "Failed to delete rule"
-        },
+        "createFailed": "Failed to create rule",
+        "updateFailed": "Failed to update rule",
+        "deleteFailed": "Failed to delete rule",
         "loadFailed": "Failed to load quality dashboard"
       },
       "deleteConfirm": {
@@ -1813,7 +1816,8 @@
         "sectionOntology": "Ontology",
         "ontologyMeta": "{id} v{version}",
         "differentOntologyWarning": "This query was executed on a different ontology version. Highlights may not match the current graph.",
-        "bindingsDropped": "{count, plural, one {# binding} other {# bindings}} could not be resolved against the current ontology and were skipped."
+        "bindingsDropped": "{count, plural, one {# binding} other {# bindings}} could not be resolved against the current ontology and were skipped.",
+        "loadOntologyFailed": "Failed to load ontology"
       },
       "feedback": {
         "good": "Good result",

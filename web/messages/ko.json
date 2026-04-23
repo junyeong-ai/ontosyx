@@ -1155,7 +1155,9 @@
       "action": {
         "test": "테스트 전송",
         "testing": "…",
-        "deleting": "…"
+        "deleting": "…",
+        "edit": "편집",
+        "delete": "삭제"
       },
       "channelType": {
         "slack_webhook": "Slack 웹훅",
@@ -1184,7 +1186,8 @@
         "create": "채널 생성",
         "creating": "생성 중…",
         "update": "채널 업데이트",
-        "updating": "업데이트 중…"
+        "updating": "업데이트 중…",
+        "cancel": "취소"
       },
       "validation": {
         "required": "필수",
@@ -1201,12 +1204,10 @@
         "testSuccess": "테스트 알림이 전송되었습니다",
         "testFailed": "테스트 실패: {error}",
         "testError": "테스트 알림 전송에 실패했습니다",
-        "toast": {
-          "createFailed": "채널 생성에 실패했습니다",
-          "updateFailed": "채널 업데이트에 실패했습니다",
-          "deleteFailed": "채널 삭제에 실패했습니다",
-          "unknownError": "알 수 없는 오류"
-        },
+        "createFailed": "채널 생성에 실패했습니다",
+        "updateFailed": "채널 업데이트에 실패했습니다",
+        "deleteFailed": "채널 삭제에 실패했습니다",
+        "unknownError": "알 수 없는 오류",
         "loadFailed": "알림 설정을 불러오지 못했습니다"
       },
       "deleteConfirm": {
@@ -1267,11 +1268,9 @@
         "updated": "리포트가 업데이트되었습니다",
         "deleted": "리포트가 삭제되었습니다",
         "executeError": "실행에 실패했습니다",
-        "toast": {
-          "deleteFailed": "삭제에 실패했습니다",
-          "updateFailed": "업데이트에 실패했습니다",
-          "createFailed": "리포트 생성에 실패했습니다"
-        },
+        "deleteFailed": "삭제에 실패했습니다",
+        "updateFailed": "업데이트에 실패했습니다",
+        "createFailed": "리포트 생성에 실패했습니다",
         "loadFailed": "리포트를 불러오지 못했습니다",
         "loadOntologiesFailed": "온톨로지를 불러오지 못했습니다"
       },
@@ -1289,7 +1288,10 @@
         "executeReport": "리포트 실행",
         "executing": "실행 중…",
         "results": "결과 ({count}행)",
-        "showingRows": "전체 {count}행 중 50행 표시"
+        "showingRows": "전체 {count}행 중 50행 표시",
+        "edit": "편집",
+        "delete": "삭제",
+        "cancel": "취소"
       },
       "edit": {
         "title": "제목",
@@ -1316,7 +1318,8 @@
         "widgetTypeSelectLabel": "위젯 유형",
         "public": "공개",
         "create": "리포트 생성",
-        "creating": "생성 중…"
+        "creating": "생성 중…",
+        "cancel": "취소"
       },
       "widgetType": {
         "table": "테이블",
@@ -1349,12 +1352,10 @@
         "created": "레시피가 생성되었습니다",
         "deleted": "레시피가 삭제되었습니다",
         "versionsError": "버전 이력을 불러오지 못했습니다",
-        "toast": {
-          "deleteFailed": "삭제에 실패했습니다",
-          "createFailed": "레시피 생성에 실패했습니다",
-          "statusChanged": "상태가 {status}(으)로 변경되었습니다",
-          "statusChangeFailed": "상태를 업데이트하지 못했습니다"
-        },
+        "deleteFailed": "삭제에 실패했습니다",
+        "createFailed": "레시피 생성에 실패했습니다",
+        "statusChanged": "상태가 {status}(으)로 변경되었습니다",
+        "statusChangeFailed": "상태를 업데이트하지 못했습니다",
         "loadFailed": "레시피를 불러오지 못했습니다"
       },
       "status": {
@@ -1408,7 +1409,8 @@
         "outputDescription": "출력 설명",
         "outputDescriptionPlaceholder": "레시피가 출력하는 내용 설명",
         "create": "레시피 생성",
-        "creating": "생성 중…"
+        "creating": "생성 중…",
+        "cancel": "취소"
       },
       "card": {
         "defaultAction": "분석 실행",
@@ -1465,7 +1467,9 @@
       "action": {
         "run": "실행",
         "running": "…",
-        "deleting": "…"
+        "deleting": "…",
+        "edit": "편집",
+        "delete": "삭제"
       },
       "empty": "등록된 품질 규칙이 없습니다",
       "ruleType": {
@@ -1498,7 +1502,8 @@
         "create": "규칙 생성",
         "creating": "생성 중…",
         "update": "규칙 수정",
-        "updating": "수정 중…"
+        "updating": "수정 중…",
+        "cancel": "취소"
       },
       "validation": {
         "required": "필수",
@@ -1513,11 +1518,9 @@
         "executeAllError": "규칙 실행에 실패했습니다",
         "rulePassed": "규칙 통과 ({value}%)",
         "ruleFailed": "규칙 실패 ({value}%)",
-        "toast": {
-          "createFailed": "규칙 생성에 실패했습니다",
-          "updateFailed": "규칙 수정에 실패했습니다",
-          "deleteFailed": "규칙 삭제에 실패했습니다"
-        },
+        "createFailed": "규칙 생성에 실패했습니다",
+        "updateFailed": "규칙 수정에 실패했습니다",
+        "deleteFailed": "규칙 삭제에 실패했습니다",
         "loadFailed": "품질 대시보드를 불러오지 못했습니다"
       },
       "deleteConfirm": {
@@ -1795,7 +1798,8 @@
         "sectionOntology": "온톨로지",
         "ontologyMeta": "{id} v{version}",
         "differentOntologyWarning": "이 쿼리는 다른 온톨로지 버전에서 실행되었습니다. 강조가 현재 그래프와 일치하지 않을 수 있습니다.",
-        "bindingsDropped": "현재 온톨로지에서 확인되지 않은 {count}개 바인딩은 건너뛰었습니다."
+        "bindingsDropped": "현재 온톨로지에서 확인되지 않은 {count}개 바인딩은 건너뛰었습니다.",
+        "loadOntologyFailed": "온톨로지를 불러오지 못했습니다"
       },
       "feedback": {
         "good": "좋은 결과",

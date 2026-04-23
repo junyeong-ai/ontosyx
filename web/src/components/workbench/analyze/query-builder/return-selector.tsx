@@ -137,7 +137,7 @@ export function ReturnSelector({
       {/* RETURN fields */}
       <div>
         <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          {t("header")}
+          {t("heading")}
         </span>
 
         {groups.length === 0 && (
