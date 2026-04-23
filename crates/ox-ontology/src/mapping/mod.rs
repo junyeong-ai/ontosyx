@@ -21,6 +21,7 @@
 
 pub mod legacy_source_mapping;
 pub mod link;
+pub mod lookup;
 pub mod object;
 pub mod property;
 pub mod refs;
@@ -30,6 +31,7 @@ pub use legacy_source_mapping::SourceMapping;
 pub use link::{
     EndpointRef, JoinCostHint, LinkCardinality, LinkMappingDef, LinkMappingKind,
 };
+pub use lookup::ObjectMappingLookup;
 pub use object::ObjectMappingDef;
 pub use property::{PropertyLocation, PropertyMappingDef, PropertyTransform};
 pub use refs::{

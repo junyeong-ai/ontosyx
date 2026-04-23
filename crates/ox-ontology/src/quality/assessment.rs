@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::ir::OntologyIR;
 use crate::source_analysis::ColumnClarification;
-use crate::mapping::SourceMapping;
+use crate::mapping::ObjectMappingLookup;
 use ox_core::source_schema::{SourceProfile, SourceSchema};
 
 use super::types::{
@@ -23,15 +23,23 @@ use super::types::{
 /// Columns that have user-provided `column_clarifications` are excluded from
 /// data-observation checks (opaque enum, numeric enum, single value bias, sparse property)
 /// since the user has already provided domain context for those columns.
-pub fn assess_quality(
+///
+/// Accepts either the legacy `SourceMapping` or a canonical
+/// `&[ObjectMappingDef]` slice via the `ObjectMappingLookup` trait
+/// — see `source_analysis::apply_pii_classifications` for the
+/// same migration bridge.
+pub fn assess_quality<M>(
     ontology: &OntologyIR,
     schema: Option<&SourceSchema>,
     profile: Option<&SourceProfile>,
-    source_mapping: &SourceMapping,
+    source_mapping: &M,
     excluded_tables: &[String],
     column_clarifications: &[ColumnClarification],
     config: &QualityConfig,
-) -> OntologyQualityReport {
+) -> OntologyQualityReport
+where
+    M: ?Sized + ObjectMappingLookup,
+{
     let mut gaps = Vec::new();
     let excluded_tables = excluded_tables
         .iter()
