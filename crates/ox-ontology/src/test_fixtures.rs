@@ -24,17 +24,80 @@ fn pk(s: &str) -> PropertyKey {
 }
 
 /// Create a simple non-nullable string property with the given id and name.
+/// Shorthand for [`property_nullable`] with `nullable = false`.
 pub fn property(id: &str, name: &str) -> PropertyDef {
+    property_nullable(id, name, false)
+}
+
+/// String property with caller-specified nullability — for tests
+/// that need to exercise both nullable and required paths from the
+/// same fixture surface.
+pub fn property_nullable(id: &str, name: &str, nullable: bool) -> PropertyDef {
     PropertyDef {
         id: id.into(),
         name: pk(name),
         property_type: PropertyType::String,
-        nullable: false,
+        nullable,
         default_value: None,
         description: LocalizedText::default(),
         classification: None,
         ..Default::default()
     }
+}
+
+/// Minimal single-node ontology with a self-referencing `OWNS` edge
+/// and a single index on `email`. Used by the IR tests + validation
+/// tests as the shared starting point — each test mutates its own
+/// clone, so fixture stability matters across both test modules.
+///
+/// Schema:
+/// - Node `User` with `id`, `email` (both required string)
+/// - Unique constraint on `email`, Exists constraint on `id`
+/// - Self-referencing edge `OWNS` (OneToMany)
+/// - Single index on `(User, email)`
+pub fn sample_user_ontology() -> OntologyIR {
+    OntologyIR::new(
+        "test".to_string(),
+        "Test".to_string(),
+        LocalizedText::default(),
+        1,
+        vec![NodeTypeDef {
+            id: "node-user".into(),
+            label: gl("User"),
+            description: LocalizedText::default(),
+            properties: vec![property("prop-id", "id"), property("prop-email", "email")],
+            constraints: vec![
+                ConstraintDef {
+                    id: "cst-unique-email".into(),
+                    constraint: NodeConstraint::Unique {
+                        property_ids: vec!["prop-email".into()],
+                    },
+                },
+                ConstraintDef {
+                    id: "cst-exists-id".into(),
+                    constraint: NodeConstraint::Exists {
+                        property_id: "prop-id".into(),
+                    },
+                },
+            ],
+            ..Default::default()
+        }],
+        vec![EdgeTypeDef {
+            id: "edge-owns".into(),
+            label: gl("OWNS"),
+            description: LocalizedText::default(),
+            source_node_id: "node-user".into(),
+            target_node_id: "node-user".into(),
+            properties: vec![],
+            cardinality: Cardinality::OneToMany,
+            ..Default::default()
+        }],
+        vec![IndexDef::Single {
+            id: "idx-user-email".to_string(),
+            node_id: "node-user".into(),
+            property_id: "prop-email".into(),
+        }],
+    )
 }
 
 /// Build a standard test ontology with Person, Company, WORKS_AT edge, and one index.

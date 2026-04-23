@@ -591,71 +591,18 @@ impl OntologyIR {
 
 #[cfg(test)]
 mod tests {
-    use ox_core::graph_label::GraphLabel;
-    use ox_core::i18n::LocalizedText;
     use crate::ir::*;
-    use ox_core::property_key::PropertyKey;
-    use ox_core::types::PropertyType;
+    use ox_core::i18n::LocalizedText;
 
-    fn property(id: &str, name: &str, nullable: bool) -> PropertyDef {
-        PropertyDef {
-            id: id.into(),
-            name: PropertyKey::new(name).expect("test property name must be valid"),
-            property_type: PropertyType::String,
-            nullable,
-            default_value: None,
-            description: LocalizedText::default(),
-            classification: None,
-            ..Default::default()
-        }
-    }
+    // Shared fixture helpers — validation tests and the sibling
+    // `ir::tests` module both draw from `test_fixtures` so the
+    // starting ontology stays byte-identical across modules.
+    // Diverging the two fixtures silently in the past has caused
+    // tests to pass on one shape while failing on the other.
+    use crate::test_fixtures::{property_nullable as property, sample_user_ontology};
 
     fn base_ontology() -> OntologyIR {
-        OntologyIR::new(
-            "test".to_string(),
-            "Test".to_string(),
-            LocalizedText::default(),
-            1,
-            vec![NodeTypeDef {
-                id: "node-user".into(),
-                label: GraphLabel::new("User").expect("User is a valid label"),
-                description: LocalizedText::default(),
-                properties: vec![
-                    property("prop-id", "id", false),
-                    property("prop-email", "email", false),
-                ],
-                constraints: vec![
-                    ConstraintDef {
-                        id: "cst-unique-email".into(),
-                        constraint: NodeConstraint::Unique {
-                            property_ids: vec!["prop-email".into()],
-                        },
-                    },
-                    ConstraintDef {
-                        id: "cst-exists-id".into(),
-                        constraint: NodeConstraint::Exists {
-                            property_id: "prop-id".into(),
-                        },
-                    },
-                ],
-                ..Default::default()
-            }],
-            vec![EdgeTypeDef {
-                id: "edge-owns".into(),
-                label: GraphLabel::new("OWNS").expect("OWNS is valid"),
-                description: LocalizedText::default(),
-                source_node_id: "node-user".into(),
-                target_node_id: "node-user".into(),
-                properties: vec![],
-                cardinality: Cardinality::OneToMany,
-                ..Default::default()
-            }],
-            vec![IndexDef::Single {
-                id: "idx-user-email".to_string(),
-                node_id: "node-user".into(),
-                property_id: "prop-email".into(),
-            }],
-        )
+        sample_user_ontology()
     }
 
     #[test]
