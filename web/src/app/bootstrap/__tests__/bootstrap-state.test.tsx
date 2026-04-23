@@ -3,6 +3,7 @@ import { act, renderHook } from "@testing-library/react";
 
 import {
   BootstrapProvider,
+  __resetBootstrapStore,
   useBootstrap,
 } from "@/app/bootstrap/bootstrap-state";
 
@@ -13,6 +14,10 @@ function wrapper({ children }: { children: React.ReactNode }) {
 describe("BootstrapProvider", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    // Reset the module-scope snapshot so each test starts with fresh
+    // hydration semantics (the store hydrates lazily on the first
+    // subscribe — the reset helper simulates a fresh page load).
+    __resetBootstrapStore();
   });
 
   it("starts in the empty state", () => {
@@ -60,14 +65,18 @@ describe("BootstrapProvider", () => {
     expect(window.localStorage.getItem("ontosyx.bootstrap.v1")).toBeNull();
   });
 
-  it("re-hydrates from localStorage on mount", () => {
+  it("re-hydrates from localStorage on mount", async () => {
     window.localStorage.setItem(
       "ontosyx.bootstrap.v1",
       JSON.stringify({ pilotName: "Resumed pilot", completedSteps: ["1-pilot"] }),
     );
     const { result } = renderHook(() => useBootstrap(), { wrapper });
-    // Hydration runs in an effect, triggering a re-render. The hook
-    // result updates, so assert via the latest `result.current`.
+    // Hydration is scheduled on a microtask by the subscribe path so
+    // the first render emits the server-matched EMPTY snapshot, then
+    // the store notifies and React re-renders with stored values.
+    await act(async () => {
+      await Promise.resolve();
+    });
     expect(result.current.state.pilotName).toBe("Resumed pilot");
     expect(result.current.state.completedSteps).toEqual(["1-pilot"]);
   });
