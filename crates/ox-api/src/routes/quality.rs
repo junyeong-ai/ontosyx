@@ -12,6 +12,7 @@ use ox_core::types::PropertyValue;
 use ox_store::{
     MetricWindow, QualityDashboardEntry, QualityMetricsReport, QualityResult, QualityRule,
     ShaclFailureCount, StaleConceptProposal, StaleProposalDecision, StaleTypeEntry,
+    WorkspaceQualityBaseline,
 };
 
 use crate::error::AppError;
@@ -608,6 +609,31 @@ pub(crate) async fn list_shacl_failures(
         .await
         .map_err(AppError::from)?;
     Ok(ApiResponse::of(rows))
+}
+
+/// `GET /api/quality/baseline` — current workspace's adaptive
+/// threshold snapshot.
+///
+/// Returns `null` when the daily cron hasn't populated the row
+/// yet (fresh workspace, or run is still pending the first tick).
+/// The frontend treats `null` as "insufficient evidence" and
+/// falls back to its hardcoded prior; the same fallback applies
+/// when `sample_size` is below the FE-side minimum. This is Phase
+/// B of the adaptive-threshold rollout: the banner consumes the
+/// JSONB `thresholds` bundle at render time when present and
+/// drops into the hardcoded defaults when not — no config flip,
+/// no deploy.
+pub(crate) async fn get_quality_baseline(
+    State(state): State<AppState>,
+    _principal: Principal,
+    _ws: WorkspaceContext,
+) -> Result<Json<ApiResponse<Option<WorkspaceQualityBaseline>>>, AppError> {
+    let baseline = state
+        .store
+        .get_quality_baseline()
+        .await
+        .map_err(AppError::from)?;
+    Ok(ApiResponse::of(baseline))
 }
 
 #[derive(Debug, Deserialize)]

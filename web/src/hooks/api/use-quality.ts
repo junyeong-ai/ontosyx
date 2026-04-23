@@ -8,12 +8,14 @@ import {
 } from "@tanstack/react-query";
 import {
   decideStaleProposal,
+  getQualityBaseline,
   getQualityMetrics,
   listShaclFailures,
   listStaleProposals,
   listStaleTypes,
   listTypeCandidates,
   type MetricWindow,
+  type QualityBaseline,
   type TypeCandidate,
 } from "@/lib/api/quality";
 import type { StaleConceptProposal } from "@/types/api";
@@ -22,6 +24,7 @@ export const qualityKeys = {
   all: ["quality-signals"] as const,
   metrics: (window: MetricWindow) =>
     [...qualityKeys.all, "metrics", window] as const,
+  baseline: () => [...qualityKeys.all, "baseline"] as const,
   shaclFailures: (window: MetricWindow) =>
     [...qualityKeys.all, "shacl-failures", window] as const,
   stale: (days: number) => [...qualityKeys.all, "stale", days] as const,
@@ -33,6 +36,22 @@ export function useQualityMetrics(window: MetricWindow = "7d") {
   return useQuery({
     queryKey: qualityKeys.metrics(window),
     queryFn: () => getQualityMetrics(window),
+  });
+}
+
+/// Fetch the workspace's adaptive-threshold snapshot. Returns
+/// `null` until the daily cron runs; callers that render banners
+/// merge this with their hardcoded prior — see
+/// `lib/quality/alerts.ts::resolveThresholds`.
+///
+/// Refetched at `staleTime: 5min` — the underlying row changes
+/// at most once per 24h, so aggressive cache + background refetch
+/// on tab focus keeps the UI responsive without hammering the API.
+export function useQualityBaseline() {
+  return useQuery<QualityBaseline | null>({
+    queryKey: qualityKeys.baseline(),
+    queryFn: () => getQualityBaseline(),
+    staleTime: 5 * 60 * 1000,
   });
 }
 

@@ -6,8 +6,10 @@ import {
   alertSignature,
   computeQualityAlerts,
   dominantAlert,
+  resolveThresholds,
   type ThresholdSpec,
 } from "@/lib/quality/alerts";
+import type { QualityBaseline } from "@/lib/api/quality";
 import type { QualityMetricsReport } from "@/types/api";
 
 // Tiny builder — every field defaults to a "healthy" value so tests
@@ -124,6 +126,80 @@ describe("alertSignature", () => {
     const a1 = [{ metric: "shacl_pass_rate", severity: "warning", value: 0.85, threshold: 0.9 }] as const;
     const a2 = [{ metric: "shacl_pass_rate", severity: "critical", value: 0.5, threshold: 0.8 }] as const;
     expect(alertSignature([...a1])).not.toBe(alertSignature([...a2]));
+  });
+});
+
+describe("resolveThresholds", () => {
+  function baseline(
+    overrides: Partial<QualityBaseline> = {},
+  ): QualityBaseline {
+    return {
+      workspace_id: "ws-1",
+      window: "30d",
+      sample_size: 100,
+      thresholds: {},
+      computed_at: "2026-04-23T00:00:00Z",
+      ...overrides,
+    };
+  }
+
+  it("falls back to DEFAULT_THRESHOLDS when baseline is null", () => {
+    expect(resolveThresholds(null)).toBe(DEFAULT_THRESHOLDS);
+  });
+
+  it("falls back when sample_size is below the floor", () => {
+    // A baseline built from 10 samples is statistically useless —
+    // the banner must stay on the hardcoded prior instead of
+    // anchoring to a noisy workspace-local median.
+    const b = baseline({
+      sample_size: 10,
+      thresholds: {
+        shacl_pass_rate: { median: 0.5, mad: 0.1, warn: 0.4, critical: 0.3 },
+      },
+    });
+    expect(resolveThresholds(b)).toBe(DEFAULT_THRESHOLDS);
+  });
+
+  it("swaps in adaptive warn/critical values per metric", () => {
+    const b = baseline({
+      thresholds: {
+        shacl_pass_rate: { median: 0.95, mad: 0.02, warn: 0.91, critical: 0.89 },
+      },
+    });
+    const out = resolveThresholds(b);
+    expect(out.shacl_pass_rate.warning).toBe(0.91);
+    expect(out.shacl_pass_rate.critical).toBe(0.89);
+    // Direction is kept from the default — the cron only emits
+    // numeric bands, not direction — so higher_is_better stays.
+    expect(out.shacl_pass_rate.direction).toBe("higher_is_better");
+  });
+
+  it("leaves metrics missing from the baseline on their default", () => {
+    // Phase C adds a new metric before the cron sees it — the new
+    // metric keeps the hardcoded prior while established metrics
+    // use the adaptive one.
+    const b = baseline({
+      thresholds: {
+        shacl_pass_rate: { median: 0.95, mad: 0.02, warn: 0.91, critical: 0.89 },
+      },
+    });
+    const out = resolveThresholds(b);
+    expect(out.glossary_hit_rate).toEqual(DEFAULT_THRESHOLDS.glossary_hit_rate);
+  });
+
+  it("preserves the lower-is-better direction on stale_concept_ratio", () => {
+    // stale_concept_ratio is the only metric whose threshold bands
+    // sit above the median — make sure the direction flag survives
+    // the merge (the cron's JSONB has no direction field).
+    const b = baseline({
+      thresholds: {
+        stale_concept_ratio: { median: 0.05, mad: 0.02, warn: 0.09, critical: 0.11 },
+      },
+    });
+    const out = resolveThresholds(b);
+    expect(out.stale_concept_ratio.direction).toBe("lower_is_better");
+    expect(out.stale_concept_ratio.warning).toBe(0.09);
+    expect(out.stale_concept_ratio.critical).toBe(0.11);
   });
 });
 

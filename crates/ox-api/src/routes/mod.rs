@@ -387,6 +387,7 @@ pub fn router(state: AppState) -> Router {
         .route("/quality/dashboard", get(quality::quality_dashboard))
         // 6-창 ontology-quality metrics (signal-backed)
         .route("/quality/metrics", get(quality::get_quality_metrics))
+        .route("/quality/baseline", get(quality::get_quality_baseline))
         .route("/quality/shacl-failures", get(quality::list_shacl_failures))
         .route("/quality/stale-types", get(quality::list_stale_types))
         .route(

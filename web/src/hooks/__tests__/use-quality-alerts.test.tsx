@@ -5,8 +5,17 @@ import type { ReactNode } from "react";
 
 // Stub the data layer so the hook's tests don't need a fetch mock.
 const mockUseQualityMetrics = vi.fn();
+// Baseline defaults to `null` — hardcoded prior thresholds apply,
+// which matches the pre-Phase-B behaviour these tests were written
+// against. Individual tests can override when exercising the
+// adaptive branch.
+const mockUseQualityBaseline = vi.fn(() => ({
+  data: null,
+  isLoading: false,
+}));
 vi.mock("@/hooks/api/use-quality", () => ({
   useQualityMetrics: (...args: unknown[]) => mockUseQualityMetrics(...args),
+  useQualityBaseline: (...args: unknown[]) => mockUseQualityBaseline(...args),
 }));
 
 import { useQualityAlerts } from "@/hooks/use-quality-alerts";

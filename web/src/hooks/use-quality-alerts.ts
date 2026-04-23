@@ -8,11 +8,12 @@
 
 import { useCallback, useMemo, useState } from "react";
 
-import { useQualityMetrics } from "@/hooks/api/use-quality";
+import { useQualityBaseline, useQualityMetrics } from "@/hooks/api/use-quality";
 import type { MetricWindow } from "@/lib/api/quality";
 import {
   alertSignature,
   computeQualityAlerts,
+  resolveThresholds,
   type QualityAlert,
 } from "@/lib/quality/alerts";
 
@@ -63,9 +64,19 @@ export function useQualityAlerts(
   window: MetricWindow = "7d",
 ): UseQualityAlertsResult {
   const query = useQualityMetrics(window);
+  // Pulled in parallel with the metrics fetch — the baseline query
+  // caches for 5 minutes, so steady-state renders incur zero extra
+  // cost. On the very first render the banner uses the hardcoded
+  // prior via the `resolveThresholds` fallback and swaps in the
+  // adaptive one as soon as the baseline resolves.
+  const baseline = useQualityBaseline();
+  const thresholds = useMemo(
+    () => resolveThresholds(baseline.data),
+    [baseline.data],
+  );
   const alerts = useMemo(
-    () => (query.data ? computeQualityAlerts(query.data) : []),
-    [query.data],
+    () => (query.data ? computeQualityAlerts(query.data, thresholds) : []),
+    [query.data, thresholds],
   );
 
   const signature = useMemo(() => alertSignature(alerts), [alerts]);

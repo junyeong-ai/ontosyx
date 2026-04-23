@@ -6,6 +6,7 @@
 // transport (how do we fetch it?) and the presentation (what does
 // the banner look like?). Easier to test, easier to tune.
 
+import type { QualityBaseline } from "@/lib/api/quality";
 import type { QualityMetricsReport } from "@/types/api";
 
 // ---------------------------------------------------------------------------
@@ -84,6 +85,49 @@ export const DEFAULT_THRESHOLDS: Record<MetricKey, ThresholdSpec> = {
  * window to build sample) for much less alert flapping.
  */
 export const MIN_SAMPLE_SIZE = 20;
+
+/**
+ * Baseline-driven threshold resolution (Phase B).
+ *
+ * The daily cron computes `median ± k·MAD` per metric per workspace
+ * and persists the bundle as `workspace_quality_baseline.thresholds`.
+ * When that baseline carries enough signal (`sample_size` at or
+ * above `MIN_SAMPLE_SIZE`), each metric's `warn` / `critical` lines
+ * are picked from the baseline so alerts reflect this workspace's
+ * own distribution instead of the global prior.
+ *
+ * Falls back to `DEFAULT_THRESHOLDS` when:
+ * - `baseline` is `null` (cron hasn't populated the row yet), or
+ * - `baseline.sample_size < MIN_SAMPLE_SIZE` (not enough signal to
+ *   trust the median / MAD), or
+ * - an individual metric is missing from the baseline bundle
+ *   (which happens when a new metric is added before the cron's
+ *   next run).
+ *
+ * Per-metric fallback, not all-or-nothing — a new metric inherits
+ * the hardcoded prior while established metrics use the adaptive
+ * one. Direction is kept from the defaults because the cron's
+ * JSONB doesn't carry it (it's a compile-time property).
+ */
+export function resolveThresholds(
+  baseline: QualityBaseline | null | undefined,
+  minSampleSize: number = MIN_SAMPLE_SIZE,
+): Record<MetricKey, ThresholdSpec> {
+  if (!baseline || baseline.sample_size < minSampleSize) {
+    return DEFAULT_THRESHOLDS;
+  }
+  const out: Record<MetricKey, ThresholdSpec> = { ...DEFAULT_THRESHOLDS };
+  for (const metric of Object.keys(DEFAULT_THRESHOLDS) as MetricKey[]) {
+    const adaptive = baseline.thresholds[metric];
+    if (!adaptive) continue;
+    out[metric] = {
+      direction: DEFAULT_THRESHOLDS[metric].direction,
+      warning: adaptive.warn,
+      critical: adaptive.critical,
+    };
+  }
+  return out;
+}
 
 // ---------------------------------------------------------------------------
 // Alert derivation
