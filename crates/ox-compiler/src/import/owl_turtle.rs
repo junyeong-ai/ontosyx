@@ -148,7 +148,18 @@ struct ClassInfo {
 /// - `owl:Restriction` (cardinality) -> Cardinality on edges
 ///
 /// Unsupported constructs are silently skipped with a tracing warning.
-pub fn parse_owl_turtle(turtle: &str) -> OxResult<OntologyIR> {
+///
+/// `source_id` stamps every emitted `ObjectMappingDef` with the
+/// source the OWL document represents. OWL imports almost never
+/// declare `source_table` / `source_column` (the RDF has no data-
+/// source vocabulary), so in practice no mappings are emitted and
+/// the id is only consulted if a future extension adds them — but
+/// plumbing the id through keeps the call site explicit about the
+/// identity the import assumes.
+pub fn parse_owl_turtle(
+    turtle: &str,
+    source_id: &ox_ontology::mapping::SourceId,
+) -> OxResult<OntologyIR> {
     // Phase 1: Parse into owned triples
     let triples = parse_triples(turtle)?;
 
@@ -156,7 +167,7 @@ pub fn parse_owl_turtle(turtle: &str) -> OxResult<OntologyIR> {
     let input = extract_ontology_input(&triples)?;
 
     // Use normalize() to assign proper UUIDs and resolve references
-    let result = normalize(input).map_err(|errors| OxError::Compilation {
+    let result = normalize(input, source_id).map_err(|errors| OxError::Compilation {
         message: format!("OWL import normalization failed: {}", errors.join("; ")),
     })?;
 
@@ -744,6 +755,10 @@ mod tests {
         GraphLabel::new(s).expect("test label literal must be valid")
     }
 
+    fn test_source_id() -> ox_ontology::mapping::SourceId {
+        ox_ontology::mapping::SourceId::new("owl:test-fixture")
+    }
+
     fn pk(s: &'static str) -> PropertyKey {
         PropertyKey::new(s).expect("test property name literal must be valid")
     }
@@ -751,7 +766,7 @@ mod tests {
     /// then parse it back.
     fn roundtrip(ontology: &OntologyIR) -> OntologyIR {
         let turtle = crate::export::generate_owl_turtle(ontology);
-        parse_owl_turtle(&turtle).expect("roundtrip parse should succeed")
+        parse_owl_turtle(&turtle, &test_source_id()).expect("roundtrip parse should succeed")
     }
 
     fn sample_ontology() -> OntologyIR {
@@ -842,7 +857,7 @@ mod tests {
                 rdfs:comment "A human being" .
         "#;
 
-        let result = parse_owl_turtle(turtle).unwrap();
+        let result = parse_owl_turtle(turtle, &test_source_id()).unwrap();
         assert_eq!(result.name, "Test");
         assert_eq!(result.node_types().len(), 1);
         assert_eq!(result.node_types()[0].label, "Person");
@@ -875,7 +890,7 @@ mod tests {
                 rdfs:range xsd:integer .
         "#;
 
-        let result = parse_owl_turtle(turtle).unwrap();
+        let result = parse_owl_turtle(turtle, &test_source_id()).unwrap();
         let person = &result.node_types()[0];
         assert_eq!(person.properties.len(), 2);
 
@@ -905,7 +920,7 @@ mod tests {
                 rdfs:range :Company .
         "#;
 
-        let result = parse_owl_turtle(turtle).unwrap();
+        let result = parse_owl_turtle(turtle, &test_source_id()).unwrap();
         assert_eq!(result.edge_types().len(), 1);
 
         let edge = &result.edge_types()[0];
@@ -940,7 +955,7 @@ mod tests {
                 rdfs:range xsd:string .
         "#;
 
-        let result = parse_owl_turtle(turtle).unwrap();
+        let result = parse_owl_turtle(turtle, &test_source_id()).unwrap();
         let person = &result.node_types()[0];
 
         // Should have a Unique constraint on "email"
@@ -990,7 +1005,7 @@ mod tests {
             ] .
         "#;
 
-        let result = parse_owl_turtle(turtle).unwrap();
+        let result = parse_owl_turtle(turtle, &test_source_id()).unwrap();
         let edge = &result.edge_types()[0];
         assert_eq!(edge.cardinality, Cardinality::ManyToOne);
     }
@@ -1037,7 +1052,7 @@ mod tests {
                 rdfs:range :Product .
         "#;
 
-        let result = parse_owl_turtle(turtle).unwrap();
+        let result = parse_owl_turtle(turtle, &test_source_id()).unwrap();
 
         assert_eq!(result.name, "E-Commerce");
         assert_eq!(
@@ -1200,7 +1215,7 @@ mod tests {
                 rdfs:domain :Thing .
         "#;
 
-        let result = parse_owl_turtle(turtle).unwrap();
+        let result = parse_owl_turtle(turtle, &test_source_id()).unwrap();
         // orphanProp should be skipped (no domain)
         let thing = &result.node_types()[0];
         assert!(thing.properties.is_empty());
@@ -1211,7 +1226,7 @@ mod tests {
     #[test]
     fn test_invalid_turtle() {
         let bad = "this is not valid turtle @@@!!";
-        let err = parse_owl_turtle(bad).unwrap_err();
+        let err = parse_owl_turtle(bad, &test_source_id()).unwrap_err();
         match err {
             OxError::Compilation { message } => {
                 assert!(message.contains("Failed to parse Turtle"));
@@ -1229,7 +1244,7 @@ mod tests {
             <http://example.org> a owl:Ontology ; rdfs:label "Empty" .
         "#;
 
-        let err = parse_owl_turtle(turtle).unwrap_err();
+        let err = parse_owl_turtle(turtle, &test_source_id()).unwrap_err();
         match err {
             OxError::Compilation { message } => {
                 assert!(message.contains("No owl:Class declarations"));
@@ -1249,7 +1264,7 @@ mod tests {
             :MyClass a owl:Class .
         "#;
 
-        let result = parse_owl_turtle(turtle).unwrap();
+        let result = parse_owl_turtle(turtle, &test_source_id()).unwrap();
         assert_eq!(result.node_types()[0].label, "MyClass");
     }
 
@@ -1271,7 +1286,7 @@ mod tests {
                 rdfs:range :B .
         "#;
 
-        let result = parse_owl_turtle(turtle).unwrap();
+        let result = parse_owl_turtle(turtle, &test_source_id()).unwrap();
         assert_eq!(result.edge_types()[0].cardinality, Cardinality::ManyToMany);
     }
 

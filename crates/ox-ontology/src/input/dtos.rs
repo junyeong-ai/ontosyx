@@ -79,7 +79,8 @@ pub struct InputNodeTypeDef {
     #[serde(default)]
     pub description: LocalizedText,
     /// Source table name this node was derived from (e.g., "products").
-    /// Extracted into SourceMapping during normalization; not stored on OntologyIR.
+    /// Turned into an `ObjectMappingDef.relation` on the normalized
+    /// `OntologyIR`; not retained on `NodeTypeDef` itself.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_table: Option<String>,
     #[serde(default)]
@@ -126,7 +127,9 @@ pub struct InputPropertyDef {
     #[serde(default)]
     pub description: LocalizedText,
     /// Source column name this property was derived from (e.g., "cust_nm").
-    /// Extracted into SourceMapping during normalization; not stored on OntologyIR.
+    /// Turned into a `PropertyMappingDef` on the enclosing
+    /// `ObjectMappingDef` during normalization; not retained on
+    /// `PropertyDef` itself.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_column: Option<String>,
 }

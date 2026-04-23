@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use ox_ontology::design_project::{DesignProjectStatus, SourceHistoryEntry};
 use ox_ontology::ir::OntologyIR;
+use ox_ontology::mapping::SourceId;
 use ox_core::source_schema::{SourceProfile, SourceSchema};
 use ox_source::analyzer::build_design_context;
 
@@ -56,7 +57,6 @@ pub(crate) async fn extend_project(
                 id,
                 project.revision,
                 ont,
-                project.source_mapping.as_ref(),
                 project.quality_report.as_ref(),
             )
             .await
@@ -146,11 +146,16 @@ pub(crate) async fn extend_project(
     let timeout =
         std::time::Duration::from_secs(state.system_config.read().await.design_timeout_secs());
     let design_started = Instant::now();
-    let (new_ontology, new_source_mapping) = tokio::time::timeout(
+    // The extend flow attaches a NEW source to an existing project.
+    // SourceId for the new source comes from its config fingerprint
+    // so federation plan caches keyed by source agree with the
+    // object_mappings that normalize() stamps with this id.
+    let new_source_id = SourceId::from_source_config(&new_source_config);
+    let new_ontology = tokio::time::timeout(
         timeout,
         state
             .brain
-            .design_ontology(&sample_data, &effective_context),
+            .design_ontology(&sample_data, &effective_context, &new_source_id),
     )
     .await
     .map_err(|_| {
@@ -175,30 +180,17 @@ pub(crate) async fn extend_project(
         "LLM extension design completed"
     );
 
-    // 5. Reconcile: merge new ontology with existing (preserves existing IDs)
+    // 5. Reconcile: merge new ontology with existing (preserves existing IDs).
+    //    ObjectMappingDef entries on both sides carry distinct
+    //    `source_id` stamps, so the reconcile + canonical mapping
+    //    layer resolves multi-source topology naturally — federation
+    //    planner already honours precedence + id uniqueness.
     let reconciled = ox_ontology::command::reconcile_refined(&existing_ontology, new_ontology)
         .map_err(|e| AppError::internal(format!("Reconcile produced invalid ontology: {e}")))?;
 
     let merged = reconciled.ontology;
 
-    // 6. Merge source mappings: existing + new
-    let existing_mapping: ox_ontology::mapping::SourceMapping = project
-        .source_mapping
-        .as_ref()
-        .map(|v| serde_json::from_value(v.clone()))
-        .transpose()
-        .map_err(|e| AppError::internal(format!("Corrupt source_mapping: {e}")))?
-        .unwrap_or_default();
-
-    let mut merged_mapping = existing_mapping;
-    for (k, v) in new_source_mapping.node_tables {
-        merged_mapping.node_tables.entry(k).or_insert(v);
-    }
-    for (k, v) in new_source_mapping.property_columns {
-        merged_mapping.property_columns.entry(k).or_insert(v);
-    }
-
-    // 7. Merge source schemas and profiles so quality assessment covers both sources
+    // 6. Merge source schemas and profiles so quality assessment covers both sources
     let mut merged_schema: SourceSchema = project
         .source_schema
         .as_ref()
@@ -248,12 +240,14 @@ pub(crate) async fn extend_project(
         }
     }
 
-    // 8. Re-assess quality with merged schema/profile
+    // 8. Re-assess quality with merged schema/profile. Quality reads
+    //    mapping information directly from the canonical
+    //    ObjectMappingDef list on the merged ontology.
     let quality_report = ox_ontology::quality::assess_quality(
         &merged,
         Some(&merged_schema),
         Some(&merged_profile),
-        &merged_mapping,
+        merged.object_mappings(),
         &existing_opts.excluded_tables,
         &existing_opts.column_clarifications,
         &ox_ontology::quality::QualityConfig::default(),
@@ -272,10 +266,11 @@ pub(crate) async fn extend_project(
         serde_json::from_value(project.source_history.clone()).unwrap_or_default();
     history.push(new_history_entry);
 
-    // 10. Persist — includes merged source schema/profile and updated source history
+    // 10. Persist — merged schema/profile + updated source history.
+    //     Mapping state lives inside `ontology` (object_mappings),
+    //     so ExtendResult no longer carries a separate blob.
     let extend_result = ox_store::store::ExtendResult {
         ontology: AppError::to_json(&merged)?,
-        source_mapping: AppError::to_json(&merged_mapping)?,
         quality_report: AppError::to_json(&quality_report)?,
         source_schema: AppError::to_json(&merged_schema)?,
         source_profile: AppError::to_json(&merged_profile)?,

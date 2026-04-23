@@ -52,12 +52,18 @@ export interface DesignProject {
   revision: number;
   title: string | null;
   source_config: SourceConfig;
+  /**
+   * Canonical `{source_type}:{fingerprint}` identity for the project's
+   * primary data source. Stamped onto every ObjectMappingDef carried by
+   * the ontology — federation plans and plan-cache keys both round-trip
+   * through this id.
+   */
+  source_id: string;
   source_data: string | null;
   source_schema: SourceSchema | null;
   source_profile: SourceProfile | null;
   analysis_report: SourceAnalysisReport | null;
   design_options: DesignOptions;
-  source_mapping: SourceMapping | null;
   ontology: OntologyIR | null;
   quality_report: OntologyQualityReport | null;
   /** FK to `ontologies.id` — the committed identity this project was
@@ -362,11 +368,6 @@ export interface SourceSchema {
   source_type: string;
   tables: SourceTableDef[];
   foreign_keys: ForeignKeyDef[];
-}
-
-export interface SourceMapping {
-  node_tables: Record<string, string>;
-  property_columns: Record<string, string>;
 }
 
 export interface ColumnStats {

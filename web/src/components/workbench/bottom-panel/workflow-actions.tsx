@@ -822,8 +822,10 @@ export function WorkflowActions({
         <GraphAuditSection ontologyId={project.ontology_id} />
       )}
 
-      {/* Load Data */}
-      {isCompleted && project.ontology && project.source_mapping && (
+      {/* Load Data — object_mappings live on the ontology itself now,
+          so a completed project with an ontology always has mapping
+          state. */}
+      {isCompleted && project.ontology && (
         <div className="space-y-2 rounded-lg border border-purple-200 bg-purple-50/50 p-3 dark:border-purple-900 dark:bg-purple-950/20">
           <h4 className="text-xs font-semibold text-purple-800 dark:text-purple-200">
             {t("dataLoading")}

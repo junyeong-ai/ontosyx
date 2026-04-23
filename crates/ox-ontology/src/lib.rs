@@ -7,7 +7,7 @@
 //! primitives (`OxError`, newtypes, time).
 //!
 //! Phase 3-B (2026-04-20): `ontology_ir`, `ontology_input`,
-//! `ontology_command`, `ontology_diff`, `source_mapping`, `load_plan`,
+//! `ontology_command`, `ontology_diff`, `load_plan`,
 //! `graph_audit`, `source_analysis`, `quality`, `test_fixtures`,
 //! `table_clustering`, `design_project`, `widget_spec`,
 //! `repo_insights`, `graph_exploration` migrated here from
@@ -95,7 +95,7 @@ pub use diff::{
 };
 pub use input::{
     InputEdgeTypeDef, InputIndexDef, InputNodeConstraint, InputNodeTypeDef, InputPropertyDef,
-    NormalizeResult, NormalizeWarning, InputOntologyDef, normalize, to_exchange_format,
+    NormalizeOutcome, NormalizeWarning, InputOntologyDef, normalize, to_exchange_format,
 };
 pub use insight::InsightSuggestion;
 pub use ir::{AggregationRole, DataClassification, OntologyIR};
@@ -103,8 +103,7 @@ pub use load_plan::{LoadMode, LoadPlan};
 pub use mapping::{
     CacheHintKind, ColumnRef, EndpointRef, JoinCostHint, LinkCardinality, LinkMappingDef,
     LinkMappingId, LinkMappingKind, ObjectMappingDef, ObjectMappingId, PropertyLocation,
-    PropertyMappingDef, PropertyTransform, SourceId, SourceMapping, SourceRelationKind,
-    SourceRelationRef,
+    PropertyMappingDef, PropertyTransform, SourceId, SourceRelationKind, SourceRelationRef,
 };
 pub use metric::{MetricDef, MetricExpression, MetricId, MetricScope, TemporalGrain};
 pub use notation_pattern::{

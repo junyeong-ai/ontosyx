@@ -976,6 +976,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "name_eq",
+            "in": "query",
+            "description": "Return only the ontology whose workspace-scoped name matches exactly (0 or 1 items). When set, pagination is ignored.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1040,6 +1049,174 @@
                       "$ref": "#/components/schemas/ErrorBody"
                     }
                   }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontologies/{id}/glossary/suggest-bindings": {
+      "post": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "suggest_glossary_bindings",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Ontology identity ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuggestBindingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Candidate property bindings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuggestBindingsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontologies/{id}/properties/{owner_kind}/{owner_type_id}/{property_id}/suggest-terms": {
+      "post": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "suggest_glossary_terms_for_property",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Ontology identity ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "owner_kind",
+            "in": "path",
+            "description": "node | edge",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "owner_type_id",
+            "in": "path",
+            "description": "NodeTypeId or EdgeTypeId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "property_id",
+            "in": "path",
+            "description": "PropertyId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuggestTermsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Candidate glossary terms",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuggestTermsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontologies/{id}/value-sets/propose": {
+      "post": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "propose_ontology_value_sets",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Ontology identity ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposeValueSetsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Inference report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposeValueSetsResponse"
                 }
               }
             }
@@ -4009,6 +4186,66 @@
           }
         }
       },
+      "BindingPolicyBody": {
+        "type": "object",
+        "properties": {
+          "fuzzy_min_ratio": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float"
+          },
+          "max_results": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "min_score": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float"
+          },
+          "skip_already_bound": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "weight_alias_match": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float"
+          },
+          "weight_description_overlap": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float"
+          },
+          "weight_exact_name": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float"
+          },
+          "weight_fuzzy_name": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float"
+          }
+        }
+      },
       "ChatStreamRequest": {
         "type": "object",
         "required": [
@@ -4310,6 +4547,7 @@
           "revision",
           "user_id",
           "source_config",
+          "source_id",
           "design_options",
           "source_history",
           "created_at",
@@ -4354,7 +4592,10 @@
             ]
           },
           "source_history": {},
-          "source_mapping": {},
+          "source_id": {
+            "type": "string",
+            "description": "Canonical source identity (`{source_type}:{fingerprint}`)\nderived from `source_config` at project creation / reanalysis."
+          },
           "source_profile": {},
           "source_schema": {},
           "status": {
@@ -4461,6 +4702,43 @@
         "properties": {
           "error": {
             "$ref": "#/components/schemas/ErrorBody"
+          }
+        }
+      },
+      "EvidenceBody": {
+        "type": "object",
+        "required": [
+          "row_count",
+          "distinct_count",
+          "null_count",
+          "null_ratio",
+          "observed_codes"
+        ],
+        "properties": {
+          "distinct_count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "null_count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "null_ratio": {
+            "type": "number",
+            "format": "float"
+          },
+          "observed_codes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "row_count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           }
         }
       },
@@ -4821,8 +5099,7 @@
           "revision": {
             "type": "integer",
             "format": "int32"
-          },
-          "source_mapping": {}
+          }
         }
       },
       "OntologySnapshotSummary": {
@@ -5756,6 +6033,184 @@
           "variables": {}
         }
       },
+      "PropertyCandidateBody": {
+        "type": "object",
+        "required": [
+          "owner_kind",
+          "owner_type_id",
+          "owner_label",
+          "property_id",
+          "property_name",
+          "score",
+          "signals"
+        ],
+        "properties": {
+          "owner_kind": {
+            "type": "string"
+          },
+          "owner_label": {
+            "type": "string"
+          },
+          "owner_type_id": {
+            "type": "string"
+          },
+          "property_id": {
+            "type": "string"
+          },
+          "property_name": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number",
+            "format": "float"
+          },
+          "signals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SignalBody"
+            }
+          }
+        }
+      },
+      "ProposalBody": {
+        "type": "object",
+        "required": [
+          "relation",
+          "column",
+          "code_system_id",
+          "value_set_id",
+          "suggested_codes",
+          "confidence",
+          "evidence",
+          "code_system_json",
+          "value_set_json"
+        ],
+        "properties": {
+          "code_system_id": {
+            "type": "string"
+          },
+          "code_system_json": {
+            "description": "The full `CodeSystemDef` / `ValueSetDef` JSON — kept flat so\nthe admin UI can post them verbatim to `/edits` without\nre-deriving ids."
+          },
+          "column": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number",
+            "format": "float"
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/EvidenceBody"
+          },
+          "relation": {
+            "type": "string"
+          },
+          "suggested_codes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "value_set_id": {
+            "type": "string"
+          },
+          "value_set_json": {}
+        }
+      },
+      "ProposePolicyBody": {
+        "type": "object",
+        "properties": {
+          "distinct_threshold": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "min_distinct_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "min_sample_rows": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "null_ratio_max": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float"
+          },
+          "require_full_sample_coverage": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
+      "ProposeValueSetsRequest": {
+        "type": "object",
+        "required": [
+          "schema",
+          "profile"
+        ],
+        "properties": {
+          "policy": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProposePolicyBody",
+                "description": "Optional policy knobs. Defaults are tuned for high-precision\nenum detection."
+              }
+            ]
+          },
+          "profile": {
+            "type": "object",
+            "description": "Profile snapshot (row counts + column stats). Wire-shape is\ndefined by `ox_core::source_schema::SourceProfile`."
+          },
+          "schema": {
+            "type": "object",
+            "description": "Source schema snapshot — usually the `project.source_schema`\ncolumn of a design project, but any snapshot produced by the\nintrospection kernel is acceptable. Wire-shape is defined by\n`ox_core::source_schema::SourceSchema`."
+          }
+        }
+      },
+      "ProposeValueSetsResponse": {
+        "type": "object",
+        "required": [
+          "ontology_id",
+          "proposals",
+          "skipped"
+        ],
+        "properties": {
+          "ontology_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "proposals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProposalBody"
+            }
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SkipBody"
+            }
+          }
+        }
+      },
       "QueryExecution": {
         "type": "object",
         "description": "Query execution record.",
@@ -6124,6 +6579,186 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "SignalBody": {
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "type": "string"
+          },
+          "ratio": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float"
+          },
+          "shared_tokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "total_tokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "SkipBody": {
+        "type": "object",
+        "required": [
+          "relation",
+          "column",
+          "reason"
+        ],
+        "properties": {
+          "column": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "relation": {
+            "type": "string"
+          }
+        }
+      },
+      "SuggestBindingsRequest": {
+        "type": "object",
+        "required": [
+          "term"
+        ],
+        "properties": {
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "policy": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BindingPolicyBody"
+              }
+            ]
+          },
+          "term": {
+            "type": "string",
+            "description": "Canonical term name — the only required field."
+          },
+          "term_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pre-existing term id if the term is already saved. When\nprovided, the endpoint confirms it refers to the saved\ndefinition; otherwise an ephemeral id is minted for scoring."
+          }
+        }
+      },
+      "SuggestBindingsResponse": {
+        "type": "object",
+        "required": [
+          "ontology_id",
+          "candidates"
+        ],
+        "properties": {
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PropertyCandidateBody"
+            }
+          },
+          "ontology_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "SuggestTermsRequest": {
+        "type": "object",
+        "properties": {
+          "policy": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BindingPolicyBody"
+              }
+            ]
+          }
+        }
+      },
+      "SuggestTermsResponse": {
+        "type": "object",
+        "required": [
+          "ontology_id",
+          "candidates"
+        ],
+        "properties": {
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TermCandidateBody"
+            }
+          },
+          "ontology_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "TermCandidateBody": {
+        "type": "object",
+        "required": [
+          "term_id",
+          "term",
+          "score",
+          "signals"
+        ],
+        "properties": {
+          "score": {
+            "type": "number",
+            "format": "float"
+          },
+          "signals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SignalBody"
+            }
+          },
+          "term": {
+            "type": "string"
+          },
+          "term_id": {
+            "type": "string"
           }
         }
       },

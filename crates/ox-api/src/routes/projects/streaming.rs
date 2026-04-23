@@ -179,7 +179,11 @@ pub(crate) async fn design_project_stream(
         let timeout = std::time::Duration::from_secs(state.system_config.read().await.design_timeout_secs());
         let design_started = Instant::now();
 
-        let design_result: Result<(OntologyIR, ox_ontology::SourceMapping), ox_core::OxError> = if !use_batch {
+        // Canonical source identity — stamped onto every ObjectMappingDef
+        // produced by normalization so the IR alone is a complete mapping.
+        let source_id = ox_ontology::mapping::SourceId::new(project.source_id.clone());
+
+        let design_result: Result<OntologyIR, ox_core::OxError> = if !use_batch {
             // === Text source path (no schema to cluster) ===
             let sample_data = {
                 let ctx = LlmInputContext::from_project(&project);
@@ -206,7 +210,7 @@ pub(crate) async fn design_project_stream(
 
             match tokio::time::timeout(
                 timeout,
-                state.brain.design_ontology(&sample_data, &effective_context),
+                state.brain.design_ontology(&sample_data, &effective_context, &source_id),
             )
             .await
             {
@@ -471,8 +475,9 @@ pub(crate) async fn design_project_stream(
                 }
             }
 
-            // Phase 5: Normalize (single pass)
-            match ox_ontology::normalize(merged) {
+            // Phase 5: Normalize (single pass) — source_id stamps the
+            // canonical object_mappings emitted by this normalization.
+            match ox_ontology::normalize(merged, &source_id) {
                 Ok(nr) => {
                     let errors = nr.ontology.validate();
                     if !errors.is_empty() {
@@ -480,7 +485,7 @@ pub(crate) async fn design_project_stream(
                             message: format!("Batch-designed ontology validation errors: {}", errors.join("; ")),
                         })
                     } else {
-                        Ok((nr.ontology, nr.source_mapping))
+                        Ok(nr.ontology)
                     }
                 }
                 Err(errors) => Err(ox_core::OxError::Ontology {
@@ -496,7 +501,7 @@ pub(crate) async fn design_project_stream(
             })
         };
 
-        let (mut ontology, source_mapping) = match design_result {
+        let mut ontology = match design_result {
             Ok(result) => result,
             Err(e) => {
                 yield Ok(Event::default().event("error").data(
@@ -509,12 +514,16 @@ pub(crate) async fn design_project_stream(
         let design_ms = design_started.elapsed().as_millis() as u64;
         info!(project_id = %id, design_ms, "LLM design completed (stream)");
 
-        // Enrich ontology properties with data classifications from PII findings
+        // Enrich ontology properties with data classifications from PII
+        // findings. The canonical object_mappings on the IR are the
+        // authoritative (node, table, column) lookup — clone the slice
+        // so we can borrow the ontology mutably for classification.
         if let Some(report) = &analysis_report {
+            let object_mappings = ontology.object_mappings().to_vec();
             let classified = ox_ontology::source_analysis::apply_pii_classifications(
                 &mut ontology,
                 &report.pii_findings,
-                &source_mapping,
+                &object_mappings,
             );
             if classified > 0 {
                 info!(project_id = %id, classified, "Applied PII-based data classifications to ontology properties");
@@ -528,7 +537,6 @@ pub(crate) async fn design_project_stream(
         let quality_report = match assess_quality_from_project_with_mapping(
             &project,
             &ontology,
-            &source_mapping,
             &effective_opts.excluded_tables,
             &effective_opts.column_clarifications,
         ) {
@@ -554,15 +562,6 @@ pub(crate) async fn design_project_stream(
                 return;
             }
         };
-        let sm_json = match AppError::to_json(&source_mapping) {
-            Ok(v) => v,
-            Err(e) => {
-                yield Ok(Event::default().event("error").data(
-                    sse_error("serialization_error", &format!("{e:?}"))
-                ));
-                return;
-            }
-        };
         let qr_json = match AppError::to_json(&quality_report) {
             Ok(v) => v,
             Err(e) => {
@@ -575,7 +574,7 @@ pub(crate) async fn design_project_stream(
 
         if let Err(e) = state
             .store
-            .update_design_result(id, &ontology_json, Some(&sm_json), Some(&qr_json), revision)
+            .update_design_result(id, &ontology_json, Some(&qr_json), revision)
             .await
         {
             yield Ok(Event::default().event("error").data(
@@ -790,14 +789,16 @@ pub(crate) async fn refine_project_stream(
             sse_phase("refining", Some("LLM is refining the ontology..."))
         ));
 
+        let source_id = ox_ontology::mapping::SourceId::new(project.source_id.clone());
+
         let llm_started = Instant::now();
         let llm_result = tokio::time::timeout(
             timeout,
-            state.brain.refine_ontology(&ontology, &refinement_context),
+            state.brain.refine_ontology(&ontology, &refinement_context, &source_id),
         )
         .await;
 
-        let (llm_refined, refined_mapping) = match llm_result {
+        let llm_refined = match llm_result {
             Ok(Ok(result)) => result,
             Ok(Err(e)) => {
                 yield Ok(Event::default().event("error").data(
@@ -839,7 +840,6 @@ pub(crate) async fn refine_project_stream(
                 return;
             }
         };
-        let _ = refined_mapping;
 
         // Fail-closed: return uncertain matches as special SSE event
         if !reconciled.report.uncertain_matches.is_empty() {
@@ -911,7 +911,6 @@ pub(crate) async fn refine_project_stream(
             .update_design_result(
                 id,
                 &ontology_json,
-                project.source_mapping.as_ref(),
                 Some(&qr_json),
                 revision,
             )

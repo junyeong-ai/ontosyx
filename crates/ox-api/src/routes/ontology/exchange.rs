@@ -4,7 +4,7 @@ use ox_compiler::export;
 use ox_compiler::import;
 use ox_ontology::input::{InputOntologyDef, normalize, to_exchange_format};
 use ox_ontology::ir::OntologyIR;
-use ox_ontology::mapping::SourceMapping;
+use ox_ontology::mapping::SourceId;
 use serde::Deserialize;
 
 use crate::error::AppError;
@@ -28,7 +28,15 @@ use crate::response::ApiResponse;
 pub(crate) async fn normalize_ontology(
     Json(input): Json<InputOntologyDef>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let result = normalize(input).map_err(|errors| AppError::bad_request(errors.join("; ")))?;
+    // Ad-hoc normalize — no project / data source attached. The
+    // returned IR is for validation / inspection only and carries
+    // no ObjectMappingDef entries unless the caller's InputOntologyDef
+    // contains source_table declarations. A static `adhoc` source id
+    // keeps any emitted mappings identifiable as having come through
+    // this path.
+    let source_id = SourceId::new("adhoc:normalize-endpoint");
+    let result = normalize(input, &source_id)
+        .map_err(|errors| AppError::bad_request(errors.join("; ")))?;
     Ok(ApiResponse::of(serde_json::json!({
         "ontology": result.ontology,
         "warnings": result.warnings,
@@ -52,7 +60,7 @@ pub(crate) async fn normalize_ontology(
 pub(crate) async fn export_ontology(
     Json(ontology): Json<OntologyIR>,
 ) -> Result<Json<ApiResponse<InputOntologyDef>>, AppError> {
-    let exchange = to_exchange_format(&ontology, &SourceMapping::new());
+    let exchange = to_exchange_format(&ontology);
     Ok(ApiResponse::of(exchange))
 }
 
@@ -187,7 +195,11 @@ pub(crate) async fn import_owl(
     if req.content.trim().is_empty() {
         return Err(AppError::bad_request("content must not be empty"));
     }
-    let ontology =
-        import::parse_owl_turtle(&req.content).map_err(|e| AppError::bad_request(e.to_string()))?;
+    // OWL imports carry no data-source binding. Use a static id
+    // so any future OWL-to-ObjectMapping extension has a stable
+    // identifier to associate emitted mappings with.
+    let source_id = SourceId::new("adhoc:owl-import");
+    let ontology = import::parse_owl_turtle(&req.content, &source_id)
+        .map_err(|e| AppError::bad_request(e.to_string()))?;
     Ok(ApiResponse::of(ontology))
 }

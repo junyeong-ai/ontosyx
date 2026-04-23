@@ -68,11 +68,6 @@ export const SourceSchemaSchema = z.object({
   foreign_keys: z.array(ForeignKeyDefSchema),
 });
 
-export const SourceMappingSchema = z.object({
-  node_tables: z.record(z.string(), z.string()),
-  property_columns: z.record(z.string(), z.string()),
-});
-
 export const ColumnStatsSchema = z.object({
   column_name: z.string(),
   null_count: z.number(),
@@ -240,12 +235,12 @@ export const DesignProjectSchema = z.object({
   revision: z.number(),
   title: z.string().nullable(),
   source_config: SourceConfigSchema,
+  source_id: z.string(),
   source_data: z.string().nullable(),
   source_schema: SourceSchemaSchema.nullable(),
   source_profile: SourceProfileSchema.nullable(),
   analysis_report: SourceAnalysisReportSchema.nullable(),
   design_options: DesignOptionsSchema,
-  source_mapping: SourceMappingSchema.nullable(),
   ontology: OntologyIRSchema.nullable(),
   quality_report: OntologyQualityReportSchema.nullable(),
   ontology_id: z.string().nullable(),

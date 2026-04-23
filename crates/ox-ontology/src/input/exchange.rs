@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::ir::*;
-use crate::mapping::SourceMapping;
+use crate::mapping::PropertyLocation;
 
 use super::dtos::*;
 
@@ -13,16 +13,47 @@ use super::dtos::*;
 /// - source_node_id → label
 /// - property_ids → property names
 /// - constraint/index ids are preserved (Some) for round-trip
-pub fn to_exchange_format(
-    ontology: &OntologyIR,
-    source_mapping: &SourceMapping,
-) -> InputOntologyDef {
+/// - `ObjectMappingDef` → `source_table` + per-property
+///   `source_column` (column locations only — JSON-path mappings
+///   cannot round-trip through the Input DTO and are dropped with
+///   a structured warning by downstream exporters if present)
+pub fn to_exchange_format(ontology: &OntologyIR) -> InputOntologyDef {
     // Build lookup maps: node_id → label, property_id → name
     let node_id_to_label: HashMap<&str, &str> = ontology
         .node_types
         .iter()
         .map(|n| (&*n.id, n.label.as_str()))
         .collect();
+
+    // node_id → "source_table" (from the ObjectMappingDef pinned to
+    // that node, if any). Multi-mapping nodes pick the highest-
+    // precedence mapping so round-trips prefer the canonical source.
+    let mut node_to_relation: HashMap<&str, &str> = HashMap::new();
+    // (node_id, property_id) → column name. Keys the lookup on both
+    // so a multi-mapping node's `source_column` resolves under the
+    // owning mapping's relation context.
+    let mut prop_to_column: HashMap<(&str, &str), &str> = HashMap::new();
+    for om in ontology.object_mappings() {
+        let node_id = om.node_type_id.as_ref();
+        let prior_precedence = node_to_relation.get(node_id).and_then(|_| {
+            ontology
+                .object_mappings()
+                .iter()
+                .find(|x| x.node_type_id == om.node_type_id && x.relation == om.relation)
+                .map(|x| x.precedence)
+        });
+        if prior_precedence.is_none_or(|p| om.precedence >= p) {
+            node_to_relation.insert(node_id, om.relation.as_str());
+        }
+        for pm in &om.property_mappings {
+            if let PropertyLocation::Column(col) = &pm.location {
+                prop_to_column.insert(
+                    (node_id, pm.property_id.as_ref()),
+                    col.column.as_str(),
+                );
+            }
+        }
+    }
 
     // Global property_id → name map (across all nodes and edges)
     let mut prop_id_to_name: HashMap<&str, &str> = HashMap::new();
@@ -80,6 +111,7 @@ pub fn to_exchange_format(
                 })
                 .collect();
 
+            let node_id_str: &str = n.id.as_ref();
             let properties = n
                 .properties
                 .iter()
@@ -90,8 +122,8 @@ pub fn to_exchange_format(
                     nullable: p.nullable,
                     default_value: p.default_value.clone(),
                     description: p.description.clone(),
-                    source_column: source_mapping
-                        .column_for_property(&n.id, &p.id)
+                    source_column: prop_to_column
+                        .get(&(node_id_str, p.id.as_ref()))
                         .map(|s| s.to_string()),
                 })
                 .collect();
@@ -100,7 +132,7 @@ pub fn to_exchange_format(
                 id: Some(n.id.to_string()),
                 label: n.label.to_string(),
                 description: n.description.clone(),
-                source_table: source_mapping.table_for_node(&n.id).map(|s| s.to_string()),
+                source_table: node_to_relation.get(node_id_str).map(|s| s.to_string()),
                 properties,
                 constraints,
             }

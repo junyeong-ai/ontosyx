@@ -59,8 +59,11 @@ the high-level pieces and points at the files that hold depth.
 - `SourceRelationRef`, `ColumnRef`, `EndpointRef` — location
   primitives.
 
-Legacy `SourceMapping` survives for the current design-flow path and
-is being migrated out (tracked in the Phase 4 plan).
+`OntologyIR.object_mappings` is the single source of truth for
+node ↔ table binding. The legacy flat-HashMap `SourceMapping` and
+the transitional `ObjectMappingLookup` trait have been removed;
+all PII / quality / load-plan consumers walk the canonical slice
+directly.
 
 ## Governance surfaces
 

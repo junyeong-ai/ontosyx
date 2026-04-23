@@ -1,8 +1,8 @@
 use super::*;
 use ox_core::graph_label::GraphLabel;
 use ox_core::i18n::LocalizedText;
-use crate::ir::{Cardinality, EdgeTypeDef, NodeTypeDef, OntologyIR, PropertyDef};
-use crate::mapping::SourceMapping;
+use crate::ir::{Cardinality, EdgeTypeDef, NodeTypeDef, NodeTypeId, OntologyIR, PropertyDef};
+use crate::mapping::{ObjectMappingDef, ObjectMappingId, SourceId, SourceRelationKind};
 use ox_core::source_schema::{
     ForeignKeyDef, SourceColumnDef, SourceProfile, SourceSchema, SourceTableDef, TableProfile,
 };
@@ -32,12 +32,32 @@ fn property_typed(name: &str, property_type: PropertyType) -> PropertyDef {
     }
 }
 
-fn mapping_with_tables(entries: &[(&str, &str)]) -> SourceMapping {
-    let mut m = SourceMapping::new();
-    for (node_id, table) in entries {
-        m.node_tables.insert(node_id.to_string(), table.to_string());
-    }
-    m
+/// Build a minimal `ObjectMappingDef` slice pairing each `node_id` with
+/// the given source `table`. Property mappings are empty — the quality
+/// tests here only exercise node ↔ table resolution.
+fn mapping_with_tables(entries: &[(&str, &str)]) -> Vec<ObjectMappingDef> {
+    let source_id = SourceId::new("pg-test");
+    entries
+        .iter()
+        .map(|(node_id, table)| {
+            let node_type_id = NodeTypeId::new(*node_id);
+            ObjectMappingDef {
+                id: ObjectMappingId::for_node_source(&node_type_id, &source_id),
+                node_type_id,
+                source_id: source_id.clone(),
+                relation: (*table).to_string(),
+                relation_kind: SourceRelationKind::default(),
+                primary_key_columns: Vec::new(),
+                row_filter: None,
+                property_mappings: Vec::new(),
+                workspace_scope: None,
+                precedence: u8::MAX,
+                valid_from: None,
+                valid_to: None,
+                cache_hint: crate::mapping::CacheHintKind::default(),
+            }
+        })
+        .collect()
 }
 
 #[test]
@@ -536,7 +556,7 @@ fn assess_ontology_only(ontology: &OntologyIR) -> OntologyQualityReport {
         ontology,
         None,
         None,
-        &SourceMapping::new(),
+        &[],
         &[],
         &[],
         &QualityConfig::default(),

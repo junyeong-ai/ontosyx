@@ -323,7 +323,6 @@ pub struct DesignProject {
     pub source_profile: Option<serde_json::Value>,
     pub analysis_report: Option<serde_json::Value>,
     pub design_options: serde_json::Value,
-    pub source_mapping: Option<serde_json::Value>,
     pub ontology: Option<serde_json::Value>,
     pub quality_report: Option<serde_json::Value>,
     pub ontology_id: Option<uuid::Uuid>,
@@ -433,7 +432,6 @@ pub struct OntologySnapshot {
     pub project_id: uuid::Uuid,
     pub revision: i32,
     pub ontology: serde_json::Value,
-    pub source_mapping: Option<serde_json::Value>,
     pub quality_report: Option<serde_json::Value>,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }

@@ -114,7 +114,6 @@ pub(crate) async fn create_project(
                 source_profile: None,
                 analysis_report: None,
                 design_options: AppError::to_json(&DesignOptions::default())?,
-                source_mapping: None,
                 ontology: Some(ontology_json),
                 quality_report: None,
                 ontology_id: None,
@@ -156,8 +155,7 @@ pub(crate) async fn create_project(
                     source_profile: Some(AppError::to_json(&source_profile)?),
                     analysis_report: Some(AppError::to_json(&report)?),
                     design_options: AppError::to_json(&DesignOptions::default())?,
-                    source_mapping: None,
-                    ontology: None,
+                        ontology: None,
                     quality_report: None,
                     ontology_id: None,
                     source_history: AppError::to_json(&vec![history_entry])?,
@@ -245,7 +243,6 @@ pub(crate) async fn create_project(
                 source_profile: source_profile.as_ref().map(AppError::to_json).transpose()?,
                 analysis_report: report.as_ref().map(AppError::to_json).transpose()?,
                 design_options: AppError::to_json(&DesignOptions::default())?,
-                source_mapping: None,
                 ontology: None,
                 quality_report: None,
                 ontology_id: None,
@@ -794,13 +791,6 @@ pub(crate) async fn generate_load_plan(
     let ontology: ox_ontology::ir::OntologyIR = serde_json::from_value(ontology_json.clone())
         .map_err(|e| AppError::internal(format!("Failed to parse ontology: {e}")))?;
 
-    let source_mapping_json = project.source_mapping.as_ref().ok_or_else(|| {
-        AppError::bad_request("Project has no source mapping — design the ontology first")
-    })?;
-    let source_mapping: ox_ontology::SourceMapping =
-        serde_json::from_value(source_mapping_json.clone())
-            .map_err(|e| AppError::internal(format!("Failed to parse source mapping: {e}")))?;
-
     let source_schema_json = project
         .source_schema
         .as_ref()
@@ -811,7 +801,7 @@ pub(crate) async fn generate_load_plan(
 
     let plan = state
         .brain
-        .generate_load_plan(&ontology, &source_mapping, &source_schema)
+        .generate_load_plan(&ontology, &source_schema)
         .await
         .map_err(AppError::from)?;
 
@@ -954,13 +944,16 @@ pub(crate) async fn execute_load_from_source(
         .map_err(AppError::from)?
         .ok_or_else(AppError::project_not_found)?;
 
-    // Extract source mapping to know which tables map to which nodes
-    let source_mapping_json = project.source_mapping.as_ref().ok_or_else(|| {
-        AppError::bad_request("Project has no source mapping — design the ontology first")
-    })?;
-    let source_mapping: ox_ontology::SourceMapping =
-        serde_json::from_value(source_mapping_json.clone())
-            .map_err(|e| AppError::internal(format!("Failed to parse source mapping: {e}")))?;
+    // Parse the project's ontology — object_mappings on the IR are
+    // the single source of truth for "which source table supplies this
+    // node", replacing the legacy flat SourceMapping side-car.
+    let ontology_json = project
+        .ontology
+        .as_ref()
+        .ok_or_else(AppError::no_ontology)?;
+    let ontology: ox_ontology::ir::OntologyIR = serde_json::from_value(ontology_json.clone())
+        .map_err(|e| AppError::internal(format!("Failed to parse ontology: {e}")))?;
+    let object_mappings = ontology.object_mappings();
 
     // Determine schema name from project source config
     let source_config: ox_ontology::design_project::SourceConfig =
@@ -1034,7 +1027,7 @@ pub(crate) async fn execute_load_from_source(
     // Execute each load step: fetch from source table → execute against graph
     for (step_idx, (step, cypher)) in req.plan.steps.iter().zip(&compiled_statements).enumerate() {
         // Determine source table from the load operation
-        let source_table = resolve_source_table(&step.operation, &source_mapping);
+        let source_table = resolve_source_table(&step.operation, object_mappings, &ontology);
         let source_table = match source_table {
             Some(t) => t,
             None => {
@@ -1344,47 +1337,66 @@ pub(crate) async fn execute_load_from_source(
     }))
 }
 
-/// Resolve which source table to fetch from, given a load operation and source mapping.
+/// Resolve which source table to fetch from, given a load operation and
+/// the canonical object-mapping slice from the ontology. Resolves by
+/// matching the load op's target/source node label against the label
+/// of the `NodeTypeDef` pointed at by each `ObjectMappingDef` — the IR
+/// is the single source of truth for node→table binding.
 fn resolve_source_table(
     op: &ox_ontology::load_plan::LoadOp,
-    source_mapping: &ox_ontology::SourceMapping,
+    object_mappings: &[ox_ontology::ObjectMappingDef],
+    ontology: &ox_ontology::ir::OntologyIR,
 ) -> Option<String> {
     use ox_ontology::load_plan::LoadOp;
 
+    // Look up the ObjectMappingDef whose node's label matches `label`
+    // (case-insensitive). Returns the `relation` (source table).
+    let table_for_label = |label: &str| -> Option<String> {
+        let lower = label.to_lowercase();
+        object_mappings.iter().find_map(|om| {
+            let node_label = ontology
+                .node_types()
+                .iter()
+                .find(|n| n.id == om.node_type_id)?
+                .label
+                .as_str()
+                .to_lowercase();
+            if node_label == lower {
+                Some(om.relation.clone())
+            } else {
+                None
+            }
+        })
+    };
+
     match op {
         LoadOp::UpsertNode { target_label, .. } => {
-            // Look up by label in node_tables (values are source table names)
-            source_mapping
-                .node_tables
-                .values()
-                .find(|_| true) // If there's only one match, use it
-                .cloned()
-                .or_else(|| {
-                    // Try matching by label name (case-insensitive pluralized heuristic)
-                    let lower = target_label.to_lowercase();
-                    source_mapping
-                        .node_tables
-                        .values()
-                        .find(|t| {
-                            let tl = t.to_lowercase();
-                            tl == lower
-                                || tl == format!("{lower}s")
-                                || tl.ends_with(&format!("_{lower}"))
-                        })
-                        .cloned()
-                })
+            table_for_label(target_label).or_else(|| {
+                // Fallback: case-insensitive pluralized relation-name heuristic,
+                // mirroring the previous behaviour for ontologies whose labels
+                // don't match their table names directly.
+                let lower = target_label.to_lowercase();
+                object_mappings
+                    .iter()
+                    .map(|om| om.relation.clone())
+                    .find(|t| {
+                        let tl = t.to_lowercase();
+                        tl == lower
+                            || tl == format!("{lower}s")
+                            || tl.ends_with(&format!("_{lower}"))
+                    })
+            })
         }
         LoadOp::UpsertEdge { source_match, .. } => {
             // Edges typically come from one of the node tables or a junction table.
             // Match on the source node's label to find the originating table.
-            source_mapping
-                .node_tables
-                .iter()
-                .find(|(_, table)| {
-                    let tl = table.to_lowercase();
-                    tl.contains(&source_match.label.to_lowercase())
-                })
-                .map(|(_, t)| t.clone())
+            table_for_label(&source_match.label).or_else(|| {
+                let lower = source_match.label.to_lowercase();
+                object_mappings
+                    .iter()
+                    .map(|om| om.relation.clone())
+                    .find(|t| t.to_lowercase().contains(&lower))
+            })
         }
     }
 }

@@ -153,7 +153,6 @@ pub(crate) async fn edit_project(
                 id,
                 project.revision,
                 ont,
-                project.source_mapping.as_ref(),
                 project.quality_report.as_ref(),
             )
             .await
@@ -178,7 +177,6 @@ pub(crate) async fn edit_project(
         .update_design_result(
             id,
             &ontology_json,
-            project.source_mapping.as_ref(),
             Some(&qr_json),
             req.revision,
         )

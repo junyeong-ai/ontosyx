@@ -113,11 +113,16 @@ pub(crate) async fn design_project(
     let timeout =
         std::time::Duration::from_secs(state.system_config.read().await.design_timeout_secs());
     let design_started = Instant::now();
-    let (ontology, source_mapping) = tokio::time::timeout(
+    // SourceId is the canonical source identity stored on the
+    // project; we recompute it defensively here in case the row was
+    // written before Phase 0 ran (older rows surface via migration
+    // backfill but the format stays identical).
+    let source_id = ox_ontology::mapping::SourceId::new(project.source_id.clone());
+    let ontology = tokio::time::timeout(
         timeout,
         state
             .brain
-            .design_ontology(&sample_data, &effective_context),
+            .design_ontology(&sample_data, &effective_context, &source_id),
     )
     .await
     .map_err(|_| {
@@ -163,28 +168,22 @@ pub(crate) async fn design_project(
         });
     }
 
-    // Assess quality (use the fresh source_mapping, not yet persisted)
+    // Quality reads mapping state directly off the canonical IR
+    // (`ontology.object_mappings()`), so there's no separate
+    // mapping handle threaded through.
     let quality_report = assess_quality_from_project_with_mapping(
         &project,
         &ontology,
-        &source_mapping,
         &effective_opts.excluded_tables,
         &effective_opts.column_clarifications,
     )?;
 
     // Persist
     let ontology_json = AppError::to_json(&ontology)?;
-    let sm_json = AppError::to_json(&source_mapping)?;
     let qr_json = AppError::to_json(&quality_report)?;
     state
         .store
-        .update_design_result(
-            id,
-            &ontology_json,
-            Some(&sm_json),
-            Some(&qr_json),
-            req.revision,
-        )
+        .update_design_result(id, &ontology_json, Some(&qr_json), req.revision)
         .await
         .map_err(AppError::from)?;
 
@@ -343,9 +342,12 @@ pub(crate) async fn refine_project(
         "Starting LLM refinement"
     );
     let llm_started = Instant::now();
-    let (llm_refined, refined_mapping) = tokio::time::timeout(
+    let source_id = ox_ontology::mapping::SourceId::new(project.source_id.clone());
+    let llm_refined = tokio::time::timeout(
         timeout,
-        state.brain.refine_ontology(&ontology, &refinement_context),
+        state
+            .brain
+            .refine_ontology(&ontology, &refinement_context, &source_id),
     )
     .await
     .map_err(|_| {
@@ -392,7 +394,6 @@ pub(crate) async fn refine_project(
     // Reconcile LLM output against original to preserve lineage IDs
     let reconciled = ox_ontology::command::reconcile_refined(&ontology, llm_refined)
         .map_err(|e| AppError::internal(format!("Reconcile produced invalid ontology: {e}")))?;
-    let _ = refined_mapping; // Source mapping preserved from project; refine does not change it
 
     // Fail-closed: reject if uncertain matches are present.
     // Return 422 with the full ReconcileReport + reconciled ontology so the FE
@@ -470,16 +471,9 @@ pub(crate) async fn refine_project(
 
     let ontology_json = AppError::to_json(&refined)?;
     let qr_json = AppError::to_json(&quality_report)?;
-    // Preserve the existing source_mapping (refine does not change it)
     state
         .store
-        .update_design_result(
-            id,
-            &ontology_json,
-            project.source_mapping.as_ref(),
-            Some(&qr_json),
-            req.revision,
-        )
+        .update_design_result(id, &ontology_json, Some(&qr_json), req.revision)
         .await
         .map_err(AppError::from)?;
 
@@ -571,13 +565,7 @@ pub(crate) async fn apply_reconcile(
     let qr_json = AppError::to_json(&quality_report)?;
     state
         .store
-        .update_design_result(
-            id,
-            &ontology_json,
-            project.source_mapping.as_ref(),
-            Some(&qr_json),
-            req.revision,
-        )
+        .update_design_result(id, &ontology_json, Some(&qr_json), req.revision)
         .await
         .map_err(AppError::from)?;
 

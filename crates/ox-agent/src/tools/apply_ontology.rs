@@ -112,7 +112,6 @@ impl SchemaTool for ApplyOntologyTool {
             .update_design_result(
                 project_id,
                 &ontology_json,
-                None, // source_mapping unchanged
                 None, // quality_report will be recomputed
                 revision,
             )

@@ -121,7 +121,6 @@ pub(crate) async fn restore_revision(
                 id,
                 project.revision,
                 ont,
-                project.source_mapping.as_ref(),
                 project.quality_report.as_ref(),
             )
             .await
@@ -141,7 +140,6 @@ pub(crate) async fn restore_revision(
         .update_design_result(
             id,
             &snapshot.ontology,
-            snapshot.source_mapping.as_ref(),
             snapshot.quality_report.as_ref(),
             project.revision,
         )

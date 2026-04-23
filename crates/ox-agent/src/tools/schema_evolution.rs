@@ -201,7 +201,8 @@ fn detect_drift(schema: &SourceSchema, ontology: &ox_ontology::ir::OntologyIR) -
 
     // Extract ontology node labels and their source-table bindings via source_lineage.
     // NodeTypeDef no longer carries a flat `source_table` field; the authoritative
-    // source binding lives on `SourceLineage` (or in SourceMapping at the project level).
+    // source binding lives on `SourceLineage` (or on `OntologyIR.object_mappings`
+    // at the project level).
     let ontology_nodes: std::collections::HashMap<String, Option<String>> = ontology
         .node_types()
         .iter()

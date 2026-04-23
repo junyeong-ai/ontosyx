@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use crate::ir::OntologyIR;
+use crate::mapping::{ObjectMappingDef, PropertyLocation};
 use crate::source_analysis::ColumnClarification;
-use crate::mapping::ObjectMappingLookup;
 use ox_core::source_schema::{SourceProfile, SourceSchema};
 
 use super::types::{
@@ -24,22 +24,17 @@ use super::types::{
 /// data-observation checks (opaque enum, numeric enum, single value bias, sparse property)
 /// since the user has already provided domain context for those columns.
 ///
-/// Accepts either the legacy `SourceMapping` or a canonical
-/// `&[ObjectMappingDef]` slice via the `ObjectMappingLookup` trait
-/// — see `source_analysis::apply_pii_classifications` for the
-/// same migration bridge.
-pub fn assess_quality<M>(
+/// Accepts the canonical `&[ObjectMappingDef]` slice — the single
+/// source of truth for which source relation a node type binds to.
+pub fn assess_quality(
     ontology: &OntologyIR,
     schema: Option<&SourceSchema>,
     profile: Option<&SourceProfile>,
-    source_mapping: &M,
+    object_mappings: &[ObjectMappingDef],
     excluded_tables: &[String],
     column_clarifications: &[ColumnClarification],
     config: &QualityConfig,
-) -> OntologyQualityReport
-where
-    M: ?Sized + ObjectMappingLookup,
-{
+) -> OntologyQualityReport {
     let mut gaps = Vec::new();
     let excluded_tables = excluded_tables
         .iter()
@@ -176,15 +171,19 @@ where
     }
 
     if let Some(schema) = schema {
-        // Build source_table → node index lookup once for all source-level checks.
+        // Build source_table → node index lookup once for all source-level
+        // checks. Walks the canonical object_mappings slice directly —
+        // each ObjectMappingDef pairs exactly one node type with exactly
+        // one source relation.
         let table_to_node_idx: std::collections::HashMap<String, usize> = ontology
             .node_types
             .iter()
             .enumerate()
             .filter_map(|(i, node)| {
-                source_mapping
-                    .table_for_node(&node.id)
-                    .map(|t| (t.to_ascii_lowercase(), i))
+                object_mappings
+                    .iter()
+                    .find(|om| om.node_type_id == node.id)
+                    .map(|om| (om.relation.to_ascii_lowercase(), i))
             })
             .collect();
 
@@ -364,11 +363,19 @@ where
                 continue;
             };
 
-            let mapped_source_columns: std::collections::HashSet<String> = node
-                .properties
+            // Walk this node's ObjectMappingDef → PropertyMappingDef to
+            // collect the source-column set. JSON-path locations contribute
+            // no column (same as the legacy flat shape), so they drop out.
+            let node_om = object_mappings
                 .iter()
-                .filter_map(|p| source_mapping.column_for_property(&node.id, &p.id))
-                .map(|s| s.to_ascii_lowercase())
+                .find(|om| om.node_type_id == node.id);
+            let mapped_source_columns: std::collections::HashSet<String> = node_om
+                .into_iter()
+                .flat_map(|om| om.property_mappings.iter())
+                .filter_map(|pm| match &pm.location {
+                    PropertyLocation::Column(col) => Some(col.column.to_ascii_lowercase()),
+                    PropertyLocation::JsonPath { .. } => None,
+                })
                 .collect();
 
             let node_prop_names: std::collections::HashSet<String> = node

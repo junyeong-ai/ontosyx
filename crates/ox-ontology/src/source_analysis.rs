@@ -528,29 +528,24 @@ pub struct ColumnClarification {
 // apply_pii_classifications — enrich ontology properties with classifications
 // ---------------------------------------------------------------------------
 
-/// Cross-reference PII findings with ontology properties via source mapping
-/// and set `classification` on each matched property.
+/// Cross-reference PII findings with ontology properties via the
+/// canonical object-mapping slice and set `classification` on each
+/// matched property.
 ///
 /// Matching logic:
-/// - For each PII finding (table, column), find the node whose source table
-///   matches the finding's table (via the authoritative lookup).
-/// - Then find the property whose source column (via the same lookup) matches
-///   the finding's column.
+/// - For each PII finding (table, column), find the node whose source
+///   table matches the finding's table (via the `ObjectMappingDef`
+///   list — the single source of truth).
+/// - Then find the property whose source column matches the finding's
+///   column.
 /// - Set classification based on PiiType.
-///
-/// Accepts either the legacy `SourceMapping` or a canonical
-/// `&[ObjectMappingDef]` slice (both implement
-/// [`crate::mapping::ObjectMappingLookup`]). Callers can migrate
-/// from the flat shape to the canonical one without touching this
-/// function's body.
-pub fn apply_pii_classifications<M>(
+pub fn apply_pii_classifications(
     ontology: &mut crate::ir::OntologyIR,
     pii_findings: &[PiiFinding],
-    source_mapping: &M,
-) -> usize
-where
-    M: ?Sized + crate::mapping::ObjectMappingLookup,
-{
+    object_mappings: &[crate::mapping::ObjectMappingDef],
+) -> usize {
+    use crate::mapping::PropertyLocation;
+
     if pii_findings.is_empty() {
         return 0;
     }
@@ -593,17 +588,17 @@ where
     let mut count = 0;
 
     for node in &mut ontology.node_types {
-        // Resolve source table via SourceMapping (the authoritative lookup).
-        // NodeTypeDef no longer carries a `source_table` field; downstream
-        // consumers should always query SourceMapping for ontology→source
-        // relationships.
-        let source_table = match source_mapping
-            .table_for_node(node.id.as_ref())
-            .map(|s| s.to_lowercase())
+        // Resolve the source relation for this node via the canonical
+        // `ObjectMappingDef` list. NodeTypeDef carries no source_table
+        // of its own — object_mappings are the authoritative lookup.
+        let om = match object_mappings
+            .iter()
+            .find(|om| om.node_type_id == node.id)
         {
-            Some(t) => t,
+            Some(om) => om,
             None => continue,
         };
+        let source_table = om.relation.to_lowercase();
 
         for prop in &mut node.properties {
             // Only classify if not already classified
@@ -611,10 +606,18 @@ where
                 continue;
             }
 
-            // Resolve source column via SourceMapping
-            let source_column = source_mapping
-                .column_for_property(node.id.as_ref(), prop.id.as_ref())
-                .map(|s| s.to_lowercase());
+            // Resolve source column via the property mapping on this
+            // ObjectMappingDef. JSON-path locations have no column, so
+            // they fall back to the property name — matching the
+            // behaviour the legacy flat shape used to provide.
+            let source_column = om
+                .property_mappings
+                .iter()
+                .find(|pm| pm.property_id == prop.id)
+                .and_then(|pm| match &pm.location {
+                    PropertyLocation::Column(col) => Some(col.column.to_lowercase()),
+                    PropertyLocation::JsonPath { .. } => None,
+                });
 
             // Fall back to property name as column name
             let column_lower = source_column.unwrap_or_else(|| prop.name.to_lowercase());
@@ -627,207 +630,4 @@ where
     }
 
     count
-}
-
-#[cfg(test)]
-mod apply_pii_equivalence_tests {
-    use super::*;
-    use crate::ir::{NodeTypeDef, PropertyDef};
-    use crate::mapping::{ObjectMappingLookup, SourceId, SourceMapping};
-    use ox_core::graph_label::GraphLabel;
-    use ox_core::property_key::PropertyKey;
-    use ox_core::types::PropertyType;
-
-    fn build_ontology() -> (crate::ir::OntologyIR, SourceMapping) {
-        // Two nodes, five properties, mixed source-column mappings.
-        // Covers: (a) a property with an explicit source_column,
-        // (b) a property with no source_column (fall-back to name),
-        // (c) a node with no source_table (no mapping at all).
-        let email = PropertyDef {
-            id: crate::ir::PropertyId::new("prop-email"),
-            name: PropertyKey::new("email").expect("key"),
-            property_type: PropertyType::String,
-            ..Default::default()
-        };
-        let name = PropertyDef {
-            id: crate::ir::PropertyId::new("prop-name"),
-            name: PropertyKey::new("full_name").expect("key"),
-            property_type: PropertyType::String,
-            ..Default::default()
-        };
-        let total = PropertyDef {
-            id: crate::ir::PropertyId::new("prop-total"),
-            name: PropertyKey::new("total").expect("key"),
-            property_type: PropertyType::Float,
-            ..Default::default()
-        };
-        let customer = NodeTypeDef {
-            id: crate::ir::NodeTypeId::new("node-customer"),
-            label: GraphLabel::new("Customer").expect("label"),
-            properties: vec![email, name],
-            ..Default::default()
-        };
-        let order = NodeTypeDef {
-            id: crate::ir::NodeTypeId::new("node-order"),
-            label: GraphLabel::new("Order").expect("label"),
-            properties: vec![total],
-            ..Default::default()
-        };
-        let ontology = crate::ir::OntologyIR::new(
-            "ontology-1".to_string(),
-            "PII Test".to_string(),
-            ox_core::i18n::LocalizedText::default(),
-            1,
-            vec![customer, order],
-            Vec::new(),
-            Vec::new(),
-        );
-
-        let mut sm = SourceMapping::new();
-        sm.node_tables
-            .insert("node-customer".into(), "customers".into());
-        sm.node_tables
-            .insert("node-order".into(), "orders".into());
-        // `email` is bound to `email_addr` (non-identity column).
-        sm.set_column("node-customer", "prop-email", "email_addr".into());
-        // `name` has no source_column — the reader falls back to the
-        // PropertyKey ("full_name") which must hit the finding.
-        // `total` (on order) has no source_column either.
-
-        (ontology, sm)
-    }
-
-    fn findings() -> Vec<PiiFinding> {
-        vec![
-            PiiFinding {
-                table: "customers".into(),
-                column: "email_addr".into(),
-                pii_type: PiiType::Email,
-                detection_method: PiiDetectionMethod::ColumnName,
-                masked_preview: None,
-            },
-            PiiFinding {
-                table: "customers".into(),
-                column: "full_name".into(),
-                pii_type: PiiType::Name,
-                detection_method: PiiDetectionMethod::ColumnName,
-                masked_preview: None,
-            },
-            PiiFinding {
-                // Orphan finding — points at `orders.total` which the
-                // ontology maps to a node but the finding's column
-                // doesn't match any property's source_column AND
-                // doesn't match the property name ("total" vs the
-                // column "amount" below), so it must remain unmatched.
-                table: "orders".into(),
-                column: "amount".into(),
-                pii_type: PiiType::PaymentCard,
-                detection_method: PiiDetectionMethod::ColumnName,
-                masked_preview: None,
-            },
-        ]
-    }
-
-    fn extract_classifications(
-        ontology: &crate::ir::OntologyIR,
-    ) -> Vec<(String, Option<crate::ir::DataClassification>)> {
-        ontology
-            .node_types
-            .iter()
-            .flat_map(|n| {
-                n.properties.iter().map(|p| {
-                    (
-                        format!("{}.{}", n.id.as_str(), p.id.as_str()),
-                        p.classification,
-                    )
-                })
-            })
-            .collect()
-    }
-
-    #[test]
-    fn legacy_and_canonical_produce_identical_classifications() {
-        let (base_ontology, sm) = build_ontology();
-        let legacy_findings = findings();
-
-        let mut legacy_ontology = base_ontology.clone();
-        let legacy_count =
-            apply_pii_classifications(&mut legacy_ontology, &legacy_findings, &sm);
-
-        // Canonical path: convert to ObjectMappingDef[] and re-run.
-        // Property key resolution is driven by the ontology's own
-        // PropertyDef.name via `canonical_object_mappings` semantics.
-        let canonical = sm
-            .to_canonical(&SourceId::new("pg-main"), |node_id, prop_id| {
-                base_ontology.node_types.iter().find_map(|n| {
-                    if n.id.as_ref() == node_id {
-                        n.properties
-                            .iter()
-                            .find(|p| p.id.as_ref() == prop_id)
-                            .map(|p| p.name.clone())
-                    } else {
-                        None
-                    }
-                })
-            })
-            .expect("legacy → canonical conversion succeeds");
-
-        // Sanity — the trait impl on the slice must match the
-        // inherent lookups on the legacy blob for each known pair.
-        for node in &base_ontology.node_types {
-            assert_eq!(
-                <SourceMapping as ObjectMappingLookup>::table_for_node(&sm, node.id.as_ref()),
-                canonical.as_slice().table_for_node(node.id.as_ref()),
-            );
-            for prop in &node.properties {
-                assert_eq!(
-                    sm.column_for_property(node.id.as_ref(), prop.id.as_ref()),
-                    canonical
-                        .as_slice()
-                        .column_for_property(node.id.as_ref(), prop.id.as_ref()),
-                );
-            }
-        }
-
-        let mut canonical_ontology = base_ontology.clone();
-        let canonical_count = apply_pii_classifications(
-            &mut canonical_ontology,
-            &legacy_findings,
-            canonical.as_slice(),
-        );
-
-        // Match count and per-property classifications must be
-        // identical — the whole point of the dual-interface trait.
-        assert_eq!(legacy_count, canonical_count);
-        assert_eq!(
-            extract_classifications(&legacy_ontology),
-            extract_classifications(&canonical_ontology),
-        );
-
-        // And on the positive side: the email + name findings
-        // should have landed (matched via column + name fallback).
-        let legacy_map = extract_classifications(&legacy_ontology);
-        let email_entry = legacy_map
-            .iter()
-            .find(|(k, _)| k.ends_with(".prop-email"))
-            .expect("email property present");
-        assert_eq!(
-            email_entry.1,
-            Some(crate::ir::DataClassification::Confidential),
-        );
-        let name_entry = legacy_map
-            .iter()
-            .find(|(k, _)| k.ends_with(".prop-name"))
-            .expect("name property present");
-        assert_eq!(
-            name_entry.1,
-            Some(crate::ir::DataClassification::Confidential),
-        );
-        // The orphan finding did not match, so `total` stays unclassified.
-        let total_entry = legacy_map
-            .iter()
-            .find(|(k, _)| k.ends_with(".prop-total"))
-            .expect("total property present");
-        assert_eq!(total_entry.1, None);
-    }
 }

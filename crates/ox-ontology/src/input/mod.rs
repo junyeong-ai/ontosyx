@@ -7,4 +7,4 @@ pub use dtos::{
     InputOntologyDef,
 };
 pub use exchange::to_exchange_format;
-pub use transform::{NormalizeResult, NormalizeWarning, normalize};
+pub use transform::{NormalizeOutcome, NormalizeWarning, normalize};

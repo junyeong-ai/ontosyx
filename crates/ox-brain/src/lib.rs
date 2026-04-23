@@ -30,7 +30,7 @@ use ox_ontology::command::OntologyCommand;
 use ox_ontology::ir::OntologyIR;
 use ox_query_ir::query::QueryIR;
 use ox_ontology::repo_insights::{FileContent, RepoInsights};
-use ox_ontology::mapping::SourceMapping;
+use ox_ontology::mapping::SourceId;
 use ox_core::source_schema::SourceSchema;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -126,15 +126,23 @@ pub enum WidgetType {
 #[async_trait]
 pub trait OntologyDesigner: Send + Sync {
     /// Analyze sample data and design an ontology.
-    /// Returns both the ontology and the source mapping extracted from LLM output.
+    ///
+    /// `source_id` stamps every emitted `ObjectMappingDef` in the
+    /// returned IR with the canonical source identity so federation
+    /// plans, provenance, and plan-cache keys stay consistent with
+    /// the DesignProject the caller is operating on.
     async fn design_ontology(
         &self,
         sample_data: &str,
         context: &str,
-    ) -> OxResult<(OntologyIR, SourceMapping)>;
+        source_id: &SourceId,
+    ) -> OxResult<OntologyIR>;
 
     /// Design a partial ontology for a batch of tables (divide-and-conquer pipeline).
-    /// Returns raw `InputOntologyDef` (not normalized) for later merging.
+    /// Returns raw `InputOntologyDef` (not normalized) for later merging —
+    /// the caller runs `normalize(merged, source_id)` once after all
+    /// batches + cross-edge resolution land, so `source_id` is not
+    /// threaded through this method.
     async fn design_ontology_batch(
         &self,
         batch_data: &str,
@@ -155,12 +163,12 @@ pub trait OntologyDesigner: Send + Sync {
     /// Refine an ontology's metadata using graph profile statistics and/or additional context.
     /// `refinement_context` is pre-formatted and may contain graph profile data,
     /// domain gap resolutions, or both combined.
-    /// Returns both the refined ontology and the source mapping extracted from LLM output.
     async fn refine_ontology(
         &self,
         ontology: &OntologyIR,
         refinement_context: &str,
-    ) -> OxResult<(OntologyIR, SourceMapping)>;
+        source_id: &SourceId,
+    ) -> OxResult<OntologyIR>;
 }
 
 /// Query translation and widget selection capabilities.
@@ -181,12 +189,16 @@ pub trait QueryTranslator: Send + Sync {
         source_description: &str,
     ) -> OxResult<LoadPlan>;
 
-    /// Generate a LoadPlan from ontology + source mapping + source schema.
-    /// Uses the source_mapping and source_schema for higher-quality plans.
+    /// Generate a LoadPlan from ontology + source schema.
+    ///
+    /// Reads mapping information directly from `ontology.object_mappings()`
+    /// — the IR is the single source of truth for where nodes and
+    /// properties live in the source, so no external mapping
+    /// parameter is needed. `source_schema` carries the physical
+    /// schema the load plan must reconcile with.
     async fn generate_load_plan(
         &self,
         ontology: &OntologyIR,
-        source_mapping: &SourceMapping,
         source_schema: &SourceSchema,
     ) -> OxResult<LoadPlan>;
 
@@ -398,7 +410,8 @@ impl OntologyDesigner for DefaultBrain {
         &self,
         sample_data: &str,
         context: &str,
-    ) -> OxResult<(OntologyIR, SourceMapping)> {
+        source_id: &SourceId,
+    ) -> OxResult<OntologyIR> {
         let mut vars = HashMap::new();
         vars.insert("sample_data", sample_data);
         vars.insert("context", context);
@@ -413,15 +426,15 @@ impl OntologyDesigner for DefaultBrain {
             )
             .await?;
 
-        let norm_result =
-            ox_ontology::input::normalize(input).map_err(|errors| OxError::Ontology {
+        let norm_result = ox_ontology::input::normalize(input, source_id).map_err(|errors| {
+            OxError::Ontology {
                 message: format!(
                     "LLM-generated ontology normalization failed: {}",
                     errors.join("; ")
                 ),
-            })?;
+            }
+        })?;
         let ontology = norm_result.ontology;
-        let source_mapping = norm_result.source_mapping;
 
         // validate() is already called inside normalize(), but keep explicit validation
         // as a safety net
@@ -435,7 +448,7 @@ impl OntologyDesigner for DefaultBrain {
             });
         }
 
-        Ok((ontology, source_mapping))
+        Ok(ontology)
     }
 
     async fn design_ontology_batch(
@@ -503,7 +516,8 @@ impl OntologyDesigner for DefaultBrain {
         &self,
         ontology: &OntologyIR,
         refinement_context: &str,
-    ) -> OxResult<(OntologyIR, SourceMapping)> {
+        source_id: &SourceId,
+    ) -> OxResult<OntologyIR> {
         let ontology_json = serialize_pretty(ontology, "ontology")?;
 
         let mut vars = HashMap::new();
@@ -520,15 +534,15 @@ impl OntologyDesigner for DefaultBrain {
             )
             .await?;
 
-        let norm_result =
-            ox_ontology::input::normalize(input).map_err(|errors| OxError::Ontology {
+        let norm_result = ox_ontology::input::normalize(input, source_id).map_err(|errors| {
+            OxError::Ontology {
                 message: format!(
                     "Refined ontology normalization failed: {}",
                     errors.join("; ")
                 ),
-            })?;
+            }
+        })?;
         let refined = norm_result.ontology;
-        let source_mapping = norm_result.source_mapping;
 
         let errors = refined.validate();
         if !errors.is_empty() {
@@ -540,7 +554,7 @@ impl OntologyDesigner for DefaultBrain {
             });
         }
 
-        Ok((refined, source_mapping))
+        Ok(refined)
     }
 }
 
@@ -817,14 +831,17 @@ impl QueryTranslator for DefaultBrain {
     async fn generate_load_plan(
         &self,
         ontology: &OntologyIR,
-        source_mapping: &SourceMapping,
         source_schema: &SourceSchema,
     ) -> OxResult<LoadPlan> {
+        // Mapping info lives on the ontology itself — serialize the
+        // ObjectMappingDef slice so the prompt sees exactly the same
+        // canonical shape the planner will consume at runtime.
         let ontology_json = serialize_pretty(ontology, "ontology")?;
-        let mapping_json = serialize_pretty(source_mapping, "source_mapping")?;
+        let mapping_json =
+            serialize_pretty(&ontology.object_mappings(), "object_mappings")?;
         let schema_json = serialize_pretty(source_schema, "source_schema")?;
         let source_description =
-            format!("Source Mapping:\n{mapping_json}\n\nSource Schema:\n{schema_json}");
+            format!("Object Mappings:\n{mapping_json}\n\nSource Schema:\n{schema_json}");
 
         let mut vars = HashMap::new();
         vars.insert("source_description", source_description.as_str());

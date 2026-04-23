@@ -244,6 +244,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ontologies/{id}/glossary/suggest-bindings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["suggest_glossary_bindings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontologies/{id}/properties/{owner_kind}/{owner_type_id}/{property_id}/suggest-terms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["suggest_glossary_terms_for_property"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontologies/{id}/value-sets/propose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["propose_ontology_value_sets"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ontology/export": {
         parameters: {
             query?: never;
@@ -994,6 +1042,22 @@ export interface components {
             source_id: string;
             source_type: string;
         };
+        BindingPolicyBody: {
+            /** Format: float */
+            fuzzy_min_ratio?: number | null;
+            max_results?: number | null;
+            /** Format: float */
+            min_score?: number | null;
+            skip_already_bound?: boolean | null;
+            /** Format: float */
+            weight_alias_match?: number | null;
+            /** Format: float */
+            weight_description_overlap?: number | null;
+            /** Format: float */
+            weight_exact_name?: number | null;
+            /** Format: float */
+            weight_fuzzy_name?: number | null;
+        };
         ChatStreamRequest: {
             execution_mode?: string | null;
             message: string;
@@ -1119,7 +1183,11 @@ export interface components {
             source_config: unknown;
             source_data?: string | null;
             source_history: unknown;
-            source_mapping?: unknown;
+            /**
+             * @description Canonical source identity (`{source_type}:{fingerprint}`)
+             *     derived from `source_config` at project creation / reanalysis.
+             */
+            source_id: string;
             source_profile?: unknown;
             source_schema?: unknown;
             status: string;
@@ -1157,6 +1225,17 @@ export interface components {
         };
         ErrorResponse: {
             error: components["schemas"]["ErrorBody"];
+        };
+        EvidenceBody: {
+            /** Format: int64 */
+            distinct_count: number;
+            /** Format: int64 */
+            null_count: number;
+            /** Format: float */
+            null_ratio: number;
+            observed_codes: string[];
+            /** Format: int64 */
+            row_count: number;
         };
         ExecuteFromIrRequest: {
             /**
@@ -1281,7 +1360,6 @@ export interface components {
             quality_report?: unknown;
             /** Format: int32 */
             revision: number;
-            source_mapping?: unknown;
         };
         /** @description Ontology revision snapshot summary (lightweight). */
         OntologySnapshotSummary: {
@@ -1600,6 +1678,63 @@ export interface components {
             is_active?: boolean | null;
             variables?: unknown;
         };
+        PropertyCandidateBody: {
+            owner_kind: string;
+            owner_label: string;
+            owner_type_id: string;
+            property_id: string;
+            property_name: string;
+            /** Format: float */
+            score: number;
+            signals: components["schemas"]["SignalBody"][];
+        };
+        ProposalBody: {
+            code_system_id: string;
+            /**
+             * @description The full `CodeSystemDef` / `ValueSetDef` JSON — kept flat so
+             *     the admin UI can post them verbatim to `/edits` without
+             *     re-deriving ids.
+             */
+            code_system_json: unknown;
+            column: string;
+            /** Format: float */
+            confidence: number;
+            evidence: components["schemas"]["EvidenceBody"];
+            relation: string;
+            suggested_codes: string[];
+            value_set_id: string;
+            value_set_json: unknown;
+        };
+        ProposePolicyBody: {
+            distinct_threshold?: number | null;
+            min_distinct_count?: number | null;
+            /** Format: int64 */
+            min_sample_rows?: number | null;
+            /** Format: float */
+            null_ratio_max?: number | null;
+            require_full_sample_coverage?: boolean | null;
+        };
+        ProposeValueSetsRequest: {
+            policy?: null | components["schemas"]["ProposePolicyBody"];
+            /**
+             * @description Profile snapshot (row counts + column stats). Wire-shape is
+             *     defined by `ox_core::source_schema::SourceProfile`.
+             */
+            profile: Record<string, never>;
+            /**
+             * @description Source schema snapshot — usually the `project.source_schema`
+             *     column of a design project, but any snapshot produced by the
+             *     introspection kernel is acceptable. Wire-shape is defined by
+             *     `ox_core::source_schema::SourceSchema`.
+             */
+            schema: Record<string, never>;
+        };
+        ProposeValueSetsResponse: {
+            /** Format: uuid */
+            ontology_id: string;
+            proposals: components["schemas"]["ProposalBody"][];
+            skipped: components["schemas"]["SkipBody"][];
+        };
         /** @description Query execution record. */
         QueryExecution: {
             compiled_query: string;
@@ -1749,6 +1884,54 @@ export interface components {
             pattern_ir: Record<string, never>;
             /** Format: date-time */
             updated_at: string;
+        };
+        SignalBody: {
+            detail?: string | null;
+            kind: string;
+            /** Format: float */
+            ratio?: number | null;
+            /** Format: int32 */
+            shared_tokens?: number | null;
+            /** Format: int32 */
+            total_tokens?: number | null;
+        };
+        SkipBody: {
+            column: string;
+            reason: string;
+            relation: string;
+        };
+        SuggestBindingsRequest: {
+            aliases?: string[];
+            description?: string | null;
+            policy?: null | components["schemas"]["BindingPolicyBody"];
+            /** @description Canonical term name — the only required field. */
+            term: string;
+            /**
+             * @description Pre-existing term id if the term is already saved. When
+             *     provided, the endpoint confirms it refers to the saved
+             *     definition; otherwise an ephemeral id is minted for scoring.
+             */
+            term_id?: string | null;
+        };
+        SuggestBindingsResponse: {
+            candidates: components["schemas"]["PropertyCandidateBody"][];
+            /** Format: uuid */
+            ontology_id: string;
+        };
+        SuggestTermsRequest: {
+            policy?: null | components["schemas"]["BindingPolicyBody"];
+        };
+        SuggestTermsResponse: {
+            candidates: components["schemas"]["TermCandidateBody"][];
+            /** Format: uuid */
+            ontology_id: string;
+        };
+        TermCandidateBody: {
+            /** Format: float */
+            score: number;
+            signals: components["schemas"]["SignalBody"][];
+            term: string;
+            term_id: string;
         };
         UiConfig: {
             elk_direction: string;
@@ -2471,6 +2654,8 @@ export interface operations {
                 limit?: number;
                 /** @description Opaque cursor from a previous response */
                 cursor?: string;
+                /** @description Return only the ontology whose workspace-scoped name matches exactly (0 or 1 items). When set, pagination is ignored. */
+                name_eq?: string;
             };
             header?: never;
             path?: never;
@@ -2519,6 +2704,93 @@ export interface operations {
                     "application/json": {
                         error: components["schemas"]["ErrorBody"];
                     };
+                };
+            };
+        };
+    };
+    suggest_glossary_bindings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ontology identity ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuggestBindingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Candidate property bindings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuggestBindingsResponse"];
+                };
+            };
+        };
+    };
+    suggest_glossary_terms_for_property: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ontology identity ID */
+                id: string;
+                /** @description node | edge */
+                owner_kind: string;
+                /** @description NodeTypeId or EdgeTypeId */
+                owner_type_id: string;
+                /** @description PropertyId */
+                property_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuggestTermsRequest"];
+            };
+        };
+        responses: {
+            /** @description Candidate glossary terms */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuggestTermsResponse"];
+                };
+            };
+        };
+    };
+    propose_ontology_value_sets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ontology identity ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProposeValueSetsRequest"];
+            };
+        };
+        responses: {
+            /** @description Inference report */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposeValueSetsResponse"];
                 };
             };
         };

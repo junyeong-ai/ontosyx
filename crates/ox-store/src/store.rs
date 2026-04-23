@@ -89,8 +89,10 @@ pub struct AnalysisSnapshot {
 // ---------------------------------------------------------------------------
 
 pub struct ExtendResult {
+    /// Canonical OntologyIR JSON — already carries object_mappings
+    /// stamped with each source's SourceId, so no separate mapping
+    /// blob travels alongside.
     pub ontology: serde_json::Value,
-    pub source_mapping: serde_json::Value,
     pub quality_report: serde_json::Value,
     pub source_schema: serde_json::Value,
     pub source_profile: serde_json::Value,
@@ -374,7 +376,6 @@ pub trait ProjectStore: Send + Sync {
         &self,
         id: Uuid,
         ontology: &serde_json::Value,
-        source_mapping: Option<&serde_json::Value>,
         quality_report: Option<&serde_json::Value>,
         expected_revision: i32,
     ) -> OxResult<()>;
@@ -433,7 +434,6 @@ pub trait ProjectStore: Send + Sync {
         project_id: Uuid,
         revision: i32,
         ontology: &serde_json::Value,
-        source_mapping: Option<&serde_json::Value>,
         quality_report: Option<&serde_json::Value>,
     ) -> OxResult<()>;
 

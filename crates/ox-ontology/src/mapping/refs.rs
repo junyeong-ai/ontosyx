@@ -14,6 +14,8 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::ir::NodeTypeId;
+
 // ---------------------------------------------------------------------------
 // Identifier newtypes
 // ---------------------------------------------------------------------------
@@ -57,8 +59,30 @@ impl SourceId {
 ox_core::define_id_newtype!(
     /// Stable identifier for an `ObjectMappingDef` — the binding
     /// between one `NodeTypeDef` and one physical relation.
+    ///
+    /// Construction: prefer [`ObjectMappingId::for_node_source`]
+    /// — the canonical rule is `om-{node_type_id}@{source_id}`,
+    /// which keeps the id deterministic across re-runs and encodes
+    /// the (node, source) tuple so the id alone is informative
+    /// in audit diffs and cache keys. Ad-hoc ids (via the bare
+    /// `::new` constructor) stay supported for tests and for
+    /// admin-supplied overrides when a node has multiple mappings
+    /// on the same source and the rule needs disambiguation.
     ObjectMappingId
 );
+
+impl ObjectMappingId {
+    /// Canonical `om-{node_type_id}@{source_id}` identity.
+    ///
+    /// The `@` separator is chosen because node-type and source
+    /// ids are each already dotted (`{kind}:{fingerprint}` for
+    /// source), so a non-colon separator keeps the three
+    /// components visually distinct when the id appears in logs
+    /// and migration diffs.
+    pub fn for_node_source(node_type_id: &NodeTypeId, source_id: &SourceId) -> Self {
+        Self::new(format!("om-{node_type_id}@{source_id}"))
+    }
+}
 
 ox_core::define_id_newtype!(
     /// Stable identifier for a `LinkMappingDef` — the binding between

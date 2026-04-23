@@ -4,16 +4,17 @@ use std::collections::HashMap;
 use serde::Serialize;
 use tracing::warn;
 
-use ox_core::error::OxResult;
 use ox_core::graph_label::GraphLabel;
-use ox_core::property_key::PropertyKey;
 use crate::ir::*;
-use crate::mapping::{ObjectMappingDef, SourceId, SourceMapping};
+use crate::mapping::{
+    CacheHintKind, ColumnRef, ObjectMappingDef, ObjectMappingId, PropertyLocation,
+    PropertyMappingDef, PropertyTransform, SourceId, SourceRelationKind,
+};
 
 use super::dtos::*;
 
 // ---------------------------------------------------------------------------
-// NormalizeResult — normalize() output with structured warnings
+// NormalizeOutcome — normalize() output with structured warnings
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize)]
@@ -22,59 +23,22 @@ pub struct NormalizeWarning {
     pub message: String,
 }
 
+/// Product of a successful normalization pass.
+///
+/// `ontology` carries the canonical IR (including `object_mappings`
+/// built from the input DTO's `source_table` / `source_column`
+/// hints), and `warnings` collects soft diagnostics — dropped
+/// constraints, fuzzy-corrected property names, dangling edges, etc.
+/// Hard errors short-circuit before the outcome is built and surface
+/// via `Err(Vec<String>)`.
+///
+/// The type is named `Outcome` rather than `Result` to avoid
+/// collision with the ubiquitous `std::result::Result<T, E>` in
+/// signatures like `OxResult<NormalizeResult>`.
 #[derive(Debug)]
-pub struct NormalizeResult {
+pub struct NormalizeOutcome {
     pub ontology: OntologyIR,
-    pub source_mapping: SourceMapping,
     pub warnings: Vec<NormalizeWarning>,
-}
-
-impl NormalizeResult {
-    /// Project the legacy `SourceMapping` onto the canonical
-    /// `ObjectMappingDef` shape, resolving each property's display
-    /// key from the ontology's own `PropertyDef.name`.
-    ///
-    /// Phase 4-A migration bridge: callers that already have a
-    /// `NormalizeResult` — the single ingress path produces one —
-    /// can obtain the canonical mappings without threading a
-    /// resolver through yet another layer. The `source_id` must be
-    /// supplied because the legacy shape never recorded which data
-    /// source its tables lived in. Returning `OxResult` (via
-    /// `SourceMapping::to_canonical`) surfaces cases where a
-    /// property referenced by the legacy blob has no matching
-    /// `PropertyDef` — that mismatch is a real integrity bug, not
-    /// something to swallow.
-    ///
-    /// Zero-cost when the legacy mapping is empty (returns an empty
-    /// `Vec` without walking the ontology).
-    pub fn canonical_object_mappings(
-        &self,
-        source_id: &SourceId,
-    ) -> OxResult<Vec<ObjectMappingDef>> {
-        self.source_mapping.to_canonical(source_id, |node_id, prop_id| {
-            resolve_property_key(&self.ontology, node_id, prop_id)
-        })
-    }
-}
-
-/// Walk the ontology's node types to find the property whose id
-/// matches `prop_id` under the node named by `node_id`, returning
-/// its validated `PropertyKey`. Returns `None` when the node or
-/// property is not present — `canonical_object_mappings` turns
-/// that into a `Validation` error so integrity bugs surface.
-fn resolve_property_key(
-    ontology: &OntologyIR,
-    node_id: &str,
-    prop_id: &str,
-) -> Option<PropertyKey> {
-    ontology
-        .node_types
-        .iter()
-        .find(|nt| nt.id.as_ref() == node_id)?
-        .properties
-        .iter()
-        .find(|p| p.id.as_ref() == prop_id)
-        .map(|p| p.name.clone())
 }
 
 // ---------------------------------------------------------------------------
@@ -107,15 +71,26 @@ fn levenshtein(a: &str, b: &str) -> usize {
 // normalize() — Input DTO → Canonical model
 // ---------------------------------------------------------------------------
 
-/// Input DTO → Canonical model + SourceMapping. The single ingress path.
+/// Input DTO → canonical `OntologyIR`. The single ingress path.
+///
 /// 1. Assign UUID to any element missing an id
-/// 2. Extract source_table/source_column into SourceMapping
+/// 2. Emit `ObjectMappingDef` / `PropertyMappingDef` entries onto
+///    `ontology.object_mappings` for every node whose input supplies
+///    `source_table` (property columns attach when supplied too)
 /// 3. Resolve edge source_type/target_type (label) → source_node_id/target_node_id (UUID)
 /// 4. Resolve constraint properties (name) → property_ids (UUID)
 /// 5. Resolve index label/property (name) → node_id/property_id (UUID)
 ///
+/// `source_id` identifies the data source the input was derived
+/// from. Every emitted `ObjectMappingDef` stamps it onto the
+/// mapping, so federation plans, provenance, and plan-cache keys
+/// all agree on which source the ontology is bound to.
+///
 /// Errors: immediately fails on unknown label/name references.
-pub fn normalize(input: InputOntologyDef) -> Result<NormalizeResult, Vec<String>> {
+pub fn normalize(
+    input: InputOntologyDef,
+    source_id: &SourceId,
+) -> Result<NormalizeOutcome, Vec<String>> {
     let warnings: RefCell<Vec<NormalizeWarning>> = RefCell::new(Vec::new());
 
     macro_rules! norm_warn {
@@ -138,21 +113,23 @@ pub fn normalize(input: InputOntologyDef) -> Result<NormalizeResult, Vec<String>
     let mut node_prop_map: HashMap<String, Vec<(String, PropertyId)>> = HashMap::new();
 
     let mut node_types = Vec::with_capacity(input.node_types.len());
-    let mut source_mapping = SourceMapping::new();
+    // ObjectMappingDef accumulates in parallel with node_types; emitted
+    // to the final IR via `add_object_mapping` once the ontology is
+    // constructed (the validator rejects mappings with no matching
+    // node at that point — we rely on it to catch drift).
+    let mut pending_mappings: Vec<ObjectMappingDef> = Vec::new();
 
     for input_node in input.node_types {
         let node_id: NodeTypeId = ensure_id(input_node.id).into();
         label_to_node_id.insert(input_node.label.clone(), node_id.clone());
 
-        // Extract source_table into SourceMapping
-        if let Some(table) = &input_node.source_table {
-            source_mapping
-                .node_tables
-                .insert(node_id.to_string(), table.clone());
-        }
-
-        // Build properties with IDs, track name→id mapping
+        // Build properties with IDs, track name→id mapping, and
+        // collect PropertyMappingDef entries when both a node-level
+        // source_table and a property-level source_column are present
+        // (an isolated source_column with no enclosing table is
+        // meaningless — the column would have nowhere to live).
         let mut prop_name_to_id: Vec<(String, PropertyId)> = Vec::new();
+        let mut property_mappings: Vec<PropertyMappingDef> = Vec::new();
         let properties: Vec<PropertyDef> = input_node
             .properties
             .iter()
@@ -172,9 +149,15 @@ pub fn normalize(input: InputOntologyDef) -> Result<NormalizeResult, Vec<String>
                     }
                 };
                 prop_name_to_id.push((p.name.clone(), prop_id.clone()));
-                // Extract source_column into SourceMapping
-                if let Some(col) = &p.source_column {
-                    source_mapping.set_column(&node_id, &prop_id, col.clone());
+                if let (Some(table), Some(col)) =
+                    (input_node.source_table.as_deref(), p.source_column.as_deref())
+                {
+                    property_mappings.push(PropertyMappingDef {
+                        property_id: prop_id.clone(),
+                        property_key: name.clone(),
+                        location: PropertyLocation::Column(ColumnRef::new(table, col)),
+                        transform: PropertyTransform::Identity,
+                    });
                 }
                 Some(PropertyDef {
                     id: prop_id,
@@ -188,6 +171,24 @@ pub fn normalize(input: InputOntologyDef) -> Result<NormalizeResult, Vec<String>
                 })
             })
             .collect();
+
+        if let Some(table) = &input_node.source_table {
+            pending_mappings.push(ObjectMappingDef {
+                id: ObjectMappingId::for_node_source(&node_id, source_id),
+                node_type_id: node_id.clone(),
+                source_id: source_id.clone(),
+                relation: table.clone(),
+                relation_kind: SourceRelationKind::default(),
+                primary_key_columns: Vec::new(),
+                row_filter: None,
+                property_mappings,
+                workspace_scope: None,
+                precedence: u8::MAX,
+                valid_from: None,
+                valid_to: None,
+                cache_hint: CacheHintKind::default(),
+            });
+        }
 
         // Resolve constraints: property names → property IDs
         // Uses exact match first, then fuzzy (Levenshtein ≤ 2) auto-correction.
@@ -555,7 +556,7 @@ pub fn normalize(input: InputOntologyDef) -> Result<NormalizeResult, Vec<String>
         })
         .collect();
 
-    let ontology = OntologyIR::new(
+    let mut ontology = OntologyIR::new(
         ontology_id,
         input.name,
         input.description,
@@ -565,15 +566,25 @@ pub fn normalize(input: InputOntologyDef) -> Result<NormalizeResult, Vec<String>
         indexes,
     );
 
+    // Attach canonical mappings. `add_object_mapping` enforces id
+    // uniqueness; the subsequent `validate()` pass enforces
+    // referential integrity against node types. Any invariant error
+    // here is a normalization bug (we just built these) — surface
+    // it in the error list.
+    for om in pending_mappings {
+        if let Err(e) = ontology.add_object_mapping(om) {
+            return Err(vec![format!("add_object_mapping: {e}")]);
+        }
+    }
+
     // Run canonical validation and merge any errors
     let validation_errors = ontology.validate();
     if !validation_errors.is_empty() {
         return Err(validation_errors);
     }
 
-    Ok(NormalizeResult {
+    Ok(NormalizeOutcome {
         ontology,
-        source_mapping,
         warnings: warnings.into_inner(),
     })
 }
@@ -589,6 +600,13 @@ mod tests {
     use crate::input::to_exchange_format;
     use ox_core::types::PropertyType;
     use uuid::Uuid;
+
+    /// Stable fake SourceId for tests — every normalization pass
+    /// under test uses the same id so golden-diff assertions on the
+    /// emitted ObjectMappingDefs stay deterministic.
+    fn test_source_id() -> SourceId {
+        SourceId::new("postgresql:test-fingerprint")
+    }
 
     fn input_property(name: &str) -> InputPropertyDef {
         InputPropertyDef {
@@ -658,7 +676,7 @@ mod tests {
     #[test]
     fn normalize_happy_path_generates_ids_and_resolves_references() {
         let input = base_input();
-        let nr = normalize(input).expect("should succeed");
+        let nr = normalize(input, &test_source_id()).expect("should succeed");
 
         // Top-level id was generated (UUID format)
         assert!(!nr.ontology.id.is_empty());
@@ -718,11 +736,15 @@ mod tests {
             _ => panic!("expected Single index"),
         }
 
-        // source_table extracted into mapping
-        assert_eq!(
-            nr.source_mapping.table_for_node(&user_node.id),
-            Some("users")
-        );
+        // source_table emitted onto the canonical ObjectMappingDef.
+        let om = nr
+            .ontology
+            .object_mappings()
+            .iter()
+            .find(|m| m.node_type_id == user_node.id)
+            .expect("User node should have an ObjectMappingDef");
+        assert_eq!(om.relation, "users");
+        assert_eq!(om.source_id.as_str(), "postgresql:test-fingerprint");
     }
 
     // -- normalize with pre-existing ids -------------------------------------
@@ -743,7 +765,7 @@ mod tests {
             property: "email".to_string(),
         };
 
-        let nr = normalize(input).expect("should succeed");
+        let nr = normalize(input, &test_source_id()).expect("should succeed");
 
         assert_eq!(nr.ontology.id, "my-ontology-id");
         assert_eq!(nr.ontology.node_types[0].id, "my-node-id");
@@ -765,7 +787,7 @@ mod tests {
         let mut input = base_input();
         input.edge_types[0].source_type = "NonExistent".to_string();
 
-        let nr = normalize(input).expect("should succeed, dropping dangling edge");
+        let nr = normalize(input, &test_source_id()).expect("should succeed, dropping dangling edge");
         assert!(
             nr.ontology.edge_types.is_empty(),
             "dangling edge should be dropped"
@@ -777,7 +799,7 @@ mod tests {
         let mut input = base_input();
         input.edge_types[0].target_type = "Ghost".to_string();
 
-        let nr = normalize(input).expect("should succeed, dropping dangling edge");
+        let nr = normalize(input, &test_source_id()).expect("should succeed, dropping dangling edge");
         assert!(
             nr.ontology.edge_types.is_empty(),
             "dangling edge should be dropped"
@@ -795,7 +817,7 @@ mod tests {
                 properties: vec!["emal".to_string()],
             });
 
-        let nr = normalize(input).expect("should auto-correct fuzzy match");
+        let nr = normalize(input, &test_source_id()).expect("should auto-correct fuzzy match");
         let node = &nr.ontology.node_types[0];
         // All 3 constraints survive: original 2 + the auto-corrected one
         assert_eq!(node.constraints.len(), 3);
@@ -820,7 +842,7 @@ mod tests {
                 property: "emal".to_string(),
             });
 
-        let nr = normalize(input).expect("should auto-correct fuzzy match");
+        let nr = normalize(input, &test_source_id()).expect("should auto-correct fuzzy match");
         let node = &nr.ontology.node_types[0];
         assert_eq!(node.constraints.len(), 3);
         match &node.constraints[2].constraint {
@@ -841,7 +863,7 @@ mod tests {
                 properties: vec!["zzz_nonexistent_xyz".to_string()],
             });
 
-        let nr = normalize(input).expect("should succeed, dropping invalid constraint");
+        let nr = normalize(input, &test_source_id()).expect("should succeed, dropping invalid constraint");
         // Original unique constraint on "email" should still exist
         assert!(nr.ontology.node_types[0].has_unique_constraint());
     }
@@ -856,7 +878,7 @@ mod tests {
                 property: "zzz_nonexistent_xyz".to_string(),
             });
 
-        let nr = normalize(input).expect("should succeed, dropping invalid constraint");
+        let nr = normalize(input, &test_source_id()).expect("should succeed, dropping invalid constraint");
         // The invalid exists constraint should be dropped, original constraints remain
         assert!(nr.ontology.node_types[0].has_unique_constraint());
     }
@@ -870,7 +892,7 @@ mod tests {
             property: "name".to_string(),
         });
 
-        let nr = normalize(input).expect("should succeed, dropping invalid index");
+        let nr = normalize(input, &test_source_id()).expect("should succeed, dropping invalid index");
         // base_input has 1 valid index; the Ghost index should be dropped
         assert_eq!(
             nr.ontology.indexes.len(),
@@ -888,7 +910,7 @@ mod tests {
             property: "nonexistent".to_string(),
         });
 
-        let nr = normalize(input).expect("should succeed, dropping invalid index");
+        let nr = normalize(input, &test_source_id()).expect("should succeed, dropping invalid index");
         // base_input has 1 valid index; the nonexistent property index should be dropped
         assert_eq!(
             nr.ontology.indexes.len(),
@@ -902,8 +924,8 @@ mod tests {
     #[test]
     fn round_trip_normalize_export_normalize_produces_equivalent() {
         let input = base_input();
-        let nr = normalize(input).expect("first normalize");
-        let exported = to_exchange_format(&nr.ontology, &nr.source_mapping);
+        let nr = normalize(input, &test_source_id()).expect("first normalize");
+        let exported = to_exchange_format(&nr.ontology);
 
         // Exported should have ids from canonical
         assert_eq!(exported.id, Some(nr.ontology.id.clone()));
@@ -925,7 +947,7 @@ mod tests {
         }
 
         // Re-normalize exported: should produce structurally identical canonical
-        let nr2 = normalize(exported).expect("second normalize");
+        let nr2 = normalize(exported, &test_source_id()).expect("second normalize");
 
         assert_eq!(nr.ontology.id, nr2.ontology.id);
         assert_eq!(nr.ontology.name, nr2.ontology.name);
@@ -1005,7 +1027,7 @@ mod tests {
             indexes: vec![],
         };
 
-        let err = normalize(input).expect_err("should fail validation");
+        let err = normalize(input, &test_source_id()).expect_err("should fail validation");
         assert!(err.iter().any(|e| e.contains("id must not be empty")));
         assert!(err.iter().any(|e| e.contains("name must not be empty")));
         assert!(err.iter().any(|e| e.contains("at least one node type")));
@@ -1036,7 +1058,7 @@ mod tests {
             indexes: vec![],
         };
 
-        let nr = normalize(input).expect("should succeed");
+        let nr = normalize(input, &test_source_id()).expect("should succeed");
         let node = &nr.ontology.node_types[0];
         match &node.constraints[0].constraint {
             NodeConstraint::NodeKey { property_ids } => {
@@ -1048,51 +1070,45 @@ mod tests {
         }
     }
 
-    // -- canonical_object_mappings -------------------------------------------
+    // -- object_mappings emission --------------------------------------------
 
     #[test]
-    fn canonical_object_mappings_empty_when_no_source_tables() {
-        // Product has no source_table; User has one but we'll drop
-        // it for this test by clearing both.
+    fn normalize_emits_no_object_mapping_when_no_source_table() {
         let mut input = base_input();
         input.node_types[0].source_table = None;
         input.node_types[0].properties[1].source_column = None; // email
         input.node_types[0].properties[0].source_column = None; // id
-        let nr = normalize(input).expect("normalize");
-        let out = nr
-            .canonical_object_mappings(&SourceId::new("pg-main"))
-            .expect("conversion succeeds");
-        assert!(out.is_empty());
+        let nr = normalize(input, &test_source_id()).expect("normalize");
+        assert!(nr.ontology.object_mappings().is_empty());
     }
 
     #[test]
-    fn canonical_object_mappings_projects_source_table_and_columns() {
+    fn normalize_emits_object_mapping_with_canonical_id_format() {
+        // base_input has User with source_table = "users" and no
+        // source_column; add email_addr to verify property_mapping
+        // emission on the same pass.
         let mut input = base_input();
-        // Wire a source column for `email` so the property_mapping
-        // path runs too — base_input only sets source_table.
         input.node_types[0].properties[1].source_column =
             Some("email_addr".to_string());
-        let nr = normalize(input).expect("normalize");
+        let nr = normalize(input, &test_source_id()).expect("normalize");
         let user_node = &nr.ontology.node_types[0];
 
-        let out = nr
-            .canonical_object_mappings(&SourceId::new("pg-main"))
-            .expect("conversion succeeds");
+        let mappings = nr.ontology.object_mappings();
+        assert_eq!(mappings.len(), 1, "Product has no source_table → no mapping");
 
-        // One mapping, for User → users.
-        assert_eq!(out.len(), 1);
-        let om = &out[0];
-        assert_eq!(om.node_type_id.as_str(), user_node.id.as_str());
+        let om = &mappings[0];
+        assert_eq!(om.node_type_id, user_node.id);
         assert_eq!(om.relation, "users");
-        assert_eq!(om.source_id.as_str(), "pg-main");
-        assert_eq!(om.id.as_str(), format!("om-legacy-{}", user_node.id));
+        assert_eq!(om.source_id.as_str(), "postgresql:test-fingerprint");
+        // Canonical id format: om-{node_type_id}@{source_id}
+        assert_eq!(
+            om.id.as_str(),
+            format!("om-{}@postgresql:test-fingerprint", user_node.id)
+        );
 
-        // One property mapping, for email → users.email_addr,
-        // keyed by the PropertyDef's validated name (not the raw
-        // property_id).
         assert_eq!(om.property_mappings.len(), 1);
         let pm = &om.property_mappings[0];
-        assert_eq!(pm.property_id.as_str(), user_node.properties[1].id.as_str());
+        assert_eq!(pm.property_id, user_node.properties[1].id);
         assert_eq!(pm.property_key.as_str(), "email");
         match &pm.location {
             crate::mapping::PropertyLocation::Column(col) => {
@@ -1104,54 +1120,39 @@ mod tests {
     }
 
     #[test]
-    fn canonical_object_mappings_reports_integrity_error_for_orphan_property() {
-        // Stamp the legacy mapping with a column pointing at a
-        // property_id that isn't on any of the ontology's nodes.
-        // The resolver returns None → to_canonical raises Validation.
-        let nr = normalize(base_input()).expect("normalize");
-        let user_id = nr.ontology.node_types[0].id.clone();
-        let mut nr = nr;
-        nr.source_mapping
-            .set_column(&user_id, "bogus-prop-id", "bogus_col".to_string());
-
-        let err = nr
-            .canonical_object_mappings(&SourceId::new("pg-main"))
-            .expect_err("integrity bug must surface");
-        match err {
-            ox_core::error::OxError::Validation { field, .. } => {
-                assert_eq!(field, "property_key");
-            }
-            other => panic!("unexpected error kind: {other:?}"),
-        }
+    fn normalize_skips_source_column_when_node_has_no_source_table() {
+        // source_column without source_table is meaningless — the
+        // column has nowhere to live. normalize silently drops the
+        // orphan to keep the resulting mapping coherent.
+        let mut input = base_input();
+        // User already has source_table; wipe it but leave a
+        // source_column on email.
+        input.node_types[0].source_table = None;
+        input.node_types[0].properties[1].source_column =
+            Some("email_addr".to_string());
+        let nr = normalize(input, &test_source_id()).expect("normalize");
+        assert!(
+            nr.ontology.object_mappings().is_empty(),
+            "no source_table → no ObjectMappingDef, orphan column dropped",
+        );
     }
 
     #[test]
-    fn canonical_object_mappings_roundtrip_matches_legacy_lookup() {
-        // End-to-end sanity: every legacy column lookup must find a
-        // canonical PropertyMappingDef with the same column name.
-        let mut input = base_input();
-        input.node_types[0].properties[0].source_column = Some("id_col".into());
-        input.node_types[0].properties[1].source_column = Some("email_col".into());
-        let nr = normalize(input).expect("normalize");
-
-        let out = nr
-            .canonical_object_mappings(&SourceId::new("pg-main"))
-            .expect("conversion succeeds");
-        assert_eq!(out.len(), 1);
-        for om in &out {
-            for pm in &om.property_mappings {
-                let expected_col = nr
-                    .source_mapping
-                    .column_for_property(om.node_type_id.as_str(), pm.property_id.as_str())
-                    .expect("legacy lookup finds the column");
-                match &pm.location {
-                    crate::mapping::PropertyLocation::Column(col) => {
-                        assert_eq!(col.column, expected_col);
-                        assert_eq!(col.relation, om.relation);
-                    }
-                    other => panic!("unexpected location: {other:?}"),
-                }
-            }
-        }
+    fn normalize_stamps_every_mapping_with_the_provided_source_id() {
+        // Two runs with different source ids on the same input must
+        // produce mappings that differ only in `source_id` + in the
+        // canonical `ObjectMappingId` — everything else (node_type_id,
+        // relation, property_mappings) stays byte-identical.
+        let a = normalize(base_input(), &SourceId::new("a:alpha"))
+            .expect("normalize a");
+        let b = normalize(base_input(), &SourceId::new("b:beta"))
+            .expect("normalize b");
+        let oma = &a.ontology.object_mappings()[0];
+        let omb = &b.ontology.object_mappings()[0];
+        assert_eq!(oma.relation, omb.relation);
+        assert_ne!(oma.source_id, omb.source_id);
+        assert_ne!(oma.id, omb.id);
+        assert!(oma.id.as_str().ends_with("@a:alpha"));
+        assert!(omb.id.as_str().ends_with("@b:beta"));
     }
 }

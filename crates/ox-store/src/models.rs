@@ -291,9 +291,9 @@ pub struct DesignProject {
     pub analysis_report: Option<serde_json::Value>,
     /// User decisions (DesignOptions)
     pub design_options: serde_json::Value,
-    /// SourceMapping (node→table, property→column links)
-    pub source_mapping: Option<serde_json::Value>,
-    /// Generated OntologyIR (includes canonical `object_mappings`)
+    /// Generated OntologyIR. Canonical `object_mappings` (node→table,
+    /// property→column bindings) live inside this value; there is
+    /// no separate persisted blob.
     pub ontology: Option<serde_json::Value>,
     /// OntologyQualityReport
     pub quality_report: Option<serde_json::Value>,
@@ -332,8 +332,8 @@ pub struct OntologySnapshot {
     pub project_id: Uuid,
     pub workspace_id: Uuid,
     pub revision: i32,
+    /// OntologyIR JSON — includes canonical `object_mappings`.
     pub ontology: serde_json::Value,
-    pub source_mapping: Option<serde_json::Value>,
     pub quality_report: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
 }

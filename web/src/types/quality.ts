@@ -12,7 +12,6 @@ import type {
 
 import type {
   DesignProject,
-  SourceMapping,
 } from "./projects";
 
 // --- Ontology quality report (returned by design for DB sources) ---
@@ -76,7 +75,6 @@ export interface OntologySnapshot {
   project_id: string;
   revision: number;
   ontology: OntologyIR;
-  source_mapping: SourceMapping | null;
   quality_report: OntologyQualityReport | null;
   created_at: string;
 }

@@ -1,41 +1,36 @@
 use ox_ontology::ir::OntologyIR;
 use ox_ontology::quality::{OntologyQualityReport, assess_quality};
 use ox_ontology::source_analysis::ColumnClarification;
-use ox_ontology::mapping::SourceMapping;
 use ox_core::source_schema::{SourceProfile, SourceSchema};
 use ox_store::DesignProject;
 
 use crate::error::AppError;
 
-/// Assess quality from a project's stored source schema, profile, and source mapping.
-/// Always produces a quality report. For sources without schema/profile (e.g., text),
-/// ontology-level checks (missing descriptions, etc.) still run.
+/// Assess quality from a project's stored source schema, profile, and
+/// the canonical object_mappings carried inside the ontology itself.
+/// For sources without schema/profile (e.g. text), ontology-level
+/// checks (missing descriptions, etc.) still run.
 pub(crate) fn assess_quality_from_project(
     project: &DesignProject,
     ontology: &OntologyIR,
     excluded_tables: &[String],
     column_clarifications: &[ColumnClarification],
 ) -> Result<OntologyQualityReport, AppError> {
-    let mapping: SourceMapping = project
-        .source_mapping
-        .as_ref()
-        .map(|v| serde_json::from_value(v.clone()))
-        .transpose()
-        .map_err(|e| AppError::internal(format!("Corrupt source_mapping in project: {e}")))?
-        .unwrap_or_default();
     assess_quality_from_project_with_mapping(
         project,
         ontology,
-        &mapping,
         excluded_tables,
         column_clarifications,
     )
 }
 
+/// The `_with_mapping` suffix is a historical name kept so existing
+/// call sites don't churn — mapping now travels on the ontology IR,
+/// not through a separate parameter. New call sites should prefer
+/// `assess_quality_from_project`; the two are identical.
 pub(crate) fn assess_quality_from_project_with_mapping(
     project: &DesignProject,
     ontology: &OntologyIR,
-    source_mapping: &SourceMapping,
     excluded_tables: &[String],
     column_clarifications: &[ColumnClarification],
 ) -> Result<OntologyQualityReport, AppError> {
@@ -57,7 +52,7 @@ pub(crate) fn assess_quality_from_project_with_mapping(
         ontology,
         schema.as_ref(),
         profile.as_ref(),
-        source_mapping,
+        ontology.object_mappings(),
         excluded_tables,
         column_clarifications,
         &ox_ontology::quality::QualityConfig::default(),
