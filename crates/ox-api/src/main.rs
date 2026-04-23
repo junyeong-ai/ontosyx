@@ -447,6 +447,16 @@ async fn main() -> anyhow::Result<()> {
 
     let db_model_router = Arc::new(model_router::DbModelRouter::new(Arc::clone(&store)));
 
+    // Process-wide clarification tracker — fed by ResolveAmbiguityTool
+    // and read by QueryGraphTool so the Phase 4.6
+    // `clarification_success_rate` signal flips when a query
+    // lands shortly after an ambiguity resolution in the same
+    // agent session. Shared with the background evict loop so
+    // stale session entries don't accumulate forever.
+    let clarification_tracker: Arc<
+        ox_agent::clarification_tracker::ClarificationTracker,
+    > = Arc::new(ox_agent::clarification_tracker::ClarificationTracker::new());
+
     let state = AppState {
         brain,
         compiler,
@@ -479,10 +489,16 @@ async fn main() -> anyhow::Result<()> {
         stream_limiter: Arc::new(ox_api::stream_limiter::StreamLimiter::new(
             config.agent.max_concurrent_streams_per_user,
         )),
-        clarification_tracker: Arc::new(
-            ox_agent::clarification_tracker::ClarificationTracker::new(),
-        ),
+        clarification_tracker: Arc::clone(&clarification_tracker),
     };
+
+    // Spawn the clarification-tracker evict loop. Runs every 30
+    // minutes under `spawn_system` so the cancellation token
+    // drains it on graceful shutdown.
+    ox_api::background::spawn_clarification_evict(
+        Arc::clone(&clarification_tracker),
+        cancel_token.clone(),
+    );
 
     // CORS policy: explicit origins required. No permissive fallback.
     //
