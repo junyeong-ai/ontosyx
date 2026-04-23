@@ -1,8 +1,14 @@
-import { describe, it, expect } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import ts from "typescript";
+import { afterAll, beforeAll, describe, it, expect } from "vitest";
 
 import {
   auditCalls,
+  createAuditProgram,
   findTranslationCalls,
+  findTranslationCallsTyped,
   reasonLabel,
 } from "../lib/i18n-auditor.mjs";
 
@@ -212,5 +218,133 @@ describe("reasonLabel", () => {
     expect(reasonLabel("missing_in_ko")).toBe("missing in ko");
     expect(reasonLabel("missing_in_both")).toBe("missing in both");
     expect(reasonLabel("prefix_is_leaf")).toContain("leaf");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Typed-scan tests — these spin up a real TypeScript Program so the
+// type checker is live. We write sources to a tempdir + tsconfig,
+// compile, and walk. The fixture is reused across the suite so the
+// Program-build cost (~hundreds of ms) is paid once.
+// ---------------------------------------------------------------------------
+
+describe("findTranslationCallsTyped — enum-resolved templates", () => {
+  let tmpRoot: string;
+  let program: ts.Program;
+
+  /**
+   * Write a file into the temp workspace and return its absolute
+   * path. Caller is free to pass relative slashes; the function
+   * normalises against `tmpRoot`.
+   */
+  function writeFile(rel: string, contents: string): string {
+    const abs = path.join(tmpRoot, rel);
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, contents, "utf8");
+    return abs;
+  }
+
+  beforeAll(() => {
+    tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "i18n-audit-"));
+
+    writeFile(
+      "tsconfig.json",
+      JSON.stringify({
+        compilerOptions: {
+          target: "ES2020",
+          module: "ESNext",
+          moduleResolution: "Bundler",
+          jsx: "react-jsx",
+          strict: true,
+          noEmit: true,
+          skipLibCheck: true,
+        },
+        include: ["**/*.ts", "**/*.tsx"],
+      }),
+    );
+
+    // Stub just enough of next-intl's surface that the type checker
+    // doesn't complain about the `useTranslations` import.
+    writeFile(
+      "next-intl.d.ts",
+      `declare module "next-intl" {
+         export function useTranslations(ns: string): (key: string) => string;
+       }`,
+    );
+
+    // The real subject under test — the exact pattern that the
+    // parse-only auditor missed until we added type-checker support.
+    writeFile(
+      "EnumTemplate.tsx",
+      `
+        import { useTranslations } from "next-intl";
+        const REASONS = ["Match", "PathFind", "Aggregate"] as const;
+        type Reason = (typeof REASONS)[number];
+        function isReason(s: string): s is Reason {
+          return (REASONS as readonly string[]).includes(s);
+        }
+        export function Banner({ r }: { r: string }) {
+          const t = useTranslations("ns");
+          if (!isReason(r)) return null;
+          return <span>{t(\`reason.\${r}\`)}</span>;
+        }
+      `,
+    );
+
+    // Control: a literal template whose expression widens to plain
+    // string. The typed scan must NOT claim an enum here — it falls
+    // back to the parent-path form so only "prefix" is checked.
+    writeFile(
+      "PlainTemplate.tsx",
+      `
+        import { useTranslations } from "next-intl";
+        export function Cell({ raw }: { raw: string }) {
+          const t = useTranslations("ns");
+          return <span>{t(\`reason.\${raw}\`)}</span>;
+        }
+      `,
+    );
+
+    program = createAuditProgram(path.join(tmpRoot, "tsconfig.json"));
+  });
+
+  afterAll(() => {
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  });
+
+  it("enumerates `as const` arrays into concrete enum_prefix values", () => {
+    const [call] = findTranslationCallsTyped(
+      path.join(tmpRoot, "EnumTemplate.tsx"),
+      program,
+    );
+    expect(call.ref).toEqual({
+      kind: "enum_prefix",
+      prefix: "reason.",
+      values: ["Match", "PathFind", "Aggregate"],
+    });
+  });
+
+  it("falls back to `prefix` when the template expression is plain string", () => {
+    const [call] = findTranslationCallsTyped(
+      path.join(tmpRoot, "PlainTemplate.tsx"),
+      program,
+    );
+    expect(call.ref).toEqual({ kind: "prefix", prefix: "reason" });
+  });
+
+  it("auditCalls reports one finding per missing concrete leaf", () => {
+    const calls = findTranslationCallsTyped(
+      path.join(tmpRoot, "EnumTemplate.tsx"),
+      program,
+    );
+    // Bundle has Match + Aggregate but NOT PathFind.
+    const en = {
+      ns: { reason: { Match: "매치", Aggregate: "집계" } },
+    };
+    const ko = en;
+    const findings = auditCalls(calls, { en, ko });
+    expect(findings).toHaveLength(1);
+    expect(findings[0].path).toBe("ns.reason.PathFind");
+    expect(findings[0].reason).toBe("missing_in_both");
   });
 });

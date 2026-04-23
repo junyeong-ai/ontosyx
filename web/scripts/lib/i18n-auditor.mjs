@@ -17,6 +17,17 @@
 //                             (dynamic; checked as a prefix)
 //   - `t(variable)`         → skipped (not statically analysable)
 //
+// TYPE-CHECKED ENUM RESOLUTION:
+//   When a TypeScript `Program` is passed in, the scanner promotes
+//   `prefix` calls to `enum_prefix` whenever the template expression's
+//   type resolves to a union of string literals — e.g.
+//   `t(\`reason${x}\`)` where `x: "Match" | "PathFind" | ...`
+//   emits `{ kind: "enum_prefix", prefix: "reason", values: [...] }`
+//   and `auditCalls` checks every concrete `prefix<value>` combo
+//   against the bundle. This catches the "I added a new enum
+//   variant but forgot to add the matching i18n key" regression
+//   class that the bare prefix check misses.
+//
 // PUBLIC API:
 //   - `findTranslationCalls(filePath, source)` — extract every
 //     statically-resolvable call as a `TranslationCall` record
@@ -37,10 +48,18 @@ import ts from "typescript";
 
 /**
  * @typedef {{ kind: "static", key: string } |
- *           { kind: "prefix", prefix: string }} KeyRef
- * A statically-analysable key reference. `prefix` form covers
- * template literals like `` `kinds.${x}` `` — we can only verify the
- * head exists as an object, not that every dynamic suffix resolves.
+ *           { kind: "prefix", prefix: string } |
+ *           { kind: "enum_prefix", prefix: string, values: string[] }} KeyRef
+ * A statically-analysable key reference.
+ *
+ * - `static`: literal key (`"foo.bar"`) — checked exactly.
+ * - `prefix`: template with an unresolved expression — we only
+ *   verify the head exists as an object in the bundle.
+ * - `enum_prefix`: template whose expression's TypeScript type is a
+ *   finite union of string literals; we check every concatenated
+ *   `<prefix><value>` (no separator, matches how the UI glues the
+ *   dynamic suffix onto the head). Populated by `scanWithProgram`
+ *   when a type-checker-backed Program is provided.
  */
 
 /**
@@ -72,10 +91,11 @@ import ts from "typescript";
 // ---------------------------------------------------------------------------
 
 /**
- * Recursively walks a source file and collects every statically
- * resolvable `t("key")`, `t.rich("key")`, or `t(\`prefix.${x}\`)`
- * call, tagged with the `useTranslations` namespace active at the
- * call's lexical position.
+ * Parse-only scan. Walks a file's AST in isolation and yields every
+ * statically resolvable `t(...)` / `t.rich(...)` call tagged with
+ * the `useTranslations` namespace active at its lexical position.
+ * Template literals with variable interpolation surface as bare
+ * `prefix` refs — no cross-file type info is available.
  *
  * @param {string} filePath
  * @param {string} source
@@ -89,7 +109,43 @@ export function findTranslationCalls(filePath, source) {
     /* setParentNodes */ true,
     ts.ScriptKind.TSX,
   );
+  return walkSourceFile(sourceFile, filePath, null);
+}
 
+/**
+ * Type-checked scan. Pulls the SourceFile out of a pre-built
+ * `Program` so cross-file type information is live, and resolves
+ * every template-literal expression through the type checker. When
+ * the expression's type narrows to a finite union of string
+ * literals (the `as const` array / `isKnown*` guard pattern), the
+ * call gets promoted to `enum_prefix` and each concrete leaf is
+ * checked individually.
+ *
+ * Falls back silently when the Program has no entry for `filePath`
+ * — e.g. paths excluded by the tsconfig `include` glob.
+ *
+ * @param {string} filePath
+ * @param {ts.Program} program
+ * @returns {TranslationCall[]}
+ */
+export function findTranslationCallsTyped(filePath, program) {
+  const sourceFile = program.getSourceFile(filePath);
+  if (!sourceFile) return [];
+  return walkSourceFile(sourceFile, filePath, program.getTypeChecker());
+}
+
+/**
+ * Shared walker — the only bit that knows how to traverse an AST,
+ * track scope, and produce `TranslationCall[]`. Both public entry
+ * points delegate here so the scope and match logic stays in one
+ * place.
+ *
+ * @param {ts.SourceFile} sourceFile
+ * @param {string} filePath
+ * @param {ts.TypeChecker | null} checker
+ * @returns {TranslationCall[]}
+ */
+function walkSourceFile(sourceFile, filePath, checker) {
   /** @type {TranslationCall[]} */
   const out = [];
 
@@ -134,7 +190,7 @@ export function findTranslationCalls(filePath, source) {
       if (target) {
         const namespace = lookup(scope, target);
         if (namespace !== undefined && node.arguments.length > 0) {
-          const ref = extractKeyRef(node.arguments[0]);
+          const ref = extractKeyRef(node.arguments[0], checker);
           if (ref) {
             const { line } = sourceFile.getLineAndCharacterOfPosition(
               node.getStart(sourceFile),
@@ -174,6 +230,36 @@ export function findTranslationCalls(filePath, source) {
 
   visit(sourceFile, rootScope);
   return out;
+}
+
+/**
+ * Create a TypeScript `Program` rooted at the project's tsconfig.
+ *
+ * Building the Program is the expensive step (parses every file in
+ * the compilation). The CLI creates it once and reuses the same
+ * Program across every file scanned — amortising the cost over all
+ * the cross-file type lookups.
+ *
+ * @param {string} tsconfigPath absolute path to tsconfig.json
+ * @returns {ts.Program}
+ */
+export function createAuditProgram(tsconfigPath) {
+  const cfg = ts.readConfigFile(tsconfigPath, (p) =>
+    fs.readFileSync(p, "utf8"),
+  );
+  if (cfg.error) {
+    const msg = ts.flattenDiagnosticMessageText(cfg.error.messageText, "\n");
+    throw new Error(`Failed to read ${tsconfigPath}: ${msg}`);
+  }
+  const parsed = ts.parseJsonConfigFileContent(
+    cfg.config,
+    ts.sys,
+    path.dirname(tsconfigPath),
+  );
+  return ts.createProgram({
+    rootNames: parsed.fileNames,
+    options: parsed.options,
+  });
 }
 
 /**
@@ -219,43 +305,97 @@ function callTarget(expr) {
 
 /**
  * Decide what piece of the bundle a call argument points at. String
- * literals become exact keys; template literals become a prefix
- * that must at least exist as an object. Anything else — variables,
- * conditional expressions — is skipped (we can't check it
- * statically without the type checker).
+ * literals become exact keys; template literals with a resolvable
+ * string-literal-union expression become a full `enum_prefix`;
+ * anything else with a static prefix falls back to the parent-path
+ * `prefix` form.
  *
  * @param {ts.Expression} arg
+ * @param {ts.TypeChecker | null} checker
  * @returns {KeyRef | null}
  */
-function extractKeyRef(arg) {
+function extractKeyRef(arg, checker) {
   if (ts.isStringLiteralLike(arg)) {
     return { kind: "static", key: arg.text };
   }
-  if (ts.isTemplateExpression(arg)) {
-    // `` `head${expr}...` `` — only the raw `head` is stable. What
-    // we can verify depends on where the last `.` sits:
-    //
-    //   `kind.${x}`           → head = "kind."
-    //     → verify `bundle.kind` is an object (standard prefix form)
-    //   `kinds.sub.${x}`      → head = "kinds.sub."
-    //     → verify `bundle.kinds.sub` is an object
-    //   `readOnly.reason${x}` → head = "readOnly.reason"
-    //     → the dynamic part glues onto `reason` (no dot), so the
-    //       *parent* object `readOnly` is all we can verify; the
-    //       actual leaf is `readOnly.reason<Match|PathFind|…>`
-    //   `prefix${x}`          → head = "prefix"
-    //     → parent is the namespace root (always exists) → skip
-    //
-    // Collapsing both cases: take everything before the last `.`.
-    // If there's no `.`, no static verification is possible.
-    const head = arg.head.text;
-    const lastDot = head.lastIndexOf(".");
-    if (lastDot === -1) return null;
-    const prefix = head.slice(0, lastDot);
-    if (prefix.length === 0) return null;
-    return { kind: "prefix", prefix };
+  if (!ts.isTemplateExpression(arg)) return null;
+
+  // `` `head${...}` `` — the raw `head` is the only stable literal.
+  // We always support the bare "parent path" fallback:
+  //
+  //   `kind.${x}`           → head = "kind."     → parent = "kind"
+  //   `readOnly.reason${x}` → head = "readOnly." → parent = "readOnly"
+  //   `prefix${x}`          → head = "prefix"    → no dot → skip
+  //
+  // When a type checker is available AND the template is simple
+  // (head + single expression + empty tail), resolve the expression's
+  // type and, if it's a finite union of string literals, promote to
+  // `enum_prefix` so `auditCalls` can verify every concrete leaf.
+  const head = arg.head.text;
+  const enumValues =
+    checker && isSimpleOneHoleTemplate(arg)
+      ? resolveStringLiteralUnion(checker, arg.templateSpans[0].expression)
+      : null;
+
+  if (enumValues && enumValues.length > 0) {
+    // `enum_prefix` doesn't care whether the head ends with `.` —
+    // we'll concatenate the raw head with each enum value below,
+    // mirroring how the UI composes the key at runtime.
+    return { kind: "enum_prefix", prefix: head, values: enumValues };
   }
-  return null;
+
+  const lastDot = head.lastIndexOf(".");
+  if (lastDot === -1) return null;
+  const prefix = head.slice(0, lastDot);
+  if (prefix.length === 0) return null;
+  return { kind: "prefix", prefix };
+}
+
+/**
+ * @param {ts.TemplateExpression} tpl
+ * @returns {boolean}
+ *
+ * Narrow check for the common shape `` `head${x}` `` — head + a
+ * single interpolation + empty tail. Multi-expression templates
+ * like `` `a${x}.${y}` `` are skipped (concrete leaf values depend
+ * on two independent unions, cartesian-product checking is more
+ * work than it's worth at this stage).
+ */
+function isSimpleOneHoleTemplate(tpl) {
+  if (tpl.templateSpans.length !== 1) return false;
+  const span = tpl.templateSpans[0];
+  return (
+    ts.isTemplateTail(span.literal) && span.literal.text.length === 0
+  );
+}
+
+/**
+ * If `expr`'s static type is a union of string literals (inferred
+ * from `as const` arrays, explicit union aliases, type predicates,
+ * etc.), return the full list of literal values. Returns `null` for
+ * any broader type — `string`, `string | number`, a non-exhaustive
+ * union, or a type we can't flatten safely.
+ *
+ * @param {ts.TypeChecker} checker
+ * @param {ts.Expression} expr
+ * @returns {string[] | null}
+ */
+function resolveStringLiteralUnion(checker, expr) {
+  const type = checker.getTypeAtLocation(expr);
+  /** @type {string[]} */
+  const out = [];
+
+  const variants = type.isUnion() ? type.types : [type];
+  for (const t of variants) {
+    if (t.isStringLiteral()) {
+      out.push(t.value);
+      continue;
+    }
+    // Any non-literal member (plain `string`, `number`, etc.)
+    // means we can't enumerate safely — bail out completely.
+    return null;
+  }
+  return out.length > 0 ? out : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -313,20 +453,20 @@ export function auditCalls(calls, bundles) {
   /** @type {Finding[]} */
   const findings = [];
 
-  for (const call of calls) {
-    // Build the full dotted path to inspect in each bundle. The
-    // ref's prefix / key is already normalised by `extractKeyRef`
-    // (no trailing dot, no leading dot), so this is a plain join.
-    const tail =
-      call.ref.kind === "static" ? call.ref.key : call.ref.prefix;
-    const fullPath = tail ? `${call.namespace}.${tail}` : call.namespace;
-
+  /**
+   * Check a single dotted path against en + ko and, if missing in
+   * either, push a `Finding`. Returns `true` when both bundles
+   * carry the path (caller uses this for `prefix_is_leaf` checks).
+   *
+   * @param {TranslationCall} call
+   * @param {string} fullPath
+   * @returns {{ enHit: unknown, koHit: unknown, present: boolean }}
+   */
+  function checkPath(call, fullPath) {
     const enHit = resolvePath(bundles.en, fullPath);
     const koHit = resolvePath(bundles.ko, fullPath);
-
     const missingEn = enHit === undefined;
     const missingKo = koHit === undefined;
-
     if (missingEn || missingKo) {
       findings.push({
         file: call.file,
@@ -339,8 +479,34 @@ export function auditCalls(calls, bundles) {
               ? "missing_in_en"
               : "missing_in_ko",
       });
+      return { enHit, koHit, present: false };
+    }
+    return { enHit, koHit, present: true };
+  }
+
+  for (const call of calls) {
+    if (call.ref.kind === "enum_prefix") {
+      // `enum_prefix` has one finding per missing concrete leaf —
+      // e.g. if `readOnly.reason` has five variants and only four
+      // keys exist, the scanner reports exactly the missing one.
+      // We intentionally do NOT fall through to a prefix check here:
+      // the parent may legitimately be flat (no `reason.*` sub-object).
+      for (const value of call.ref.values) {
+        const fullPath = `${call.namespace}.${call.ref.prefix}${value}`;
+        checkPath(call, fullPath);
+      }
       continue;
     }
+
+    // `static` and bare `prefix` — build the full dotted path and
+    // check once against both bundles. The ref is already normalised
+    // (no trailing dot, no leading dot) so the join is a plain
+    // concatenation.
+    const tail =
+      call.ref.kind === "static" ? call.ref.key : call.ref.prefix;
+    const fullPath = tail ? `${call.namespace}.${tail}` : call.namespace;
+    const { enHit, koHit, present } = checkPath(call, fullPath);
+    if (!present) continue;
 
     // For prefix references the bundle hit must be an object — a
     // leaf value means the code tries to concatenate dynamic

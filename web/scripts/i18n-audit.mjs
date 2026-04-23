@@ -5,10 +5,24 @@
 // messages/{en,ko}.json, and exits non-zero if any key is missing
 // in either bundle or any dynamic prefix resolves to a leaf.
 //
+// The scan runs in TWO passes:
+//
+//   Pass 1 (parse-only): cheap file-by-file AST walk that catches
+//     static literals, template parent paths, and typos. ~1s on
+//     the current tree.
+//
+//   Pass 2 (typed, opt-in via --typed): builds a full TypeScript
+//     Program from `tsconfig.json` so template literals whose
+//     expression narrows to a string-literal union (enum-style
+//     `as const` arrays, isKnown* type guards) can be checked
+//     against every concrete leaf. Adds ~5-10s but catches
+//     "added an enum variant, forgot the i18n key" regressions.
+//
 // Usage:
-//   node web/scripts/i18n-audit.mjs           # default: audit web/src
-//   node web/scripts/i18n-audit.mjs --json    # emit machine-readable output
-//   node web/scripts/i18n-audit.mjs --src=X   # override the scan root
+//   node web/scripts/i18n-audit.mjs               # parse-only
+//   node web/scripts/i18n-audit.mjs --typed       # + type-checked
+//   node web/scripts/i18n-audit.mjs --json
+//   node web/scripts/i18n-audit.mjs --src=X
 //
 // Exit codes:
 //   0 — clean
@@ -21,7 +35,9 @@ import { fileURLToPath } from "node:url";
 
 import {
   auditCalls,
+  createAuditProgram,
   findTranslationCalls,
+  findTranslationCallsTyped,
   loadBundle,
   reasonLabel,
   walkSource,
@@ -32,9 +48,14 @@ const __dirname = path.dirname(__filename);
 const WEB_ROOT = path.resolve(__dirname, "..");
 
 function parseArgs(argv) {
-  const args = { src: path.join(WEB_ROOT, "src"), json: false };
+  const args = {
+    src: path.join(WEB_ROOT, "src"),
+    json: false,
+    typed: false,
+  };
   for (const a of argv) {
     if (a === "--json") args.json = true;
+    else if (a === "--typed") args.typed = true;
     else if (a.startsWith("--src=")) args.src = path.resolve(a.slice(6));
     else if (a === "-h" || a === "--help") {
       args.help = true;
@@ -52,6 +73,8 @@ function printHelp() {
       `Usage: node web/scripts/i18n-audit.mjs [options]\n\n` +
       `Options:\n` +
       `  --src=<dir>   Scan root (default: web/src)\n` +
+      `  --typed       Build a TypeScript Program and resolve template\n` +
+      `                expressions (catches enum-variant drift). Slower.\n` +
       `  --json        Emit findings as JSON instead of a pretty table\n` +
       `  --help        Print this message\n`,
   );
@@ -83,13 +106,24 @@ async function main() {
 
   const files = walkSource(args.src);
   const allCalls = [];
+
+  // `--typed` builds a Program once; the checker is reused across
+  // every file, amortising the parse cost.
+  const program = args.typed
+    ? createAuditProgram(path.join(WEB_ROOT, "tsconfig.json"))
+    : null;
+
   for (const f of files) {
     const src = fs.readFileSync(f, "utf8");
-    // Cheap fast-path: skip files that never reference `useTranslations`.
-    // A full AST parse per file isn't free; the vast majority of files
-    // have no i18n calls at all.
+    // Cheap fast-path: skip files that never reference
+    // `useTranslations`. A full AST parse per file isn't free; the
+    // vast majority of files have no i18n calls at all.
     if (!src.includes("useTranslations")) continue;
-    allCalls.push(...findTranslationCalls(f, src));
+    if (program) {
+      allCalls.push(...findTranslationCallsTyped(f, program));
+    } else {
+      allCalls.push(...findTranslationCalls(f, src));
+    }
   }
 
   const findings = auditCalls(allCalls, bundles);
