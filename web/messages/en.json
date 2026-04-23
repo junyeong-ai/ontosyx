@@ -204,6 +204,13 @@
         "glossarySeeded": "Glossary ontology seeded with {count} terms",
         "glossarySeedFailed": "Glossary seed failed: {message}",
         "glossarySeedFailedUnknown": "Glossary seed failed (unknown error)."
+      },
+      "existingPilot": {
+        "title": "A pilot named \"{name}\" already exists",
+        "description": "This workspace already has an ontology with this name. Continue refining the existing pilot, or start a new one as \"{suggestion}\".",
+        "continue": "Continue refining the existing pilot",
+        "rename": "Start new as \"{suggestion}\"",
+        "cancel": "Cancel"
       }
     }
   },

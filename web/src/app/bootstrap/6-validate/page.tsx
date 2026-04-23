@@ -17,11 +17,21 @@ import {
   parseGlossaryDraft,
   seedBootstrapGlossary,
 } from "@/lib/api/bootstrap";
+import { findOntologyByName } from "@/lib/api/ontology";
 import { createProject } from "@/lib/api/projects";
-import type { CreateProjectRequest, DesignSource } from "@/types/api";
+import type {
+  CreateProjectRequest,
+  DesignSource,
+  OntologyListItem,
+} from "@/types/api";
 
 import { useBootstrap } from "../bootstrap-state";
 import { StepShell } from "../step-shell";
+import {
+  ExistingPilotDialog,
+  suggestRename,
+  type ExistingPilotChoice,
+} from "./existing-pilot-dialog";
 
 /**
  * Map a wizard source kind + connection string to a
@@ -55,8 +65,9 @@ function buildCreateRequest(
 export default function ValidateStep() {
   const t = useTranslations("bootstrap.step6");
   const router = useRouter();
-  const { state, reset, markComplete } = useBootstrap();
+  const { state, reset, markComplete, update } = useBootstrap();
   const [submitting, setSubmitting] = useState(false);
+  const [existing, setExisting] = useState<OntologyListItem | null>(null);
 
   const glossaryCount = useMemo(
     () => state.glossaryDraft.split("\n").filter((l) => l.trim().length > 0).length,
@@ -103,37 +114,58 @@ export default function ValidateStep() {
     }
   };
 
+  /**
+   * Continue the Finish pipeline once we've confirmed the pilot name
+   * is safe to submit (either no collision, or the user has resolved
+   * a collision via the dialog). Encodes the same path the legacy
+   * direct-Finish used to walk.
+   */
+  const runFinishPipeline = async () => {
+    const seededOntologyId = await seedGlossaryIfNeeded();
+
+    const req = buildCreateRequest(
+      state.pilotName,
+      state.sourceKind,
+      state.sourceConnection,
+    );
+    if (!req) {
+      toast.info(t("toast.skippedCreate"));
+      if (seededOntologyId) {
+        router.push(
+          `/ontology/${encodeURIComponent(seededOntologyId)}/map`,
+        );
+      } else {
+        router.push("/design");
+      }
+      return;
+    }
+    const project = await createProject(req);
+    toast.success(
+      t("toast.created", { name: state.pilotName || t("summary.unnamed") }),
+    );
+    router.push(`/design?project=${encodeURIComponent(project.id)}`);
+  };
+
   const onFinish = async () => {
     markComplete("6-validate");
     setSubmitting(true);
     try {
-      // Always try to persist the glossary first — the ontology it
-      // produces is useful even on source-less flows (CSV/JSON
-      // still land on /design, and the operator can browse the
-      // seeded ontology directly from /ontologies).
-      const seededOntologyId = await seedGlossaryIfNeeded();
-
-      const req = buildCreateRequest(
-        state.pilotName,
-        state.sourceKind,
-        state.sourceConnection,
-      );
-      if (!req) {
-        toast.info(t("toast.skippedCreate"));
-        if (seededOntologyId) {
-          router.push(
-            `/ontology/${encodeURIComponent(seededOntologyId)}/map`,
-          );
-        } else {
-          router.push("/design");
+      // Pre-flight name-collision check. Narrows the window on
+      // seed-glossary's 409 path — the race-fallback still lives in
+      // seedGlossaryIfNeeded's catch, so a second user committing
+      // between the lookup and the POST is still surfaced as a toast.
+      const pilotName = state.pilotName.trim();
+      if (pilotName) {
+        const hit = await findOntologyByName(pilotName);
+        if (hit) {
+          // Park the pipeline; the dialog's choice handler
+          // resumes it via the corresponding branch.
+          setExisting(hit);
+          setSubmitting(false);
+          return;
         }
-        return;
       }
-      const project = await createProject(req);
-      toast.success(
-        t("toast.created", { name: state.pilotName || t("summary.unnamed") }),
-      );
-      router.push(`/design?project=${encodeURIComponent(project.id)}`);
+      await runFinishPipeline();
     } catch (err) {
       toast.error(
         err instanceof Error
@@ -143,6 +175,28 @@ export default function ValidateStep() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleExistingChoice = async (choice: ExistingPilotChoice) => {
+    const target = existing;
+    setExisting(null);
+    if (!target) return;
+    if (choice === "cancel") return;
+    if (choice === "continue") {
+      // Deep-link into the workbench for the existing pilot and
+      // clear the wizard so the user doesn't re-enter the same
+      // intent the next time they visit /bootstrap.
+      reset();
+      router.push(
+        `/ontology/${encodeURIComponent(target.id)}/map`,
+      );
+      return;
+    }
+    // Rename — bump the pilot name to the suggested suffix, keep the
+    // rest of the wizard state, and send the user back to step 1 so
+    // they can confirm or edit the new name before advancing again.
+    update({ pilotName: suggestRename(state.pilotName) });
+    router.push("/bootstrap/1-pilot");
   };
 
   const handleRestart = () => {
@@ -196,6 +250,13 @@ export default function ValidateStep() {
           {t("restart")}
         </button>
       </div>
+
+      <ExistingPilotDialog
+        open={existing !== null}
+        existing={existing}
+        renameSuggestion={suggestRename(state.pilotName)}
+        onChoose={handleExistingChoice}
+      />
     </StepShell>
   );
 }

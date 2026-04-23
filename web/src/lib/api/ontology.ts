@@ -25,10 +25,18 @@ import {
 export async function listOntologies(params?: {
   cursor?: string;
   limit?: number;
+  /**
+   * Exact workspace-scoped name match. When set, the server ignores
+   * `cursor`/`limit` and returns a 0- or 1-element `items` array with
+   * no `next_cursor`. Whitespace-only values are treated as unset.
+   */
+  nameEq?: string;
 }): Promise<CursorPage<OntologyListItem>> {
   const qs = new URLSearchParams();
   if (params?.cursor) qs.set("cursor", params.cursor);
   if (params?.limit) qs.set("limit", String(params.limit));
+  if (params?.nameEq && params.nameEq.trim())
+    qs.set("name_eq", params.nameEq);
   const query = qs.toString();
   const data = await request(`/ontologies${query ? `?${query}` : ""}`);
   const result = CursorPageSchema(OntologyListItemSchema).safeParse(data);
@@ -39,6 +47,23 @@ export async function listOntologies(params?: {
     >["_output"];
   }
   return result.data;
+}
+
+/**
+ * Workspace-scoped single-name lookup — returns the ontology whose
+ * name matches exactly, or `null` when nothing matches. Used by the
+ * Bootstrap wizard's Step 6 to detect re-entry before the
+ * seed-glossary POST returns 409.
+ *
+ * A blank/whitespace `name` short-circuits to `null` without a
+ * request, matching the backend's normalisation.
+ */
+export async function findOntologyByName(
+  name: string,
+): Promise<OntologyListItem | null> {
+  if (!name.trim()) return null;
+  const page = await listOntologies({ nameEq: name });
+  return page.items[0] ?? null;
 }
 
 /**
