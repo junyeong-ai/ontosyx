@@ -187,28 +187,33 @@ impl ValidationReport {
 
 /// Phase ordering for validator passes.
 ///
-/// Like [`crate::cypher::rewrite::RewritePhase`] but for validation. The
-/// `bolt::pipeline` runs the pre-rewrite slots (`Safety` → `Ontology`)
-/// before any rewriter; any future post-rewrite validator would run
-/// in the `PostRewrite` slot after every rewriter has settled. Numeric
-/// gaps leave room for new slots without renumbering the existing
-/// ones.
+/// Like [`crate::cypher::rewrite::RewritePhase`] but for validation.
+/// The `bolt::pipeline` runs both slots **before** any rewriter —
+/// validators never inspect the rewritten AST because the rewriter
+/// injects workspace-scope predicates (`WHERE _workspace_id = $_ws_id`)
+/// that would otherwise trigger false ontology errors ("unknown
+/// property `_workspace_id`"). Structural post-rewrite invariants
+/// (scope-propagation count, property-strategy completeness) live
+/// on `run_pre_execute` directly and don't go through this trait.
+///
+/// If a future use case genuinely needs a validator that sees the
+/// rewritten AST, it will need a new post-rewrite dispatch point
+/// on `bolt::pipeline` — a new enum variant here alone wouldn't
+/// wire it, because the pipeline only feeds this trait the pre-
+/// rewrite AST.
+///
+/// Numeric gaps leave room for new slots without renumbering.
 ///
 /// The current set:
 ///
 /// - `PreRewriteSafety` — hard blocks on destructive or DDL constructs.
 /// - `PreRewriteOntology` — schema conformance of labels / properties /
 ///   relationship types against the active `OntologyIR`.
-/// - `PostRewrite` — inspections that require rewriters to have run
-///   first (none shipping today — the old substring scope gate was
-///   replaced by the structural `modified_statements` check in the
-///   runtime pipeline).
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u16)]
 pub enum ValidatePhase {
     PreRewriteSafety = 100,
     PreRewriteOntology = 200,
-    PostRewrite = 900,
 }
 
 /// A single Cypher validation pass. Unlike [`crate::cypher::rewrite::CypherRewriter`],
