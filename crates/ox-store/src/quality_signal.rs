@@ -117,6 +117,18 @@ impl MetricWindow {
         }
     }
 
+    /// Stable short-form (`"7d"` / `"30d"` / `"90d"`) used by the
+    /// `workspace_quality_baseline.window` text column and the API
+    /// query-string. Kept as an explicit match so the wire format
+    /// can't drift if a new variant is added without a code review.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Last7d => "7d",
+            Self::Last30d => "30d",
+            Self::Last90d => "90d",
+        }
+    }
+
     /// Previous-window pair for trend calculation. `Last7d` pairs
     /// against the 7 days BEFORE the current window (days -14..-7).
     pub fn previous_as_days_range(self) -> (i64, i64) {
@@ -261,6 +273,34 @@ pub struct StaleConceptProposal {
     pub decided_at: Option<DateTime<Utc>>,
     pub decided_by_user_id: Option<Uuid>,
     pub reason: Option<String>,
+}
+
+// ---------------------------------------------------------------------------
+// WorkspaceQualityBaseline — per-workspace adaptive threshold snapshot
+// ---------------------------------------------------------------------------
+
+/// Nightly snapshot of a workspace's quality-metric median + MAD
+/// rollup, shaped so the banner's alert engine can swap from the
+/// hardcoded prior to workspace-specific thresholds at render time
+/// (Phase B).
+///
+/// `thresholds` is a JSONB map keyed by metric name
+/// (`shacl_pass_rate`, `query_reproducibility`, …); each value
+/// carries `{ median, mad, warn, critical }`. Keeping the shape
+/// JSON means adding a new metric (e.g. Phase C `anchor_top_score`)
+/// requires only a cron-computation extension, not a migration.
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct WorkspaceQualityBaseline {
+    pub workspace_id: Uuid,
+    /// `"7d"` / `"30d"` / `"90d"` — the window the cron summarised.
+    pub window: String,
+    /// Sample count that fed the computation. The banner treats
+    /// baselines below its `MIN_SAMPLE_SIZE` as insufficient
+    /// evidence and falls back to the hardcoded prior.
+    pub sample_size: i64,
+    /// `{ metric_key: { median, mad, warn, critical } }` bundle.
+    pub thresholds: serde_json::Value,
+    pub computed_at: DateTime<Utc>,
 }
 
 #[cfg(test)]

@@ -844,6 +844,12 @@ pub trait WorkspaceStore: Send + Sync {
 
     /// Get user's default workspace (first workspace they belong to, or the "default" slug).
     async fn get_default_workspace(&self, user_id: Uuid) -> OxResult<Option<Workspace>>;
+
+    /// Every workspace id known to the cluster. Used by
+    /// system-bypass cron jobs that fan out per-tenant work — the
+    /// per-workspace bodies run inside `WORKSPACE_ID.scope(id, …)`
+    /// so RLS lands on the right tenant.
+    async fn list_workspace_ids(&self) -> OxResult<Vec<Uuid>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -1355,6 +1361,31 @@ pub trait QualitySignalStore: Send + Sync {
     ) -> OxResult<Vec<crate::quality_signal::StaleTypeEntry>>;
 }
 
+/// Workspace-level quality-metric baselines for adaptive alert
+/// thresholds. Populated nightly by the `quality_baseline` cron
+/// from `QualitySignalStore::aggregate_quality_metrics` rollups;
+/// the banner consults it at render time when Phase B wires the
+/// adaptive path — until then the table accumulates data so Phase
+/// B has a real warm-up window to validate against.
+#[async_trait]
+pub trait QualityBaselineStore: Send + Sync {
+    /// Upsert the current-workspace baseline row. Cron calls this
+    /// once per workspace per day; upsert-in-place means consumers
+    /// always read the latest snapshot without a window-picking
+    /// predicate.
+    async fn upsert_quality_baseline(
+        &self,
+        baseline: &crate::quality_signal::WorkspaceQualityBaseline,
+    ) -> OxResult<()>;
+
+    /// Fetch the current-workspace baseline, if any. `None` means
+    /// the cron hasn't run yet (fresh workspace / first boot);
+    /// the banner falls back to its hardcoded prior in that case.
+    async fn get_quality_baseline(
+        &self,
+    ) -> OxResult<Option<crate::quality_signal::WorkspaceQualityBaseline>>;
+}
+
 /// Durable stale-concept deprecation proposals. Populated by the
 /// `scan_stale_concepts` cron; admins decide approve / dismiss.
 #[async_trait]
@@ -1551,6 +1582,7 @@ pub trait Store:
     + AmbiguityStore
     + ChangeRoutingStore
     + QualitySignalStore
+    + QualityBaselineStore
     + StaleConceptProposalStore
 {
 }
@@ -1592,6 +1624,7 @@ impl<T> Store for T where
         + AmbiguityStore
         + ChangeRoutingStore
         + QualitySignalStore
+        + QualityBaselineStore
         + StaleConceptProposalStore
 {
 }

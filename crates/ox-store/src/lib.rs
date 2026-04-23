@@ -24,6 +24,7 @@ pub use navigation::{
 pub use quality_signal::{
     MetricValue, MetricWindow, QualityMetricsReport, QueryExecutionSignal, ShaclFailureCount,
     ShaclFailureKind, StaleConceptProposal, StaleProposalDecision, StaleTypeEntry,
+    WorkspaceQualityBaseline,
 };
 pub use postgres::PostgresStore;
 pub use postgres::{SYSTEM_BYPASS, WORKSPACE_ID};
@@ -33,8 +34,8 @@ pub use store::{
     CursorParams, DashboardStore, DataSourceStore, EmbeddingRetryStore, ExtendResult, HealthStore,
     KnowledgeStore, LineageStore, LoadCheckpointStore, MeteringStore, ModelConfigStore,
     NotificationStore, OntologyNavigationStore, OntologyVersionStore, PatternStore,
-    PerspectiveStore, PinStore, ProjectStore, PromptTemplateStore, QualitySignalStore,
-    QualityStore, QueryStore, RecipeStore, ReportStore, ScheduledTaskStore,
+    PerspectiveStore, PinStore, ProjectStore, PromptTemplateStore, QualityBaselineStore,
+    QualitySignalStore, QualityStore, QueryStore, RecipeStore, ReportStore, ScheduledTaskStore,
     StaleConceptProposalStore, Store, ToolApprovalStore, UserStore, VerificationStore,
     WorkspaceStore,
 };

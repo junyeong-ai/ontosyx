@@ -359,6 +359,16 @@ async fn main() -> anyhow::Result<()> {
         cancel_token.clone(),
     );
 
+    // Daily quality-baseline scan — writes the `median ± k·MAD`
+    // snapshot per workspace so the banner can switch from its
+    // hardcoded prior to adaptive thresholds (Phase B). Running
+    // from day one ensures the table warms up before Phase B
+    // activates.
+    ox_api::background::spawn_quality_baseline_scan(
+        Arc::clone(&store),
+        cancel_token.clone(),
+    );
+
     // Rate limiter (optional, controlled by config)
     let rate_limiter = if config.rate_limit.enabled {
         let rl = Arc::new(RateLimiter::new(&config.rate_limit));

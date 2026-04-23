@@ -3020,6 +3020,20 @@ impl WorkspaceStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
+    async fn list_workspace_ids(&self) -> OxResult<Vec<Uuid>> {
+        // Meant to run under SYSTEM_BYPASS — `workspaces` has no
+        // per-row RLS policy but the query is still a bare table
+        // scan. Ordering keeps the cron iteration deterministic,
+        // which matters for the tail-of-log debugging experience.
+        let rows: Vec<(Uuid,)> =
+            sqlx::query_as("SELECT id FROM workspaces ORDER BY created_at ASC")
+                .fetch_all(&self.pool)
+                .await
+                .map_err(to_ox_error)?;
+        Ok(rows.into_iter().map(|(id,)| id).collect())
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_default_workspace(&self, user_id: Uuid) -> OxResult<Option<Workspace>> {
         // Prefer the "default" slug workspace, then fall back to the first joined workspace
         sqlx::query_as(
@@ -7567,6 +7581,52 @@ fn proposal_from_row(
         decided_by_user_id,
         reason,
     })
+}
+
+#[async_trait]
+impl crate::store::QualityBaselineStore for PostgresStore {
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn upsert_quality_baseline(
+        &self,
+        baseline: &crate::quality_signal::WorkspaceQualityBaseline,
+    ) -> OxResult<()> {
+        sqlx::query(
+            "INSERT INTO workspace_quality_baseline
+                 (workspace_id, window, sample_size, thresholds, computed_at)
+             VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT (workspace_id) DO UPDATE SET
+                 window = EXCLUDED.window,
+                 sample_size = EXCLUDED.sample_size,
+                 thresholds = EXCLUDED.thresholds,
+                 computed_at = EXCLUDED.computed_at",
+        )
+        .bind(baseline.workspace_id)
+        .bind(&baseline.window)
+        .bind(baseline.sample_size)
+        .bind(&baseline.thresholds)
+        .bind(baseline.computed_at)
+        .execute(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        Ok(())
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn get_quality_baseline(
+        &self,
+    ) -> OxResult<Option<crate::quality_signal::WorkspaceQualityBaseline>> {
+        // RLS scopes the query to the current workspace; the cron
+        // writes under `WORKSPACE_ID.scope(ws_id, …)` per workspace,
+        // and the banner reads under the request's workspace scope.
+        sqlx::query_as::<_, crate::quality_signal::WorkspaceQualityBaseline>(
+            "SELECT workspace_id, window, sample_size, thresholds, computed_at
+             FROM workspace_quality_baseline
+             LIMIT 1",
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(to_ox_error)
+    }
 }
 
 #[async_trait]
