@@ -185,7 +185,7 @@ pub fn router(state: AppState) -> Router {
         // Query execution history
         .route("/query/history", get(query::list_executions))
         .route("/query/history/{id}", get(query::get_execution))
-        .route("/query/history/{id}/feedback", patch(query::set_feedback))
+        .route("/query/history/{id}/feedback", patch(query::update_feedback))
         // Raw query
         .route("/query/raw", post(query::raw_query))
         // QueryIR-based query (visual query builder)
@@ -372,7 +372,7 @@ pub fn router(state: AppState) -> Router {
         .route("/lineage", get(lineage::get_lineage_summary))
         .route(
             "/lineage/label/{label}",
-            get(lineage::get_lineage_for_label),
+            get(lineage::list_lineage_for_label),
         )
         .route(
             "/lineage/project/{id}",

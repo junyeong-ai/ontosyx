@@ -177,7 +177,7 @@ impl SystemConfig {
 /// Load all system_config rows from the database into an in-memory cache.
 /// Falls back to an empty config (all getters return defaults) if DB read fails.
 pub async fn load_system_config(store: &dyn Store) -> SystemConfig {
-    match store.get_all_config().await {
+    match store.list_config().await {
         Ok(rows) => {
             let count = rows.len();
             let entries: HashMap<String, String> = rows

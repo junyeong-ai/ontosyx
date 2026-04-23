@@ -27,13 +27,13 @@ pub(crate) async fn get_lineage_summary(
 // GET /api/lineage/label/:label — lineage entries for a specific graph label
 // ---------------------------------------------------------------------------
 
-pub(crate) async fn get_lineage_for_label(
+pub(crate) async fn list_lineage_for_label(
     State(state): State<AppState>,
     Path(label): Path<String>,
 ) -> Result<Json<ApiResponse<Vec<LineageEntry>>>, AppError> {
     let entries = state
         .store
-        .get_lineage_for_label(&label)
+        .list_lineage_for_label(&label)
         .await
         .map_err(AppError::from)?;
     Ok(ApiResponse::of(entries))

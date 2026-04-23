@@ -33,7 +33,7 @@ pub struct ConfigEntry {
 pub(crate) async fn get_config(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<BTreeMap<String, Vec<ConfigEntry>>>>, AppError> {
-    let rows = state.store.get_all_config().await.map_err(AppError::from)?;
+    let rows = state.store.list_config().await.map_err(AppError::from)?;
 
     let mut grouped: BTreeMap<String, Vec<ConfigEntry>> = BTreeMap::new();
     for row in rows {

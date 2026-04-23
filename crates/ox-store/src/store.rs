@@ -122,8 +122,8 @@ pub trait QueryStore: Send + Sync {
     /// Update feedback on a query execution. Returns false if not found or not owned by user.
     async fn update_query_feedback(
         &self,
-        user_id: &str,
         id: Uuid,
+        user_id: &str,
         feedback: Option<&str>,
     ) -> OxResult<bool>;
 }
@@ -491,7 +491,7 @@ pub trait PerspectiveStore: Send + Sync {
 
 #[async_trait]
 pub trait ConfigStore: Send + Sync {
-    async fn get_all_config(&self) -> OxResult<Vec<SystemConfigRow>>;
+    async fn list_config(&self) -> OxResult<Vec<SystemConfigRow>>;
 
     /// Get a single config value by key.
     async fn get_config(&self, key: &str) -> OxResult<Option<String>>;
@@ -940,7 +940,7 @@ pub trait LineageStore: Send + Sync {
     ) -> OxResult<()>;
 
     /// Get lineage entries for a specific graph label.
-    async fn get_lineage_for_label(&self, graph_label: &str) -> OxResult<Vec<LineageEntry>>;
+    async fn list_lineage_for_label(&self, graph_label: &str) -> OxResult<Vec<LineageEntry>>;
 
     /// Get lineage entries for a project.
     async fn get_lineage_for_project(&self, project_id: Uuid) -> OxResult<Vec<LineageEntry>>;
@@ -1008,7 +1008,7 @@ pub trait QualityStore: Send + Sync {
     ) -> OxResult<()>;
     async fn delete_quality_rule(&self, id: Uuid) -> OxResult<bool>;
     async fn record_quality_result(&self, result: &QualityResult) -> OxResult<()>;
-    async fn get_latest_results(&self, rule_id: Uuid, limit: i64) -> OxResult<Vec<QualityResult>>;
+    async fn list_latest_results(&self, rule_id: Uuid, limit: i64) -> OxResult<Vec<QualityResult>>;
     async fn get_quality_dashboard(&self) -> OxResult<Vec<QualityDashboardEntry>>;
 }
 

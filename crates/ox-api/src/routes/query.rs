@@ -502,7 +502,7 @@ const VALID_FEEDBACK: &[&str] = &["positive", "negative"];
     security(("bearer" = [])),
     tag = "Query",
 )]
-pub(crate) async fn set_feedback(
+pub(crate) async fn update_feedback(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
@@ -518,7 +518,7 @@ pub(crate) async fn set_feedback(
 
     let updated = state
         .store
-        .update_query_feedback(&principal.id, id, req.feedback.as_deref())
+        .update_query_feedback(id, &principal.id, req.feedback.as_deref())
         .await
         .map_err(AppError::from)?;
 

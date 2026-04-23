@@ -303,8 +303,8 @@ impl QueryStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn update_query_feedback(
         &self,
-        user_id: &str,
         id: Uuid,
+        user_id: &str,
         feedback: Option<&str>,
     ) -> OxResult<bool> {
         let result =
@@ -936,7 +936,7 @@ impl PerspectiveStore for PostgresStore {
 #[async_trait]
 impl ConfigStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn get_all_config(&self) -> OxResult<Vec<SystemConfigRow>> {
+    async fn list_config(&self) -> OxResult<Vec<SystemConfigRow>> {
         sqlx::query_as::<_, SystemConfigRow>(
             "SELECT category, key, value, data_type, description, updated_at
              FROM system_config
@@ -3358,7 +3358,7 @@ impl LineageStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn get_lineage_for_label(&self, graph_label: &str) -> OxResult<Vec<LineageEntry>> {
+    async fn list_lineage_for_label(&self, graph_label: &str) -> OxResult<Vec<LineageEntry>> {
         sqlx::query_as("SELECT * FROM data_lineage WHERE graph_label = $1 ORDER BY started_at DESC")
             .bind(graph_label)
             .fetch_all(&self.pool)
@@ -3635,7 +3635,7 @@ impl QualityStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn get_latest_results(&self, rule_id: Uuid, limit: i64) -> OxResult<Vec<QualityResult>> {
+    async fn list_latest_results(&self, rule_id: Uuid, limit: i64) -> OxResult<Vec<QualityResult>> {
         sqlx::query_as(
             "SELECT * FROM quality_results
              WHERE rule_id = $1

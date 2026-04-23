@@ -230,7 +230,7 @@ pub(crate) async fn rule_results(
 
     let results = state
         .store
-        .get_latest_results(id, limit)
+        .list_latest_results(id, limit)
         .await
         .map_err(AppError::from)?;
 
