@@ -145,6 +145,12 @@ jobs:
         run: pnpm lint
       - name: Type check
         run: pnpm typecheck
+      - name: i18n audit
+        # Statically walks every `t("key")` / `t.rich("key")` / `t(`prefix.${x}`)`
+        # call site and asserts the path resolves in both en and ko bundles.
+        # Catches the "nested toast.toast" style typos + raw-key leaks that
+        # neither tsc nor React finds at build time.
+        run: pnpm i18n-audit
       - name: Vitest
         run: pnpm test
       - name: Build
@@ -247,7 +253,7 @@ jobs:
           cache-dependency-path: web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - name: Install Playwright browsers
-        run: pnpm playwright install --with-deps chromium firefox
+        run: pnpm playwright install --with-deps chromium
       - name: Build
         run: pnpm build
       - name: Playwright
