@@ -53,12 +53,60 @@ pub struct OntologyListItem {
     pub current_version: Option<CurrentVersionSummary>,
 }
 
+/// Query parameters accepted by `GET /api/ontologies`.
+///
+/// Two shapes, picked by which fields are populated:
+/// - Paginated list (`limit`, `cursor`) — the default browse path.
+/// - Single-name lookup (`name_eq`) — returns the one ontology
+///   (if any) whose workspace-scoped name matches. The lookup
+///   predates the Bootstrap wizard's re-entry flow, where Step 6
+///   must check whether a pilot name is already taken before
+///   calling `seed-glossary`. Exposing the existing
+///   `find_ontology_by_name` store method here keeps the FE on a
+///   single ontology endpoint rather than growing an endpoint per
+///   use case.
+///
+/// The two modes return the same wire envelope (`items` plus an
+/// optional `next_cursor`) so the FE type is unchanged — callers
+/// that set `name_eq` see either `items: []` or a single-element
+/// `items: [ontology]`, with `next_cursor` always absent.
+#[derive(Debug, Default, Deserialize)]
+pub(crate) struct ListOntologiesQuery {
+    #[serde(default)]
+    pub limit: Option<u32>,
+    #[serde(default)]
+    pub cursor: Option<String>,
+    /// Exact workspace-scoped name match. Trimmed; whitespace-only
+    /// values behave as if unset.
+    #[serde(default)]
+    pub name_eq: Option<String>,
+}
+
+impl ListOntologiesQuery {
+    fn pagination(&self) -> CursorParams {
+        CursorParams {
+            limit: self.limit.unwrap_or(50),
+            cursor: self.cursor.clone(),
+        }
+    }
+
+    /// Normalised single-name lookup — returns `Some` only when
+    /// the caller supplied a non-empty, non-whitespace value.
+    fn name_eq_trimmed(&self) -> Option<&str> {
+        self.name_eq
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+    }
+}
+
 #[utoipa::path(
     get,
     path = "/api/ontologies",
     params(
         ("limit" = Option<u32>, Query, description = "Max items to return (default 50, max 100)"),
         ("cursor" = Option<String>, Query, description = "Opaque cursor from a previous response"),
+        ("name_eq" = Option<String>, Query, description = "Return only the ontology whose workspace-scoped name matches exactly (0 or 1 items). When set, pagination is ignored."),
     ),
     responses(
         (status = 200, description = "Paginated list of ontology identities", body = Object),
@@ -68,8 +116,46 @@ pub struct OntologyListItem {
 )]
 pub(crate) async fn list_ontologies(
     State(state): State<AppState>,
-    axum::extract::Query(pagination): axum::extract::Query<CursorParams>,
+    axum::extract::Query(query): axum::extract::Query<ListOntologiesQuery>,
 ) -> Result<Json<ApiResponse<Vec<OntologyListItem>>>, AppError> {
+    // Single-name lookup mode — short-circuit before any paginated
+    // scan. Returns a 0- or 1-element `items` vec with no cursor.
+    if let Some(name) = query.name_eq_trimmed() {
+        let row = state
+            .store
+            .find_ontology_by_name(name)
+            .await
+            .map_err(AppError::from)?;
+        let mut items = Vec::new();
+        if let Some(row) = row {
+            let version = state
+                .store
+                .get_current_version(row.id)
+                .await
+                .map_err(AppError::from)?;
+            items.push(OntologyListItem {
+                id: row.id,
+                lineage_id: row.lineage_id,
+                name: row.name,
+                description: row.description,
+                created_at: row.created_at,
+                updated_at: row.updated_at,
+                current_version: version.map(|v| CurrentVersionSummary {
+                    version_id: v.id,
+                    version: v.version,
+                    committed_by: v.committed_by,
+                    commit_message: v.commit_message,
+                    created_at: v.created_at,
+                }),
+            });
+        }
+        return Ok(ApiResponse::page(CursorPage {
+            items,
+            next_cursor: None,
+        }));
+    }
+
+    let pagination = query.pagination();
     let page = state
         .store
         .list_ontologies(&pagination)
@@ -318,4 +404,56 @@ pub(crate) async fn apply_ontology_commands(
         StatusCode::OK,
         ApiResponse::of(OntologyCommandsResponse { project: updated }),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn q_with_name(name_eq: Option<&str>) -> ListOntologiesQuery {
+        ListOntologiesQuery {
+            limit: None,
+            cursor: None,
+            name_eq: name_eq.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn name_eq_trimmed_returns_none_when_absent() {
+        assert_eq!(q_with_name(None).name_eq_trimmed(), None);
+    }
+
+    #[test]
+    fn name_eq_trimmed_returns_none_when_blank() {
+        assert_eq!(q_with_name(Some("")).name_eq_trimmed(), None);
+        assert_eq!(q_with_name(Some("   ")).name_eq_trimmed(), None);
+    }
+
+    #[test]
+    fn name_eq_trimmed_trims_surrounding_but_preserves_inner_whitespace() {
+        assert_eq!(
+            q_with_name(Some("  Pilot Alpha  ")).name_eq_trimmed(),
+            Some("Pilot Alpha"),
+        );
+    }
+
+    #[test]
+    fn pagination_defaults_to_fifty_when_limit_absent() {
+        let q = ListOntologiesQuery::default();
+        let p = q.pagination();
+        assert_eq!(p.limit, 50);
+        assert!(p.cursor.is_none());
+    }
+
+    #[test]
+    fn pagination_respects_explicit_limit_and_cursor() {
+        let q = ListOntologiesQuery {
+            limit: Some(20),
+            cursor: Some("abc".to_string()),
+            name_eq: None,
+        };
+        let p = q.pagination();
+        assert_eq!(p.limit, 20);
+        assert_eq!(p.cursor.as_deref(), Some("abc"));
+    }
 }
