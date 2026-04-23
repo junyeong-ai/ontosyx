@@ -249,14 +249,13 @@ fn rewrite_expr(
         }
         Expr::Not { inner } => rewrite_expr(inner, table, report),
         Expr::In { expr: inner, values } => {
-            if let Some((variable, property)) = extract_property_ref(inner.as_ref()) {
-                if let Some((concept_map, policy)) =
+            if let Some((variable, property)) = extract_property_ref(inner.as_ref())
+                && let Some((concept_map, policy)) =
                     table.get(&(variable.clone(), property.clone()))
-                {
-                    rewrite_in_values(
-                        &variable, &property, values, concept_map, policy, report,
-                    );
-                }
+            {
+                rewrite_in_values(
+                    &variable, &property, values, concept_map, policy, report,
+                );
             }
         }
         _ => {}

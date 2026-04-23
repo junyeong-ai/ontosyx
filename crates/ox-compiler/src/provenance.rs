@@ -71,7 +71,7 @@ pub fn build_provenance(query: &QueryIR, ctx: &ProvenanceContext<'_>) -> QueryPr
     // original answer.
     let registry_versions = ctx
         .ontology
-        .map(|ir| registry_version_hashes(ir))
+        .map(registry_version_hashes)
         .unwrap_or_default();
 
     QueryProvenance {

@@ -154,17 +154,16 @@ pub enum OverlapPolicy {
 ///   segment-bound property when the cache is stale by more than
 ///   `2 * ttl_seconds`, to prevent unbounded staleness from a
 ///   misconfigured scheduler.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema,
+)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SegmentRefreshPolicy {
+    #[default]
     OnDemand,
-    Materialised { ttl_seconds: u64 },
-}
-
-impl Default for SegmentRefreshPolicy {
-    fn default() -> Self {
-        Self::OnDemand
-    }
+    Materialised {
+        ttl_seconds: u64,
+    },
 }
 
 impl SegmentDef {
@@ -277,7 +276,7 @@ mod tests {
 
     #[test]
     fn overlap_policy_disjoint_roundtrips() {
-        let j = serde_json::to_value(&OverlapPolicy::Disjoint).unwrap();
+        let j = serde_json::to_value(OverlapPolicy::Disjoint).unwrap();
         let back: OverlapPolicy = serde_json::from_value(j).unwrap();
         assert!(matches!(back, OverlapPolicy::Disjoint));
     }
