@@ -1376,6 +1376,7 @@
         "meta": "{algorithm} · v{version} · {user} 작성 · {date}",
         "hideHistory": "이력 숨기기",
         "versions": "버전",
+        "delete": "삭제",
         "description": "설명",
         "requiredColumns": "필수 컬럼",
         "output": "출력",

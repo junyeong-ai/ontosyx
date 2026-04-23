@@ -1394,6 +1394,7 @@
         "meta": "{algorithm} · v{version} · by {user} · {date}",
         "hideHistory": "Hide History",
         "versions": "Versions",
+        "delete": "Delete",
         "description": "Description",
         "requiredColumns": "Required Columns",
         "output": "Output",
