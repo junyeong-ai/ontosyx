@@ -56,6 +56,24 @@ test.describe("bootstrap wizard", () => {
       }
     });
 
+    // Default: no pilot-name collision — return an empty list so the
+    // Finish pipeline proceeds straight through to seed-glossary +
+    // createProject. The collision branch gets its own route below.
+    await page.route(
+      /\/api\/proxy\/ontologies(\?.*)?$/,
+      async (route) => {
+        if (route.request().method() === "GET") {
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({ items: [] }),
+          });
+        } else {
+          await route.fallback();
+        }
+      },
+    );
+
     await page.route("**/api/proxy/projects", async (route) => {
       if (route.request().method() === "POST") {
         await route.fulfill({
@@ -209,5 +227,101 @@ test.describe("bootstrap wizard", () => {
     await expect(page).toHaveURL(
       new RegExp(`/design\\?project=${MOCK_PROJECT.id}`),
     );
+  });
+
+  test("Finish surfaces ExistingPilotDialog when the name already exists", async ({
+    page,
+  }) => {
+    // Override the default empty ontologies mock to return a
+    // single matching row — as if a prior session had committed a
+    // pilot under the same name.
+    const EXISTING_ID = "00000000-0000-0000-0000-0000000000e1";
+    await page.route(
+      /\/api\/proxy\/ontologies(\?.*)?$/,
+      async (route) => {
+        if (route.request().method() === "GET") {
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              items: [
+                {
+                  id: EXISTING_ID,
+                  lineage_id: "lineage-existing",
+                  name: "E2E Pilot",
+                  description: { default: "", translations: {} },
+                  created_at: "2026-04-22T00:00:00Z",
+                  updated_at: "2026-04-22T00:00:00Z",
+                },
+              ],
+            }),
+          });
+        } else {
+          await route.fallback();
+        }
+      },
+    );
+
+    // Seed wizard state directly rather than walking all 6 steps —
+    // we're testing the collision branch, not the happy path.
+    await page.addInitScript(() => {
+      window.localStorage.setItem(
+        "ontosyx.bootstrap.v1",
+        JSON.stringify({
+          pilotName: "E2E Pilot",
+          pilotScope: "repeat run",
+          sourceKind: "postgresql",
+          sourceConnection: "postgresql://localhost:5432/pilot",
+          glossaryDraft: "Customer: buyer",
+          rulesDraft: "",
+          mappingNotes: "",
+          completedSteps: [
+            "1-pilot",
+            "2-source",
+            "3-glossary",
+            "4-rules",
+            "5-map",
+          ],
+        }),
+      );
+    });
+
+    await page.goto("/bootstrap/6-validate");
+
+    // Wait for the wizard state to hydrate from localStorage before
+    // clicking Finish — the bootstrap provider uses
+    // useSyncExternalStore with a microtask-deferred hydration, so
+    // the first render briefly shows empty state.
+    await expect(page.getByRole("heading", { level: 3 })).toContainText(
+      "E2E Pilot",
+    );
+
+    // Clicking Finish triggers the pre-flight lookup → match →
+    // dialog opens before seed-glossary fires. Assert that the
+    // dialog is visible with the colliding name and the suggested
+    // rename, and that seed-glossary was NOT called.
+    let seedCalls = 0;
+    await page.route("**/api/proxy/bootstrap/seed-glossary", async (route) => {
+      if (route.request().method() === "POST") {
+        seedCalls += 1;
+      }
+      await route.fallback();
+    });
+
+    await page.getByRole("button", { name: /^finish$|완료/i }).click();
+
+    const dialog = page.getByTestId("existing-pilot-dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText(/E2E Pilot/);
+    await expect(dialog).toContainText(/E2E Pilot 2/);
+
+    // Click "Continue" — the page should redirect to the existing
+    // ontology's map page without firing seed-glossary.
+    await page.getByTestId("existing-pilot-continue").click();
+
+    await expect(page).toHaveURL(
+      new RegExp(`/ontology/${EXISTING_ID}/map$`),
+    );
+    expect(seedCalls).toBe(0);
   });
 });

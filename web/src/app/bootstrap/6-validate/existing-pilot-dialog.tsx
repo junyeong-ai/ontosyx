@@ -73,7 +73,6 @@ export function ExistingPilotDialog({
             </button>
             <AlertDialog.Close
               className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-muted-foreground dark:hover:bg-zinc-800"
-              onClick={() => onChoose("cancel")}
               data-testid="existing-pilot-cancel"
             >
               {t("cancel")}
