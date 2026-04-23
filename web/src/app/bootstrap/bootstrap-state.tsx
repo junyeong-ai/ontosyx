@@ -13,30 +13,35 @@ import {
   useMemo,
   useSyncExternalStore,
 } from "react";
+import { z } from "zod";
 
+// Storage key is versioned. When we need to change the schema in a
+// backward-incompatible way, bump to `.v2` and Zod validation below
+// guarantees that an old-shape `.v1` payload can't leak through —
+// the parse fails and we fall back to EMPTY cleanly.
 const STORAGE_KEY = "ontosyx.bootstrap.v1";
 
-export interface BootstrapState {
-  pilotName: string;
-  pilotScope: string;
-  sourceKind: string;
-  sourceConnection: string;
-  glossaryDraft: string;
-  rulesDraft: string;
-  mappingNotes: string;
-  completedSteps: string[];
-}
+// Single source of truth — Zod schema doubles as the type and the
+// runtime validator. Any field added here has to declare a default
+// too, so partial payloads (older writers, aborted writes, manual
+// tampering) merge cleanly into the full shape without `undefined`
+// reaching React state.
+const BootstrapStateSchema = z.object({
+  pilotName: z.string().default(""),
+  pilotScope: z.string().default(""),
+  sourceKind: z.string().default(""),
+  sourceConnection: z.string().default(""),
+  glossaryDraft: z.string().default(""),
+  rulesDraft: z.string().default(""),
+  mappingNotes: z.string().default(""),
+  completedSteps: z.array(z.string()).default([]),
+});
 
-const EMPTY: BootstrapState = {
-  pilotName: "",
-  pilotScope: "",
-  sourceKind: "",
-  sourceConnection: "",
-  glossaryDraft: "",
-  rulesDraft: "",
-  mappingNotes: "",
-  completedSteps: [],
-};
+export type BootstrapState = z.infer<typeof BootstrapStateSchema>;
+
+// EMPTY is derived from the schema defaults so the two stay aligned
+// by construction — no parallel maintenance of a hand-rolled object.
+const EMPTY: BootstrapState = BootstrapStateSchema.parse({});
 
 interface Ctx {
   state: BootstrapState;
@@ -55,15 +60,28 @@ const BootstrapCtx = createContext<Ctx | null>(null);
 
 function readFromStorage(): BootstrapState {
   if (typeof window === "undefined") return EMPTY;
+  let raw: string | null;
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return EMPTY;
-    const parsed = JSON.parse(raw) as Partial<BootstrapState>;
-    return { ...EMPTY, ...parsed };
+    raw = window.localStorage.getItem(STORAGE_KEY);
   } catch {
-    // Corrupt payload — start clean, don't block the wizard.
+    // Private mode / disabled storage — in-memory EMPTY is fine.
     return EMPTY;
   }
+  if (!raw) return EMPTY;
+
+  // Parse JSON first, then Zod-validate. We split the two steps so
+  // a malformed-JSON payload and a valid-JSON-wrong-shape payload
+  // take the same "discard + reset" branch — both are unrecoverable
+  // from a user-progress standpoint, and we never want a corrupt
+  // snapshot to reach React state.
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    return EMPTY;
+  }
+  const result = BootstrapStateSchema.safeParse(json);
+  return result.success ? result.data : EMPTY;
 }
 
 function writeToStorage(next: BootstrapState): void {

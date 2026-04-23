@@ -80,4 +80,51 @@ describe("BootstrapProvider", () => {
     expect(result.current.state.pilotName).toBe("Resumed pilot");
     expect(result.current.state.completedSteps).toEqual(["1-pilot"]);
   });
+
+  it("falls back to EMPTY when the stored JSON has a wrong-shape payload", async () => {
+    // Simulate a schema drift scenario — the legacy payload had
+    // `pilotName` as an array of strings (or a boolean, or anything
+    // else the next refactor might mistakenly persist). Zod must
+    // reject the whole thing rather than let `pilotName: [...]`
+    // flow into React state.
+    window.localStorage.setItem(
+      "ontosyx.bootstrap.v1",
+      JSON.stringify({ pilotName: ["wrong", "shape"], completedSteps: "not-an-array" }),
+    );
+    const { result } = renderHook(() => useBootstrap(), { wrapper });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current.state.pilotName).toBe("");
+    expect(result.current.state.completedSteps).toEqual([]);
+  });
+
+  it("falls back to EMPTY when the stored payload is not valid JSON", async () => {
+    // Corrupted key — nothing we can do but reset. The wizard
+    // continues instead of crashing.
+    window.localStorage.setItem("ontosyx.bootstrap.v1", "{not-json");
+    const { result } = renderHook(() => useBootstrap(), { wrapper });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current.state.pilotName).toBe("");
+    expect(result.current.state.completedSteps).toEqual([]);
+  });
+
+  it("hydrates partial payloads with schema defaults filling the rest", async () => {
+    // A legitimate forward-compat scenario: an older version wrote
+    // only `pilotName`. Zod's per-field defaults must fill the
+    // remaining fields so downstream code never sees `undefined`.
+    window.localStorage.setItem(
+      "ontosyx.bootstrap.v1",
+      JSON.stringify({ pilotName: "Legacy writer" }),
+    );
+    const { result } = renderHook(() => useBootstrap(), { wrapper });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current.state.pilotName).toBe("Legacy writer");
+    expect(result.current.state.sourceKind).toBe("");
+    expect(result.current.state.completedSteps).toEqual([]);
+  });
 });
