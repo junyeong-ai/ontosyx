@@ -98,14 +98,14 @@ describe("SchedulesPage", () => {
     confirmMock.mockResolvedValueOnce(false);
     renderPage();
     await waitFor(() =>
-      expect(screen.getByText(SAMPLE_TASK.description)).toBeInTheDocument(),
+      expect(screen.getByText(SAMPLE_TASK.description!)).toBeInTheDocument(),
     );
     // The delete button renders with `common.delete` → "Delete".
     fireEvent.click(screen.getByRole("button", { name: /^Delete$/ }));
     await waitFor(() => expect(confirmMock).toHaveBeenCalled());
     expect(deleteScheduledTask).not.toHaveBeenCalled();
     // Row stays.
-    expect(screen.getByText(SAMPLE_TASK.description)).toBeInTheDocument();
+    expect(screen.getByText(SAMPLE_TASK.description!)).toBeInTheDocument();
   });
 
   it("delete with confirm=true reverts optimistic remove if the API fails", async () => {
@@ -114,12 +114,12 @@ describe("SchedulesPage", () => {
     vi.mocked(deleteScheduledTask).mockRejectedValueOnce(new Error("boom"));
     renderPage();
     await waitFor(() =>
-      expect(screen.getByText(SAMPLE_TASK.description)).toBeInTheDocument(),
+      expect(screen.getByText(SAMPLE_TASK.description!)).toBeInTheDocument(),
     );
     fireEvent.click(screen.getByRole("button", { name: /^Delete$/ }));
     // After the failure, the row should reappear (snapshot
     // revert) and the error toast should fire.
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
-    expect(screen.getByText(SAMPLE_TASK.description)).toBeInTheDocument();
+    expect(screen.getByText(SAMPLE_TASK.description!)).toBeInTheDocument();
   });
 });

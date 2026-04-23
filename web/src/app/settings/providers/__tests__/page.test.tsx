@@ -41,7 +41,7 @@ describe("ProvidersPage", () => {
         postgres: { status: "ok" },
         graph: { status: "ok", kind: "neo4j" },
       },
-    } as Awaited<ReturnType<typeof getHealth>>);
+    } as unknown as Awaited<ReturnType<typeof getHealth>>);
     renderPage();
     await waitFor(() =>
       expect(screen.getByText(/ontosyx v0\.1\.0/)).toBeInTheDocument(),
@@ -68,7 +68,7 @@ describe("ProvidersPage", () => {
         postgres: { status: "ok" },
         graph: { status: "unavailable", kind: "neo4j" },
       },
-    } as Awaited<ReturnType<typeof getHealth>>);
+    } as unknown as Awaited<ReturnType<typeof getHealth>>);
     renderPage();
     await waitFor(() =>
       expect(screen.getByText("LLM Provider")).toBeInTheDocument(),
