@@ -17,12 +17,15 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use async_trait::async_trait;
 use chrono::Utc;
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
 use ox_store::{MetricValue, MetricWindow, QualityMetricsReport, Store, WorkspaceQualityBaseline};
+
+use super::cron::{CronTask, spawn_cron};
 
 /// How often the cron runs. Daily is the natural granularity — the
 /// metrics settle over days, and a 24h recomputation is invisible
@@ -40,27 +43,29 @@ const BASELINE_WINDOW: MetricWindow = MetricWindow::Last30d;
 const WARN_MAD_MULTIPLIER: f64 = 2.0;
 const CRITICAL_MAD_MULTIPLIER: f64 = 3.0;
 
+/// Cron impl surface. Every field the scan needs lives here so
+/// `run_once` is a thin delegate to [`run_scan`].
+struct QualityBaselineScan {
+    store: Arc<dyn Store>,
+}
+
+#[async_trait]
+impl CronTask for QualityBaselineScan {
+    fn name(&self) -> &'static str {
+        "quality-baseline-scan"
+    }
+
+    fn interval(&self) -> Duration {
+        SCAN_INTERVAL
+    }
+
+    async fn run_once(&self) -> ox_core::error::OxResult<()> {
+        run_scan(self.store.as_ref()).await
+    }
+}
+
 pub fn spawn_quality_baseline_scan(store: Arc<dyn Store>, cancel: CancellationToken) {
-    crate::spawn_scoped::spawn_system(async move {
-        // First tick fires immediately — on a fresh cluster the
-        // admin should see a baseline row populate without waiting
-        // 24h. The ticker's second tick then lands SCAN_INTERVAL
-        // later as normal.
-        let mut ticker = tokio::time::interval(SCAN_INTERVAL);
-        loop {
-            tokio::select! {
-                _ = cancel.cancelled() => {
-                    info!("quality-baseline scan shutting down");
-                    break;
-                }
-                _ = ticker.tick() => {
-                    if let Err(e) = run_scan(store.as_ref()).await {
-                        warn!(error = %e, "quality-baseline scan failed");
-                    }
-                }
-            }
-        }
-    });
+    spawn_cron(Arc::new(QualityBaselineScan { store }), cancel);
 }
 
 async fn run_scan(store: &dyn Store) -> ox_core::error::OxResult<()> {

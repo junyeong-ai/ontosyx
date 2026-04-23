@@ -14,15 +14,16 @@
 //! costs nothing (every query compares to "now"), but keeps the
 //! map size bounded in a churn-heavy deployment.
 
+use std::sync::Arc;
 use std::time::Duration;
 
+use async_trait::async_trait;
 use chrono::Duration as ChronoDuration;
 use tokio_util::sync::CancellationToken;
-use tracing::info;
 
-use ox_agent::clarification_tracker::{
-    DEFAULT_WINDOW_MINUTES, SharedClarificationTracker,
-};
+use ox_agent::clarification_tracker::{DEFAULT_WINDOW_MINUTES, SharedClarificationTracker};
+
+use super::cron::{CronTask, spawn_cron};
 
 /// Evict sweeps every 30 minutes. The default match window is 10
 /// minutes; 30 leaves a 3× buffer so a query landing right at the
@@ -30,38 +31,45 @@ use ox_agent::clarification_tracker::{
 /// stabilises at "active sessions in the last three windows".
 const EVICT_INTERVAL: Duration = Duration::from_secs(30 * 60);
 
-/// Spawn the eviction loop under the system scope. Cancellation
-/// token is shared with the rest of `main.rs`'s spawns so graceful
-/// shutdown drains the loop before the process exits.
+struct ClarificationEvict {
+    tracker: SharedClarificationTracker,
+}
+
+#[async_trait]
+impl CronTask for ClarificationEvict {
+    fn name(&self) -> &'static str {
+        "clarification-tracker-evict"
+    }
+
+    fn interval(&self) -> Duration {
+        EVICT_INTERVAL
+    }
+
+    /// Unlike the stale-concept scan, an evict on a just-booted
+    /// tracker has nothing to do — everything in the DashMap is
+    /// fresh by definition. Skipping the immediate tick avoids a
+    /// no-op log line per restart.
+    fn fire_on_start(&self) -> bool {
+        false
+    }
+
+    async fn run_once(&self) -> ox_core::error::OxResult<()> {
+        let window = ChronoDuration::minutes(DEFAULT_WINDOW_MINUTES);
+        self.tracker.evict_older_than(window);
+        // DEBUG rather than INFO — this runs every 30 minutes on a
+        // healthy deploy and a stable process shouldn't flood info
+        // logs with routine sweeps.
+        tracing::debug!(cron = "clarification-tracker-evict", "evict complete");
+        Ok(())
+    }
+}
+
+/// Spawn the eviction loop. Cancellation token is shared with the
+/// rest of `main.rs`'s spawns so graceful shutdown drains the loop
+/// before the process exits.
 pub fn spawn_clarification_evict(
     tracker: SharedClarificationTracker,
     cancel: CancellationToken,
 ) {
-    crate::spawn_scoped::spawn_system(async move {
-        // `interval` fires its first tick immediately. We skip it
-        // with `tick().await` up-front so the very first "evict"
-        // isn't a no-op on a fresh process — evict at T+EVICT_INTERVAL
-        // and every EVICT_INTERVAL after.
-        let mut ticker = tokio::time::interval(EVICT_INTERVAL);
-        // First tick is the zero tick — consume it so the loop
-        // sleeps EVICT_INTERVAL before the real first sweep.
-        ticker.tick().await;
-        let window = ChronoDuration::minutes(DEFAULT_WINDOW_MINUTES);
-        loop {
-            tokio::select! {
-                _ = cancel.cancelled() => {
-                    info!("clarification-tracker evict shutting down");
-                    break;
-                }
-                _ = ticker.tick() => {
-                    tracker.evict_older_than(window);
-                    // Intentionally log at debug level — this runs
-                    // frequently and a stable deploy shouldn't
-                    // flood info logs. Callers grepping for
-                    // the signal keyword still find it at DEBUG.
-                    tracing::debug!("clarification-tracker evict complete");
-                }
-            }
-        }
-    });
+    spawn_cron(Arc::new(ClarificationEvict { tracker }), cancel);
 }

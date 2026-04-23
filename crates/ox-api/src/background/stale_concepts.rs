@@ -15,12 +15,15 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
+use async_trait::async_trait;
 use chrono::Utc;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 use uuid::Uuid;
 
 use ox_store::{StaleConceptProposal, StaleProposalDecision, Store};
+
+use super::cron::{CronTask, spawn_cron};
 
 /// How often the cron scans. Staleness cutoffs measure in months, so
 /// daily granularity is enough — a proposal taking 24h to appear is
@@ -32,29 +35,38 @@ const SCAN_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
 /// system_config.
 const DEFAULT_STALE_AFTER_DAYS: i64 = 180;
 
-pub fn spawn_stale_concept_scan(
+/// Cron impl surface. Holds the store handle + the staleness
+/// cutoff as plain fields so the trait's `run_once` is a thin
+/// delegate to [`run_scan`] — the interesting logic stays in one
+/// testable function.
+struct StaleConceptScan {
     store: Arc<dyn Store>,
-    cancel: CancellationToken,
-) {
-    crate::spawn_scoped::spawn_system(async move {
-        // First tick fires immediately — running the scan on startup
-        // makes the new-deploy case ("just-installed cluster has old
-        // ontologies") surface proposals without a 24h wait.
-        let mut ticker = tokio::time::interval(SCAN_INTERVAL);
-        loop {
-            tokio::select! {
-                _ = cancel.cancelled() => {
-                    info!("stale-concept scan shutting down");
-                    break;
-                }
-                _ = ticker.tick() => {
-                    if let Err(e) = run_scan(store.as_ref(), DEFAULT_STALE_AFTER_DAYS).await {
-                        warn!(error = %e, "stale-concept scan failed");
-                    }
-                }
-            }
-        }
-    });
+    stale_after_days: i64,
+}
+
+#[async_trait]
+impl CronTask for StaleConceptScan {
+    fn name(&self) -> &'static str {
+        "stale-concept-scan"
+    }
+
+    fn interval(&self) -> Duration {
+        SCAN_INTERVAL
+    }
+
+    async fn run_once(&self) -> ox_core::error::OxResult<()> {
+        run_scan(self.store.as_ref(), self.stale_after_days).await
+    }
+}
+
+pub fn spawn_stale_concept_scan(store: Arc<dyn Store>, cancel: CancellationToken) {
+    spawn_cron(
+        Arc::new(StaleConceptScan {
+            store,
+            stale_after_days: DEFAULT_STALE_AFTER_DAYS,
+        }),
+        cancel,
+    );
 }
 
 async fn run_scan(store: &dyn Store, stale_after_days: i64) -> ox_core::error::OxResult<()> {
