@@ -8,7 +8,22 @@ use ox_ontology::mapping::SourceId;
 use serde::Deserialize;
 
 use crate::error::AppError;
+use crate::principal::Principal;
 use crate::response::ApiResponse;
+
+// ---------------------------------------------------------------------------
+// Authorization note (applies to every handler in this module).
+//
+// `require_auth` middleware at the route-layer level already
+// guarantees these endpoints reject anonymous requests. What it
+// does NOT do is distinguish roles. Ontology translation,
+// inspection, and import are all editor operations — they accept
+// or emit schema content that shapes the rest of the platform's
+// behaviour, so gating them to `designer` stops a workspace
+// `viewer` from, e.g., uploading an OWL file that re-shapes the
+// ontology universe or pulling plain-text Cypher DDL that a
+// viewer should not see without an explicit elevation.
+// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // Normalize — InputOntologyDef → OntologyIR
@@ -26,8 +41,10 @@ use crate::response::ApiResponse;
     tag = "Ontologies",
 )]
 pub(crate) async fn normalize_ontology(
+    principal: Principal,
     Json(input): Json<InputOntologyDef>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    principal.require_designer()?;
     // Ad-hoc normalize — no project / data source attached. The
     // returned IR is for validation / inspection only and carries
     // no ObjectMappingDef entries unless the caller's InputOntologyDef
@@ -58,8 +75,10 @@ pub(crate) async fn normalize_ontology(
     tag = "Ontologies",
 )]
 pub(crate) async fn export_ontology(
+    principal: Principal,
     Json(ontology): Json<OntologyIR>,
 ) -> Result<Json<ApiResponse<InputOntologyDef>>, AppError> {
+    principal.require_designer()?;
     let exchange = to_exchange_format(&ontology);
     Ok(ApiResponse::of(exchange))
 }
@@ -78,7 +97,11 @@ pub(crate) async fn export_ontology(
     security(("api_key" = [])),
     tag = "Ontologies",
 )]
-pub(crate) async fn export_cypher(Json(ontology): Json<OntologyIR>) -> Result<String, AppError> {
+pub(crate) async fn export_cypher(
+    principal: Principal,
+    Json(ontology): Json<OntologyIR>,
+) -> Result<String, AppError> {
+    principal.require_designer()?;
     Ok(export::generate_cypher_ddl(&ontology))
 }
 
@@ -92,7 +115,11 @@ pub(crate) async fn export_cypher(Json(ontology): Json<OntologyIR>) -> Result<St
     security(("api_key" = [])),
     tag = "Ontologies",
 )]
-pub(crate) async fn export_mermaid(Json(ontology): Json<OntologyIR>) -> Result<String, AppError> {
+pub(crate) async fn export_mermaid(
+    principal: Principal,
+    Json(ontology): Json<OntologyIR>,
+) -> Result<String, AppError> {
+    principal.require_designer()?;
     Ok(export::generate_mermaid(&ontology))
 }
 
@@ -106,7 +133,11 @@ pub(crate) async fn export_mermaid(Json(ontology): Json<OntologyIR>) -> Result<S
     security(("api_key" = [])),
     tag = "Ontologies",
 )]
-pub(crate) async fn export_graphql(Json(ontology): Json<OntologyIR>) -> Result<String, AppError> {
+pub(crate) async fn export_graphql(
+    principal: Principal,
+    Json(ontology): Json<OntologyIR>,
+) -> Result<String, AppError> {
+    principal.require_designer()?;
     Ok(export::generate_graphql(&ontology))
 }
 
@@ -120,7 +151,11 @@ pub(crate) async fn export_graphql(Json(ontology): Json<OntologyIR>) -> Result<S
     security(("api_key" = [])),
     tag = "Ontologies",
 )]
-pub(crate) async fn export_owl(Json(ontology): Json<OntologyIR>) -> Result<String, AppError> {
+pub(crate) async fn export_owl(
+    principal: Principal,
+    Json(ontology): Json<OntologyIR>,
+) -> Result<String, AppError> {
+    principal.require_designer()?;
     Ok(export::generate_owl_turtle(&ontology))
 }
 
@@ -134,7 +169,11 @@ pub(crate) async fn export_owl(Json(ontology): Json<OntologyIR>) -> Result<Strin
     security(("api_key" = [])),
     tag = "Ontologies",
 )]
-pub(crate) async fn export_shacl(Json(ontology): Json<OntologyIR>) -> Result<String, AppError> {
+pub(crate) async fn export_shacl(
+    principal: Principal,
+    Json(ontology): Json<OntologyIR>,
+) -> Result<String, AppError> {
+    principal.require_designer()?;
     Ok(export::generate_shacl(&ontology))
 }
 
@@ -149,8 +188,10 @@ pub(crate) async fn export_shacl(Json(ontology): Json<OntologyIR>) -> Result<Str
     tag = "Ontologies",
 )]
 pub(crate) async fn export_typescript(
+    principal: Principal,
     Json(ontology): Json<OntologyIR>,
 ) -> Result<String, AppError> {
+    principal.require_designer()?;
     Ok(export::generate_typescript(&ontology))
 }
 
@@ -164,7 +205,11 @@ pub(crate) async fn export_typescript(
     security(("api_key" = [])),
     tag = "Ontologies",
 )]
-pub(crate) async fn export_python(Json(ontology): Json<OntologyIR>) -> Result<String, AppError> {
+pub(crate) async fn export_python(
+    principal: Principal,
+    Json(ontology): Json<OntologyIR>,
+) -> Result<String, AppError> {
+    principal.require_designer()?;
     Ok(export::generate_python(&ontology))
 }
 
@@ -190,8 +235,10 @@ pub struct OntologyImportRequest {
     tag = "Ontologies",
 )]
 pub(crate) async fn import_owl(
+    principal: Principal,
     Json(req): Json<OntologyImportRequest>,
 ) -> Result<Json<ApiResponse<OntologyIR>>, AppError> {
+    principal.require_designer()?;
     if req.content.trim().is_empty() {
         return Err(AppError::bad_request("content must not be empty"));
     }

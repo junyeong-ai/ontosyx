@@ -5,8 +5,20 @@ use uuid::Uuid;
 use ox_store::{LineageEntry, LineageSummary};
 
 use crate::error::AppError;
+use crate::principal::Principal;
 use crate::response::ApiResponse;
 use crate::state::AppState;
+
+// ---------------------------------------------------------------------------
+// Lineage — read-only introspection over ontology → source bindings.
+//
+// Gated to `designer` rather than `viewer`. Lineage exposes the
+// exact column and foreign-key relationships that the graph
+// schema is built on top of, which is load-bearing information for
+// ontology editors but not something a read-only analytics viewer
+// needs to see — a viewer's job is to query the graph, not to
+// understand the physical substrate.
+// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // GET /api/lineage — summary of lineage per graph label
@@ -14,7 +26,9 @@ use crate::state::AppState;
 
 pub(crate) async fn get_lineage_summary(
     State(state): State<AppState>,
+    principal: Principal,
 ) -> Result<Json<ApiResponse<Vec<LineageSummary>>>, AppError> {
+    principal.require_designer()?;
     let summary = state
         .store
         .lineage_summary()
@@ -29,8 +43,10 @@ pub(crate) async fn get_lineage_summary(
 
 pub(crate) async fn list_lineage_for_label(
     State(state): State<AppState>,
+    principal: Principal,
     Path(label): Path<String>,
 ) -> Result<Json<ApiResponse<Vec<LineageEntry>>>, AppError> {
+    principal.require_designer()?;
     let entries = state
         .store
         .list_lineage_for_label(&label)
@@ -45,8 +61,10 @@ pub(crate) async fn list_lineage_for_label(
 
 pub(crate) async fn get_lineage_for_project(
     State(state): State<AppState>,
+    principal: Principal,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ApiResponse<Vec<LineageEntry>>>, AppError> {
+    principal.require_designer()?;
     let entries = state
         .store
         .get_lineage_for_project(id)
