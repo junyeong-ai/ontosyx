@@ -62,10 +62,13 @@ test.describe("dashboard", () => {
   });
 
   test("dashboard API mock returns data shape", async ({ page }) => {
-    // `page.request.get` uses APIRequestContext which bypasses
-    // `page.route`. Navigate first, then fetch from inside the page
-    // so the mocked payload comes back.
+    // `/` client-redirects to `/design`; waiting for that to settle
+    // prevents "Execution context was destroyed" when `page.evaluate`
+    // races the navigation. Once at a stable page, we can `fetch`
+    // through the browser network stack, which `page.route`
+    // intercepts (unlike the separate APIRequestContext).
     await page.goto("/");
+    await page.waitForURL(/\/design(\?.*)?$/);
     const body = await page.evaluate(async () => {
       const res = await fetch("/api/proxy/dashboards");
       return (await res.json()) as { dashboards: Array<{ widgets: unknown[] }> };

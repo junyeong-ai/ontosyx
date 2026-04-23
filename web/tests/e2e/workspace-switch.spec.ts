@@ -29,12 +29,13 @@ test.describe("workspace switch", () => {
   });
 
   test("workspaces endpoint returns seeded list", async ({ page }) => {
-    // `page.evaluate` starts in `about:blank` — navigate first so
-    // relative fetches resolve against the app origin and Playwright's
-    // `page.route` interceptor can catch them. `page.request.get`
-    // would skip routing entirely (it uses APIRequestContext, which
-    // doesn't traverse the browser network stack).
+    // `/` client-redirects to `/design`; wait for the navigation
+    // to settle so `page.evaluate` doesn't race the swap (would
+    // throw "Execution context was destroyed"). Fetching from
+    // inside the page lets `page.route` intercept — `page.request`
+    // uses a separate APIRequestContext that bypasses routing.
     await page.goto("/");
+    await page.waitForURL(/\/design(\?.*)?$/);
     const body = await page.evaluate(async () => {
       const res = await fetch("/api/proxy/workspaces");
       return (await res.json()) as Array<{ name: string }>;
