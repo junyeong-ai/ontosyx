@@ -15,18 +15,25 @@ import { isAuthEnabled, COOKIE_NAME } from "./auth";
 const BACKEND =
   process.env.ONTOSYX_API_URL ?? "http://localhost:3101/api";
 
-// `OX_API_KEY` is the server-side secret (never exposed to the
-// browser). In dev, `./scripts/dev.sh seed` writes the bootstrap
-// key to `web/.env.local` as `NEXT_PUBLIC_OX_DEV_API_KEY` so the
-// same credential works from both the proxy (this file) and the
-// browser-visible client helpers. Production builds MUST set
-// `OX_API_KEY` explicitly; the dev fallback is gated on
-// NODE_ENV!=production so prod bundles never carry it.
+// Two env names, neither exposed to the browser. Both MUST stay
+// non-`NEXT_PUBLIC_*` — Next.js inlines `NEXT_PUBLIC_*` into every
+// client bundle regardless of NODE_ENV, so naming the secret that
+// way would leak the admin key.
+//
+//   OX_DEV_API_KEY — seed-generated, written by `dev.sh seed`.
+//                    Preferred in dev because `seed` is the live
+//                    source of truth for the running backend.
+//   OX_API_KEY     — operator-set, the general convention for
+//                    injecting a pre-minted key (CI, staging).
+//
+// Dev: OX_DEV_API_KEY wins so a stale operator-set OX_API_KEY
+// doesn't shadow the freshly-seeded credential.
+// Production: OX_DEV_API_KEY is ignored entirely — only the
+// operator-set OX_API_KEY is honoured.
 const API_KEY =
-  process.env.OX_API_KEY ??
-  (process.env.NODE_ENV !== "production"
-    ? process.env.NEXT_PUBLIC_OX_DEV_API_KEY
-    : undefined);
+  process.env.NODE_ENV === "production"
+    ? process.env.OX_API_KEY
+    : (process.env.OX_DEV_API_KEY ?? process.env.OX_API_KEY);
 
 /**
  * Forward a request to a public backend endpoint (no credentials).

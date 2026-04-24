@@ -378,10 +378,26 @@ cmd_clean() {
   echo ""
   _docker_reset
   echo ""
+  # Purge cached dev credentials too — the DB volumes are gone, so
+  # the hash of this key no longer matches any api_keys row. Leaving
+  # it cached would mislead the next `seed` into "reusing cached
+  # key" when the key is actually dead.
+  if [ -f "$(_creds_file)" ]; then
+    rm -f "$(_creds_file)"
+    echo "  ${D}Removed $(_creds_file)${N}"
+  fi
+  # Strip dev-only pairs from the FE env so a later `seed` rewrites
+  # them cleanly; preserve any other settings the user added.
+  local fe_env="$WEB_DIR/.env.local"
+  if [ -f "$fe_env" ]; then
+    grep -v "^OX_DEV_API_KEY=\|^NEXT_PUBLIC_OX_DEV_WORKSPACE_ID=\|^NEXT_PUBLIC_OX_DEV_API_KEY=" "$fe_env" > "$fe_env.tmp" || true
+    mv "$fe_env.tmp" "$fe_env"
+  fi
+  echo ""
   echo "  ${B}Rebuilding backend...${N}"
   cargo build --bin ontosyx --manifest-path "$ROOT_DIR/Cargo.toml" 2>&1 | tail -3 | sed 's/^/  /'
   echo ""
-  echo "  ${G}Clean complete. Run ${W}./scripts/dev.sh start${N}${G} to bring everything up.${N}"
+  echo "  ${G}Clean complete. Run ${W}./scripts/dev.sh seed${N}${G} to re-seed credentials.${N}"
   echo ""
 }
 
@@ -453,18 +469,22 @@ export OX_WORKSPACE_ID="$ws_id"
 EOF
   chmod 600 "$creds"
 
-  # Expose the same pair to the FE through NEXT_PUBLIC_* env so the
-  # API proxy injects them automatically in dev builds. Production
-  # bundles never see these because the proxy's conditional check
-  # requires NODE_ENV!=production.
+  # Expose the pair to the FE through two separate env conventions:
+  #   OX_DEV_API_KEY            — server-only (proxy route reads it).
+  #                               MUST NOT be NEXT_PUBLIC_* or Next.js
+  #                               inlines it into the browser bundle.
+  #   NEXT_PUBLIC_OX_DEV_WORKSPACE_ID
+  #                             — client-visible (workspace_id is an
+  #                               identifier, not a secret; the
+  #                               `getWorkspaceId()` helper reads it
+  #                               as a default when nothing is cached).
   local fe_env="$WEB_DIR/.env.local"
-  # Strip any previous dev-auth pair, then append the fresh values.
   if [ -f "$fe_env" ]; then
-    grep -v "^NEXT_PUBLIC_OX_DEV_API_KEY=\|^NEXT_PUBLIC_OX_DEV_WORKSPACE_ID=" "$fe_env" > "$fe_env.tmp" || true
+    grep -v "^OX_DEV_API_KEY=\|^NEXT_PUBLIC_OX_DEV_WORKSPACE_ID=\|^NEXT_PUBLIC_OX_DEV_API_KEY=" "$fe_env" > "$fe_env.tmp" || true
     mv "$fe_env.tmp" "$fe_env"
   fi
   cat >> "$fe_env" <<EOF
-NEXT_PUBLIC_OX_DEV_API_KEY=$key
+OX_DEV_API_KEY=$key
 NEXT_PUBLIC_OX_DEV_WORKSPACE_ID=$ws_id
 EOF
 
