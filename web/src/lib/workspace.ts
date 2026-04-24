@@ -33,10 +33,25 @@ if (typeof window !== "undefined") {
   migrateFromSessionStorage();
 }
 
-/** Get the active workspace ID, or undefined if not set. */
+/** Get the active workspace ID, or undefined if not set.
+ *
+ * Dev override: when `NEXT_PUBLIC_OX_DEV_WORKSPACE_ID` is set
+ * (populated by `./scripts/dev.sh seed`) and nothing is cached
+ * yet, fall back to the bootstrap workspace so unauth'd dev
+ * sessions don't have to click through a login flow before they
+ * can hit workspace-scoped endpoints. Production builds never see
+ * this env — Next.js DCE strips the branch at build time when
+ * `NEXT_PUBLIC_OX_DEV_WORKSPACE_ID` is undefined.
+ */
 export function getWorkspaceId(): string | undefined {
   if (typeof window === "undefined") return undefined;
-  return window.localStorage.getItem(STORAGE_KEY) ?? undefined;
+  const cached = window.localStorage.getItem(STORAGE_KEY);
+  if (cached) return cached;
+  if (process.env.NODE_ENV !== "production") {
+    const devWorkspace = process.env.NEXT_PUBLIC_OX_DEV_WORKSPACE_ID;
+    if (devWorkspace) return devWorkspace;
+  }
+  return undefined;
 }
 
 /** Set the active workspace ID. Pass undefined to clear. */

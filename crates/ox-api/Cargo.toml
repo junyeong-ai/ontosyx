@@ -71,6 +71,14 @@ tempfile = { workspace = true }
 name = "query_compile"
 harness = false
 
+# Opt-in helper for downstream integration tests that need a
+# pre-authenticated `Principal` without wiring full JWT + cookie
+# state (`Principal::test_admin()`). Production builds do NOT
+# enable this — the helper is compiled out of the release binary
+# entirely, so there is no runtime path to skip authentication.
+[features]
+test-helpers = []
+
 
 [lints]
 workspace = true

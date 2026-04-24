@@ -266,6 +266,12 @@ async fn main() -> anyhow::Result<()> {
     // First-boot bootstrap: if `api_keys` is empty AND OX_AUTH__BOOTSTRAP_KEY
     // is set, seed one row so a fresh deployment is reachable. Operators
     // should rotate the bootstrap key immediately.
+    //
+    // Alongside the key we also seed a default user + workspace when the
+    // corresponding tables are empty — the rest of the platform (default
+    // workspace lookup for machine principals, workspace-scoped RLS,
+    // session-less curl calls) assumes both exist. Seeding under the same
+    // SYSTEM_BYPASS scope makes first-boot a single atomic-feeling batch.
     if let Some(plaintext) = config.auth.bootstrap_key.as_deref() {
         ox_store::SYSTEM_BYPASS
             .scope(true, async {
@@ -301,6 +307,13 @@ async fn main() -> anyhow::Result<()> {
                     Err(e) => {
                         tracing::warn!(error = %e, "Could not check api_keys for bootstrap seed");
                     }
+                }
+
+                // Seed default user + workspace if missing. No-op once
+                // the workspace exists — the slug uniqueness constraint
+                // on `workspaces` means repeated boots don't duplicate.
+                if let Err(e) = seed_default_workspace_if_missing(&store).await {
+                    tracing::error!(error = %e, "Default workspace seed failed");
                 }
             })
             .await;
@@ -1097,6 +1110,71 @@ async fn shutdown_signal(cancel_token: tokio_util::sync::CancellationToken) {
     }
 
     cancel_token.cancel();
+}
+
+/// Seed a `default` workspace + system owner user the first time a
+/// deployment boots. A no-op on every subsequent boot because the
+/// `workspaces.slug` + `users.(provider, provider_sub)` unique
+/// constraints catch re-runs.
+///
+/// Machine principals (API keys, system tasks) look up the default
+/// workspace owner via `get_workspace_by_slug("default")` to stand
+/// in as the acting user — so without this seed, every machine-auth
+/// request 500s with "Default workspace not found".
+async fn seed_default_workspace_if_missing(
+    store: &Arc<dyn ox_store::Store>,
+) -> anyhow::Result<()> {
+    use ox_store::models::{User, Workspace};
+
+    const DEFAULT_SLUG: &str = "default";
+
+    if store.get_workspace_by_slug(DEFAULT_SLUG).await?.is_some() {
+        return Ok(());
+    }
+
+    // 1. Upsert the system owner. Same user record on every boot —
+    //    `users_provider_provider_sub_key` is the idempotency anchor.
+    let owner_seed = User {
+        id: uuid::Uuid::new_v4(),
+        email: "system@ontosyx.local".into(),
+        name: Some("System".into()),
+        picture: None,
+        provider: "system".into(),
+        provider_sub: "bootstrap-default-owner".into(),
+        role: "admin".into(),
+        created_at: chrono::Utc::now(),
+        last_login_at: None,
+    };
+    let owner = store.upsert_user(&owner_seed).await?;
+
+    // 2. Create the default workspace. Slug uniqueness is the
+    //    idempotency anchor here; concurrent second-boots race
+    //    on the INSERT and only one wins.
+    let workspace = Workspace {
+        id: uuid::Uuid::new_v4(),
+        name: "Default".into(),
+        slug: DEFAULT_SLUG.into(),
+        owner_id: owner.id,
+        settings: serde_json::json!({}),
+        created_at: chrono::Utc::now(),
+        primary_locale: "ko".into(),
+        locale_fallback: serde_json::json!(["ko", "en"]),
+    };
+    store.create_workspace(&workspace).await?;
+
+    // 3. Owner membership row. Without this, the user has no way to
+    //    enter their own workspace through the normal membership-
+    //    gated paths.
+    store
+        .add_workspace_member(workspace.id, owner.id, "owner")
+        .await?;
+
+    tracing::warn!(
+        workspace_id = %workspace.id,
+        owner_id = %owner.id,
+        "Seeded `default` workspace + system owner — rotate OX_AUTH__BOOTSTRAP_KEY and add real users via the admin API"
+    );
+    Ok(())
 }
 
 /// Expand `~/...` to the user's home directory.

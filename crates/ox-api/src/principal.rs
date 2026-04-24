@@ -115,6 +115,22 @@ impl Principal {
         }
     }
 
+    /// Construct a pre-authenticated admin principal for integration
+    /// tests. Only compiled into test binaries — production builds
+    /// cannot invoke this constructor, and there is no runtime flag
+    /// that flips authentication off. The returned principal has
+    /// `id = "apikey:test"` so `is_machine()` returns true and
+    /// workspace-scoped handlers resolve through the default
+    /// workspace owner just like a real API-key call would.
+    #[cfg(any(test, feature = "test-helpers"))]
+    pub fn test_admin() -> Self {
+        Self {
+            id: "apikey:test".to_string(),
+            email: "test@ontosyx.local".to_string(),
+            role: PlatformRole::Admin,
+        }
+    }
+
     /// Whether this principal represents a non-human identity — either a
     /// system task (`system:*`) or a DB-backed API key (`apikey:*`).
     /// All middleware and handlers MUST use this predicate instead of

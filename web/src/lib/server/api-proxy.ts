@@ -15,7 +15,18 @@ import { isAuthEnabled, COOKIE_NAME } from "./auth";
 const BACKEND =
   process.env.ONTOSYX_API_URL ?? "http://localhost:3101/api";
 
-const API_KEY = process.env.OX_API_KEY;
+// `OX_API_KEY` is the server-side secret (never exposed to the
+// browser). In dev, `./scripts/dev.sh seed` writes the bootstrap
+// key to `web/.env.local` as `NEXT_PUBLIC_OX_DEV_API_KEY` so the
+// same credential works from both the proxy (this file) and the
+// browser-visible client helpers. Production builds MUST set
+// `OX_API_KEY` explicitly; the dev fallback is gated on
+// NODE_ENV!=production so prod bundles never carry it.
+const API_KEY =
+  process.env.OX_API_KEY ??
+  (process.env.NODE_ENV !== "production"
+    ? process.env.NEXT_PUBLIC_OX_DEV_API_KEY
+    : undefined);
 
 /**
  * Forward a request to a public backend endpoint (no credentials).
