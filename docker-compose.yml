@@ -38,26 +38,8 @@ services:
     image: ontosyx-analysis-sandbox
     profiles: ["build"]
 
-  # Source database for ontology design-from-source testing
-  postgres-source:
-    image: postgres:17
-    ports:
-      - "5434:5432"
-    environment:
-      POSTGRES_DB: olive_young
-      POSTGRES_USER: source
-      POSTGRES_PASSWORD: source-dev
-    volumes:
-      - pg_source_data:/var/lib/postgresql/data
-      - ./data/olive-young/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
-      - ./data/olive-young/seed-data.sql:/docker-entrypoint-initdb.d/02-seed-data.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U source"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
   # E-commerce sample database for universal platform verification
+  # (doubles as the source DB for design-from-source testing)
   postgres-ecommerce:
     image: postgres:17
     ports:
@@ -79,5 +61,4 @@ services:
 volumes:
   neo4j_data:
   pg_data:
-  pg_source_data:
   pg_ecommerce_data:

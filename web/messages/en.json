@@ -2161,7 +2161,7 @@
         "intro": "Create a project to analyze your data source and design an ontology. Fields marked with <asterisk>*</asterisk> are required.",
         "titleLabel": "Title",
         "titleHint": "Optional — auto-generated if empty",
-        "titlePlaceholder": "e.g. Olive Young DB Ontology",
+        "titlePlaceholder": "e.g. Product Catalog Ontology",
         "sourceTypeLabel": "Source Type",
         "sourceTypes": {
           "postgresql": "PostgreSQL",

@@ -2143,7 +2143,7 @@
         "intro": "프로젝트를 만들어 데이터 소스를 분석하고 온톨로지를 설계합니다. <asterisk>*</asterisk> 표시는 필수 입력 항목입니다.",
         "titleLabel": "제목",
         "titleHint": "선택 입력 — 비워두면 자동 생성됩니다",
-        "titlePlaceholder": "예: Olive Young DB 온톨로지",
+        "titlePlaceholder": "예: 제품 카탈로그 온톨로지",
         "sourceTypeLabel": "소스 종류",
         "sourceTypes": {
           "postgresql": "PostgreSQL",
