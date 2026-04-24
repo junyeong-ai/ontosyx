@@ -140,7 +140,7 @@ impl crate::store::OntologyVersionStore for PostgresStore {
         }
         sqlx::query(
             "INSERT INTO ontology_entity_versions (entity_hash, entity_kind, content) \
-             SELECT * FROM UNNEST($1::text[], $2::text[], $3::jsonb[]) \
+             SELECT * FROM UNNEST($1::text[], $2::ontology_entity_kind[], $3::jsonb[]) \
              ON CONFLICT (entity_hash) DO NOTHING",
         )
         .bind(&hashes)
@@ -180,7 +180,7 @@ impl crate::store::OntologyVersionStore for PostgresStore {
         sqlx::query(
             "INSERT INTO ontology_version_entities \
                 (version_id, entity_kind, entity_logical_id, entity_hash) \
-             SELECT $1, k.kind, k.lid, k.hash \
+             SELECT $1, k.kind::ontology_entity_kind, k.lid, k.hash \
              FROM UNNEST($2::text[], $3::text[], $4::text[]) \
                 AS k(kind, lid, hash)",
         )
@@ -214,7 +214,11 @@ impl crate::store::OntologyVersionStore for PostgresStore {
         // tolerates arbitrary arrival order and re-keys by
         // (kind, logical_id).
         let rows = sqlx::query_as::<_, crate::models::OntologyEntityJoinRow>(
-            "SELECT vs.entity_kind AS entity_kind, \
+            // `entity_kind::text` cast: the column is the Postgres
+            // ENUM `ontology_entity_kind`, but `OntologyEntityJoinRow`
+            // decodes it as a Rust `String`. Casting on the wire
+            // side keeps the struct type-agnostic of the ENUM.
+            "SELECT vs.entity_kind::text AS entity_kind, \
                     vs.entity_logical_id AS entity_logical_id, \
                     vs.entity_hash AS entity_hash, \
                     ev.content AS content \
@@ -317,7 +321,9 @@ impl crate::store::OntologyVersionStore for PostgresStore {
         // changes. Stable ordering by (kind, logical_id) so the
         // diff reads predictably in the admin UI.
         let rows = sqlx::query_as::<_, crate::models::DiffRow>(
-            "SELECT COALESCE(f.entity_kind, t.entity_kind)             AS entity_kind, \
+            // `entity_kind::text` cast mirrors `load_version` —
+            // DiffRow decodes the column as a Rust `String`.
+            "SELECT COALESCE(f.entity_kind, t.entity_kind)::text        AS entity_kind, \
                     COALESCE(f.entity_logical_id, t.entity_logical_id) AS entity_logical_id, \
                     f.entity_hash                                       AS from_hash, \
                     t.entity_hash                                       AS to_hash \

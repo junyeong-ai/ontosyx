@@ -84,7 +84,7 @@ async fn run_scan(store: &dyn Store) -> ox_core::error::OxResult<()> {
                         let thresholds = derive_thresholds(&report);
                         let baseline = WorkspaceQualityBaseline {
                             workspace_id: ws_id,
-                            window: BASELINE_WINDOW.as_str().to_string(),
+                            window_label: BASELINE_WINDOW.as_str().to_string(),
                             sample_size: report.sample_size as i64,
                             thresholds,
                             computed_at: Utc::now(),

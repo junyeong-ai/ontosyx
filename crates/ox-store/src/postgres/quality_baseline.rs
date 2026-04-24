@@ -11,16 +11,16 @@ impl crate::store::QualityBaselineStore for PostgresStore {
     ) -> OxResult<()> {
         sqlx::query(
             "INSERT INTO workspace_quality_baseline
-                 (workspace_id, window, sample_size, thresholds, computed_at)
+                 (workspace_id, window_label, sample_size, thresholds, computed_at)
              VALUES ($1, $2, $3, $4, $5)
              ON CONFLICT (workspace_id) DO UPDATE SET
-                 window = EXCLUDED.window,
+                 window_label = EXCLUDED.window_label,
                  sample_size = EXCLUDED.sample_size,
                  thresholds = EXCLUDED.thresholds,
                  computed_at = EXCLUDED.computed_at",
         )
         .bind(baseline.workspace_id)
-        .bind(&baseline.window)
+        .bind(&baseline.window_label)
         .bind(baseline.sample_size)
         .bind(&baseline.thresholds)
         .bind(baseline.computed_at)
@@ -38,7 +38,7 @@ impl crate::store::QualityBaselineStore for PostgresStore {
         // writes under `WORKSPACE_ID.scope(ws_id, …)` per workspace,
         // and the banner reads under the request's workspace scope.
         sqlx::query_as::<_, crate::quality_signal::WorkspaceQualityBaseline>(
-            "SELECT workspace_id, window, sample_size, thresholds, computed_at
+            "SELECT workspace_id, window_label, sample_size, thresholds, computed_at
              FROM workspace_quality_baseline
              LIMIT 1",
         )

@@ -98,17 +98,22 @@ impl PostgresStore {
                 Box::pin(async move {
                     if SYSTEM_BYPASS.try_with(|b| *b).unwrap_or(false) {
                         // System task: bypass RLS for cross-workspace access.
-                        // Also set workspace_id to the default workspace so that
-                        // INSERT DEFAULT values resolve correctly.
                         sqlx::query("SELECT set_config('app.system_bypass', 'true', false)")
                             .execute(&mut *conn)
                             .await?;
-                        sqlx::query(
+                        // Also prime workspace_id to the default workspace
+                        // so that INSERT DEFAULT values resolve correctly.
+                        // This can run before the `workspaces` table exists
+                        // (first-boot migration scenario) — swallow the
+                        // "relation does not exist" in that window; the
+                        // system_bypass policy already covers the RLS path
+                        // for the migration's seed INSERTs.
+                        let _ = sqlx::query(
                             "SELECT set_config('app.workspace_id', id::text, false) \
                              FROM workspaces WHERE slug = 'default' LIMIT 1",
                         )
                         .execute(&mut *conn)
-                        .await?;
+                        .await;
                     } else if let Ok(ws_id) = WORKSPACE_ID.try_with(|id| *id) {
                         // Normal request: scope to workspace via RLS
                         sqlx::query("SELECT set_config('app.workspace_id', $1, false)")
@@ -152,14 +157,25 @@ impl PostgresStore {
     }
 
     /// Run database migrations to create/update tables.
-    /// Migrations run outside workspace context (RESET ALL clears state after).
+    ///
+    /// Wraps the sqlx migration run in [`SYSTEM_BYPASS`] so the
+    /// schema's workspace-scoped RLS policies let the seed INSERTs
+    /// through — specifically the global (`workspace_id IS NULL`)
+    /// rows in `change_routing_rules`, which would otherwise fail
+    /// the `ws_write` WITH CHECK clause. `app.system_bypass = 'true'`
+    /// matches the `system_bypass` policy on every workspace-scoped
+    /// table and covers the first-boot seed path end-to-end.
     pub async fn migrate(&self) -> OxResult<()> {
-        sqlx::migrate!("./migrations")
-            .run(&self.pool)
-            .await
-            .map_err(|e| OxError::Runtime {
-                message: format!("Migration failed: {e}"),
-            })?;
+        SYSTEM_BYPASS
+            .scope(true, async {
+                sqlx::migrate!("./migrations")
+                    .run(&self.pool)
+                    .await
+                    .map_err(|e| OxError::Runtime {
+                        message: format!("Migration failed: {e}"),
+                    })
+            })
+            .await?;
 
         info!("Database migrations applied");
         Ok(())

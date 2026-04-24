@@ -195,8 +195,23 @@ impl OntologyIR {
         if self.name.trim().is_empty() {
             errors.push("Ontology name must not be empty".to_string());
         }
-        if self.node_types.is_empty() {
-            errors.push("Ontology must define at least one node type".to_string());
+        // Ontology must carry SOME content — but the bootstrap wizard
+        // commits glossary-only v1s (no topology yet), so node_types
+        // is not the only acceptable seed. Accept any populated
+        // collection as evidence the ontology has meaning.
+        let has_content = !self.node_types.is_empty()
+            || !self.edge_types.is_empty()
+            || !self.glossary.is_empty()
+            || !self.rules.is_empty()
+            || !self.code_systems.is_empty()
+            || !self.object_mappings.is_empty()
+            || !self.link_mappings.is_empty();
+        if !has_content {
+            errors.push(
+                "Ontology must populate at least one collection \
+                 (node_types / edge_types / glossary / rules / code_systems / mappings)"
+                    .to_string(),
+            );
         }
 
         let mut seen_node_ids = std::collections::HashSet::<NodeTypeId>::new();
@@ -665,7 +680,9 @@ mod tests {
 
         assert!(errors.iter().any(|e| e.contains("id must not be empty")));
         assert!(errors.iter().any(|e| e.contains("name must not be empty")));
-        assert!(errors.iter().any(|e| e.contains("at least one node type")));
+        // Empty everything also fails the "populate at least one
+        // collection" invariant.
+        assert!(errors.iter().any(|e| e.contains("at least one collection")));
     }
 
     #[test]

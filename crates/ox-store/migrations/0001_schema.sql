@@ -850,8 +850,8 @@ CREATE INDEX idx_ontology_snapshots_ws ON ontology_snapshots USING btree (worksp
 -- ============================================================================
 -- ontology_verifications
 -- ============================================================================
-CREATE UNIQUE INDEX idx_verifications_active ON ontology_verifications USING btree (ontology_id, element_id, verified_by) WHERE (invalidated_at IS NULL);
-CREATE INDEX idx_verifications_lineage ON ontology_verifications USING btree (ontology_id) WHERE (invalidated_at IS NULL);
+CREATE UNIQUE INDEX idx_verifications_active ON ontology_verifications USING btree (ontology_lineage_id, element_id, verified_by) WHERE (invalidated_at IS NULL);
+CREATE INDEX idx_verifications_lineage ON ontology_verifications USING btree (ontology_lineage_id) WHERE (invalidated_at IS NULL);
 CREATE INDEX idx_verifications_workspace ON ontology_verifications USING btree (workspace_id);
 
 -- ============================================================================
@@ -901,7 +901,7 @@ CREATE UNIQUE INDEX uq_query_executions_ws_id ON query_executions USING btree (w
 -- saved_reports
 -- ============================================================================
 CREATE INDEX idx_reports_workspace ON saved_reports USING btree (workspace_id, updated_at DESC);
-CREATE INDEX idx_saved_reports_lineage ON saved_reports USING btree (ontology_id);
+CREATE INDEX idx_saved_reports_lineage ON saved_reports USING btree (ontology_lineage_id);
 CREATE INDEX idx_saved_reports_public ON saved_reports USING btree (updated_at DESC) WHERE (is_public = true);
 CREATE INDEX idx_saved_reports_user ON saved_reports USING btree (user_id, updated_at DESC);
 
@@ -2904,8 +2904,10 @@ CREATE TABLE workspace_quality_baseline (
 
     -- Metric window the cron used to compute this snapshot ("7d" /
     -- "30d" / "90d"). Stored as text so new windows don't require a
-    -- migration.
-    window text NOT NULL DEFAULT '30d',
+    -- migration. `window_label` (not `window`) because `WINDOW` is
+    -- a PostgreSQL reserved keyword and bare `window` trips the
+    -- CREATE TABLE parser.
+    window_label text NOT NULL DEFAULT '30d',
 
     -- Sample size that fed the computation. Frontend treats
     -- baselines with fewer than `MIN_SAMPLE_SIZE` signals as

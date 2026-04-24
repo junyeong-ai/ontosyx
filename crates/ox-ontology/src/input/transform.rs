@@ -1030,7 +1030,7 @@ mod tests {
         let err = normalize(input, &test_source_id()).expect_err("should fail validation");
         assert!(err.iter().any(|e| e.contains("id must not be empty")));
         assert!(err.iter().any(|e| e.contains("name must not be empty")));
-        assert!(err.iter().any(|e| e.contains("at least one node type")));
+        assert!(err.iter().any(|e| e.contains("at least one collection")));
     }
 
     // -- node_key constraint resolution --------------------------------------

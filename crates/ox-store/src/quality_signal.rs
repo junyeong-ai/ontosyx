@@ -293,7 +293,10 @@ pub struct StaleConceptProposal {
 pub struct WorkspaceQualityBaseline {
     pub workspace_id: Uuid,
     /// `"7d"` / `"30d"` / `"90d"` — the window the cron summarised.
-    pub window: String,
+    /// Named `window_label` (not `window`) because `WINDOW` is a
+    /// reserved keyword in PostgreSQL and using it bare as a
+    /// column name trips the DDL parser.
+    pub window_label: String,
     /// Sample count that fed the computation. The banner treats
     /// baselines below its `MIN_SAMPLE_SIZE` as insufficient
     /// evidence and falls back to the hardcoded prior.
