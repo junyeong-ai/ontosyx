@@ -131,10 +131,16 @@ impl ChangeType {
             },
             // 80% — new codes are low risk; the unique-key CHECK
             // catches duplicates so the routing can lean permissive.
+            // Small batches (<5 codes) skip regardless of role; a
+            // DataSteward with a larger batch still skips via the
+            // role predicate.
             Self::CodedValueCreate => ApprovalRouting::ApprovalRequiredUnless {
                 skip_predicates: vec![
                     ApprovalSkipPredicate::AuthorHasRole { role: RoleRef::DataSteward },
-                    ApprovalSkipPredicate::ChangeScopeBelow { code_count_delta: 5 },
+                    ApprovalSkipPredicate::ChangeScopeBelow {
+                        scope: ScopeKind::CodeCount,
+                        threshold: 5,
+                    },
                 ],
             },
             // 75% — new source carries secret-ref handling, so the
@@ -211,6 +217,34 @@ pub enum ApprovalRouting {
     ApprovalRequired,
 }
 
+/// Dimension a [`ApprovalSkipPredicate::ChangeScopeBelow`]
+/// predicate measures against. Each op that cares about size
+/// declares its own scope vector via
+/// [`crate::OntologyEditOp::scopes`]; the predicate picks the entry
+/// matching `kind` and compares its value against `threshold`.
+///
+/// New scope dimensions (table count, entity count, ...) slot in
+/// as additional variants without changing the predicate shape or
+/// breaking existing matrix rows / workspace overrides.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ScopeKind {
+    /// Number of coded values an op touches. Used by the
+    /// CodedValue-lifecycle rows so small batches (<5 codes) can
+    /// skip approval.
+    CodeCount,
+}
+
+/// A single scope measurement an op declares at classification
+/// time. `EditContext.scopes` is a `Vec` so a future op can
+/// declare several scopes — e.g., a bulk CodedValue commit that
+/// touches N codes across M code systems could emit both counts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ScopeValue {
+    pub kind: ScopeKind,
+    pub value: u32,
+}
+
 /// Predicates the `ApprovalRequiredUnless` branch evaluates. Every
 /// predicate returns a boolean; the skip list is OR'd (first firing
 /// predicate short-circuits to Apply).
@@ -232,11 +266,13 @@ pub enum ApprovalSkipPredicate {
     /// keeps the wire JSON readable and compatible with serde's
     /// `tag = "kind"` internal-tag discipline.
     AuthorHasRole { role: RoleRef },
-    /// The change's scope is under a threshold the matrix considers
-    /// "small". Today this is a raw code-count delta on
-    /// CodedValueCreate; future change kinds define their own
-    /// interpretations on the same predicate shape.
-    ChangeScopeBelow { code_count_delta: u32 },
+    /// The op declares a scope of matching `scope` with a value
+    /// strictly under `threshold`. Ops that don't declare the
+    /// matching scope do NOT fire this predicate — "no scope"
+    /// is treated distinctly from "zero-sized scope" so an op
+    /// that never tracks its magnitude can't auto-skip by
+    /// accident.
+    ChangeScopeBelow { scope: ScopeKind, threshold: u32 },
 }
 
 /// Role reference. Declares the hierarchy at a symbolic level so the
@@ -291,11 +327,16 @@ pub enum EditRoutingDecision {
 }
 
 /// Inputs the router needs to evaluate `ApprovalSkipPredicate`s.
-/// Passing a bundle keeps future predicate additions additive.
+/// Passing a bundle keeps future predicate additions additive —
+/// new dimensions slot in as additional fields or scope variants
+/// without forcing call-site rewrites.
 #[derive(Debug, Clone, Default)]
 pub struct EditContext {
     pub author_role: Option<RoleRef>,
-    pub code_count_delta: u32,
+    /// Scope metrics the op batch declared (aggregated with
+    /// per-kind max across the batch). Typically 0 or 1 entries
+    /// today; the `Vec` shape anticipates multi-dimensional ops.
+    pub scopes: Vec<ScopeValue>,
 }
 
 /// Decide whether a classified change can apply automatically or
@@ -335,8 +376,15 @@ fn pred_passes(pred: &ApprovalSkipPredicate, ctx: &EditContext) -> bool {
         ApprovalSkipPredicate::AuthorHasRole { role } => {
             ctx.author_role.is_some_and(|r| role_outranks(r, *role))
         }
-        ApprovalSkipPredicate::ChangeScopeBelow { code_count_delta } => {
-            ctx.code_count_delta < *code_count_delta
+        ApprovalSkipPredicate::ChangeScopeBelow { scope, threshold } => {
+            // "No matching scope declared" is NOT "zero-sized" —
+            // an op that doesn't track `scope` must not auto-skip
+            // by default. Require the op to explicitly declare a
+            // value that's strictly under the threshold.
+            ctx.scopes
+                .iter()
+                .find(|s| s.kind == *scope)
+                .is_some_and(|s| s.value < *threshold)
         }
     }
 }
@@ -425,36 +473,51 @@ mod tests {
         assert_eq!(decide_edit_routing(&routing, &ctx), EditRoutingDecision::Queue);
     }
 
+    fn code_count_ctx(value: u32) -> EditContext {
+        EditContext {
+            scopes: vec![ScopeValue {
+                kind: ScopeKind::CodeCount,
+                value,
+            }],
+            ..Default::default()
+        }
+    }
+
+    fn scope_below_routing(threshold: u32) -> ApprovalRouting {
+        ApprovalRouting::ApprovalRequiredUnless {
+            skip_predicates: vec![ApprovalSkipPredicate::ChangeScopeBelow {
+                scope: ScopeKind::CodeCount,
+                threshold,
+            }],
+        }
+    }
+
     #[test]
     fn scope_below_threshold_skips_queue() {
-        let routing = ApprovalRouting::ApprovalRequiredUnless {
-            skip_predicates: vec![ApprovalSkipPredicate::ChangeScopeBelow {
-                code_count_delta: 5,
-            }],
-        };
-        let ctx = EditContext {
-            code_count_delta: 3,
-            ..Default::default()
-        };
         assert!(matches!(
-            decide_edit_routing(&routing, &ctx),
+            decide_edit_routing(&scope_below_routing(5), &code_count_ctx(3)),
             EditRoutingDecision::Apply { .. }
         ));
     }
 
     #[test]
     fn scope_at_threshold_does_not_skip() {
-        let routing = ApprovalRouting::ApprovalRequiredUnless {
-            skip_predicates: vec![ApprovalSkipPredicate::ChangeScopeBelow {
-                code_count_delta: 5,
-            }],
-        };
-        let ctx = EditContext {
-            code_count_delta: 5,
-            ..Default::default()
-        };
         // Strict `<` by design: 5 edits is the ceiling, not the floor.
-        assert_eq!(decide_edit_routing(&routing, &ctx), EditRoutingDecision::Queue);
+        assert_eq!(
+            decide_edit_routing(&scope_below_routing(5), &code_count_ctx(5)),
+            EditRoutingDecision::Queue,
+        );
+    }
+
+    #[test]
+    fn scope_missing_kind_does_not_skip() {
+        // "No matching scope declared" is NOT "zero-sized" — ops
+        // that don't track the probed dimension must not auto-skip.
+        let ctx = EditContext::default();
+        assert_eq!(
+            decide_edit_routing(&scope_below_routing(5), &ctx),
+            EditRoutingDecision::Queue,
+        );
     }
 
     #[test]
@@ -501,7 +564,7 @@ mod tests {
     fn role_ctx(role: RoleRef) -> EditContext {
         EditContext {
             author_role: Some(role),
-            code_count_delta: 0,
+            scopes: Vec::new(),
         }
     }
 

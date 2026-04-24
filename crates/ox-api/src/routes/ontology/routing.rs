@@ -26,14 +26,37 @@
 //! the commit path refuses an invalid IR regardless of how
 //! permissive routing was.
 
+use std::collections::HashMap;
+
 use ox_ontology::OntologyEditOp;
 use ox_ontology::change_routing::{
-    EditContext, EditRoutingDecision, RoleRef, decide_edit_routing,
+    EditContext, EditRoutingDecision, RoleRef, ScopeKind, ScopeValue, decide_edit_routing,
 };
 
 use crate::error::AppError;
 use crate::principal::{PlatformRole, Principal};
 use crate::state::AppState;
+
+/// Collapse a batch's per-op scope declarations into the single
+/// per-kind max that `ChangeScopeBelow` compares against. Max (not
+/// sum) because the matrix asks "is this batch's worst-case scope
+/// still small?" — if any op pushes past the threshold, the batch
+/// should queue.
+fn aggregate_scopes(ops: &[OntologyEditOp]) -> Vec<ScopeValue> {
+    let mut by_kind: HashMap<ScopeKind, u32> = HashMap::new();
+    for op in ops {
+        for sv in op.scopes() {
+            by_kind
+                .entry(sv.kind)
+                .and_modify(|v| *v = (*v).max(sv.value))
+                .or_insert(sv.value);
+        }
+    }
+    by_kind
+        .into_iter()
+        .map(|(kind, value)| ScopeValue { kind, value })
+        .collect()
+}
 
 /// Map the platform role to the routing matrix's `RoleRef`.
 ///
@@ -66,11 +89,7 @@ pub(super) async fn verify_ops_apply(
 ) -> Result<(), AppError> {
     let ctx = EditContext {
         author_role: Some(role_ref_of(principal)),
-        code_count_delta: ops
-            .iter()
-            .map(|op| op.code_count_delta())
-            .max()
-            .unwrap_or(0),
+        scopes: aggregate_scopes(ops),
     };
 
     for op in ops {

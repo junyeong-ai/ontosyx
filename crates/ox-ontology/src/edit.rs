@@ -320,24 +320,39 @@ impl OntologyEditOp {
         }
     }
 
-    /// How many codes does this operation add or remove? Feeds the
-    /// `ChangeScopeBelow` skip predicate on routing. Zero for
-    /// operations that don't touch codes.
-    pub fn code_count_delta(&self) -> u32 {
+    /// Scope metrics this operation declares. Feeds the
+    /// [`crate::change_routing::ApprovalSkipPredicate::ChangeScopeBelow`]
+    /// predicate on routing. Ops that don't declare a scope
+    /// (most non-CodedValue variants) return an empty vector —
+    /// "no scope" is routed distinctly from "zero-sized scope" so
+    /// an untracked op can't accidentally slip past scope gates.
+    pub fn scopes(&self) -> Vec<crate::change_routing::ScopeValue> {
+        use crate::change_routing::{ScopeKind, ScopeValue};
         match self {
             Self::CreateCodedValue { .. }
             | Self::UpdateCodedValue { .. }
-            | Self::DeleteCodedValue { .. } => 1,
+            | Self::DeleteCodedValue { .. } => {
+                vec![ScopeValue {
+                    kind: ScopeKind::CodeCount,
+                    value: 1,
+                }]
+            }
             Self::CreateCodeSystem { def, .. } | Self::UpdateCodeSystem { def, .. } => {
-                def.codes.len() as u32
+                vec![ScopeValue {
+                    kind: ScopeKind::CodeCount,
+                    value: def.codes.len() as u32,
+                }]
             }
             Self::DeleteCodeSystem { .. } => {
                 // Cascades an unknown number of codes — from the
                 // routing standpoint treat as "many" so the scope
                 // predicate doesn't auto-approve.
-                u32::MAX
+                vec![ScopeValue {
+                    kind: ScopeKind::CodeCount,
+                    value: u32::MAX,
+                }]
             }
-            _ => 0,
+            _ => Vec::new(),
         }
     }
 }
@@ -790,27 +805,51 @@ mod tests {
         ];
         for op in &ops {
             let _ = op.classify_change_type();
-            let _ = op.code_count_delta();
+            let _ = op.scopes();
         }
     }
 
     #[test]
     fn delete_code_system_signals_large_scope() {
+        use crate::change_routing::ScopeKind;
         let op = OntologyEditOp::DeleteCodeSystem {
             id: CodeSystemId::new("cs-x"),
         };
         // The routing scope predicate must see a large delta so it
         // doesn't auto-approve a blanket cascade.
-        assert_eq!(op.code_count_delta(), u32::MAX);
+        let scopes = op.scopes();
+        let code = scopes
+            .iter()
+            .find(|s| s.kind == ScopeKind::CodeCount)
+            .expect("DeleteCodeSystem declares a CodeCount scope");
+        assert_eq!(code.value, u32::MAX);
     }
 
     #[test]
     fn create_coded_value_counts_as_one() {
+        use crate::change_routing::ScopeKind;
         let op = OntologyEditOp::CreateCodedValue {
             code_system_id: CodeSystemId::new("cs"),
             value: bare_coded_value("cv", "A"),
         };
-        assert_eq!(op.code_count_delta(), 1);
+        let scopes = op.scopes();
+        let code = scopes
+            .iter()
+            .find(|s| s.kind == ScopeKind::CodeCount)
+            .expect("CreateCodedValue declares a CodeCount scope");
+        assert_eq!(code.value, 1);
+    }
+
+    #[test]
+    fn glossary_term_has_no_scope() {
+        // Non-CodedValue ops don't declare a scope — the routing
+        // layer treats "no matching scope" distinctly from
+        // "zero-sized scope", so `ChangeScopeBelow` doesn't fire
+        // for these ops.
+        let op = OntologyEditOp::CreateGlossaryTerm {
+            def: bare_glossary_term("g", "term"),
+        };
+        assert!(op.scopes().is_empty());
     }
 
     #[test]

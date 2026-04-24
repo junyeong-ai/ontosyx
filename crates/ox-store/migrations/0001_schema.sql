@@ -2705,7 +2705,7 @@ CREATE INDEX idx_change_routing_rules_resolve
 INSERT INTO change_routing_rules (id, workspace_id, change_type, routing, risk_level, priority) VALUES
     (
         gen_random_uuid(), NULL, 'coded_value_create',
-        '{"kind":"approval_required_unless","skip_predicates":[{"kind":"author_has_role","role":"data_steward"},{"kind":"change_scope_below","code_count_delta":5}]}'::jsonb,
+        '{"kind":"approval_required_unless","skip_predicates":[{"kind":"author_has_role","role":"data_steward"},{"kind":"change_scope_below","scope":"code_count","threshold":5}]}'::jsonb,
         'low', 0
     ),
     (
