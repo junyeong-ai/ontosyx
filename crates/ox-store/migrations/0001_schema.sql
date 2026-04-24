@@ -2735,7 +2735,7 @@ INSERT INTO change_routing_rules (id, workspace_id, change_type, routing, risk_l
     ),
     (
         gen_random_uuid(), NULL, 'column_rename',
-        '{"kind":"approval_required_unless","skip_predicates":[{"kind":"author_has_role","role":"admin"},{"kind":"has_validation_pass"}]}'::jsonb,
+        '{"kind":"approval_required_unless","skip_predicates":[{"kind":"author_has_role","role":"admin"}]}'::jsonb,
         'high', 0
     ),
     (
@@ -2760,7 +2760,7 @@ INSERT INTO change_routing_rules (id, workspace_id, change_type, routing, risk_l
     ),
     (
         gen_random_uuid(), NULL, 'rule_create',
-        '{"kind":"approval_required_unless","skip_predicates":[{"kind":"author_has_role","role":"data_steward"},{"kind":"has_validation_pass"}]}'::jsonb,
+        '{"kind":"approval_required_unless","skip_predicates":[{"kind":"author_has_role","role":"data_steward"}]}'::jsonb,
         'medium', 0
     ),
     (

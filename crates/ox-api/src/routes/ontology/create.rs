@@ -128,6 +128,14 @@ pub(crate) async fn create_ontology(
         ));
     }
 
+    // ---- 1. Routing ---------------------------------------------
+    //
+    // Routing is pure (classify + role + code-count delta) so it
+    // runs first — a queue decision here means we never touch the
+    // store. See `routing.rs` for the full pipeline ordering
+    // rationale.
+    verify_ops_apply(&state, &principal, &req.initial_operations).await?;
+
     let description_lt = match req.description.as_deref().map(str::trim) {
         Some(s) if !s.is_empty() => LocalizedText::from(s),
         _ => LocalizedText::default(),
@@ -141,7 +149,7 @@ pub(crate) async fn create_ontology(
         .map(str::to_string)
         .unwrap_or_else(|| Uuid::new_v4().to_string());
 
-    // Empty IR — the ops below layer content on top.
+    // ---- 2. Apply ops to an empty IR ----------------------------
     let mut ir = OntologyIR::new(
         lineage_seed.clone(),
         name.to_string(),
@@ -152,27 +160,25 @@ pub(crate) async fn create_ontology(
         Vec::new(),
     );
 
-    // Apply ops atomically. The per-op error surfaces the op index
-    // so the FE can highlight which row failed in a multi-op wizard.
+    // The per-op error surfaces the op index so the FE can
+    // highlight which row failed in a multi-op wizard.
     for (idx, op) in req.initial_operations.iter().enumerate() {
         op.apply_to(&mut ir)
             .map_err(|e| AppError::unprocessable(format!("initial_operations[{idx}]: {e}")))?;
     }
 
-    // Whole-IR validation catches referential-integrity violations
-    // across the batch (e.g. a `BindPropertyToTerm` referencing a
-    // term that sibling ops didn't declare). Must pass before any
-    // persistence side effect fires.
+    // ---- 3. Whole-IR validation ---------------------------------
+    //
+    // Catches referential-integrity violations across the batch
+    // (e.g. a `BindPropertyToTerm` referencing a term that sibling
+    // ops didn't declare). Must pass before any persistence side
+    // effect fires.
     let validation = ir.validate();
     if !validation.is_empty() {
         return Err(AppError::unprocessable(validation.join("; ")));
     }
 
-    // Routing evaluates AFTER validate so the `HasValidationPass`
-    // skip predicate sees a real result. The ordering is the
-    // two-phase contract documented in `routing.rs`:
-    //   apply → validate → route → commit.
-    verify_ops_apply(&state, &principal, &req.initial_operations, true).await?;
+    // ---- 4. Commit ---------------------------------------------
 
     let description_json = serde_json::to_value(&description_lt)
         .map_err(|e| AppError::internal(format!("serialize description: {e}")))?;

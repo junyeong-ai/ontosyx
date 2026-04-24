@@ -141,11 +141,21 @@ pub(crate) async fn apply_ontology_edits(
         ));
     }
 
-    // ---- 3. Apply ops to an IR clone ----------------------------
+    // ---- 3. Routing: every op must classify to Apply, else queue -
+    //
+    // Routing is pure (classify + role + code-count delta), so it
+    // runs before apply/validate — a queue decision avoids loading
+    // the current version and cloning the IR. A mixed batch (some
+    // Apply + some Queue) would require splitting the operation
+    // list, which the matrix doesn't promise — if any op queues,
+    // the whole request queues.
+    verify_ops_apply(&state, &principal, &req.operations).await?;
+
+    // ---- 4. Apply ops to an IR clone ----------------------------
     //
     // Ops apply atomically on a clone so a mid-batch error rolls
     // back nothing but the in-memory IR — no store side effects fire
-    // until validation + routing both succeed.
+    // until commit.
     let mut ir = state
         .store
         .load_version(current.id)
@@ -156,7 +166,7 @@ pub(crate) async fn apply_ontology_edits(
         op.apply_to(&mut ir).map_err(AppError::unprocessable)?;
     }
 
-    // ---- 4. Whole-IR validation ---------------------------------
+    // ---- 5. Whole-IR validation ---------------------------------
     //
     // Catches referential integrity violations across mappings + code
     // systems + glossary — the contract the admin edit layer must
@@ -165,16 +175,6 @@ pub(crate) async fn apply_ontology_edits(
     if !validation.is_empty() {
         return Err(AppError::unprocessable(validation.join("; ")));
     }
-
-    // ---- 5. Routing: every op must classify to Apply, else queue -
-    //
-    // Validation has just passed, so the `HasValidationPass` skip
-    // predicate sees a real result. A mixed batch (some Apply + some
-    // Queue) would require splitting the operation list, which the
-    // matrix doesn't promise — if any op queues, the whole request
-    // queues. The approval surface picks it up from the workflow
-    // table.
-    verify_ops_apply(&state, &principal, &req.operations, true).await?;
 
     // ---- 6. Commit new version ---------------------------------
     //

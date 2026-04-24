@@ -6,25 +6,25 @@
 //! matrix decides per-op whether the change applies immediately or
 //! queues for review.
 //!
-//! ## Two-phase contract
+//! ## Pipeline ordering
 //!
-//! Routing evaluates **after** [`ox_ontology::OntologyIR::validate`]
-//! succeeds — that's why this module only exposes the verification
-//! helper and expects the caller to pass the validate outcome. The
-//! `HasValidationPass` skip predicate in the routing matrix (see
-//! [`ox_ontology::change_routing::ApprovalSkipPredicate`]) is
-//! meaningful exactly because routing sees the real validate result.
+//! Routing is **pure**: it reads only the op's static classification
+//! (`classify_change_type`, `code_count_delta`) and the caller's
+//! role. It carries no `validation_passed` input — the matrix
+//! intentionally does not encode "skip if validation passes" because
+//! every skip predicate like that would be trivially satisfied under
+//! the commit pipeline (validate always runs before persistence).
 //!
-//! The order each handler follows:
+//! The handlers therefore run routing **first**:
 //!
-//! 1. Apply every op to an IR clone (fails → 422).
-//! 2. `ir.validate()` (fails → 422).
-//! 3. [`verify_ops_apply`] with `validation_passed = true`.
-//! 4. Commit (or fail → 409 when any op queues).
+//! 1. [`verify_ops_apply`] — pure, fast. Fails 409 on a queue decision.
+//! 2. Apply ops to an `OntologyIR` clone (fails 422 on op error).
+//! 3. `ir.validate()` (fails 422 on cross-ref integrity error).
+//! 4. Commit (single storage transaction).
 //!
-//! Swapping the order ("route before validate") would make
-//! `HasValidationPass` dead code, which is why the old single-phase
-//! shape was replaced.
+//! Any rule that needs to block unsafe writes leans on step 3 —
+//! the commit path refuses an invalid IR regardless of how
+//! permissive routing was.
 
 use ox_ontology::OntologyEditOp;
 use ox_ontology::change_routing::{
@@ -56,23 +56,16 @@ pub(super) fn role_ref_of(principal: &Principal) -> RoleRef {
 ///
 /// Returns `Ok(())` only when every op resolves to `Apply`. On any
 /// `Queue` decision, returns a 409 so the caller can split the batch
-/// or route through the approval surface.
-///
-/// `validation_passed` feeds the `HasValidationPass` skip predicate —
-/// callers must run `ir.validate()` first and pass its real outcome
-/// (typically `true`, because an error in validate should short-
-/// circuit the handler with 422 before reaching this helper).
-/// Missing routing rows surface as 500 so ops can notice the seed
-/// migration wasn't applied.
+/// or route through the approval surface. Missing routing rows
+/// surface as 500 so ops can notice the seed migration wasn't
+/// applied.
 pub(super) async fn verify_ops_apply(
     state: &AppState,
     principal: &Principal,
     ops: &[OntologyEditOp],
-    validation_passed: bool,
 ) -> Result<(), AppError> {
     let ctx = EditContext {
         author_role: Some(role_ref_of(principal)),
-        validation_passed,
         code_count_delta: ops
             .iter()
             .map(|op| op.code_count_delta())

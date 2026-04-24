@@ -121,11 +121,12 @@ impl ChangeType {
                 }
             }
             // 90% — Temporal RenameCtx carries backward-time queries
-            // past the rename, so admins with the role sail through.
+            // past the rename, so admins sail through. Non-admins
+            // queue; the commit-path validate still enforces IR
+            // integrity, so an Admin can't sneak a broken rename by.
             Self::ColumnRename => ApprovalRouting::ApprovalRequiredUnless {
                 skip_predicates: vec![
                     ApprovalSkipPredicate::AuthorHasRole { role: RoleRef::Admin },
-                    ApprovalSkipPredicate::HasValidationPass,
                 ],
             },
             // 80% — new codes are low risk; the unique-key CHECK
@@ -162,23 +163,20 @@ impl ChangeType {
             // 45% — table-level merges can flip row identity
             // downstream; always human-reviewed by default.
             Self::TableMerge => ApprovalRouting::ApprovalRequired,
-            // 65% — additive-constraint creations can be trusted when
-            // validation already passes, because the shape cannot
-            // invalidate rows that previously passed.
+            // 65% — additive-constraint creations don't invalidate
+            // rows that previously passed, so DataStewards sail
+            // through; lower roles queue. The commit-path validate
+            // still enforces IR integrity.
             Self::RuleCreate => ApprovalRouting::ApprovalRequiredUnless {
                 skip_predicates: vec![
                     ApprovalSkipPredicate::AuthorHasRole { role: RoleRef::DataSteward },
-                    ApprovalSkipPredicate::HasValidationPass,
                 ],
             },
             // 55% — a tightened rule can retroactively invalidate
-            // existing rows that passed a LOOSER prior shape, so
-            // `HasValidationPass` alone is NOT enough — validation
-            // ran against the current state, not against the rows
-            // a future insert will produce. Only Admins skip; every
-            // other role queues regardless of the validate outcome.
-            // (Skip predicates are OR'd, so adding HasValidationPass
-            // here would let any role sail through.)
+            // future rows that a passing validate-now cannot
+            // anticipate, so only Admins skip; every other role
+            // queues. The commit-path validate still enforces
+            // current-state integrity.
             Self::RuleModify => ApprovalRouting::ApprovalRequiredUnless {
                 skip_predicates: vec![
                     ApprovalSkipPredicate::AuthorHasRole { role: RoleRef::Admin },
@@ -214,8 +212,18 @@ pub enum ApprovalRouting {
 }
 
 /// Predicates the `ApprovalRequiredUnless` branch evaluates. Every
-/// predicate returns a boolean; the routing short-circuits on the
-/// first `true`.
+/// predicate returns a boolean; the skip list is OR'd (first firing
+/// predicate short-circuits to Apply).
+///
+/// The predicate set is intentionally minimal — only signals the
+/// routing pipeline can evaluate WITHOUT executing the edit. That's
+/// why `HasValidationPass` is absent: under the
+/// `route → apply → validate → commit` pipeline, the validate step
+/// runs AFTER routing, so at decision time no validation result
+/// exists. Every matrix row that conceptually reads "role X with a
+/// passing validation" collapses cleanly to "role X" — the commit
+/// path still requires validate to succeed, so a bad IR never lands
+/// even when the role gate waves it through.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ApprovalSkipPredicate {
@@ -229,10 +237,6 @@ pub enum ApprovalSkipPredicate {
     /// CodedValueCreate; future change kinds define their own
     /// interpretations on the same predicate shape.
     ChangeScopeBelow { code_count_delta: u32 },
-    /// An attached `OntologyIR::validate()` / SHACL run came back
-    /// clean — proves the edit satisfies declared shapes, which is
-    /// the automation-friendliness signal we want.
-    HasValidationPass,
 }
 
 /// Role reference. Declares the hierarchy at a symbolic level so the
@@ -292,7 +296,6 @@ pub enum EditRoutingDecision {
 pub struct EditContext {
     pub author_role: Option<RoleRef>,
     pub code_count_delta: u32,
-    pub validation_passed: bool,
 }
 
 /// Decide whether a classified change can apply automatically or
@@ -335,7 +338,6 @@ fn pred_passes(pred: &ApprovalSkipPredicate, ctx: &EditContext) -> bool {
         ApprovalSkipPredicate::ChangeScopeBelow { code_count_delta } => {
             ctx.code_count_delta < *code_count_delta
         }
-        ApprovalSkipPredicate::HasValidationPass => ctx.validation_passed,
     }
 }
 
@@ -456,23 +458,6 @@ mod tests {
     }
 
     #[test]
-    fn validation_pass_predicate_respected() {
-        let routing = ApprovalRouting::ApprovalRequiredUnless {
-            skip_predicates: vec![ApprovalSkipPredicate::HasValidationPass],
-        };
-        let pass_ctx = EditContext {
-            validation_passed: true,
-            ..Default::default()
-        };
-        let fail_ctx = EditContext::default();
-        assert!(matches!(
-            decide_edit_routing(&routing, &pass_ctx),
-            EditRoutingDecision::Apply { .. }
-        ));
-        assert_eq!(decide_edit_routing(&routing, &fail_ctx), EditRoutingDecision::Queue);
-    }
-
-    #[test]
     fn all_change_types_have_distinct_variants() {
         // Guards against a future duplicate or missed variant on
         // `ChangeType::all()`. A growing matrix shouldn't silently
@@ -508,113 +493,82 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Rule-lifecycle routing: guards the two-phase contract that
-    // `ox-api::routes::ontology::routing::verify_ops_apply` relies on.
-    // If the API layer stops passing `validation_passed: true` (or
-    // stops running validate before routing), these tests surface the
-    // regression — the skip predicates would silently stop firing and
-    // every non-Admin/non-DataSteward edit would queue.
+    // Rule-lifecycle routing: pins the role gates for the three
+    // matrix rows authored by this crate. If a future matrix change
+    // stops honouring role-based skipping, these tests catch it.
     // ------------------------------------------------------------------
 
-    fn rule_ctx(role: RoleRef, validation_passed: bool) -> EditContext {
+    fn role_ctx(role: RoleRef) -> EditContext {
         EditContext {
             author_role: Some(role),
-            validation_passed,
             code_count_delta: 0,
         }
     }
 
     #[test]
-    fn rule_create_data_steward_with_validation_pass_applies() {
-        // Matches the happy path for a designer authoring a new
-        // validation rule against a clean IR — the two-phase flow
-        // (apply → validate → route) guarantees `validation_passed`
-        // reflects the real validate result.
+    fn rule_create_data_steward_applies() {
         assert!(matches!(
             decide_edit_routing(
                 &ChangeType::RuleCreate.default_routing(),
-                &rule_ctx(RoleRef::DataSteward, true),
+                &role_ctx(RoleRef::DataSteward),
             ),
             EditRoutingDecision::Apply { .. }
         ));
     }
 
     #[test]
-    fn rule_create_analyst_with_validation_pass_still_queues() {
-        // Analyst has neither `AuthorHasRole(DataSteward)` nor any
-        // other skip predicate firing beyond HasValidationPass. The
-        // HasValidationPass predicate alone DOES fire when validate
-        // passed — so the test verifies the skip predicate is OR'd,
-        // not AND'd.
-        assert!(matches!(
+    fn rule_create_analyst_queues() {
+        assert_eq!(
             decide_edit_routing(
                 &ChangeType::RuleCreate.default_routing(),
-                &rule_ctx(RoleRef::Analyst, true),
+                &role_ctx(RoleRef::Analyst),
+            ),
+            EditRoutingDecision::Queue,
+        );
+    }
+
+    #[test]
+    fn rule_modify_gates_on_admin_role() {
+        // DataSteward can author a rule (RuleCreate) but not
+        // tighten an existing one — the matrix is stricter because
+        // tightening can retroactively break rows the current
+        // validate can't anticipate.
+        assert_eq!(
+            decide_edit_routing(
+                &ChangeType::RuleModify.default_routing(),
+                &role_ctx(RoleRef::DataSteward),
+            ),
+            EditRoutingDecision::Queue,
+        );
+        assert_eq!(
+            decide_edit_routing(
+                &ChangeType::RuleModify.default_routing(),
+                &role_ctx(RoleRef::Analyst),
+            ),
+            EditRoutingDecision::Queue,
+        );
+        assert!(matches!(
+            decide_edit_routing(
+                &ChangeType::RuleModify.default_routing(),
+                &role_ctx(RoleRef::Admin),
             ),
             EditRoutingDecision::Apply { .. }
         ));
     }
 
     #[test]
-    fn rule_create_analyst_without_validation_pass_queues() {
-        assert_eq!(
-            decide_edit_routing(
-                &ChangeType::RuleCreate.default_routing(),
-                &rule_ctx(RoleRef::Analyst, false),
-            ),
-            EditRoutingDecision::Queue,
-        );
-    }
-
-    #[test]
-    fn rule_modify_gates_on_admin_role_not_validation_pass() {
-        // DataSteward cannot skip a rule modification even when
-        // validation passes — `ApprovalRequiredUnless` predicates are
-        // OR'd, so adding `HasValidationPass` to the skip list would
-        // defeat the Admin gate. A tightened rule can still break
-        // FUTURE inserts that the current validate can't anticipate.
-        assert_eq!(
-            decide_edit_routing(
-                &ChangeType::RuleModify.default_routing(),
-                &rule_ctx(RoleRef::DataSteward, true),
-            ),
-            EditRoutingDecision::Queue,
-        );
-        assert_eq!(
-            decide_edit_routing(
-                &ChangeType::RuleModify.default_routing(),
-                &rule_ctx(RoleRef::Analyst, true),
-            ),
-            EditRoutingDecision::Queue,
-        );
-        // Admin skips regardless of validation (AuthorHasRole is a
-        // top-level role check — rank(Admin) >= rank(Admin)).
-        for pass in [true, false] {
-            assert!(matches!(
-                decide_edit_routing(
-                    &ChangeType::RuleModify.default_routing(),
-                    &rule_ctx(RoleRef::Admin, pass),
-                ),
-                EditRoutingDecision::Apply { .. }
-            ), "Admin must always skip RuleModify review (validation_passed={pass})");
-        }
-    }
-
-    #[test]
-    fn rule_delete_always_queues_regardless_of_role_or_validation() {
+    fn rule_delete_always_queues() {
         // Removing coverage is a governance decision — the matrix
         // has no skip predicates for RuleDelete by design.
         for role in [RoleRef::Admin, RoleRef::DataSteward, RoleRef::Analyst] {
-            for pass in [true, false] {
-                assert_eq!(
-                    decide_edit_routing(
-                        &ChangeType::RuleDelete.default_routing(),
-                        &rule_ctx(role, pass),
-                    ),
-                    EditRoutingDecision::Queue,
-                    "RuleDelete must queue for role={role:?}, pass={pass}",
-                );
-            }
+            assert_eq!(
+                decide_edit_routing(
+                    &ChangeType::RuleDelete.default_routing(),
+                    &role_ctx(role),
+                ),
+                EditRoutingDecision::Queue,
+                "RuleDelete must queue for role={role:?}",
+            );
         }
     }
 
