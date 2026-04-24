@@ -20,12 +20,12 @@ use axum::http::StatusCode;
 use serde::Serialize;
 use uuid::Uuid;
 
-use ox_ontology::change_routing::{EditContext, EditRoutingDecision, decide_edit_routing};
 use ox_ontology::{OntologyEditPreCheck, OntologyEditReceipt, OntologyEditRequest};
 
 use crate::error::AppError;
 use crate::principal::Principal;
 use crate::response::ApiResponse;
+use crate::routes::ontology::routing::verify_ops_apply;
 use crate::state::AppState;
 
 /// Handler response — either a commit receipt or a dry-run
@@ -141,52 +141,11 @@ pub(crate) async fn apply_ontology_edits(
         ));
     }
 
-    // ---- 3. Routing: every op must classify to Apply, else queue ---
+    // ---- 3. Apply ops to an IR clone ----------------------------
     //
-    // A mixed batch (some Apply + some Queue) would require splitting
-    // the operation list, which the matrix doesn't promise. Simpler
-    // + safer: if any op queues, the whole request queues. The
-    // approval surface picks it up from the workflow table.
-    let route_ctx = EditContext {
-        author_role: Some(role_for_principal(&principal)),
-        // Validation runs below; routing uses a conservative `false`
-        // so a `HasValidationPass` skip predicate doesn't trigger
-        // until we've actually validated.
-        validation_passed: false,
-        code_count_delta: req
-            .operations
-            .iter()
-            .map(|op| op.code_count_delta())
-            .max()
-            .unwrap_or(0),
-    };
-
-    for op in &req.operations {
-        let rule = state
-            .store
-            .resolve_change_routing(op.classify_change_type())
-            .await
-            .map_err(AppError::from)?;
-        let Some(rule) = rule else {
-            return Err(AppError::internal(
-                "missing change_routing_rules row — check migration 0025 seed",
-            ));
-        };
-        if matches!(
-            decide_edit_routing(&rule.routing, &route_ctx),
-            EditRoutingDecision::Queue
-        ) {
-            // The approval workflow (to be wired in a later Phase)
-            // picks up queued edits from an approvals table. Today
-            // we surface a 409 so the UI can treat the request as
-            // "pending review" without committing.
-            return Err(AppError::conflict(
-                "edit queued for approval — automation policy requires review",
-            ));
-        }
-    }
-
-    // ---- 4. Apply ops to an IR clone ----------------------------
+    // Ops apply atomically on a clone so a mid-batch error rolls
+    // back nothing but the in-memory IR — no store side effects fire
+    // until validation + routing both succeed.
     let mut ir = state
         .store
         .load_version(current.id)
@@ -197,15 +156,27 @@ pub(crate) async fn apply_ontology_edits(
         op.apply_to(&mut ir).map_err(AppError::unprocessable)?;
     }
 
-    // Whole-IR validation at the end; referential integrity across
-    // mappings + code systems + glossary is the contract the admin
-    // edit layer must preserve.
+    // ---- 4. Whole-IR validation ---------------------------------
+    //
+    // Catches referential integrity violations across mappings + code
+    // systems + glossary — the contract the admin edit layer must
+    // preserve.
     let validation = ir.validate();
     if !validation.is_empty() {
         return Err(AppError::unprocessable(validation.join("; ")));
     }
 
-    // ---- 4. Commit new version ---------------------------------
+    // ---- 5. Routing: every op must classify to Apply, else queue -
+    //
+    // Validation has just passed, so the `HasValidationPass` skip
+    // predicate sees a real result. A mixed batch (some Apply + some
+    // Queue) would require splitting the operation list, which the
+    // matrix doesn't promise — if any op queues, the whole request
+    // queues. The approval surface picks it up from the workflow
+    // table.
+    verify_ops_apply(&state, &principal, &req.operations, true).await?;
+
+    // ---- 6. Commit new version ---------------------------------
     //
     // Version strings are monotonically-increasing integers here —
     // the caller bumps by 1 from `expected_version`.
@@ -245,16 +216,4 @@ pub(crate) async fn apply_ontology_edits(
     ))
 }
 
-/// Crude role classification for the principal. Phase 6's router
-/// wants `RoleRef`; principal carries a string role. The mapping
-/// fails safe — an unknown role routes as Analyst, which never
-/// skips a predicate.
-fn role_for_principal(p: &Principal) -> ox_ontology::change_routing::RoleRef {
-    use ox_ontology::change_routing::RoleRef;
-    match p.role.as_str() {
-        "admin" => RoleRef::Admin,
-        "designer" => RoleRef::DataSteward,
-        _ => RoleRef::Analyst,
-    }
-}
 

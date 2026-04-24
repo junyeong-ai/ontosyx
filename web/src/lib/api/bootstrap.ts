@@ -1,41 +1,22 @@
-// Phase 4.1 — Bootstrap wizard backend calls.
+// Bootstrap wizard parser.
 //
-// The wizard persists free-form `glossaryDraft` text in localStorage.
-// On Finish, this helper parses each non-empty line into a
-// `{ term, description?, aliases }` row and forwards the batch to
-// `POST /api/bootstrap/seed-glossary`, which commits a fresh
-// ontology containing those terms. The flow intentionally skips
-// the usual source-analysis pipeline — the bootstrap ontology is a
-// "here's what the domain experts already wrote down" artefact the
-// workbench later refines.
+// The module's sole export is `parseGlossaryDraft`: a tolerant
+// textarea-to-rows parser for the wizard's free-form `glossaryDraft`
+// field. `6-validate` consumes the parsed rows and maps each into an
+// `OntologyEditOp::CreateGlossaryTerm` op before POSTing to the
+// unified `/api/ontologies` creation endpoint, so no network call
+// lives here — network I/O is concentrated in `api/ontology.ts`.
 
-import { request } from "./client";
-
-export interface SeedGlossaryTerm {
+/**
+ * One parsed glossary row from the wizard's free-form textarea.
+ * Decoupled from the backend `GlossaryTermDef` shape so the parser
+ * has a minimal surface — the `6-validate` step widens this into a
+ * full `CreateGlossaryTerm` op before POSTing.
+ */
+export interface GlossaryTermDraft {
   term: string;
   description?: string;
   aliases: string[];
-}
-
-export interface SeedGlossaryRequest {
-  name: string;
-  description?: string;
-  terms: SeedGlossaryTerm[];
-}
-
-export interface SeedGlossaryResponse {
-  ontology_id: string;
-  version_id: string;
-  committed_terms: number;
-}
-
-export async function seedBootstrapGlossary(
-  body: SeedGlossaryRequest,
-): Promise<SeedGlossaryResponse> {
-  return request<SeedGlossaryResponse>("/bootstrap/seed-glossary", {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
 }
 
 /**
@@ -49,18 +30,18 @@ export async function seedBootstrapGlossary(
  *
  * Empty lines and lines whose `term` portion is whitespace-only are
  * dropped. Duplicates are resolved server-side (case-insensitive);
- * we keep the client-side parser minimal so the flow is easy to
- * reason about in a test.
+ * the client parser stays minimal so it's easy to reason about in a
+ * test.
  */
-export function parseGlossaryDraft(raw: string): SeedGlossaryTerm[] {
-  const out: SeedGlossaryTerm[] = [];
+export function parseGlossaryDraft(raw: string): GlossaryTermDraft[] {
+  const out: GlossaryTermDraft[] = [];
   for (const rawLine of raw.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line) continue;
 
     // `term | aliases` or `term: description | aliases` — split on
-    // the first `|` so descriptions may contain pipes if followed
-    // by an escape-like context (they won't, in practice).
+    // the first `|` so descriptions may contain pipes if followed by
+    // an escape-like context (they won't, in practice).
     let pipePart: string | null = null;
     let mainPart = line;
     const pipeIdx = line.indexOf("|");

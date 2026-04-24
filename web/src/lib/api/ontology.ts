@@ -2,10 +2,12 @@ import type {
   CursorPage,
   ElementVerification,
   InsightSuggestion,
+  LocalizedText,
   OntologyDetail,
   OntologyIR,
   OntologyListItem,
 } from "@/types/api";
+import type { BindingEditOp } from "@/lib/api/binding-suggestions";
 import { request, requestText } from "./client";
 import {
   CursorPageSchema,
@@ -53,7 +55,7 @@ export async function listOntologies(params?: {
  * Workspace-scoped single-name lookup — returns the ontology whose
  * name matches exactly, or `null` when nothing matches. Used by the
  * Bootstrap wizard's Step 6 to detect re-entry before the
- * seed-glossary POST returns 409.
+ * ontology-create POST returns 409.
  *
  * A blank/whitespace `name` short-circuits to `null` without a
  * request, matching the backend's normalisation.
@@ -64,6 +66,76 @@ export async function findOntologyByName(
   if (!name.trim()) return null;
   const page = await listOntologies({ nameEq: name });
   return page.items[0] ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Ontology creation (unified `POST /api/ontologies`)
+//
+// One endpoint covers every creation shape. `initial_operations` is a
+// batch of `OntologyEditOp`s applied atomically as v1 — the same op
+// vocabulary used by `POST /api/ontologies/{id}/edits`, so bootstrap
+// flows don't grow a parallel governance surface.
+// ---------------------------------------------------------------------------
+
+/** `GlossaryTermDef` shape accepted by `CreateGlossaryTerm` ops. */
+export interface GlossaryTermDefInput {
+  id: string;
+  term: string;
+  display_name?: LocalizedText;
+  description?: LocalizedText;
+  category?: string | null;
+  aliases?: string[];
+  parent_term_id?: string | null;
+}
+
+/**
+ * Frontend subset of the Rust `OntologyEditOp` enum — covers only
+ * the variants the current UI can construct (property bindings,
+ * type deprecations, glossary-term creation). The Rust enum has
+ * 30+ variants (code systems, value sets, rules, …); a TS caller
+ * that needs one of those must first add its shape here.
+ *
+ * Naming note: we intentionally keep the `OntologyEditOp` name so
+ * a caller can see at the call site that it mirrors the backend
+ * vocabulary. The JSDoc above is the contract for "subset only" —
+ * the union is closed, so a typo like `{ op: "create_rule" }` will
+ * fail TS checks at compile time rather than at the server's
+ * serde layer.
+ */
+export type OntologyEditOp =
+  | BindingEditOp
+  | { op: "create_glossary_term"; def: GlossaryTermDefInput };
+
+/** Request body for `POST /api/ontologies`. */
+export interface CreateOntologyRequest {
+  name: string;
+  description?: string;
+  lineage_id?: string;
+  initial_operations: OntologyEditOp[];
+  message?: string;
+}
+
+/** Response body returned by `POST /api/ontologies`. */
+export interface CreateOntologyResponse {
+  ontology_id: string;
+  version_id: string;
+  version: number;
+  applied_operations: number;
+  committed_at: string;
+}
+
+/**
+ * Create a fresh ontology. Validates + routes the initial batch
+ * through the same pipeline as `/edits`, so a designer-level caller
+ * can submit routine CreateGlossaryTerm ops without queueing.
+ */
+export async function createOntology(
+  body: CreateOntologyRequest,
+): Promise<CreateOntologyResponse> {
+  return request<CreateOntologyResponse>("/ontologies", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
 /**

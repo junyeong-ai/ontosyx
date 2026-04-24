@@ -41,6 +41,8 @@ use crate::mapping::link::LinkMappingDef;
 use crate::mapping::object::ObjectMappingDef;
 use crate::mapping::refs::{LinkMappingId, ObjectMappingId};
 use crate::notation_pattern::{NotationPatternDef, NotationPatternId};
+use crate::action::RuleId;
+use crate::rule::RuleDef;
 use crate::value_set::{ValueSetDef, ValueSetId};
 
 /// Which side of the ontology topology a property lives on.
@@ -158,6 +160,34 @@ pub enum OntologyEditOp {
     },
     DeleteValueSet {
         id: ValueSetId,
+    },
+
+    // --- Rule (SHACL-style validation shape) ---
+    //
+    // Rules are first-class on `OntologyIR.rules`: they drive
+    // `ShaclValidator` and feed the Phase-3 SHACL pass-rate signal.
+    // Exposing CRUD through `OntologyEditOp` keeps the edit log as
+    // the single audit trail for every governance change — a rule
+    // addition shows up in the version log next to the glossary term
+    // it guards.
+    /// Declare a new [`RuleDef`]. Fails if another rule already
+    /// carries the same id (enforced by `add_rule`'s
+    /// referential-integrity check).
+    CreateRule {
+        def: RuleDef,
+    },
+    /// Replace a [`RuleDef`] in place. Semantically identical to a
+    /// Delete + Create pair but atomic at the apply step; validation
+    /// runs on the post-replace IR.
+    UpdateRule {
+        id: RuleId,
+        def: RuleDef,
+    },
+    /// Remove a [`RuleDef`] by id. Removes the corresponding
+    /// constraint from SHACL validation — reviewers should
+    /// understand the coverage loss before approving.
+    DeleteRule {
+        id: RuleId,
     },
 
     // --- Type deprecation ---
@@ -278,6 +308,15 @@ impl OntologyEditOp {
             Self::DeprecateNodeType { .. } | Self::DeprecateEdgeType { .. } => {
                 ChangeType::StaleConceptDeprecate
             }
+
+            // Rule lifecycle maps 1:1 onto the three rule matrix
+            // rows (65% / 55% / always-queue) — keeping Create /
+            // Modify / Delete as distinct ChangeTypes is what lets
+            // the matrix treat rule deletion stricter than
+            // modification.
+            Self::CreateRule { .. } => ChangeType::RuleCreate,
+            Self::UpdateRule { .. } => ChangeType::RuleModify,
+            Self::DeleteRule { .. } => ChangeType::RuleDelete,
         }
     }
 
@@ -509,6 +548,25 @@ impl OntologyEditOp {
             }
             Self::DeleteValueSet { id } => ir
                 .remove_value_set(&id)
+                .map(|_| ())
+                .map_err(|e| e.to_string()),
+
+            Self::CreateRule { def } => {
+                ir.add_rule(def).map(|_| ()).map_err(|e| e.to_string())
+            }
+            Self::UpdateRule { id, def } => {
+                if def.id != id {
+                    return Err(format!(
+                        "update_rule: def.id ({}) does not match path id ({})",
+                        def.id.as_str(),
+                        id.as_str(),
+                    ));
+                }
+                ir.remove_rule(&id).map_err(|e| e.to_string())?;
+                ir.add_rule(def).map(|_| ()).map_err(|e| e.to_string())
+            }
+            Self::DeleteRule { id } => ir
+                .remove_rule(&id)
                 .map(|_| ())
                 .map_err(|e| e.to_string()),
 
@@ -993,6 +1051,152 @@ mod tests {
         let j = serde_json::to_string(&op).unwrap();
         assert!(j.contains("\"op\":\"deprecate_node_type\""));
         assert!(j.contains("\"replaced_by_id\":\"CustomerV2\""));
+    }
+
+    // ------------------------------------------------------------------
+    // Rule lifecycle ops.
+    // ------------------------------------------------------------------
+
+    fn bare_rule(id: &str, name: &str) -> RuleDef {
+        use crate::rule::{RuleActivationKind, RuleKind};
+        RuleDef {
+            id: RuleId::new(id),
+            name: name.to_string(),
+            description: LocalizedText::default(),
+            kind: RuleKind::CrossEntityShape {
+                predicate: "1 = 1".to_string(),
+            },
+            severity: Default::default(),
+            enforcement: Default::default(),
+            activation: RuleActivationKind::Always,
+            constraints: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn create_rule_appends_to_ir() {
+        let mut ir = sample_ir_with_property();
+        assert!(ir.rules().is_empty());
+        OntologyEditOp::CreateRule {
+            def: bare_rule("r-1", "first"),
+        }
+        .apply_to(&mut ir)
+        .unwrap();
+        assert_eq!(ir.rules().len(), 1);
+        assert_eq!(ir.rules()[0].id.as_str(), "r-1");
+    }
+
+    #[test]
+    fn create_duplicate_rule_fails_on_apply() {
+        let mut ir = sample_ir_with_property();
+        OntologyEditOp::CreateRule {
+            def: bare_rule("r-1", "first"),
+        }
+        .apply_to(&mut ir)
+        .unwrap();
+        let err = OntologyEditOp::CreateRule {
+            def: bare_rule("r-1", "dup"),
+        }
+        .apply_to(&mut ir)
+        .unwrap_err();
+        assert!(err.to_lowercase().contains("rule"));
+    }
+
+    #[test]
+    fn update_rule_replaces_in_place() {
+        let mut ir = sample_ir_with_property();
+        OntologyEditOp::CreateRule {
+            def: bare_rule("r-1", "first"),
+        }
+        .apply_to(&mut ir)
+        .unwrap();
+        OntologyEditOp::UpdateRule {
+            id: RuleId::new("r-1"),
+            def: bare_rule("r-1", "second"),
+        }
+        .apply_to(&mut ir)
+        .unwrap();
+        assert_eq!(ir.rules().len(), 1);
+        assert_eq!(ir.rules()[0].name, "second");
+    }
+
+    #[test]
+    fn update_rule_path_id_mismatch_rejected() {
+        let mut ir = sample_ir_with_property();
+        OntologyEditOp::CreateRule {
+            def: bare_rule("r-1", "first"),
+        }
+        .apply_to(&mut ir)
+        .unwrap();
+        let err = OntologyEditOp::UpdateRule {
+            id: RuleId::new("r-1"),
+            def: bare_rule("r-2", "second"),
+        }
+        .apply_to(&mut ir)
+        .unwrap_err();
+        assert!(err.contains("does not match path id"));
+    }
+
+    #[test]
+    fn delete_rule_removes_entry() {
+        let mut ir = sample_ir_with_property();
+        OntologyEditOp::CreateRule {
+            def: bare_rule("r-1", "first"),
+        }
+        .apply_to(&mut ir)
+        .unwrap();
+        OntologyEditOp::DeleteRule {
+            id: RuleId::new("r-1"),
+        }
+        .apply_to(&mut ir)
+        .unwrap();
+        assert!(ir.rules().is_empty());
+    }
+
+    #[test]
+    fn delete_missing_rule_surfaces_error() {
+        let mut ir = sample_ir_with_property();
+        let err = OntologyEditOp::DeleteRule {
+            id: RuleId::new("r-missing"),
+        }
+        .apply_to(&mut ir)
+        .unwrap_err();
+        assert!(err.contains("not found") || err.contains("r-missing"));
+    }
+
+    #[test]
+    fn rule_ops_classify_onto_matrix_rows() {
+        assert_eq!(
+            OntologyEditOp::CreateRule {
+                def: bare_rule("r", "n"),
+            }
+            .classify_change_type(),
+            ChangeType::RuleCreate,
+        );
+        assert_eq!(
+            OntologyEditOp::UpdateRule {
+                id: RuleId::new("r"),
+                def: bare_rule("r", "n"),
+            }
+            .classify_change_type(),
+            ChangeType::RuleModify,
+        );
+        assert_eq!(
+            OntologyEditOp::DeleteRule {
+                id: RuleId::new("r"),
+            }
+            .classify_change_type(),
+            ChangeType::RuleDelete,
+        );
+    }
+
+    #[test]
+    fn create_rule_wire_format_is_snake_case() {
+        let op = OntologyEditOp::CreateRule {
+            def: bare_rule("r-1", "required-customer-email"),
+        };
+        let j = serde_json::to_string(&op).unwrap();
+        assert!(j.contains("\"op\":\"create_rule\""));
     }
 
     #[test]

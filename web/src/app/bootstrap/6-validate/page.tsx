@@ -15,9 +15,13 @@ import { toast } from "sonner";
 
 import {
   parseGlossaryDraft,
-  seedBootstrapGlossary,
+  type GlossaryTermDraft,
 } from "@/lib/api/bootstrap";
-import { findOntologyByName } from "@/lib/api/ontology";
+import {
+  createOntology,
+  findOntologyByName,
+  type OntologyEditOp,
+} from "@/lib/api/ontology";
 import { createProject } from "@/lib/api/projects";
 import type {
   CreateProjectRequest,
@@ -32,6 +36,27 @@ import {
   suggestRename,
   type ExistingPilotChoice,
 } from "./existing-pilot-dialog";
+
+/**
+ * Convert a parsed glossary draft row to a `CreateGlossaryTerm` op.
+ * Trimmed text + filtered aliases; fresh UUID for the id so the
+ * server can return a stable handle on the new term even before
+ * the wizard knows it.
+ */
+function glossaryDraftToCreateOp(draft: GlossaryTermDraft): OntologyEditOp {
+  const description = draft.description?.trim();
+  return {
+    op: "create_glossary_term",
+    def: {
+      id: crypto.randomUUID(),
+      term: draft.term,
+      ...(description && description.length > 0
+        ? { description: { default: description } }
+        : {}),
+      aliases: draft.aliases.filter((a) => a.length > 0),
+    },
+  };
+}
 
 /**
  * Map a wizard source kind + connection string to a
@@ -80,28 +105,31 @@ export default function ValidateStep() {
   );
 
   /**
-   * Persist the glossary draft as a bootstrap ontology (one commit
-   * containing every parsed term). Fire-and-report: a failure is
-   * surfaced as a toast but never rolls back the project creation
-   * below — the drafts stay in localStorage so the user can retry.
+   * Persist the glossary draft as a bootstrap ontology. Each parsed
+   * row becomes a `CreateGlossaryTerm` op; the whole batch commits
+   * atomically as v1 via the unified `POST /api/ontologies`
+   * endpoint. A failure surfaces as a toast but never rolls back
+   * the downstream project creation — the drafts stay in
+   * localStorage so the user can retry.
    *
    * Returns the new ontology's id on success so we can deep-link
    * the user to the Complete Map after Finish.
    */
   const seedGlossaryIfNeeded = async (): Promise<string | null> => {
-    const terms = parseGlossaryDraft(state.glossaryDraft);
-    if (terms.length === 0) return null;
+    const drafts = parseGlossaryDraft(state.glossaryDraft);
+    if (drafts.length === 0) return null;
     const name =
       state.pilotName.trim() ||
       `Bootstrap ${new Date().toISOString().slice(0, 10)}`;
     try {
-      const resp = await seedBootstrapGlossary({
+      const resp = await createOntology({
         name,
         description: state.pilotScope.trim() || undefined,
-        terms,
+        initial_operations: drafts.map(glossaryDraftToCreateOp),
+        message: "Seeded via Bootstrap wizard",
       });
       toast.success(
-        t("toast.glossarySeeded", { count: resp.committed_terms }),
+        t("toast.glossarySeeded", { count: resp.applied_operations }),
       );
       return resp.ontology_id;
     } catch (err) {
@@ -150,8 +178,8 @@ export default function ValidateStep() {
     markComplete("6-validate");
     setSubmitting(true);
     try {
-      // Pre-flight name-collision check. Narrows the window on
-      // seed-glossary's 409 path — the race-fallback still lives in
+      // Pre-flight name-collision check. Narrows the window on the
+      // create POST's 409 path — the race-fallback still lives in
       // seedGlossaryIfNeeded's catch, so a second user committing
       // between the lookup and the POST is still surfaced as a toast.
       const pilotName = state.pilotName.trim();

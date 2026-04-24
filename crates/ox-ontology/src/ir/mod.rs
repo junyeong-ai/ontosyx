@@ -1159,6 +1159,25 @@ impl OntologyIR {
         self.rebuild_indices()
     }
 
+    /// Remove a [`crate::rule::RuleDef`] by id. Parallel to
+    /// [`OntologyIR::add_rule`] so the edit-log layer can express the
+    /// full rule lifecycle through `OntologyEditOp` without reaching
+    /// into the internal `rules` Vec.
+    pub fn remove_rule(
+        &mut self,
+        id: &crate::action::RuleId,
+    ) -> Result<(), OntologyInvariantError> {
+        let before = self.rules.len();
+        self.rules.retain(|r| &r.id != id);
+        if self.rules.len() == before {
+            return Err(OntologyInvariantError::CollectionEntryNotFound {
+                kind: "rule",
+                id: id.to_string(),
+            });
+        }
+        self.rebuild_indices()
+    }
+
     /// Remove an [`crate::mapping::ObjectMappingDef`] by id.
     pub fn remove_object_mapping(
         &mut self,

@@ -11,7 +11,6 @@ pub mod ambiguity;
 pub mod approvals;
 pub mod audit;
 pub mod auth;
-pub mod bootstrap;
 pub mod chat;
 pub mod config;
 pub mod dashboards;
@@ -121,14 +120,17 @@ pub fn router(state: AppState) -> Router {
             "/projects/{id}/revisions/{rev}/migrate",
             post(projects::migrate_schema),
         )
-        // Ontology management
-        .route("/ontologies", get(ontology::list_ontologies))
+        // Ontology management — `POST /ontologies` is the canonical
+        // creation path (empty shell or shell + initial_operations);
+        // `GET` lists + supports `?name_eq` single-lookup.
+        .route(
+            "/ontologies",
+            get(ontology::list_ontologies).post(ontology::create_ontology),
+        )
         .route(
             "/ontologies/type-candidates",
             get(ontology::list_type_candidates),
         )
-        // Bootstrap wizard
-        .route("/bootstrap/seed-glossary", post(bootstrap::seed_glossary))
         .route("/ontologies/{id}", get(ontology::get_ontology_detail))
         .route("/ontologies/{id}/edits", post(ontology::apply_ontology_edits))
         .route("/ontologies/{id}/map-summary", get(ontology::map_summary))

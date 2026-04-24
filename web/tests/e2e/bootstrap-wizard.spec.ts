@@ -7,9 +7,11 @@ import { test, expect } from "./fixtures";
  * steps and clicks Finish on the validate screen. The Finish
  * handler makes two backend calls:
  *
- *   1. `POST /api/bootstrap/seed-glossary` — fires when the
- *      operator entered non-empty glossary drafts. Mocked here
- *      to return a fresh ontology id.
+ *   1. `POST /api/ontologies` — the unified creation endpoint.
+ *      Fires when the operator entered non-empty glossary drafts;
+ *      the wizard converts them into `CreateGlossaryTerm` edit ops
+ *      and posts them as `initial_operations`. Mocked here to
+ *      return a fresh ontology id + version number.
  *   2. `POST /api/projects` — fires only when the source kind is
  *      connection-based (postgresql / mysql). Mocked here to
  *      return a minimal `DesignProject`-shaped row.
@@ -24,6 +26,7 @@ import { test, expect } from "./fixtures";
  */
 
 const MOCK_ONTOLOGY_ID = "00000000-0000-0000-0000-0000000000a1";
+const MOCK_VERSION_ID = "00000000-0000-0000-0000-0000000000c3";
 const MOCK_PROJECT = {
   id: "00000000-0000-0000-0000-0000000000b2",
   title: "E2E Pilot",
@@ -40,39 +43,40 @@ test.describe("bootstrap wizard", () => {
       window.localStorage.removeItem("ontosyx.bootstrap.v1"),
     );
 
-    await page.route("**/api/proxy/bootstrap/seed-glossary", async (route) => {
-      if (route.request().method() === "POST") {
+    // `/api/proxy/ontologies` serves both the pre-flight name
+    // lookup (GET with `?name_eq=...`) and the unified creation POST.
+    // Default route: empty-list GET + success POST; individual tests
+    // override either branch when the scenario needs it.
+    await page.route(/\/api\/proxy\/ontologies(\?.*)?$/, async (route) => {
+      const req = route.request();
+      if (req.method() === "GET") {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ items: [] }),
+        });
+      } else if (req.method() === "POST") {
+        const body = req.postDataJSON() as {
+          initial_operations?: unknown[];
+        };
+        const applied = Array.isArray(body.initial_operations)
+          ? body.initial_operations.length
+          : 0;
         await route.fulfill({
           status: 201,
           contentType: "application/json",
           body: JSON.stringify({
             ontology_id: MOCK_ONTOLOGY_ID,
-            version_id: "00000000-0000-0000-0000-0000000000c3",
-            committed_terms: 2,
+            version_id: MOCK_VERSION_ID,
+            version: 1,
+            applied_operations: applied,
+            committed_at: new Date().toISOString(),
           }),
         });
       } else {
         await route.fallback();
       }
     });
-
-    // Default: no pilot-name collision — return an empty list so the
-    // Finish pipeline proceeds straight through to seed-glossary +
-    // createProject. The collision branch gets its own route below.
-    await page.route(
-      /\/api\/proxy\/ontologies(\?.*)?$/,
-      async (route) => {
-        if (route.request().method() === "GET") {
-          await route.fulfill({
-            status: 200,
-            contentType: "application/json",
-            body: JSON.stringify({ items: [] }),
-          });
-        } else {
-          await route.fallback();
-        }
-      },
-    );
 
     await page.route("**/api/proxy/projects", async (route) => {
       if (route.request().method() === "POST") {
@@ -130,15 +134,15 @@ test.describe("bootstrap wizard", () => {
     await expect(page).toHaveURL(/\/bootstrap\/3-glossary$/);
   });
 
-  test("Finish fires seed-glossary + createProject and redirects to /design", async ({
+  test("Finish fires ontology-create + createProject and redirects to /design", async ({
     page,
   }) => {
     // Wait for the mocked POSTs so the asserts can verify the
     // exact request payloads fired, not just that the redirect
     // happened.
-    const seedRequest = page.waitForRequest(
+    const createOntologyRequest = page.waitForRequest(
       (req) =>
-        req.url().includes("/api/proxy/bootstrap/seed-glossary") &&
+        /\/api\/proxy\/ontologies(\?.*)?$/.test(req.url()) &&
         req.method() === "POST",
     );
     const projectRequest = page.waitForRequest(
@@ -171,9 +175,10 @@ test.describe("bootstrap wizard", () => {
     await page.getByRole("button", { name: /next|다음/i }).click();
     await expect(page).toHaveURL(/\/bootstrap\/3-glossary$/);
 
-    // --- Step 3: glossary draft (triggers seed-glossary) ----
-    // Two terms with descriptions — the parser collapses into
-    // two `SeedGlossaryTerm` rows the endpoint spy then sees.
+    // --- Step 3: glossary draft (feeds CreateGlossaryTerm ops) ----
+    // Two terms with descriptions — the parser collapses into two
+    // `GlossaryTermDraft` rows; the Finish handler maps each to a
+    // `{ op: "create_glossary_term", def: { ... } }` op.
     const glossaryTextarea = page.locator("#glossary-draft");
     await glossaryTextarea.fill(
       "Customer: a buyer of goods\nOrder: a placed purchase\n",
@@ -197,18 +202,28 @@ test.describe("bootstrap wizard", () => {
 
     // Both backend calls fire — wait on each, then assert the
     // payloads carry what the wizard captured.
-    const [seed, project] = await Promise.all([seedRequest, projectRequest]);
-
-    const seedBody = seed.postDataJSON() as {
-      name: string;
-      terms: Array<{ term: string }>;
-    };
-    expect(seedBody.name).toBe("E2E Pilot");
-    // `parseGlossaryDraft` splits on newlines; both rows survive.
-    expect(seedBody.terms.map((t) => t.term)).toEqual([
-      "Customer",
-      "Order",
+    const [createOntology, project] = await Promise.all([
+      createOntologyRequest,
+      projectRequest,
     ]);
+
+    const createBody = createOntology.postDataJSON() as {
+      name: string;
+      initial_operations: Array<{
+        op: string;
+        def: { term: string; aliases: string[] };
+      }>;
+    };
+    expect(createBody.name).toBe("E2E Pilot");
+    // Every op uses the canonical `create_glossary_term` discriminator
+    // + `def` shape from the unified `OntologyEditOp` vocabulary.
+    expect(createBody.initial_operations.map((o) => o.op)).toEqual([
+      "create_glossary_term",
+      "create_glossary_term",
+    ]);
+    expect(
+      createBody.initial_operations.map((o) => o.def.term),
+    ).toEqual(["Customer", "Order"]);
 
     const projectBody = project.postDataJSON() as {
       title: string;
@@ -232,35 +247,34 @@ test.describe("bootstrap wizard", () => {
   test("Finish surfaces ExistingPilotDialog when the name already exists", async ({
     page,
   }) => {
-    // Override the default empty ontologies mock to return a
-    // single matching row — as if a prior session had committed a
-    // pilot under the same name.
+    // Override the default empty-list GET with a single matching row
+    // — as if a prior session had committed a pilot under the same
+    // name. The POST branch stays on the default (success) so a
+    // regression would still fire a stray create.
     const EXISTING_ID = "00000000-0000-0000-0000-0000000000e1";
-    await page.route(
-      /\/api\/proxy\/ontologies(\?.*)?$/,
-      async (route) => {
-        if (route.request().method() === "GET") {
-          await route.fulfill({
-            status: 200,
-            contentType: "application/json",
-            body: JSON.stringify({
-              items: [
-                {
-                  id: EXISTING_ID,
-                  lineage_id: "lineage-existing",
-                  name: "E2E Pilot",
-                  description: { default: "", translations: {} },
-                  created_at: "2026-04-22T00:00:00Z",
-                  updated_at: "2026-04-22T00:00:00Z",
-                },
-              ],
-            }),
-          });
-        } else {
-          await route.fallback();
-        }
-      },
-    );
+    await page.route(/\/api\/proxy\/ontologies(\?.*)?$/, async (route) => {
+      const req = route.request();
+      if (req.method() === "GET") {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            items: [
+              {
+                id: EXISTING_ID,
+                lineage_id: "lineage-existing",
+                name: "E2E Pilot",
+                description: { default: "", translations: {} },
+                created_at: "2026-04-22T00:00:00Z",
+                updated_at: "2026-04-22T00:00:00Z",
+              },
+            ],
+          }),
+        });
+      } else {
+        await route.fallback();
+      }
+    });
 
     // Seed wizard state directly rather than walking all 6 steps —
     // we're testing the collision branch, not the happy path.
@@ -297,13 +311,13 @@ test.describe("bootstrap wizard", () => {
     );
 
     // Clicking Finish triggers the pre-flight lookup → match →
-    // dialog opens before seed-glossary fires. Assert that the
-    // dialog is visible with the colliding name and the suggested
-    // rename, and that seed-glossary was NOT called.
-    let seedCalls = 0;
-    await page.route("**/api/proxy/bootstrap/seed-glossary", async (route) => {
+    // dialog opens before any POST fires. Assert that the dialog is
+    // visible with the colliding name and the suggested rename, and
+    // that no ontology POST was made.
+    let postCalls = 0;
+    await page.route(/\/api\/proxy\/ontologies(\?.*)?$/, async (route) => {
       if (route.request().method() === "POST") {
-        seedCalls += 1;
+        postCalls += 1;
       }
       await route.fallback();
     });
@@ -316,12 +330,12 @@ test.describe("bootstrap wizard", () => {
     await expect(dialog).toContainText(/E2E Pilot 2/);
 
     // Click "Continue" — the page should redirect to the existing
-    // ontology's map page without firing seed-glossary.
+    // ontology's map page without firing a create POST.
     await page.getByTestId("existing-pilot-continue").click();
 
     await expect(page).toHaveURL(
       new RegExp(`/ontology/${EXISTING_ID}/map$`),
     );
-    expect(seedCalls).toBe(0);
+    expect(postCalls).toBe(0);
   });
 });

@@ -1,13 +1,13 @@
 "use client";
 
 // Dialog surfaced on Step 6 Finish when the wizard's pilot name
-// already matches an ontology in the workspace. The legacy path
-// relied on a 409 from POST /bootstrap/seed-glossary and a toast,
-// leaving a returning user at a wall. This dialog gives three
+// already matches an ontology in the workspace. Without this pre-
+// flight, a returning user would hit a generic 409 toast from the
+// create POST with no recovery affordance. This dialog gives three
 // explicit choices before any mutating request fires.
 //
 // The race-condition fallback (dialog cleared, second user commits
-// in the meantime, 409 arrives anyway) remains on the seed-glossary
+// in the meantime, 409 arrives anyway) remains on the create
 // catch path — the dialog narrows the window, it does not replace
 // conflict handling.
 

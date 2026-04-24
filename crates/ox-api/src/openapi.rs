@@ -65,7 +65,7 @@ impl Modify for SecurityAddon {
 #[openapi(
     info(
         title = "Ontosyx API",
-        version = "1.0.0",
+        version = env!("CARGO_PKG_VERSION"),
         description = "The Semantic Orchestrator — Knowledge Graph Lifecycle Platform.\n\n\
             ## Response envelope\n\n\
             Every successful 2xx response is wrapped in:\n\n\
@@ -134,6 +134,7 @@ impl Modify for SecurityAddon {
         project_revisions::restore_revision,
         // Ontologies
         ontology::list_ontologies,
+        ontology::create_ontology,
         ontology::get_ontology_detail,
         ontology::normalize_ontology,
         ontology::export_ontology,
@@ -214,6 +215,8 @@ impl Modify for SecurityAddon {
             project_types::ProjectEditRequest,
             project_types::ProjectEditResponse,
             // Ontology
+            ontology::CreateOntologyRequest,
+            ontology::CreateOntologyResponse,
             ontology::OntologyCommandsRequest,
             ontology::OntologyCommandsResponse,
             ontology::OntologyImportRequest,

@@ -9,11 +9,13 @@
 
 mod axis_items;
 mod binding_suggestions;
+mod create;
 mod cross_refs;
 mod crud;
 mod edits;
 mod exchange;
 mod map_summary;
+mod routing;
 mod schema_ops;
 mod type_candidates;
 mod value_sets;
@@ -23,6 +25,7 @@ mod verifications;
 // these module-local names, so `pub(crate) use` keeps the surface minimal.
 pub(crate) use crud::{apply_ontology_commands, get_ontology_detail, list_ontologies};
 pub(crate) use axis_items::list_axis_items;
+pub(crate) use create::create_ontology;
 pub(crate) use cross_refs::list_cross_refs;
 pub(crate) use map_summary::map_summary;
 pub(crate) use edits::apply_ontology_edits;
@@ -49,6 +52,7 @@ pub(crate) use verifications::{delete_verification, list_verifications, verify_e
 pub use crud::{
     __path_apply_ontology_commands, __path_get_ontology_detail, __path_list_ontologies,
 };
+pub use create::__path_create_ontology;
 pub use edits::__path_apply_ontology_edits;
 pub use value_sets::__path_propose_ontology_value_sets;
 pub use binding_suggestions::{
@@ -61,6 +65,7 @@ pub use exchange::{
 };
 // Request/response types referenced by `openapi::ApiDoc::components(schemas(...))`
 // — utoipa needs them visible at this canonical module path.
+pub use create::{CreateOntologyRequest, CreateOntologyResponse};
 pub use crud::{
     CurrentVersionSummary, OntologyCommandsRequest, OntologyCommandsResponse, OntologyDetail,
     OntologyListItem,

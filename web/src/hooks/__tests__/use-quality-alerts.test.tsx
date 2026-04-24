@@ -13,9 +13,14 @@ const mockUseQualityBaseline = vi.fn(() => ({
   data: null,
   isLoading: false,
 }));
+// Vitest hoists `vi.mock` above the const declarations, so the
+// factory must defer the lookup via a closure — referencing the
+// mocks directly here binds to `undefined` at the hoisted call site.
 vi.mock("@/hooks/api/use-quality", () => ({
-  useQualityMetrics: (...args: unknown[]) => mockUseQualityMetrics(...args),
-  useQualityBaseline: (...args: unknown[]) => mockUseQualityBaseline(...args),
+  useQualityMetrics: (...args: Parameters<typeof mockUseQualityMetrics>) =>
+    mockUseQualityMetrics(...args),
+  useQualityBaseline: (...args: Parameters<typeof mockUseQualityBaseline>) =>
+    mockUseQualityBaseline(...args),
 }));
 
 import { useQualityAlerts } from "@/hooks/use-quality-alerts";
