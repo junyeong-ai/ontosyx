@@ -199,9 +199,9 @@ impl ProjectStore for PostgresStore {
         expected_revision: i32,
     ) -> OxResult<()> {
         // The caller has already committed a new version through
-        // OntologyVersionStore; this path only links the project row.
-        // Single-statement path — no transaction needed now that the
-        // saved_ontologies INSERT is gone.
+        // OntologyVersionStore; this path only links the project
+        // row to the new ontology identity. Single-statement path
+        // (no transaction needed — one UPDATE).
         let result = sqlx::query(
             "UPDATE design_projects
              SET status = 'completed', ontology_id = $1,

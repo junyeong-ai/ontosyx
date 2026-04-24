@@ -1019,7 +1019,7 @@ async fn main() -> anyhow::Result<()> {
                     _ = interval.tick() => {
                         // The sweep may run Cypher via runtime.execute_query
                         // (custom rules) — that path expects BOTH the
-                        // store task-local (for RLS on saved_ontologies /
+                        // store task-local (for RLS on ontologies /
                         // quality_* tables) AND the graph task-local (for
                         // run_pre_execute's workspace_scope gate). Scope
                         // both so every downstream hop sees a consistent

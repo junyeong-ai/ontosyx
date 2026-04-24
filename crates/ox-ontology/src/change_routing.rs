@@ -659,4 +659,64 @@ mod tests {
         let back: ApprovalRouting = serde_json::from_value(j).unwrap();
         assert_eq!(back, r);
     }
+
+    // ------------------------------------------------------------------
+    // Wire-contract parity: every `default_routing()` Rust value must
+    // round-trip through JSON without loss. This catches silent drift
+    // between the in-code matrix and the seed INSERT in
+    // `migrations/0001_schema.sql` — if either side grows a field or
+    // renames a variant, the DB rows would deserialise into a shape
+    // `ApprovalRouting` can't represent (or vice-versa).
+    //
+    // The test runs on every `ChangeType::all()` variant — adding a
+    // matrix row means this test covers it automatically.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn every_default_routing_round_trips_through_json() {
+        for c in ChangeType::all() {
+            let original = c.default_routing();
+            let j = serde_json::to_value(&original)
+                .unwrap_or_else(|e| panic!("serialize {c:?}: {e}"));
+            let back: ApprovalRouting = serde_json::from_value(j.clone())
+                .unwrap_or_else(|e| panic!("deserialize {c:?} from {j}: {e}"));
+            assert_eq!(back, original, "round-trip drift on {c:?}");
+        }
+    }
+
+    #[test]
+    fn scope_value_new_shape_round_trips() {
+        // Guards the JSON shape the seed row for CodedValueCreate
+        // relies on: `{"kind":"change_scope_below","scope":"code_count","threshold":5}`.
+        // Any future rename of `scope`/`threshold`/`code_count` breaks
+        // this test AND the migration seed — surfacing the drift at
+        // CI instead of at `cargo run`.
+        let pred = ApprovalSkipPredicate::ChangeScopeBelow {
+            scope: ScopeKind::CodeCount,
+            threshold: 5,
+        };
+        let j = serde_json::to_value(&pred).unwrap();
+        assert_eq!(
+            j,
+            serde_json::json!({
+                "kind": "change_scope_below",
+                "scope": "code_count",
+                "threshold": 5
+            })
+        );
+        let back: ApprovalSkipPredicate = serde_json::from_value(j).unwrap();
+        assert_eq!(back, pred);
+    }
+
+    #[test]
+    fn scope_kind_serialises_as_snake_case_string() {
+        // The enum has the `#[serde(rename_all = "snake_case")]`
+        // attribute and no internal tag — each variant is a bare
+        // string. Pinning that shape explicitly so a future
+        // reviewer doesn't drift into a tagged-union form.
+        let j = serde_json::to_value(ScopeKind::CodeCount).unwrap();
+        assert_eq!(j, serde_json::Value::String("code_count".into()));
+        let back: ScopeKind = serde_json::from_value(j).unwrap();
+        assert_eq!(back, ScopeKind::CodeCount);
+    }
 }

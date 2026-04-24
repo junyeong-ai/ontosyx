@@ -9,11 +9,12 @@
 //! ## Pipeline ordering
 //!
 //! Routing is **pure**: it reads only the op's static classification
-//! (`classify_change_type`, `code_count_delta`) and the caller's
-//! role. It carries no `validation_passed` input — the matrix
-//! intentionally does not encode "skip if validation passes" because
-//! every skip predicate like that would be trivially satisfied under
-//! the commit pipeline (validate always runs before persistence).
+//! (`classify_change_type`, `scopes`) and the caller's role. The
+//! predicate vocabulary has no "skip if validation passes" signal —
+//! every such predicate would be trivially satisfied under the
+//! commit pipeline (validate always runs before persistence), so
+//! encoding one would silently bypass the role gates sitting next
+//! to it.
 //!
 //! The handlers therefore run routing **first**:
 //!

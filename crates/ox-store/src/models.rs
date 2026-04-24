@@ -1012,7 +1012,8 @@ pub struct NotificationLog {
 /// A knowledge entry: correction from query failure or admin-created hint.
 ///
 /// Knowledge is workspace-scoped and ontology-version-aware:
-/// - `ontology_name` spans versions (UNIQUE(name,version) in saved_ontologies)
+/// - `ontology_name` spans versions (knowledge survives across
+///   ontology commits that keep the name + workspace stable)
 /// - `affected_labels` enables label-based GIN lookup and staleness detection
 /// - `version_checked` tracks the last ontology version where validity was confirmed
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
