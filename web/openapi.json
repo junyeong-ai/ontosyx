@@ -6,7 +6,7 @@
     "license": {
       "name": "MIT"
     },
-    "version": "1.0.0"
+    "version": "0.1.0"
   },
   "paths": {
     "/api/admin/federation/adapters": {
@@ -1004,6 +1004,408 @@
             "api_key": []
           }
         ]
+      },
+      "post": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "create_ontology",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOntologyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Ontology created — returns identity + first version"
+          },
+          "400": {
+            "description": "Missing name or other client-side input error"
+          },
+          "409": {
+            "description": "Initial operation would queue for approval — split and use /edits"
+          },
+          "422": {
+            "description": "Initial operation or post-batch validation rejected the IR"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontologies/export": {
+      "post": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "export_ontology",
+        "requestBody": {
+          "description": "OntologyIR to export",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "InputOntologyDef exchange format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontologies/export/cypher": {
+      "post": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "export_cypher",
+        "requestBody": {
+          "description": "OntologyIR",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Cypher DDL statements",
+            "content": {
+              "text/plain": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontologies/export/graphql": {
+      "post": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "export_graphql",
+        "requestBody": {
+          "description": "OntologyIR",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "GraphQL schema",
+            "content": {
+              "text/plain": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontologies/export/mermaid": {
+      "post": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "export_mermaid",
+        "requestBody": {
+          "description": "OntologyIR",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Mermaid ER diagram",
+            "content": {
+              "text/plain": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontologies/export/owl": {
+      "post": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "export_owl",
+        "requestBody": {
+          "description": "OntologyIR",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OWL/Turtle ontology",
+            "content": {
+              "text/plain": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontologies/export/python": {
+      "post": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "export_python",
+        "requestBody": {
+          "description": "OntologyIR",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Python dataclass definitions",
+            "content": {
+              "text/plain": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontologies/export/shacl": {
+      "post": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "export_shacl",
+        "requestBody": {
+          "description": "OntologyIR",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "SHACL shapes in Turtle format",
+            "content": {
+              "text/plain": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontologies/export/typescript": {
+      "post": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "export_typescript",
+        "requestBody": {
+          "description": "OntologyIR",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "TypeScript interface definitions",
+            "content": {
+              "text/plain": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontologies/import/owl": {
+      "post": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "import_owl",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OntologyImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Parsed OntologyIR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parse or validation errors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontologies/normalize": {
+      "post": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "normalize_ontology",
+        "requestBody": {
+          "description": "InputOntologyDef to normalize",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized OntologyIR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation errors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
       }
     },
     "/api/ontologies/{id}": {
@@ -1217,373 +1619,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProposeValueSetsResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/ontology/export": {
-      "post": {
-        "tags": [
-          "Ontologies"
-        ],
-        "operationId": "export_ontology",
-        "requestBody": {
-          "description": "OntologyIR to export",
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "InputOntologyDef exchange format",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/ontology/export/cypher": {
-      "post": {
-        "tags": [
-          "Ontologies"
-        ],
-        "operationId": "export_cypher",
-        "requestBody": {
-          "description": "OntologyIR",
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Cypher DDL statements",
-            "content": {
-              "text/plain": {}
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/ontology/export/graphql": {
-      "post": {
-        "tags": [
-          "Ontologies"
-        ],
-        "operationId": "export_graphql",
-        "requestBody": {
-          "description": "OntologyIR",
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "GraphQL schema",
-            "content": {
-              "text/plain": {}
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/ontology/export/mermaid": {
-      "post": {
-        "tags": [
-          "Ontologies"
-        ],
-        "operationId": "export_mermaid",
-        "requestBody": {
-          "description": "OntologyIR",
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Mermaid ER diagram",
-            "content": {
-              "text/plain": {}
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/ontology/export/owl": {
-      "post": {
-        "tags": [
-          "Ontologies"
-        ],
-        "operationId": "export_owl",
-        "requestBody": {
-          "description": "OntologyIR",
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OWL/Turtle ontology",
-            "content": {
-              "text/plain": {}
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/ontology/export/python": {
-      "post": {
-        "tags": [
-          "Ontologies"
-        ],
-        "operationId": "export_python",
-        "requestBody": {
-          "description": "OntologyIR",
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Python dataclass definitions",
-            "content": {
-              "text/plain": {}
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/ontology/export/shacl": {
-      "post": {
-        "tags": [
-          "Ontologies"
-        ],
-        "operationId": "export_shacl",
-        "requestBody": {
-          "description": "OntologyIR",
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "SHACL shapes in Turtle format",
-            "content": {
-              "text/plain": {}
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/ontology/export/typescript": {
-      "post": {
-        "tags": [
-          "Ontologies"
-        ],
-        "operationId": "export_typescript",
-        "requestBody": {
-          "description": "OntologyIR",
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "TypeScript interface definitions",
-            "content": {
-              "text/plain": {}
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/ontology/import/owl": {
-      "post": {
-        "tags": [
-          "Ontologies"
-        ],
-        "operationId": "import_owl",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/OntologyImportRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Parsed OntologyIR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Parse or validation errors",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/api/ontology/normalize": {
-      "post": {
-        "tags": [
-          "Ontologies"
-        ],
-        "operationId": "normalize_ontology",
-        "requestBody": {
-          "description": "InputOntologyDef to normalize",
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Normalized OntologyIR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Validation errors",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/ErrorBody"
-                    }
-                  }
                 }
               }
             }
@@ -4354,6 +4389,81 @@
             "items": {
               "$ref": "#/components/schemas/ConfigUpdate"
             }
+          }
+        }
+      },
+      "CreateOntologyRequest": {
+        "type": "object",
+        "description": "Request body for `POST /api/ontologies`.\n\n`initial_operations` is optional — callers that only need the\nshell (empty ontology with a pilot name) can omit it. When\npresent, the ops apply atomically: an error on any op or on the\npost-batch `validate()` aborts the whole creation with nothing\npersisted.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Free-form description stored as the ontology's default\n`LocalizedText`. Whitespace-only input collapses to the empty\nlocalized text."
+          },
+          "initial_operations": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Initial batch of edit operations applied atomically as v1.\nMust contain at least one op — the handler rejects empty\nbatches with 400 so the endpoint stays symmetric with\n`/edits`, which never accepts an empty operations list.\nOpenAPI surfaces this as a free-form array — clients\ndiscriminate on the internal `op` tag\n(`create_glossary_term`, etc.) from [`OntologyEditOp`]'s\nserde representation."
+          },
+          "lineage_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional caller-supplied lineage id. When omitted a fresh\nUUID seeds the lineage so cross-version references remain\nstable across later refinements."
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Free-form commit message — surfaces in the version log next\nto the first snapshot."
+          },
+          "name": {
+            "type": "string",
+            "description": "Workspace-scoped name. Must be non-empty and unique within\nthe workspace (enforced by the store's `ontologies_ws_name_uq`\nconstraint)."
+          }
+        }
+      },
+      "CreateOntologyResponse": {
+        "type": "object",
+        "description": "Response body on successful creation. Carries enough data for\nthe FE to deep-link to the new ontology without a round-trip\nrefetch.",
+        "required": [
+          "ontology_id",
+          "version_id",
+          "version",
+          "applied_operations",
+          "committed_at"
+        ],
+        "properties": {
+          "applied_operations": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "committed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ontology_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "version_id": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },

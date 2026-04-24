@@ -156,22 +156,22 @@ pub fn router(state: AppState) -> Router {
             post(ontology::suggest_glossary_terms_for_property),
         )
         // Ontology import/export (stateless transforms)
-        .route("/ontology/normalize", post(ontology::normalize_ontology))
-        .route("/ontology/export", post(ontology::export_ontology))
-        .route("/ontology/export/cypher", post(ontology::export_cypher))
-        .route("/ontology/export/mermaid", post(ontology::export_mermaid))
-        .route("/ontology/export/graphql", post(ontology::export_graphql))
-        .route("/ontology/export/owl", post(ontology::export_owl))
-        .route("/ontology/export/shacl", post(ontology::export_shacl))
+        .route("/ontologies/normalize", post(ontology::normalize_ontology))
+        .route("/ontologies/export", post(ontology::export_ontology))
+        .route("/ontologies/export/cypher", post(ontology::export_cypher))
+        .route("/ontologies/export/mermaid", post(ontology::export_mermaid))
+        .route("/ontologies/export/graphql", post(ontology::export_graphql))
+        .route("/ontologies/export/owl", post(ontology::export_owl))
+        .route("/ontologies/export/shacl", post(ontology::export_shacl))
         .route(
-            "/ontology/export/typescript",
+            "/ontologies/export/typescript",
             post(ontology::export_typescript),
         )
-        .route("/ontology/export/python", post(ontology::export_python))
+        .route("/ontologies/export/python", post(ontology::export_python))
         // Ontology import
-        .route("/ontology/import/owl", post(ontology::import_owl))
+        .route("/ontologies/import/owl", post(ontology::import_owl))
         // Ontology insight suggestions
-        .route("/ontology/suggestions", post(ontology::suggest_insights))
+        .route("/ontologies/suggestions", post(ontology::suggest_insights))
         // Data loading
         .route("/load", post(load::plan_load))
         .route("/load/execute", post(load::execute_load))
@@ -335,17 +335,17 @@ pub fn router(state: AppState) -> Router {
         )
         // Ontology verifications
         .route(
-            "/ontology/{id}/verifications",
+            "/ontologies/{id}/verifications",
             post(ontology::verify_element).get(ontology::list_verifications),
         )
         .route(
-            "/ontology/{id}/verifications/{element_id}",
+            "/ontologies/{id}/verifications/{element_id}",
             delete(ontology::delete_verification),
         )
         // Ontology schema re-indexing + audit
-        .route("/ontology/{id}/reindex", post(ontology::reindex_schema))
-        .route("/ontology/{id}/audit", post(ontology::graph_audit_report))
-        .route("/ontology/adopt-graph", post(ontology::adopt_graph))
+        .route("/ontologies/{id}/reindex", post(ontology::reindex_schema))
+        .route("/ontologies/{id}/audit", post(ontology::graph_audit_report))
+        .route("/ontologies/adopt-graph", post(ontology::adopt_graph))
         // Agent sessions (audit)
         .route("/sessions", get(sessions::list_sessions))
         .route(

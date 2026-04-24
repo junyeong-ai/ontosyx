@@ -54,12 +54,12 @@ async fn load_identity_current_ir(
 use crate::routes::projects::helpers::next_ontology_version_tag;
 
 // ---------------------------------------------------------------------------
-// POST /api/ontology/{id}/reindex — re-index schema embeddings
+// POST /api/ontologies/{id}/reindex — re-index schema embeddings
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
     post,
-    path = "/api/ontology/{id}/reindex",
+    path = "/api/ontologies/{id}/reindex",
     params(("id" = Uuid, Path, description = "Ontology identity ID")),
     responses(
         (status = 200, description = "Re-indexing triggered", body = inline(ReindexResponse)),
@@ -96,12 +96,12 @@ pub struct ReindexResponse {
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/ontology/{id}/audit — compare ontology against live graph
+// POST /api/ontologies/{id}/audit — compare ontology against live graph
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
     post,
-    path = "/api/ontology/{id}/audit",
+    path = "/api/ontologies/{id}/audit",
     params(("id" = Uuid, Path, description = "Ontology identity ID")),
     responses(
         (status = 200, description = "Audit report comparing ontology vs graph", body = Object),
@@ -134,12 +134,12 @@ pub(crate) async fn graph_audit_report(
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/ontology/adopt-graph — create ontology from live graph labels
+// POST /api/ontologies/adopt-graph — create ontology from live graph labels
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
     post,
-    path = "/api/ontology/adopt-graph",
+    path = "/api/ontologies/adopt-graph",
     request_body(content = AdoptGraphRequest, description = "Name for the adopted ontology"),
     responses(
         (status = 200, description = "Ontology created from graph schema", body = Object),
@@ -232,12 +232,12 @@ pub struct AdoptGraphRequest {
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/ontology/suggestions — proactive insight suggestions
+// POST /api/ontologies/suggestions — proactive insight suggestions
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
     post,
-    path = "/api/ontology/suggestions",
+    path = "/api/ontologies/suggestions",
     request_body(content = Object, description = "OntologyIR to generate suggestions for"),
     responses(
         (status = 200, description = "List of insight suggestions", body = Vec<Object>),

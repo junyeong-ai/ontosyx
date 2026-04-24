@@ -18,7 +18,7 @@ pub struct VerifyElementRequest {
     pub review_notes: Option<String>,
 }
 
-/// POST /api/ontology/{id}/verifications — mark an element as verified
+/// POST /api/ontologies/{id}/verifications — mark an element as verified
 pub(crate) async fn verify_element(
     State(state): State<AppState>,
     principal: Principal,
@@ -60,7 +60,7 @@ pub(crate) async fn verify_element(
     Ok(ApiResponse::of(serde_json::json!({ "id": id })))
 }
 
-/// GET /api/ontology/{id}/verifications — list active verifications
+/// GET /api/ontologies/{id}/verifications — list active verifications
 pub(crate) async fn list_verifications(
     State(state): State<AppState>,
     _principal: Principal,
@@ -74,7 +74,7 @@ pub(crate) async fn list_verifications(
     Ok(ApiResponse::of(verifications))
 }
 
-/// DELETE /api/ontology/{id}/verifications/{element_id} — revoke verification
+/// DELETE /api/ontologies/{id}/verifications/{element_id} — revoke verification
 pub(crate) async fn delete_verification(
     State(state): State<AppState>,
     principal: Principal,

@@ -31,7 +31,7 @@ use crate::response::ApiResponse;
 
 #[utoipa::path(
     post,
-    path = "/api/ontology/normalize",
+    path = "/api/ontologies/normalize",
     request_body(content = Object, description = "InputOntologyDef to normalize"),
     responses(
         (status = 200, description = "Normalized OntologyIR", body = Object),
@@ -66,7 +66,7 @@ pub(crate) async fn normalize_ontology(
 
 #[utoipa::path(
     post,
-    path = "/api/ontology/export",
+    path = "/api/ontologies/export",
     request_body(content = Object, description = "OntologyIR to export"),
     responses(
         (status = 200, description = "InputOntologyDef exchange format", body = Object),
@@ -89,7 +89,7 @@ pub(crate) async fn export_ontology(
 
 #[utoipa::path(
     post,
-    path = "/api/ontology/export/cypher",
+    path = "/api/ontologies/export/cypher",
     request_body(content = Object, description = "OntologyIR"),
     responses(
         (status = 200, description = "Cypher DDL statements", content_type = "text/plain"),
@@ -107,7 +107,7 @@ pub(crate) async fn export_cypher(
 
 #[utoipa::path(
     post,
-    path = "/api/ontology/export/mermaid",
+    path = "/api/ontologies/export/mermaid",
     request_body(content = Object, description = "OntologyIR"),
     responses(
         (status = 200, description = "Mermaid ER diagram", content_type = "text/plain"),
@@ -125,7 +125,7 @@ pub(crate) async fn export_mermaid(
 
 #[utoipa::path(
     post,
-    path = "/api/ontology/export/graphql",
+    path = "/api/ontologies/export/graphql",
     request_body(content = Object, description = "OntologyIR"),
     responses(
         (status = 200, description = "GraphQL schema", content_type = "text/plain"),
@@ -143,7 +143,7 @@ pub(crate) async fn export_graphql(
 
 #[utoipa::path(
     post,
-    path = "/api/ontology/export/owl",
+    path = "/api/ontologies/export/owl",
     request_body(content = Object, description = "OntologyIR"),
     responses(
         (status = 200, description = "OWL/Turtle ontology", content_type = "text/plain"),
@@ -161,7 +161,7 @@ pub(crate) async fn export_owl(
 
 #[utoipa::path(
     post,
-    path = "/api/ontology/export/shacl",
+    path = "/api/ontologies/export/shacl",
     request_body(content = Object, description = "OntologyIR"),
     responses(
         (status = 200, description = "SHACL shapes in Turtle format", content_type = "text/plain"),
@@ -179,7 +179,7 @@ pub(crate) async fn export_shacl(
 
 #[utoipa::path(
     post,
-    path = "/api/ontology/export/typescript",
+    path = "/api/ontologies/export/typescript",
     request_body(content = Object, description = "OntologyIR"),
     responses(
         (status = 200, description = "TypeScript interface definitions", content_type = "text/plain"),
@@ -197,7 +197,7 @@ pub(crate) async fn export_typescript(
 
 #[utoipa::path(
     post,
-    path = "/api/ontology/export/python",
+    path = "/api/ontologies/export/python",
     request_body(content = Object, description = "OntologyIR"),
     responses(
         (status = 200, description = "Python dataclass definitions", content_type = "text/plain"),
@@ -225,7 +225,7 @@ pub struct OntologyImportRequest {
 
 #[utoipa::path(
     post,
-    path = "/api/ontology/import/owl",
+    path = "/api/ontologies/import/owl",
     request_body = OntologyImportRequest,
     responses(
         (status = 200, description = "Parsed OntologyIR", body = Object),

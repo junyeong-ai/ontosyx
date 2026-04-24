@@ -221,7 +221,167 @@ export interface paths {
         };
         get: operations["list_ontologies"];
         put?: never;
-        post?: never;
+        post: operations["create_ontology"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontologies/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["export_ontology"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontologies/export/cypher": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["export_cypher"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontologies/export/graphql": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["export_graphql"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontologies/export/mermaid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["export_mermaid"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontologies/export/owl": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["export_owl"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontologies/export/python": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["export_python"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontologies/export/shacl": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["export_shacl"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontologies/export/typescript": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["export_typescript"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontologies/import/owl": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["import_owl"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ontologies/normalize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["normalize_ontology"];
         delete?: never;
         options?: never;
         head?: never;
@@ -286,166 +446,6 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["propose_ontology_value_sets"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ontology/export": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["export_ontology"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ontology/export/cypher": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["export_cypher"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ontology/export/graphql": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["export_graphql"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ontology/export/mermaid": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["export_mermaid"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ontology/export/owl": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["export_owl"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ontology/export/python": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["export_python"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ontology/export/shacl": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["export_shacl"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ontology/export/typescript": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["export_typescript"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ontology/import/owl": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["import_owl"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ontology/normalize": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["normalize_ontology"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1085,6 +1085,67 @@ export interface components {
         };
         ConfigUpdateRequest: {
             updates: components["schemas"]["ConfigUpdate"][];
+        };
+        /**
+         * @description Request body for `POST /api/ontologies`.
+         *
+         *     `initial_operations` is optional — callers that only need the
+         *     shell (empty ontology with a pilot name) can omit it. When
+         *     present, the ops apply atomically: an error on any op or on the
+         *     post-batch `validate()` aborts the whole creation with nothing
+         *     persisted.
+         */
+        CreateOntologyRequest: {
+            /**
+             * @description Free-form description stored as the ontology's default
+             *     `LocalizedText`. Whitespace-only input collapses to the empty
+             *     localized text.
+             */
+            description?: string | null;
+            /**
+             * @description Initial batch of edit operations applied atomically as v1.
+             *     Must contain at least one op — the handler rejects empty
+             *     batches with 400 so the endpoint stays symmetric with
+             *     `/edits`, which never accepts an empty operations list.
+             *     OpenAPI surfaces this as a free-form array — clients
+             *     discriminate on the internal `op` tag
+             *     (`create_glossary_term`, etc.) from [`OntologyEditOp`]'s
+             *     serde representation.
+             */
+            initial_operations?: Record<string, never>[];
+            /**
+             * @description Optional caller-supplied lineage id. When omitted a fresh
+             *     UUID seeds the lineage so cross-version references remain
+             *     stable across later refinements.
+             */
+            lineage_id?: string | null;
+            /**
+             * @description Free-form commit message — surfaces in the version log next
+             *     to the first snapshot.
+             */
+            message?: string | null;
+            /**
+             * @description Workspace-scoped name. Must be non-empty and unique within
+             *     the workspace (enforced by the store's `ontologies_ws_name_uq`
+             *     constraint).
+             */
+            name: string;
+        };
+        /**
+         * @description Response body on successful creation. Carries enough data for
+         *     the FE to deep-link to the new ontology without a round-trip
+         *     refetch.
+         */
+        CreateOntologyResponse: {
+            applied_operations: number;
+            /** Format: date-time */
+            committed_at: string;
+            /** Format: uuid */
+            ontology_id: string;
+            /** Format: int32 */
+            version: number;
+            /** Format: uuid */
+            version_id: string;
         };
         CreateProjectRequest: Record<string, never> & {
             title?: string | null;
@@ -2674,124 +2735,46 @@ export interface operations {
             };
         };
     };
-    get_ontology_detail: {
+    create_ontology: {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                /** @description Ontology identity ID */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Ontology detail with hydrated IR */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OntologyDetail"];
-                };
-            };
-            /** @description Ontology not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        error: components["schemas"]["ErrorBody"];
-                    };
-                };
-            };
-        };
-    };
-    suggest_glossary_bindings: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Ontology identity ID */
-                id: string;
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SuggestBindingsRequest"];
+                "application/json": components["schemas"]["CreateOntologyRequest"];
             };
         };
         responses: {
-            /** @description Candidate property bindings */
-            200: {
+            /** @description Ontology created — returns identity + first version */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["SuggestBindingsResponse"];
-                };
+                content?: never;
             };
-        };
-    };
-    suggest_glossary_terms_for_property: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Ontology identity ID */
-                id: string;
-                /** @description node | edge */
-                owner_kind: string;
-                /** @description NodeTypeId or EdgeTypeId */
-                owner_type_id: string;
-                /** @description PropertyId */
-                property_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SuggestTermsRequest"];
-            };
-        };
-        responses: {
-            /** @description Candidate glossary terms */
-            200: {
+            /** @description Missing name or other client-side input error */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["SuggestTermsResponse"];
-                };
+                content?: never;
             };
-        };
-    };
-    propose_ontology_value_sets: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Ontology identity ID */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProposeValueSetsRequest"];
-            };
-        };
-        responses: {
-            /** @description Inference report */
-            200: {
+            /** @description Initial operation would queue for approval — split and use /edits */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ProposeValueSetsResponse"];
+                content?: never;
+            };
+            /** @description Initial operation or post-batch validation rejected the IR */
+            422: {
+                headers: {
+                    [name: string]: unknown;
                 };
+                content?: never;
             };
         };
     };
@@ -3062,6 +3045,127 @@ export interface operations {
                     "application/json": {
                         error: components["schemas"]["ErrorBody"];
                     };
+                };
+            };
+        };
+    };
+    get_ontology_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ontology identity ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ontology detail with hydrated IR */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OntologyDetail"];
+                };
+            };
+            /** @description Ontology not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    suggest_glossary_bindings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ontology identity ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuggestBindingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Candidate property bindings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuggestBindingsResponse"];
+                };
+            };
+        };
+    };
+    suggest_glossary_terms_for_property: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ontology identity ID */
+                id: string;
+                /** @description node | edge */
+                owner_kind: string;
+                /** @description NodeTypeId or EdgeTypeId */
+                owner_type_id: string;
+                /** @description PropertyId */
+                property_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuggestTermsRequest"];
+            };
+        };
+        responses: {
+            /** @description Candidate glossary terms */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuggestTermsResponse"];
+                };
+            };
+        };
+    };
+    propose_ontology_value_sets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ontology identity ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProposeValueSetsRequest"];
+            };
+        };
+        responses: {
+            /** @description Inference report */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposeValueSetsResponse"];
                 };
             };
         };

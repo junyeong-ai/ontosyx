@@ -160,7 +160,7 @@ export async function getOntologyDetail(id: string): Promise<OntologyDetail> {
 export async function normalizeOntology(
   input: Record<string, unknown>,
 ): Promise<{ ontology: OntologyIR; warnings: { kind: string; message: string }[] }> {
-  const data = await request("/ontology/normalize", {
+  const data = await request("/ontologies/normalize", {
     method: "POST",
     body: JSON.stringify(input),
   }) as { ontology: unknown; warnings?: unknown[] };
@@ -175,63 +175,63 @@ export async function normalizeOntology(
 export async function exportOntology(
   ontology: OntologyIR,
 ): Promise<Record<string, unknown>> {
-  return request("/ontology/export", {
+  return request("/ontologies/export", {
     method: "POST",
     body: JSON.stringify(ontology),
   });
 }
 
 export async function exportCypher(ontology: OntologyIR): Promise<string> {
-  return requestText("/ontology/export/cypher", {
+  return requestText("/ontologies/export/cypher", {
     method: "POST",
     body: JSON.stringify(ontology),
   });
 }
 
 export async function exportMermaid(ontology: OntologyIR): Promise<string> {
-  return requestText("/ontology/export/mermaid", {
+  return requestText("/ontologies/export/mermaid", {
     method: "POST",
     body: JSON.stringify(ontology),
   });
 }
 
 export async function exportGraphql(ontology: OntologyIR): Promise<string> {
-  return requestText("/ontology/export/graphql", {
+  return requestText("/ontologies/export/graphql", {
     method: "POST",
     body: JSON.stringify(ontology),
   });
 }
 
 export async function exportOwl(ontology: OntologyIR): Promise<string> {
-  return requestText("/ontology/export/owl", {
+  return requestText("/ontologies/export/owl", {
     method: "POST",
     body: JSON.stringify(ontology),
   });
 }
 
 export async function exportShacl(ontology: OntologyIR): Promise<string> {
-  return requestText("/ontology/export/shacl", {
+  return requestText("/ontologies/export/shacl", {
     method: "POST",
     body: JSON.stringify(ontology),
   });
 }
 
 export async function exportTypescript(ontology: OntologyIR): Promise<string> {
-  return requestText("/ontology/export/typescript", {
+  return requestText("/ontologies/export/typescript", {
     method: "POST",
     body: JSON.stringify(ontology),
   });
 }
 
 export async function exportPython(ontology: OntologyIR): Promise<string> {
-  return requestText("/ontology/export/python", {
+  return requestText("/ontologies/export/python", {
     method: "POST",
     body: JSON.stringify(ontology),
   });
 }
 
 export async function importOwl(content: string): Promise<OntologyIR> {
-  return request("/ontology/import/owl", {
+  return request("/ontologies/import/owl", {
     method: "POST",
     body: JSON.stringify({ content }),
   });
@@ -244,7 +244,7 @@ export async function importOwl(content: string): Promise<OntologyIR> {
 export async function suggestInsights(
   ontology: OntologyIR,
 ): Promise<InsightSuggestion[]> {
-  return request("/ontology/suggestions", {
+  return request("/ontologies/suggestions", {
     method: "POST",
     body: JSON.stringify(ontology),
   });
@@ -257,14 +257,14 @@ export async function suggestInsights(
 export async function listVerifications(
   ontologyId: string,
 ): Promise<ElementVerification[]> {
-  return request(`/ontology/${encodeURIComponent(ontologyId)}/verifications`);
+  return request(`/ontologies/${encodeURIComponent(ontologyId)}/verifications`);
 }
 
 export async function verifyElement(
   ontologyId: string,
   req: { element_id: string; element_kind: "node" | "edge" | "property"; review_notes?: string },
 ): Promise<{ id: string }> {
-  return request(`/ontology/${encodeURIComponent(ontologyId)}/verifications`, {
+  return request(`/ontologies/${encodeURIComponent(ontologyId)}/verifications`, {
     method: "POST",
     body: JSON.stringify(req),
   });
@@ -275,7 +275,7 @@ export async function revokeVerification(
   elementId: string,
 ): Promise<void> {
   await request(
-    `/ontology/${encodeURIComponent(ontologyId)}/verifications/${encodeURIComponent(elementId)}`,
+    `/ontologies/${encodeURIComponent(ontologyId)}/verifications/${encodeURIComponent(elementId)}`,
     { method: "DELETE" },
   );
 }
@@ -298,7 +298,7 @@ export interface GraphAuditReport {
 export async function auditGraph(
   ontologyId: string,
 ): Promise<GraphAuditReport> {
-  return request(`/ontology/${encodeURIComponent(ontologyId)}/audit`, {
+  return request(`/ontologies/${encodeURIComponent(ontologyId)}/audit`, {
     method: "POST",
   });
 }
@@ -307,7 +307,7 @@ export async function adoptGraph(
   name?: string,
   save?: boolean,
 ): Promise<import("@/types/ontology").OntologyIR> {
-  return request("/ontology/adopt-graph", {
+  return request("/ontologies/adopt-graph", {
     method: "POST",
     body: JSON.stringify({ name, save }),
   });
@@ -316,7 +316,7 @@ export async function adoptGraph(
 export async function reindexSchema(
   ontologyId: string,
 ): Promise<{ ontology_lineage_id: string; nodes_indexed: number }> {
-  return request(`/ontology/${encodeURIComponent(ontologyId)}/reindex`, {
+  return request(`/ontologies/${encodeURIComponent(ontologyId)}/reindex`, {
     method: "POST",
   });
 }
