@@ -44,12 +44,21 @@ use crate::cypher::token::Span;
 ///
 /// The current landscape:
 ///
-/// - `Isolation` — workspace scope injection (`WorkspaceScopeRewriter`).
-///   Must run first because every subsequent pass assumes the final
-///   AST carries workspace scope on its writes.
-/// - `Acl` — row-level authorization filters (planned).
-/// - `SoftDelete` — tombstone predicate injection (planned).
-/// - `Temporal` — `as_of` / `valid_between` filters (planned).
+/// - `Isolation` — workspace scope injection
+///   ([`WorkspaceScopeRewriter`]). Must run first because every
+///   subsequent pass assumes the final AST carries workspace scope
+///   on its writes.
+/// - `Acl` — row-level authorization filters
+///   ([`crate::cypher::AclRewriter`]).
+/// - `SoftDelete` — tombstone predicate injection on read +
+///   `DELETE` → `SET _deleted_at` rewrite on write
+///   ([`crate::cypher::SoftDeleteRewriter`]).
+/// - `Temporal` — slot reserved for raw-Cypher `as_of` /
+///   `valid_between` filters. The QueryIR-compiled path applies
+///   temporal rewrites in `ox-compiler::temporal` before reaching
+///   the Cypher pipeline; this slot lives here so a future raw-
+///   Cypher temporal pass has phase ordering room without
+///   re-numbering.
 /// - `Custom` — per-installation passes that don't map onto any of
 ///   the above. Runs last so it can observe everything that landed
 ///   before it.

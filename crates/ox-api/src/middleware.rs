@@ -440,7 +440,7 @@ pub async fn workspace_context(
             workspace_id,
             next.run(req).instrument(span),
         )
-        .await;
+        .await?;
         return Ok(response);
     }
 
@@ -513,61 +513,44 @@ pub async fn workspace_context(
         workspace_id = %workspace_id,
         user_id = %user_id,
     );
-    let response = scope_request(
+    scope_request(
         &state,
         &principal,
         &ws_ctx,
         workspace_id,
         next.run(req).instrument(span),
     )
-    .await;
-
-    Ok(response)
+    .await
 }
 
 /// Scope a request future under every per-request task-local the
 /// downstream stack reads: PG RLS, graph isolation, ACL snapshot,
-/// and the rewriter principal. The ACL snapshot is loaded once per
-/// request — every Cypher path inside the handler (chat agent
-/// tools, MCP tools, saved reports, raw queries, federation) shares
-/// the same view.
+/// and the rewriter principal.
+///
+/// **Fail-closed.** A failure to load the ACL snapshot rejects the
+/// request rather than proceeding with empty policies. A transient
+/// DB hiccup surfaces as a 503 the operator can retry; an
+/// authentication-store outage never produces silently-unauthorised
+/// query traffic.
 async fn scope_request<F, R>(
     state: &AppState,
     principal: &crate::principal::Principal,
     ws: &crate::workspace::WorkspaceContext,
     workspace_id: Uuid,
     fut: F,
-) -> R
+) -> Result<R, AppError>
 where
     F: std::future::Future<Output = R>,
 {
     use ox_runtime::{GRAPH_ACL_SNAPSHOT, GRAPH_PRINCIPAL, GRAPH_WORKSPACE_ID};
-    use ox_runtime::cypher::AclSnapshot;
     use ox_store::WORKSPACE_ID;
-    use std::sync::Arc;
 
-    // Snapshot is per-request: one DB round-trip up-front, every
-    // downstream Cypher path reads the cached value via task-local.
-    let snapshot = match crate::acl_enforcement::load_acl_snapshot(
-        state.store.as_ref(),
-        principal,
-        ws,
-    )
-    .await
-    {
-        Ok(s) => s,
-        Err(e) => {
-            tracing::warn!(
-                error = ?e,
-                workspace_id = %workspace_id,
-                "ACL snapshot load failed; request continues without policies",
-            );
-            Arc::new(AclSnapshot::empty())
-        }
-    };
+    let snapshot =
+        crate::acl_enforcement::load_acl_snapshot(state.store.as_ref(), principal, ws)
+            .await?;
     let request_principal = crate::acl_enforcement::request_principal(principal, ws);
 
-    WORKSPACE_ID
+    let response = WORKSPACE_ID
         .scope(
             workspace_id,
             GRAPH_WORKSPACE_ID.scope(workspace_id, async move {
@@ -580,5 +563,6 @@ where
                 with_snapshot.await
             }),
         )
-        .await
+        .await;
+    Ok(response)
 }

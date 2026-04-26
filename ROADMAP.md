@@ -49,6 +49,16 @@ lineage naming, ArcSwap live-refresh, parse-once pipeline, JSONB
   `redact_value` / `redact_column_stats` apply deterministic shape-
   preserving redaction (email keeps the local prefix + TLD, numeric-
   tail kinds keep the trailing 4, secrets become `<redacted>`).
+- **Temporal queries.** `ox-compiler::temporal::rewrite_temporal` +
+  `rewrite_temporal_with_renames` apply at QueryIR compile time:
+  the snapshot's window is enforced (queries before the lineage's
+  start or after its end are rejected), and label renames inside
+  the snapshot are projected onto the IR's `MatchOp` labels so a
+  query authored against today's labels still resolves against the
+  pinned schema. The Cypher pipeline carries an empty
+  `RewritePhase::Temporal=400` slot for the raw-Cypher path; the
+  current QueryIR-compiled path covers every temporal use case
+  shipping today.
 - **Data-source layer.** `DataSourceAdapter` exposes five atomic
   primitives (`list_tables`, `describe_table`, `count_rows`,
   `sample_column`, `list_foreign_keys`). `IntrospectionKernel` owns
@@ -84,20 +94,13 @@ lineage naming, ArcSwap live-refresh, parse-once pipeline, JSONB
 
 ### Cypher pipelines
 
-- **Temporal / as-of queries.** The Cypher rewriter pipeline already
-  sorts a `RewritePhase::Temporal=400` slot above `SoftDelete`; the
-  matching `TemporalRewriter` lands when the PatternIR surface
-  exposes the as-of pivot via a side panel.
-- **DataFusion-side ACL pre-execute.** Federation paths still
-  post-process `enforce_acl_on_result`. A pre-execute hook on the
-  DataFusion plan that mirrors the Cypher rewriter shape would let
-  the federation path drop the post-process in favour of a single
-  consistent enforcement surface.
-- **Warnings / info surface.** `ValidationReport` already carries
-  `Warning` / `Info` levels, but `run_pre_execute` currently drops
-  non-error issues. Once a request-scoped progress channel reaches the
-  runtime, validators can emit lower-severity diagnostics for UI
-  tooltips without blocking execution.
+- **DataFusion-side ACL pre-execute.** Federation paths apply ACL
+  via post-process (`enforce_acl_on_result`) on the materialised
+  Arrow batches. A DataFusion `LogicalPlan` visitor that prunes
+  denied scans + projects masked columns at plan time is the
+  natural single-surface story, but it only becomes worth the cost
+  once federation traffic has measurable throughput pressure or
+  policies grow row-filter shapes the post-process can't express.
 
 ### Adapter layer
 
