@@ -45,11 +45,36 @@ const NAV_GROUPS: NavGroup[] = [
       { labelKey: "schedules", href: "/settings/schedules", adminOnly: true },
       { labelKey: "knowledge", href: "/settings/knowledge", adminOnly: true },
       { labelKey: "federation", href: "/settings/federation", adminOnly: true },
+    ],
+  },
+  {
+    // Φ4 — vocabulary admin surfaces. Glossary CRUD is the
+    // canonical pattern; the four sibling pages (code systems,
+    // value sets, concept maps, rules) share the
+    // `<VocabularyListPage>` scaffold and currently expose
+    // list + delete only. Bindings stays under this group as a
+    // sibling rather than a sub-page so the operator finds the
+    // post-pass binding tool next to the term editor it feeds.
+    titleKey: "vocabulary",
+    items: [
+      { labelKey: "glossary", href: "/settings/glossary", adminOnly: true },
       {
         labelKey: "glossaryBindings",
         href: "/settings/glossary/bindings",
         adminOnly: true,
       },
+      {
+        labelKey: "codeSystems",
+        href: "/settings/codesystems",
+        adminOnly: true,
+      },
+      { labelKey: "valueSets", href: "/settings/valuesets", adminOnly: true },
+      {
+        labelKey: "conceptMaps",
+        href: "/settings/conceptmaps",
+        adminOnly: true,
+      },
+      { labelKey: "rules", href: "/settings/rules", adminOnly: true },
     ],
   },
   {

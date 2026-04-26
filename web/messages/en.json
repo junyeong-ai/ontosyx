@@ -789,7 +789,13 @@
         "prompts": "Prompts",
         "sessions": "Sessions",
         "federation": "Federation Adapters",
-        "glossaryBindings": "Glossary Bindings"
+        "glossaryBindings": "Glossary Bindings",
+        "vocabulary": "Vocabulary",
+        "glossary": "Glossary",
+        "codeSystems": "Code Systems",
+        "valueSets": "Value Sets",
+        "conceptMaps": "Concept Maps",
+        "rules": "Rules"
       }
     },
     "roles": {
