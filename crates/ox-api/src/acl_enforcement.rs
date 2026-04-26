@@ -1,69 +1,146 @@
-use std::collections::{HashMap, HashSet};
+//! ACL enforcement bridge — load policies from the store, scope
+//! them into the runtime task-local the Cypher pipeline reads, and
+//! apply them post-hoc on the federation path (which executes a
+//! DataFusion `LogicalPlan` and therefore never reaches the Cypher
+//! rewriter).
 
-use ox_ontology::graph_exploration::{NodeExpansion, SearchResultNode};
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+
 use ox_query_ir::query::QueryResult;
 use ox_core::types::PropertyValue;
-use ox_store::AclPolicy;
+use ox_runtime::cypher::{
+    AclAction, AclPolicySpec, AclSnapshot, RequestPrincipal,
+};
+use ox_store::{AclPolicy, AclStore};
 
-/// Apply ACL policies to query results by masking or removing restricted properties.
-/// This is the enforcement layer — policies are fetched from AclStore,
-/// then applied to result columns/rows before returning to the client.
-pub fn apply_acl_policies(result: &mut QueryResult, policies: &[AclPolicy]) {
-    if policies.is_empty() {
-        return;
-    }
+use crate::error::AppError;
+use crate::principal::Principal;
+use crate::workspace::WorkspaceContext;
 
-    // Build deny and mask sets from policies
-    // deny: (property_name) -> completely remove from results
-    // mask: (property_name) -> replace value with mask_pattern
-    let mut deny_columns: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let mut mask_columns: std::collections::HashMap<String, String> =
-        std::collections::HashMap::new();
+/// Look up the effective ACL policies for `principal` in the
+/// current workspace and project them onto the rewriter-internal
+/// [`AclSnapshot`] shape. The snapshot is sorted priority-desc by
+/// the underlying store query.
+pub async fn load_acl_snapshot(
+    store: &dyn AclStore,
+    principal: &Principal,
+    ws: &WorkspaceContext,
+) -> Result<Arc<AclSnapshot>, AppError> {
+    let user_id = principal.user_uuid().ok();
+    let policies = store
+        .get_effective_policies(
+            principal.role.as_str(),
+            ws.workspace_role.as_str(),
+            user_id,
+        )
+        .await
+        .map_err(AppError::from)?;
+    Ok(Arc::new(snapshot_from_policies(&policies)))
+}
 
+/// Build a [`RequestPrincipal`] from the HTTP-layer
+/// [`Principal`] + [`WorkspaceContext`] for runtime task-local
+/// scoping.
+pub fn request_principal(principal: &Principal, ws: &WorkspaceContext) -> Option<RequestPrincipal> {
+    let id = principal.user_uuid().ok()?;
+    Some(RequestPrincipal::new(id, ws.workspace_role.as_str()))
+}
+
+fn snapshot_from_policies(policies: &[AclPolicy]) -> AclSnapshot {
+    let mut specs = Vec::with_capacity(policies.len());
     for policy in policies {
-        let props = match &policy.properties {
-            Some(p) => p.clone(),
-            None => continue, // No specific properties = no enforcement needed
+        if !policy.is_active {
+            continue;
+        }
+        let Some(action) = AclAction::from_db_string(policy.action.as_str()) else {
+            continue;
         };
+        specs.push(AclPolicySpec {
+            action,
+            resource_type: policy.resource_type.clone(),
+            resource_value: policy.resource_value.clone(),
+            properties: policy.properties.clone(),
+            mask_pattern: policy.mask_pattern.clone(),
+            priority: policy.priority,
+        });
+    }
+    AclSnapshot { policies: specs }
+}
 
-        match policy.action.as_str() {
-            "deny" => {
-                for prop in props {
-                    deny_columns.insert(prop);
+/// Scope the ACL snapshot + principal into the runtime task-locals
+/// the Cypher pipeline reads, then await `fut`. Loads the snapshot
+/// up-front so every Cypher-execution path gets the same wiring.
+pub async fn with_acl_scope<F, T>(
+    store: &dyn AclStore,
+    principal: &Principal,
+    ws: &WorkspaceContext,
+    fut: F,
+) -> Result<T, AppError>
+where
+    F: std::future::Future<Output = T>,
+{
+    use ox_runtime::{GRAPH_ACL_SNAPSHOT, GRAPH_PRINCIPAL};
+
+    let snapshot = load_acl_snapshot(store, principal, ws).await?;
+    let request_principal = request_principal(principal, ws);
+
+    let inner = async move {
+        if let Some(p) = request_principal {
+            GRAPH_PRINCIPAL
+                .scope(p, GRAPH_ACL_SNAPSHOT.scope(snapshot, fut))
+                .await
+        } else {
+            GRAPH_ACL_SNAPSHOT.scope(snapshot, fut).await
+        }
+    };
+    Ok(inner.await)
+}
+
+/// Apply an [`AclSnapshot`] to a materialised [`QueryResult`].
+/// Used on the federation path: DataFusion executes a `LogicalPlan`
+/// outside the Cypher pipeline, so the rewriter never sees it. Once
+/// the federation path grows its own pre-execute pass we delete this.
+pub fn enforce_acl_on_result(result: &mut QueryResult, snapshot: &AclSnapshot) {
+    let mut deny: HashSet<&str> = HashSet::new();
+    let mut mask: HashMap<&str, &str> = HashMap::new();
+    for spec in &snapshot.policies {
+        let Some(props) = &spec.properties else {
+            continue;
+        };
+        match spec.action {
+            AclAction::Deny => {
+                for p in props {
+                    deny.insert(p.as_str());
                 }
             }
-            "mask" => {
-                let pattern = policy
+            AclAction::Mask => {
+                let pattern = spec
                     .mask_pattern
-                    .clone()
-                    .unwrap_or_else(|| "***".to_string());
-                for prop in props {
-                    if !deny_columns.contains(&prop) {
-                        mask_columns.insert(prop, pattern.clone());
+                    .as_deref()
+                    .unwrap_or("***");
+                for p in props {
+                    if !deny.contains(p.as_str()) {
+                        mask.insert(p.as_str(), pattern);
                     }
                 }
             }
-            _ => {} // "allow" = no action needed
         }
     }
-
-    if deny_columns.is_empty() && mask_columns.is_empty() {
+    if deny.is_empty() && mask.is_empty() {
         return;
     }
 
-    // Find column indices to deny (remove) or mask
     let mut deny_indices: Vec<usize> = Vec::new();
     let mut mask_indices: Vec<(usize, String)> = Vec::new();
-
-    for (i, col) in result.columns.iter().enumerate() {
-        if deny_columns.contains(col) {
-            deny_indices.push(i);
-        } else if let Some(pattern) = mask_columns.get(col) {
-            mask_indices.push((i, pattern.clone()));
+    for (idx, col) in result.columns.iter().enumerate() {
+        if deny.contains(col.as_str()) {
+            deny_indices.push(idx);
+        } else if let Some(pattern) = mask.get(col.as_str()) {
+            mask_indices.push((idx, (*pattern).to_string()));
         }
     }
 
-    // Apply masks first (replace values)
     for row in &mut result.rows {
         for (idx, pattern) in &mask_indices {
             if let Some(cell) = row.get_mut(*idx) {
@@ -72,7 +149,6 @@ pub fn apply_acl_policies(result: &mut QueryResult, policies: &[AclPolicy]) {
         }
     }
 
-    // Remove denied columns (reverse order to preserve indices)
     if !deny_indices.is_empty() {
         deny_indices.sort_unstable();
         deny_indices.reverse();
@@ -84,93 +160,5 @@ pub fn apply_acl_policies(result: &mut QueryResult, policies: &[AclPolicy]) {
                 }
             }
         }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// ACL enforcement for graph exploration types (SearchResultNode, NodeExpansion)
-// ---------------------------------------------------------------------------
-
-/// Build deny/mask sets from ACL policies. Returns (deny_set, mask_map).
-fn build_property_rules(policies: &[AclPolicy]) -> (HashSet<String>, HashMap<String, String>) {
-    let mut deny: HashSet<String> = HashSet::new();
-    let mut mask: HashMap<String, String> = HashMap::new();
-
-    for policy in policies {
-        let props = match &policy.properties {
-            Some(p) => p.clone(),
-            None => continue,
-        };
-
-        match policy.action.as_str() {
-            "deny" => {
-                for prop in props {
-                    deny.insert(prop);
-                }
-            }
-            "mask" => {
-                let pattern = policy
-                    .mask_pattern
-                    .clone()
-                    .unwrap_or_else(|| "***".to_string());
-                for prop in props {
-                    if !deny.contains(&prop) {
-                        mask.insert(prop, pattern.clone());
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-
-    (deny, mask)
-}
-
-/// Apply ACL deny/mask rules to a property map (used by graph exploration types).
-fn enforce_on_props(
-    props: &mut HashMap<String, serde_json::Value>,
-    deny: &HashSet<String>,
-    mask: &HashMap<String, String>,
-) {
-    // Remove denied properties
-    props.retain(|key, _| !deny.contains(key));
-
-    // Mask remaining properties
-    for (key, pattern) in mask {
-        if let Some(val) = props.get_mut(key) {
-            *val = serde_json::Value::String(pattern.clone());
-        }
-    }
-}
-
-/// Apply ACL policies to search result nodes by masking or removing restricted properties.
-pub fn apply_acl_to_search_results(results: &mut [SearchResultNode], policies: &[AclPolicy]) {
-    if policies.is_empty() {
-        return;
-    }
-
-    let (deny, mask) = build_property_rules(policies);
-    if deny.is_empty() && mask.is_empty() {
-        return;
-    }
-
-    for node in results.iter_mut() {
-        enforce_on_props(&mut node.props, &deny, &mask);
-    }
-}
-
-/// Apply ACL policies to a node expansion by masking or removing restricted properties.
-pub fn apply_acl_to_node_expansion(expansion: &mut NodeExpansion, policies: &[AclPolicy]) {
-    if policies.is_empty() {
-        return;
-    }
-
-    let (deny, mask) = build_property_rules(policies);
-    if deny.is_empty() && mask.is_empty() {
-        return;
-    }
-
-    for neighbor in expansion.neighbors.iter_mut() {
-        enforce_on_props(&mut neighbor.props, &deny, &mask);
     }
 }

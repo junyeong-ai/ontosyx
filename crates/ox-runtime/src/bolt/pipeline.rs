@@ -51,11 +51,14 @@ use ox_ontology::ir::OntologyIR;
 use ox_core::types::PropertyValue;
 
 use crate::cypher::{
-    ComplexityValidator, CypherAst, CypherValidatorPipeline, OntologyValidator, SafetyValidator,
-    SemanticGuardValidator, ShaclValidator, ValidateContext, ValidationReport, parse,
+    AclRewriter, ComplexityValidator, CypherAst, CypherRewriterPipeline, CypherValidatorPipeline,
+    OntologyValidator, RewriteContext, SafetyValidator, SemanticGuardValidator, ShaclValidator,
+    SoftDeleteRewriter, ValidateContext, ValidationReport, parse,
 };
 use crate::isolation::{GraphIsolationStrategy, ScopedAst};
-use crate::{GRAPH_ONTOLOGY, GRAPH_SYSTEM_BYPASS, GRAPH_WORKSPACE_ID};
+use crate::{
+    GRAPH_ACL_SNAPSHOT, GRAPH_ONTOLOGY, GRAPH_PRINCIPAL, GRAPH_SYSTEM_BYPASS, GRAPH_WORKSPACE_ID,
+};
 
 /// Run the full pre-execute pipeline for a Cypher statement.
 ///
@@ -162,6 +165,38 @@ pub(crate) fn run_pre_execute(
             },
             params.clone(),
         )
+    };
+
+    // --- Step 2b: ACL + SoftDelete rewriters -----------------------------
+    //
+    // Run after workspace scoping so they see the scoped AST. Phase
+    // ordering keeps Acl=200 before SoftDelete=300; the rewriter
+    // pipeline sorts by phase regardless of registration order.
+    let principal = GRAPH_PRINCIPAL.try_with(Clone::clone).ok();
+    let acl_snapshot = GRAPH_ACL_SNAPSHOT.try_with(Arc::clone).ok();
+
+    let mut ctx = RewriteContext::new(ws_id_str)
+        .with_skip_soft_delete(system_bypass);
+    if let Some(p) = principal {
+        ctx = ctx.with_principal(p);
+    }
+    if let Some(snapshot) = acl_snapshot {
+        ctx = ctx.with_acl_snapshot(snapshot);
+    }
+
+    let post_isolation = CypherRewriterPipeline::new()
+        .with(AclRewriter::new())
+        .with(SoftDeleteRewriter::new());
+    let scoped_ast = post_isolation
+        .run_ast(scoped.ast, &ctx)
+        .map_err(|e| OxError::Validation {
+            field: "cypher_query".to_string(),
+            message: format!("Query validation failed:\n  [rewrite] {e}"),
+        })?;
+    let scoped = ScopedAst {
+        ast: scoped_ast.ast,
+        params: scoped.params,
+        modified_statements: scoped.modified_statements,
     };
 
     // --- Step 3: post-rewrite scope check --------------------------------

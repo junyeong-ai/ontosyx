@@ -48,6 +48,17 @@ tokio::task_local! {
     pub static GRAPH_SYSTEM_BYPASS: bool;
     /// Active ontology snapshot for the OntologyValidator pre-execute gate.
     pub static GRAPH_ONTOLOGY: Arc<OntologyIR>;
+    /// Authenticated principal driving the current request. Drives the
+    /// `AclRewriter` Deny / Mask passes plus future ABAC predicates.
+    /// Absence skips the ACL pass entirely — system-task callers
+    /// (`spawn_system`, retention compaction) leave it unset and run
+    /// under [`GRAPH_SYSTEM_BYPASS`] instead.
+    pub static GRAPH_PRINCIPAL: cypher::RequestPrincipal;
+    /// Pre-loaded ACL policy snapshot for the current principal in
+    /// the current workspace, sorted priority-desc. Loaded once per
+    /// request by the API layer and threaded through every Cypher
+    /// pass via `RewriteContext`.
+    pub static GRAPH_ACL_SNAPSHOT: Arc<cypher::AclSnapshot>;
 }
 use ox_ontology::graph_exploration::{GraphSchemaOverview, NodeExpansion, SearchResultNode};
 use ox_query_ir::query::QueryResult;

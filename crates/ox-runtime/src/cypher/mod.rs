@@ -29,6 +29,7 @@ pub mod acl_rewriter;
 pub mod ast;
 pub mod diagnostics;
 pub mod parse;
+pub mod principal;
 pub mod rewrite;
 pub(crate) mod rewrite_helpers;
 pub mod shacl_validator;
@@ -37,6 +38,7 @@ pub mod token;
 pub mod validate;
 
 pub use acl_rewriter::{AclAction, AclPolicySpec, AclRewriter, AclSnapshot};
+pub use principal::RequestPrincipal;
 pub use ast::{
     ClauseKind, CypherAst, CypherClause, CypherPattern, CypherPatternElement, CypherStatement,
     NodePattern, RelDirection, RelationshipPattern, UnionKind,

@@ -98,31 +98,15 @@ impl std::error::Error for RewriteError {}
 
 /// Per-request context passed to every rewriter.
 ///
-/// Originally minimal (workspace id only) — extended at Phase 5 with
-/// ACL fields so [`crate::cypher::acl_rewriter::AclRewriter`] can run
-/// pre-filtered, principal-scoped policies without each rewriter
-/// receiving its own loader. The snapshot is loaded once per request
-/// by the runtime entry point and threaded through unchanged for
-/// every pass.
-///
-/// Intentionally **not** `Default` — `Default::default()` would
-/// produce an empty `workspace_id` string, and any rewriter that
-/// reads it would silently scope to "no workspace". Construction
-/// goes through [`RewriteContext::new(workspace_id)`] so the
-/// caller has to think about the scope.
+/// Construction goes through [`RewriteContext::new`] so the caller
+/// has to commit to a workspace; optional fields are layered via
+/// `with_*` builders.
 #[derive(Debug, Clone)]
 pub struct RewriteContext {
     pub workspace_id: String,
-    /// UUID of the authenticated principal, if the request carried
-    /// one. `None` means a system-bypass / scheduled-task call;
-    /// rewriters that need a principal should treat `None` as
-    /// "skip this pass" rather than "deny everything".
-    pub principal_id: Option<uuid::Uuid>,
-    /// Workspace role string ("owner" / "admin" / "member" / "viewer").
-    /// Carried as a free-form string to keep the rewriter layer
-    /// independent of the ox-store enum and to leave room for
-    /// platform-role overrides without a context shape change.
-    pub principal_role: Option<String>,
+    /// Authenticated principal driving the request. `None` only on
+    /// system-bypass / scheduled-task paths.
+    pub principal: Option<crate::cypher::principal::RequestPrincipal>,
     /// Pre-loaded ACL policy snapshot for the current principal in
     /// the current workspace, sorted priority-desc. Loaded by the
     /// runtime entry point ahead of pipeline execution; `None`
@@ -142,8 +126,7 @@ impl RewriteContext {
     pub fn new(workspace_id: impl Into<String>) -> Self {
         Self {
             workspace_id: workspace_id.into(),
-            principal_id: None,
-            principal_role: None,
+            principal: None,
             acl_snapshot: None,
             skip_soft_delete: false,
         }
@@ -151,11 +134,9 @@ impl RewriteContext {
 
     pub fn with_principal(
         mut self,
-        principal_id: uuid::Uuid,
-        role: impl Into<String>,
+        principal: crate::cypher::principal::RequestPrincipal,
     ) -> Self {
-        self.principal_id = Some(principal_id);
-        self.principal_role = Some(role.into());
+        self.principal = Some(principal);
         self
     }
 

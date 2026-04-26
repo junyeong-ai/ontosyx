@@ -222,7 +222,7 @@ pub(crate) async fn search_graph(
     let timeout = state.timeouts.raw_query;
     let labels = req.labels.as_deref();
 
-    let mut results =
+    let exec = async {
         tokio::time::timeout(timeout, runtime.search_nodes(&search_term, limit, labels))
             .await
             .map_err(|_| {
@@ -231,20 +231,16 @@ pub(crate) async fn search_graph(
             .map_err(|e| {
                 error!("Graph search failed: {e}");
                 AppError::unprocessable(format!("Search execution failed: {e}"))
-            })?;
+            })
+    };
 
-    // Apply ACL enforcement
-    if let Ok(policies) = state
-        .store
-        .get_effective_policies(
-            principal.role.as_str(),
-            ws.workspace_role.as_str(),
-            principal.user_uuid().ok(),
-        )
-        .await
-    {
-        crate::acl_enforcement::apply_acl_to_search_results(&mut results, &policies);
-    }
+    let results = crate::acl_enforcement::with_acl_scope(
+        state.store.as_ref(),
+        &principal,
+        &ws,
+        exec,
+    )
+    .await??;
 
     Ok(ApiResponse::of(results))
 }
@@ -343,9 +339,18 @@ pub(crate) async fn raw_query(
     let timeout = state.timeouts.raw_query;
     let empty_params: HashMap<String, PropertyValue> = HashMap::new();
     let start = std::time::Instant::now();
-    let exec_fut = runtime.execute_query(&req.query, &empty_params);
-    let results = tokio::time::timeout(timeout, scope_with_ontology(ontology.clone(), exec_fut))
-        .await
+    let exec_fut = async {
+        let inner = runtime.execute_query(&req.query, &empty_params);
+        tokio::time::timeout(timeout, scope_with_ontology(ontology.clone(), inner)).await
+    };
+    let outcome = crate::acl_enforcement::with_acl_scope(
+        state.store.as_ref(),
+        &principal,
+        &ws,
+        exec_fut,
+    )
+    .await?;
+    let mut results = outcome
         .map_err(|_| {
             crate::metrics::record_query("timeout", start.elapsed());
             AppError::timeout(format!(
@@ -359,20 +364,6 @@ pub(crate) async fn raw_query(
             AppError::unprocessable(format!("Query execution failed: {e}"))
         })?;
     crate::metrics::record_query("ok", start.elapsed());
-
-    // Apply ACL enforcement
-    let mut results = results;
-    if let Ok(policies) = state
-        .store
-        .get_effective_policies(
-            principal.role.as_str(),
-            ws.workspace_role.as_str(),
-            principal.user_uuid().ok(),
-        )
-        .await
-    {
-        crate::acl_enforcement::apply_acl_policies(&mut results, &policies);
-    }
 
     // Π-3 provenance — raw path. `type_ids` / `filter_summary` are
     // intentionally empty here: we have no QueryIR to walk, and
@@ -650,9 +641,18 @@ pub(crate) async fn execute_from_ir(
 
     let timeout = state.timeouts.raw_query;
     let start = std::time::Instant::now();
-    let exec_fut = runtime.execute_query(&compiled.statement, &compiled.params);
-    let results = tokio::time::timeout(timeout, scope_with_ontology(ontology.clone(), exec_fut))
-        .await
+    let exec_fut = async {
+        let inner = runtime.execute_query(&compiled.statement, &compiled.params);
+        tokio::time::timeout(timeout, scope_with_ontology(ontology.clone(), inner)).await
+    };
+    let outcome = crate::acl_enforcement::with_acl_scope(
+        state.store.as_ref(),
+        &principal,
+        &ws,
+        exec_fut,
+    )
+    .await?;
+    let mut results = outcome
         .map_err(|_| {
             crate::metrics::record_query("timeout", start.elapsed());
             AppError::timeout(format!(
@@ -681,20 +681,6 @@ pub(crate) async fn execute_from_ir(
     } else {
         None
     };
-
-    // Apply ACL enforcement
-    let mut results = results;
-    if let Ok(policies) = state
-        .store
-        .get_effective_policies(
-            principal.role.as_str(),
-            ws.workspace_role.as_str(),
-            principal.user_uuid().ok(),
-        )
-        .await
-    {
-        crate::acl_enforcement::apply_acl_policies(&mut results, &policies);
-    }
 
     // Advisory diagnostics: strict revalidation of the compiled Cypher.
     // Non-blocking — the runtime already let the query through via the
@@ -882,19 +868,16 @@ pub(crate) async fn execute_from_ir_federation(
     let mut results = crate::arrow_conversion::record_batches_to_query_result(&batches, elapsed_ms)
         .map_err(AppError::unprocessable)?;
 
-    // ACL enforcement — same call as the Cypher path. Works on the
-    // materialised QueryResult regardless of upstream execution engine.
-    if let Ok(policies) = state
-        .store
-        .get_effective_policies(
-            principal.role.as_str(),
-            ws.workspace_role.as_str(),
-            principal.user_uuid().ok(),
-        )
-        .await
-    {
-        crate::acl_enforcement::apply_acl_policies(&mut results, &policies);
-    }
+    // ACL enforcement on the federation path — DataFusion executes
+    // outside the Cypher pipeline, so the rewriter never sees the
+    // plan. Apply the snapshot post-hoc to the materialised result.
+    let acl_snapshot = crate::acl_enforcement::load_acl_snapshot(
+        state.store.as_ref(),
+        &principal,
+        &ws,
+    )
+    .await?;
+    crate::acl_enforcement::enforce_acl_on_result(&mut results, &acl_snapshot);
 
     // Advisory diagnostics: the federation path executes a DataFusion
     // LogicalPlan, not Cypher, so the Cypher-specific validators
@@ -1366,26 +1349,23 @@ pub(crate) async fn expand_node(
     let runtime = state.runtime.as_ref().ok_or_else(AppError::no_runtime)?;
     let timeout = state.timeouts.raw_query;
 
-    let mut expansion = tokio::time::timeout(timeout, runtime.expand_node(&req.element_id, limit))
-        .await
-        .map_err(|_| AppError::timeout("Expand timed out".to_string()))?
-        .map_err(|e| {
-            error!("Expand failed: {e}");
-            AppError::unprocessable(format!("Expand failed: {e}"))
-        })?;
+    let exec = async {
+        tokio::time::timeout(timeout, runtime.expand_node(&req.element_id, limit))
+            .await
+            .map_err(|_| AppError::timeout("Expand timed out".to_string()))?
+            .map_err(|e| {
+                error!("Expand failed: {e}");
+                AppError::unprocessable(format!("Expand failed: {e}"))
+            })
+    };
 
-    // Apply ACL enforcement
-    if let Ok(policies) = state
-        .store
-        .get_effective_policies(
-            principal.role.as_str(),
-            ws.workspace_role.as_str(),
-            principal.user_uuid().ok(),
-        )
-        .await
-    {
-        crate::acl_enforcement::apply_acl_to_node_expansion(&mut expansion, &policies);
-    }
+    let expansion = crate::acl_enforcement::with_acl_scope(
+        state.store.as_ref(),
+        &principal,
+        &ws,
+        exec,
+    )
+    .await??;
 
     Ok(ApiResponse::of(expansion))
 }
