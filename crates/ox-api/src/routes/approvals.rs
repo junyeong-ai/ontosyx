@@ -20,8 +20,10 @@ use crate::workspace::WorkspaceContext;
 #[derive(Deserialize)]
 pub struct ReviewRequest {
     pub approved: bool,
+    /// Reviewer rationale recorded as the first comment on the
+    /// approval thread when non-empty after trimming.
     #[serde(default)]
-    pub notes: Option<String>,
+    pub note: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -82,19 +84,12 @@ pub(crate) async fn review_approval(
     Path(id): Path<Uuid>,
     Json(req): Json<ReviewRequest>,
 ) -> Result<(StatusCode, Json<ApiResponse<ReviewResponse>>), AppError> {
-    // Only workspace admins can review approvals
     ws.require_admin()?;
-
     let reviewer_id = principal.user_uuid()?;
 
-    // Store-level: row update and thread-comment mirror are one
-    // transaction — both writes land or both roll back. The handler
-    // no longer issues a second `create_approval_comment` call; that
-    // was the pre-transaction shape and could leave the visible
-    // thread missing the rationale even though the decision landed.
     state
         .store
-        .review_approval(id, reviewer_id, req.approved, req.notes.as_deref())
+        .review_approval(id, reviewer_id, req.approved, req.note.as_deref())
         .await
         .map_err(AppError::from)?;
 

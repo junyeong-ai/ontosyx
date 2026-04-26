@@ -608,7 +608,6 @@ CREATE TABLE approval_requests (
     payload jsonb DEFAULT '{}' NOT NULL,
     status text DEFAULT 'pending' NOT NULL,
     reviewer_id uuid,
-    review_notes text,
     reviewed_at TIMESTAMPTZ,
     expires_at TIMESTAMPTZ DEFAULT (now() + '7 days'::interval) NOT NULL,
     created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
@@ -617,10 +616,9 @@ CREATE TABLE approval_requests (
 );
 ALTER TABLE ONLY approval_requests FORCE ROW LEVEL SECURITY;
 
--- Per-approval comment thread. Each row is one author's note attached
--- to an approval; the reviewer's `review_notes` rationale on /review
--- gets persisted here as a comment so the thread carries the decision
--- alongside any pre/post-decision discussion.
+-- Comment thread attached to an approval. The decision-time rationale
+-- the reviewer types on /review lands here as the first entry; any
+-- pre- or post-decision discussion follows in the same thread.
 CREATE TABLE approval_comments (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     workspace_id uuid DEFAULT (current_setting('app.workspace_id', true))::uuid NOT NULL,

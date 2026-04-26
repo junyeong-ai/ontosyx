@@ -32,6 +32,7 @@ const sample = (overrides: Partial<approvalsApi.ApprovalComment> = {}): approval
   workspace_id: "00000000-0000-0000-0000-000000000001",
   approval_id: "appr-1",
   author_id: "abcdef0123456789",
+  author_name: "Alice",
   body: "Looks fine",
   created_at: "2026-04-26T10:00:00Z",
   ...overrides,
@@ -109,6 +110,31 @@ describe("CommentThread", () => {
     });
     expect(screen.queryByPlaceholderText(/add a comment/i)).toBeNull();
     expect(screen.queryByRole("button", { name: /post comment/i })).toBeNull();
+  });
+
+  it("falls back to the unknown-author label when author_name is null", async () => {
+    vi.spyOn(approvalsApi, "listApprovalComments").mockResolvedValue([
+      sample({ author_name: null, body: "Anonymous" }),
+    ]);
+
+    renderWithProviders(<CommentThread approvalId="appr-1" readOnly />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Anonymous")).toBeDefined();
+    });
+    expect(screen.getByText(/unknown user/i)).toBeDefined();
+  });
+
+  it("renders the resolved author name when present", async () => {
+    vi.spyOn(approvalsApi, "listApprovalComments").mockResolvedValue([
+      sample({ author_name: "Alice", body: "Looks fine" }),
+    ]);
+
+    renderWithProviders(<CommentThread approvalId="appr-1" readOnly />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Alice")).toBeDefined();
+    });
   });
 
   it("disables the post button while body is empty whitespace", async () => {

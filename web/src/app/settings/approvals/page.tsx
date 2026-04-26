@@ -11,6 +11,7 @@ import { CommentThread } from "@/components/settings/approvals/comment-thread";
 interface ApprovalRequest {
   id: string;
   requester_id: string;
+  requester_name: string | null;
   action_type: string;
   resource_type: string;
   resource_id: string;
@@ -20,7 +21,8 @@ interface ApprovalRequest {
   payload: unknown;
   status: string;
   reviewer_id: string | null;
-  review_notes: string | null;
+  reviewer_name: string | null;
+  reviewed_at: string | null;
   expires_at: string;
   created_at: string;
 }
@@ -36,8 +38,9 @@ export default function ApprovalsSettingsPage() {
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
-  // Per-row reviewer note. Keyed on approval id so a partly-typed
-  // note survives a row-toggle. Cleared on successful review.
+  // Per-row decision-time rationale. Keyed on approval id so a
+  // partly-typed note survives a row-toggle. Cleared on successful
+  // review.
   const [notes, setNotes] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
@@ -60,10 +63,9 @@ export default function ApprovalsSettingsPage() {
         method: "POST",
         body: JSON.stringify({
           approved,
-          notes: note ? note : null,
+          note: note ? note : null,
         }),
       });
-      // Clear the note now that it landed on the row.
       setNotes((prev) => {
         const next = { ...prev };
         delete next[id];

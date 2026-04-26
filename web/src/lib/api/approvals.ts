@@ -1,8 +1,4 @@
-// API client for approval comment threads — Φ6 #2 proper.
-//
-// The single-textarea reviewer-note (the interim Φ6 #2 in 71bcff9)
-// stayed wired but is now mirrored into this thread on /review so
-// pre-/post-decision discussion lives alongside the rationale.
+// API client for the approval comment thread.
 
 import { request } from "./client";
 
@@ -11,6 +7,9 @@ export interface ApprovalComment {
   workspace_id: string;
   approval_id: string;
   author_id: string;
+  /** Display name resolved server-side from `users.name`. NULL for
+   *  records whose author has been deleted from the workspace. */
+  author_name: string | null;
   body: string;
   created_at: string;
 }

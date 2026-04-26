@@ -2,6 +2,30 @@
 
 use super::*;
 
+/// Shared SELECT body that joins `users` twice for the requester and
+/// reviewer display names. Every read path uses the same projection
+/// so the response shape is identical regardless of entry point.
+const SELECT_APPROVAL: &str = "
+    SELECT
+        a.id,
+        a.workspace_id,
+        a.requester_id,
+        ru.name           AS requester_name,
+        a.action_type,
+        a.resource_type,
+        a.resource_id,
+        a.payload,
+        a.status,
+        a.reviewer_id,
+        rv.name           AS reviewer_name,
+        a.reviewed_at,
+        a.expires_at,
+        a.created_at
+    FROM approval_requests a
+    LEFT JOIN users ru ON ru.id = a.requester_id
+    LEFT JOIN users rv ON rv.id = a.reviewer_id
+";
+
 #[async_trait]
 impl ApprovalStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
@@ -13,11 +37,11 @@ impl ApprovalStore for PostgresStore {
         resource_id: &str,
         payload: serde_json::Value,
     ) -> OxResult<ApprovalRequest> {
-        sqlx::query_as(
+        let inserted_id: (Uuid,) = sqlx::query_as(
             "INSERT INTO approval_requests
              (requester_id, action_type, resource_type, resource_id, payload)
              VALUES ($1, $2, $3, $4, $5)
-             RETURNING *",
+             RETURNING id",
         )
         .bind(requester_id)
         .bind(action_type)
@@ -26,12 +50,18 @@ impl ApprovalStore for PostgresStore {
         .bind(&payload)
         .fetch_one(&self.pool)
         .await
-        .map_err(to_ox_error)
+        .map_err(to_ox_error)?;
+
+        sqlx::query_as(&format!("{SELECT_APPROVAL} WHERE a.id = $1"))
+            .bind(inserted_id.0)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(to_ox_error)
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn get_approval_request(&self, id: Uuid) -> OxResult<Option<ApprovalRequest>> {
-        sqlx::query_as("SELECT * FROM approval_requests WHERE id = $1")
+        sqlx::query_as(&format!("{SELECT_APPROVAL} WHERE a.id = $1"))
             .bind(id)
             .fetch_optional(&self.pool)
             .await
@@ -40,11 +70,11 @@ impl ApprovalStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn list_pending_approvals(&self, workspace_id: Uuid) -> OxResult<Vec<ApprovalRequest>> {
-        sqlx::query_as(
-            "SELECT * FROM approval_requests
-             WHERE workspace_id = $1 AND status = 'pending' AND expires_at > NOW()
-             ORDER BY created_at DESC",
-        )
+        sqlx::query_as(&format!(
+            "{SELECT_APPROVAL}
+             WHERE a.workspace_id = $1 AND a.status = 'pending' AND a.expires_at > NOW()
+             ORDER BY a.created_at DESC"
+        ))
         .bind(workspace_id)
         .fetch_all(&self.pool)
         .await
@@ -57,46 +87,49 @@ impl ApprovalStore for PostgresStore {
         id: Uuid,
         reviewer_id: Uuid,
         approved: bool,
-        notes: Option<&str>,
+        note: Option<&str>,
     ) -> OxResult<Option<ApprovalComment>> {
-        // Atomic: the review row update and the thread-comment mirror
-        // either both land or both roll back. Splitting these into two
-        // pool calls would let the decision land while the rationale
-        // disappears from the visible thread (the FE doesn't surface the
-        // legacy `review_notes` column directly), creating a divergence
-        // between what `review_notes` records and what the thread shows.
-        let trimmed_note = notes.map(str::trim).filter(|s| !s.is_empty());
+        // Atomic: the row update and the first-comment insert either
+        // both land or both roll back. The reviewer's rationale lives
+        // in the thread alone — the row carries the decision metadata
+        // (status, reviewer, timestamp) and nothing else.
+        let trimmed = note.map(str::trim).filter(|s| !s.is_empty());
 
         let mut tx = self.pool.begin().await.map_err(to_ox_error)?;
 
         let status = if approved { "approved" } else { "rejected" };
         let result = sqlx::query(
             "UPDATE approval_requests
-             SET status = $1, reviewer_id = $2, review_notes = $3, reviewed_at = NOW()
-             WHERE id = $4 AND status = 'pending'",
+             SET status = $1, reviewer_id = $2, reviewed_at = NOW()
+             WHERE id = $3 AND status = 'pending'",
         )
         .bind(status)
         .bind(reviewer_id)
-        .bind(trimmed_note)
         .bind(id)
         .execute(&mut *tx)
         .await
         .map_err(to_ox_error)?;
 
         if result.rows_affected() == 0 {
-            // Roll back implicitly when `tx` drops without commit —
-            // explicit rollback would just race the drop guard.
             return Err(OxError::NotFound {
                 entity: format!("pending approval request {id}"),
             });
         }
 
-        let mirrored = match trimmed_note {
+        let comment = match trimmed {
             Some(body) => Some(
                 sqlx::query_as::<_, ApprovalComment>(
-                    "INSERT INTO approval_comments (approval_id, author_id, body)
-                     VALUES ($1, $2, $3)
-                     RETURNING *",
+                    "WITH inserted AS (
+                         INSERT INTO approval_comments (approval_id, author_id, body)
+                         VALUES ($1, $2, $3)
+                         RETURNING *
+                     )
+                     SELECT
+                         i.id, i.workspace_id, i.approval_id, i.author_id,
+                         u.name AS author_name,
+                         i.body, i.created_at
+                     FROM inserted i
+                     LEFT JOIN users u ON u.id = i.author_id",
                 )
                 .bind(id)
                 .bind(reviewer_id)
@@ -109,7 +142,7 @@ impl ApprovalStore for PostgresStore {
         };
 
         tx.commit().await.map_err(to_ox_error)?;
-        Ok(mirrored)
+        Ok(comment)
     }
 
     #[tracing::instrument(level = "debug", skip_all)]

@@ -1,15 +1,8 @@
 "use client";
 
-// Φ6 #2 proper — comment thread on an approval.
-//
-// Shown on the expanded panel of pending rows (alongside the
-// reviewer-note textarea) and under resolved rows so a reader can
-// audit the rationale + any follow-up discussion. The legacy
-// `review_notes` column on the parent row still records the
-// decision-time rationale; the backend's `review_approval`
-// transactionally mirrors that note into this thread so the two
-// surfaces never disagree (no best-effort log-and-swallow path —
-// either both writes land or both roll back).
+// Comment thread on an approval. The reviewer's decision-time
+// rationale lands here as the first entry; pre-/post-decision
+// discussion follows in the same stream.
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -75,7 +68,9 @@ export function CommentThread({ approvalId, readOnly = false }: CommentThreadPro
               className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs dark:border-zinc-700 dark:bg-zinc-950"
             >
               <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                <span className="font-mono">{c.author_id.slice(0, 8)}</span>
+                <span className="font-medium">
+                  {c.author_name ?? t("unknownAuthor")}
+                </span>
                 <span>{new Date(c.created_at).toLocaleString()}</span>
               </div>
               <div className="mt-1 whitespace-pre-wrap text-zinc-900 dark:text-zinc-100">

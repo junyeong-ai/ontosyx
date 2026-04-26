@@ -24,12 +24,14 @@ import { toast } from "sonner";
 const MOCK_PENDING = {
   id: "p-1",
   requester_id: "u-1",
+  requester_name: "Bob",
   action_type: "schema_deploy",
   resource_type: "ontology",
   resource_id: "aaaaaaaa-1111-2222-3333-444444444444",
   status: "pending",
   reviewer_id: null,
-  review_notes: null,
+  reviewer_name: null,
+  reviewed_at: null,
   expires_at: "2026-05-01T00:00:00Z",
   created_at: "2026-04-23T00:00:00Z",
 };
@@ -37,12 +39,14 @@ const MOCK_PENDING = {
 const MOCK_RESOLVED = {
   id: "r-1",
   requester_id: "u-2",
+  requester_name: "Carol",
   action_type: "tool_run",
   resource_type: "project",
   resource_id: "bbbbbbbb-1111-2222-3333-444444444444",
   status: "approved",
   reviewer_id: "u-admin",
-  review_notes: "OK",
+  reviewer_name: "Admin",
+  reviewed_at: "2026-04-22T01:00:00Z",
   expires_at: "2026-05-01T00:00:00Z",
   created_at: "2026-04-22T00:00:00Z",
 };
@@ -97,7 +101,7 @@ describe("ApprovalsSettingsPage", () => {
       `/approvals/${MOCK_PENDING.id}/review`,
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ approved: true, notes: null }),
+        body: JSON.stringify({ approved: true, note: null }),
       }),
     );
   });
@@ -118,7 +122,7 @@ describe("ApprovalsSettingsPage", () => {
     const body = JSON.parse(
       (request as ReturnType<typeof vi.fn>).mock.calls[1][1].body as string,
     );
-    expect(body).toEqual({ approved: false, notes: null });
+    expect(body).toEqual({ approved: false, note: null });
   });
 
   it("swallows malformed list response into an empty page", async () => {

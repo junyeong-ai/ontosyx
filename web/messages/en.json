@@ -1056,7 +1056,8 @@
         "posting": "Posting...",
         "loadFailed": "Failed to load comments",
         "postFailed": "Failed to post comment",
-        "posted": "Comment posted"
+        "posted": "Comment posted",
+        "unknownAuthor": "Unknown user"
       },
       "preview": {
         "summary": "{count} operation(s)",

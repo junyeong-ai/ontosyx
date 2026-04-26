@@ -733,29 +733,29 @@ pub struct ApprovalRequest {
     pub id: Uuid,
     pub workspace_id: Uuid,
     pub requester_id: Uuid,
+    pub requester_name: Option<String>,
     pub action_type: String,
     pub resource_type: String,
     pub resource_id: String,
     pub payload: serde_json::Value,
     pub status: String,
     pub reviewer_id: Option<Uuid>,
-    pub review_notes: Option<String>,
+    pub reviewer_name: Option<String>,
     pub reviewed_at: Option<DateTime<Utc>>,
     pub expires_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
 }
 
 /// One entry in the comment thread attached to an approval request.
-/// The `review_notes` field on the parent row still records the
-/// reviewer's rationale at decision time, but the thread is the
-/// canonical surface — `review_approval` mirrors that note here as
-/// the decision-time entry.
+/// The reviewer's decision-time rationale is the first comment; any
+/// pre-/post-decision discussion follows in the same thread.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct ApprovalComment {
     pub id: Uuid,
     pub workspace_id: Uuid,
     pub approval_id: Uuid,
     pub author_id: Uuid,
+    pub author_name: Option<String>,
     pub body: String,
     pub created_at: DateTime<Utc>,
 }
