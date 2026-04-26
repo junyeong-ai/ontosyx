@@ -98,6 +98,15 @@ export const SchemaEdge = memo(function SchemaEdge({
   const strokeWidth = diffStatus || selected || highlighted ? 2.5 : 1.5;
   const dashArray = diffStatus === "added" ? "6 3" : undefined;
 
+  // Φ5 #6 — Hover preview. Browser-native title attribute keeps
+  // the tooltip styleable-free + accessible (axe scans surface no
+  // hidden text issue) and the edge component stays synchronous.
+  // A tippy-style portal tooltip would buy richer formatting at
+  // the cost of an extra dependency; we land the native version
+  // first and upgrade only if a designer asks for the prettier
+  // shape.
+  const hoverTitle = buildHoverTitle(edgeDef);
+
   return (
     <>
       <BaseEdge
@@ -113,6 +122,7 @@ export const SchemaEdge = memo(function SchemaEdge({
       />
       <EdgeLabelRenderer>
         <div
+          title={hoverTitle}
           className={cn(
             "nodrag nopan pointer-events-auto absolute rounded-md px-1.5 py-0.5 text-[10px] font-medium",
             diffStatus === "added"
@@ -156,4 +166,32 @@ function formatCardinality(c: Cardinality): string {
     case "many_to_one": return "N:1";
     default: return "N:N";
   }
+}
+
+/** Build the multi-line hover summary the browser shows as the
+ *  edge tooltip. Lines stay compact so the native tooltip stays
+ *  readable; description gets truncated past 200 chars to prevent
+ *  a wall-of-text on richly-documented edges. */
+function buildHoverTitle(edgeDef?: EdgeTypeDef): string | undefined {
+  if (!edgeDef) return undefined;
+  const lines: string[] = [];
+  lines.push(edgeDef.label);
+  // Source/target ids stay raw — looking them up to labels would
+  // require threading the ontology snapshot into every edge
+  // render (the current data flow keeps the edge component
+  // standalone). The ids are the same shape OntologyValidator
+  // reports so an admin recognises them.
+  lines.push(`${edgeDef.source_node_id} → ${edgeDef.target_node_id}`);
+  if (edgeDef.cardinality) {
+    lines.push(`Cardinality: ${formatCardinality(edgeDef.cardinality)}`);
+  }
+  if (edgeDef.description) {
+    const trimmed =
+      edgeDef.description.length > 200
+        ? `${edgeDef.description.slice(0, 200)}…`
+        : edgeDef.description;
+    lines.push("");
+    lines.push(trimmed);
+  }
+  return lines.join("\n");
 }
