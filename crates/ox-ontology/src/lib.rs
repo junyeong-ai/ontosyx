@@ -49,6 +49,7 @@ pub mod change_routing;
 pub mod edit;
 pub mod integrity;
 pub mod locale_consistency;
+pub mod merge;
 pub mod rule_suggestions;
 pub mod segment;
 pub mod source_analysis;
