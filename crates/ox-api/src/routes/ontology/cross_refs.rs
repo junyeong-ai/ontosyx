@@ -110,17 +110,6 @@ pub(crate) async fn list_cross_refs(
 fn emit_edges(ir: &ox_ontology::OntologyIR, out: &mut Vec<CrossRefEdge>) {
     // --- Topology internal edges (node_type → node_type) ---------
     for node in ir.node_types() {
-        if let Some(parent) = &node.parent {
-            out.push(CrossRefEdge {
-                source_axis: Axis::Topology,
-                source_kind: "node_type".into(),
-                source_id: node.id.as_str().into(),
-                edge_kind: "parent".into(),
-                target_axis: Axis::Topology,
-                target_kind: "node_type".into(),
-                target_id: parent.as_str().into(),
-            });
-        }
         if let Some(replaced_by) = &node.replaced_by_id {
             out.push(CrossRefEdge {
                 source_axis: Axis::Topology,
@@ -799,28 +788,6 @@ mod tests {
         emit_edges(&ir, &mut edges);
         assert_eq!(count_where(&edges, "edge_type", "source", "node_type"), 1);
         assert_eq!(count_where(&edges, "edge_type", "target", "node_type"), 1);
-    }
-
-    #[test]
-    fn node_type_parent_emits_topology_self_edge() {
-        let mut ir = empty_ir();
-        ir.add_node_type(NodeTypeDef {
-            id: NodeTypeId::new("Person"),
-            label: gl("Person"),
-            ..Default::default()
-        })
-        .unwrap();
-        ir.add_node_type(NodeTypeDef {
-            id: NodeTypeId::new("Employee"),
-            label: gl("Employee"),
-            parent: Some(NodeTypeId::new("Person")),
-            ..Default::default()
-        })
-        .unwrap();
-
-        let mut edges = Vec::new();
-        emit_edges(&ir, &mut edges);
-        assert_eq!(count_where(&edges, "node_type", "parent", "node_type"), 1);
     }
 
     #[test]

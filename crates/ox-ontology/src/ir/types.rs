@@ -115,8 +115,6 @@ pub struct NodeTypeDef {
     /// Constraints on this node type.
     #[serde(default)]
     pub constraints: Vec<ConstraintDef>,
-    /// Parent node type for inheritance (e.g., Employee is-a Person).
-    pub parent: Option<NodeTypeId>,
     /// Governance metadata (owner, steward, tags, retention policy).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub governance: Option<Governance>,
@@ -274,7 +272,6 @@ impl Default for NodeTypeDef {
             description: LocalizedText::default(),
             properties: Vec::new(),
             constraints: Vec::new(),
-            parent: None,
             governance: None,
             source_lineage: None,
             deprecated_at: None,
