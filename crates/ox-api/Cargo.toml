@@ -61,6 +61,10 @@ async-stream = "0.3.6"
 url = "2.5.8"
 sha2 = "0.10.9"
 reqwest = { workspace = true }
+# Optional GCP Secret Manager resolver — enabled with feature `gcp-sm`.
+yup-oauth2 = { workspace = true, optional = true }
+base64 = { workspace = true, optional = true }
+hyper-util = { workspace = true, optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.7", features = ["html_reports"] }
@@ -80,6 +84,11 @@ harness = false
 # entirely, so there is no runtime path to skip authentication.
 [features]
 test-helpers = []
+# GCP Secret Manager resolver. Off by default — the env: + file:
+# resolvers cover most deployments. Enable on GCP-hosted servers
+# that want to dereference `gcp-sm:` references through Application
+# Default Credentials.
+gcp-sm = ["dep:yup-oauth2", "dep:base64", "dep:hyper-util"]
 
 
 [lints]

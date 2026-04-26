@@ -23,6 +23,8 @@ pub mod arrow_conversion;
 pub mod audit_middleware;
 pub mod background;
 pub mod credential;
+#[cfg(feature = "gcp-sm")]
+pub mod gcp_secret_manager;
 pub mod federation_resolver;
 pub mod collaboration;
 pub mod config;

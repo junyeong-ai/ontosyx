@@ -107,6 +107,20 @@ datafusion = "49"
 # BigQuery client — Application Default Credentials first, service-account
 # JSON file fallback. Default features use rustls.
 gcp-bigquery-client = "0.22"
+# OAuth2 / ADC token source — used by the optional `gcp-sm` feature in
+# ox-api to mint Secret Manager access tokens. Same library
+# `gcp-bigquery-client` uses internally, so the workspace pulls one
+# version regardless of whether `gcp-sm` is enabled.
+yup-oauth2 = "11"
+# hyper connector type — `Authenticator<HttpsConnector<HttpConnector>>`
+# needs `HttpConnector` from `hyper-util` (yup-oauth2 11 re-exports
+# `hyper-rustls` but not `hyper-util`).
+hyper-util = "0.1"
+# Base64 — only the `gcp-sm` resolver decodes Secret Manager payloads
+# directly here today, but the workspace already pulls a base64 build
+# transitively (snowflake-jwt, neo4rs). Pinning at the workspace keeps
+# the version aligned across direct + transitive use.
+base64 = "0.22"
 
 # LLM
 reqwest = { version = "0.13", features = ["json", "stream"] }
