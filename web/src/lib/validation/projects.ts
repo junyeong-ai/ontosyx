@@ -96,12 +96,36 @@ export const ImpliedRelationshipSchema = z.object({
   repo_confirmed: z.boolean(),
 });
 
-export const PiiFindingSchema = z.object({
+export const PiiKindSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("name") }),
+  z.object({ kind: z.literal("date_of_birth") }),
+  z.object({ kind: z.literal("national_id"), value: z.object({ country: z.string() }) }),
+  z.object({ kind: z.literal("passport") }),
+  z.object({ kind: z.literal("drivers_license") }),
+  z.object({ kind: z.literal("email") }),
+  z.object({ kind: z.literal("phone") }),
+  z.object({ kind: z.literal("address") }),
+  z.object({ kind: z.literal("ip_address") }),
+  z.object({ kind: z.literal("payment_card_number") }),
+  z.object({ kind: z.literal("bank_account_number") }),
+  z.object({ kind: z.literal("iban") }),
+  z.object({ kind: z.literal("credit_card") }),
+  z.object({ kind: z.literal("ssn") }),
+  z.object({ kind: z.literal("medical_record_number") }),
+  z.object({ kind: z.literal("insurance_id") }),
+  z.object({ kind: z.literal("biometric") }),
+  z.object({ kind: z.literal("geo_location") }),
+  z.object({ kind: z.literal("password") }),
+  z.object({ kind: z.literal("token") }),
+  z.object({ kind: z.literal("custom"), value: z.string() }),
+]);
+
+export const PiiSuggestionSchema = z.object({
   table: z.string(),
   column: z.string(),
-  pii_type: z.enum(["name", "email", "phone", "birth_date", "national_id", "address", "other"]),
-  detection_method: z.enum(["column_name", "value_pattern"]),
-  masked_preview: z.string().optional(),
+  kind: PiiKindSchema,
+  confidence: z.number(),
+  reason: z.string(),
 });
 
 export const RepoHintSchema = z.object({
@@ -192,7 +216,7 @@ export const SourceAnalysisReportSchema = z.object({
     total_row_count: z.number(),
   }),
   implied_relationships: z.array(ImpliedRelationshipSchema),
-  pii_findings: z.array(PiiFindingSchema),
+  pii_suggestions: z.array(PiiSuggestionSchema),
   ambiguous_columns: z.array(AmbiguityContextSchema),
   table_exclusion_suggestions: z.array(TableExclusionSuggestionSchema),
   large_schema_warning: LargeSchemaWarningSchema.optional(),
@@ -209,10 +233,15 @@ export const ConfirmedRelationshipSchema = z.object({
   to_column: z.string(),
 });
 
-export const PiiDecisionEntrySchema = z.object({
+export const PiiAnnotationSchema = z.object({
   table: z.string(),
   column: z.string(),
-  decision: z.enum(["mask", "exclude", "allow"]),
+  kind: PiiKindSchema,
+});
+
+export const ExcludedColumnSchema = z.object({
+  table: z.string(),
+  column: z.string(),
 });
 
 export const ColumnClarificationSchema = z.object({
@@ -223,7 +252,8 @@ export const ColumnClarificationSchema = z.object({
 
 export const DesignOptionsSchema = z.object({
   confirmed_relationships: z.array(ConfirmedRelationshipSchema).optional(),
-  pii_decisions: z.array(PiiDecisionEntrySchema).optional(),
+  pii_annotations: z.array(PiiAnnotationSchema).optional(),
+  excluded_columns: z.array(ExcludedColumnSchema).optional(),
   excluded_tables: z.array(z.string()).optional(),
   column_clarifications: z.array(ColumnClarificationSchema).optional(),
   allow_partial_source_analysis: z.boolean().optional(),

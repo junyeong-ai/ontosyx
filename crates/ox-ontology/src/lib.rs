@@ -145,9 +145,14 @@ pub use edit::{
 pub use source_analysis::{
     AnalysisCompleteness, AnalysisPhase, AnalysisWarning, AnalysisWarningKind,
     ColumnClarification, ConfirmedRelationship, DesignOptions, ImpliedFkPattern,
-    ImpliedRelationship, LargeSchemaWarning, PiiDecision, PiiDecisionEntry, PiiFinding,
-    RepoAnalysisSummary, RepoColumnSuggestion, SchemaStats, SourceAnalysisReport,
-    TableExclusionReason, TableExclusionSuggestion, WarningLevel, apply_pii_classifications,
+    ImpliedRelationship, LargeSchemaWarning, RepoAnalysisSummary, RepoColumnSuggestion,
+    SchemaStats, SourceAnalysisReport, TableExclusionReason, TableExclusionSuggestion,
+    WarningLevel, apply_pii_annotations,
+};
+pub use pii::{
+    CompositePiiClassifier, ExcludedColumn, PiiAnnotation, PiiClassifier, PiiSignals,
+    PiiSuggestion, REDACTED_PLACEHOLDER, RegexPiiClassifier, data_classification_for,
+    redact_column_stats, redact_email, redact_last4, redact_value,
 };
 pub use table_clustering::{ClusterPlan, TableCluster, cluster_tables};
 pub use value_range::{ValueBand, ValueRangeSetDef, ValueRangeSetId};

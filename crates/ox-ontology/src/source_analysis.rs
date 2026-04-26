@@ -31,8 +31,10 @@ pub struct SourceAnalysisReport {
     pub schema_stats: SchemaStats,
     /// Potential foreign key relationships not declared in the schema
     pub implied_relationships: Vec<ImpliedRelationship>,
-    /// Columns that likely contain personal identifiable information
-    pub pii_findings: Vec<PiiFinding>,
+    /// Columns the classifier suggests carry PII. Suggestions are
+    /// advisory; the operator confirms each by submitting a
+    /// matching [`crate::pii::PiiAnnotation`] in [`DesignOptions`].
+    pub pii_suggestions: Vec<crate::pii::PiiSuggestion>,
     /// Columns whose values are ambiguous and need user clarification.
     /// Each entry is a persistent [`crate::ambiguity::AmbiguityContext`]
     /// — the resolver path picks one of these up and attaches a
@@ -144,232 +146,6 @@ pub enum ImpliedFkPattern {
 }
 
 // ---------------------------------------------------------------------------
-// PII detection
-// ---------------------------------------------------------------------------
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PiiFinding {
-    pub table: String,
-    pub column: String,
-    pub pii_type: PiiType,
-    pub detection_method: PiiDetectionMethod,
-    /// Masked preview (e.g., "hong**@***.com") shown in the report UI
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub masked_preview: Option<String>,
-}
-
-/// Categories returned by source-level PII detection. Mirrors the
-/// regulatory carve-outs of GDPR / HIPAA / PCI DSS so the resulting
-/// `DataClassification` and downstream policy enforcement (masking,
-/// retention) can be tighter than a generic "personal data" lump.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum PiiType {
-    // --- Identity ---
-    Name,
-    Email,
-    Phone,
-    BirthDate,
-    /// Government-issued unique identifier (SSN, RRN, NIN, etc.).
-    NationalId,
-    /// ICAO 9303 travel document number.
-    Passport,
-    /// State / province driver's licence number.
-    DriversLicense,
-    Address,
-    /// IPv4 / IPv6 address — flagged as PII under GDPR Recital 30.
-    IpAddress,
-    /// Lat/long coordinate or precise location identifier.
-    GeoLocation,
-
-    // --- Financial (PCI DSS) ---
-    /// PAN (primary account number) — strict PCI DSS scope.
-    PaymentCard,
-    /// Domestic bank account / routing number.
-    BankAccount,
-    /// ISO 13616 international bank account number.
-    Iban,
-
-    // --- Health (HIPAA) ---
-    /// Medical record number (HIPAA identifier).
-    MedicalRecord,
-    /// Health insurance / member ID.
-    InsuranceId,
-
-    // --- Other regulated data ---
-    /// Biometric template (fingerprint, face vector, voiceprint, etc.).
-    Biometric,
-    /// PII of a kind not covered above. Reviewer disambiguates.
-    Other,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum PiiDetectionMethod {
-    /// Column name contains a PII keyword (e.g., "email", "phone")
-    ColumnName,
-    /// Sample value matches a PII pattern (e.g., contains '@')
-    ValuePattern,
-}
-
-// ---------------------------------------------------------------------------
-// PII → DataClassification mapping
-// ---------------------------------------------------------------------------
-
-impl PiiType {
-    /// Map a PII type to its corresponding data classification level.
-    /// Restricted = regulator-imposed handling (HIPAA, PCI DSS, government
-    /// IDs, biometrics). Confidential = personal data without a specific
-    /// regulatory burden but still privacy-sensitive. Internal = catch-all
-    /// for PII categories the reviewer should resolve manually.
-    pub fn classify(&self) -> crate::ir::DataClassification {
-        use crate::ir::DataClassification;
-        match self {
-            // Confidential — generic personal data
-            PiiType::Email
-            | PiiType::Phone
-            | PiiType::Name
-            | PiiType::Address
-            | PiiType::IpAddress => DataClassification::Confidential,
-
-            // Restricted — regulator-imposed (govt ID, finance, health, biometric, precise geo)
-            PiiType::NationalId
-            | PiiType::Passport
-            | PiiType::DriversLicense
-            | PiiType::BirthDate
-            | PiiType::PaymentCard
-            | PiiType::BankAccount
-            | PiiType::Iban
-            | PiiType::MedicalRecord
-            | PiiType::InsuranceId
-            | PiiType::Biometric
-            | PiiType::GeoLocation => DataClassification::Restricted,
-
-            PiiType::Other => DataClassification::Internal,
-        }
-    }
-
-    /// Project a detected `PiiType` onto the richer ontology-side
-    /// [`crate::ir::PiiKind`] so a property's classification can
-    /// later carry the canonical Palantir-grade kind. Lossy by design —
-    /// nuances like the `NationalId` country code are not knowable at
-    /// detection time.
-    pub fn to_pii_kind(&self) -> crate::ir::PiiKind {
-        use crate::ir::PiiKind;
-        match self {
-            PiiType::Name => PiiKind::Name,
-            PiiType::Email => PiiKind::Email,
-            PiiType::Phone => PiiKind::Phone,
-            PiiType::BirthDate => PiiKind::DateOfBirth,
-            PiiType::NationalId => PiiKind::NationalId {
-                country: String::new(),
-            },
-            PiiType::Passport => PiiKind::Passport,
-            PiiType::DriversLicense => PiiKind::DriversLicense,
-            PiiType::Address => PiiKind::Address,
-            PiiType::IpAddress => PiiKind::IpAddress,
-            PiiType::GeoLocation => PiiKind::GeoLocation,
-            PiiType::PaymentCard => PiiKind::PaymentCardNumber,
-            PiiType::BankAccount => PiiKind::BankAccountNumber,
-            PiiType::Iban => PiiKind::Iban,
-            PiiType::MedicalRecord => PiiKind::MedicalRecordNumber,
-            PiiType::InsuranceId => PiiKind::InsuranceId,
-            PiiType::Biometric => PiiKind::Biometric,
-            PiiType::Other => PiiKind::Custom("Other".into()),
-        }
-    }
-}
-
-#[cfg(test)]
-mod pii_type_tests {
-    use super::*;
-    use crate::ir::{DataClassification, PiiKind};
-
-    #[test]
-    fn classify_groups_regulated_kinds_as_restricted() {
-        // Confidential — generic personal data
-        for kind in [
-            PiiType::Email,
-            PiiType::Phone,
-            PiiType::Name,
-            PiiType::Address,
-            PiiType::IpAddress,
-        ] {
-            assert_eq!(
-                kind.classify(),
-                DataClassification::Confidential,
-                "{kind:?} should classify as Confidential",
-            );
-        }
-
-        // Restricted — regulator-imposed handling
-        for kind in [
-            PiiType::NationalId,
-            PiiType::Passport,
-            PiiType::DriversLicense,
-            PiiType::BirthDate,
-            PiiType::PaymentCard,
-            PiiType::BankAccount,
-            PiiType::Iban,
-            PiiType::MedicalRecord,
-            PiiType::InsuranceId,
-            PiiType::Biometric,
-            PiiType::GeoLocation,
-        ] {
-            assert_eq!(
-                kind.classify(),
-                DataClassification::Restricted,
-                "{kind:?} should classify as Restricted",
-            );
-        }
-
-        assert_eq!(PiiType::Other.classify(), DataClassification::Internal);
-    }
-
-    #[test]
-    fn to_pii_kind_maps_payment_and_health_categories() {
-        // PCI DSS
-        assert!(matches!(
-            PiiType::PaymentCard.to_pii_kind(),
-            PiiKind::PaymentCardNumber
-        ));
-        assert!(matches!(PiiType::Iban.to_pii_kind(), PiiKind::Iban));
-
-        // HIPAA
-        assert!(matches!(
-            PiiType::MedicalRecord.to_pii_kind(),
-            PiiKind::MedicalRecordNumber
-        ));
-        assert!(matches!(
-            PiiType::InsuranceId.to_pii_kind(),
-            PiiKind::InsuranceId
-        ));
-
-        // Travel / govt
-        assert!(matches!(PiiType::Passport.to_pii_kind(), PiiKind::Passport));
-        assert!(matches!(
-            PiiType::DriversLicense.to_pii_kind(),
-            PiiKind::DriversLicense
-        ));
-
-        // Country code is not knowable at detection time — should be empty.
-        match PiiType::NationalId.to_pii_kind() {
-            PiiKind::NationalId { country } => assert_eq!(country, ""),
-            other => panic!("NationalId should map to PiiKind::NationalId, got {other:?}"),
-        }
-
-        // Other is intentionally lossy — falls into Custom for reviewer routing.
-        assert!(matches!(PiiType::Other.to_pii_kind(), PiiKind::Custom(_)));
-    }
-}
-
-// Ambiguous-column types moved to [`crate::ambiguity`] — the persistent
-// form (`AmbiguityContext`) replaces the previous transient
-// `AmbiguousColumn` shape. `SourceAnalysisReport.ambiguous_columns`
-// now carries `Vec<AmbiguityContext>` so the same rows the analyzer
-// produces are the ones the resolver stores.
-
-// ---------------------------------------------------------------------------
 // Table exclusion suggestions
 // ---------------------------------------------------------------------------
 
@@ -468,23 +244,32 @@ pub struct RepoAnalysisSummary {
 // DesignOptions — user decisions passed back to the design endpoint
 // ---------------------------------------------------------------------------
 
-/// User-approved decisions that override or supplement automatic analysis.
-/// Submitted via `PATCH /api/projects/:id/decisions` after reviewing SourceAnalysisReport.
+/// Operator-confirmed inputs that override or supplement automatic
+/// analysis. Submitted via `PATCH /api/projects/:id/decisions` after
+/// reviewing [`SourceAnalysisReport`].
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct DesignOptions {
-    /// Implied relationships the user confirmed as real FKs
+    /// Implied relationships the operator confirmed as real FKs.
     #[serde(default)]
     pub confirmed_relationships: Vec<ConfirmedRelationship>,
-    /// Per-column PII handling decisions
+    /// PII annotations carried into ontology design. Each entry
+    /// flows into the resulting [`crate::ir::PropertyDef::pii_kind`]
+    /// and triggers redaction of sample values before they reach
+    /// the LLM.
     #[serde(default)]
-    pub pii_decisions: Vec<PiiDecisionEntry>,
-    /// Tables to exclude from ontology design
+    pub pii_annotations: Vec<crate::pii::PiiAnnotation>,
+    /// Source columns withheld from ontology design entirely. The
+    /// LLM never sees the column's metadata or sample values.
+    #[serde(default)]
+    pub excluded_columns: Vec<crate::pii::ExcludedColumn>,
+    /// Tables to exclude from ontology design.
     #[serde(default)]
     pub excluded_tables: Vec<String>,
-    /// Free-text clarifications for ambiguous columns
+    /// Free-text clarifications for ambiguous columns.
     #[serde(default)]
     pub column_clarifications: Vec<ColumnClarification>,
-    /// User explicitly accepts proceeding with incomplete source analysis.
+    /// Operator explicitly accepts proceeding with incomplete
+    /// source analysis.
     #[serde(default)]
     pub allow_partial_source_analysis: bool,
 }
@@ -497,25 +282,6 @@ pub struct ConfirmedRelationship {
     pub to_column: String,
 }
 
-/// A PII handling decision for a specific column.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PiiDecisionEntry {
-    pub table: String,
-    pub column: String,
-    pub decision: PiiDecision,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum PiiDecision {
-    /// Replace sample values with "[MASKED]" before sending to LLM
-    Mask,
-    /// Exclude this column entirely from the ontology
-    Exclude,
-    /// Allow as-is (user confirms it's acceptable)
-    Allow,
-}
-
 /// A domain clarification for a specific column.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ColumnClarification {
@@ -525,91 +291,67 @@ pub struct ColumnClarification {
 }
 
 // ---------------------------------------------------------------------------
-// apply_pii_classifications — enrich ontology properties with classifications
+// apply_pii_annotations — push annotations into the ontology IR
 // ---------------------------------------------------------------------------
 
-/// Cross-reference PII findings with ontology properties via the
-/// canonical object-mapping slice and set `classification` on each
-/// matched property.
+/// Walk every [`crate::pii::PiiAnnotation`] and set both
+/// `pii_kind` and `classification` on the matching
+/// [`crate::ir::PropertyDef`]. Match resolution goes through the
+/// canonical [`crate::mapping::ObjectMappingDef`] list — `(table,
+/// column)` from the annotation maps onto `(node, property)` via
+/// the object mapping, and JSON-path locations fall back to the
+/// property name when no source column was bound.
 ///
-/// Matching logic:
-/// - For each PII finding (table, column), find the node whose source
-///   table matches the finding's table (via the `ObjectMappingDef`
-///   list — the single source of truth).
-/// - Then find the property whose source column matches the finding's
-///   column.
-/// - Set classification based on PiiType.
-pub fn apply_pii_classifications(
+/// Returns the number of properties that were annotated.
+pub fn apply_pii_annotations(
     ontology: &mut crate::ir::OntologyIR,
-    pii_findings: &[PiiFinding],
+    annotations: &[crate::pii::PiiAnnotation],
     object_mappings: &[crate::mapping::ObjectMappingDef],
 ) -> usize {
     use crate::mapping::PropertyLocation;
+    use crate::pii::data_classification_for;
 
-    if pii_findings.is_empty() {
+    if annotations.is_empty() {
         return 0;
     }
 
-    // Build lookup: (table_lower, column_lower) → DataClassification
-    // Use the most restrictive classification when duplicates exist.
-    let mut pii_map: std::collections::HashMap<
-        (String, String),
-        crate::ir::DataClassification,
-    > = std::collections::HashMap::new();
-    for finding in pii_findings {
-        let key = (finding.table.to_lowercase(), finding.column.to_lowercase());
-        let classification = finding.pii_type.classify();
-        pii_map
-            .entry(key)
-            .and_modify(|existing| {
-                // Keep the more restrictive classification
-                if matches!(
-                    (&classification, &existing),
-                    (crate::ir::DataClassification::Restricted, _)
-                        | (
-                            crate::ir::DataClassification::Confidential,
-                            crate::ir::DataClassification::Internal
-                        )
-                        | (
-                            crate::ir::DataClassification::Confidential,
-                            crate::ir::DataClassification::Public
-                        )
-                        | (
-                            crate::ir::DataClassification::Internal,
-                            crate::ir::DataClassification::Public
-                        )
-                ) {
-                    *existing = classification;
+    // (table_lower, column_lower) → kind. The most restrictive kind
+    // wins when an operator submits multiple annotations on the
+    // same column — restrictiveness is judged via the resulting
+    // [`crate::ir::DataClassification`].
+    let mut by_target: std::collections::HashMap<(String, String), crate::ir::PiiKind> =
+        std::collections::HashMap::new();
+    for ann in annotations {
+        let key = (ann.table.to_lowercase(), ann.column.to_lowercase());
+        match by_target.entry(key) {
+            std::collections::hash_map::Entry::Vacant(slot) => {
+                slot.insert(ann.kind.clone());
+            }
+            std::collections::hash_map::Entry::Occupied(mut slot) => {
+                let existing_class = data_classification_for(slot.get());
+                let incoming_class = data_classification_for(&ann.kind);
+                if classification_strictly_above(incoming_class, existing_class) {
+                    slot.insert(ann.kind.clone());
                 }
-            })
-            .or_insert(classification);
+            }
+        }
     }
 
     let mut count = 0;
 
     for node in &mut ontology.node_types {
-        // Resolve the source relation for this node via the canonical
-        // `ObjectMappingDef` list. NodeTypeDef carries no source_table
-        // of its own — object_mappings are the authoritative lookup.
-        let om = match object_mappings
+        let Some(om) = object_mappings
             .iter()
             .find(|om| om.node_type_id == node.id)
-        {
-            Some(om) => om,
-            None => continue,
+        else {
+            continue;
         };
         let source_table = om.relation.to_lowercase();
 
         for prop in &mut node.properties {
-            // Only classify if not already classified
-            if prop.classification.is_some() {
+            if prop.pii_kind.is_some() {
                 continue;
             }
-
-            // Resolve source column via the property mapping on this
-            // ObjectMappingDef. JSON-path locations have no column, so
-            // they fall back to the property name — matching the
-            // behaviour the legacy flat shape used to provide.
             let source_column = om
                 .property_mappings
                 .iter()
@@ -618,16 +360,33 @@ pub fn apply_pii_classifications(
                     PropertyLocation::Column(col) => Some(col.column.to_lowercase()),
                     PropertyLocation::JsonPath { .. } => None,
                 });
-
-            // Fall back to property name as column name
             let column_lower = source_column.unwrap_or_else(|| prop.name.to_lowercase());
 
-            if let Some(&classification) = pii_map.get(&(source_table.clone(), column_lower)) {
-                prop.classification = Some(classification);
+            if let Some(kind) = by_target.get(&(source_table.clone(), column_lower)) {
+                prop.pii_kind = Some(kind.clone());
+                if prop.classification.is_none() {
+                    prop.classification = Some(data_classification_for(kind));
+                }
                 count += 1;
             }
         }
     }
 
     count
+}
+
+fn classification_strictly_above(
+    candidate: crate::ir::DataClassification,
+    current: crate::ir::DataClassification,
+) -> bool {
+    use crate::ir::DataClassification;
+    fn rank(c: DataClassification) -> u8 {
+        match c {
+            DataClassification::Public => 0,
+            DataClassification::Internal => 1,
+            DataClassification::Confidential => 2,
+            DataClassification::Restricted => 3,
+        }
+    }
+    rank(candidate) > rank(current)
 }

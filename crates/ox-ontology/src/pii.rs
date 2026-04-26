@@ -1,61 +1,294 @@
-//! PII redaction + suggestion primitives.
+//! PII annotation + redaction + classification.
 //!
-//! ## Two surfaces, intentionally split
+//! The PII surface has three layers, each owned by this module:
 //!
-//! 1. **Redaction** ([`redact_value`] / [`redact_column_stats`]) is
-//!    deterministic and applies *only* when a property has been
-//!    explicitly annotated with a [`crate::ir::PiiKind`]. The
-//!    annotation is a user decision recorded on
-//!    [`crate::ir::PropertyDef::pii_kind`]; this module never
-//!    decides on its own that a value is sensitive.
-//! 2. **Suggestion** ([`PiiClassifier`] / [`RegexPiiClassifier`]) is
-//!    a heuristic that helps the ontology editor *propose* a
-//!    `pii_kind` to the operator. It returns
-//!    [`PiiSuggestion`] (kind + confidence + reason) — never
-//!    a redaction. Regex-on-column-name suffers known false
-//!    positives (`email_template_id` matches `email`) and false
-//!    negatives (`e_addr` does not match `email`); using the same
-//!    classifier to drive automatic redaction would smuggle either
-//!    failure mode into the redacted output.
+//! 1. **Annotation** — a user decision recorded on
+//!    [`crate::ir::PropertyDef::pii_kind`] or carried into ontology
+//!    design via [`PiiAnnotation`]. The annotation is the single
+//!    source of truth at runtime.
+//! 2. **Classification** — a [`PiiClassifier`] inspects column
+//!    metadata + sample values and emits a [`PiiSuggestion`]. The
+//!    suggestion is **advisory only**; the operator confirms before
+//!    the kind is committed to an annotation.
+//! 3. **Redaction** — [`redact_value`] / [`redact_column_stats`]
+//!    rewrite a stored value according to its annotated kind.
+//!    Deterministic and shape-preserving where the kind benefits
+//!    (email keeps a 3-char local prefix + TLD; numeric-tail kinds
+//!    keep the trailing 4 chars; secrets become `<redacted>`).
 //!
-//! ## Redaction policy (user-facing strings)
-//!
-//! - **Email** — preserve the first 3 chars of the local part and the
-//!   last domain label; everything else becomes `***`.
-//!   `john.doe@gmail.com` ⇒ `joh***@***.com`.
-//! - **Phone / national-id / payment-card / bank-account / IBAN** —
-//!   preserve the trailing 4 chars; rest replaced with `***`.
-//!   `1234-5678-9012-3456` ⇒ `***3456`.
-//! - **Password / Token / Custom and any other unhandled kind** —
-//!   full replacement with the literal `<redacted>`.
-//!
-//! Counts (`null_count`, `distinct_count`) are *never* redacted —
-//! the count itself is not PII and operators rely on the
-//! distribution to detect schema drift.
+//! The split is intentional: classification carries inherent
+//! false-positive / false-negative risk
+//! (`email_template_id` matching `email`, `e_addr` missing
+//! `email`). Letting it drive redaction would smuggle the same
+//! errors into the redacted output. Annotation is the gate
+//! between the two.
+
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
 use ox_core::source_schema::ColumnStats;
 
-use crate::ir::PiiKind;
+use crate::ir::{DataClassification, PiiKind};
+
+// ---------------------------------------------------------------------------
+// Annotation
+// ---------------------------------------------------------------------------
+
+/// User-confirmed PII annotation for a source column. Carries the
+/// classifier's role from suggestion to commitment: at design
+/// time, every entry here is treated as authoritative for both the
+/// resulting [`crate::ir::PropertyDef::pii_kind`] and any sample-
+/// value redaction performed before the LLM sees the column.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct PiiAnnotation {
+    pub table: String,
+    pub column: String,
+    pub kind: PiiKind,
+}
+
+/// Source column the operator wants withheld from ontology design
+/// entirely. The column's metadata and sample values never reach
+/// the LLM, and the resulting ontology contains no
+/// [`crate::ir::PropertyDef`] for it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct ExcludedColumn {
+    pub table: String,
+    pub column: String,
+}
+
+// ---------------------------------------------------------------------------
+// Classification
+// ---------------------------------------------------------------------------
+
+/// Inputs available to a [`PiiClassifier`]. Every signal is
+/// optional — a classifier only consults what it needs.
+#[derive(Debug, Clone)]
+pub struct PiiSignals<'a> {
+    pub table: &'a str,
+    pub column: &'a str,
+    pub data_type: Option<&'a str>,
+    pub sample_values: &'a [String],
+}
+
+/// Classifier output. Returned from [`PiiClassifier::classify`] when
+/// the inputs raise the classifier's confidence above the
+/// emit-threshold.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct PiiSuggestion {
+    pub table: String,
+    pub column: String,
+    pub kind: PiiKind,
+    /// 0.0–1.0 self-rated confidence.
+    pub confidence: f32,
+    pub reason: String,
+}
+
+/// Inspect a column and optionally suggest a [`PiiKind`].
+/// Implementations are **advisory only** — they must never gate
+/// redaction. `None` means the classifier has no opinion;
+/// downstream callers fall back to "operator decides".
+pub trait PiiClassifier: Send + Sync {
+    fn classify(&self, signals: &PiiSignals<'_>) -> Option<PiiSuggestion>;
+}
+
+/// Combine multiple classifiers. The first classifier whose
+/// [`PiiClassifier::classify`] returns `Some` wins — register the
+/// most specific classifier first (LLM-based, then regex-based,
+/// then sample-pattern-based) so a high-confidence call short-
+/// circuits the rest.
+#[derive(Default)]
+pub struct CompositePiiClassifier {
+    inner: Vec<Arc<dyn PiiClassifier>>,
+}
+
+impl CompositePiiClassifier {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with(mut self, classifier: Arc<dyn PiiClassifier>) -> Self {
+        self.inner.push(classifier);
+        self
+    }
+}
+
+impl PiiClassifier for CompositePiiClassifier {
+    fn classify(&self, signals: &PiiSignals<'_>) -> Option<PiiSuggestion> {
+        self.inner.iter().find_map(|c| c.classify(signals))
+    }
+}
+
+/// Regex-style classifier driven by token-bounded column-name
+/// matching plus a sample-value email-shape probe.
+///
+/// Patterns are deliberately conservative — `email_template_id` is
+/// not flagged as `Email`, only the standalone token `email` (or
+/// `email` followed by a non-`_id` suffix). The whole-token
+/// requirement plus a small reviewed list keeps false positives the
+/// rarer of the two failure modes.
+#[derive(Debug, Default, Clone)]
+pub struct RegexPiiClassifier;
+
+impl RegexPiiClassifier {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl PiiClassifier for RegexPiiClassifier {
+    fn classify(&self, signals: &PiiSignals<'_>) -> Option<PiiSuggestion> {
+        let lower = signals.column.to_lowercase();
+        for entry in DEFAULT_PATTERNS {
+            if matches_token(&lower, entry.token) {
+                return Some(PiiSuggestion {
+                    table: signals.table.to_string(),
+                    column: signals.column.to_string(),
+                    kind: entry.kind.clone(),
+                    confidence: entry.confidence,
+                    reason: format!(
+                        "column name '{}' matches the token `{}`",
+                        signals.column, entry.token
+                    ),
+                });
+            }
+        }
+        // Sample-value fallback: an unflagged column whose values
+        // shape like emails still gets a low-confidence suggestion
+        // so the operator sees it for review.
+        if looks_like_email_samples(signals.sample_values) {
+            return Some(PiiSuggestion {
+                table: signals.table.to_string(),
+                column: signals.column.to_string(),
+                kind: PiiKind::Email,
+                confidence: 0.6,
+                reason: format!(
+                    "column '{}' sample values contain `@` and `.` in an email-shaped form",
+                    signals.column
+                ),
+            });
+        }
+        None
+    }
+}
+
+struct PatternEntry {
+    token: &'static str,
+    kind: PiiKind,
+    confidence: f32,
+}
+
+const DEFAULT_PATTERNS: &[PatternEntry] = &[
+    // --- Identity ---
+    PatternEntry { token: "email",       kind: PiiKind::Email,             confidence: 0.9 },
+    PatternEntry { token: "e_mail",      kind: PiiKind::Email,             confidence: 0.9 },
+    PatternEntry { token: "phone",       kind: PiiKind::Phone,             confidence: 0.85 },
+    PatternEntry { token: "mobile",      kind: PiiKind::Phone,             confidence: 0.7 },
+    PatternEntry { token: "tel",         kind: PiiKind::Phone,             confidence: 0.65 },
+    PatternEntry { token: "name",        kind: PiiKind::Name,              confidence: 0.6 },
+    PatternEntry { token: "birth",       kind: PiiKind::DateOfBirth,       confidence: 0.7 },
+    PatternEntry { token: "dob",         kind: PiiKind::DateOfBirth,       confidence: 0.85 },
+    PatternEntry { token: "ssn",         kind: PiiKind::Ssn,               confidence: 0.95 },
+    PatternEntry { token: "rrn",         kind: PiiKind::Ssn,               confidence: 0.9 },
+    PatternEntry { token: "nin",         kind: PiiKind::Ssn,               confidence: 0.85 },
+    PatternEntry { token: "passport",    kind: PiiKind::Passport,          confidence: 0.9 },
+    PatternEntry { token: "license",     kind: PiiKind::DriversLicense,    confidence: 0.7 },
+    // --- Address ---
+    PatternEntry { token: "address",     kind: PiiKind::Address,           confidence: 0.7 },
+    PatternEntry { token: "addr",        kind: PiiKind::Address,           confidence: 0.7 },
+    PatternEntry { token: "street",      kind: PiiKind::Address,           confidence: 0.7 },
+    PatternEntry { token: "zip",         kind: PiiKind::Address,           confidence: 0.6 },
+    PatternEntry { token: "postal",      kind: PiiKind::Address,           confidence: 0.6 },
+    // --- Network / Geo ---
+    PatternEntry { token: "ipaddr",      kind: PiiKind::IpAddress,         confidence: 0.85 },
+    PatternEntry { token: "ipv4",        kind: PiiKind::IpAddress,         confidence: 0.9 },
+    PatternEntry { token: "ipv6",        kind: PiiKind::IpAddress,         confidence: 0.9 },
+    PatternEntry { token: "latitude",    kind: PiiKind::GeoLocation,       confidence: 0.85 },
+    PatternEntry { token: "longitude",   kind: PiiKind::GeoLocation,       confidence: 0.85 },
+    PatternEntry { token: "geolocation", kind: PiiKind::GeoLocation,       confidence: 0.9 },
+    PatternEntry { token: "geohash",     kind: PiiKind::GeoLocation,       confidence: 0.85 },
+    // --- Financial ---
+    PatternEntry { token: "credit_card", kind: PiiKind::PaymentCardNumber, confidence: 0.95 },
+    PatternEntry { token: "creditcard",  kind: PiiKind::PaymentCardNumber, confidence: 0.95 },
+    PatternEntry { token: "card_number", kind: PiiKind::PaymentCardNumber, confidence: 0.95 },
+    PatternEntry { token: "cardnumber",  kind: PiiKind::PaymentCardNumber, confidence: 0.95 },
+    PatternEntry { token: "card_no",     kind: PiiKind::PaymentCardNumber, confidence: 0.85 },
+    PatternEntry { token: "ccnumber",    kind: PiiKind::PaymentCardNumber, confidence: 0.9 },
+    PatternEntry { token: "pan",         kind: PiiKind::PaymentCardNumber, confidence: 0.6 },
+    PatternEntry { token: "iban",        kind: PiiKind::Iban,              confidence: 0.95 },
+    PatternEntry { token: "bankaccount", kind: PiiKind::BankAccountNumber, confidence: 0.9 },
+    PatternEntry { token: "routing",     kind: PiiKind::BankAccountNumber, confidence: 0.6 },
+    // --- Health ---
+    PatternEntry { token: "mrn",         kind: PiiKind::MedicalRecordNumber, confidence: 0.9 },
+    PatternEntry { token: "medicalrecord", kind: PiiKind::MedicalRecordNumber, confidence: 0.95 },
+    PatternEntry { token: "insurance",   kind: PiiKind::InsuranceId,       confidence: 0.7 },
+    // --- Biometric ---
+    PatternEntry { token: "fingerprint", kind: PiiKind::Biometric,         confidence: 0.95 },
+    PatternEntry { token: "biometric",   kind: PiiKind::Biometric,         confidence: 0.95 },
+    PatternEntry { token: "faceid",      kind: PiiKind::Biometric,         confidence: 0.9 },
+    PatternEntry { token: "voiceprint",  kind: PiiKind::Biometric,         confidence: 0.9 },
+    // --- Auth secrets ---
+    PatternEntry { token: "password",    kind: PiiKind::Password,          confidence: 0.95 },
+    PatternEntry { token: "passwd",      kind: PiiKind::Password,          confidence: 0.9 },
+    PatternEntry { token: "pwd",         kind: PiiKind::Password,          confidence: 0.7 },
+    PatternEntry { token: "token",       kind: PiiKind::Token,             confidence: 0.85 },
+    PatternEntry { token: "api_key",     kind: PiiKind::Token,             confidence: 0.85 },
+    PatternEntry { token: "apikey",      kind: PiiKind::Token,             confidence: 0.85 },
+    PatternEntry { token: "secret",      kind: PiiKind::Token,             confidence: 0.6 },
+];
+
+fn looks_like_email_samples(samples: &[String]) -> bool {
+    samples
+        .iter()
+        .any(|v| v.len() > 5 && v.contains('@') && v.contains('.'))
+}
+
+/// Token match — `token` appears in `lower` separated by `_` / `-`
+/// / `.` / start / end. Plus a foreign-key suppression that
+/// rejects `<token>(_|-)id` shapes (`email_template_id` is a
+/// template id, not an email address).
+fn matches_token(lower: &str, token: &str) -> bool {
+    let bytes = lower.as_bytes();
+    let tlen = token.len();
+    let blen = bytes.len();
+    if tlen == 0 || tlen > blen {
+        return false;
+    }
+    let mut i = 0;
+    while i + tlen <= blen {
+        if &bytes[i..i + tlen] == token.as_bytes() {
+            let left_ok = i == 0
+                || matches!(bytes[i - 1] as char, '_' | '-' | '.');
+            let right_end = i + tlen;
+            let right_ok = right_end == blen
+                || matches!(bytes[right_end] as char, '_' | '-' | '.');
+            let suffix_is_fk = right_end < blen && {
+                let suffix = &lower[right_end..];
+                suffix.ends_with("_id") || suffix.ends_with("-id")
+            };
+            if left_ok && right_ok && !suffix_is_fk {
+                return true;
+            }
+        }
+        i += 1;
+    }
+    false
+}
+
+// ---------------------------------------------------------------------------
+// Redaction
+// ---------------------------------------------------------------------------
 
 /// Placeholder substituted for a fully-redacted value (Password,
-/// Token, Custom, and any future kinds without a partial-redaction
+/// Token, Custom, and any other kind without a partial-redaction
 /// rule). Pinned as a `pub const` so wire-shape clients can
 /// case-fold against the same string.
 pub const REDACTED_PLACEHOLDER: &str = "<redacted>";
 
-/// Redact a single value according to its `kind`. Pure string
-/// transformation — no allocation when the input is already a
-/// "<redacted>" placeholder of the right shape.
+/// Redact a single value according to its `kind`.
 pub fn redact_value(value: &str, kind: &PiiKind) -> String {
     match kind {
         PiiKind::Email => redact_email(value),
-        // Numeric-tail kinds: phone, national id (KR RRN, US SSN, JP
-        // My Number, …), payment card, bank account, IBAN. Each
-        // benefits from the trailing-4 affordance for support
-        // workflows ("the card ending in 3456") without exposing
-        // the full identifier.
         PiiKind::Phone
         | PiiKind::Ssn
         | PiiKind::NationalId { .. }
@@ -79,10 +312,10 @@ pub fn redact_value(value: &str, kind: &PiiKind) -> String {
     }
 }
 
-/// Redact every sample value in `stats` according to `kind`. The
-/// `min_value` / `max_value` strings are also redacted — both can
-/// leak the same identifier shape that `sample_values` does
-/// (`MIN(card_number) = '1000-...'`). Counts are preserved.
+/// Redact every sample value, min, and max in `stats` according to
+/// `kind`. Counts (`null_count`, `distinct_count`) are not
+/// redacted — counts are not PII and operators rely on the
+/// distribution to detect schema drift.
 pub fn redact_column_stats(stats: &mut ColumnStats, kind: &PiiKind) {
     for v in &mut stats.sample_values {
         *v = redact_value(v, kind);
@@ -95,10 +328,10 @@ pub fn redact_column_stats(stats: &mut ColumnStats, kind: &PiiKind) {
     }
 }
 
-/// Email redaction: first 3 chars of local + `***`, then `***` +
-/// last domain segment (TLD). Inputs that fail to parse as an
-/// email-shaped string fall back to the full-replacement placeholder
-/// — better to over-redact than to leak a partial identifier
+/// Email redaction: first 3 chars of the local part + `***`, then
+/// `***` + last domain segment (TLD). Inputs that fail to parse as
+/// an email-shaped string fall back to the full-replacement
+/// placeholder — over-redact rather than leak a partial identifier
 /// because the format was unexpected.
 pub fn redact_email(s: &str) -> String {
     let Some(at) = s.rfind('@') else {
@@ -110,10 +343,6 @@ pub fn redact_email(s: &str) -> String {
         return REDACTED_PLACEHOLDER.to_string();
     }
     let local_prefix: String = local.chars().take(3).collect();
-    // The last `.`-segment of the domain is the recognisable label
-    // (`gmail.com` → `.com`, `mail.example.co.kr` → `.kr`). Keeping
-    // a single segment is the smallest leak surface that still lets
-    // an operator distinguish `@gmail` from `@yahoo` for triage.
     let last_segment = match domain.rfind('.') {
         Some(idx) => &domain[idx..],
         None => return REDACTED_PLACEHOLDER.to_string(),
@@ -122,8 +351,8 @@ pub fn redact_email(s: &str) -> String {
 }
 
 /// Trailing-4 redaction. Strings shorter than 5 chars become the
-/// full placeholder — preserving "the last 4 of a 4-char value" is
-/// just the original value.
+/// full placeholder — keeping "the last 4 of a 4-char value" would
+/// just be the original value.
 pub fn redact_last4(s: &str) -> String {
     let chars: Vec<char> = s.chars().collect();
     if chars.len() < 5 {
@@ -134,181 +363,40 @@ pub fn redact_last4(s: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// PiiClassifier — suggestion-only surface
+// Classification mapping
 // ---------------------------------------------------------------------------
 
-/// One classifier suggestion. The ontology editor surfaces this to
-/// the operator as "we noticed column X looks like Y" and asks for
-/// explicit confirmation; the classifier never sets
-/// [`crate::ir::PropertyDef::pii_kind`] directly.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct PiiSuggestion {
-    /// Suggested annotation. The operator may accept, override, or
-    /// reject it.
-    pub kind: PiiKind,
-    /// 0.0–1.0 self-rated confidence. Below 0.5 generally means
-    /// "ask the operator before showing the suggestion at all".
-    pub confidence: f32,
-    /// Human-readable explanation of *why* the classifier matched
-    /// (e.g., `column name matches /\bemail\b/`). Surfaced to the
-    /// operator alongside the suggestion.
-    pub reason: String,
-}
-
-/// Trait for column-name / sample-value heuristics that propose
-/// PII annotations. Implementations are **suggestion-only** — they
-/// must never gate redaction. Returning `None` means the classifier
-/// has no opinion; downstream callers fall back to "operator
-/// decides".
-///
-/// The trait is async-free on purpose: today's heuristics are
-/// regex-on-name, which fits in a synchronous fn. An LLM-based
-/// classifier (a future plug-in mentioned in the plan) would either
-/// pre-warm via a separate method or wrap a `tokio::task::block_in_place`.
-pub trait PiiClassifier: Send + Sync {
-    /// Inspect a column's name (and optional data-type hint) and
-    /// optionally return a [`PiiSuggestion`].
-    fn classify_column(
-        &self,
-        column_name: &str,
-        data_type: Option<&str>,
-    ) -> Option<PiiSuggestion>;
-}
-
-/// Regex-on-column-name classifier. Mainly useful at ontology
-/// authoring time when the operator is annotating a brand-new
-/// schema and has no other signal yet.
-///
-/// The patterns are deliberately conservative — `email_template_id`
-/// is not flagged as `Email`, only the standalone token `email`.
-/// The `\b` boundaries plus a short, reviewed list of well-known
-/// names make false positives the rarer of the two failure modes.
-#[derive(Debug, Default, Clone)]
-pub struct RegexPiiClassifier;
-
-impl RegexPiiClassifier {
-    pub fn new() -> Self {
-        Self
+/// Map a [`PiiKind`] onto its [`DataClassification`]. Drives the
+/// `classification` field on [`crate::ir::PropertyDef`] so
+/// downstream policies (audit, retention, role-based access) can
+/// react with one enum check.
+pub fn data_classification_for(kind: &PiiKind) -> DataClassification {
+    match kind {
+        // Generic personal data — sensitive but not regulator-imposed.
+        PiiKind::Email
+        | PiiKind::Phone
+        | PiiKind::Name
+        | PiiKind::Address
+        | PiiKind::IpAddress => DataClassification::Confidential,
+        // Regulator-imposed: govt ID, finance, health, biometric, precise geo.
+        PiiKind::NationalId { .. }
+        | PiiKind::Ssn
+        | PiiKind::Passport
+        | PiiKind::DriversLicense
+        | PiiKind::DateOfBirth
+        | PiiKind::PaymentCardNumber
+        | PiiKind::CreditCard
+        | PiiKind::BankAccountNumber
+        | PiiKind::Iban
+        | PiiKind::MedicalRecordNumber
+        | PiiKind::InsuranceId
+        | PiiKind::Biometric
+        | PiiKind::GeoLocation => DataClassification::Restricted,
+        // Auth secrets — Restricted-tier; never expose, never log.
+        PiiKind::Password | PiiKind::Token => DataClassification::Restricted,
+        // Reviewer-defined — without further info, treat as Internal.
+        PiiKind::Custom(_) => DataClassification::Internal,
     }
-}
-
-impl PiiClassifier for RegexPiiClassifier {
-    fn classify_column(
-        &self,
-        column_name: &str,
-        _data_type: Option<&str>,
-    ) -> Option<PiiSuggestion> {
-        let lower = column_name.to_lowercase();
-        for (pattern, kind, confidence, reason) in DEFAULT_PATTERNS {
-            if matches_token(&lower, pattern) {
-                return Some(PiiSuggestion {
-                    kind: kind.clone(),
-                    confidence: *confidence,
-                    reason: format!("column name '{column_name}' {reason}"),
-                });
-            }
-        }
-        None
-    }
-}
-
-/// `(token, kind, confidence, reason)` triples that drive the
-/// regex-style classifier. `token` is a lowercase, identifier-shaped
-/// substring; the matcher requires the token to appear delimited by
-/// `_` / `-` / start / end so `email_template_id` does not match
-/// `email`. Order matters — the first match wins, so the more
-/// specific tokens come first.
-#[allow(clippy::type_complexity)]
-const DEFAULT_PATTERNS: &[(&str, PiiKind, f32, &str)] = &[
-    ("email", PiiKind::Email, 0.9, "matches the token `email`"),
-    (
-        "e_mail",
-        PiiKind::Email,
-        0.9,
-        "matches the token `e_mail`",
-    ),
-    ("phone", PiiKind::Phone, 0.85, "matches the token `phone`"),
-    ("mobile", PiiKind::Phone, 0.7, "matches the token `mobile`"),
-    ("ssn", PiiKind::Ssn, 0.95, "matches the token `ssn`"),
-    (
-        "credit_card",
-        PiiKind::PaymentCardNumber,
-        0.95,
-        "matches the token `credit_card`",
-    ),
-    (
-        "card_number",
-        PiiKind::PaymentCardNumber,
-        0.95,
-        "matches the token `card_number`",
-    ),
-    (
-        "card_no",
-        PiiKind::PaymentCardNumber,
-        0.85,
-        "matches the token `card_no`",
-    ),
-    (
-        "password",
-        PiiKind::Password,
-        0.95,
-        "matches the token `password`",
-    ),
-    ("passwd", PiiKind::Password, 0.9, "matches the token `passwd`"),
-    ("pwd", PiiKind::Password, 0.7, "matches the token `pwd`"),
-    ("token", PiiKind::Token, 0.85, "matches the token `token`"),
-    (
-        "api_key",
-        PiiKind::Token,
-        0.85,
-        "matches the token `api_key`",
-    ),
-    (
-        "secret",
-        PiiKind::Token,
-        0.6,
-        "matches the token `secret` (review carefully — broad match)",
-    ),
-];
-
-/// Whole-token match: `token` appears in `lower` separated by `_` /
-/// `-` / `.` / start / end. Plus a small foreign-key rejection
-/// rule — `<token>(_or_)id` columns refer to a foreign key on
-/// something *related* to the token, not the token itself
-/// (`email_template_id` is a template id, not an email address).
-/// The plan calls out exactly this false-positive class as the
-/// reason classifier output stays suggestion-only — but
-/// eliminating the easy ones at source keeps the operator's review
-/// queue short.
-fn matches_token(lower: &str, token: &str) -> bool {
-    let bytes = lower.as_bytes();
-    let tlen = token.len();
-    let blen = bytes.len();
-    if tlen == 0 || tlen > blen {
-        return false;
-    }
-    let mut i = 0;
-    while i + tlen <= blen {
-        if &bytes[i..i + tlen] == token.as_bytes() {
-            let left_ok = i == 0
-                || matches!(bytes[i - 1] as char, '_' | '-' | '.');
-            let right_end = i + tlen;
-            let right_ok = right_end == blen
-                || matches!(bytes[right_end] as char, '_' | '-' | '.');
-            // Foreign-key suppression: anything ending in `_id`/`-id`
-            // (after the token) is a reference to a different
-            // entity, not the PII itself.
-            let suffix_is_fk = right_end < blen && {
-                let suffix = &lower[right_end..];
-                suffix.ends_with("_id") || suffix.ends_with("-id")
-            };
-            if left_ok && right_ok && !suffix_is_fk {
-                return true;
-            }
-        }
-        i += 1;
-    }
-    false
 }
 
 #[cfg(test)]
@@ -316,9 +404,16 @@ fn matches_token(lower: &str, token: &str) -> bool {
 mod tests {
     use super::*;
 
-    // ---------------------------------------------------------------
-    // redact_value
-    // ---------------------------------------------------------------
+    fn signals<'a>(table: &'a str, column: &'a str, samples: &'a [String]) -> PiiSignals<'a> {
+        PiiSignals {
+            table,
+            column,
+            data_type: None,
+            sample_values: samples,
+        }
+    }
+
+    // ---------------- redact_value ----------------
 
     #[test]
     fn email_keeps_local_prefix_and_tld() {
@@ -327,8 +422,6 @@ mod tests {
 
     #[test]
     fn email_short_local_takes_what_there_is() {
-        // 2-char local "ab" — keep both, append the marker. The
-        // policy is "first 3 chars" with no padding.
         assert_eq!(redact_value("ab@x.io", &PiiKind::Email), "ab***@***.io");
     }
 
@@ -357,8 +450,6 @@ mod tests {
 
     #[test]
     fn last4_short_value_is_fully_redacted() {
-        // Anything <5 chars goes to the placeholder — preserving "last
-        // 4 of a 3-char value" is just the value itself.
         assert_eq!(redact_value("12", &PiiKind::Phone), REDACTED_PLACEHOLDER);
         assert_eq!(redact_value("1234", &PiiKind::Phone), REDACTED_PLACEHOLDER);
     }
@@ -366,7 +457,7 @@ mod tests {
     #[test]
     fn password_token_custom_use_full_placeholder() {
         assert_eq!(redact_value("hunter2", &PiiKind::Password), REDACTED_PLACEHOLDER);
-        assert_eq!(redact_value("ya29.A0ARrdaM...", &PiiKind::Token), REDACTED_PLACEHOLDER);
+        assert_eq!(redact_value("ya29.A0ARrdaM", &PiiKind::Token), REDACTED_PLACEHOLDER);
         assert_eq!(
             redact_value("BIO-FINGERPRINT-HEX", &PiiKind::Custom("biometric_v2".into())),
             REDACTED_PLACEHOLDER
@@ -387,8 +478,8 @@ mod tests {
             max_value: Some("zzz@example.com".to_string()),
         };
         redact_column_stats(&mut stats, &PiiKind::Email);
-        assert_eq!(stats.null_count, 7, "null_count is NOT PII");
-        assert_eq!(stats.distinct_count, 1234, "distinct_count is NOT PII");
+        assert_eq!(stats.null_count, 7);
+        assert_eq!(stats.distinct_count, 1234);
         for v in &stats.sample_values {
             assert!(v.contains("***"), "sample value not redacted: {v}");
         }
@@ -396,68 +487,124 @@ mod tests {
         assert!(stats.max_value.as_deref().unwrap().contains("***"));
     }
 
-    // ---------------------------------------------------------------
-    // RegexPiiClassifier
-    // ---------------------------------------------------------------
+    // ---------------- RegexPiiClassifier ----------------
 
     #[test]
     fn classifier_detects_standalone_email_token() {
         let c = RegexPiiClassifier::new();
-        let s = c.classify_column("email", None).expect("classify email");
+        let s = c.classify(&signals("users", "email", &[])).unwrap();
         assert_eq!(s.kind, PiiKind::Email);
         assert!(s.confidence > 0.5);
     }
 
     #[test]
     fn classifier_does_not_falsely_match_email_template_id() {
-        // The exact false positive the plan calls out — a regex
-        // without word boundaries would match this. The token
-        // matcher must reject it.
         let c = RegexPiiClassifier::new();
-        assert!(c.classify_column("email_template_id", None).is_none());
+        assert!(c.classify(&signals("t", "email_template_id", &[])).is_none());
     }
 
     #[test]
     fn classifier_token_is_case_insensitive() {
         let c = RegexPiiClassifier::new();
-        assert!(c.classify_column("EMAIL", None).is_some());
-        assert!(c.classify_column("Phone_Number", None).is_some());
+        assert!(c.classify(&signals("t", "EMAIL", &[])).is_some());
+        assert!(c.classify(&signals("t", "Phone_Number", &[])).is_some());
     }
 
     #[test]
     fn classifier_returns_password_for_password_column() {
         let c = RegexPiiClassifier::new();
-        let s = c.classify_column("password", None).expect("classify password");
+        let s = c.classify(&signals("u", "password", &[])).unwrap();
         assert_eq!(s.kind, PiiKind::Password);
     }
 
     #[test]
     fn classifier_returns_token_for_api_key_column() {
         let c = RegexPiiClassifier::new();
-        let s = c.classify_column("api_key", None).expect("classify api_key");
+        let s = c.classify(&signals("u", "api_key", &[])).unwrap();
         assert_eq!(s.kind, PiiKind::Token);
+    }
+
+    #[test]
+    fn classifier_falls_back_to_email_pattern_in_samples() {
+        let c = RegexPiiClassifier::new();
+        let samples = vec!["user@example.com".to_string()];
+        let s = c
+            .classify(&signals("t", "contact", &samples))
+            .expect("classify by sample shape");
+        assert_eq!(s.kind, PiiKind::Email);
+        assert!(s.confidence < 0.7);
     }
 
     #[test]
     fn classifier_returns_none_for_unrelated_column() {
         let c = RegexPiiClassifier::new();
-        assert!(c.classify_column("created_at", None).is_none());
-        assert!(c.classify_column("user_id", None).is_none());
+        assert!(c.classify(&signals("t", "created_at", &[])).is_none());
+        assert!(c.classify(&signals("t", "user_id", &[])).is_none());
     }
 
     #[test]
     fn matches_token_word_boundaries_pin_known_cases() {
-        // Whole-name and well-delimited subtokens match.
         assert!(matches_token("email", "email"));
         assert!(matches_token("user_email", "email"));
         assert!(matches_token("email_addr", "email"));
         assert!(matches_token("primary-email-1", "email"));
-        // No-delimiter runs do NOT match.
         assert!(!matches_token("emailtemplateid", "email"));
-        // Foreign-key suppression: the entire false-positive class
-        // the plan calls out goes here.
         assert!(!matches_token("email_template_id", "email"));
         assert!(!matches_token("email_id", "email"));
         assert!(!matches_token("phone_number_id", "phone"));
+    }
+
+    // ---------------- CompositePiiClassifier ----------------
+
+    #[test]
+    fn composite_returns_first_match() {
+        struct Always(PiiKind);
+        impl PiiClassifier for Always {
+            fn classify(&self, s: &PiiSignals<'_>) -> Option<PiiSuggestion> {
+                Some(PiiSuggestion {
+                    table: s.table.to_string(),
+                    column: s.column.to_string(),
+                    kind: self.0.clone(),
+                    confidence: 1.0,
+                    reason: "always".into(),
+                })
+            }
+        }
+        struct Never;
+        impl PiiClassifier for Never {
+            fn classify(&self, _: &PiiSignals<'_>) -> Option<PiiSuggestion> {
+                None
+            }
+        }
+        let composite = CompositePiiClassifier::new()
+            .with(Arc::new(Always(PiiKind::Email)))
+            .with(Arc::new(Always(PiiKind::Phone)));
+        let s = composite.classify(&signals("t", "x", &[])).unwrap();
+        assert_eq!(s.kind, PiiKind::Email);
+
+        let composite = CompositePiiClassifier::new()
+            .with(Arc::new(Never))
+            .with(Arc::new(Always(PiiKind::Phone)));
+        let s = composite.classify(&signals("t", "x", &[])).unwrap();
+        assert_eq!(s.kind, PiiKind::Phone);
+    }
+
+    // ---------------- data_classification_for ----------------
+
+    #[test]
+    fn classification_map_groups_kinds_correctly() {
+        assert_eq!(data_classification_for(&PiiKind::Email), DataClassification::Confidential);
+        assert_eq!(
+            data_classification_for(&PiiKind::Ssn),
+            DataClassification::Restricted
+        );
+        assert_eq!(
+            data_classification_for(&PiiKind::Password),
+            DataClassification::Restricted
+        );
+        assert_eq!(
+            data_classification_for(&PiiKind::Custom("misc".into())),
+            DataClassification::Internal
+        );
     }
 }

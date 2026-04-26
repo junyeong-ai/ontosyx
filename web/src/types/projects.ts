@@ -166,12 +166,38 @@ export interface ConfirmedRelationship {
   to_column: string;
 }
 
-export type PiiDecision = "mask" | "exclude" | "allow";
+export type PiiKind =
+  | { kind: "name" }
+  | { kind: "date_of_birth" }
+  | { kind: "national_id"; value: { country: string } }
+  | { kind: "passport" }
+  | { kind: "drivers_license" }
+  | { kind: "email" }
+  | { kind: "phone" }
+  | { kind: "address" }
+  | { kind: "ip_address" }
+  | { kind: "payment_card_number" }
+  | { kind: "bank_account_number" }
+  | { kind: "iban" }
+  | { kind: "credit_card" }
+  | { kind: "ssn" }
+  | { kind: "medical_record_number" }
+  | { kind: "insurance_id" }
+  | { kind: "biometric" }
+  | { kind: "geo_location" }
+  | { kind: "password" }
+  | { kind: "token" }
+  | { kind: "custom"; value: string };
 
-export interface PiiDecisionEntry {
+export interface PiiAnnotation {
   table: string;
   column: string;
-  decision: PiiDecision;
+  kind: PiiKind;
+}
+
+export interface ExcludedColumn {
+  table: string;
+  column: string;
 }
 
 export interface ColumnClarification {
@@ -182,7 +208,8 @@ export interface ColumnClarification {
 
 export interface DesignOptions {
   confirmed_relationships?: ConfirmedRelationship[];
-  pii_decisions?: PiiDecisionEntry[];
+  pii_annotations?: PiiAnnotation[];
+  excluded_columns?: ExcludedColumn[];
   excluded_tables?: string[];
   column_clarifications?: ColumnClarification[];
   allow_partial_source_analysis?: boolean;
@@ -235,23 +262,12 @@ export interface ImpliedRelationship {
   repo_confirmed: boolean;
 }
 
-export type PiiType =
-  | "name"
-  | "email"
-  | "phone"
-  | "birth_date"
-  | "national_id"
-  | "address"
-  | "other";
-
-export type PiiDetectionMethod = "column_name" | "value_pattern";
-
-export interface PiiFinding {
+export interface PiiSuggestion {
   table: string;
   column: string;
-  pii_type: PiiType;
-  detection_method: PiiDetectionMethod;
-  masked_preview?: string;
+  kind: PiiKind;
+  confidence: number;
+  reason: string;
 }
 
 /**
@@ -331,7 +347,7 @@ export interface RepoAnalysisSummary {
 export interface SourceAnalysisReport {
   schema_stats: SchemaStats;
   implied_relationships: ImpliedRelationship[];
-  pii_findings: PiiFinding[];
+  pii_suggestions: PiiSuggestion[];
   ambiguous_columns: AmbiguityContext[];
   table_exclusion_suggestions: TableExclusionSuggestion[];
   large_schema_warning?: LargeSchemaWarning;

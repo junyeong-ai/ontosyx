@@ -224,11 +224,9 @@ export function ProjectWorkflow({
             <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-zinc-700 dark:hover:text-zinc-300">
               {t("analysisReview")}
               <span className="ml-2 text-[10px] font-normal normal-case text-muted-foreground">
-                {decisions.unresolvedPiiCount + decisions.unresolvedClarificationCount > 0
+                {decisions.unresolvedClarificationCount > 0
                   ? t("unresolved", {
-                      count:
-                        decisions.unresolvedPiiCount +
-                        decisions.unresolvedClarificationCount,
+                      count: decisions.unresolvedClarificationCount,
                     })
                   : t("allResolved")}
               </span>
@@ -238,15 +236,16 @@ export function ProjectWorkflow({
                 report={report}
                 confirmedRelationships={decisions.confirmedRelationships}
                 setConfirmedRelationships={decisions.setConfirmedRelationships}
-                piiDecisions={decisions.piiDecisions}
-                setPiiDecisions={decisions.setPiiDecisions}
+                piiAnnotations={decisions.piiAnnotations}
+                setPiiAnnotations={decisions.setPiiAnnotations}
+                excludedColumns={decisions.excludedColumns}
+                setExcludedColumns={decisions.setExcludedColumns}
                 clarifications={decisions.clarifications}
                 setClarifications={decisions.setClarifications}
                 excludedTables={decisions.excludedTables}
                 setExcludedTables={decisions.setExcludedTables}
                 allowPartialAnalysis={decisions.allowPartialAnalysis}
                 setAllowPartialAnalysis={decisions.setAllowPartialAnalysis}
-                unresolvedPiiCount={decisions.unresolvedPiiCount}
                 unresolvedClarificationCount={decisions.unresolvedClarificationCount}
                 needsPartialAcknowledgement={decisions.needsPartialAcknowledgement}
               />

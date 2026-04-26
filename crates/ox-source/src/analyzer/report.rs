@@ -1,26 +1,26 @@
-use std::collections::HashMap;
-
 use ox_ontology::ambiguity::RepoHint;
 use ox_ontology::mapping::refs::SourceId;
+use ox_ontology::pii::RegexPiiClassifier;
 use ox_ontology::repo_insights::RepoInsights;
 use ox_ontology::source_analysis::{
     AnalysisCompleteness, DesignOptions, LARGE_SCHEMA_WARNING_THRESHOLD, LargeSchemaWarning,
-    PiiDecision, PiiDecisionEntry, RepoAnalysisStatus, RepoAnalysisSummary, RepoColumnSuggestion,
-    SchemaStats, SourceAnalysisReport,
+    RepoAnalysisStatus, RepoAnalysisSummary, RepoColumnSuggestion, SchemaStats,
+    SourceAnalysisReport,
 };
 use ox_core::source_schema::{SourceProfile, SourceSchema};
 
 use super::ambiguous::detect_ambiguous;
 use super::exclusions::suggest_exclusions;
 use super::fk_inference::infer_implied_fks;
-use super::pii::detect_pii;
+use super::pii_scan::scan_for_pii;
 
-/// Build a SourceAnalysisReport from schema + profile (no LLM, no I/O).
-///
-/// Detects implied FKs, PII columns, ambiguous columns, and table
-/// exclusion candidates. `source_id` + `source_hash` flow through into
-/// every `AmbiguityContext` so a later schema change invalidates stale
-/// resolutions deterministically (hash mismatch ⇒ re-ask the admin).
+/// Build a [`SourceAnalysisReport`] from schema + profile (no LLM,
+/// no I/O). Detects implied FKs, PII suggestions, ambiguous
+/// columns, and table exclusion candidates. `source_id` +
+/// `source_hash` flow through into every
+/// [`ox_ontology::ambiguity::AmbiguityContext`] so a later schema
+/// change invalidates stale resolutions deterministically (hash
+/// mismatch ⇒ re-ask the operator).
 pub fn build_analysis_report(
     source_id: &SourceId,
     source_hash: &str,
@@ -40,7 +40,7 @@ pub fn build_analysis_report(
     };
 
     let implied_relationships = infer_implied_fks(schema);
-    let pii_findings = detect_pii(schema, profile);
+    let pii_suggestions = scan_for_pii(schema, profile, &RegexPiiClassifier::new());
     let ambiguous_columns = detect_ambiguous(source_id, source_hash, schema, profile);
     let table_exclusion_suggestions = suggest_exclusions(schema, profile);
 
@@ -61,7 +61,7 @@ pub fn build_analysis_report(
     SourceAnalysisReport {
         schema_stats,
         implied_relationships,
-        pii_findings,
+        pii_suggestions,
         ambiguous_columns,
         table_exclusion_suggestions,
         large_schema_warning,
@@ -72,20 +72,16 @@ pub fn build_analysis_report(
     }
 }
 
-/// Enrich the analysis report with insights from repo analysis.
-/// - ORM-confirmed FKs upgrade confidence from 0.85 -> 0.98
-/// - Repo enum defs that match ambiguous columns are recorded as repo_suggestions
+/// Enrich the analysis report with insights from repo analysis:
+/// ORM-confirmed FKs upgrade implied-FK confidence from 0.85 to
+/// 0.98, and repo enum definitions hint at ambiguous columns.
 pub fn enrich_with_repo(report: &mut SourceAnalysisReport, insights: &RepoInsights) {
     let mut upgraded_fk_count = 0;
 
-    // Upgrade implied FK confidence when ORM confirms the relationship
     for rel in &mut report.implied_relationships {
         let confirmed = insights.orm_relationships.iter().any(|orm| {
-            // Deterministic match: LLM provides explicit table names — no heuristic conversion.
             let fwd = orm.from_table.eq_ignore_ascii_case(&rel.from_table)
                 && orm.to_table.eq_ignore_ascii_case(&rel.to_table);
-            // Reverse: ORM inverse association (HasMany: Customer -> Order
-            // is the inverse of orders.customer_id -> customers).
             let rev = orm.to_table.eq_ignore_ascii_case(&rel.from_table)
                 && orm.from_table.eq_ignore_ascii_case(&rel.to_table);
             fwd || rev
@@ -98,53 +94,45 @@ pub fn enrich_with_repo(report: &mut SourceAnalysisReport, insights: &RepoInsigh
         }
     }
 
-    // Annotate ambiguous columns with repo suggestions.
-    // Columns stay in ambiguous_columns (user must explicitly accept).
-    // Also recorded in repo_suggestions for provenance tracking.
-    let mut suggestions: Vec<RepoColumnSuggestion> = Vec::new();
-
-    for ambig in &mut report.ambiguous_columns {
-        let found = insights.enum_definitions.iter().find(|def| {
-            // Deterministic match: LLM provides explicit table_name — no heuristic conversion.
-            def.table_name.eq_ignore_ascii_case(&ambig.column.relation)
-                && def.field.eq_ignore_ascii_case(&ambig.column.column)
+    let mut suggestion_columns = 0usize;
+    for ambiguous in &mut report.ambiguous_columns {
+        let table = &ambiguous.column.relation;
+        let column = &ambiguous.column.column;
+        let matched = insights.enum_definitions.iter().find(|e| {
+            e.table_name.eq_ignore_ascii_case(table)
+                && e.field.eq_ignore_ascii_case(column)
         });
-
-        if let Some(def) = found {
-            let suggested_values = def
+        if let Some(enum_def) = matched {
+            let suggested_values = enum_def
                 .values
                 .iter()
-                .map(|cv| format!("{}={}", cv.code, cv.label))
+                .map(|cl| format!("{}={}", cl.code, cl.label))
                 .collect::<Vec<_>>()
                 .join(", ");
-
-            ambig.repo_hint = Some(RepoHint {
+            ambiguous.repo_hint = Some(RepoHint {
                 suggested_values: suggested_values.clone(),
-                source_file: def.source_file.clone(),
+                source_file: enum_def.source_file.clone(),
             });
-
-            suggestions.push(RepoColumnSuggestion {
-                table: ambig.column.relation.clone(),
-                column: ambig.column.column.clone(),
+            report.repo_suggestions.push(RepoColumnSuggestion {
+                table: table.clone(),
+                column: column.clone(),
                 suggested_values,
-                source_file: def.source_file.clone(),
+                source_file: enum_def.source_file.clone(),
             });
+            suggestion_columns += 1;
         }
     }
 
-    report.repo_suggestions = suggestions;
-
-    // Attach repo summary
     report.repo_summary = Some(RepoAnalysisSummary {
-        status: RepoAnalysisStatus::Complete, // caller may downgrade to Partial
+        status: RepoAnalysisStatus::Complete,
         status_reason: None,
         framework: insights.framework.clone(),
-        files_requested: 0, // caller sets this after navigate_repo
+        files_requested: insights.analyzed_files.len(),
         files_analyzed: insights.analyzed_files.len(),
-        tree_truncated: false, // caller sets this after generate_tree
+        tree_truncated: false,
         enums_found: insights.enum_definitions.len(),
         relationships_found: insights.orm_relationships.len(),
-        columns_with_suggestions: report.repo_suggestions.len(),
+        columns_with_suggestions: suggestion_columns,
         fk_confidence_upgraded: upgraded_fk_count,
         commit_sha: None,
         field_hints: insights.field_hints.clone(),
@@ -152,57 +140,9 @@ pub fn enrich_with_repo(report: &mut SourceAnalysisReport, insights: &RepoInsigh
     });
 }
 
-/// Apply PII decisions to a profile clone before it is sent to the LLM.
-///
-/// Decision semantics:
-/// - `Mask`: Replace each sample value with `"[MASKED]"`. Column remains in the ontology;
-///   the LLM understands data exists but cannot see real values.
-/// - `Exclude`: Clear sample values entirely (`Vec::new()`). The LLM context also instructs
-///   the model to omit this column from the ontology (`build_design_context`).
-/// - `Allow`:   No-op — values pass through unchanged.
-///
-/// Both Mask and Exclude prevent raw PII from reaching the LLM prompt.
-pub fn apply_pii_masking(profile: &mut SourceProfile, decisions: &[PiiDecisionEntry]) {
-    // Pre-build O(1) lookup keyed by (table, column) to avoid O(n*m) inner scan.
-    // If the caller supplies duplicate (table, column) entries, the HashMap collect()
-    // keeps the last entry (last-write-wins). This is intentional: the caller controls
-    // decision precedence by ordering entries; the final entry for a column wins.
-    let actionable: HashMap<(&str, &str), &PiiDecisionEntry> = decisions
-        .iter()
-        .filter(|d| matches!(d.decision, PiiDecision::Mask | PiiDecision::Exclude))
-        .map(|d| ((d.table.as_str(), d.column.as_str()), d))
-        .collect();
-
-    if actionable.is_empty() {
-        return;
-    }
-
-    for tp in &mut profile.table_profiles {
-        for cs in &mut tp.column_stats {
-            let Some(entry) = actionable.get(&(tp.table_name.as_str(), cs.column_name.as_str()))
-            else {
-                continue;
-            };
-
-            match entry.decision {
-                PiiDecision::Mask => {
-                    cs.sample_values = cs
-                        .sample_values
-                        .iter()
-                        .map(|_| "[MASKED]".to_string())
-                        .collect();
-                }
-                PiiDecision::Exclude => {
-                    cs.sample_values.clear();
-                }
-                PiiDecision::Allow => {} // filtered above — exhaustive match
-            }
-        }
-    }
-}
-
-/// Build the LLM design context string incorporating DesignOptions and optional repo insights.
-/// This is the text passed to `Brain::design_ontology` as `context`.
+/// Build the LLM design context string. Drops every section the
+/// operator hasn't filled in, so an empty `DesignOptions` produces
+/// an empty string.
 pub fn build_design_context(
     base_context: &str,
     options: &DesignOptions,
@@ -238,6 +178,18 @@ pub fn build_design_context(
         ));
     }
 
+    if !options.excluded_columns.is_empty() {
+        let listed = options
+            .excluded_columns
+            .iter()
+            .map(|c| format!("{}.{}", c.table, c.column))
+            .collect::<Vec<_>>()
+            .join(", ");
+        parts.push(format!(
+            "Excluded columns (do NOT include these properties):\n  {listed}"
+        ));
+    }
+
     if !options.column_clarifications.is_empty() {
         let clarifications = options
             .column_clarifications
@@ -250,21 +202,18 @@ pub fn build_design_context(
         ));
     }
 
-    let excluded_pii: Vec<String> = options
-        .pii_decisions
-        .iter()
-        .filter(|d| matches!(d.decision, PiiDecision::Exclude))
-        .map(|d| format!("{}.{}", d.table, d.column))
-        .collect();
-
-    if !excluded_pii.is_empty() {
+    if !options.pii_annotations.is_empty() {
+        let listed = options
+            .pii_annotations
+            .iter()
+            .map(|a| format!("  {}.{}: {:?}", a.table, a.column, a.kind))
+            .collect::<Vec<_>>()
+            .join("\n");
         parts.push(format!(
-            "Excluded PII columns (do NOT include these properties):\n  {}",
-            excluded_pii.join(", ")
+            "PII annotations (set pii_kind on the resulting property):\n{listed}"
         ));
     }
 
-    // Include repo field hints and domain notes when available
     if let Some(summary) = repo_summary {
         if !summary.field_hints.is_empty() {
             let hints = summary
@@ -300,73 +249,7 @@ mod tests {
     use super::*;
     use crate::analyzer::test_utils::make_schema;
     use ox_core::source_schema::{ColumnStats, TableProfile};
-
-    fn make_profile(table: &str, column: &str, values: &[&str]) -> SourceProfile {
-        SourceProfile {
-            table_profiles: vec![TableProfile {
-                table_name: table.to_string(),
-                row_count: values.len() as u64,
-                column_stats: vec![ColumnStats {
-                    column_name: column.to_string(),
-                    null_count: 0,
-                    distinct_count: values.len() as u64,
-                    sample_values: values.iter().map(|v| v.to_string()).collect(),
-                    min_value: None,
-                    max_value: None,
-                }],
-            }],
-        }
-    }
-
-    #[test]
-    fn pii_masking_mask_replaces_with_placeholder() {
-        let mut profile = make_profile("users", "email", &["hong@example.com", "kim@example.com"]);
-        let decisions = vec![PiiDecisionEntry {
-            table: "users".to_string(),
-            column: "email".to_string(),
-            decision: PiiDecision::Mask,
-        }];
-        apply_pii_masking(&mut profile, &decisions);
-        let values = &profile.table_profiles[0].column_stats[0].sample_values;
-        assert_eq!(values.len(), 2, "Mask preserves cardinality");
-        assert!(
-            values.iter().all(|v| v == "[MASKED]"),
-            "all values must be [MASKED]"
-        );
-    }
-
-    #[test]
-    fn pii_masking_exclude_clears_all_values() {
-        let mut profile = make_profile("users", "ssn", &["123456-7890123", "234567-8901234"]);
-        let decisions = vec![PiiDecisionEntry {
-            table: "users".to_string(),
-            column: "ssn".to_string(),
-            decision: PiiDecision::Exclude,
-        }];
-        apply_pii_masking(&mut profile, &decisions);
-        let values = &profile.table_profiles[0].column_stats[0].sample_values;
-        assert!(
-            values.is_empty(),
-            "Exclude must produce empty sample_values"
-        );
-    }
-
-    #[test]
-    fn pii_masking_allow_is_noop() {
-        let mut profile = make_profile("products", "name", &["Widget A", "Widget B"]);
-        let decisions = vec![PiiDecisionEntry {
-            table: "products".to_string(),
-            column: "name".to_string(),
-            decision: PiiDecision::Allow,
-        }];
-        apply_pii_masking(&mut profile, &decisions);
-        let values = &profile.table_profiles[0].column_stats[0].sample_values;
-        assert_eq!(
-            values,
-            &["Widget A", "Widget B"],
-            "Allow must not alter values"
-        );
-    }
+    use ox_ontology::pii::{ExcludedColumn, PiiAnnotation};
 
     #[test]
     fn enrich_with_repo_priority1_explicit_table_name() {
@@ -393,16 +276,14 @@ mod tests {
             &schema,
             &profile,
         );
-        // Verify ambiguous column was detected
         assert_eq!(report.ambiguous_columns.len(), 1);
 
-        // LLM provides explicit table_name (non-conventional: "tb_stores")
         let insights = RepoInsights {
             framework: Some("Django".to_string()),
             enum_definitions: vec![RepoEnumDef {
                 model: "Store".to_string(),
                 field: "store_type".to_string(),
-                table_name: "tb_stores".to_string(), // explicit, non-conventional
+                table_name: "tb_stores".to_string(),
                 values: vec![
                     CodeLabel {
                         code: "N".to_string(),
@@ -424,7 +305,6 @@ mod tests {
 
         enrich_with_repo(&mut report, &insights);
 
-        // Column stays in ambiguous_columns with repo_hint (user must accept)
         assert_eq!(report.ambiguous_columns.len(), 1);
         assert!(report.ambiguous_columns[0].repo_hint.is_some());
         assert!(
@@ -444,7 +324,6 @@ mod tests {
     fn enrich_with_repo_heuristic_matching() {
         use ox_ontology::repo_insights::{CodeLabel, RepoEnumDef};
 
-        // table_name = None -> falls back to heuristic (Rails: Order model -> orders table)
         let schema = make_schema(&[("orders", &["id", "status"])], &[]);
         let profile = SourceProfile {
             table_profiles: vec![TableProfile {
@@ -473,7 +352,7 @@ mod tests {
             enum_definitions: vec![RepoEnumDef {
                 model: "Order".to_string(),
                 field: "status".to_string(),
-                table_name: "orders".to_string(), // LLM applies framework convention
+                table_name: "orders".to_string(),
                 values: vec![
                     CodeLabel {
                         code: "1".to_string(),
@@ -499,7 +378,6 @@ mod tests {
 
         enrich_with_repo(&mut report, &insights);
 
-        // Column stays in ambiguous_columns with repo_hint (user must accept)
         assert_eq!(report.ambiguous_columns.len(), 1);
         assert!(report.ambiguous_columns[0].repo_hint.is_some());
         assert!(
@@ -510,7 +388,6 @@ mod tests {
                 .suggested_values
                 .contains("1=pending")
         );
-        // Also tracked in repo_suggestions for provenance
         assert_eq!(report.repo_suggestions.len(), 1);
         let summary = report.repo_summary.as_ref().unwrap();
         assert_eq!(summary.columns_with_suggestions, 1);
@@ -566,8 +443,6 @@ mod tests {
     #[test]
     fn enrich_with_repo_reverse_orm_direction() {
         use ox_ontology::repo_insights::{OrmRelationType, OrmRelationship};
-        // HasMany on Customer side is the inverse of orders.customer_id -> customers.
-        // Reverse matching must upgrade the FK confidence regardless of direction.
         let schema = make_schema(
             &[("orders", &["id", "customer_id"]), ("customers", &["id"])],
             &[],
@@ -603,10 +478,7 @@ mod tests {
 
         enrich_with_repo(&mut report, &insights);
 
-        assert!(
-            report.implied_relationships[0].repo_confirmed,
-            "reverse HasMany must upgrade implied FK confidence"
-        );
+        assert!(report.implied_relationships[0].repo_confirmed);
         assert_eq!(report.implied_relationships[0].confidence, 0.98);
         let summary = report.repo_summary.as_ref().unwrap();
         assert_eq!(summary.fk_confidence_upgraded, 1);
@@ -615,14 +487,12 @@ mod tests {
     #[test]
     fn build_design_context_empty_options() {
         let ctx = build_design_context("", &DesignOptions::default(), None);
-        assert!(
-            ctx.is_empty(),
-            "no context + empty options must produce empty string"
-        );
+        assert!(ctx.is_empty());
     }
 
     #[test]
     fn build_design_context_all_sections() {
+        use ox_ontology::ir::PiiKind;
         use ox_ontology::source_analysis::{ColumnClarification, ConfirmedRelationship};
         let options = DesignOptions {
             confirmed_relationships: vec![ConfirmedRelationship {
@@ -632,15 +502,19 @@ mod tests {
                 to_column: "id".to_string(),
             }],
             excluded_tables: vec!["audit_log".to_string()],
+            excluded_columns: vec![ExcludedColumn {
+                table: "users".to_string(),
+                column: "ssn".to_string(),
+            }],
             column_clarifications: vec![ColumnClarification {
                 table: "orders".to_string(),
                 column: "status".to_string(),
                 hint: "1=active, 2=cancelled".to_string(),
             }],
-            pii_decisions: vec![PiiDecisionEntry {
+            pii_annotations: vec![PiiAnnotation {
                 table: "users".to_string(),
                 column: "email".to_string(),
-                decision: PiiDecision::Exclude,
+                kind: PiiKind::Email,
             }],
             allow_partial_source_analysis: false,
         };
@@ -648,6 +522,7 @@ mod tests {
         assert!(ctx.contains("base hint"));
         assert!(ctx.contains("orders.customer_id → customers.id"));
         assert!(ctx.contains("audit_log"));
+        assert!(ctx.contains("users.ssn"));
         assert!(ctx.contains("orders.status"));
         assert!(ctx.contains("users.email"));
     }

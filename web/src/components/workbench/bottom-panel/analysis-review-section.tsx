@@ -8,57 +8,74 @@ import { FormInput } from "@/components/ui/form-input";
 import { cn } from "@/lib/cn";
 import { toast } from "sonner";
 import type {
-  PiiDecision,
-  PiiFinding,
   AmbiguityContext,
   ImpliedRelationship,
-  TableExclusionSuggestion,
+  PiiKind,
+  PiiSuggestion,
   SourceAnalysisReport,
+  TableExclusionSuggestion,
 } from "@/types/api";
-import { relationshipKey, columnKey, selectClassName } from "./design-panel-shared";
+import {
+  relationshipKey,
+  columnKey,
+  selectClassName,
+} from "./design-panel-shared";
+import type { PiiAnnotationEntry } from "./use-design-decisions";
 
 type AnalysisTranslator = ReturnType<typeof useTranslations<"workbench.bottomPanel.analysisReview">>;
 
 // ---------------------------------------------------------------------------
-// PII auto-fill — defaults to "allow" for internal tools.
-// Users review and override individual decisions as needed.
+// PII kind picker — every variant the operator can commit. The form
+// surfaces the discriminant only; structural variants (`national_id`,
+// `custom`) carry an empty payload by default and are refined in the
+// dedicated annotation editor.
 // ---------------------------------------------------------------------------
 
-function inferPiiDecision(): PiiDecision {
-  // Internal backoffice tool: default to "allow" for maximum data availability.
-  // Users review and change individual decisions to "mask"/"exclude" as needed.
-  return "allow";
+const PII_KIND_VALUES: { value: string; build: () => PiiKind }[] = [
+  { value: "name", build: () => ({ kind: "name" }) },
+  { value: "date_of_birth", build: () => ({ kind: "date_of_birth" }) },
+  { value: "national_id", build: () => ({ kind: "national_id", value: { country: "" } }) },
+  { value: "passport", build: () => ({ kind: "passport" }) },
+  { value: "drivers_license", build: () => ({ kind: "drivers_license" }) },
+  { value: "email", build: () => ({ kind: "email" }) },
+  { value: "phone", build: () => ({ kind: "phone" }) },
+  { value: "address", build: () => ({ kind: "address" }) },
+  { value: "ip_address", build: () => ({ kind: "ip_address" }) },
+  { value: "payment_card_number", build: () => ({ kind: "payment_card_number" }) },
+  { value: "bank_account_number", build: () => ({ kind: "bank_account_number" }) },
+  { value: "iban", build: () => ({ kind: "iban" }) },
+  { value: "credit_card", build: () => ({ kind: "credit_card" }) },
+  { value: "ssn", build: () => ({ kind: "ssn" }) },
+  { value: "medical_record_number", build: () => ({ kind: "medical_record_number" }) },
+  { value: "insurance_id", build: () => ({ kind: "insurance_id" }) },
+  { value: "biometric", build: () => ({ kind: "biometric" }) },
+  { value: "geo_location", build: () => ({ kind: "geo_location" }) },
+  { value: "password", build: () => ({ kind: "password" }) },
+  { value: "token", build: () => ({ kind: "token" }) },
+  { value: "custom", build: () => ({ kind: "custom", value: "" }) },
+];
+
+function piiKindFromValue(value: string): PiiKind | undefined {
+  return PII_KIND_VALUES.find((entry) => entry.value === value)?.build();
 }
 
 // ---------------------------------------------------------------------------
 // Column clarification auto-fill heuristics
 // ---------------------------------------------------------------------------
 
-/**
- * Heuristic clarification hint. Accepts a translator so the generated
- * hint renders in the user's active locale — the hint is stored verbatim
- * and shown in the UI. Locale is captured once at invocation time.
- */
 function inferClarification(column: AmbiguityContext, t: AnalysisTranslator): string {
   const col = column.column.column.toLowerCase();
   const samples = column.sample_values;
 
-  // Year: 4-digit numbers
   if (/year/.test(col) && samples.every((v) => /^\d{4}$/.test(v.trim()))) {
     return t("clarHintDefault");
   }
-
-  // Age: 2-digit numbers
   if (/age/.test(col) && samples.every((v) => /^\d{1,3}$/.test(v.trim()))) {
     return t("inferAge");
   }
-
-  // Percentage
   if (/pct|percent/.test(col)) {
     return t("inferPercentage");
   }
-
-  // Rating
   if (/rating/.test(col) && samples.every((v) => /^\d{1,2}$/.test(v.trim()))) {
     const nums = samples.map((v) => Number(v.trim())).filter((n) => !isNaN(n));
     if (nums.length > 0) {
@@ -66,23 +83,15 @@ function inferClarification(column: AmbiguityContext, t: AnalysisTranslator): st
     }
     return t("inferRating");
   }
-
-  // Grade
   if (/grade/.test(col)) {
     return t("inferGrade");
   }
-
-  // Quantity
   if (/quantity|qty/.test(col)) {
     return t("inferQuantity");
   }
-
-  // Type/status — list sample values as categories
   if (/type|status|category|kind/.test(col) && samples.length > 0) {
     return t("inferCategory", { values: samples.join(", ") });
   }
-
-  // Default: readable column name + sample context
   const readable = col
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
@@ -93,7 +102,7 @@ function inferClarification(column: AmbiguityContext, t: AnalysisTranslator): st
 }
 
 // ---------------------------------------------------------------------------
-// Grouping helpers — group items by source table name
+// Grouping + section helpers
 // ---------------------------------------------------------------------------
 
 function groupByTable<T>(items: T[], getTable: (item: T) => string): Map<string, T[]> {
@@ -109,10 +118,6 @@ function groupByTable<T>(items: T[], getTable: (item: T) => string): Map<string,
   }
   return map;
 }
-
-// ---------------------------------------------------------------------------
-// Grouped section with <details> collapse per table
-// ---------------------------------------------------------------------------
 
 function GroupedSection({
   title,
@@ -134,8 +139,6 @@ function GroupedSection({
   if (groups.size === 0) return null;
 
   const lowerSearch = searchFilter.toLowerCase();
-
-  // Filter groups by search and unresolved
   const filteredGroups = Array.from(groups.entries())
     .filter(([tableName]) => !lowerSearch || tableName.toLowerCase().includes(lowerSearch))
     .filter(([tableName]) => !unresolvedOnly || getUnresolvedCount(tableName) > 0)
@@ -176,22 +179,23 @@ function GroupedSection({
 }
 
 // ---------------------------------------------------------------------------
-// Analysis Review Section — decision UI for analysis report findings
+// Analysis Review Section
 // ---------------------------------------------------------------------------
 
 export function AnalysisReviewSection({
   report,
   confirmedRelationships,
   setConfirmedRelationships,
-  piiDecisions,
-  setPiiDecisions,
+  piiAnnotations,
+  setPiiAnnotations,
+  excludedColumns,
+  setExcludedColumns,
   clarifications,
   setClarifications,
   excludedTables,
   setExcludedTables,
   allowPartialAnalysis,
   setAllowPartialAnalysis,
-  unresolvedPiiCount,
   unresolvedClarificationCount,
   needsPartialAcknowledgement,
 }: {
@@ -200,9 +204,13 @@ export function AnalysisReviewSection({
   setConfirmedRelationships: React.Dispatch<
     React.SetStateAction<Record<string, boolean>>
   >;
-  piiDecisions: Record<string, PiiDecision | "">;
-  setPiiDecisions: React.Dispatch<
-    React.SetStateAction<Record<string, PiiDecision | "">>
+  piiAnnotations: Record<string, PiiAnnotationEntry>;
+  setPiiAnnotations: React.Dispatch<
+    React.SetStateAction<Record<string, PiiAnnotationEntry>>
+  >;
+  excludedColumns: Record<string, { table: string; column: string }>;
+  setExcludedColumns: React.Dispatch<
+    React.SetStateAction<Record<string, { table: string; column: string }>>
   >;
   clarifications: Record<string, string>;
   setClarifications: React.Dispatch<
@@ -214,7 +222,6 @@ export function AnalysisReviewSection({
   >;
   allowPartialAnalysis: boolean;
   setAllowPartialAnalysis: (v: boolean) => void;
-  unresolvedPiiCount: number;
   unresolvedClarificationCount: number;
   needsPartialAcknowledgement: boolean;
 }) {
@@ -222,14 +229,10 @@ export function AnalysisReviewSection({
   const [searchFilter, setSearchFilter] = useState("");
   const [unresolvedOnly, setUnresolvedOnly] = useState(true);
 
-  // -----------------------------------------------------------------------
-  // Resolution counts
-  // -----------------------------------------------------------------------
-
   const totalItems = useMemo(() => {
     return (
       report.implied_relationships.length +
-      report.pii_findings.length +
+      report.pii_suggestions.length +
       report.ambiguous_columns.length +
       report.table_exclusion_suggestions.length
     );
@@ -242,19 +245,26 @@ export function AnalysisReviewSection({
     }).length;
   }, [report.implied_relationships, confirmedRelationships]);
 
+  const unresolvedPiiCount = useMemo(() => {
+    return report.pii_suggestions.filter((s) => {
+      const key = columnKey(s.table, s.column);
+      return !piiAnnotations[key] && !excludedColumns[key];
+    }).length;
+  }, [report.pii_suggestions, piiAnnotations, excludedColumns]);
+
   const unresolvedExcludedCount = useMemo(() => {
     return report.table_exclusion_suggestions.filter(
       (s) => !excludedTables[s.table_name],
     ).length;
   }, [report.table_exclusion_suggestions, excludedTables]);
 
-  const totalUnresolved = unresolvedRelCount + unresolvedPiiCount + unresolvedClarificationCount + unresolvedExcludedCount;
+  const totalUnresolved =
+    unresolvedRelCount +
+    unresolvedPiiCount +
+    unresolvedClarificationCount +
+    unresolvedExcludedCount;
   const totalResolved = totalItems - totalUnresolved;
   const progressPercent = totalItems > 0 ? Math.round((totalResolved / totalItems) * 100) : 100;
-
-  // -----------------------------------------------------------------------
-  // Grouped data
-  // -----------------------------------------------------------------------
 
   const relGroups = useMemo(() => {
     const grouped = groupByTable(
@@ -272,16 +282,16 @@ export function AnalysisReviewSection({
   }, [report.implied_relationships]);
 
   const piiGroups = useMemo(() => {
-    const grouped = groupByTable(report.pii_findings, (f) => f.table);
-    const result = new Map<string, { key: string; item: PiiFinding }[]>();
+    const grouped = groupByTable(report.pii_suggestions, (s) => s.table);
+    const result = new Map<string, { key: string; item: PiiSuggestion }[]>();
     for (const [table, items] of grouped) {
       result.set(
         table,
-        items.map((f) => ({ key: columnKey(f.table, f.column), item: f })),
+        items.map((s) => ({ key: columnKey(s.table, s.column), item: s })),
       );
     }
     return result;
-  }, [report.pii_findings]);
+  }, [report.pii_suggestions]);
 
   const clarGroups = useMemo(() => {
     const grouped = groupByTable(report.ambiguous_columns, (c) => c.column.relation);
@@ -306,10 +316,6 @@ export function AnalysisReviewSection({
     return result;
   }, [report.table_exclusion_suggestions]);
 
-  // -----------------------------------------------------------------------
-  // Per-table unresolved counts
-  // -----------------------------------------------------------------------
-
   const relUnresolvedByTable = useCallback(
     (tableName: string) => {
       const items = relGroups.get(tableName);
@@ -323,9 +329,9 @@ export function AnalysisReviewSection({
     (tableName: string) => {
       const items = piiGroups.get(tableName);
       if (!items) return 0;
-      return items.filter((e) => !piiDecisions[e.key]).length;
+      return items.filter((e) => !piiAnnotations[e.key] && !excludedColumns[e.key]).length;
     },
-    [piiGroups, piiDecisions],
+    [piiGroups, piiAnnotations, excludedColumns],
   );
 
   const clarUnresolvedByTable = useCallback(
@@ -344,10 +350,6 @@ export function AnalysisReviewSection({
     [excludedTables],
   );
 
-  // -----------------------------------------------------------------------
-  // Batch accept per-table
-  // -----------------------------------------------------------------------
-
   const acceptAllRelInTable = useCallback(
     (tableName: string) => {
       const items = relGroups.get(tableName);
@@ -363,17 +365,22 @@ export function AnalysisReviewSection({
     (tableName: string) => {
       const items = piiGroups.get(tableName);
       if (!items) return;
-      const updates: Record<string, PiiDecision | ""> = {};
+      const updates: Record<string, PiiAnnotationEntry> = {};
       for (const e of items) {
-        if (!piiDecisions[e.key]) {
-          updates[e.key] = inferPiiDecision();
+        if (!piiAnnotations[e.key] && !excludedColumns[e.key]) {
+          const suggestion = e.item as PiiSuggestion;
+          updates[e.key] = {
+            table: suggestion.table,
+            column: suggestion.column,
+            kind: suggestion.kind,
+          };
         }
       }
       if (Object.keys(updates).length > 0) {
-        setPiiDecisions((prev) => ({ ...prev, ...updates }));
+        setPiiAnnotations((prev) => ({ ...prev, ...updates }));
       }
     },
-    [piiGroups, piiDecisions, setPiiDecisions],
+    [piiGroups, piiAnnotations, excludedColumns, setPiiAnnotations],
   );
 
   const acceptAllClarInTable = useCallback(
@@ -403,30 +410,28 @@ export function AnalysisReviewSection({
     [setExcludedTables],
   );
 
-  // -----------------------------------------------------------------------
-  // Global auto-fill
-  // -----------------------------------------------------------------------
-
   const autoFill = useCallback(() => {
     let piiCount = 0;
     let clarCount = 0;
 
-    // Auto-fill unresolved PII decisions
-    if (report.pii_findings.length > 0) {
-      const newPii: Record<string, PiiDecision | ""> = {};
-      for (const finding of report.pii_findings) {
-        const key = columnKey(finding.table, finding.column);
-        if (!piiDecisions[key]) {
-          newPii[key] = inferPiiDecision();
-          piiCount++;
+    if (report.pii_suggestions.length > 0) {
+      const newPii: Record<string, PiiAnnotationEntry> = {};
+      for (const suggestion of report.pii_suggestions) {
+        const key = columnKey(suggestion.table, suggestion.column);
+        if (!piiAnnotations[key] && !excludedColumns[key]) {
+          newPii[key] = {
+            table: suggestion.table,
+            column: suggestion.column,
+            kind: suggestion.kind,
+          };
+          piiCount += 1;
         }
       }
       if (piiCount > 0) {
-        setPiiDecisions((prev) => ({ ...prev, ...newPii }));
+        setPiiAnnotations((prev) => ({ ...prev, ...newPii }));
       }
     }
 
-    // Auto-fill unresolved clarifications
     if (report.ambiguous_columns.length > 0) {
       const newClar: Record<string, string> = {};
       for (const column of report.ambiguous_columns) {
@@ -437,7 +442,7 @@ export function AnalysisReviewSection({
           } else {
             newClar[key] = inferClarification(column, t);
           }
-          clarCount++;
+          clarCount += 1;
         }
       }
       if (clarCount > 0) {
@@ -458,13 +463,20 @@ export function AnalysisReviewSection({
         { description: t("autoFillDescription") },
       );
     }
-  }, [report, piiDecisions, setPiiDecisions, clarifications, setClarifications, t]);
+  }, [
+    report,
+    piiAnnotations,
+    excludedColumns,
+    setPiiAnnotations,
+    clarifications,
+    setClarifications,
+    t,
+  ]);
 
   const hasUnresolved = unresolvedPiiCount > 0 || unresolvedClarificationCount > 0;
 
   return (
     <div className="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50/70 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
-      {/* Summary */}
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
@@ -511,7 +523,6 @@ export function AnalysisReviewSection({
         </div>
       </div>
 
-      {/* Progress bar */}
       {totalItems > 0 && (
         <div>
           <div className="mb-1 flex items-center justify-between text-[10px] text-muted-foreground">
@@ -534,7 +545,6 @@ export function AnalysisReviewSection({
         </div>
       )}
 
-      {/* Filter bar */}
       {totalItems > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-zinc-200 bg-white px-2 py-1.5 dark:border-zinc-800 dark:bg-zinc-950/60">
           <label className="flex items-center gap-1.5 text-[10px] text-zinc-600 dark:text-zinc-300">
@@ -560,7 +570,6 @@ export function AnalysisReviewSection({
         </div>
       )}
 
-      {/* Warnings */}
       {report.analysis_warnings.length > 0 && (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-2 dark:border-amber-900 dark:bg-amber-950/40">
           <div className="flex items-center gap-1.5">
@@ -588,7 +597,6 @@ export function AnalysisReviewSection({
         </div>
       )}
 
-      {/* Repo summary */}
       {report.repo_summary && (
         <div className="text-[10px] text-muted-foreground">
           {t("repoSummary", {
@@ -601,7 +609,7 @@ export function AnalysisReviewSection({
         </div>
       )}
 
-      {/* Relationships — grouped by from_table */}
+      {/* Relationships */}
       {report.implied_relationships.length > 0 && (
         <GroupedSection
           title={t("confirmRelationships")}
@@ -650,8 +658,8 @@ export function AnalysisReviewSection({
         />
       )}
 
-      {/* PII — grouped by table */}
-      {report.pii_findings.length > 0 && (
+      {/* PII suggestions */}
+      {report.pii_suggestions.length > 0 && (
         <GroupedSection
           title={t("piiDecisions")}
           groups={piiGroups as Map<string, { key: string; item: unknown }[]>}
@@ -674,38 +682,100 @@ export function AnalysisReviewSection({
             ) : null;
           }}
           renderItem={(entry) => {
-            const finding = entry.item as PiiFinding;
+            const suggestion = entry.item as PiiSuggestion;
+            const annotation = piiAnnotations[entry.key];
+            const excluded = !!excludedColumns[entry.key];
+            const selectedValue = annotation ? annotation.kind.kind : "";
             return (
               <div className="rounded border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950/60">
                 <p className="text-[10px] font-medium text-zinc-700 dark:text-zinc-200">
                   {t("piiRow", {
-                    table: finding.table,
-                    column: finding.column,
-                    type: finding.pii_type,
+                    table: suggestion.table,
+                    column: suggestion.column,
+                    type: suggestion.kind.kind,
                   })}
                 </p>
-                <select
-                  value={piiDecisions[entry.key] ?? ""}
-                  onChange={(e) =>
-                    setPiiDecisions((c) => ({
-                      ...c,
-                      [entry.key]: e.target.value as PiiDecision | "",
-                    }))
-                  }
-                  className={cn(selectClassName, "mt-1 !py-1 !text-xs")}
-                >
-                  <option value="">{t("piiOptionChoose")}</option>
-                  <option value="mask">{t("piiOptionMask")}</option>
-                  <option value="exclude">{t("piiOptionExclude")}</option>
-                  <option value="allow">{t("piiOptionAllow")}</option>
-                </select>
+                <p className="text-[10px] text-muted-foreground">
+                  {Math.round(suggestion.confidence * 100)}% — {suggestion.reason}
+                </p>
+                <div className="mt-1 flex items-center gap-2">
+                  <select
+                    value={selectedValue}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (!value) {
+                        setPiiAnnotations((c) => {
+                          const next = { ...c };
+                          delete next[entry.key];
+                          return next;
+                        });
+                        return;
+                      }
+                      const kind = piiKindFromValue(value);
+                      if (!kind) return;
+                      setPiiAnnotations((c) => ({
+                        ...c,
+                        [entry.key]: {
+                          table: suggestion.table,
+                          column: suggestion.column,
+                          kind,
+                        },
+                      }));
+                      setExcludedColumns((c) => {
+                        if (!c[entry.key]) return c;
+                        const next = { ...c };
+                        delete next[entry.key];
+                        return next;
+                      });
+                    }}
+                    disabled={excluded}
+                    className={cn(selectClassName, "!py-1 !text-xs")}
+                  >
+                    <option value="">{t("piiOptionChoose")}</option>
+                    {PII_KIND_VALUES.map((entry) => (
+                      <option key={entry.value} value={entry.value}>
+                        {entry.value}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="flex items-center gap-1 text-[10px] text-zinc-600 dark:text-zinc-300">
+                    <input
+                      type="checkbox"
+                      checked={excluded}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setExcludedColumns((c) => ({
+                            ...c,
+                            [entry.key]: {
+                              table: suggestion.table,
+                              column: suggestion.column,
+                            },
+                          }));
+                          setPiiAnnotations((c) => {
+                            if (!c[entry.key]) return c;
+                            const next = { ...c };
+                            delete next[entry.key];
+                            return next;
+                          });
+                        } else {
+                          setExcludedColumns((c) => {
+                            const next = { ...c };
+                            delete next[entry.key];
+                            return next;
+                          });
+                        }
+                      }}
+                    />
+                    {t("piiOptionExclude")}
+                  </label>
+                </div>
               </div>
             );
           }}
         />
       )}
 
-      {/* Clarifications — grouped by table */}
+      {/* Clarifications */}
       {report.ambiguous_columns.length > 0 && (
         <GroupedSection
           title={t("columnClarifications")}
@@ -772,7 +842,7 @@ export function AnalysisReviewSection({
         />
       )}
 
-      {/* Excluded tables — grouped by table name */}
+      {/* Excluded tables */}
       {report.table_exclusion_suggestions.length > 0 && (
         <GroupedSection
           title={t("excludedTables")}

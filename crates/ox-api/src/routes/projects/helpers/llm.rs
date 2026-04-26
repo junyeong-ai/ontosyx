@@ -2,12 +2,12 @@ use std::collections::{HashMap, HashSet};
 
 use ox_ontology::design_project::{SourceConfig, SourceTypeKind};
 use ox_ontology::input::InputOntologyDef;
+use ox_ontology::pii::{PiiAnnotation, redact_column_stats};
 use ox_ontology::source_analysis::{
-    AnalysisWarning, DesignOptions, ENUM_CARDINALITY_THRESHOLD, PiiDecision, SourceAnalysisReport,
+    AnalysisWarning, DesignOptions, ENUM_CARDINALITY_THRESHOLD, SourceAnalysisReport,
 };
 use ox_core::source_schema::{ForeignKeyDef, SourceProfile, SourceSchema};
 use ox_ontology::table_clustering::TableCluster;
-use ox_source::analyzer::apply_pii_masking;
 use ox_store::DesignProject;
 
 use crate::error::AppError;
@@ -84,41 +84,30 @@ pub(crate) fn build_llm_input(
                 })
                 .unwrap_or_default();
 
-            // Reduce schema: filter excluded tables, then cap detailed tables at max_design_tables.
-            // Tables beyond the budget get a compact summary (name, col count, FK refs)
-            // so the LLM still sees the full schema landscape.
             let max_tables = config.max_design_tables();
-            let reduced =
-                reduce_schema_for_llm(schema, profile, &effective_opts.excluded_tables, max_tables);
+            let reduced = reduce_schema_for_llm(
+                schema,
+                profile,
+                &effective_opts.excluded_tables,
+                &effective_opts.excluded_columns,
+                max_tables,
+            );
             let schema = reduced.schema;
-            let profile = reduced.profile;
+            let mut profile = reduced.profile;
             let dropped_summary = reduced.dropped_summary;
 
-            // Apply PII masking
-            let has_mask = effective_opts
-                .pii_decisions
-                .iter()
-                .any(|d| matches!(d.decision, PiiDecision::Mask | PiiDecision::Exclude));
+            apply_pii_annotations_to_profile(&mut profile, &effective_opts.pii_annotations);
 
-            let masked_profile = if has_mask {
-                let mut masked = profile.clone();
-                apply_pii_masking(&mut masked, &effective_opts.pii_decisions);
-                masked
-            } else {
-                profile
-            };
-
-            // Apply adaptive compression for large schemas
             let large_threshold = config.large_schema_warning_threshold();
             let is_large = schema.tables.len() >= large_threshold;
             let effective_profile = if is_large {
                 compact_profile_for_llm(
-                    &masked_profile,
+                    &profile,
                     config.large_schema_sample_values(),
                     config.large_schema_value_chars(),
                 )
             } else {
-                masked_profile
+                profile
             };
 
             let mut text = format_source_for_llm(&schema, &effective_profile, &warnings, is_large)?;
@@ -156,11 +145,11 @@ fn reduce_schema_for_llm(
     mut schema: SourceSchema,
     mut profile: SourceProfile,
     excluded_tables: &[String],
+    excluded_columns: &[ox_ontology::pii::ExcludedColumn],
     max_tables: usize,
 ) -> ReducedSchema {
     let original_count = schema.tables.len();
 
-    // Phase 1: remove user-excluded tables
     if !excluded_tables.is_empty() {
         let excluded: HashSet<&str> = excluded_tables.iter().map(|s| s.as_str()).collect();
         schema
@@ -180,6 +169,37 @@ fn reduce_schema_for_llm(
                 excluded = excluded_tables.len(),
                 "Removed user-excluded tables from LLM input"
             );
+        }
+    }
+
+    if !excluded_columns.is_empty() {
+        let mut by_table: HashMap<&str, HashSet<&str>> = HashMap::new();
+        for entry in excluded_columns {
+            by_table
+                .entry(entry.table.as_str())
+                .or_default()
+                .insert(entry.column.as_str());
+        }
+        for table in &mut schema.tables {
+            if let Some(cols) = by_table.get(table.name.as_str()) {
+                table.columns.retain(|c| !cols.contains(c.name.as_str()));
+            }
+        }
+        schema.foreign_keys.retain(|fk| {
+            let from_excluded = by_table
+                .get(fk.from_table.as_str())
+                .map(|s| s.contains(fk.from_column.as_str()))
+                .unwrap_or(false);
+            let to_excluded = by_table
+                .get(fk.to_table.as_str())
+                .map(|s| s.contains(fk.to_column.as_str()))
+                .unwrap_or(false);
+            !from_excluded && !to_excluded
+        });
+        for tp in &mut profile.table_profiles {
+            if let Some(cols) = by_table.get(tp.table_name.as_str()) {
+                tp.column_stats.retain(|cs| !cols.contains(cs.column_name.as_str()));
+            }
         }
     }
 
@@ -340,6 +360,32 @@ fn build_dropped_table_summary(
         lines.len(),
         lines.join("\n"),
     )
+}
+
+/// Walk every PII annotation and redact the matching column's
+/// sample values + min / max in place. Counts (`null_count`,
+/// `distinct_count`) are preserved — counts are not PII and the
+/// LLM relies on the distribution shape.
+fn apply_pii_annotations_to_profile(
+    profile: &mut SourceProfile,
+    annotations: &[PiiAnnotation],
+) {
+    if annotations.is_empty() {
+        return;
+    }
+    let mut by_target: HashMap<(&str, &str), &ox_ontology::ir::PiiKind> = HashMap::new();
+    for ann in annotations {
+        by_target.insert((ann.table.as_str(), ann.column.as_str()), &ann.kind);
+    }
+    for tp in &mut profile.table_profiles {
+        for cs in &mut tp.column_stats {
+            if let Some(kind) =
+                by_target.get(&(tp.table_name.as_str(), cs.column_name.as_str()))
+            {
+                redact_column_stats(cs, kind);
+            }
+        }
+    }
 }
 
 /// Create compacted clones of profile for LLM input.
@@ -809,7 +855,7 @@ mod tests {
             table_profiles: vec![make_profile("users"), make_profile("orders")],
         };
 
-        let reduced = reduce_schema_for_llm(schema, profile, &[], 10);
+        let reduced = reduce_schema_for_llm(schema, profile, &[], &[], 10);
 
         assert_eq!(reduced.schema.tables.len(), 2);
         assert_eq!(reduced.profile.table_profiles.len(), 2);
@@ -837,7 +883,7 @@ mod tests {
         };
         let excluded = vec!["audit_log".to_string()];
 
-        let reduced = reduce_schema_for_llm(schema, profile, &excluded, 100);
+        let reduced = reduce_schema_for_llm(schema, profile, &excluded, &[], 100);
 
         assert_eq!(reduced.schema.tables.len(), 2);
         assert!(reduced.schema.tables.iter().all(|t| t.name != "audit_log"));
@@ -878,7 +924,7 @@ mod tests {
         };
 
         // Cap at 3 tables: should keep hub + 2 spokes (all tied), drop leaf + 1 spoke
-        let reduced = reduce_schema_for_llm(schema, profile, &[], 3);
+        let reduced = reduce_schema_for_llm(schema, profile, &[], &[], 3);
 
         assert_eq!(reduced.schema.tables.len(), 3);
         assert_eq!(reduced.profile.table_profiles.len(), 3);
@@ -920,7 +966,7 @@ mod tests {
         let excluded = vec!["audit_log".to_string()];
 
         // After exclusion: 4 tables (users, orders, items, temp_table). Cap at 3.
-        let reduced = reduce_schema_for_llm(schema, profile, &excluded, 3);
+        let reduced = reduce_schema_for_llm(schema, profile, &excluded, &[], 3);
 
         assert_eq!(reduced.schema.tables.len(), 3);
         assert_eq!(reduced.profile.table_profiles.len(), 3);
@@ -950,7 +996,7 @@ mod tests {
 
         // Cap at 2: b has highest score (2 FK refs + 1 _id col = 3), a has 1 FK ref, c has 1 FK ref
         // Tie-break alphabetically: a < c, so keep b + a
-        let reduced = reduce_schema_for_llm(schema, profile, &[], 2);
+        let reduced = reduce_schema_for_llm(schema, profile, &[], &[], 2);
 
         assert_eq!(reduced.schema.tables.len(), 2);
         // FK b->c should be removed since c is dropped from detail
@@ -982,7 +1028,7 @@ mod tests {
         };
 
         // Cap at 1: detail has highest score → keep detail, drop hub + category
-        let reduced = reduce_schema_for_llm(schema, profile, &[], 1);
+        let reduced = reduce_schema_for_llm(schema, profile, &[], &[], 1);
 
         assert_eq!(reduced.schema.tables.len(), 1);
         assert_eq!(reduced.schema.tables[0].name, "detail");

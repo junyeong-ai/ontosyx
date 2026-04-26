@@ -237,7 +237,6 @@ pub(crate) async fn design_project_stream(
         } else if let Some((raw_schema, raw_profile)) = schema_and_profile.as_ref() {
             // === Divide-and-conquer path (structured sources) ===
 
-            // Pre-process: filter excluded tables and apply PII masking
             let mut schema = raw_schema.clone();
             let mut profile = raw_profile.clone();
             if !effective_opts.excluded_tables.is_empty() {
@@ -249,10 +248,54 @@ pub(crate) async fn design_project_stream(
                 });
                 profile.table_profiles.retain(|tp| !excluded.contains(tp.table_name.as_str()));
             }
-            if effective_opts.pii_decisions.iter().any(|d| {
-                matches!(d.decision, ox_ontology::source_analysis::PiiDecision::Mask | ox_ontology::source_analysis::PiiDecision::Exclude)
-            }) {
-                ox_source::analyzer::apply_pii_masking(&mut profile, &effective_opts.pii_decisions);
+            if !effective_opts.excluded_columns.is_empty() {
+                let mut by_table: std::collections::HashMap<&str, std::collections::HashSet<&str>> =
+                    std::collections::HashMap::new();
+                for entry in &effective_opts.excluded_columns {
+                    by_table
+                        .entry(entry.table.as_str())
+                        .or_default()
+                        .insert(entry.column.as_str());
+                }
+                for table in &mut schema.tables {
+                    if let Some(cols) = by_table.get(table.name.as_str()) {
+                        table.columns.retain(|c| !cols.contains(c.name.as_str()));
+                    }
+                }
+                schema.foreign_keys.retain(|fk| {
+                    let from_excluded = by_table
+                        .get(fk.from_table.as_str())
+                        .map(|s| s.contains(fk.from_column.as_str()))
+                        .unwrap_or(false);
+                    let to_excluded = by_table
+                        .get(fk.to_table.as_str())
+                        .map(|s| s.contains(fk.to_column.as_str()))
+                        .unwrap_or(false);
+                    !from_excluded && !to_excluded
+                });
+                for tp in &mut profile.table_profiles {
+                    if let Some(cols) = by_table.get(tp.table_name.as_str()) {
+                        tp.column_stats.retain(|cs| !cols.contains(cs.column_name.as_str()));
+                    }
+                }
+            }
+            if !effective_opts.pii_annotations.is_empty() {
+                let mut by_target: std::collections::HashMap<
+                    (&str, &str),
+                    &ox_ontology::ir::PiiKind,
+                > = std::collections::HashMap::new();
+                for ann in &effective_opts.pii_annotations {
+                    by_target.insert((ann.table.as_str(), ann.column.as_str()), &ann.kind);
+                }
+                for tp in &mut profile.table_profiles {
+                    for cs in &mut tp.column_stats {
+                        if let Some(kind) = by_target
+                            .get(&(tp.table_name.as_str(), cs.column_name.as_str()))
+                        {
+                            ox_ontology::pii::redact_column_stats(cs, kind);
+                        }
+                    }
+                }
             }
 
             let effective_tables = schema.tables.len();
@@ -518,19 +561,22 @@ pub(crate) async fn design_project_stream(
         let design_ms = design_started.elapsed().as_millis() as u64;
         info!(project_id = %id, design_ms, "LLM design completed (stream)");
 
-        // Enrich ontology properties with data classifications from PII
-        // findings. The canonical object_mappings on the IR are the
-        // authoritative (node, table, column) lookup — clone the slice
-        // so we can borrow the ontology mutably for classification.
-        if let Some(report) = &analysis_report {
+        // Push operator-confirmed PII annotations into the resulting
+        // ontology — sets `pii_kind` and `classification` on every
+        // matching property via the canonical object-mapping lookup.
+        if !effective_opts.pii_annotations.is_empty() {
             let object_mappings = ontology.object_mappings().to_vec();
-            let classified = ox_ontology::source_analysis::apply_pii_classifications(
+            let classified = ox_ontology::source_analysis::apply_pii_annotations(
                 &mut ontology,
-                &report.pii_findings,
+                &effective_opts.pii_annotations,
                 &object_mappings,
             );
             if classified > 0 {
-                info!(project_id = %id, classified, "Applied PII-based data classifications to ontology properties");
+                info!(
+                    project_id = %id,
+                    classified,
+                    "Applied PII annotations to ontology properties"
+                );
             }
         }
 

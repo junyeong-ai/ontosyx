@@ -79,11 +79,11 @@ export function WorkflowActions({
   onApiError,
   analysisRef,
   confirmedRelationships,
-  piiDecisions,
+  piiAnnotations,
+  excludedColumns,
   clarifications,
   excludedTables,
   allowPartialAnalysis,
-  unresolvedPiiCount,
   unresolvedClarificationCount,
   needsPartialAcknowledgement,
 }: WorkflowActionsProps) {
@@ -111,7 +111,6 @@ export function WorkflowActions({
   const canDesign =
     !loading &&
     !isCompleted &&
-    unresolvedPiiCount === 0 &&
     unresolvedClarificationCount === 0 &&
     !needsPartialAcknowledgement;
 
@@ -130,13 +129,15 @@ export function WorkflowActions({
           to_table: rel.to_table,
           to_column: rel.to_column,
         })),
-      pii_decisions: report.pii_findings
-        .map((finding) => {
-          const decision = piiDecisions[columnKey(finding.table, finding.column)];
-          if (!decision) return null;
-          return { table: finding.table, column: finding.column, decision };
-        })
-        .filter((e): e is NonNullable<typeof e> => e !== null),
+      pii_annotations: Object.values(piiAnnotations).map((entry) => ({
+        table: entry.table,
+        column: entry.column,
+        kind: entry.kind,
+      })),
+      excluded_columns: Object.values(excludedColumns).map((entry) => ({
+        table: entry.table,
+        column: entry.column,
+      })),
       excluded_tables: report.table_exclusion_suggestions
         .filter((s) => excludedTables[s.table_name])
         .map((s) => s.table_name),
@@ -585,9 +586,7 @@ export function WorkflowActions({
             disabled={!canDesign || (hasLargeSchema && !form.design.acknowledgeLargeSchema)}
             title={
               !canDesign &&
-              (unresolvedPiiCount > 0 ||
-                unresolvedClarificationCount > 0 ||
-                needsPartialAcknowledgement)
+              (unresolvedClarificationCount > 0 || needsPartialAcknowledgement)
                 ? t("tipDisabledResolve")
                 : hasLargeSchema && !form.design.acknowledgeLargeSchema
                   ? t("tipDisabledLargeSchema")

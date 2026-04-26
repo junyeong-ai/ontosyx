@@ -40,8 +40,7 @@ use tracing::warn;
 
 use ox_core::error::{OxError, OxResult};
 use ox_ontology::source_analysis::{
-    AnalysisPhase, AnalysisWarning, AnalysisWarningKind, LARGE_SCHEMA_GATE_THRESHOLD, PiiDecision,
-    PiiDecisionEntry, WarningLevel,
+    AnalysisPhase, AnalysisWarning, AnalysisWarningKind, LARGE_SCHEMA_GATE_THRESHOLD, WarningLevel,
 };
 use ox_core::source_schema::{SourceProfile, SourceSchema, TableProfile};
 
@@ -568,34 +567,8 @@ impl IntrospectionKernel {
         selection: &TableSelection,
     ) -> OxResult<AnalysisResult> {
         let (schema, mut warnings) = self.introspect_schema_for(selection).await?;
-        let (mut profile, profile_warnings) = self.collect_stats(&schema).await?;
+        let (profile, profile_warnings) = self.collect_stats(&schema).await?;
         warnings.extend(profile_warnings);
-
-        // Default PII redaction — every PII-flagged column has its
-        // `sample_values` replaced with `[MASKED]` before the analysis
-        // leaves the kernel. The caller (design UI / agent tool) can
-        // surface `PiiDecision::Allow` on a per-column basis to fetch an
-        // unmasked profile when a reviewer has explicitly signed off.
-        //
-        // Why this lives in the kernel: the PII detector already runs
-        // during `build_analysis_report`, but that report is a separate
-        // artefact from the profile. Raw sample values travel in the
-        // profile. Masking here closes the gap — the profile returned
-        // to downstream code (and, critically, serialised to the
-        // frontend) never carries raw PII unless a decision override
-        // says otherwise.
-        let pii_findings = crate::analyzer::detect_pii(&schema, &profile);
-        if !pii_findings.is_empty() {
-            let default_mask: Vec<_> = pii_findings
-                .iter()
-                .map(|f| PiiDecisionEntry {
-                    table: f.table.clone(),
-                    column: f.column.clone(),
-                    decision: PiiDecision::Mask,
-                })
-                .collect();
-            crate::analyzer::apply_pii_masking(&mut profile, &default_mask);
-        }
 
         Ok(AnalysisResult {
             schema,
