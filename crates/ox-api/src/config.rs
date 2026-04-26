@@ -474,6 +474,30 @@ pub struct ServerConfig {
     /// `["/run/secrets", "/var/lib/ontosyx/secrets"]`.
     #[serde(default)]
     pub allowed_secret_file_roots: Vec<String>,
+    /// GCP Secret Manager resolver. Off by default — `env:` and
+    /// `file:` cover most deployments. Enable on GCP-hosted servers
+    /// that want to dereference `gcp-sm:` references through
+    /// Application Default Credentials.
+    #[serde(default)]
+    pub gcp_sm: GcpSmConfig,
+}
+
+/// Per-deployment toggle for the GCP Secret Manager resolver.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct GcpSmConfig {
+    /// `true` registers the `gcp-sm:` scheme in the secret-resolver
+    /// composite. The build is feature-gated; toggling this in
+    /// config.toml without the `gcp-sm` cargo feature compiled in
+    /// produces a clean startup error rather than a silent
+    /// passthrough.
+    #[serde(default)]
+    pub enabled: bool,
+    /// `true` makes ADC failure at startup fatal. `false` (default)
+    /// downgrades the failure to a warning so a developer machine
+    /// without ADC can still boot — at the cost of lazy `gcp-sm:`
+    /// resolution erroring per request instead of upfront.
+    #[serde(default)]
+    pub required: bool,
 }
 
 #[derive(Deserialize, Clone)]

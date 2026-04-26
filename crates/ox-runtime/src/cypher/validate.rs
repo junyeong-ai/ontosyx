@@ -413,7 +413,7 @@ impl CypherValidator for SafetyValidator {
                             continue;
                         }
                         let prop_text = prop_token.text.trim_matches('`');
-                        if SYSTEM_PROPERTIES.iter().any(|sp| *sp == prop_text) {
+                        if SYSTEM_PROPERTIES.contains(&prop_text) {
                             issues.push(
                                 ValidationIssue::error(
                                     "safety",
@@ -437,7 +437,7 @@ impl CypherValidator for SafetyValidator {
                             };
                             for (key, _value) in props {
                                 let key_clean = key.trim_matches('`');
-                                if SYSTEM_PROPERTIES.iter().any(|sp| *sp == key_clean) {
+                                if SYSTEM_PROPERTIES.contains(&key_clean) {
                                     issues.push(ValidationIssue::error(
                                         "safety",
                                         format!(

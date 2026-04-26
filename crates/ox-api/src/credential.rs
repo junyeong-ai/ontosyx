@@ -380,32 +380,16 @@ impl SecretResolver for FileSecretResolver {
     }
 }
 
-/// Default secret resolver wired into [`AppState`]. A
-/// [`CompositeSecretResolver`] with [`EnvSecretResolver`] registered
-/// for `env:` and [`FileSecretResolver`] for `file:`. The `file:`
-/// resolver is built unsandboxed — suitable for unit tests and
-/// single-tenant trusted-admin deployments only. Production servers
-/// should call [`secret_resolver_with_file_roots`] and pass the
-/// `config.server.allowed_secret_file_roots` list so admins with
-/// adapter-register permission can't read arbitrary server files.
+/// Build the default composite resolver: `env:` + sandboxed `file:`.
+/// `gcp-sm:` is added by [`build_secret_resolver`] when the feature
+/// is compiled in and the operator opted in via config.
 ///
-/// Deployments that need Vault / AWS Secrets Manager / GCP Secret
-/// Manager build their own composite and pass it into `AppState`
-/// during server startup — none of the types or handlers here care
-/// how many resolvers are behind the trait object.
-pub fn default_secret_resolver() -> Arc<dyn SecretResolver> {
-    secret_resolver_with_file_roots(Vec::<std::path::PathBuf>::new())
-}
-
-/// Build the default composite resolver with the `file:` scheme
-/// sandboxed to the given directory roots. Passing an empty iterator
-/// is equivalent to [`default_secret_resolver`] (any absolute path
-/// accepted). The intended production shape is
-/// `secret_resolver_with_file_roots(config.server.allowed_secret_file_roots)`;
-/// canonicalisation of each root happens lazily at resolve time so
+/// Recommended production shape:
+/// `default_secret_resolver(config.server.allowed_secret_file_roots)`.
+/// Canonicalisation of each root happens lazily at resolve time so
 /// mount points that don't exist at startup (late-mounted volumes)
 /// are tolerated.
-pub fn secret_resolver_with_file_roots<I, P>(roots: I) -> Arc<dyn SecretResolver>
+pub fn default_secret_resolver<I, P>(roots: I) -> CompositeSecretResolver
 where
     I: IntoIterator<Item = P>,
     P: Into<std::path::PathBuf>,
@@ -416,7 +400,77 @@ where
         "file:",
         Arc::new(FileSecretResolver::new().with_allowed_roots(roots)),
     );
-    Arc::new(composite)
+    composite
+}
+
+/// Build the per-server secret resolver. Always registers `env:` +
+/// `file:`; conditionally registers `gcp-sm:` when the cargo feature
+/// is compiled in *and* the operator opted in via
+/// `[server.gcp_sm]` in config.toml.
+///
+/// `required = true` makes ADC failure at startup fatal so a
+/// production cluster never silently boots with broken secret
+/// resolution.
+pub async fn build_secret_resolver(
+    file_roots: Vec<std::path::PathBuf>,
+    gcp_sm: GcpSmOptions,
+) -> Result<Arc<dyn SecretResolver>, AppError> {
+    let mut composite = default_secret_resolver(file_roots);
+
+    if gcp_sm.enabled {
+        register_gcp_sm(&mut composite, gcp_sm.required).await?;
+    }
+
+    Ok(Arc::new(composite))
+}
+
+/// GCP Secret Manager registration toggle for [`build_secret_resolver`].
+#[derive(Debug, Clone, Default)]
+pub struct GcpSmOptions {
+    pub enabled: bool,
+    pub required: bool,
+}
+
+#[cfg(feature = "gcp-sm")]
+async fn register_gcp_sm(
+    composite: &mut CompositeSecretResolver,
+    required: bool,
+) -> Result<(), AppError> {
+    use crate::gcp_secret_manager::GcpSecretManagerResolver;
+
+    match GcpSecretManagerResolver::from_adc().await {
+        Ok(resolver) => {
+            composite.register("gcp-sm:", Arc::new(resolver));
+            tracing::info!("registered `gcp-sm:` secret resolver via ADC");
+            Ok(())
+        }
+        Err(e) if required => Err(AppError::internal(format!(
+            "GCP Secret Manager required by config but ADC discovery failed: {e:?}"
+        ))),
+        Err(e) => {
+            tracing::warn!(
+                error = ?e,
+                "GCP Secret Manager enabled but ADC discovery failed; \
+                 `gcp-sm:` references will fail at resolve time"
+            );
+            Ok(())
+        }
+    }
+}
+
+#[cfg(not(feature = "gcp-sm"))]
+async fn register_gcp_sm(
+    _composite: &mut CompositeSecretResolver,
+    required: bool,
+) -> Result<(), AppError> {
+    let message = "config requested gcp_sm.enabled but the `gcp-sm` cargo \
+                   feature was not compiled in";
+    if required {
+        Err(AppError::internal(message))
+    } else {
+        tracing::warn!("{message}");
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -606,9 +660,7 @@ mod tests {
 
     #[test]
     fn default_secret_resolver_has_env_registered() {
-        // Smoke test: factory wires env. A deployment that needs
-        // more schemes builds its own composite.
-        let _ = default_secret_resolver();
+        let _ = default_secret_resolver(Vec::<std::path::PathBuf>::new());
     }
 
     // -----------------------------------------------------------------
@@ -815,12 +867,47 @@ mod tests {
 
     #[tokio::test]
     async fn default_resolver_dispatches_both_env_and_file_schemes() {
-        // Regression gate: `default_secret_resolver` wires both
-        // schemes, so a caller can reach either via the composite.
-        let resolver = default_secret_resolver();
+        let resolver = default_secret_resolver(Vec::<std::path::PathBuf>::new());
         let err = resolver.resolve("file:").await.unwrap_err();
         assert!(format!("{err:?}").contains("missing the path"));
         let err = resolver.resolve("env:").await.unwrap_err();
         assert!(format!("{err:?}").contains("missing the variable name"));
+    }
+
+    #[tokio::test]
+    async fn build_secret_resolver_without_gcp_sm_keeps_env_and_file() {
+        let resolver = build_secret_resolver(
+            Vec::new(),
+            GcpSmOptions {
+                enabled: false,
+                required: false,
+            },
+        )
+        .await
+        .expect("build resolver");
+        let err = resolver.resolve("file:").await.unwrap_err();
+        assert!(format!("{err:?}").contains("missing the path"));
+        let err = resolver.resolve("gcp-sm:").await.unwrap_err();
+        assert!(
+            format!("{err:?}").contains("supported"),
+            "gcp-sm: scheme should be unrecognised when disabled"
+        );
+    }
+
+    #[tokio::test]
+    #[cfg(not(feature = "gcp-sm"))]
+    async fn build_secret_resolver_required_without_feature_is_fatal() {
+        let outcome = build_secret_resolver(
+            Vec::new(),
+            GcpSmOptions {
+                enabled: true,
+                required: true,
+            },
+        )
+        .await;
+        match outcome {
+            Ok(_) => panic!("required gcp-sm without feature must be fatal"),
+            Err(err) => assert!(format!("{err:?}").contains("`gcp-sm` cargo feature")),
+        }
     }
 }

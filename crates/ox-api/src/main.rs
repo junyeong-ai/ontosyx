@@ -492,9 +492,20 @@ async fn main() -> anyhow::Result<()> {
         repo_policy,
         adapter_registry,
         federation_resolvers: Arc::new(dashmap::DashMap::new()),
-        secret_resolver: ox_api::credential::secret_resolver_with_file_roots(
-            config.server.allowed_secret_file_roots.clone(),
-        ),
+        secret_resolver: ox_api::credential::build_secret_resolver(
+            config
+                .server
+                .allowed_secret_file_roots
+                .iter()
+                .map(std::path::PathBuf::from)
+                .collect(),
+            ox_api::credential::GcpSmOptions {
+                enabled: config.server.gcp_sm.enabled,
+                required: config.server.gcp_sm.required,
+            },
+        )
+        .await
+        .expect("build secret resolver"),
         system_config,
         rate_limiter,
         memory,

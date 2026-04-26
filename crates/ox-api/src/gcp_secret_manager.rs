@@ -101,7 +101,7 @@ impl GcpSecretManagerResolver {
     /// Default project for the short form is read from
     /// `GOOGLE_CLOUD_PROJECT` / `GCLOUD_PROJECT` (env-var subset of
     /// gcloud's project resolution).
-    pub async fn from_application_default_credentials() -> Result<Self, AppError> {
+    pub async fn from_adc() -> Result<Self, AppError> {
         let auth = build_adc_authenticator().await?;
         let cache = read_cache_ttl_from_env()?.map(|ttl| CacheState {
             ttl,
