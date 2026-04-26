@@ -151,7 +151,7 @@ impl OidcProvider {
             .ok_or_else(|| AppError::unauthorized("ID token missing key ID (kid)"))?;
 
         // Get JWKS keys (with cache)
-        let mut keys = self.get_jwks_keys().await?;
+        let mut keys = self.fetch_jwks_keys().await?;
 
         // If kid not found, force refresh (key rotation)
         if !keys.contains_key(&kid) {
@@ -161,7 +161,7 @@ impl OidcProvider {
                 "Key ID not in cache, refreshing JWKS"
             );
             self.invalidate_cache().await;
-            keys = self.get_jwks_keys().await?;
+            keys = self.fetch_jwks_keys().await?;
         }
 
         let decoding_key = keys.get(&kid).ok_or_else(|| {
@@ -215,7 +215,7 @@ impl OidcProvider {
 
     // ---- Internal ----
 
-    async fn get_jwks_keys(&self) -> Result<HashMap<String, DecodingKey>, AppError> {
+    async fn fetch_jwks_keys(&self) -> Result<HashMap<String, DecodingKey>, AppError> {
         // Fast path: cached
         {
             let guard = self.cache.read().await;

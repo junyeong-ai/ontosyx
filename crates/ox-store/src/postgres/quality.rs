@@ -147,7 +147,7 @@ impl QualityStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn get_quality_dashboard(&self) -> OxResult<Vec<QualityDashboardEntry>> {
+    async fn list_quality_dashboard_entries(&self) -> OxResult<Vec<QualityDashboardEntry>> {
         sqlx::query_as(
             "SELECT qr.id AS rule_id, qr.name, qr.rule_type, qr.target_label,
                     qr.severity, qr.threshold::float8 AS threshold,

@@ -211,7 +211,7 @@ pub(crate) async fn quality_dashboard(
 ) -> Result<Json<ApiResponse<Vec<QualityDashboardEntry>>>, AppError> {
     let entries = state
         .store
-        .get_quality_dashboard()
+        .list_quality_dashboard_entries()
         .await
         .map_err(AppError::from)?;
 

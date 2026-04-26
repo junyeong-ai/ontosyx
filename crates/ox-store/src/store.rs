@@ -1092,7 +1092,7 @@ pub trait QualityStore: Send + Sync {
     async fn delete_quality_rule(&self, id: Uuid) -> OxResult<bool>;
     async fn record_quality_result(&self, result: &QualityResult) -> OxResult<()>;
     async fn list_latest_results(&self, rule_id: Uuid, limit: i64) -> OxResult<Vec<QualityResult>>;
-    async fn get_quality_dashboard(&self) -> OxResult<Vec<QualityDashboardEntry>>;
+    async fn list_quality_dashboard_entries(&self) -> OxResult<Vec<QualityDashboardEntry>>;
 }
 
 // ---------------------------------------------------------------------------
