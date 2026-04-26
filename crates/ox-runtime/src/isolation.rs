@@ -89,7 +89,7 @@ pub struct PropertyStrategy;
 
 impl PropertyStrategy {
     /// The property name used for workspace isolation on graph nodes.
-    pub const PROPERTY: &'static str = "_workspace_id";
+    pub const PROPERTY: &'static str = crate::cypher::system_properties::WORKSPACE_PROPERTY;
     /// The Cypher parameter name bound at runtime (without $).
     pub const PARAM_NAME: &'static str = "_ws_id";
 }

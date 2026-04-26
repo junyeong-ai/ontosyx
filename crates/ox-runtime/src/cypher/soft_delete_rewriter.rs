@@ -48,12 +48,8 @@ use crate::cypher::rewrite_helpers::{
     find_following_where_clause, leading_whitespace, split_leading_whitespace,
     strip_leading_keyword,
 };
+use crate::cypher::system_properties::TOMBSTONE_PROPERTY;
 use crate::cypher::token::Span;
-
-/// System-owned tombstone property. Kept as a string constant so
-/// every rewriter / validator referring to it shares one source of
-/// truth.
-pub const TOMBSTONE_PROPERTY: &str = "_deleted_at";
 
 /// Rewriter for soft-delete read filtering and DELETE→SET mutation.
 /// Stateless — every per-request concern (skip toggle) flows
@@ -217,37 +213,74 @@ fn prepend_to_where(clause: &mut CypherClause, condition: &str) {
 // Write path
 // ---------------------------------------------------------------------------
 
-/// Rewrite every `DELETE` and `DETACH DELETE` clause into a
-/// `SET <vars>._deleted_at = timestamp()` clause. Returns true iff
-/// any clause was rewritten.
+/// Plain `DELETE` → in-place `SET <var>._deleted_at = timestamp()`.
+/// `DETACH DELETE` → an `OPTIONAL MATCH <var>-[r]-() DELETE r` for
+/// every target inserted *before* the original clause, plus the
+/// same in-place SET — relations are torn down hard so traversals
+/// don't silently dead-end on a tombstoned node, while the node
+/// row itself is preserved for audit + retention compaction.
 fn rewrite_delete_clauses(statement: &mut CypherStatement) -> bool {
-    let mut any = false;
-    for clause in &mut statement.clauses {
-        let is_delete = matches!(
-            clause.kind,
-            ClauseKind::Delete | ClauseKind::DetachDelete
-        );
-        if !is_delete {
+    let mut planned: Vec<(usize, ClauseKind, String, Vec<String>)> = Vec::new();
+    for (idx, clause) in statement.clauses.iter().enumerate() {
+        if !matches!(clause.kind, ClauseKind::Delete | ClauseKind::DetachDelete) {
             continue;
         }
         let vars = parse_delete_targets(&clause.text);
         if vars.is_empty() {
             continue;
         }
+        let lead = leading_whitespace(&clause.text).to_string();
+        planned.push((idx, clause.kind, lead, vars));
+    }
+    if planned.is_empty() {
+        return false;
+    }
+
+    // Iterate in reverse so each insertion's index doesn't shift
+    // earlier (lower-index) targets we haven't processed yet.
+    for (idx, kind, lead, vars) in planned.into_iter().rev() {
         let assignments = vars
             .iter()
             .map(|v| format!("{v}.{TOMBSTONE_PROPERTY} = timestamp()"))
             .collect::<Vec<_>>()
             .join(", ");
-        let original_lead = leading_whitespace(&clause.text);
-        clause.kind = ClauseKind::Set;
-        clause.text = format!("{original_lead}SET {assignments}");
-        // The structural patterns slot is empty for these kinds; no
-        // pattern to clear. Tokens are preserved for diagnostics —
-        // anyone re-tokenising should consult `text`.
-        any = true;
+
+        let set_clause = CypherClause {
+            kind: ClauseKind::Set,
+            tokens: Vec::new(),
+            text: format!("{lead}SET {assignments}"),
+            span: Span::default(),
+            patterns: Vec::new(),
+        };
+        statement.clauses[idx] = set_clause;
+
+        if kind == ClauseKind::DetachDelete {
+            // Insert one detach segment per target so each gets its
+            // own relationship variable. Reverse order again so the
+            // earlier insert lands at the correct position relative
+            // to the later one.
+            for (i, var) in vars.iter().enumerate().rev() {
+                let rel_var = format!("__sd_r_{i}");
+                let detach_match = CypherClause {
+                    kind: ClauseKind::OptionalMatch,
+                    tokens: Vec::new(),
+                    text: format!(" OPTIONAL MATCH ({var})-[{rel_var}]-()"),
+                    span: Span::default(),
+                    patterns: Vec::new(),
+                };
+                let delete_rel = CypherClause {
+                    kind: ClauseKind::Delete,
+                    tokens: Vec::new(),
+                    text: format!(" DELETE {rel_var}"),
+                    span: Span::default(),
+                    patterns: Vec::new(),
+                };
+                statement.clauses.insert(idx, delete_rel);
+                statement.clauses.insert(idx, detach_match);
+            }
+        }
     }
-    any
+    true
 }
 
 /// Extract the comma-separated variable list from a `DELETE` or
@@ -403,13 +436,32 @@ mod tests {
     }
 
     #[test]
-    fn detach_delete_rewrites_to_set_tombstone() {
-        // Phase 7 ships node-soft-delete only; edge handling is a
-        // documented follow-up. The rewrite shape stays consistent
-        // with the plain DELETE form so the runtime doesn't fork on
-        // the variant.
+    fn detach_delete_hard_detaches_edges_and_soft_deletes_node() {
+        // `DETACH DELETE` semantics: edges go away hard so a
+        // traversal doesn't dead-end on the tombstoned node, but the
+        // node row itself is preserved for audit + retention.
         let out = rewrite("MATCH (p:Person) DETACH DELETE p");
-        assert!(out.contains("SET p._deleted_at = timestamp()"), "got: {out}");
+        assert!(
+            out.contains("OPTIONAL MATCH (p)-[__sd_r_0]-()"),
+            "edge detach not injected: {out}"
+        );
+        assert!(out.contains("DELETE __sd_r_0"), "edge delete missing: {out}");
+        assert!(
+            out.contains("SET p._deleted_at = timestamp()"),
+            "node tombstone missing: {out}"
+        );
+        assert!(!out.contains("DETACH DELETE"), "raw DETACH leaked: {out}");
+    }
+
+    #[test]
+    fn detach_delete_multi_target_emits_one_segment_per_var() {
+        let out = rewrite("MATCH (a:A), (b:B) DETACH DELETE a, b");
+        assert!(out.contains("OPTIONAL MATCH (a)-[__sd_r_0]-()"));
+        assert!(out.contains("OPTIONAL MATCH (b)-[__sd_r_1]-()"));
+        assert!(out.contains("DELETE __sd_r_0"));
+        assert!(out.contains("DELETE __sd_r_1"));
+        assert!(out.contains("a._deleted_at = timestamp()"));
+        assert!(out.contains("b._deleted_at = timestamp()"));
     }
 
     #[test]

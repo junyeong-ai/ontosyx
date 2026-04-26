@@ -341,6 +341,9 @@ impl CypherValidator for SafetyValidator {
     }
 
     fn validate(&self, ast: &CypherAst, _ctx: &ValidateContext) -> Vec<ValidationIssue> {
+        use crate::cypher::system_properties::SYSTEM_PROPERTIES;
+        use crate::cypher::token::TokenKind;
+
         let mut issues = Vec::new();
 
         for statement in &ast.statements {
@@ -350,7 +353,6 @@ impl CypherValidator for SafetyValidator {
                 .any(|c| c.kind == ClauseKind::Where);
 
             for clause in &statement.clauses {
-                // Destructive writes must be WHERE-bounded.
                 let destructive_msg = match clause.kind {
                     ClauseKind::Delete => Some(
                         "DELETE without WHERE is not allowed — add a predicate bounding the deletion",
@@ -369,7 +371,6 @@ impl CypherValidator for SafetyValidator {
                     issues.push(ValidationIssue::error("safety", msg).with_span(clause.span));
                 }
 
-                // DDL tokens (DROP) are never allowed on the runtime path.
                 for tok in &clause.tokens {
                     if tok.is_keyword("DROP") {
                         issues.push(
@@ -379,6 +380,73 @@ impl CypherValidator for SafetyValidator {
                             )
                             .with_span(tok.span),
                         );
+                    }
+                }
+
+                // Reserved system properties — `_workspace_id`,
+                // `_deleted_at` — are owned by the rewriter pipeline.
+                // A user query that writes them directly would either
+                // spoof workspace isolation (`SET n._workspace_id =
+                // 'other_ws'`) or shadow the tombstone marker
+                // (`SET n._deleted_at = NULL`). Reject every write
+                // shape: `SET <var>.<prop>`, `CREATE (n {<prop>: …})`,
+                // and `MERGE (n {<prop>: …}) ON {CREATE|MATCH} SET …`.
+                if matches!(
+                    clause.kind,
+                    ClauseKind::Set | ClauseKind::Create | ClauseKind::Merge
+                ) {
+                    let non_trivia: Vec<&_> = clause
+                        .tokens
+                        .iter()
+                        .filter(|t| !t.is_trivia())
+                        .collect();
+                    for window in non_trivia.windows(3) {
+                        let dot = window[1];
+                        if !(dot.kind == TokenKind::Operator && dot.text == ".") {
+                            continue;
+                        }
+                        let prop_token = window[2];
+                        if !matches!(
+                            prop_token.kind,
+                            TokenKind::Identifier | TokenKind::QuotedIdentifier
+                        ) {
+                            continue;
+                        }
+                        let prop_text = prop_token.text.trim_matches('`');
+                        if SYSTEM_PROPERTIES.iter().any(|sp| *sp == prop_text) {
+                            issues.push(
+                                ValidationIssue::error(
+                                    "safety",
+                                    format!(
+                                        "`{prop_text}` is a system-reserved property and cannot be written by a user query"
+                                    ),
+                                )
+                                .with_span(prop_token.span),
+                            );
+                        }
+                    }
+                    // Inline property syntax — `(n {_workspace_id: 'x'})`
+                    // and `[r {…}]`. The parser populates
+                    // `pattern.element.properties` with the (key,
+                    // raw_value) pairs, so the check is structural.
+                    for pattern in &clause.patterns {
+                        for element in &pattern.elements {
+                            let props = match element {
+                                CypherPatternElement::Node(n) => &n.properties,
+                                CypherPatternElement::Relationship(r) => &r.properties,
+                            };
+                            for (key, _value) in props {
+                                let key_clean = key.trim_matches('`');
+                                if SYSTEM_PROPERTIES.iter().any(|sp| *sp == key_clean) {
+                                    issues.push(ValidationIssue::error(
+                                        "safety",
+                                        format!(
+                                            "`{key_clean}` is a system-reserved property and cannot be written by a user query"
+                                        ),
+                                    ));
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1199,6 +1267,46 @@ mod tests {
         let p = CypherValidatorPipeline::new().with(SafetyValidator::new());
         let r = run(&p, "MATCH (n:Person) WHERE n.id = $id REMOVE n.age");
         assert!(!r.has_errors());
+    }
+
+    #[test]
+    fn safety_blocks_user_write_to_workspace_property() {
+        let p = CypherValidatorPipeline::new().with(SafetyValidator::new());
+        let r = run(
+            &p,
+            "MATCH (n:Person) WHERE n.id = $id SET n._workspace_id = 'other'",
+        );
+        assert!(r.has_errors());
+        assert!(r.errors().any(|e| e.message.contains("_workspace_id")));
+    }
+
+    #[test]
+    fn safety_blocks_user_write_to_tombstone_property() {
+        let p = CypherValidatorPipeline::new().with(SafetyValidator::new());
+        let r = run(
+            &p,
+            "MATCH (n:Person) WHERE n.id = $id SET n._deleted_at = NULL",
+        );
+        assert!(r.has_errors());
+        assert!(r.errors().any(|e| e.message.contains("_deleted_at")));
+    }
+
+    #[test]
+    fn safety_blocks_create_with_reserved_property() {
+        let p = CypherValidatorPipeline::new().with(SafetyValidator::new());
+        let r = run(&p, "CREATE (n:Person {_workspace_id: 'spoof'})");
+        assert!(r.has_errors());
+        assert!(r.errors().any(|e| e.message.contains("_workspace_id")));
+    }
+
+    #[test]
+    fn safety_allows_user_write_to_non_reserved_property() {
+        let p = CypherValidatorPipeline::new().with(SafetyValidator::new());
+        let r = run(
+            &p,
+            "MATCH (n:Person) WHERE n.id = $id SET n.name = 'Alice'",
+        );
+        assert!(!r.has_errors(), "{:?}", r.issues);
     }
 
     #[test]
