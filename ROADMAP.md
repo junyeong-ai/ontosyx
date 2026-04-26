@@ -114,22 +114,6 @@ lineage naming, ArcSwap live-refresh, parse-once pipeline, JSONB
   / AWS Secrets Manager land under the same one-impl-plus-one-
   registration pattern when an operator brings the use case.
 
-### Test infrastructure
-
-- **LLM agent golden harness.** branchforge's `LlmCall` trait has no
-  mock fixture today. Adding a `MockLlmCall` that returns canned
-  `ModelResponse` payloads (frozen per agent operation) is the
-  shortest path to a deterministic agent regression suite covering
-  `translate_query` + `design_ontology` + `query_graph`. Lands as
-  `crates/ox-agent/tests/golden/`.
-- **Federation execute golden via QueryIR.** `crates/ox-federation/tests/`
-  covers the SQL surface (`run_sql`) end-to-end. The QueryIR →
-  planner → ACL-post-process path (`enforce_acl_on_result`) lacks a
-  golden — the gap is one test seeding an `OntologyIR` + `AclSnapshot`,
-  driving `build_query_ir_scoped` + `execute_plan`, and asserting
-  the masked column projection. Same crate, new file
-  `tests/queryir_acl_e2e.rs`.
-
 ## How we test
 
 - **Wire-shape handler tests.** `crate::test_support::TestApp::new(Router)`
@@ -142,7 +126,19 @@ lineage naming, ArcSwap live-refresh, parse-once pipeline, JSONB
 - **RLS integration tests.** `crates/ox-store/tests/rls_enforcement.rs`
   drives real PostgreSQL through the `OX_TEST_DATABASE_URL` env, gated
   `#[ignore]` so the default workspace test run stays hermetic. The
-  same pattern covers `data_sources_integration.rs`.
+  same pattern covers `data_sources_integration.rs` and
+  `crates/ox-api/src/middleware.rs::tests` (ACL/scope ordering).
+- **LLM golden harness.** `ox_brain::test_support::MockLlmCall`
+  (gated behind the `test-helpers` cargo feature) is the
+  deterministic [`branchforge::LlmCall`] impl. Tests enqueue canned
+  `ModelResponse` values, drive `provider::structured_completion`,
+  and assert on the typed output. Reference:
+  `crates/ox-brain/tests/structured_completion_golden.rs`.
+- **Federation execute golden.** `crates/ox-federation/tests/`
+  covers the planner up to Arrow batches; the QueryIR → execute →
+  ACL-post-process integration lives at
+  `crates/ox-api/tests/federation_acl_e2e.rs` and pins the
+  three policy actions (none / mask / deny).
 - **Frontend Playwright fixtures.** `auto:true` fixture in
   `web/tests/fixtures.ts` seeds locale + onboarding + mock-workspace
   per spec; APIRequestContext bypass via `page.evaluate(fetch)`.

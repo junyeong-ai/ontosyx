@@ -18,6 +18,8 @@ pub mod prompts;
 pub mod provider;
 pub mod schema;
 pub mod schema_rag;
+#[cfg(any(test, feature = "test-helpers"))]
+pub mod test_support;
 
 pub use design::DesignOntologyInput;
 
