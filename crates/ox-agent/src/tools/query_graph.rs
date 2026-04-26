@@ -385,6 +385,57 @@ impl SchemaTool for QueryGraphTool {
             }
         }
 
+        // Φ3-D — surface unresolved AmbiguityContext entries as a
+        // guidance hint so the LLM can close the detection loop by
+        // calling `resolve_ambiguity` before the next query. The
+        // active-resolution lookup happens once per context inside
+        // the same async scope so we don't reach for a blocking
+        // shim. Failure to load the list is non-fatal — a missed
+        // nudge is better than a failed query.
+        let ambiguity_contexts = self
+            .domain
+            .store
+            .list_ambiguity_contexts_in_workspace()
+            .await
+            .unwrap_or_default();
+        let mut unresolved: Vec<&ox_ontology::ambiguity::AmbiguityContext> = Vec::new();
+        for ctx in &ambiguity_contexts {
+            let active = self
+                .domain
+                .store
+                .get_active_ambiguity_resolution(&ctx.source_id, &ctx.column)
+                .await
+                .ok()
+                .flatten();
+            if active.is_none() {
+                unresolved.push(ctx);
+            }
+        }
+        if !unresolved.is_empty() {
+            let preview: Vec<String> = unresolved
+                .iter()
+                .take(3)
+                .map(|c| format!("{}.{}", c.column.relation, c.column.column))
+                .collect();
+            let suffix = if unresolved.len() > 3 {
+                format!(" (+{} more)", unresolved.len() - 3)
+            } else {
+                String::new()
+            };
+            let note = format!(
+                " [Ambiguity: {} unresolved column{} ({}{}); consider calling \
+                 resolve_ambiguity to bind one before the next query]",
+                unresolved.len(),
+                if unresolved.len() == 1 { "" } else { "s" },
+                preview.join(", "),
+                suffix,
+            );
+            match &mut guidance {
+                Some(g) => g.push_str(&note),
+                None => guidance = Some(note),
+            }
+        }
+
         let cost = if cost_estimate.risk_level != ox_compiler::cost::RiskLevel::Low {
             Some(cost_estimate)
         } else {
