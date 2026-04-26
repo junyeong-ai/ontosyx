@@ -866,6 +866,400 @@ pub(crate) async fn federation_health(
     }))
 }
 
+// ---------------------------------------------------------------------------
+// Φ2-E — selection-aware introspection routes
+//
+// `GET  /api/admin/federation/adapters/{source_id}/tables`
+// `POST /api/admin/federation/adapters/{source_id}/analyze`
+// `GET  /api/admin/federation/adapters/{source_id}/analysis`
+//
+// Together these expose the incremental ingest workflow: the UI lists
+// tables cheaply, the user picks a subset (or "everything"), the
+// analyse endpoint runs the selection through the kernel and stamps
+// the result onto the source row, and a separate fetch endpoint
+// surfaces the cached snapshot + per-table fingerprint map (so the UI
+// can compute drift without re-running an analysis).
+//
+// All three live behind `require_admin` and the per-source build path
+// uses the same `RegisterAdapterKind::from_stored` round-trip the
+// detail / hydrate handlers use — one decode rule, every route.
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct AdapterTableSummary {
+    pub name: String,
+    pub estimated_row_count: Option<u64>,
+    pub column_count: u32,
+    pub last_modified: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct AdapterTableListResponse {
+    pub source_id: String,
+    pub source_type: String,
+    pub tables: Vec<AdapterTableSummary>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/admin/federation/adapters/{source_id}/tables",
+    params(("source_id" = String, Path, description = "SourceId of the adapter")),
+    responses(
+        (status = 200, description = "Cheap table listing for selection UIs",
+            body = AdapterTableListResponse),
+        (status = 403, description = "Admin role required",
+            body = inline(crate::openapi::ErrorResponse)),
+        (status = 404, description = "No adapter registered for that source_id",
+            body = inline(crate::openapi::ErrorResponse)),
+    ),
+    security(("api_key" = [])),
+    tag = "Admin",
+)]
+#[tracing::instrument(skip(state, principal))]
+pub(crate) async fn list_adapter_tables(
+    State(state): State<FederationState>,
+    principal: Principal,
+    _ws: WorkspaceContext,
+    Path(source_id): Path<String>,
+) -> Result<Json<ApiResponse<AdapterTableListResponse>>, AppError> {
+    principal.require_admin()?;
+    let row = state
+        .store
+        .find_data_source_by_source_id(&source_id)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| {
+            AppError::not_found(&format!(
+                "federation adapter for source_id '{source_id}'"
+            ))
+        })?;
+
+    let kind = RegisterAdapterKind::from_stored(&row.kind, &row.config).map_err(|e| {
+        AppError::internal(format!(
+            "federation adapter for source_id '{source_id}' has a stored config \
+             this server cannot decode: {e:?}"
+        ))
+    })?;
+    let adapter = kind.build_adapter(state.secret_resolver.as_ref()).await?;
+
+    let summaries = adapter
+        .list_tables_with_summary()
+        .await
+        .map_err(AppError::from)?;
+
+    Ok(ApiResponse::of(AdapterTableListResponse {
+        source_id: row.source_id,
+        source_type: row.kind,
+        tables: summaries
+            .into_iter()
+            .map(|s| AdapterTableSummary {
+                name: s.name,
+                estimated_row_count: s.estimated_row_count,
+                column_count: s.column_count,
+                last_modified: s.last_modified,
+            })
+            .collect(),
+    }))
+}
+
+/// Body of `POST /api/admin/federation/adapters/{source_id}/analyze`.
+///
+/// `selection` carries the user's intent — "all" for a full sweep,
+/// "subset" for an incremental pick (with optional dedup against the
+/// existing snapshot's tables to grow rather than replace). The wire
+/// shape uses `serde(tag)` so the JSON reads `{"selection": {"kind":
+/// "subset", "tables": [...]}}`.
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct AnalyzeAdapterRequest {
+    pub selection: AnalyzeSelection,
+    /// When `true` and the source already has a cached snapshot,
+    /// produce an extension result by introspecting only tables not
+    /// in the baseline. Ignored for `selection: "all"`. Defaults to
+    /// `false` — the safe interpretation is "replace what's there".
+    #[serde(default)]
+    pub extend: bool,
+}
+
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum AnalyzeSelection {
+    All,
+    Subset {
+        tables: std::collections::BTreeSet<String>,
+    },
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct AnalyzeAdapterResponse {
+    pub source_id: String,
+    pub source_type: String,
+    pub mode: &'static str,
+    pub tables_analyzed: usize,
+    pub warnings: usize,
+    pub last_analyzed_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/admin/federation/adapters/{source_id}/analyze",
+    params(("source_id" = String, Path, description = "SourceId to analyse")),
+    request_body = AnalyzeAdapterRequest,
+    responses(
+        (status = 200, description = "Analysis complete + cached", body = AnalyzeAdapterResponse),
+        (status = 403, description = "Admin role required",
+            body = inline(crate::openapi::ErrorResponse)),
+        (status = 404, description = "No adapter registered for that source_id",
+            body = inline(crate::openapi::ErrorResponse)),
+    ),
+    security(("api_key" = [])),
+    tag = "Admin",
+)]
+#[tracing::instrument(skip(state, principal, req))]
+pub(crate) async fn analyze_adapter(
+    State(state): State<FederationState>,
+    principal: Principal,
+    _ws: WorkspaceContext,
+    Path(source_id): Path<String>,
+    Json(req): Json<AnalyzeAdapterRequest>,
+) -> Result<Json<ApiResponse<AnalyzeAdapterResponse>>, AppError> {
+    principal.require_admin()?;
+
+    let row = state
+        .store
+        .find_data_source_by_source_id(&source_id)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| {
+            AppError::not_found(&format!(
+                "federation adapter for source_id '{source_id}'"
+            ))
+        })?;
+
+    let kind = RegisterAdapterKind::from_stored(&row.kind, &row.config).map_err(|e| {
+        AppError::internal(format!(
+            "federation adapter for source_id '{source_id}' has a stored config \
+             this server cannot decode: {e:?}"
+        ))
+    })?;
+    let adapter = kind.build_adapter(state.secret_resolver.as_ref()).await?;
+    let kernel = ox_source::IntrospectionKernel::new(adapter.clone());
+
+    // Branch the kernel call by intent. `extend` only matters in
+    // subset mode — a full sweep has no baseline to grow from.
+    let (analysis, mode) = match req.selection {
+        AnalyzeSelection::All => (
+            kernel.analyze_all().await.map_err(AppError::from)?,
+            "all",
+        ),
+        AnalyzeSelection::Subset { tables } if req.extend => {
+            let baseline_snapshot = row.last_analysis_snapshot.clone().ok_or_else(|| {
+                AppError::bad_request(
+                    "extend=true requires an existing analysis snapshot — \
+                     run a base analyse first",
+                )
+            })?;
+            let baseline: ox_source::AnalysisResult = serde_json::from_value(baseline_snapshot)
+                .map_err(|e| AppError::internal(format!(
+                    "stored analysis snapshot is not a valid AnalysisResult: {e}"
+                )))?;
+            (
+                kernel
+                    .analyze_extension(&baseline, tables)
+                    .await
+                    .map_err(AppError::from)?,
+                "extension",
+            )
+        }
+        AnalyzeSelection::Subset { tables } => (
+            kernel
+                .analyze_subset(tables)
+                .await
+                .map_err(AppError::from)?,
+            "subset",
+        ),
+    };
+
+    // Stamp the result + per-table fingerprints back onto the source
+    // row. Fingerprints compute via the kernel's default impl —
+    // adapters that override it with a backend-native fingerprint
+    // serve here transparently.
+    let mut fingerprints = serde_json::Map::new();
+    for table in &analysis.schema.tables {
+        let fp = adapter
+            .schema_fingerprint(&table.name)
+            .await
+            .map_err(AppError::from)?;
+        fingerprints.insert(
+            table.name.clone(),
+            serde_json::to_value(&fp).map_err(|e| AppError::internal(format!(
+                "fingerprint for table '{}' failed to serialise: {e}",
+                table.name
+            )))?,
+        );
+    }
+    let snapshot_value = serde_json::to_value(analysis.as_ref()).map_err(|e| {
+        AppError::internal(format!("analysis result failed to serialise: {e}"))
+    })?;
+    let updated = state
+        .store
+        .update_data_source_analysis(
+            &source_id,
+            &snapshot_value,
+            &serde_json::Value::Object(fingerprints),
+        )
+        .await
+        .map_err(AppError::from)?;
+
+    Ok(ApiResponse::of(AnalyzeAdapterResponse {
+        source_id: updated.source_id,
+        source_type: updated.kind,
+        mode,
+        tables_analyzed: analysis.schema.tables.len(),
+        warnings: analysis.warnings.len(),
+        last_analyzed_at: updated.last_analyzed_at,
+    }))
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct AdapterAnalysisDriftEntry {
+    pub table: String,
+    pub stored_hash: Option<String>,
+    pub live_hash: String,
+    pub kind: &'static str,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct AdapterAnalysisResponse {
+    pub source_id: String,
+    pub source_type: String,
+    pub last_analyzed_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// Cached `ox_source::AnalysisResult` shape verbatim — the UI can
+    /// render schema + profile + warnings without a second round-trip.
+    pub snapshot: Option<serde_json::Value>,
+    /// Per-table drift between the stored fingerprint map and the
+    /// adapter's live fingerprint. Empty when there is nothing to
+    /// flag.
+    pub drift: Vec<AdapterAnalysisDriftEntry>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/admin/federation/adapters/{source_id}/analysis",
+    params(("source_id" = String, Path, description = "SourceId to inspect")),
+    responses(
+        (status = 200, description = "Cached analysis snapshot + live drift",
+            body = AdapterAnalysisResponse),
+        (status = 403, description = "Admin role required",
+            body = inline(crate::openapi::ErrorResponse)),
+        (status = 404, description = "No adapter registered for that source_id",
+            body = inline(crate::openapi::ErrorResponse)),
+    ),
+    security(("api_key" = [])),
+    tag = "Admin",
+)]
+#[tracing::instrument(skip(state, principal))]
+pub(crate) async fn get_adapter_analysis(
+    State(state): State<FederationState>,
+    principal: Principal,
+    _ws: WorkspaceContext,
+    Path(source_id): Path<String>,
+) -> Result<Json<ApiResponse<AdapterAnalysisResponse>>, AppError> {
+    principal.require_admin()?;
+
+    let row = state
+        .store
+        .find_data_source_by_source_id(&source_id)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| {
+            AppError::not_found(&format!(
+                "federation adapter for source_id '{source_id}'"
+            ))
+        })?;
+
+    let stored_fingerprints: std::collections::BTreeMap<String, serde_json::Value> =
+        serde_json::from_value(row.schema_fingerprints.clone()).unwrap_or_default();
+
+    // Compute live drift only when we have a cached snapshot to
+    // compare against. A source that has never been analysed
+    // returns an empty drift list — there's nothing to drift from
+    // yet.
+    let mut drift = Vec::new();
+    if row.last_analysis_snapshot.is_some() {
+        let kind = RegisterAdapterKind::from_stored(&row.kind, &row.config).map_err(|e| {
+            AppError::internal(format!(
+                "federation adapter for source_id '{source_id}' has a stored config \
+                 this server cannot decode: {e:?}"
+            ))
+        })?;
+        let adapter = kind.build_adapter(state.secret_resolver.as_ref()).await?;
+        for table in adapter.list_tables().await.map_err(AppError::from)? {
+            let live = adapter
+                .schema_fingerprint(&table)
+                .await
+                .map_err(AppError::from)?;
+            match stored_fingerprints.get(&table) {
+                Some(stored) => {
+                    let stored_hash = stored
+                        .get("hash")
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string);
+                    if stored_hash.as_deref() != Some(live.hash.as_str()) {
+                        drift.push(AdapterAnalysisDriftEntry {
+                            table,
+                            stored_hash,
+                            live_hash: live.hash,
+                            kind: "changed",
+                        });
+                    }
+                }
+                None => {
+                    drift.push(AdapterAnalysisDriftEntry {
+                        table,
+                        stored_hash: None,
+                        live_hash: live.hash,
+                        kind: "added",
+                    });
+                }
+            }
+        }
+        // Tables the snapshot knows about but the live source no
+        // longer advertises — surface as `removed` drift entries.
+        let live_names: std::collections::HashSet<String> = adapter
+            .list_tables()
+            .await
+            .map_err(AppError::from)?
+            .into_iter()
+            .collect();
+        for stored_name in stored_fingerprints.keys() {
+            if !live_names.contains(stored_name) {
+                let stored_hash = stored_fingerprints
+                    .get(stored_name)
+                    .and_then(|v| v.get("hash"))
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string);
+                drift.push(AdapterAnalysisDriftEntry {
+                    table: stored_name.clone(),
+                    stored_hash,
+                    // Live hash is omitted when the table is gone —
+                    // emit empty rather than introducing a nullable
+                    // shape just for the dropped case.
+                    live_hash: String::new(),
+                    kind: "removed",
+                });
+            }
+        }
+    }
+
+    Ok(ApiResponse::of(AdapterAnalysisResponse {
+        source_id: row.source_id,
+        source_type: row.kind,
+        last_analyzed_at: row.last_analyzed_at,
+        snapshot: row.last_analysis_snapshot,
+        drift,
+    }))
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {

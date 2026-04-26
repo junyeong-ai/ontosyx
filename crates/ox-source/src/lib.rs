@@ -33,6 +33,8 @@ use std::collections::BTreeSet;
 
 use arrow_array::RecordBatch;
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
+
 use ox_core::error::{OxError, OxResult};
 use ox_ontology::source_analysis::AnalysisWarning;
 use ox_core::source_schema::{
@@ -93,7 +95,7 @@ pub const DEFAULT_INTROSPECTION_CONCURRENCY: usize = 8;
 /// emit this directly — they expose atomic primitives and the kernel
 /// orchestrates them into a full analysis, attaching warnings as
 /// individual primitive calls succeed or fail.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnalysisResult {
     pub schema: SourceSchema,
     pub profile: SourceProfile,

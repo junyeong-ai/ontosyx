@@ -333,6 +333,18 @@ pub fn router(state: AppState) -> Router {
             "/admin/federation/adapters/{source_id}",
             get(federation_admin::get_adapter).delete(federation_admin::delete_adapter),
         )
+        .route(
+            "/admin/federation/adapters/{source_id}/tables",
+            get(federation_admin::list_adapter_tables),
+        )
+        .route(
+            "/admin/federation/adapters/{source_id}/analyze",
+            post(federation_admin::analyze_adapter),
+        )
+        .route(
+            "/admin/federation/adapters/{source_id}/analysis",
+            get(federation_admin::get_adapter_analysis),
+        )
         // Ontology verifications
         .route(
             "/ontologies/{id}/verifications",
