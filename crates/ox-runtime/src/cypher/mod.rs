@@ -31,6 +31,7 @@ pub mod diagnostics;
 pub mod parse;
 pub mod rewrite;
 pub mod shacl_validator;
+pub mod soft_delete_rewriter;
 pub mod token;
 pub mod validate;
 
@@ -46,6 +47,7 @@ pub use rewrite::{
     RewrittenAst, WorkspaceScopeRewriter,
 };
 pub use shacl_validator::ShaclValidator;
+pub use soft_delete_rewriter::{SoftDeleteRewriter, TOMBSTONE_PROPERTY};
 pub use token::{CypherToken, Span, TokenKind, tokenize};
 pub use validate::{
     ComplexityValidator, CypherValidator, CypherValidatorPipeline, IssueLevel, OntologyValidator,

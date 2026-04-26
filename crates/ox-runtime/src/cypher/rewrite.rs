@@ -120,6 +120,13 @@ pub struct RewriteContext {
     /// disables ACL rewriting for this request.
     pub acl_snapshot:
         Option<std::sync::Arc<crate::cypher::acl_rewriter::AclSnapshot>>,
+    /// Bypass the [`crate::cypher::soft_delete_rewriter::SoftDeleteRewriter`]
+    /// pass for this request. `true` only on admin paths that
+    /// intentionally need to read or hard-delete already-tombstoned
+    /// rows (the retention compaction job, support tooling, an
+    /// "un-delete" admin action). The agent / chat / federation
+    /// paths leave this `false` so they never see soft-deleted data.
+    pub skip_soft_delete: bool,
 }
 
 impl RewriteContext {
@@ -129,6 +136,7 @@ impl RewriteContext {
             principal_id: None,
             principal_role: None,
             acl_snapshot: None,
+            skip_soft_delete: false,
         }
     }
 
@@ -147,6 +155,11 @@ impl RewriteContext {
         snapshot: std::sync::Arc<crate::cypher::acl_rewriter::AclSnapshot>,
     ) -> Self {
         self.acl_snapshot = Some(snapshot);
+        self
+    }
+
+    pub fn with_skip_soft_delete(mut self, skip: bool) -> Self {
+        self.skip_soft_delete = skip;
         self
     }
 }
