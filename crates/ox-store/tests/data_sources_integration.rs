@@ -287,3 +287,71 @@ async fn workspace_rls_isolates_data_sources_between_tenants() {
         "RLS must hide ws_b's row from ws_a's scope"
     );
 }
+
+/// Φ2-D: stamping the cached analysis snapshot + per-table fingerprint
+/// map back onto the source row. Verifies the round-trip plus the
+/// `last_analyzed_at` server-stamping behaviour.
+#[tokio::test]
+#[ignore]
+async fn update_data_source_analysis_round_trip() {
+    let Some(store) = connect_store().await else {
+        eprintln!("OX_TEST_DATABASE_URL not set — skipping");
+        return;
+    };
+    let (ws_a, _) = seed_workspaces(&store).await;
+
+    let initial = PostgresStore::with_workspace(ws_a, || async {
+        store
+            .upsert_data_source_by_source_id(
+                "csv-analysis",
+                "csv",
+                &json!({"data": "id,label\n1,A\n"}),
+            )
+            .await
+            .expect("upsert")
+    })
+    .await;
+
+    // Pre-update: every analysis field is the empty default.
+    assert!(initial.last_analysis_snapshot.is_none());
+    assert_eq!(initial.schema_fingerprints, json!({}));
+    assert!(initial.last_analyzed_at.is_none());
+
+    let snapshot = json!({
+        "schema": {"source_type": "csv", "tables": [{"name": "records", "columns": []}], "foreign_keys": []},
+        "profile": {"table_profiles": []},
+        "warnings": []
+    });
+    let fingerprints = json!({
+        "records": {"hash": "deadbeef", "computed_at": "2026-04-26T00:00:00Z"}
+    });
+
+    let updated = PostgresStore::with_workspace(ws_a, || async {
+        store
+            .update_data_source_analysis("csv-analysis", &snapshot, &fingerprints)
+            .await
+            .expect("update analysis")
+    })
+    .await;
+
+    assert_eq!(updated.id, initial.id, "PK is stable across analysis updates");
+    assert_eq!(updated.last_analysis_snapshot.as_ref(), Some(&snapshot));
+    assert_eq!(updated.schema_fingerprints, fingerprints);
+    let stamped = updated.last_analyzed_at.expect("server stamps last_analyzed_at");
+    assert!(
+        stamped >= initial.created_at,
+        "last_analyzed_at must be at or after the source's creation time"
+    );
+
+    // Re-fetch via the standard get path to confirm SELECTs surface
+    // the new columns.
+    let refetched = PostgresStore::with_workspace(ws_a, || async {
+        store
+            .get_data_source(initial.id)
+            .await
+            .expect("get")
+            .expect("row exists")
+    })
+    .await;
+    assert_eq!(refetched.last_analysis_snapshot.as_ref(), Some(&snapshot));
+}

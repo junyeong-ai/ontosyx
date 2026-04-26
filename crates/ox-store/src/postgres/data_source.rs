@@ -25,7 +25,9 @@ impl crate::store::DataSourceStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn get_data_source(&self, id: Uuid) -> OxResult<Option<crate::models::DataSource>> {
         sqlx::query_as::<_, crate::models::DataSource>(
-            "SELECT id, workspace_id, source_id, kind, config, created_at, updated_at
+            "SELECT id, workspace_id, source_id, kind, config,
+                    last_analysis_snapshot, schema_fingerprints, last_analyzed_at,
+                    created_at, updated_at
              FROM data_sources
              WHERE id = $1",
         )
@@ -41,7 +43,9 @@ impl crate::store::DataSourceStore for PostgresStore {
         source_id: &str,
     ) -> OxResult<Option<crate::models::DataSource>> {
         sqlx::query_as::<_, crate::models::DataSource>(
-            "SELECT id, workspace_id, source_id, kind, config, created_at, updated_at
+            "SELECT id, workspace_id, source_id, kind, config,
+                    last_analysis_snapshot, schema_fingerprints, last_analyzed_at,
+                    created_at, updated_at
              FROM data_sources
              WHERE source_id = $1",
         )
@@ -54,7 +58,9 @@ impl crate::store::DataSourceStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn list_data_sources(&self) -> OxResult<Vec<crate::models::DataSource>> {
         sqlx::query_as::<_, crate::models::DataSource>(
-            "SELECT id, workspace_id, source_id, kind, config, created_at, updated_at
+            "SELECT id, workspace_id, source_id, kind, config,
+                    last_analysis_snapshot, schema_fingerprints, last_analyzed_at,
+                    created_at, updated_at
              FROM data_sources
              ORDER BY source_id ASC",
         )
@@ -100,5 +106,34 @@ impl crate::store::DataSourceStore for PostgresStore {
             .await
             .map_err(to_ox_error)?;
         Ok(result.rows_affected() > 0)
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn update_data_source_analysis(
+        &self,
+        source_id: &str,
+        snapshot: &serde_json::Value,
+        fingerprints: &serde_json::Value,
+    ) -> OxResult<crate::models::DataSource> {
+        // RLS scopes the update — we never need to bind workspace_id
+        // explicitly. Returns the row so callers can surface the
+        // freshly-stamped `last_analyzed_at`.
+        sqlx::query_as::<_, crate::models::DataSource>(
+            "UPDATE data_sources
+                SET last_analysis_snapshot = $2,
+                    schema_fingerprints = $3,
+                    last_analyzed_at = NOW(),
+                    updated_at = NOW()
+              WHERE source_id = $1
+             RETURNING id, workspace_id, source_id, kind, config,
+                       last_analysis_snapshot, schema_fingerprints, last_analyzed_at,
+                       created_at, updated_at",
+        )
+        .bind(source_id)
+        .bind(snapshot)
+        .bind(fingerprints)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(to_ox_error)
     }
 }

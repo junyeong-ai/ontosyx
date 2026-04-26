@@ -1068,6 +1068,27 @@ pub struct DataSource {
     pub source_id: String,
     pub kind: String,
     pub config: serde_json::Value,
+    /// Last cached `ox_source::AnalysisResult` for this source. `None`
+    /// until the first analyze_* call lands. The shape is opaque at
+    /// the store layer; ox-api round-trips it through serde.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_analysis_snapshot: Option<serde_json::Value>,
+    /// Per-table fingerprint map produced by
+    /// [`ox_core::source_schema::SchemaFingerprint`]. JSON shape:
+    /// `{ "<table>": { "hash": "<hex>", "computed_at": "<iso>" } }`.
+    /// Driven by the kernel's drift detection — UI re-scan compares
+    /// the live fingerprint against this map and only re-introspects
+    /// tables whose hash differs.
+    #[serde(default = "default_empty_object")]
+    pub schema_fingerprints: serde_json::Value,
+    /// Wall-clock timestamp of the most-recent successful analyze_*
+    /// call. `None` when nothing has been analysed yet.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_analyzed_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+fn default_empty_object() -> serde_json::Value {
+    serde_json::Value::Object(serde_json::Map::new())
 }

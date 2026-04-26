@@ -1317,6 +1317,21 @@ pub trait DataSourceStore: Send + Sync {
     ) -> OxResult<crate::models::DataSource>;
 
     async fn delete_data_source_by_source_id(&self, source_id: &str) -> OxResult<bool>;
+
+    /// Persist the most-recent introspection result for a source.
+    /// Stores the full `AnalysisResult` (schema + profile + warnings)
+    /// alongside the per-table fingerprint map so subsequent re-scans
+    /// can compute a delta without describing every table again.
+    /// `last_analyzed_at` is set to `now()` on the server side.
+    ///
+    /// Returns the updated row. Errors when the source_id is unknown
+    /// in the current workspace (RLS-scoped).
+    async fn update_data_source_analysis(
+        &self,
+        source_id: &str,
+        snapshot: &serde_json::Value,
+        fingerprints: &serde_json::Value,
+    ) -> OxResult<crate::models::DataSource>;
 }
 
 // ---------------------------------------------------------------------------

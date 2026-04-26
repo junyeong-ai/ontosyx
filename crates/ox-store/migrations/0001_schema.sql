@@ -1606,6 +1606,29 @@ CREATE TABLE data_sources (
     source_id     TEXT NOT NULL,
     kind          TEXT NOT NULL,
     config        JSONB NOT NULL,
+
+    -- Last full or partial AnalysisResult cached for this source.
+    -- NULL until the first analyze_* call lands. JSONB lets the
+    -- shape evolve without a follow-up migration; the canonical
+    -- producer is `ox_source::AnalysisResult` (schema + profile +
+    -- warnings). Subsetted analyses are still cached here — the
+    -- selection used to produce them is implicit in the stored
+    -- `tables` slice.
+    last_analysis_snapshot  JSONB,
+
+    -- Per-table SchemaFingerprint map keyed by table name. Stored
+    -- as `{ "<table>": { "hash": "<hex>", "computed_at": "<iso>" } }`.
+    -- A re-scan compares the live fingerprint against this map and
+    -- only re-introspects tables whose hash differs — turning a
+    -- "refresh" gesture into a delta scan.
+    schema_fingerprints     JSONB NOT NULL DEFAULT '{}'::jsonb,
+
+    -- Wall-clock timestamp of the most-recent successful analyze_*
+    -- call. NULL when nothing has been analysed yet. Used by the
+    -- UI to render "last analysed N hours ago" without parsing the
+    -- snapshot blob.
+    last_analyzed_at        TIMESTAMPTZ,
+
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
 
