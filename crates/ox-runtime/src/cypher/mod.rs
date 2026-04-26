@@ -25,6 +25,7 @@
 //!    pipeline handles ordering and conflicts. A new cross-cutting concern
 //!    is a new `impl CypherRewriter`, not a new ad-hoc string function.
 
+pub mod acl_rewriter;
 pub mod ast;
 pub mod diagnostics;
 pub mod parse;
@@ -33,6 +34,7 @@ pub mod shacl_validator;
 pub mod token;
 pub mod validate;
 
+pub use acl_rewriter::{AclAction, AclPolicySpec, AclRewriter, AclSnapshot};
 pub use ast::{
     ClauseKind, CypherAst, CypherClause, CypherPattern, CypherPatternElement, CypherStatement,
     NodePattern, RelDirection, RelationshipPattern, UnionKind,
