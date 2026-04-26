@@ -12,21 +12,31 @@
 //! doesn't have to be parsed structurally — `false AND <…>` is
 //! `false` regardless.
 //!
-//! ## Phase 6 — `Mask`
+//! ## `Mask`
 //!
 //! `Mask` policies hide individual properties on the projection
-//! surface (RETURN / WITH). The rewriter scans property-access
-//! triplets `<var>.<prop>` in those clauses and, when the
-//! variable's bound label matches a mask policy whose `properties`
-//! list contains `prop`, replaces the access with the policy's
-//! `mask_pattern` literal (default `'***'`). Any trailing `AS alias`
-//! is preserved unchanged so downstream consumers see the original
-//! column name with the masked payload.
+//! surface (RETURN / WITH). Three projection shapes are covered:
 //!
-//! `Mask` does **not** rewrite WHERE — predicates stay against the
-//! real values so a deny-shaped condition can still execute. The
-//! plan calls this out explicitly: WHERE is internal; only what
-//! leaves the row through RETURN / WITH gets the mask treatment.
+//! 1. **Direct access** — `<var>.<prop>` (with or without
+//!    `AS alias`). The access is replaced with the policy's
+//!    `mask_pattern` literal; the `AS alias` survives so downstream
+//!    consumers see the original column name with the masked
+//!    payload.
+//! 2. **Chained access** — `<var>.<prop>.<sub>...`. The whole chain
+//!    is replaced when the *first* hop matches a mask policy,
+//!    otherwise the chain falls through unchanged. A masked
+//!    property cannot leak through nested map indexing.
+//! 3. **Bare variable** — `RETURN <var>`. Returning the whole node
+//!    would otherwise expose every property including masked ones,
+//!    so the rewriter rewrites the bare reference into a Cypher map
+//!    projection that overrides every masked property:
+//!    `RETURN <var> {.*, masked: '***', ...}`. References inside
+//!    function calls (`count(p)`, `id(p)`) are left alone — those
+//!    are scalar/aggregate operations the operator owns; aggregating
+//!    over masked types should use explicit projection.
+//!
+//! `Mask` does **not** rewrite WHERE — predicates run against real
+//! values so a `WHERE p.email = $email` lookup keeps working.
 //!
 //! Multiple mask policies on the same property: the snapshot is
 //! priority-sorted by the loader, so the rewriter takes the first
@@ -459,46 +469,50 @@ fn build_var_label_map(statement: &CypherStatement) -> HashMap<String, Vec<Strin
     map
 }
 
-/// Find Identifier-`.`-Identifier triplets in `clause.tokens`. For
-/// every triplet whose `<var>.<prop>` matches a mask policy, replace
-/// the corresponding byte range in `clause.text` with the policy's
-/// pattern literal. Returns true iff anything was rewritten.
-///
-/// Replacements are applied in reverse byte-offset order so each
-/// edit's offset stays valid after the previous edit landed.
+/// Walk a clause's tokens, build a list of edits, apply them in
+/// reverse byte-offset order. Returns true iff any edit landed.
 fn rewrite_property_accesses(
     clause: &mut CypherClause,
     var_labels: &HashMap<String, Vec<String>>,
     specs: &[MaskSpec],
 ) -> bool {
-    // Token spans are absolute against the original source. The
-    // clause's text is a slice of the same source starting at
-    // `clause.span.start`, so local offset = absolute - clause start.
     let clause_start = clause.span.start;
 
-    let triplets = find_property_access_triplets(&clause.tokens);
-    if triplets.is_empty() {
-        return false;
-    }
-
-    // Collect replacements (byte_start, byte_end_exclusive,
-    // replacement_text) sorted descending by start offset.
     let mut replacements: Vec<(usize, usize, String)> = Vec::new();
-    for (var, prop, span_start_abs, span_end_abs) in triplets {
-        let labels = match var_labels.get(&var) {
+
+    for chain in find_property_access_chains(&clause.tokens) {
+        let labels = match var_labels.get(&chain.var) {
             Some(l) => l,
             None => continue,
         };
-        let pattern = match resolve_mask_pattern(labels, &prop, specs) {
+        let pattern = match resolve_mask_pattern(labels, &chain.first_prop, specs) {
             Some(p) => p,
             None => continue,
         };
-        let local_start = span_start_abs.saturating_sub(clause_start);
-        let local_end = span_end_abs.saturating_sub(clause_start);
+        let local_start = chain.span_start.saturating_sub(clause_start);
+        let local_end = chain.span_end.saturating_sub(clause_start);
         if local_end <= clause.text.len() && local_start < local_end {
             replacements.push((local_start, local_end, pattern));
         }
     }
+
+    for bare in find_bare_variable_references(&clause.tokens) {
+        let labels = match var_labels.get(&bare.var) {
+            Some(l) => l,
+            None => continue,
+        };
+        let masked = collect_masked_properties_for(labels, specs);
+        if masked.is_empty() {
+            continue;
+        }
+        let projection = compose_map_projection_override(&bare.var, &masked);
+        let local_start = bare.span_start.saturating_sub(clause_start);
+        let local_end = bare.span_end.saturating_sub(clause_start);
+        if local_end <= clause.text.len() && local_start < local_end {
+            replacements.push((local_start, local_end, projection));
+        }
+    }
+
     if replacements.is_empty() {
         return false;
     }
@@ -511,10 +525,6 @@ fn rewrite_property_accesses(
     true
 }
 
-/// Returns `Some(pattern)` when at least one mask spec matches
-/// `prop` for any of the variable's `labels`. Specs are scanned in
-/// snapshot order — which the loader sorted priority-desc — so
-/// "first match wins" maps naturally to highest-priority wins.
 fn resolve_mask_pattern(labels: &[String], prop: &str, specs: &[MaskSpec]) -> Option<String> {
     for spec in specs {
         let label_match = match &spec.label {
@@ -531,64 +541,192 @@ fn resolve_mask_pattern(labels: &[String], prop: &str, specs: &[MaskSpec]) -> Op
     None
 }
 
-/// Walk `tokens` for non-trivia sequences `Identifier`-`Operator(.)`-`Identifier`.
-/// Returns `(var, prop, byte_start, byte_end)` where the byte range
-/// covers the entire `var.prop` span (inclusive of var, the dot, and
-/// the prop). Spans are absolute (the same coordinate space the
-/// clause's text lives in via `clause.span.start`).
-fn find_property_access_triplets(
-    tokens: &[CypherToken],
-) -> Vec<(String, String, usize, usize)> {
-    let mut idx_of_non_trivia: Vec<usize> = Vec::with_capacity(tokens.len());
-    for (i, t) in tokens.iter().enumerate() {
-        if !t.is_trivia() {
-            idx_of_non_trivia.push(i);
-        }
-    }
-    let mut out = Vec::new();
-    for window in idx_of_non_trivia.windows(3) {
-        let a = &tokens[window[0]];
-        let b = &tokens[window[1]];
-        let c = &tokens[window[2]];
-        let is_dot = b.kind == TokenKind::Operator && b.text == ".";
-        let var_ok =
-            a.kind == TokenKind::Identifier || a.kind == TokenKind::QuotedIdentifier;
-        let prop_ok =
-            c.kind == TokenKind::Identifier || c.kind == TokenKind::QuotedIdentifier;
-        if !is_dot || !var_ok || !prop_ok {
+/// Collect every `(property, mask_pattern)` pair that applies to a
+/// variable bound to `labels`. Used by the bare-variable rewrite to
+/// build the map projection override.
+fn collect_masked_properties_for(
+    labels: &[String],
+    specs: &[MaskSpec],
+) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    for spec in specs {
+        let label_match = match &spec.label {
+            Some(l) => labels.iter().any(|v| v == l),
+            None => !labels.is_empty(),
+        };
+        if !label_match {
             continue;
         }
-        // Skip cases where the property access is part of a deeper
-        // chain (`a.b.c`) — we only mask the *first* level. A second
-        // access `b.c` would otherwise be misclassified as a top-
-        // level `b.c` access. Detect by checking the token after `c`
-        // — if it's another `.`, this triplet is a prefix of a
-        // longer access, so the rewriter should leave it alone.
-        let next_idx = idx_of_non_trivia
-            .iter()
-            .position(|&i| i == window[2])
-            .map(|p| p + 1)
-            .and_then(|p| idx_of_non_trivia.get(p))
-            .copied();
-        if let Some(next) = next_idx {
-            let nt = &tokens[next];
-            if nt.kind == TokenKind::Operator && nt.text == "." {
+        for prop in &spec.properties {
+            if !out.iter().any(|(existing, _)| existing == prop) {
+                out.push((prop.clone(), spec.pattern.clone()));
+            }
+        }
+    }
+    out
+}
+
+fn compose_map_projection_override(var: &str, masked: &[(String, String)]) -> String {
+    let entries = masked
+        .iter()
+        .map(|(prop, pattern)| format!("{prop}: {pattern}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("{var} {{.*, {entries}}}")
+}
+
+/// One discovered property-access chain: `<var>.<first>(.<rest>)*`.
+/// `span_start..span_end` is the absolute byte range covering the
+/// entire chain. A chain whose first hop matches a mask policy gets
+/// replaced wholesale — masking the head implies masking everything
+/// reachable through it.
+struct PropertyAccessChain {
+    var: String,
+    first_prop: String,
+    span_start: usize,
+    span_end: usize,
+}
+
+/// Walk `tokens` and return every `<var>.<prop>(.<sub>)*` chain.
+/// The chain starts on a non-property variable identifier (i.e., the
+/// previous non-trivia token is NOT a dot), so an inner triplet
+/// `b.c` of `a.b.c` is not double-counted.
+fn find_property_access_chains(tokens: &[CypherToken]) -> Vec<PropertyAccessChain> {
+    let non_trivia: Vec<usize> = tokens
+        .iter()
+        .enumerate()
+        .filter_map(|(i, t)| (!t.is_trivia()).then_some(i))
+        .collect();
+
+    let mut chains = Vec::new();
+    let mut i = 0;
+    while i + 2 < non_trivia.len() {
+        let a = &tokens[non_trivia[i]];
+        let b = &tokens[non_trivia[i + 1]];
+        let c = &tokens[non_trivia[i + 2]];
+
+        let is_dot = b.kind == TokenKind::Operator && b.text == ".";
+        let var_ok = matches!(a.kind, TokenKind::Identifier | TokenKind::QuotedIdentifier);
+        let prop_ok = matches!(c.kind, TokenKind::Identifier | TokenKind::QuotedIdentifier);
+        if !is_dot || !var_ok || !prop_ok {
+            i += 1;
+            continue;
+        }
+
+        // Reject when `a` is itself the tail of an earlier `.<a>` —
+        // that would mean we're standing on the inner triplet of a
+        // longer chain.
+        if i > 0 {
+            let prev = &tokens[non_trivia[i - 1]];
+            if prev.kind == TokenKind::Operator && prev.text == "." {
+                i += 1;
                 continue;
             }
         }
-        let var = strip_backticks(&a.text);
-        let prop = strip_backticks(&c.text);
-        out.push((var, prop, a.span.start, c.span.end));
+
+        // Walk forward through `(.<ident>)*` to capture the chain end.
+        let mut chain_end_idx = i + 2;
+        let mut span_end = c.span.end;
+        loop {
+            if chain_end_idx + 2 >= non_trivia.len() {
+                break;
+            }
+            let dot = &tokens[non_trivia[chain_end_idx + 1]];
+            let ident = &tokens[non_trivia[chain_end_idx + 2]];
+            let next_is_dot = dot.kind == TokenKind::Operator && dot.text == ".";
+            let next_is_ident =
+                matches!(ident.kind, TokenKind::Identifier | TokenKind::QuotedIdentifier);
+            if !(next_is_dot && next_is_ident) {
+                break;
+            }
+            chain_end_idx += 2;
+            span_end = ident.span.end;
+        }
+
+        chains.push(PropertyAccessChain {
+            var: strip_backticks(&a.text),
+            first_prop: strip_backticks(&c.text),
+            span_start: a.span.start,
+            span_end,
+        });
+        i = chain_end_idx + 1;
+    }
+    chains
+}
+
+/// One bare variable reference inside a RETURN / WITH clause —
+/// `RETURN p`, `WITH p` (with or without `AS alias`). Function-call
+/// arguments (`count(p)`, `id(p)`) are excluded.
+struct BareVariableReference {
+    var: String,
+    span_start: usize,
+    span_end: usize,
+}
+
+/// Walk `tokens` and return every bare variable reference. A
+/// reference is "bare" when the token is an Identifier and:
+///
+/// * the previous non-trivia token is NOT `.` (would make this a
+///   property access),
+/// * the next non-trivia token is NOT `(` (would make this a
+///   function call),
+/// * the next non-trivia token is NOT `.` (would start a chain;
+///   chains are handled by [`find_property_access_chains`]),
+/// * the previous non-trivia token is NOT `(` (would make this a
+///   function-call argument like `count(p)` — those are scalar /
+///   aggregate operations the operator owns).
+///
+/// The keyword tokens (`RETURN`, `WITH`, `AS`, `DISTINCT`) are
+/// excluded by the Identifier kind check.
+fn find_bare_variable_references(tokens: &[CypherToken]) -> Vec<BareVariableReference> {
+    let non_trivia: Vec<usize> = tokens
+        .iter()
+        .enumerate()
+        .filter_map(|(i, t)| (!t.is_trivia()).then_some(i))
+        .collect();
+
+    let mut out = Vec::new();
+    for (pos, &tok_idx) in non_trivia.iter().enumerate() {
+        let token = &tokens[tok_idx];
+        if !matches!(token.kind, TokenKind::Identifier | TokenKind::QuotedIdentifier) {
+            continue;
+        }
+        // Previous non-trivia token must not be `.` or `(`.
+        if pos > 0 {
+            let prev = &tokens[non_trivia[pos - 1]];
+            if prev.kind == TokenKind::Operator && prev.text == "." {
+                continue;
+            }
+            if prev.kind == TokenKind::Paren && prev.text == "(" {
+                continue;
+            }
+        }
+        // Next non-trivia token must not be `(` (function call) or
+        // `.` (chain head).
+        if pos + 1 < non_trivia.len() {
+            let next = &tokens[non_trivia[pos + 1]];
+            if next.kind == TokenKind::Paren && next.text == "(" {
+                continue;
+            }
+            if next.kind == TokenKind::Operator && next.text == "." {
+                continue;
+            }
+        }
+        out.push(BareVariableReference {
+            var: strip_backticks(&token.text),
+            span_start: token.span.start,
+            span_end: token.span.end,
+        });
     }
     out
 }
 
 fn strip_backticks(s: &str) -> String {
-    let mut out = s.to_string();
-    if out.starts_with('`') && out.ends_with('`') && out.len() >= 2 {
-        out = out[1..out.len() - 1].to_string();
+    if s.starts_with('`') && s.ends_with('`') && s.len() >= 2 {
+        s[1..s.len() - 1].to_string()
+    } else {
+        s.to_string()
     }
-    out
 }
 
 // ---------------------------------------------------------------------------
@@ -954,6 +1092,106 @@ mod tests {
         )]));
         let out = rewrite_str("MATCH (p:Person) RETURN 'p.email'", &ctx);
         assert!(out.contains("'p.email'"), "string literal got rewritten: {out}");
+    }
+
+    #[test]
+    fn mask_chained_access_replaces_whole_chain() {
+        // `n.address.city` — when `address` is masked, the whole chain
+        // becomes `'***'`. A nested map lookup must not leak through.
+        let ctx = RewriteContext::new("ws").with_acl_snapshot(snapshot(vec![mask_label(
+            "Person",
+            &["address"],
+            None,
+        )]));
+        let out = rewrite_str("MATCH (p:Person) RETURN p.address.city", &ctx);
+        assert!(out.contains("RETURN '***'"), "got: {out}");
+        assert!(!out.contains("p.address"), "chain head leaked: {out}");
+        assert!(!out.contains(".city"), "chain tail leaked: {out}");
+    }
+
+    #[test]
+    fn mask_chained_access_left_alone_when_first_hop_unmasked() {
+        let ctx = RewriteContext::new("ws").with_acl_snapshot(snapshot(vec![mask_label(
+            "Person",
+            &["email"],
+            None,
+        )]));
+        let out = rewrite_str("MATCH (p:Person) RETURN p.metadata.last_login", &ctx);
+        assert!(out.contains("p.metadata.last_login"));
+    }
+
+    #[test]
+    fn mask_bare_variable_rewrites_to_map_projection() {
+        let ctx = RewriteContext::new("ws").with_acl_snapshot(snapshot(vec![mask_label(
+            "Person",
+            &["email"],
+            None,
+        )]));
+        let out = rewrite_str("MATCH (p:Person) RETURN p", &ctx);
+        assert!(
+            out.contains("p {.*, email: '***'}"),
+            "expected map projection override, got: {out}"
+        );
+    }
+
+    #[test]
+    fn mask_bare_variable_preserves_alias() {
+        let ctx = RewriteContext::new("ws").with_acl_snapshot(snapshot(vec![mask_label(
+            "Person",
+            &["email"],
+            None,
+        )]));
+        let out = rewrite_str("MATCH (p:Person) RETURN p AS person", &ctx);
+        assert!(out.contains("p {.*, email: '***'} AS person"));
+    }
+
+    #[test]
+    fn mask_bare_variable_includes_every_masked_property() {
+        let ctx = RewriteContext::new("ws").with_acl_snapshot(snapshot(vec![mask_label(
+            "Person",
+            &["email", "ssn"],
+            Some("XXX"),
+        )]));
+        let out = rewrite_str("MATCH (p:Person) RETURN p", &ctx);
+        assert!(out.contains("email: 'XXX'"));
+        assert!(out.contains("ssn: 'XXX'"));
+    }
+
+    #[test]
+    fn mask_bare_variable_skipped_when_no_property_is_masked() {
+        let ctx = RewriteContext::new("ws").with_acl_snapshot(snapshot(vec![mask_label(
+            "Customer",
+            &["email"],
+            None,
+        )]));
+        let out = rewrite_str("MATCH (p:Person) RETURN p", &ctx);
+        assert_eq!(out, "MATCH (p:Person) RETURN p");
+    }
+
+    #[test]
+    fn mask_function_call_argument_is_not_rewritten() {
+        // `count(p)`, `id(p)`, `properties(p)` are operator-owned —
+        // applying map projection inside would break id/labels and
+        // change aggregation semantics. Document by leaving them.
+        let ctx = RewriteContext::new("ws").with_acl_snapshot(snapshot(vec![mask_label(
+            "Person",
+            &["email"],
+            None,
+        )]));
+        let out = rewrite_str("MATCH (p:Person) RETURN count(p)", &ctx);
+        assert!(out.contains("count(p)"), "got: {out}");
+        assert!(!out.contains("p {"), "unexpected projection: {out}");
+    }
+
+    #[test]
+    fn mask_with_clause_rewrites_bare_var() {
+        let ctx = RewriteContext::new("ws").with_acl_snapshot(snapshot(vec![mask_label(
+            "Person",
+            &["email"],
+            None,
+        )]));
+        let out = rewrite_str("MATCH (p:Person) WITH p RETURN p.name", &ctx);
+        assert!(out.contains("WITH p {.*, email: '***'}"));
     }
 
     #[test]
