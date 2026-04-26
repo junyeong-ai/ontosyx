@@ -527,6 +527,12 @@ pub async fn workspace_context(
 /// downstream stack reads: PG RLS, graph isolation, ACL snapshot,
 /// and the rewriter principal.
 ///
+/// `WORKSPACE_ID` and `GRAPH_WORKSPACE_ID` are scoped first so that
+/// the ACL snapshot lookup itself runs under RLS — the
+/// `acl_policies` table's `ws_isolation` policy casts
+/// `app.workspace_id::uuid`, which fails on the empty default if
+/// the lookup runs outside the scope.
+///
 /// **Fail-closed.** A failure to load the ACL snapshot rejects the
 /// request rather than proceeding with empty policies. A transient
 /// DB hiccup surfaces as a 503 the operator can retry; an
@@ -545,24 +551,32 @@ where
     use ox_runtime::{GRAPH_ACL_SNAPSHOT, GRAPH_PRINCIPAL, GRAPH_WORKSPACE_ID};
     use ox_store::WORKSPACE_ID;
 
-    let snapshot =
-        crate::acl_enforcement::load_acl_snapshot(state.store.as_ref(), principal, ws)
-            .await?;
     let request_principal = crate::acl_enforcement::request_principal(principal, ws);
+    let store = state.store.clone();
+    let principal = principal.clone();
+    let ws = ws.clone();
 
-    let response = WORKSPACE_ID
-        .scope(
-            workspace_id,
-            GRAPH_WORKSPACE_ID.scope(workspace_id, async move {
-                let with_snapshot = GRAPH_ACL_SNAPSHOT.scope(snapshot, async move {
-                    match request_principal {
-                        Some(p) => GRAPH_PRINCIPAL.scope(p, fut).await,
-                        None => fut.await,
-                    }
-                });
-                with_snapshot.await
-            }),
-        )
-        .await;
-    Ok(response)
+    WORKSPACE_ID
+        .scope(workspace_id, async move {
+            GRAPH_WORKSPACE_ID
+                .scope(workspace_id, async move {
+                    let snapshot = crate::acl_enforcement::load_acl_snapshot(
+                        store.as_ref(),
+                        &principal,
+                        &ws,
+                    )
+                    .await?;
+                    let result = GRAPH_ACL_SNAPSHOT
+                        .scope(snapshot, async move {
+                            match request_principal {
+                                Some(p) => GRAPH_PRINCIPAL.scope(p, fut).await,
+                                None => fut.await,
+                            }
+                        })
+                        .await;
+                    Ok::<R, AppError>(result)
+                })
+                .await
+        })
+        .await
 }
