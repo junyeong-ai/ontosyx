@@ -114,7 +114,6 @@ enum SeedAction {
 }
 
 fn decide_seed_action(
-    _name: &str,
     combined_content: &str,
     existing: Option<&ox_store::PromptTemplateRow>,
 ) -> SeedAction {
@@ -249,7 +248,7 @@ impl PromptRegistry {
                 .find_prompt_template_by_name_version(&name, &parsed_version)
                 .await?;
 
-            match decide_seed_action(&name, &combined, existing.as_ref()) {
+            match decide_seed_action(&combined, existing.as_ref()) {
                 SeedAction::Insert => {
                     let row = ox_store::PromptTemplateRow {
                         id: uuid::Uuid::new_v4(),
@@ -454,14 +453,14 @@ mod tests {
 
     #[test]
     fn seed_action_inserts_when_db_row_absent() {
-        assert_eq!(decide_seed_action("p", "BODY", None), SeedAction::Insert);
+        assert_eq!(decide_seed_action("BODY", None), SeedAction::Insert);
     }
 
     #[test]
     fn seed_action_skips_matching_idempotent() {
         let row = fake_row("BODY", SYSTEM_CREATOR);
         assert_eq!(
-            decide_seed_action("p", "BODY", Some(&row)),
+            decide_seed_action("BODY", Some(&row)),
             SeedAction::SkipMatching,
         );
     }
@@ -470,7 +469,7 @@ mod tests {
     fn seed_action_errors_on_system_row_drift() {
         let row = fake_row("OLD BODY", SYSTEM_CREATOR);
         assert_eq!(
-            decide_seed_action("p", "NEW BODY", Some(&row)),
+            decide_seed_action("NEW BODY", Some(&row)),
             SeedAction::DriftError,
         );
     }
@@ -479,7 +478,7 @@ mod tests {
     fn seed_action_yields_to_operator_edited_row() {
         let row = fake_row("OPERATOR BODY", "alice@example.com");
         assert_eq!(
-            decide_seed_action("p", "TOML BODY", Some(&row)),
+            decide_seed_action("TOML BODY", Some(&row)),
             SeedAction::SkipOperator {
                 created_by: "alice@example.com".to_string(),
             },

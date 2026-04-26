@@ -114,16 +114,21 @@ impl PromptTemplateStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn create_prompt_template(&self, r: &PromptTemplateRow) -> OxResult<()> {
+        // Strict insert. A duplicate `(name, version)` surfaces as
+        // `OxError::Conflict` rather than a silent no-op — both
+        // callers (TOML seed + admin POST) need the collision to be
+        // visible. Seed flow's `decide_seed_action` pre-checks for
+        // matching rows; admin handler relies on the Conflict
+        // mapping to 409 in `error.rs`.
         sqlx::query(
             "INSERT INTO prompt_templates (id, name, version, content, variables, metadata, created_by, created_at, is_active, workspace_id)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-             ON CONFLICT (name, version) DO NOTHING",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
         )
         .bind(r.id)
         .bind(&r.name)
         // PromptVersion: serialize to its canonical "x.y.z" form for the
-        // TEXT column. The CHECK constraint in migration 0006 enforces
-        // the same format on the DB side.
+        // TEXT column. The CHECK constraint enforces the same format
+        // on the DB side.
         .bind(r.version.to_string())
         .bind(&r.content)
         .bind(&r.variables)
@@ -134,8 +139,21 @@ impl PromptTemplateStore for PostgresStore {
         .bind(r.workspace_id)
         .execute(&self.pool)
         .await
-        .map_err(|e| OxError::Runtime {
-            message: format!("Database error: {e}"),
+        .map_err(|e| {
+            if let sqlx::Error::Database(ref db) = e
+                && db.code().as_deref() == Some("23505")
+            {
+                OxError::Conflict {
+                    message: format!(
+                        "Prompt template ({}, {}) already exists",
+                        r.name, r.version
+                    ),
+                }
+            } else {
+                OxError::Runtime {
+                    message: format!("Database error: {e}"),
+                }
+            }
         })?;
         Ok(())
     }

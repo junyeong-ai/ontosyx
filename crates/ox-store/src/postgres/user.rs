@@ -104,7 +104,7 @@ impl UserStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn get_user_count(&self) -> OxResult<i64> {
+    async fn count_users(&self) -> OxResult<i64> {
         let (count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
             .fetch_one(&self.pool)
             .await

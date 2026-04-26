@@ -96,7 +96,7 @@ pub(crate) async fn create_token(
         .map_err(AppError::from)?;
 
     // Auto-promote first user to admin
-    let user_count = state.store.get_user_count().await.map_err(AppError::from)?;
+    let user_count = state.store.count_users().await.map_err(AppError::from)?;
     if user_count == 1 && user.role != "admin" {
         let should_promote = match &state.auth_config.first_admin_email {
             Some(admin_email) => user.email == *admin_email,

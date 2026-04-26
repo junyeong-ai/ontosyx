@@ -532,7 +532,7 @@ pub trait UserStore: Send + Sync {
 
     async fn update_user_role(&self, id: Uuid, role: &str) -> OxResult<()>;
 
-    async fn get_user_count(&self) -> OxResult<i64>;
+    async fn count_users(&self) -> OxResult<i64>;
 }
 
 #[async_trait]

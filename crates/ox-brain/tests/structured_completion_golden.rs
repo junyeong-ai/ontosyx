@@ -222,6 +222,95 @@ async fn provider_error_propagates_without_retry() {
 }
 
 #[tokio::test]
+async fn content_filter_kind_triggers_json_only_retry_with_strict_directive() {
+    // Provider refuses the schema-enforced request with
+    // `ProviderErrorKind::ContentFilter`. `provider.rs` rebuilds
+    // the request without `response_format` and re-prompts with
+    // an explicit "ONLY JSON" instruction — so the second send
+    // still produces a parseable response that decodes into the
+    // typed struct. This pins the recovery loop the production
+    // path relies on for content-filter false positives.
+    let mock = MockLlmCall::new();
+    mock.enqueue_error(branchforge::Error::Provider {
+        provider: "claude-mock",
+        kind: branchforge::error::ProviderErrorKind::ContentFilter,
+        message: "refused: looks like sensitive content".into(),
+        hint: None,
+        retryable: false,
+        status: Some(400),
+        rate_limit: None,
+    });
+    mock.enqueue_text(r#"{"label":"after-retry","score":9}"#);
+
+    let answer: Answer = structured_completion_with_thresholds(
+        &mock,
+        "claude-mock",
+        SYSTEM,
+        USER,
+        MAX_TOKENS,
+        None,
+        permissive_thresholds(),
+    )
+    .await
+    .expect("content-filter fallback recovers with JSON-only retry");
+
+    assert_eq!(answer, Answer { label: "after-retry".into(), score: 9 });
+
+    // The two requests differ exactly where the recovery contract
+    // requires: the first attaches a JSON Schema response_format,
+    // the second strips it back off and rewrites the system block
+    // with the JSON-only directive.
+    let requests = mock.requests();
+    assert_eq!(requests.len(), 2);
+    assert!(
+        requests[0].response_format.is_some(),
+        "first attempt must carry the JSON Schema spec",
+    );
+    assert!(
+        requests[1].response_format.is_none(),
+        "retry must drop response_format so the provider stops content-filtering",
+    );
+}
+
+#[tokio::test]
+async fn content_filter_substring_in_message_no_longer_misclassifies() {
+    // Pre-fix, `is_content_filtered` substring-matched on
+    // "content filter" / "guardrail" in `Error::Provider.message`,
+    // so a Config error whose text happened to contain the phrase
+    // would have triggered the JSON-only retry. The post-fix gate
+    // is the typed `kind: ContentFilter` discriminant — message
+    // text is no longer load-bearing.
+    let mock = MockLlmCall::new();
+    mock.enqueue_error(branchforge::Error::Config(
+        "client misconfigured: please disable the content filter".into(),
+    ));
+
+    let result = structured_completion_with_thresholds::<Answer>(
+        &mock,
+        "claude-mock",
+        SYSTEM,
+        USER,
+        MAX_TOKENS,
+        None,
+        permissive_thresholds(),
+    )
+    .await;
+
+    let err = result.expect_err(
+        "Config error with the phrase 'content filter' must NOT trigger the retry",
+    );
+    assert!(
+        err.to_string().contains("client misconfigured"),
+        "the Config error must surface verbatim, not be silently retried; got: {err}",
+    );
+    assert_eq!(
+        mock.requests().len(),
+        1,
+        "exactly one provider call — no retry on a non-ContentFilter error",
+    );
+}
+
+#[tokio::test]
 async fn make_text_response_helper_builds_a_well_formed_canonical_response() {
     // Sanity-pin the helper itself — every test above leans on
     // its `Stop` / `Usage::default()` / single text part shape.

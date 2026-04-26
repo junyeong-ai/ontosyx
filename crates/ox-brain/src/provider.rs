@@ -341,12 +341,20 @@ fn extract_json(text: &str) -> &str {
 }
 
 fn is_content_filtered(err: &branchforge::Error) -> bool {
-    match err {
-        branchforge::Error::Provider { message, .. } => {
-            message.contains("content filter") || message.contains("guardrail")
+    // The robust signal: branchforge classifies provider errors by
+    // `ProviderErrorKind`. `ContentFilter` covers Anthropic refusals,
+    // OpenAI `content_filter`, Gemini SAFETY/RECITATION/BLOCKLIST/
+    // PROHIBITED_CONTENT, and Bedrock guardrail interventions —
+    // every provider rolled into one variant. Pre-classification
+    // string matching ("content filter" / "guardrail") was fragile
+    // because individual codecs format messages differently.
+    matches!(
+        err,
+        branchforge::Error::Provider {
+            kind: branchforge::error::ProviderErrorKind::ContentFilter,
+            ..
         }
-        _ => false,
-    }
+    )
 }
 
 #[cfg(test)]
