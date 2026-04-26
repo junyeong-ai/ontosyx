@@ -104,7 +104,7 @@ pub struct SourceColumnDef {
     pub nullable: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct ForeignKeyDef {
     pub from_table: String,
     pub from_column: String,

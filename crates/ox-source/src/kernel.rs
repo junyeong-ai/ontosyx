@@ -14,10 +14,13 @@
 //!   error as transient (retryable) or permanent (fail-fast). A single
 //!   connection hiccup in the middle of a PostgreSQL introspection no longer
 //!   requires every adapter to embed its own backoff loop.
-//! - **Schema cache.** Memoize the result of [`analyze`](IntrospectionKernel::analyze)
-//!   with a TTL. Repeated calls within the window skip the adapter entirely —
-//!   important when a UI re-requests analysis as the user navigates away and
-//!   back, or a downstream caller wants to inspect warnings multiple times.
+//! - **Schema cache.** Memoize the result of
+//!   [`analyze_all`](IntrospectionKernel::analyze_all) with a TTL.
+//!   Repeated calls within the window skip the adapter entirely —
+//!   important when a UI re-requests full analysis as the user
+//!   navigates away and back. Subset / extension analyses bypass the
+//!   cache because they're explicit user-driven artefacts that
+//!   shouldn't shadow the whole-source view.
 //! - **Warning aggregation.** The adapter's [`crate::AnalysisResult`] already
 //!   carries [`ox_ontology::source_analysis::AnalysisWarning`]s; the kernel keeps
 //!   them associated with the cached result so every consumer sees the same
@@ -27,6 +30,7 @@
 //! inside each adapter — moving it to the kernel is a follow-up refactor
 //! that requires switching adapters to atomic primitives.
 
+use std::collections::{BTreeSet, HashSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -41,7 +45,7 @@ use ox_ontology::source_analysis::{
 };
 use ox_core::source_schema::{SourceProfile, SourceSchema, TableProfile};
 
-use crate::{AnalysisResult, DEFAULT_INTROSPECTION_CONCURRENCY, DataSourceAdapter};
+use crate::{AnalysisResult, DEFAULT_INTROSPECTION_CONCURRENCY, DataSourceAdapter, TableSelection};
 
 // ---------------------------------------------------------------------------
 // RetryPolicy
@@ -147,8 +151,8 @@ impl Default for RetryPolicy {
 /// adapter round-trip within the window.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum CacheTtl {
-    /// Never cache. Every [`IntrospectionKernel::analyze`] call reaches
-    /// the adapter.
+    /// Never cache. Every [`IntrospectionKernel::analyze_all`] call
+    /// reaches the adapter.
     #[default]
     Disabled,
     /// Cache entries expire after this duration. `Duration::MAX`
@@ -254,9 +258,10 @@ impl IntrospectionKernel {
         *self.cache.lock().await = None;
     }
 
-    /// Whether a fresh cached analysis is currently available. Intended
-    /// for diagnostics and tests — production code should just call
-    /// `analyze()` and rely on the cache to do its job transparently.
+    /// Whether a fresh full-source cached analysis is currently
+    /// available. Cache is keyed only on `analyze_all` — partial
+    /// (`analyze_subset`) and incremental (`analyze_extension`) calls
+    /// do not consult or populate it.
     pub async fn is_cached(&self) -> bool {
         let guard = self.cache.lock().await;
         guard
@@ -264,21 +269,24 @@ impl IntrospectionKernel {
             .is_some_and(|e| self.cache_ttl.is_fresh(e.inserted_at))
     }
 
-    /// Run full analysis: schema + profile + warnings, under retry and
-    /// cache policy.
+    /// Run a **full-source** analysis: every table the adapter
+    /// advertises, schema + profile + warnings, under retry and cache
+    /// policy.
     ///
     /// - Transient errors retry according to the configured policy.
     /// - Repeat calls within the cache TTL reuse the previous successful
     ///   result (same `Arc`).
     ///
-    /// Returns `Arc<AnalysisResult>` so sharing the warning list with
-    /// multiple consumers doesn't clone the schema.
-    pub async fn analyze(&self) -> OxResult<Arc<AnalysisResult>> {
+    /// Use this for the explicit "scan everything" workflow (data-
+    /// catalog migration, initial discovery on a small source). For
+    /// incremental UX, prefer [`analyze_subset`](Self::analyze_subset)
+    /// + [`analyze_extension`](Self::analyze_extension).
+    pub async fn analyze_all(&self) -> OxResult<Arc<AnalysisResult>> {
         if let Some(cached) = self.cache_hit().await {
             return Ok(cached);
         }
 
-        let result = self.run_analyze_with_retry().await?;
+        let result = self.run_analyze_with_retry(&TableSelection::All).await?;
         let arc = Arc::new(result);
 
         if matches!(self.cache_ttl, CacheTtl::Duration(_)) {
@@ -292,14 +300,85 @@ impl IntrospectionKernel {
         Ok(arc)
     }
 
-    /// Discover the source's schema (tables + columns + PK + FKs), with
-    /// per-table warnings captured rather than surfaced as fatal errors.
-    /// Resilient: a table whose `describe_table` fails is skipped with
-    /// a `TableSkipped` warning; FK discovery failures degrade to an
-    /// empty FK set with a warning. Returns `Err` only when the source
-    /// is fundamentally unreachable or every table is inaccessible.
-    pub async fn introspect_schema(&self) -> OxResult<(SourceSchema, Vec<AnalysisWarning>)> {
-        let table_names = self.adapter.list_tables().await?;
+    /// Analyse only the named tables. The selection is allow-list
+    /// semantics — names not advertised by `list_tables` are silently
+    /// dropped, names that fail individual primitives degrade to
+    /// warnings (the same resilience the full sweep applies). Returns
+    /// an empty result when the selection itself is empty.
+    ///
+    /// Subset analyses **bypass the cache** in both directions: a
+    /// subset never reads from nor writes to the `analyze_all`
+    /// cache slot, because the two are different artefacts (one
+    /// promises whole-source coverage, the other doesn't).
+    pub async fn analyze_subset(
+        &self,
+        tables: BTreeSet<String>,
+    ) -> OxResult<Arc<AnalysisResult>> {
+        let result = self
+            .run_analyze_with_retry(&TableSelection::Subset(tables))
+            .await?;
+        Ok(Arc::new(result))
+    }
+
+    /// Grow an existing analysis by introspecting only the tables that
+    /// were not part of `base`. The merged result preserves every
+    /// `base` row and appends the freshly-analysed tables / FKs /
+    /// profiles in deterministic order.
+    ///
+    /// The dedup is by table name (the catalog identifier), so two
+    /// runs that re-pick a previously analysed table return the
+    /// `base` row unchanged — re-introspection is an explicit "drop
+    /// the cache and re-analyse" gesture, not a side effect of
+    /// extension. Foreign keys merge by structural equality so a
+    /// declared FK already in `base` does not duplicate when the
+    /// extension scan re-discovers it.
+    ///
+    /// Returns the original `base` (cloned into a fresh `Arc`) when
+    /// `additional` is empty or every name is already covered.
+    pub async fn analyze_extension(
+        &self,
+        base: &AnalysisResult,
+        additional: BTreeSet<String>,
+    ) -> OxResult<Arc<AnalysisResult>> {
+        let baseline_names: BTreeSet<String> = base
+            .schema
+            .tables
+            .iter()
+            .map(|t| t.name.clone())
+            .collect();
+        let new_tables: BTreeSet<String> =
+            additional.difference(&baseline_names).cloned().collect();
+
+        if new_tables.is_empty() {
+            return Ok(Arc::new(base.clone()));
+        }
+
+        let new_analysis = self
+            .run_analyze_with_retry(&TableSelection::Subset(new_tables))
+            .await?;
+
+        Ok(Arc::new(merge_analysis_results(base, &new_analysis)))
+    }
+
+    /// Discover the source's schema (tables + columns + PK + FKs)
+    /// constrained to `selection`, with per-table warnings captured
+    /// rather than surfaced as fatal errors. Resilient: a table whose
+    /// `describe_table` fails is skipped with a `TableSkipped`
+    /// warning; FK discovery failures degrade to an empty FK set with
+    /// a warning. Returns `Err` only when the source is fundamentally
+    /// unreachable or every selected table is inaccessible.
+    pub async fn introspect_schema_for(
+        &self,
+        selection: &TableSelection,
+    ) -> OxResult<(SourceSchema, Vec<AnalysisWarning>)> {
+        let advertised = self.adapter.list_tables().await?;
+        let table_names: Vec<String> = match selection {
+            TableSelection::All => advertised,
+            TableSelection::Subset(picks) => advertised
+                .into_iter()
+                .filter(|n| picks.contains(n))
+                .collect(),
+        };
         if table_names.len() >= LARGE_SCHEMA_GATE_THRESHOLD {
             warn!(
                 table_count = table_names.len(),
@@ -459,12 +538,15 @@ impl IntrospectionKernel {
         })
     }
 
-    async fn run_analyze_with_retry(&self) -> OxResult<AnalysisResult> {
+    async fn run_analyze_with_retry(
+        &self,
+        selection: &TableSelection,
+    ) -> OxResult<AnalysisResult> {
         let mut attempt: u32 = 0;
         let mut backoff = self.retry.initial_backoff;
         loop {
             attempt += 1;
-            match self.run_full_analysis_once().await {
+            match self.run_full_analysis_once(selection).await {
                 Ok(result) => return Ok(result),
                 Err(err) => {
                     let transient = (self.retry.is_transient)(&err);
@@ -481,8 +563,11 @@ impl IntrospectionKernel {
         }
     }
 
-    async fn run_full_analysis_once(&self) -> OxResult<AnalysisResult> {
-        let (schema, mut warnings) = self.introspect_schema().await?;
+    async fn run_full_analysis_once(
+        &self,
+        selection: &TableSelection,
+    ) -> OxResult<AnalysisResult> {
+        let (schema, mut warnings) = self.introspect_schema_for(selection).await?;
         let (mut profile, profile_warnings) = self.collect_stats(&schema).await?;
         warnings.extend(profile_warnings);
 
@@ -517,6 +602,63 @@ impl IntrospectionKernel {
             profile,
             warnings,
         })
+    }
+}
+
+/// Merge a fresh extension scan into a baseline analysis result.
+///
+/// Dedup rules:
+/// - **Tables / table profiles**: by `name`. The baseline always
+///   wins — re-introspection is an explicit "drop the cache and call
+///   `analyze_all` again" gesture, not a side effect of extension.
+/// - **Foreign keys**: by structural equality. A declared FK already
+///   in `base` does not duplicate when the extension scan re-discovers
+///   it through a newly-added table.
+/// - **Warnings**: appended; ordering reflects scan sequence so the
+///   UI can group by "first seen".
+fn merge_analysis_results(base: &AnalysisResult, addition: &AnalysisResult) -> AnalysisResult {
+    let mut tables = base.schema.tables.clone();
+    let baseline_table_names: HashSet<&str> =
+        base.schema.tables.iter().map(|t| t.name.as_str()).collect();
+    for t in &addition.schema.tables {
+        if !baseline_table_names.contains(t.name.as_str()) {
+            tables.push(t.clone());
+        }
+    }
+
+    let mut foreign_keys = base.schema.foreign_keys.clone();
+    let baseline_fks: HashSet<&ox_core::source_schema::ForeignKeyDef> =
+        base.schema.foreign_keys.iter().collect();
+    for fk in &addition.schema.foreign_keys {
+        if !baseline_fks.contains(fk) {
+            foreign_keys.push(fk.clone());
+        }
+    }
+
+    let mut table_profiles = base.profile.table_profiles.clone();
+    let baseline_profile_names: HashSet<&str> = base
+        .profile
+        .table_profiles
+        .iter()
+        .map(|p| p.table_name.as_str())
+        .collect();
+    for tp in &addition.profile.table_profiles {
+        if !baseline_profile_names.contains(tp.table_name.as_str()) {
+            table_profiles.push(tp.clone());
+        }
+    }
+
+    let mut warnings = base.warnings.clone();
+    warnings.extend(addition.warnings.iter().cloned());
+
+    AnalysisResult {
+        schema: SourceSchema {
+            source_type: base.schema.source_type.clone(),
+            tables,
+            foreign_keys,
+        },
+        profile: SourceProfile { table_profiles },
+        warnings,
     }
 }
 
@@ -719,7 +861,7 @@ mod tests {
             .with_retry(RetryPolicy::exponential_default().with_transient(
             |e| matches!(e, OxError::Runtime { message } if message.contains("connection refused")),
         ));
-        let result = kernel.analyze().await;
+        let result = kernel.analyze_all().await;
         assert!(result.is_ok(), "expected success after retries: {result:?}");
         assert_eq!(adapter.call_count(), 3);
     }
@@ -735,7 +877,7 @@ mod tests {
             RetryPolicy::exponential_default()
                 .with_transient(|e| matches!(e, OxError::Runtime { .. })),
         );
-        let result = kernel.analyze().await;
+        let result = kernel.analyze_all().await;
         assert!(result.is_err(), "expected failure after exhausting retries");
         assert_eq!(adapter.call_count(), 3, "every attempt must be used");
     }
@@ -747,7 +889,7 @@ mod tests {
             RetryPolicy::exponential_default()
                 .with_transient(|e| matches!(e, OxError::Runtime { .. })),
         );
-        let result = kernel.analyze().await;
+        let result = kernel.analyze_all().await;
         assert!(result.is_err());
         assert_eq!(
             adapter.call_count(),
@@ -760,7 +902,7 @@ mod tests {
     async fn default_retry_is_single_attempt() {
         let adapter = Arc::new(ScriptedAdapter::new(vec![Err(transient_err())]));
         let kernel = IntrospectionKernel::new(adapter.clone());
-        let result = kernel.analyze().await;
+        let result = kernel.analyze_all().await;
         assert!(result.is_err());
         assert_eq!(adapter.call_count(), 1);
     }
@@ -779,7 +921,7 @@ mod tests {
                 .with_max_attempts(5)
                 .with_transient(|e| matches!(e, OxError::Runtime { .. })),
         );
-        let result = kernel.analyze().await;
+        let result = kernel.analyze_all().await;
         assert!(result.is_ok());
         assert_eq!(adapter.call_count(), 5);
     }
@@ -790,8 +932,8 @@ mod tests {
     async fn cache_disabled_always_hits_adapter() {
         let adapter = Arc::new(ScriptedAdapter::new(vec![empty_tables(), empty_tables()]));
         let kernel = IntrospectionKernel::new(adapter.clone());
-        let _ = kernel.analyze().await.unwrap();
-        let _ = kernel.analyze().await.unwrap();
+        let _ = kernel.analyze_all().await.unwrap();
+        let _ = kernel.analyze_all().await.unwrap();
         assert_eq!(adapter.call_count(), 2);
     }
 
@@ -800,8 +942,8 @@ mod tests {
         let adapter = Arc::new(ScriptedAdapter::new(vec![empty_tables()]));
         let kernel = IntrospectionKernel::new(adapter.clone())
             .with_cache_ttl(CacheTtl::Duration(Duration::from_secs(60)));
-        let first = kernel.analyze().await.unwrap();
-        let second = kernel.analyze().await.unwrap();
+        let first = kernel.analyze_all().await.unwrap();
+        let second = kernel.analyze_all().await.unwrap();
         assert_eq!(adapter.call_count(), 1, "second call must hit the cache");
         assert!(Arc::ptr_eq(&first, &second), "same Arc on cache hit");
     }
@@ -811,9 +953,9 @@ mod tests {
         let adapter = Arc::new(ScriptedAdapter::new(vec![empty_tables(), empty_tables()]));
         let kernel = IntrospectionKernel::new(adapter.clone())
             .with_cache_ttl(CacheTtl::Duration(Duration::from_millis(5)));
-        let _ = kernel.analyze().await.unwrap();
+        let _ = kernel.analyze_all().await.unwrap();
         tokio::time::sleep(Duration::from_millis(20)).await;
-        let _ = kernel.analyze().await.unwrap();
+        let _ = kernel.analyze_all().await.unwrap();
         assert_eq!(adapter.call_count(), 2);
     }
 
@@ -822,11 +964,11 @@ mod tests {
         let adapter = Arc::new(ScriptedAdapter::new(vec![empty_tables(), empty_tables()]));
         let kernel = IntrospectionKernel::new(adapter.clone())
             .with_cache_ttl(CacheTtl::Duration(Duration::from_secs(60)));
-        let _ = kernel.analyze().await.unwrap();
+        let _ = kernel.analyze_all().await.unwrap();
         assert!(kernel.is_cached().await);
         kernel.invalidate().await;
         assert!(!kernel.is_cached().await);
-        let _ = kernel.analyze().await.unwrap();
+        let _ = kernel.analyze_all().await.unwrap();
         assert_eq!(adapter.call_count(), 2);
     }
 
@@ -838,10 +980,10 @@ mod tests {
         ]));
         let kernel = IntrospectionKernel::new(adapter.clone())
             .with_cache_ttl(CacheTtl::Duration(Duration::from_secs(60)));
-        let first = kernel.analyze().await;
+        let first = kernel.analyze_all().await;
         assert!(first.is_err());
         assert!(!kernel.is_cached().await, "error must not populate cache");
-        let second = kernel.analyze().await;
+        let second = kernel.analyze_all().await;
         assert!(second.is_ok());
         assert_eq!(adapter.call_count(), 2);
     }
@@ -863,8 +1005,8 @@ mod tests {
             )
             .with_cache_ttl(CacheTtl::Duration(Duration::from_secs(60)));
 
-        let first = kernel.analyze().await.unwrap();
-        let second = kernel.analyze().await.unwrap();
+        let first = kernel.analyze_all().await.unwrap();
+        let second = kernel.analyze_all().await.unwrap();
         assert_eq!(
             adapter.call_count(),
             2,
@@ -908,6 +1050,228 @@ mod tests {
         let b3 = scale_backoff(b2, 2.0);
         assert_eq!(b2, Duration::from_millis(200));
         assert_eq!(b3, Duration::from_millis(400));
+    }
+
+    // --- Selection routing ----------------------------------------------
+
+    /// Adapter that advertises three tables and serves a fixed (empty
+    /// columns) describe for any of them. Used to verify the kernel
+    /// filters by `TableSelection` *before* describing.
+    struct MultiTableAdapter {
+        names: Vec<String>,
+        described: AtomicUsize,
+    }
+
+    impl MultiTableAdapter {
+        fn new(names: &[&str]) -> Self {
+            Self {
+                names: names.iter().map(|s| s.to_string()).collect(),
+                described: AtomicUsize::new(0),
+            }
+        }
+        fn describe_count(&self) -> usize {
+            self.described.load(Ordering::SeqCst)
+        }
+    }
+
+    #[async_trait]
+    impl DataSourceAdapter for MultiTableAdapter {
+        fn source_type(&self) -> &str {
+            "multi"
+        }
+        async fn list_tables(&self) -> OxResult<Vec<String>> {
+            Ok(self.names.clone())
+        }
+        async fn list_tables_with_summary(
+            &self,
+        ) -> OxResult<Vec<ox_core::source_schema::TableSummary>> {
+            Ok(self
+                .names
+                .iter()
+                .map(|n| ox_core::source_schema::TableSummary {
+                    name: n.clone(),
+                    estimated_row_count: None,
+                    column_count: 0,
+                    last_modified: None,
+                })
+                .collect())
+        }
+        async fn describe_table(&self, table: &str) -> OxResult<SourceTableDef> {
+            self.described.fetch_add(1, Ordering::SeqCst);
+            Ok(SourceTableDef {
+                name: table.to_string(),
+                columns: Vec::new(),
+                primary_key: Vec::new(),
+            })
+        }
+        async fn count_rows(&self, _table: &str) -> OxResult<u64> {
+            Ok(0)
+        }
+        async fn sample_column(
+            &self,
+            _table: &str,
+            column: &SourceColumnDef,
+        ) -> OxResult<ColumnStats> {
+            Ok(ColumnStats {
+                column_name: column.name.clone(),
+                null_count: 0,
+                distinct_count: 0,
+                sample_values: Vec::new(),
+                min_value: None,
+                max_value: None,
+            })
+        }
+        async fn list_foreign_keys(&self) -> OxResult<Vec<ForeignKeyDef>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[tokio::test]
+    async fn analyze_subset_describes_only_selected_tables() {
+        let adapter = Arc::new(MultiTableAdapter::new(&["users", "orders", "products"]));
+        let kernel = IntrospectionKernel::new(adapter.clone());
+        let result = kernel
+            .analyze_subset(BTreeSet::from(["users".to_string()]))
+            .await
+            .expect("subset analyse");
+        assert_eq!(result.schema.tables.len(), 1);
+        assert_eq!(result.schema.tables[0].name, "users");
+        assert_eq!(adapter.describe_count(), 1, "only one describe round-trip");
+    }
+
+    #[tokio::test]
+    async fn analyze_subset_drops_unknown_names_silently() {
+        let adapter = Arc::new(MultiTableAdapter::new(&["users", "orders"]));
+        let kernel = IntrospectionKernel::new(adapter.clone());
+        let result = kernel
+            .analyze_subset(BTreeSet::from([
+                "users".to_string(),
+                "no_such_table".to_string(),
+            ]))
+            .await
+            .expect("subset analyse");
+        assert_eq!(result.schema.tables.len(), 1);
+        assert_eq!(adapter.describe_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn analyze_subset_does_not_populate_full_cache() {
+        let adapter = Arc::new(MultiTableAdapter::new(&["users", "orders"]));
+        let kernel = IntrospectionKernel::new(adapter.clone())
+            .with_cache_ttl(CacheTtl::Duration(Duration::from_secs(60)));
+        let _ = kernel
+            .analyze_subset(BTreeSet::from(["users".to_string()]))
+            .await
+            .expect("subset");
+        assert!(
+            !kernel.is_cached().await,
+            "subset must not shadow the analyze_all cache slot"
+        );
+    }
+
+    #[tokio::test]
+    async fn analyze_extension_appends_only_unseen_tables() {
+        let adapter = Arc::new(MultiTableAdapter::new(&["users", "orders", "products"]));
+        let kernel = IntrospectionKernel::new(adapter.clone());
+
+        let base = kernel
+            .analyze_subset(BTreeSet::from(["users".to_string()]))
+            .await
+            .expect("base");
+
+        let extended = kernel
+            .analyze_extension(
+                base.as_ref(),
+                BTreeSet::from(["users".to_string(), "orders".to_string()]),
+            )
+            .await
+            .expect("extension");
+
+        let names: BTreeSet<&str> =
+            extended.schema.tables.iter().map(|t| t.name.as_str()).collect();
+        assert!(names.contains("users"));
+        assert!(names.contains("orders"));
+        assert!(!names.contains("products"));
+        // Base described `users`; extension described `orders` only —
+        // re-introspection of `users` must not happen.
+        assert_eq!(adapter.describe_count(), 2);
+    }
+
+    #[tokio::test]
+    async fn analyze_extension_with_fully_covered_set_returns_base_clone() {
+        let adapter = Arc::new(MultiTableAdapter::new(&["users", "orders"]));
+        let kernel = IntrospectionKernel::new(adapter.clone());
+        let base = kernel
+            .analyze_subset(BTreeSet::from(["users".to_string()]))
+            .await
+            .expect("base");
+        let extended = kernel
+            .analyze_extension(base.as_ref(), BTreeSet::from(["users".to_string()]))
+            .await
+            .expect("extension");
+        assert_eq!(extended.schema.tables.len(), 1);
+        assert_eq!(adapter.describe_count(), 1, "no second describe round-trip");
+    }
+
+    #[test]
+    fn merge_analysis_results_dedups_tables_fks_profiles() {
+        fn ar(tables: &[&str], fks: &[(&str, &str)]) -> AnalysisResult {
+            AnalysisResult {
+                schema: SourceSchema {
+                    source_type: "test".to_string(),
+                    tables: tables
+                        .iter()
+                        .map(|n| SourceTableDef {
+                            name: n.to_string(),
+                            columns: Vec::new(),
+                            primary_key: Vec::new(),
+                        })
+                        .collect(),
+                    foreign_keys: fks
+                        .iter()
+                        .map(|(from, to)| ForeignKeyDef {
+                            from_table: from.to_string(),
+                            from_column: "id".to_string(),
+                            to_table: to.to_string(),
+                            to_column: "id".to_string(),
+                            inferred: false,
+                        })
+                        .collect(),
+                },
+                profile: SourceProfile {
+                    table_profiles: tables
+                        .iter()
+                        .map(|n| TableProfile {
+                            table_name: n.to_string(),
+                            row_count: 0,
+                            column_stats: Vec::new(),
+                        })
+                        .collect(),
+                },
+                warnings: Vec::new(),
+            }
+        }
+
+        let base = ar(&["users", "orders"], &[("orders", "users")]);
+        // Addition re-includes a baseline table + adds a new one + a
+        // duplicate FK + a fresh FK.
+        let addition = ar(
+            &["orders", "products"],
+            &[("orders", "users"), ("products", "users")],
+        );
+
+        let merged = merge_analysis_results(&base, &addition);
+        let names: Vec<&str> = merged.schema.tables.iter().map(|t| t.name.as_str()).collect();
+        assert_eq!(names, vec!["users", "orders", "products"]);
+        // Duplicate FK from `addition` is dropped; new FK appended.
+        assert_eq!(merged.schema.foreign_keys.len(), 2);
+        let profile_names: Vec<&str> = merged
+            .profile
+            .table_profiles
+            .iter()
+            .map(|p| p.table_name.as_str())
+            .collect();
+        assert_eq!(profile_names, vec!["users", "orders", "products"]);
     }
 
     #[test]

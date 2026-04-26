@@ -83,7 +83,7 @@ pub(crate) async fn analyze_source(
                 .ok_or_else(|| AppError::bad_request("CSV source type is not registered"))?
                 .map_err(AppError::from)?;
             let analysis = IntrospectionKernel::new(introspector)
-                .analyze()
+                .analyze_all()
                 .await
                 .map_err(AppError::from)?;
             let fingerprint = schema_fingerprint(&analysis.schema);
@@ -120,7 +120,7 @@ pub(crate) async fn analyze_source(
                 .ok_or_else(|| AppError::bad_request("JSON source type is not registered"))?
                 .map_err(AppError::from)?;
             let analysis = IntrospectionKernel::new(introspector)
-                .analyze()
+                .analyze_all()
                 .await
                 .map_err(AppError::from)?;
             let fingerprint = schema_fingerprint(&analysis.schema);
@@ -169,7 +169,7 @@ pub(crate) async fn analyze_source(
                 .map_err(AppError::from)?;
 
             let analysis = IntrospectionKernel::new(introspector)
-                .analyze()
+                .analyze_all()
                 .await
                 .map_err(AppError::from)?;
 
@@ -223,7 +223,7 @@ pub(crate) async fn analyze_source(
                 .map_err(AppError::from)?;
 
             let analysis = IntrospectionKernel::new(introspector)
-                .analyze()
+                .analyze_all()
                 .await
                 .map_err(AppError::from)?;
 
@@ -277,7 +277,7 @@ pub(crate) async fn analyze_source(
                 .map_err(AppError::from)?;
 
             let analysis = IntrospectionKernel::new(introspector)
-                .analyze()
+                .analyze_all()
                 .await
                 .map_err(AppError::from)?;
 
@@ -340,7 +340,7 @@ pub(crate) async fn analyze_source(
                 .map_err(AppError::from)?;
 
             let analysis = IntrospectionKernel::new(introspector)
-                .analyze()
+                .analyze_all()
                 .await
                 .map_err(AppError::from)?;
 
@@ -401,7 +401,7 @@ pub(crate) async fn analyze_source(
                 .map_err(AppError::from)?;
 
             let analysis = IntrospectionKernel::new(introspector)
-                .analyze()
+                .analyze_all()
                 .await
                 .map_err(AppError::from)?;
 
@@ -451,7 +451,7 @@ pub(crate) async fn analyze_source(
                 .map_err(AppError::from)?;
 
             let analysis = IntrospectionKernel::new(introspector)
-                .analyze()
+                .analyze_all()
                 .await
                 .map_err(AppError::from)?;
             let fingerprint = schema_fingerprint(&analysis.schema);

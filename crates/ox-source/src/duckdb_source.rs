@@ -437,7 +437,7 @@ mod tests {
 
         let adapter = DuckDbAdapter::from_file(csv_path.to_str().unwrap()).unwrap();
         let kernel = IntrospectionKernel::new(Arc::new(adapter));
-        let analysis = kernel.analyze().await.unwrap();
+        let analysis = kernel.analyze_all().await.unwrap();
         assert_eq!(analysis.schema.tables.len(), 1);
         assert_eq!(analysis.profile.table_profiles[0].row_count, 2);
         assert!(analysis.warnings.is_empty());
