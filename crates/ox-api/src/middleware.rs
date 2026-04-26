@@ -393,12 +393,10 @@ pub async fn workspace_context(
     mut req: Request,
     next: Next,
 ) -> Result<Response, AppError> {
+    use crate::principal::Principal;
     use crate::workspace::{WorkspaceContext, WorkspaceRole};
-    use ox_runtime::GRAPH_WORKSPACE_ID;
-    use ox_store::WORKSPACE_ID;
     use tracing::Instrument;
 
-    // Requires auth claims (must run after require_auth)
     let claims = req
         .extensions()
         .get::<AuthClaims>()
@@ -409,11 +407,6 @@ pub async fn workspace_context(
     // from the X-Workspace-Id header. They have admin-level access, so
     // any workspace is valid. No fallback — callers must explicitly
     // specify which workspace to operate on.
-    //
-    // IMPORTANT: check BOTH `system:` and `apikey:` prefixes via the
-    // shared helper. Phase 4.2 switched the API-key `sub` format to
-    // `apikey:<label>`; a bare `starts_with("system:")` here silently
-    // rejected every API-key caller with an opaque 401.
     if crate::principal::is_machine_sub(&claims.sub) {
         let workspace_id = req
             .headers()
@@ -432,22 +425,22 @@ pub async fn workspace_context(
             workspace_id,
             workspace_role: WorkspaceRole::Owner,
         };
-        req.extensions_mut().insert(ws_ctx);
-        // Tie every downstream log / span to the workspace id so OTLP
-        // traces can bucket latency and error rate per workspace without
-        // manual joins. The field lands on the root request span; child
-        // spans inherit it automatically.
+        req.extensions_mut().insert(ws_ctx.clone());
+
+        let principal = Principal::from_claims(&claims);
         let span = tracing::info_span!(
             "request",
             workspace_id = %workspace_id,
             principal = %claims.sub,
         );
-        let response = WORKSPACE_ID
-            .scope(
-                workspace_id,
-                GRAPH_WORKSPACE_ID.scope(workspace_id, next.run(req).instrument(span)),
-            )
-            .await;
+        let response = scope_request(
+            &state,
+            &principal,
+            &ws_ctx,
+            workspace_id,
+            next.run(req).instrument(span),
+        )
+        .await;
         return Ok(response);
     }
 
@@ -512,24 +505,80 @@ pub async fn workspace_context(
         workspace_role: WorkspaceRole::from_db_string(&role),
     };
 
-    req.extensions_mut().insert(ws_ctx);
+    req.extensions_mut().insert(ws_ctx.clone());
 
-    // Run the handler within the workspace task-local scope.
-    // Sets both PG RLS (WORKSPACE_ID) and graph isolation (GRAPH_WORKSPACE_ID)
-    // so all queries — relational and graph — are automatically workspace-scoped.
-    // The info_span carries the same identity onto the trace: span fields
-    // are inherited by every child span the handler produces.
+    let principal = Principal::from_claims(&claims);
     let span = tracing::info_span!(
         "request",
         workspace_id = %workspace_id,
         user_id = %user_id,
     );
-    let response = WORKSPACE_ID
-        .scope(
-            workspace_id,
-            GRAPH_WORKSPACE_ID.scope(workspace_id, next.run(req).instrument(span)),
-        )
-        .await;
+    let response = scope_request(
+        &state,
+        &principal,
+        &ws_ctx,
+        workspace_id,
+        next.run(req).instrument(span),
+    )
+    .await;
 
     Ok(response)
+}
+
+/// Scope a request future under every per-request task-local the
+/// downstream stack reads: PG RLS, graph isolation, ACL snapshot,
+/// and the rewriter principal. The ACL snapshot is loaded once per
+/// request — every Cypher path inside the handler (chat agent
+/// tools, MCP tools, saved reports, raw queries, federation) shares
+/// the same view.
+async fn scope_request<F, R>(
+    state: &AppState,
+    principal: &crate::principal::Principal,
+    ws: &crate::workspace::WorkspaceContext,
+    workspace_id: Uuid,
+    fut: F,
+) -> R
+where
+    F: std::future::Future<Output = R>,
+{
+    use ox_runtime::{GRAPH_ACL_SNAPSHOT, GRAPH_PRINCIPAL, GRAPH_WORKSPACE_ID};
+    use ox_runtime::cypher::AclSnapshot;
+    use ox_store::WORKSPACE_ID;
+    use std::sync::Arc;
+
+    // Snapshot is per-request: one DB round-trip up-front, every
+    // downstream Cypher path reads the cached value via task-local.
+    let snapshot = match crate::acl_enforcement::load_acl_snapshot(
+        state.store.as_ref(),
+        principal,
+        ws,
+    )
+    .await
+    {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::warn!(
+                error = ?e,
+                workspace_id = %workspace_id,
+                "ACL snapshot load failed; request continues without policies",
+            );
+            Arc::new(AclSnapshot::empty())
+        }
+    };
+    let request_principal = crate::acl_enforcement::request_principal(principal, ws);
+
+    WORKSPACE_ID
+        .scope(
+            workspace_id,
+            GRAPH_WORKSPACE_ID.scope(workspace_id, async move {
+                let with_snapshot = GRAPH_ACL_SNAPSHOT.scope(snapshot, async move {
+                    match request_principal {
+                        Some(p) => GRAPH_PRINCIPAL.scope(p, fut).await,
+                        None => fut.await,
+                    }
+                });
+                with_snapshot.await
+            }),
+        )
+        .await
 }

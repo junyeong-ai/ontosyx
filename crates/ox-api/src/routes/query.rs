@@ -207,7 +207,7 @@ pub struct GraphSearchRequest {
 pub(crate) async fn search_graph(
     State(state): State<AppState>,
     principal: Principal,
-    ws: WorkspaceContext,
+    _ws: WorkspaceContext,
     Json(req): Json<GraphSearchRequest>,
 ) -> Result<Json<ApiResponse<Vec<ox_ontology::graph_exploration::SearchResultNode>>>, AppError> {
     let search_term = req.query.trim().to_string();
@@ -222,25 +222,16 @@ pub(crate) async fn search_graph(
     let timeout = state.timeouts.raw_query;
     let labels = req.labels.as_deref();
 
-    let exec = async {
-        tokio::time::timeout(timeout, runtime.search_nodes(&search_term, limit, labels))
-            .await
-            .map_err(|_| {
-                AppError::timeout(format!("Search timed out after {}s", timeout.as_secs()))
-            })?
-            .map_err(|e| {
-                error!("Graph search failed: {e}");
-                AppError::unprocessable(format!("Search execution failed: {e}"))
-            })
-    };
-
-    let results = crate::acl_enforcement::with_acl_scope(
-        state.store.as_ref(),
-        &principal,
-        &ws,
-        exec,
+    let results = tokio::time::timeout(
+        timeout,
+        runtime.search_nodes(&search_term, limit, labels),
     )
-    .await??;
+    .await
+    .map_err(|_| AppError::timeout(format!("Search timed out after {}s", timeout.as_secs())))?
+    .map_err(|e| {
+        error!("Graph search failed: {e}");
+        AppError::unprocessable(format!("Search execution failed: {e}"))
+    })?;
 
     Ok(ApiResponse::of(results))
 }
@@ -339,30 +330,24 @@ pub(crate) async fn raw_query(
     let timeout = state.timeouts.raw_query;
     let empty_params: HashMap<String, PropertyValue> = HashMap::new();
     let start = std::time::Instant::now();
-    let exec_fut = async {
-        let inner = runtime.execute_query(&req.query, &empty_params);
-        tokio::time::timeout(timeout, scope_with_ontology(ontology.clone(), inner)).await
-    };
-    let outcome = crate::acl_enforcement::with_acl_scope(
-        state.store.as_ref(),
-        &principal,
-        &ws,
-        exec_fut,
+    let exec_fut = runtime.execute_query(&req.query, &empty_params);
+    let mut results = tokio::time::timeout(
+        timeout,
+        scope_with_ontology(ontology.clone(), exec_fut),
     )
-    .await?;
-    let mut results = outcome
-        .map_err(|_| {
-            crate::metrics::record_query("timeout", start.elapsed());
-            AppError::timeout(format!(
-                "Query execution timed out after {}s",
-                timeout.as_secs()
-            ))
-        })?
-        .map_err(|e| {
-            crate::metrics::record_query("error", start.elapsed());
-            error!("Raw query execution failed: {e}");
-            AppError::unprocessable(format!("Query execution failed: {e}"))
-        })?;
+    .await
+    .map_err(|_| {
+        crate::metrics::record_query("timeout", start.elapsed());
+        AppError::timeout(format!(
+            "Query execution timed out after {}s",
+            timeout.as_secs()
+        ))
+    })?
+    .map_err(|e| {
+        crate::metrics::record_query("error", start.elapsed());
+        error!("Raw query execution failed: {e}");
+        AppError::unprocessable(format!("Query execution failed: {e}"))
+    })?;
     crate::metrics::record_query("ok", start.elapsed());
 
     // Π-3 provenance — raw path. `type_ids` / `filter_summary` are
@@ -641,30 +626,24 @@ pub(crate) async fn execute_from_ir(
 
     let timeout = state.timeouts.raw_query;
     let start = std::time::Instant::now();
-    let exec_fut = async {
-        let inner = runtime.execute_query(&compiled.statement, &compiled.params);
-        tokio::time::timeout(timeout, scope_with_ontology(ontology.clone(), inner)).await
-    };
-    let outcome = crate::acl_enforcement::with_acl_scope(
-        state.store.as_ref(),
-        &principal,
-        &ws,
-        exec_fut,
+    let exec_fut = runtime.execute_query(&compiled.statement, &compiled.params);
+    let mut results = tokio::time::timeout(
+        timeout,
+        scope_with_ontology(ontology.clone(), exec_fut),
     )
-    .await?;
-    let mut results = outcome
-        .map_err(|_| {
-            crate::metrics::record_query("timeout", start.elapsed());
-            AppError::timeout(format!(
-                "Query execution timed out after {}s",
-                timeout.as_secs()
-            ))
-        })?
-        .map_err(|e| {
-            crate::metrics::record_query("error", start.elapsed());
-            error!("QueryIR execution failed: {e}");
-            AppError::unprocessable(format!("Query execution failed: {e}"))
-        })?;
+    .await
+    .map_err(|_| {
+        crate::metrics::record_query("timeout", start.elapsed());
+        AppError::timeout(format!(
+            "Query execution timed out after {}s",
+            timeout.as_secs()
+        ))
+    })?
+    .map_err(|e| {
+        crate::metrics::record_query("error", start.elapsed());
+        error!("QueryIR execution failed: {e}");
+        AppError::unprocessable(format!("Query execution failed: {e}"))
+    })?;
     crate::metrics::record_query("ok", start.elapsed());
 
     // Step 3: Auto-detect best widget type (non-blocking, best-effort)
@@ -870,14 +849,11 @@ pub(crate) async fn execute_from_ir_federation(
 
     // ACL enforcement on the federation path — DataFusion executes
     // outside the Cypher pipeline, so the rewriter never sees the
-    // plan. Apply the snapshot post-hoc to the materialised result.
-    let acl_snapshot = crate::acl_enforcement::load_acl_snapshot(
-        state.store.as_ref(),
-        &principal,
-        &ws,
-    )
-    .await?;
-    crate::acl_enforcement::enforce_acl_on_result(&mut results, &acl_snapshot);
+    // plan. Read the request-scoped snapshot the middleware loaded
+    // and apply it post-hoc to the materialised result.
+    if let Ok(snapshot) = ox_runtime::GRAPH_ACL_SNAPSHOT.try_with(std::sync::Arc::clone) {
+        crate::acl_enforcement::enforce_acl_on_result(&mut results, &snapshot);
+    }
 
     // Advisory diagnostics: the federation path executes a DataFusion
     // LogicalPlan, not Cypher, so the Cypher-specific validators
@@ -1336,7 +1312,7 @@ pub struct GraphExpandRequest {
 pub(crate) async fn expand_node(
     State(state): State<AppState>,
     principal: Principal,
-    ws: WorkspaceContext,
+    _ws: WorkspaceContext,
     Json(req): Json<GraphExpandRequest>,
 ) -> Result<Json<ApiResponse<NodeExpansion>>, AppError> {
     if req.element_id.trim().is_empty() {
@@ -1349,23 +1325,13 @@ pub(crate) async fn expand_node(
     let runtime = state.runtime.as_ref().ok_or_else(AppError::no_runtime)?;
     let timeout = state.timeouts.raw_query;
 
-    let exec = async {
-        tokio::time::timeout(timeout, runtime.expand_node(&req.element_id, limit))
-            .await
-            .map_err(|_| AppError::timeout("Expand timed out".to_string()))?
-            .map_err(|e| {
-                error!("Expand failed: {e}");
-                AppError::unprocessable(format!("Expand failed: {e}"))
-            })
-    };
-
-    let expansion = crate::acl_enforcement::with_acl_scope(
-        state.store.as_ref(),
-        &principal,
-        &ws,
-        exec,
-    )
-    .await??;
+    let expansion = tokio::time::timeout(timeout, runtime.expand_node(&req.element_id, limit))
+        .await
+        .map_err(|_| AppError::timeout("Expand timed out".to_string()))?
+        .map_err(|e| {
+            error!("Expand failed: {e}");
+            AppError::unprocessable(format!("Expand failed: {e}"))
+        })?;
 
     Ok(ApiResponse::of(expansion))
 }

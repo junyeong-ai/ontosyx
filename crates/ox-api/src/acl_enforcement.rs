@@ -1,8 +1,13 @@
-//! ACL enforcement bridge — load policies from the store, scope
-//! them into the runtime task-local the Cypher pipeline reads, and
-//! apply them post-hoc on the federation path (which executes a
+//! ACL bridge — load `acl_policies` rows from the store, project
+//! them onto the rewriter-internal [`AclSnapshot`] shape, and apply
+//! the snapshot post-hoc on the federation path (which executes a
 //! DataFusion `LogicalPlan` and therefore never reaches the Cypher
 //! rewriter).
+//!
+//! Snapshot loading + task-local scoping happens once per request
+//! in `crate::middleware::workspace_context`. Cypher-execution
+//! handlers read the live snapshot via `GRAPH_ACL_SNAPSHOT`
+//! transparently — there is no per-handler boilerplate.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -20,8 +25,8 @@ use crate::workspace::WorkspaceContext;
 
 /// Look up the effective ACL policies for `principal` in the
 /// current workspace and project them onto the rewriter-internal
-/// [`AclSnapshot`] shape. The snapshot is sorted priority-desc by
-/// the underlying store query.
+/// [`AclSnapshot`] shape. The store query sorts priority-desc;
+/// the rewriter trusts that order.
 pub async fn load_acl_snapshot(
     store: &dyn AclStore,
     principal: &Principal,
@@ -54,6 +59,12 @@ fn snapshot_from_policies(policies: &[AclPolicy]) -> AclSnapshot {
             continue;
         }
         let Some(action) = AclAction::from_db_string(policy.action.as_str()) else {
+            tracing::warn!(
+                policy_id = %policy.id,
+                action = %policy.action,
+                "ACL policy has unrecognised `action`; skipping. \
+                 Update the rewriter to handle this action or correct the row."
+            );
             continue;
         };
         specs.push(AclPolicySpec {
@@ -68,39 +79,11 @@ fn snapshot_from_policies(policies: &[AclPolicy]) -> AclSnapshot {
     AclSnapshot { policies: specs }
 }
 
-/// Scope the ACL snapshot + principal into the runtime task-locals
-/// the Cypher pipeline reads, then await `fut`. Loads the snapshot
-/// up-front so every Cypher-execution path gets the same wiring.
-pub async fn with_acl_scope<F, T>(
-    store: &dyn AclStore,
-    principal: &Principal,
-    ws: &WorkspaceContext,
-    fut: F,
-) -> Result<T, AppError>
-where
-    F: std::future::Future<Output = T>,
-{
-    use ox_runtime::{GRAPH_ACL_SNAPSHOT, GRAPH_PRINCIPAL};
-
-    let snapshot = load_acl_snapshot(store, principal, ws).await?;
-    let request_principal = request_principal(principal, ws);
-
-    let inner = async move {
-        if let Some(p) = request_principal {
-            GRAPH_PRINCIPAL
-                .scope(p, GRAPH_ACL_SNAPSHOT.scope(snapshot, fut))
-                .await
-        } else {
-            GRAPH_ACL_SNAPSHOT.scope(snapshot, fut).await
-        }
-    };
-    Ok(inner.await)
-}
-
 /// Apply an [`AclSnapshot`] to a materialised [`QueryResult`].
 /// Used on the federation path: DataFusion executes a `LogicalPlan`
-/// outside the Cypher pipeline, so the rewriter never sees it. Once
-/// the federation path grows its own pre-execute pass we delete this.
+/// outside the Cypher pipeline, so the rewriter never sees it.
+/// Once the federation path grows its own pre-execute hook this
+/// gets folded in.
 pub fn enforce_acl_on_result(result: &mut QueryResult, snapshot: &AclSnapshot) {
     let mut deny: HashSet<&str> = HashSet::new();
     let mut mask: HashMap<&str, &str> = HashMap::new();

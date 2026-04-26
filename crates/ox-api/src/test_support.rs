@@ -28,8 +28,6 @@
 #![cfg(test)]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use axum::Extension;
 use axum::Router;
@@ -138,25 +136,3 @@ pub fn workspace_context_layer(
     })
 }
 
-// ---------------------------------------------------------------------------
-// Re-export Arc for ergonomic use by call sites that build narrow
-// state structs (`Arc::new(MockApprovalStore::new())`). Tests don't
-// need to import std::sync::Arc separately.
-// ---------------------------------------------------------------------------
-
-pub use std::sync::Arc as TestArc;
-
-#[allow(dead_code)] // used by individual route tests as they land
-fn _arc_in_use<T>(_: TestArc<T>) {}
-
-// `mockall`'s emitted struct type is `MockApprovalStore` plus a
-// generated trait impl. Re-export the type at the module level so
-// route tests can `use crate::test_support::MockApprovalStore;`.
-//
-// The wrapper struct below makes `Arc<dyn ApprovalStore>` ergonomics
-// explicit at the call site — the route tests need an `Arc<dyn
-// ApprovalStore>` to pass to `ApprovalsState`, which is exactly what
-// `Arc::new(mock_store)` produces given `Mock*` implements
-// `ApprovalStore`.
-#[allow(dead_code)]
-fn _hold(_: Arc<dyn ApprovalStore>) {}
