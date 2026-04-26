@@ -114,6 +114,22 @@ lineage naming, ArcSwap live-refresh, parse-once pipeline, JSONB
   / AWS Secrets Manager land under the same one-impl-plus-one-
   registration pattern when an operator brings the use case.
 
+### Test infrastructure
+
+- **LLM agent golden harness.** branchforge's `LlmCall` trait has no
+  mock fixture today. Adding a `MockLlmCall` that returns canned
+  `ModelResponse` payloads (frozen per agent operation) is the
+  shortest path to a deterministic agent regression suite covering
+  `translate_query` + `design_ontology` + `query_graph`. Lands as
+  `crates/ox-agent/tests/golden/`.
+- **Federation execute golden via QueryIR.** `crates/ox-federation/tests/`
+  covers the SQL surface (`run_sql`) end-to-end. The QueryIR →
+  planner → ACL-post-process path (`enforce_acl_on_result`) lacks a
+  golden — the gap is one test seeding an `OntologyIR` + `AclSnapshot`,
+  driving `build_query_ir_scoped` + `execute_plan`, and asserting
+  the masked column projection. Same crate, new file
+  `tests/queryir_acl_e2e.rs`.
+
 ## How we test
 
 - **Wire-shape handler tests.** `crate::test_support::TestApp::new(Router)`
