@@ -635,7 +635,9 @@
         "pageTitle": "PROV-O Audit",
         "pageSubtitle": "Per-fact origin records the platform emits during source scans, rule evaluation, action execution, LLM drafts, etc. Read-only — operators see WHY a fact in the graph exists, who ran the activity, and when.",
         "noOntology": "No committed ontology — open Design mode first to start producing PROV-O records.",
-        "filter": { "activity": "Activity kind", "agent": "Agent kind" },
+        "filter": { "activity": "Activity kind", "agent": "Agent kind", "ontology": "Ontology" },
+        "ontologyAll": "All ontologies",
+        "aggregatedHint": "Aggregated across {count} ontologies",
         "counts": "{shown} of {total} record(s)",
         "usedLabel": "used",
         "empty": {

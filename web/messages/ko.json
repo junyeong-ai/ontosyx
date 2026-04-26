@@ -619,8 +619,11 @@
         "noOntology": "커밋된 온톨로지가 없습니다 — Design 모드에서 PROV-O 레코드를 시작하려면 먼저 ontology 를 만드세요.",
         "filter": {
           "activity": "활동 종류",
-          "agent": "에이전트 종류"
+          "agent": "에이전트 종류",
+          "ontology": "온톨로지"
         },
+        "ontologyAll": "모든 온톨로지",
+        "aggregatedHint": "{count}개 온톨로지 통합 표시",
         "counts": "전체 {total}개 중 {shown}개 표시",
         "usedLabel": "사용",
         "empty": {
