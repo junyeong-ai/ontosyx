@@ -101,6 +101,13 @@ id newtype + struct + builder + validation entry-points.
 
 ## Don't
 
+- Don't add an `extends` / `parent` / `super_type` field to
+  `NodeTypeDef`. Type taxonomy is `InterfaceDef.implements: Vec<InterfaceId>`
+  — a node lists the interfaces it fulfils and the federation
+  planner's `InterfaceExpander` resolves `(:Iface)` to the union
+  of concrete implementers. Forcing a single named superclass
+  loses multiple inheritance, drags display semantics into the
+  query path, and competes with the canonical primitive.
 - Don't mutate `OntologyIR` collections directly — go through the
   `add_X` methods so referential-integrity checks run at insert.
 - Don't introduce a reverse edge from `ox-core` to this crate. The
