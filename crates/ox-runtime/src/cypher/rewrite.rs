@@ -112,7 +112,7 @@ pub struct RewriteContext {
     /// runtime entry point ahead of pipeline execution; `None`
     /// disables ACL rewriting for this request.
     pub acl_snapshot:
-        Option<std::sync::Arc<crate::cypher::acl_rewriter::AclSnapshot>>,
+        Option<std::sync::Arc<crate::cypher::acl::AclSnapshot>>,
     /// Bypass the [`crate::cypher::soft_delete_rewriter::SoftDeleteRewriter`]
     /// pass for this request. `true` only on admin paths that
     /// intentionally need to read or hard-delete already-tombstoned
@@ -142,7 +142,7 @@ impl RewriteContext {
 
     pub fn with_acl_snapshot(
         mut self,
-        snapshot: std::sync::Arc<crate::cypher::acl_rewriter::AclSnapshot>,
+        snapshot: std::sync::Arc<crate::cypher::acl::AclSnapshot>,
     ) -> Self {
         self.acl_snapshot = Some(snapshot);
         self
