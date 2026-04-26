@@ -13,7 +13,7 @@ export default function SourceStep() {
   return (
     <StepShell
       stepKey="2-source"
-      nextPath="/bootstrap/3-glossary"
+      nextPath="/bootstrap/2b-select-tables"
       backPath="/bootstrap/1-pilot"
       canAdvance={!!state.sourceKind}
       title={t("title")}

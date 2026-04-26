@@ -159,6 +159,27 @@
       "connectionPlaceholder": "postgres://user:pass@host:5432/db  OR  /mnt/data/orders.csv",
       "connectionHint": "Credentials are never stored in the browser — the final step registers them through the encrypted federation admin API."
     },
+    "step2b": {
+      "title": "Pick tables to introspect",
+      "subtitle": "Select the subset the pilot needs, or run a full sweep. Selection is incremental — you can add more tables later from Design mode without redoing the analysis.",
+      "modeLabel": "Analyse",
+      "modes": {
+        "all": {
+          "label": "Every table",
+          "hint": "Full sweep — describes + profiles every table the source advertises."
+        },
+        "subset": {
+          "label": "Selected only",
+          "hint": "Incremental — only the tables you check below get analysed; you can add the rest from Design mode later."
+        }
+      },
+      "selectionSummary": "{selected} of {total} tables selected",
+      "selectionLoading": "Listing tables…",
+      "selectAll": "Select all",
+      "clearSelection": "Clear",
+      "error": "Could not preview tables: {error}",
+      "emptyTables": "The source returned no tables — check the connection or the dataset path."
+    },
     "step3": {
       "title": "Seed the glossary",
       "subtitle": "Glossary terms are the business vocabulary. One per line, with the canonical term first and optional aliases separated by commas.",

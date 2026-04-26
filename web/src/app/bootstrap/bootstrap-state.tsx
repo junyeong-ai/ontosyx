@@ -15,11 +15,12 @@ import {
 } from "react";
 import { z } from "zod";
 
-// Storage key is versioned. When we need to change the schema in a
-// backward-incompatible way, bump to `.v2` and Zod validation below
-// guarantees that an old-shape `.v1` payload can't leak through —
-// the parse fails and we fall back to EMPTY cleanly.
-const STORAGE_KEY = "ontosyx.bootstrap.v1";
+// Storage key is versioned. v2 adds incremental ingest fields
+// (`selectedTables`, `analyzeMode`) the new step 2b table picker
+// reads. v1 payloads still parse cleanly — the new fields default
+// — but the version bump signals the schema change to any future
+// migration / audit reader.
+const STORAGE_KEY = "ontosyx.bootstrap.v2";
 
 // Single source of truth — Zod schema doubles as the type and the
 // runtime validator. Any field added here has to declare a default
@@ -35,6 +36,13 @@ const BootstrapStateSchema = z.object({
   rulesDraft: z.string().default(""),
   mappingNotes: z.string().default(""),
   completedSteps: z.array(z.string()).default([]),
+  // Φ5 — incremental ingest selection. `analyzeMode = "all"` runs a
+  // full sweep on Finish; `"subset"` analyses only `selectedTables`.
+  // Empty `selectedTables` + `mode = "subset"` is intentionally
+  // permitted (the user opted in to subset but hasn't picked yet) —
+  // step 2b's `canAdvance` gate enforces non-empty before advancing.
+  selectedTables: z.array(z.string()).default([]),
+  analyzeMode: z.enum(["all", "subset"]).default("all"),
 });
 
 export type BootstrapState = z.infer<typeof BootstrapStateSchema>;

@@ -141,6 +141,27 @@
       "connectionPlaceholder": "postgres://user:pass@host:5432/db  OR  /mnt/data/orders.csv",
       "connectionHint": "자격 증명은 브라우저에 저장되지 않으며, 마지막 단계에서 페더레이션 관리 API를 통해 암호화되어 등록됩니다."
     },
+    "step2b": {
+      "title": "분석할 테이블 선택",
+      "subtitle": "파일럿이 필요한 부분 집합을 고르거나 전체를 한 번에 분석합니다. 선택은 점진적입니다 — 분석을 다시 하지 않고도 Design 모드에서 나중에 테이블을 추가할 수 있습니다.",
+      "modeLabel": "분석 모드",
+      "modes": {
+        "all": {
+          "label": "모든 테이블",
+          "hint": "전체 분석 — 소스가 제공하는 모든 테이블의 스키마 + 프로파일을 수집합니다."
+        },
+        "subset": {
+          "label": "선택한 테이블만",
+          "hint": "점진적 — 아래에서 체크한 테이블만 분석합니다. 나머지는 Design 모드에서 나중에 추가할 수 있습니다."
+        }
+      },
+      "selectionSummary": "전체 {total}개 중 {selected}개 선택됨",
+      "selectionLoading": "테이블 목록 가져오는 중…",
+      "selectAll": "모두 선택",
+      "clearSelection": "선택 해제",
+      "error": "테이블 미리보기에 실패했습니다: {error}",
+      "emptyTables": "소스에서 테이블을 찾지 못했습니다 — 연결 정보나 데이터셋 경로를 확인하세요."
+    },
     "step3": {
       "title": "용어집 시드",
       "subtitle": "용어집은 비즈니스 어휘입니다. 한 줄에 하나씩, 대표 용어를 먼저 쓰고 별칭은 쉼표로 구분하세요.",
