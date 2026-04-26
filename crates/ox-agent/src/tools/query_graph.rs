@@ -175,6 +175,32 @@ impl SchemaTool for QueryGraphTool {
             }
         }
 
+        // Φ3-E — ConceptMap rewrite pass between IR build and compile.
+        // The translator stays free of the concept-map registry; this
+        // wiring point uses the active ontology to decide which
+        // (variable, property) pairs map onto which ConceptMapDef and
+        // substitutes literal values before Cypher emission. An empty
+        // table short-circuits the walk so workspaces without
+        // concept-maps pay no traversal cost. Untranslated literals
+        // surface as guidance ("[ConceptMap: …]") below the compile
+        // step.
+        let translation_table = ox_compiler::build_translation_table_for_query(
+            &query_ir,
+            ontology.as_ref(),
+        );
+        let (query_ir, concept_map_report) = if translation_table.is_empty() {
+            (query_ir, ox_compiler::concept_map_rewrite::RewriteReport::default())
+        } else {
+            ox_compiler::rewrite_concept_map_values(query_ir, &translation_table)
+        };
+        if !concept_map_report.translations.is_empty() {
+            tracing::debug!(
+                fired = concept_map_report.translations.len(),
+                untranslated = concept_map_report.untranslated.len(),
+                "ConceptMap rewrite applied",
+            );
+        }
+
         // Step 2: Compile QueryIR → target language
         ctx.progress("compiling").started();
         let t2 = std::time::Instant::now();

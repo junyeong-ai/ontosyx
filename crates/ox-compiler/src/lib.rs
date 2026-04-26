@@ -21,7 +21,7 @@ pub mod temporal;
 pub use auto_distinct::rewrite_auto_distinct;
 pub use concept_map_rewrite::{
     RewriteReport, TranslationDirection, TranslationEvent, TranslationPolicy, TranslationTable,
-    UntranslatedLiteral, rewrite_concept_map_values,
+    UntranslatedLiteral, build_translation_table_for_query, rewrite_concept_map_values,
 };
 pub use plan_cache::{DEFAULT_PLAN_CACHE_CAPACITY, PlanCache, PlanCacheHandle, PlanCacheStats};
 pub use provenance::{ProvenanceContext, build_provenance};

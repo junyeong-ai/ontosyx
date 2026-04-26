@@ -121,6 +121,100 @@ pub fn rewrite_concept_map_values(
     (query, report)
 }
 
+/// Build a `TranslationTable` for the given query against the
+/// ontology's concept-map registry. Walks the query's match patterns
+/// to discover `(variable, property)` pairs whose property is bound
+/// to a value-set, then for every concept-map whose source code
+/// system overlaps the value-set's includes, registers a default
+/// (forward, equivalent-only) translation.
+///
+/// Out of scope:
+/// - Edge-bound properties (today only Node patterns get scanned).
+///   Edge property translation lands when an edge property carries a
+///   value-set in production — currently a hypothetical case the IR
+///   permits but no shipped feature uses.
+/// - Custom translation policies. Every entry uses
+///   `TranslationPolicy::default()` (Forward + Equivalent only). A
+///   per-property policy table can be threaded through later when an
+///   admin UI surfaces the equivalence-whitelist toggle.
+///
+/// Returns an empty table when the ontology has no concept-maps; the
+/// rewriter then short-circuits and the caller pays no traversal
+/// cost.
+pub fn build_translation_table_for_query<'a>(
+    query: &QueryIR,
+    ontology: &'a ox_ontology::OntologyIR,
+) -> TranslationTable<'a> {
+    let mut table: TranslationTable<'a> = HashMap::new();
+    if ontology.concept_maps().is_empty() {
+        return table;
+    }
+    walk_match_patterns(&query.operation, &mut |variable, label| {
+        let Some(node) = ontology.node_by_label(label.as_str()) else {
+            return;
+        };
+        for prop in &node.properties {
+            let Some(value_set_id) = &prop.value_set_id else {
+                continue;
+            };
+            let Some(value_set) = ontology.value_set_by_id(value_set_id) else {
+                continue;
+            };
+            let referenced_systems: std::collections::HashSet<_> = value_set
+                .composition
+                .iter()
+                .map(|inc| inc.system_id.clone())
+                .collect();
+            for cm in ontology.concept_maps() {
+                if referenced_systems.contains(&cm.source_system_id) {
+                    table.insert(
+                        (variable.clone(), prop.name.clone()),
+                        (cm, TranslationPolicy::default()),
+                    );
+                }
+            }
+        }
+    });
+    table
+}
+
+/// Visitor over every `GraphPattern::Node` reachable through the
+/// query's QueryOp tree. Calls `f(variable, label)` for each node
+/// pattern that has a label binding — patterns without a label
+/// (anonymous walks) are skipped because they don't pin a node type.
+fn walk_match_patterns<F>(op: &QueryOp, f: &mut F)
+where
+    F: FnMut(&VariableName, &ox_core::graph_label::GraphLabel),
+{
+    match op {
+        QueryOp::Match { patterns, .. } => {
+            for pattern in patterns {
+                if let GraphPattern::Node {
+                    variable,
+                    label: Some(label),
+                    ..
+                } = pattern
+                {
+                    f(variable, label);
+                }
+            }
+        }
+        QueryOp::Aggregate { source, .. } => walk_match_patterns(&source.operation, f),
+        QueryOp::Union { queries, .. } => {
+            for q in queries {
+                walk_match_patterns(&q.operation, f);
+            }
+        }
+        QueryOp::Chain { steps } => {
+            for s in steps {
+                walk_match_patterns(&s.operation, f);
+            }
+        }
+        QueryOp::CallSubquery { inner, .. } => walk_match_patterns(&inner.operation, f),
+        QueryOp::Mutate { .. } | QueryOp::Analytics { .. } | QueryOp::PathFind { .. } => {}
+    }
+}
+
 fn rewrite_op(
     op: &mut QueryOp,
     table: &TranslationTable<'_>,
@@ -638,6 +732,140 @@ mod tests {
             panic!("expected string literal");
         };
         assert_eq!(s, "NEWA001");
+    }
+
+    #[test]
+    fn build_translation_table_returns_empty_when_ontology_has_no_concept_maps() {
+        use ox_core::i18n::LocalizedText;
+        use ox_ontology::OntologyIR;
+        let ir = OntologyIR::new(
+            "ont".into(),
+            "Test".into(),
+            LocalizedText::default(),
+            1,
+            vec![],
+            vec![],
+            vec![],
+        );
+        let q = build_match_query("s", "A001");
+        let table = build_translation_table_for_query(&q, &ir);
+        assert!(table.is_empty(), "no concept maps → empty table");
+    }
+
+    #[test]
+    fn build_translation_table_picks_concept_map_via_value_set_overlap() {
+        // Wire an ontology that bolts together: a CodeSystem, a
+        // ValueSet referencing it, a NodeType with a property bound
+        // to the ValueSet, and a ConceptMap whose source matches the
+        // CodeSystem. The helper must discover the (variable,
+        // property) → ConceptMap mapping for a query against the
+        // node's label.
+        use ox_core::i18n::LocalizedText;
+        use ox_core::types::PropertyType;
+        use ox_ontology::OntologyIR;
+        use ox_ontology::code_system::{
+            CodeSystemDef, CodeSystemId as CsId, CodeSystemKind, CodedValue, CodedValueId,
+        };
+        use ox_ontology::ir::{NodeTypeDef, PropertyDef};
+        use ox_ontology::value_set::{
+            IncludeMode, ValueSetDef, ValueSetId, ValueSetIncludeRule, ValueSetSelector,
+        };
+
+        let cs_id = CsId::new("cs-2024");
+        let cs = CodeSystemDef {
+            id: cs_id.clone(),
+            name: "krx-2024".into(),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            version: "1".into(),
+            kind: CodeSystemKind::Internal,
+            uri: None,
+            hierarchical: false,
+            deprecated_at: None,
+            replaced_by_id: None,
+            codes: vec![CodedValue {
+                id: CodedValueId::new("cv-A001"),
+                code: "A001".into(),
+                display: LocalizedText::default(),
+                definition: LocalizedText::default(),
+                aliases: Vec::new(),
+                broader_id: None,
+                examples: Vec::new(),
+                scope_note: LocalizedText::default(),
+                valid_from: None,
+                valid_to: None,
+                deprecated_at: None,
+                replaced_by_id: None,
+            }],
+        };
+        let vs = ValueSetDef {
+            id: ValueSetId::new("vs-stock-status"),
+            name: "stock_status".into(),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            version: "1".into(),
+            composition: vec![ValueSetIncludeRule {
+                mode: IncludeMode::Include,
+                system_id: cs_id.clone(),
+                selector: ValueSetSelector::All,
+            }],
+        };
+        let cm = concept_map();
+
+        let mut ir = OntologyIR::new(
+            "ont".into(),
+            "Test".into(),
+            LocalizedText::default(),
+            1,
+            vec![NodeTypeDef {
+                id: "n-stock".into(),
+                label: GraphLabel::new("Stock").expect("label"),
+                description: LocalizedText::default(),
+                properties: vec![PropertyDef {
+                    id: "p-status".into(),
+                    name: pk("status"),
+                    property_type: PropertyType::String,
+                    nullable: false,
+                    value_set_id: Some(ValueSetId::new("vs-stock-status")),
+                    ..Default::default()
+                }],
+                constraints: vec![],
+                ..Default::default()
+            }],
+            vec![],
+            vec![],
+        );
+        // The ConceptMap referenced by `concept_map()` declares
+        // cs-2024 → cs-2026, so the target CodeSystem must exist for
+        // `add_concept_map` to accept it (referential integrity).
+        let cs_target = CodeSystemDef {
+            id: CsId::new("cs-2026"),
+            name: "krx-2026".into(),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            version: "1".into(),
+            kind: CodeSystemKind::Internal,
+            uri: None,
+            hierarchical: false,
+            deprecated_at: None,
+            replaced_by_id: None,
+            codes: Vec::new(),
+        };
+        ir.add_code_system(cs).expect("seed cs source");
+        ir.add_code_system(cs_target).expect("seed cs target");
+        ir.add_value_set(vs).expect("seed vs");
+        ir.add_concept_map(cm).expect("seed cm");
+
+        let q = build_match_query("s", "A001");
+        let table = build_translation_table_for_query(&q, &ir);
+        assert_eq!(table.len(), 1, "(s, status) → ConceptMap");
+        assert!(table.contains_key(&(vn("s"), pk("status"))));
+
+        // End-to-end: translation actually fires when the rewrite
+        // runs against the discovered table.
+        let (_, report) = rewrite_concept_map_values(q, &table);
+        assert_eq!(report.translations.len(), 1);
+        assert_eq!(report.translations[0].to_codes, vec!["NEWA001"]);
     }
 
     #[test]
