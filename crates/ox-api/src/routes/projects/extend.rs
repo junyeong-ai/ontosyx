@@ -126,21 +126,26 @@ pub(crate) async fn extend_project(
         return Err(AppError::empty_source_data());
     }
 
-    // 3. Build context: include the existing ontology so the LLM knows what already exists
-    let existing_ontology_json = serde_json::to_string_pretty(&existing_ontology)
-        .map_err(|e| AppError::internal(format!("Failed to serialize existing ontology: {e}")))?;
+    // 3. Build context — the LLM also receives the existing
+    //    ontology as a structured `existing_ontology` field on
+    //    `DesignOntologyInput` (compact label list rendered by
+    //    `render_existing_ontology_section`), so we no longer dump
+    //    the full IR JSON into the freeform context. Stays much
+    //    cheaper on the token budget and gives the model a cleaner
+    //    "extend, don't redefine" signal.
+    let context = "You are extending an existing ontology with data from a new source. \
+         Design new entities and relationships for the new source data. You may create \
+         edges connecting new entities to existing ones where appropriate. Do NOT \
+         duplicate entities that already exist in the current ontology — the existing \
+         labels appear in the `Existing Ontology (extension mode)` section below.";
 
-    let context = format!(
-        "You are extending an existing ontology with data from a new source. \
-         The existing ontology is provided below. Design new entities and relationships \
-         for the new source data. You may create edges connecting new entities to existing ones \
-         where appropriate. Do NOT duplicate entities that already exist in the current ontology.\n\n\
-         EXISTING ONTOLOGY:\n{existing_ontology_json}"
-    );
+    let effective_context = build_design_context(context, &existing_opts, None);
 
-    let effective_context = build_design_context(&context, &existing_opts, None);
-
-    // 4. Call design_ontology with the new source data + existing ontology as context
+    // 4. Call design_ontology with the new source data + every
+    //    domain artefact the existing ontology already carries.
+    //    Passing `glossary` and `code_systems` slices lets the LLM
+    //    reuse canonical terms instead of inventing parallel ones;
+    //    `existing_ontology` flips the prompt into extension mode.
     info!(project_id = %id, "Extending ontology with new source");
 
     let timeout =
@@ -151,13 +156,21 @@ pub(crate) async fn extend_project(
     // so federation plan caches keyed by source agree with the
     // object_mappings that normalize() stamps with this id.
     let new_source_id = SourceId::from_source_config(&new_source_config);
+    let design_input = ox_brain::DesignOntologyInput {
+        sample_data: &sample_data,
+        context: &effective_context,
+        source_id: &new_source_id,
+        glossary_terms: existing_ontology.glossary(),
+        code_systems: existing_ontology.code_systems(),
+        // Ambiguity wiring lands with the planner-diagnostic hook —
+        // until that lands, no pre-detected ambiguities are surfaced
+        // to the design call from the extend path.
+        ambiguity_hints: &[],
+        existing_ontology: Some(&existing_ontology),
+    };
     let new_ontology = tokio::time::timeout(
         timeout,
-        state.brain.design_ontology(&ox_brain::DesignOntologyInput::bare(
-            &sample_data,
-            &effective_context,
-            &new_source_id,
-        )),
+        state.brain.design_ontology(&design_input),
     )
     .await
     .map_err(|_| {
