@@ -434,9 +434,9 @@ pub async fn workspace_context(
             principal = %claims.sub,
         );
         let response = scope_request(
-            &state,
-            &principal,
-            &ws_ctx,
+            state.store.clone(),
+            principal,
+            ws_ctx,
             workspace_id,
             next.run(req).instrument(span),
         )
@@ -514,9 +514,9 @@ pub async fn workspace_context(
         user_id = %user_id,
     );
     scope_request(
-        &state,
-        &principal,
-        &ws_ctx,
+        state.store.clone(),
+        principal,
+        ws_ctx,
         workspace_id,
         next.run(req).instrument(span),
     )
@@ -533,15 +533,22 @@ pub async fn workspace_context(
 /// `app.workspace_id::uuid`, which fails on the empty default if
 /// the lookup runs outside the scope.
 ///
+/// Takes ownership of `store`, `principal`, and `ws` so the inner
+/// `async move` closure can hold them across `.scope(...)` calls
+/// without lifetime gymnastics. The signature names exactly the
+/// dependencies the function reads — there is no implicit
+/// `&AppState` plumbing — which keeps the integration test in
+/// `mod tests::scope_request_tests` minimal.
+///
 /// **Fail-closed.** A failure to load the ACL snapshot rejects the
 /// request rather than proceeding with empty policies. A transient
 /// DB hiccup surfaces as a 503 the operator can retry; an
 /// authentication-store outage never produces silently-unauthorised
 /// query traffic.
-async fn scope_request<F, R>(
-    state: &AppState,
-    principal: &crate::principal::Principal,
-    ws: &crate::workspace::WorkspaceContext,
+pub(crate) async fn scope_request<F, R>(
+    store: std::sync::Arc<dyn ox_store::Store>,
+    principal: crate::principal::Principal,
+    ws: crate::workspace::WorkspaceContext,
     workspace_id: Uuid,
     fut: F,
 ) -> Result<R, AppError>
@@ -551,10 +558,7 @@ where
     use ox_runtime::{GRAPH_ACL_SNAPSHOT, GRAPH_PRINCIPAL, GRAPH_WORKSPACE_ID};
     use ox_store::WORKSPACE_ID;
 
-    let request_principal = crate::acl_enforcement::request_principal(principal, ws);
-    let store = state.store.clone();
-    let principal = principal.clone();
-    let ws = ws.clone();
+    let request_principal = crate::acl_enforcement::request_principal(&principal, &ws);
 
     WORKSPACE_ID
         .scope(workspace_id, async move {
@@ -579,4 +583,162 @@ where
                 .await
         })
         .await
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    //! Integration test for [`scope_request`].
+    //!
+    //! Guards against a recurrence of the `[22P02] invalid input syntax
+    //! for type uuid: ""` regression. Pre-fix, `load_acl_snapshot`
+    //! ran *outside* `WORKSPACE_ID.scope`, so the pool's
+    //! `before_acquire` left `app.workspace_id` empty, and the
+    //! `acl_policies::ws_isolation` policy's `::uuid` cast failed.
+    //!
+    //! The test creates a real workspace + acl_policy row, calls
+    //! `scope_request`, and proves from inside the scoped future
+    //! that `GRAPH_ACL_SNAPSHOT` carries the policy. If the
+    //! ordering is ever inverted again, the snapshot load itself
+    //! returns an `OxError::Runtime` and the test fails before
+    //! reaching the assertion.
+    //!
+    //! Ignored by default. Run against a live PostgreSQL instance:
+    //!
+    //! ```sh
+    //! OX_TEST_DATABASE_URL=postgres://ontosyx_app:ontosyx-dev@localhost:5436/ontosyx \
+    //!     cargo test -p ox-api --lib middleware::tests -- --ignored
+    //! ```
+
+    use std::sync::Arc;
+
+    use ox_store::{PostgresStore, SYSTEM_BYPASS, Store};
+    use uuid::Uuid;
+
+    use crate::principal::{PlatformRole, Principal};
+    use crate::workspace::{WorkspaceContext, WorkspaceRole};
+
+    fn resolve_test_db_url() -> Option<String> {
+        for key in ["OX_TEST_DATABASE_URL", "OX_DATABASE_URL", "DATABASE_URL"] {
+            if let Ok(v) = std::env::var(key)
+                && !v.is_empty()
+            {
+                return Some(v);
+            }
+        }
+        None
+    }
+
+    async fn seed_workspace_and_policy(store: &PostgresStore) -> (Uuid, Uuid) {
+        let user_id = Uuid::new_v4();
+        let workspace_id = Uuid::new_v4();
+        let suffix = Uuid::new_v4().simple().to_string();
+
+        SYSTEM_BYPASS
+            .scope(true, async {
+                let pool = store.pool();
+                sqlx::query(
+                    "INSERT INTO users (id, email, name, provider, provider_sub, role) \
+                     VALUES ($1, $2, $3, 'test', $4, 'designer')",
+                )
+                .bind(user_id)
+                .bind(format!("ordering-{}@test.local", &suffix[..8]))
+                .bind(format!("ord-{}", &suffix[..8]))
+                .bind(user_id.to_string())
+                .execute(pool)
+                .await
+                .expect("insert user");
+
+                sqlx::query(
+                    "INSERT INTO workspaces (id, name, slug, owner_id) VALUES ($1, $2, $3, $4)",
+                )
+                .bind(workspace_id)
+                .bind(format!("ord-ws-{}", &suffix[..8]))
+                .bind(format!("ord-ws-{}", &suffix[..8]))
+                .bind(user_id)
+                .execute(pool)
+                .await
+                .expect("insert workspace");
+
+                sqlx::query(
+                    "INSERT INTO workspace_members (workspace_id, user_id, role) \
+                     VALUES ($1, $2, 'owner')",
+                )
+                .bind(workspace_id)
+                .bind(user_id)
+                .execute(pool)
+                .await
+                .expect("insert membership");
+
+                sqlx::query(
+                    "INSERT INTO acl_policies (id, workspace_id, name, action, \
+                     subject_type, subject_value, resource_type, resource_value, \
+                     properties, priority, is_active, created_by) \
+                     VALUES ($1, $2, $3, 'mask', 'role', 'designer', 'all', NULL, \
+                     ARRAY['ssn']::text[], 100, true, $4)",
+                )
+                .bind(Uuid::new_v4())
+                .bind(workspace_id)
+                .bind(format!("ord-policy-{}", &suffix[..8]))
+                .bind(user_id)
+                .execute(pool)
+                .await
+                .expect("insert acl policy");
+            })
+            .await;
+
+        (workspace_id, user_id)
+    }
+
+    /// Live regression guard: scope_request must load the ACL snapshot
+    /// **inside** `WORKSPACE_ID.scope`, otherwise the RLS predicate's
+    /// `::uuid` cast on the empty session var blows up as 22P02.
+    #[tokio::test]
+    #[ignore = "requires OX_TEST_DATABASE_URL"]
+    async fn scope_request_loads_acl_snapshot_inside_workspace_scope() {
+        let Some(url) = resolve_test_db_url() else {
+            eprintln!("OX_TEST_DATABASE_URL not set — skipping");
+            return;
+        };
+        let store = PostgresStore::connect(&url, 4)
+            .await
+            .expect("connect test postgres");
+        store.migrate().await.expect("migrate");
+
+        let (workspace_id, user_id) = seed_workspace_and_policy(&store).await;
+        let store_arc: Arc<dyn Store> = Arc::new(store);
+
+        let principal = Principal {
+            id: user_id.to_string(),
+            email: format!("ordering-{user_id}@test.local"),
+            role: PlatformRole::Designer,
+        };
+        let ws = WorkspaceContext {
+            workspace_id,
+            workspace_role: WorkspaceRole::Owner,
+        };
+
+        let snapshot = super::scope_request(
+            store_arc,
+            principal,
+            ws,
+            workspace_id,
+            async {
+                ox_runtime::GRAPH_ACL_SNAPSHOT
+                    .try_with(Arc::clone)
+                    .expect("snapshot must be set inside the scoped future")
+            },
+        )
+        .await
+        .expect("scope_request must succeed");
+
+        assert_eq!(
+            snapshot.policies.len(),
+            1,
+            "the seeded policy must reach the rewriter via GRAPH_ACL_SNAPSHOT",
+        );
+    }
 }
