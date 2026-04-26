@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 /// Schema information extracted from a data source (RDBMS, document DB, etc.)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema)]
 pub struct SourceSchema {
     /// Data source type (e.g., "postgresql", "mysql", "mongodb")
     pub source_type: String,
@@ -89,14 +89,14 @@ impl SchemaFingerprint {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema)]
 pub struct SourceTableDef {
     pub name: String,
     pub columns: Vec<SourceColumnDef>,
     pub primary_key: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema)]
 pub struct SourceColumnDef {
     pub name: String,
     /// Original DB type (e.g., "varchar", "int4", "jsonb", "timestamp")
@@ -104,7 +104,7 @@ pub struct SourceColumnDef {
     pub nullable: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, schemars::JsonSchema)]
 pub struct ForeignKeyDef {
     pub from_table: String,
     pub from_column: String,
@@ -121,19 +121,19 @@ fn is_false(v: &bool) -> bool {
 }
 
 /// Statistics collected from actual data in the source
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema)]
 pub struct SourceProfile {
     pub table_profiles: Vec<TableProfile>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema)]
 pub struct TableProfile {
     pub table_name: String,
     pub row_count: u64,
     pub column_stats: Vec<ColumnStats>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema)]
 pub struct ColumnStats {
     pub column_name: String,
     pub null_count: u64,

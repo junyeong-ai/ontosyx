@@ -47,6 +47,7 @@ pub mod ambiguity;
 pub mod binding_suggestions;
 pub mod change_routing;
 pub mod edit;
+pub mod column_profile;
 pub mod integrity;
 pub mod locale_consistency;
 pub mod merge;
