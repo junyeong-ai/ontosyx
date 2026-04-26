@@ -112,7 +112,7 @@ test.describe("bootstrap wizard", () => {
     // The shared StepShell renders a Next button on every step
     // except the last one. Use a forgiving name matcher so a
     // future i18n tweak doesn't break the test.
-    await page.getByRole("button", { name: /next|다음/i }).click();
+    await page.getByRole("button", { name: /^(?:next|다음)$/i }).click();
     await expect(page).toHaveURL(/\/bootstrap\/2-source$/);
 
     // Step 2 — pick a connection-based source. The source-kind
@@ -130,7 +130,11 @@ test.describe("bootstrap wizard", () => {
     const connInput = page.getByPlaceholder(/postgres|connection|url/i).first();
     await connInput.fill("postgresql://localhost:5432/pilot");
 
-    await page.getByRole("button", { name: /next|다음/i }).click();
+    await page.getByRole("button", { name: /^(?:next|다음)$/i }).click();
+    await expect(page).toHaveURL(/\/bootstrap\/2b-select-tables$/);
+
+    // Step 2b — keep the default "all" mode and advance.
+    await page.getByRole("button", { name: /^(?:next|다음)$/i }).click();
     await expect(page).toHaveURL(/\/bootstrap\/3-glossary$/);
   });
 
@@ -157,7 +161,7 @@ test.describe("bootstrap wizard", () => {
       .locator("input[type='text'], input:not([type])")
       .first()
       .fill("E2E Pilot");
-    await page.getByRole("button", { name: /next|다음/i }).click();
+    await page.getByRole("button", { name: /^(?:next|다음)$/i }).click();
     await expect(page).toHaveURL(/\/bootstrap\/2-source$/);
 
     // --- Step 2: source = postgres + connection -----------
@@ -172,7 +176,11 @@ test.describe("bootstrap wizard", () => {
       .getByPlaceholder(/postgres|connection|url/i)
       .first()
       .fill("postgresql://localhost:5432/pilot");
-    await page.getByRole("button", { name: /next|다음/i }).click();
+    await page.getByRole("button", { name: /^(?:next|다음)$/i }).click();
+    await expect(page).toHaveURL(/\/bootstrap\/2b-select-tables$/);
+
+    // --- Step 2b: keep default "all" mode -----------------
+    await page.getByRole("button", { name: /^(?:next|다음)$/i }).click();
     await expect(page).toHaveURL(/\/bootstrap\/3-glossary$/);
 
     // --- Step 3: glossary draft (feeds CreateGlossaryTerm ops) ----
@@ -183,15 +191,15 @@ test.describe("bootstrap wizard", () => {
     await glossaryTextarea.fill(
       "Customer: a buyer of goods\nOrder: a placed purchase\n",
     );
-    await page.getByRole("button", { name: /next|다음/i }).click();
+    await page.getByRole("button", { name: /^(?:next|다음)$/i }).click();
     await expect(page).toHaveURL(/\/bootstrap\/4-rules$/);
 
     // --- Step 4: rules draft (optional content; skip) -----
-    await page.getByRole("button", { name: /next|다음/i }).click();
+    await page.getByRole("button", { name: /^(?:next|다음)$/i }).click();
     await expect(page).toHaveURL(/\/bootstrap\/5-map$/);
 
     // --- Step 5: mapping notes (optional; skip) -----------
-    await page.getByRole("button", { name: /next|다음/i }).click();
+    await page.getByRole("button", { name: /^(?:next|다음)$/i }).click();
     await expect(page).toHaveURL(/\/bootstrap\/6-validate$/);
 
     // --- Step 6: Finish ---------------------------------
@@ -280,7 +288,7 @@ test.describe("bootstrap wizard", () => {
     // we're testing the collision branch, not the happy path.
     await page.addInitScript(() => {
       window.localStorage.setItem(
-        "ontosyx.bootstrap.v1",
+        "ontosyx.bootstrap.v2",
         JSON.stringify({
           pilotName: "E2E Pilot",
           pilotScope: "repeat run",
