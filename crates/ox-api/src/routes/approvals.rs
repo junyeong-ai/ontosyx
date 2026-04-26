@@ -3,6 +3,7 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 use tracing::info;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use ox_store::{ApprovalComment, ApprovalRequest};
@@ -17,7 +18,7 @@ use crate::workspace::WorkspaceContext;
 // Request / Response types
 // ---------------------------------------------------------------------------
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct ReviewRequest {
     pub approved: bool,
     /// Reviewer rationale recorded as the first comment on the
@@ -26,20 +27,31 @@ pub struct ReviewRequest {
     pub note: Option<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct ReviewResponse {
+    /// `"approved"` or `"rejected"`.
     pub status: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct CommentRequest {
     pub body: String,
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/approvals — list pending approvals for current workspace
+// GET /api/approvals — list pending approvals for current workspace
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/approvals",
+    tag = "Approvals",
+    responses(
+        (status = 200, description = "Pending approvals for the current workspace.", body = Vec<crate::openapi::ApprovalRequest>),
+        (status = 401, description = "Unauthenticated.", body = crate::openapi::ErrorResponse),
+    ),
+    security(("api_key" = [])),
+)]
 pub(crate) async fn list_approvals(
     State(state): State<AppState>,
     _principal: Principal,
@@ -58,6 +70,17 @@ pub(crate) async fn list_approvals(
 // GET /api/approvals/:id — get a single approval request
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/approvals/{id}",
+    tag = "Approvals",
+    params(("id" = Uuid, Path, description = "Approval request id")),
+    responses(
+        (status = 200, description = "The approval request.", body = crate::openapi::ApprovalRequest),
+        (status = 404, description = "Not found.", body = crate::openapi::ErrorResponse),
+    ),
+    security(("api_key" = [])),
+)]
 pub(crate) async fn get_approval(
     State(state): State<AppState>,
     _principal: Principal,
@@ -77,6 +100,19 @@ pub(crate) async fn get_approval(
 // POST /api/approvals/:id/review — approve or reject
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    post,
+    path = "/api/approvals/{id}/review",
+    tag = "Approvals",
+    params(("id" = Uuid, Path, description = "Approval request id")),
+    request_body = ReviewRequest,
+    responses(
+        (status = 200, description = "Decision recorded.", body = ReviewResponse),
+        (status = 403, description = "Workspace admin required.", body = crate::openapi::ErrorResponse),
+        (status = 404, description = "No pending approval with this id.", body = crate::openapi::ErrorResponse),
+    ),
+    security(("api_key" = [])),
+)]
 pub(crate) async fn review_approval(
     State(state): State<AppState>,
     principal: Principal,
@@ -114,16 +150,23 @@ pub(crate) async fn review_approval(
 // GET /api/approvals/:id/comments — list the comment thread
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    get,
+    path = "/api/approvals/{id}/comments",
+    tag = "Approvals",
+    params(("id" = Uuid, Path, description = "Approval request id")),
+    responses(
+        (status = 200, description = "Thread of comments attached to this approval, oldest first.", body = Vec<crate::openapi::ApprovalComment>),
+        (status = 404, description = "Not found.", body = crate::openapi::ErrorResponse),
+    ),
+    security(("api_key" = [])),
+)]
 pub(crate) async fn list_approval_comments(
     State(state): State<AppState>,
     _principal: Principal,
     _ws: WorkspaceContext,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ApiResponse<Vec<ApprovalComment>>>, AppError> {
-    // RLS scopes the rows to the caller's workspace; the parent
-    // approval lookup serves as a 404-vs-403 distinguisher so the
-    // caller gets a clear "not found" rather than an empty list when
-    // the id is wrong.
     state
         .store
         .get_approval_request(id)
@@ -144,6 +187,19 @@ pub(crate) async fn list_approval_comments(
 // POST /api/approvals/:id/comments — append a comment to the thread
 // ---------------------------------------------------------------------------
 
+#[utoipa::path(
+    post,
+    path = "/api/approvals/{id}/comments",
+    tag = "Approvals",
+    params(("id" = Uuid, Path, description = "Approval request id")),
+    request_body = CommentRequest,
+    responses(
+        (status = 201, description = "Comment created and appended to the thread.", body = crate::openapi::ApprovalComment),
+        (status = 400, description = "Empty body after trim.", body = crate::openapi::ErrorResponse),
+        (status = 404, description = "Parent approval not found.", body = crate::openapi::ErrorResponse),
+    ),
+    security(("api_key" = [])),
+)]
 pub(crate) async fn create_approval_comment(
     State(state): State<AppState>,
     principal: Principal,
@@ -156,9 +212,6 @@ pub(crate) async fn create_approval_comment(
         return Err(AppError::bad_request("Comment body must not be empty"));
     }
 
-    // Confirm the parent approval exists in the caller's workspace
-    // before we insert. Without this, a typo'd id surfaces as a
-    // generic FK-violation instead of a clean 404.
     state
         .store
         .get_approval_request(id)

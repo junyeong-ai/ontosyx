@@ -56,17 +56,19 @@ export interface ProvenanceDef {
   data_valid_at?: string | null;
 }
 
-/** Audit record returned by `GET /api/governance/audit`. The
- *  surrounding `ontology_*` fields attribute the provenance entity
- *  to its source ontology so a multi-ontology workspace can render
- *  the rolled-up view without a per-row detail fetch. */
-export interface AuditRecord {
-  ontology_id: string;
-  ontology_lineage_id: string;
-  ontology_name: string;
+/** Audit record returned by `GET /api/governance/audit`. Surfaces
+ *  the source-ontology attribution alongside the `ProvenanceDef`
+ *  payload. The wire shape from `api.generated` types `provenance`
+ *  as `unknown` (the spec proxy uses `serde_json::Value`); this
+ *  alias narrows it to the canonical PROV-O shape so the page can
+ *  exhaustive-match the discriminated unions. */
+import type { components } from "@/types/api.generated";
+export type AuditRecord = Omit<
+  components["schemas"]["AuditRecord"],
+  "provenance"
+> & {
   provenance: ProvenanceDef;
-  at_time: string;
-}
+};
 
 export interface AuditFilter {
   ontology_id?: string;

@@ -3,8 +3,8 @@ use utoipa::openapi::security::{ApiKey, ApiKeyValue, SecurityScheme};
 use utoipa::{Modify, OpenApi, ToSchema};
 
 use crate::routes::{
-    chat, config, federation_admin, health, load, ontology, perspectives, pins, prompts_admin,
-    query,
+    approvals, chat, config, federation_admin, governance_audit, governance_routing, health, load,
+    ontology, perspectives, pins, prompts_admin, query,
 };
 
 // Module aliases for utoipa path resolution — utoipa generates hidden __path_*
@@ -94,6 +94,8 @@ impl Modify for SecurityAddon {
         (name = "Load", description = "Data loading into graph database"),
         (name = "System", description = "System administration"),
         (name = "Admin", description = "Platform administration (admin role required)"),
+        (name = "Approvals", description = "Approval queue + comment thread"),
+        (name = "Audit", description = "Workspace-wide PROV-O audit trail"),
     ),
     paths(
         // Health
@@ -182,6 +184,18 @@ impl Modify for SecurityAddon {
         federation_admin::refresh_adapters,
         federation_admin::delete_adapter,
         federation_admin::federation_health,
+        // Approvals
+        approvals::list_approvals,
+        approvals::get_approval,
+        approvals::review_approval,
+        approvals::list_approval_comments,
+        approvals::create_approval_comment,
+        // Audit
+        governance_audit::list_audit_records,
+        // Admin — governance routing
+        governance_routing::list_routing_rules,
+        governance_routing::upsert_routing_rule,
+        governance_routing::delete_routing_rule,
     ),
     components(
         schemas(
@@ -283,6 +297,25 @@ impl Modify for SecurityAddon {
             WorkbenchPerspective,
             OntologySnapshot,
             OntologySnapshotSummary,
+            // Approvals
+            ApprovalRequest,
+            ApprovalComment,
+            approvals::ReviewRequest,
+            approvals::ReviewResponse,
+            approvals::CommentRequest,
+            // Audit
+            AuditRecord,
+            AuditRecordPage,
+            // Governance routing — wire types come from ox-ontology so the
+            // route layer never reshapes the canonical IR enums.
+            governance_routing::ChangeRoutingRuleResponse,
+            governance_routing::UpsertRoutingRuleRequest,
+            ox_ontology::change_routing::ChangeType,
+            ox_ontology::change_routing::ApprovalRouting,
+            ox_ontology::change_routing::ApprovalSkipPredicate,
+            ox_ontology::change_routing::RoleRef,
+            ox_ontology::change_routing::ScopeKind,
+            ox_ontology::change_routing::RiskLevel,
         ),
     ),
     modifiers(&SecurityAddon),
@@ -470,4 +503,70 @@ pub struct PromptTemplateRow {
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub is_active: bool,
     pub workspace_id: Option<uuid::Uuid>,
+}
+
+/// Approval request — a queued gated operation awaiting review.
+#[derive(ToSchema)]
+#[schema(as = ApprovalRequest)]
+#[allow(dead_code)]
+pub struct ApprovalRequest {
+    pub id: uuid::Uuid,
+    pub workspace_id: uuid::Uuid,
+    pub requester_id: uuid::Uuid,
+    /// Display name resolved server-side from `users.name`. NULL when
+    /// the requester has been deleted from the workspace.
+    pub requester_name: Option<String>,
+    pub action_type: String,
+    pub resource_type: String,
+    pub resource_id: String,
+    pub payload: serde_json::Value,
+    /// `pending`, `approved`, `rejected`, or `expired`.
+    pub status: String,
+    pub reviewer_id: Option<uuid::Uuid>,
+    pub reviewer_name: Option<String>,
+    pub reviewed_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub expires_at: chrono::DateTime<chrono::Utc>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// One entry in the comment thread attached to an approval. The
+/// reviewer's decision-time rationale is the first comment; any
+/// pre-/post-decision discussion follows in the same thread.
+#[derive(ToSchema)]
+#[schema(as = ApprovalComment)]
+#[allow(dead_code)]
+pub struct ApprovalComment {
+    pub id: uuid::Uuid,
+    pub workspace_id: uuid::Uuid,
+    pub approval_id: uuid::Uuid,
+    pub author_id: uuid::Uuid,
+    pub author_name: Option<String>,
+    pub body: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// One record in the workspace-wide PROV-O audit stream. The
+/// `provenance` payload is the content-addressed `ProvenanceDef`
+/// emitted at IR commit time; the surrounding fields attribute it
+/// to the source ontology.
+#[derive(ToSchema)]
+#[schema(as = AuditRecord)]
+#[allow(dead_code)]
+pub struct AuditRecord {
+    pub ontology_id: uuid::Uuid,
+    pub ontology_lineage_id: String,
+    pub ontology_name: String,
+    /// `ProvenanceDef` JSON. Mirrors `crates/ox-ontology/src/provenance.rs`.
+    pub provenance: serde_json::Value,
+    pub at_time: chrono::DateTime<chrono::Utc>,
+}
+
+/// Cursor-paginated audit page. The wire shape is
+/// `{ items: [...], next_cursor?: string }`. `next_cursor` is
+/// absent when no further pages exist.
+#[derive(ToSchema)]
+#[allow(dead_code)]
+pub struct AuditRecordPage {
+    pub items: Vec<AuditRecord>,
+    pub next_cursor: Option<String>,
 }

@@ -416,6 +416,167 @@
         ]
       }
     },
+    "/api/admin/governance/routing": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "list_routing_rules",
+        "responses": {
+          "200": {
+            "description": "Every routing rule visible to the current workspace (global defaults + workspace overrides).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChangeRoutingRuleResponse"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin role required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/admin/governance/routing/{change_type}": {
+      "put": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "upsert_routing_rule",
+        "parameters": [
+          {
+            "name": "change_type",
+            "in": "path",
+            "description": "Snake-case ChangeType discriminator (e.g. `glossary_term_create`).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertRoutingRuleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Override upserted at workspace scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeRoutingRuleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown change_type.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin role required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "delete_routing_rule",
+        "parameters": [
+          {
+            "name": "change_type",
+            "in": "path",
+            "description": "Snake-case ChangeType discriminator.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Workspace override removed; the global default now applies."
+          },
+          "400": {
+            "description": "Unknown change_type.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin role required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No workspace override existed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/api/admin/prompts": {
       "get": {
         "tags": [
@@ -630,6 +791,273 @@
         ]
       }
     },
+    "/api/approvals": {
+      "get": {
+        "tags": [
+          "Approvals"
+        ],
+        "operationId": "list_approvals",
+        "responses": {
+          "200": {
+            "description": "Pending approvals for the current workspace.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApprovalRequest"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/approvals/{id}": {
+      "get": {
+        "tags": [
+          "Approvals"
+        ],
+        "operationId": "get_approval",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Approval request id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The approval request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalRequest"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/approvals/{id}/comments": {
+      "get": {
+        "tags": [
+          "Approvals"
+        ],
+        "operationId": "list_approval_comments",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Approval request id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thread of comments attached to this approval, oldest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApprovalComment"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Approvals"
+        ],
+        "operationId": "create_approval_comment",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Approval request id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Comment created and appended to the thread.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalComment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty body after trim.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Parent approval not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/approvals/{id}/review": {
+      "post": {
+        "tags": [
+          "Approvals"
+        ],
+        "operationId": "review_approval",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Approval request id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Decision recorded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Workspace admin required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No pending approval with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/api/chat/stream": {
       "post": {
         "tags": [
@@ -768,6 +1196,122 @@
             }
           }
         }
+      }
+    },
+    "/api/governance/audit": {
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "operationId": "list_audit_records",
+        "parameters": [
+          {
+            "name": "ontology_id",
+            "in": "query",
+            "description": "Restrict to one ontology.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "activity_kind",
+            "in": "query",
+            "description": "`ProvenanceActivityKind` discriminator (`source_scan`,\n`function_eval`, `rule_validate`, ...).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "agent_kind",
+            "in": "query",
+            "description": "`AgentRef` discriminator (`user`, `service`, `llm_model`, `system`).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "Inclusive lower bound on `at_time`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "description": "Inclusive upper bound on `at_time`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Cursor from the previous response's `next_cursor`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size — default 50, clamped to [1, 200].",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PROV-O records across every committed ontology in the workspace, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditRecordPage"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
       }
     },
     "/api/health": {
@@ -4221,6 +4765,307 @@
           }
         }
       },
+      "ApprovalComment": {
+        "type": "object",
+        "description": "One entry in the comment thread attached to an approval. The\nreviewer's decision-time rationale is the first comment; any\npre-/post-decision discussion follows in the same thread.",
+        "required": [
+          "id",
+          "workspace_id",
+          "approval_id",
+          "author_id",
+          "body",
+          "created_at"
+        ],
+        "properties": {
+          "approval_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "author_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "author_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "body": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "ApprovalRequest": {
+        "type": "object",
+        "description": "Approval request — a queued gated operation awaiting review.",
+        "required": [
+          "id",
+          "workspace_id",
+          "requester_id",
+          "action_type",
+          "resource_type",
+          "resource_id",
+          "payload",
+          "status",
+          "expires_at",
+          "created_at"
+        ],
+        "properties": {
+          "action_type": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "payload": {},
+          "requester_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requester_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Display name resolved server-side from `users.name`. NULL when\nthe requester has been deleted from the workspace."
+          },
+          "resource_id": {
+            "type": "string"
+          },
+          "resource_type": {
+            "type": "string"
+          },
+          "reviewed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "reviewer_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "reviewer_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "description": "`pending`, `approved`, `rejected`, or `expired`."
+          },
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "ApprovalRouting": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Apply immediately, no notification. For rollback + other\nactions the system considers mechanical.",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "auto_approve"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Apply immediately, broadcast a notification to the named\nroles so stewards see the change in their feed.",
+            "required": [
+              "notify_roles",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "auto_approve_with_notification"
+                ]
+              },
+              "notify_roles": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/RoleRef"
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Require approval, BUT skip the queue when any of the\npredicates evaluate to `true`. The most expressive branch —\nencodes \"Admins sail through, high-scope edits get reviewed\".",
+            "required": [
+              "skip_predicates",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "approval_required_unless"
+                ]
+              },
+              "skip_predicates": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ApprovalSkipPredicate"
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Always queue for approval.",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "approval_required"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Destination for a classified change. Variants are ordered from\nmost-permissive to least so a reader can eyeball routing posture\nwithout a legend."
+      },
+      "ApprovalSkipPredicate": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "The author's role matches or outranks this reference. The\nnamed-field shape (rather than a tuple `AuthorHasRole(RoleRef)`)\nkeeps the wire JSON readable and compatible with serde's\n`tag = \"kind\"` internal-tag discipline.",
+            "required": [
+              "role",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "author_has_role"
+                ]
+              },
+              "role": {
+                "$ref": "#/components/schemas/RoleRef"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The op declares a scope of matching `scope` with a value\nstrictly under `threshold`. Ops that don't declare the\nmatching scope do NOT fire this predicate — \"no scope\"\nis treated distinctly from \"zero-sized scope\" so an op\nthat never tracks its magnitude can't auto-skip by\naccident.",
+            "required": [
+              "scope",
+              "threshold",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "change_scope_below"
+                ]
+              },
+              "scope": {
+                "$ref": "#/components/schemas/ScopeKind"
+              },
+              "threshold": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 0
+              }
+            }
+          }
+        ],
+        "description": "Predicates the `ApprovalRequiredUnless` branch evaluates. Every\npredicate returns a boolean; the skip list is OR'd (first firing\npredicate short-circuits to Apply).\n\nThe predicate set is intentionally minimal — only signals the\nrouting pipeline can evaluate WITHOUT executing the edit. That's\nwhy `HasValidationPass` is absent: under the\n`route → apply → validate → commit` pipeline, the validate step\nruns AFTER routing, so at decision time no validation result\nexists. Every matrix row that conceptually reads \"role X with a\npassing validation\" collapses cleanly to \"role X\" — the commit\npath still requires validate to succeed, so a bad IR never lands\neven when the role gate waves it through."
+      },
+      "AuditRecord": {
+        "type": "object",
+        "description": "One record in the workspace-wide PROV-O audit stream. The\n`provenance` payload is the content-addressed `ProvenanceDef`\nemitted at IR commit time; the surrounding fields attribute it\nto the source ontology.",
+        "required": [
+          "ontology_id",
+          "ontology_lineage_id",
+          "ontology_name",
+          "provenance",
+          "at_time"
+        ],
+        "properties": {
+          "at_time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ontology_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ontology_lineage_id": {
+            "type": "string"
+          },
+          "ontology_name": {
+            "type": "string"
+          },
+          "provenance": {
+            "description": "`ProvenanceDef` JSON. Mirrors `crates/ox-ontology/src/provenance.rs`."
+          }
+        }
+      },
+      "AuditRecordPage": {
+        "type": "object",
+        "description": "Cursor-paginated audit page. The wire shape is\n`{ items: [...], next_cursor?: string }`. `next_cursor` is\nabsent when no further pages exist.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditRecord"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "BindingPolicyBody": {
         "type": "object",
         "properties": {
@@ -4281,6 +5126,57 @@
           }
         }
       },
+      "ChangeRoutingRuleResponse": {
+        "type": "object",
+        "description": "Wire shape returned by the list / upsert endpoints. The\n`change_type` round-trips through serde so the wire string\nmatches the storage format exactly (snake_case discriminator).\n`routing` and `risk_level` come straight off the IR types —\nno parallel schema, the FE consumes them through the\n`OntologyEditOp` TS union alongside the rest of the matrix.",
+        "required": [
+          "workspace_scoped",
+          "change_type",
+          "routing",
+          "risk_level",
+          "priority"
+        ],
+        "properties": {
+          "change_type": {
+            "type": "string",
+            "description": "`ChangeType` discriminator as a snake_case string."
+          },
+          "priority": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "risk_level": {
+            "$ref": "#/components/schemas/RiskLevel"
+          },
+          "routing": {
+            "$ref": "#/components/schemas/ApprovalRouting"
+          },
+          "workspace_scoped": {
+            "type": "boolean",
+            "description": "`false` for global defaults, `true` for workspace overrides.\nThe UI uses this to badge override vs default rows."
+          }
+        }
+      },
+      "ChangeType": {
+        "type": "string",
+        "description": "Taxonomy of edit operations the routing matrix knows about.\nThe variant set is closed — adding a new kind is a deliberate\nschema extension, not a silent addition. Every `OntologyEditOp`\n(Phase 2) classifies into exactly one of these.",
+        "enum": [
+          "coded_value_create",
+          "coded_value_deprecate",
+          "glossary_term_create",
+          "glossary_alias_add",
+          "notation_pattern_create",
+          "customer_segment_create",
+          "column_rename",
+          "table_merge",
+          "data_source_register",
+          "stale_concept_deprecate",
+          "ontology_version_rollback",
+          "rule_create",
+          "rule_modify",
+          "rule_delete"
+        ]
+      },
       "ChatStreamRequest": {
         "type": "object",
         "required": [
@@ -4333,6 +5229,17 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "CommentRequest": {
+        "type": "object",
+        "required": [
+          "body"
+        ],
+        "properties": {
+          "body": {
+            "type": "string"
           }
         }
       },
@@ -6652,6 +7559,54 @@
           }
         }
       },
+      "ReviewRequest": {
+        "type": "object",
+        "required": [
+          "approved"
+        ],
+        "properties": {
+          "approved": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Reviewer rationale recorded as the first comment on the\napproval thread when non-empty after trimming."
+          }
+        }
+      },
+      "ReviewResponse": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "`\"approved\"` or `\"rejected\"`."
+          }
+        }
+      },
+      "RiskLevel": {
+        "type": "string",
+        "description": "Risk tier — metadata for UI badging and audit filtering. Does\nnot influence routing directly (that's `ApprovalRouting`'s job).",
+        "enum": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      "RoleRef": {
+        "type": "string",
+        "description": "Role reference. Declares the hierarchy at a symbolic level so the\nrouting rules don't hardcode workspace IDs.",
+        "enum": [
+          "admin",
+          "data_steward",
+          "analyst"
+        ]
+      },
       "SavedPatternResponse": {
         "type": "object",
         "required": [
@@ -6691,6 +7646,13 @@
             "format": "date-time"
           }
         }
+      },
+      "ScopeKind": {
+        "type": "string",
+        "description": "Dimension a [`ApprovalSkipPredicate::ChangeScopeBelow`]\npredicate measures against. Each op that cares about size\ndeclares its own scope vector via\n[`crate::OntologyEditOp::scopes`]; the predicate picks the entry\nmatching `kind` and compares its value against `threshold`.\n\nNew scope dimensions (table count, entity count, ...) slot in\nas additional variants without changing the predicate shape or\nbreaking existing matrix rows / workspace overrides.",
+        "enum": [
+          "code_count"
+        ]
       },
       "SignalBody": {
         "type": "object",
@@ -6940,6 +7902,26 @@
           }
         }
       },
+      "UpsertRoutingRuleRequest": {
+        "type": "object",
+        "required": [
+          "routing"
+        ],
+        "properties": {
+          "priority": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Priority — workspace overrides ship with `100` so they win\nagainst the global `0`. Callers normally don't set this; we\ndefault to `100` so a freshly-edited override clearly out-\nranks the seed row."
+          },
+          "risk_level": {
+            "$ref": "#/components/schemas/RiskLevel",
+            "description": "Risk badge surfaced in the admin UI; does not influence\nrouting directly (that's `routing`'s job)."
+          },
+          "routing": {
+            "$ref": "#/components/schemas/ApprovalRouting"
+          }
+        }
+      },
       "WorkbenchPerspective": {
         "type": "object",
         "description": "Workbench perspective — saved canvas state.",
@@ -7051,6 +8033,14 @@
     {
       "name": "Admin",
       "description": "Platform administration (admin role required)"
+    },
+    {
+      "name": "Approvals",
+      "description": "Approval queue + comment thread"
+    },
+    {
+      "name": "Audit",
+      "description": "Workspace-wide PROV-O audit trail"
     }
   ]
 }

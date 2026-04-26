@@ -8,6 +8,7 @@ use axum::Json;
 use axum::extract::{Query, State};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
+use utoipa::IntoParams;
 use uuid::Uuid;
 
 use ox_store::{AuditRecord, AuditTrailFilter, CursorPage};
@@ -21,17 +22,35 @@ use crate::workspace::WorkspaceContext;
 const DEFAULT_LIMIT: u32 = 50;
 const MAX_LIMIT: u32 = 200;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, IntoParams)]
 pub struct AuditQuery {
+    /// Restrict to one ontology.
     pub ontology_id: Option<Uuid>,
+    /// `ProvenanceActivityKind` discriminator (`source_scan`,
+    /// `function_eval`, `rule_validate`, ...).
     pub activity_kind: Option<String>,
+    /// `AgentRef` discriminator (`user`, `service`, `llm_model`, `system`).
     pub agent_kind: Option<String>,
+    /// Inclusive lower bound on `at_time`.
     pub since: Option<DateTime<Utc>>,
+    /// Inclusive upper bound on `at_time`.
     pub until: Option<DateTime<Utc>>,
+    /// Cursor from the previous response's `next_cursor`.
     pub cursor: Option<String>,
+    /// Page size — default 50, clamped to [1, 200].
     pub limit: Option<u32>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/governance/audit",
+    tag = "Audit",
+    params(AuditQuery),
+    responses(
+        (status = 200, description = "PROV-O records across every committed ontology in the workspace, newest first.", body = crate::openapi::AuditRecordPage),
+    ),
+    security(("api_key" = [])),
+)]
 pub(crate) async fn list_audit_records(
     State(state): State<AppState>,
     _principal: Principal,

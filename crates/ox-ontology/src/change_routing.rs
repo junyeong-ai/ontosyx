@@ -30,7 +30,7 @@ ox_core::define_id_newtype!(ChangeRoutingRuleId);
 /// The variant set is closed — adding a new kind is a deliberate
 /// schema extension, not a silent addition. Every `OntologyEditOp`
 /// (Phase 2) classifies into exactly one of these.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ChangeType {
     /// Add a code to an existing CodeSystem. 80% auto per patent matrix.
@@ -198,7 +198,7 @@ impl ChangeType {
 /// Destination for a classified change. Variants are ordered from
 /// most-permissive to least so a reader can eyeball routing posture
 /// without a legend.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ApprovalRouting {
     /// Apply immediately, no notification. For rollback + other
@@ -226,7 +226,7 @@ pub enum ApprovalRouting {
 /// New scope dimensions (table count, entity count, ...) slot in
 /// as additional variants without changing the predicate shape or
 /// breaking existing matrix rows / workspace overrides.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ScopeKind {
     /// Number of coded values an op touches. Used by the
@@ -258,7 +258,7 @@ pub struct ScopeValue {
 /// passing validation" collapses cleanly to "role X" — the commit
 /// path still requires validate to succeed, so a bad IR never lands
 /// even when the role gate waves it through.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ApprovalSkipPredicate {
     /// The author's role matches or outranks this reference. The
@@ -277,7 +277,7 @@ pub enum ApprovalSkipPredicate {
 
 /// Role reference. Declares the hierarchy at a symbolic level so the
 /// routing rules don't hardcode workspace IDs.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RoleRef {
     /// Full admin — top of the ladder.
@@ -307,7 +307,7 @@ pub struct ChangeRoutingRule {
 
 /// Risk tier — metadata for UI badging and audit filtering. Does
 /// not influence routing directly (that's `ApprovalRouting`'s job).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RiskLevel {
     Low,

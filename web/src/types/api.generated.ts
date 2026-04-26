@@ -84,6 +84,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/governance/routing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_routing_rules"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/governance/routing/{change_type}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["upsert_routing_rule"];
+        post?: never;
+        delete: operations["delete_routing_rule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/prompts": {
         parameters: {
             query?: never;
@@ -114,6 +146,70 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["update_prompt_template"];
+        trace?: never;
+    };
+    "/api/approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_approvals"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/approvals/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_approval"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/approvals/{id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_approval_comments"];
+        put?: never;
+        post: operations["create_approval_comment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/approvals/{id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["review_approval"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/chat/stream": {
@@ -156,6 +252,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["get_ui_config"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/governance/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_audit_records"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1042,6 +1154,125 @@ export interface components {
             source_id: string;
             source_type: string;
         };
+        /**
+         * @description One entry in the comment thread attached to an approval. The
+         *     reviewer's decision-time rationale is the first comment; any
+         *     pre-/post-decision discussion follows in the same thread.
+         */
+        ApprovalComment: {
+            /** Format: uuid */
+            approval_id: string;
+            /** Format: uuid */
+            author_id: string;
+            author_name?: string | null;
+            body: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            workspace_id: string;
+        };
+        /** @description Approval request — a queued gated operation awaiting review. */
+        ApprovalRequest: {
+            action_type: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            expires_at: string;
+            /** Format: uuid */
+            id: string;
+            payload: unknown;
+            /** Format: uuid */
+            requester_id: string;
+            /**
+             * @description Display name resolved server-side from `users.name`. NULL when
+             *     the requester has been deleted from the workspace.
+             */
+            requester_name?: string | null;
+            resource_id: string;
+            resource_type: string;
+            /** Format: date-time */
+            reviewed_at?: string | null;
+            /** Format: uuid */
+            reviewer_id?: string | null;
+            reviewer_name?: string | null;
+            /** @description `pending`, `approved`, `rejected`, or `expired`. */
+            status: string;
+            /** Format: uuid */
+            workspace_id: string;
+        };
+        /**
+         * @description Destination for a classified change. Variants are ordered from
+         *     most-permissive to least so a reader can eyeball routing posture
+         *     without a legend.
+         */
+        ApprovalRouting: {
+            /** @enum {string} */
+            kind: "auto_approve";
+        } | {
+            /** @enum {string} */
+            kind: "auto_approve_with_notification";
+            notify_roles: components["schemas"]["RoleRef"][];
+        } | {
+            /** @enum {string} */
+            kind: "approval_required_unless";
+            skip_predicates: components["schemas"]["ApprovalSkipPredicate"][];
+        } | {
+            /** @enum {string} */
+            kind: "approval_required";
+        };
+        /**
+         * @description Predicates the `ApprovalRequiredUnless` branch evaluates. Every
+         *     predicate returns a boolean; the skip list is OR'd (first firing
+         *     predicate short-circuits to Apply).
+         *
+         *     The predicate set is intentionally minimal — only signals the
+         *     routing pipeline can evaluate WITHOUT executing the edit. That's
+         *     why `HasValidationPass` is absent: under the
+         *     `route → apply → validate → commit` pipeline, the validate step
+         *     runs AFTER routing, so at decision time no validation result
+         *     exists. Every matrix row that conceptually reads "role X with a
+         *     passing validation" collapses cleanly to "role X" — the commit
+         *     path still requires validate to succeed, so a bad IR never lands
+         *     even when the role gate waves it through.
+         */
+        ApprovalSkipPredicate: {
+            /** @enum {string} */
+            kind: "author_has_role";
+            role: components["schemas"]["RoleRef"];
+        } | {
+            /** @enum {string} */
+            kind: "change_scope_below";
+            scope: components["schemas"]["ScopeKind"];
+            /** Format: int32 */
+            threshold: number;
+        };
+        /**
+         * @description One record in the workspace-wide PROV-O audit stream. The
+         *     `provenance` payload is the content-addressed `ProvenanceDef`
+         *     emitted at IR commit time; the surrounding fields attribute it
+         *     to the source ontology.
+         */
+        AuditRecord: {
+            /** Format: date-time */
+            at_time: string;
+            /** Format: uuid */
+            ontology_id: string;
+            ontology_lineage_id: string;
+            ontology_name: string;
+            /** @description `ProvenanceDef` JSON. Mirrors `crates/ox-ontology/src/provenance.rs`. */
+            provenance: unknown;
+        };
+        /**
+         * @description Cursor-paginated audit page. The wire shape is
+         *     `{ items: [...], next_cursor?: string }`. `next_cursor` is
+         *     absent when no further pages exist.
+         */
+        AuditRecordPage: {
+            items: components["schemas"]["AuditRecord"][];
+            next_cursor?: string | null;
+        };
         BindingPolicyBody: {
             /** Format: float */
             fuzzy_min_ratio?: number | null;
@@ -1058,6 +1289,35 @@ export interface components {
             /** Format: float */
             weight_fuzzy_name?: number | null;
         };
+        /**
+         * @description Wire shape returned by the list / upsert endpoints. The
+         *     `change_type` round-trips through serde so the wire string
+         *     matches the storage format exactly (snake_case discriminator).
+         *     `routing` and `risk_level` come straight off the IR types —
+         *     no parallel schema, the FE consumes them through the
+         *     `OntologyEditOp` TS union alongside the rest of the matrix.
+         */
+        ChangeRoutingRuleResponse: {
+            /** @description `ChangeType` discriminator as a snake_case string. */
+            change_type: string;
+            /** Format: int32 */
+            priority: number;
+            risk_level: components["schemas"]["RiskLevel"];
+            routing: components["schemas"]["ApprovalRouting"];
+            /**
+             * @description `false` for global defaults, `true` for workspace overrides.
+             *     The UI uses this to badge override vs default rows.
+             */
+            workspace_scoped: boolean;
+        };
+        /**
+         * @description Taxonomy of edit operations the routing matrix knows about.
+         *     The variant set is closed — adding a new kind is a deliberate
+         *     schema extension, not a silent addition. Every `OntologyEditOp`
+         *     (Phase 2) classifies into exactly one of these.
+         * @enum {string}
+         */
+        ChangeType: "coded_value_create" | "coded_value_deprecate" | "glossary_term_create" | "glossary_alias_add" | "notation_pattern_create" | "customer_segment_create" | "column_rename" | "table_merge" | "data_source_register" | "stale_concept_deprecate" | "ontology_version_rollback" | "rule_create" | "rule_modify" | "rule_delete";
         ChatStreamRequest: {
             execution_mode?: string | null;
             message: string;
@@ -1071,6 +1331,9 @@ export interface components {
             /** Format: int32 */
             project_revision?: number | null;
             session_id?: string | null;
+        };
+        CommentRequest: {
+            body: string;
         };
         ConfigEntry: {
             data_type: string;
@@ -1934,6 +2197,30 @@ export interface components {
              */
             replaced: boolean;
         };
+        ReviewRequest: {
+            approved: boolean;
+            /**
+             * @description Reviewer rationale recorded as the first comment on the
+             *     approval thread when non-empty after trimming.
+             */
+            note?: string | null;
+        };
+        ReviewResponse: {
+            /** @description `"approved"` or `"rejected"`. */
+            status: string;
+        };
+        /**
+         * @description Risk tier — metadata for UI badging and audit filtering. Does
+         *     not influence routing directly (that's `ApprovalRouting`'s job).
+         * @enum {string}
+         */
+        RiskLevel: "low" | "medium" | "high";
+        /**
+         * @description Role reference. Declares the hierarchy at a symbolic level so the
+         *     routing rules don't hardcode workspace IDs.
+         * @enum {string}
+         */
+        RoleRef: "admin" | "data_steward" | "analyst";
         SavedPatternResponse: {
             /** Format: date-time */
             created_at: string;
@@ -1946,6 +2233,19 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
+        /**
+         * @description Dimension a [`ApprovalSkipPredicate::ChangeScopeBelow`]
+         *     predicate measures against. Each op that cares about size
+         *     declares its own scope vector via
+         *     [`crate::OntologyEditOp::scopes`]; the predicate picks the entry
+         *     matching `kind` and compares its value against `threshold`.
+         *
+         *     New scope dimensions (table count, entity count, ...) slot in
+         *     as additional variants without changing the predicate shape or
+         *     breaking existing matrix rows / workspace overrides.
+         * @enum {string}
+         */
+        ScopeKind: "code_count";
         SignalBody: {
             detail?: string | null;
             kind: string;
@@ -2014,6 +2314,22 @@ export interface components {
             description?: string | null;
             name: string;
             pattern_ir: Record<string, never>;
+        };
+        UpsertRoutingRuleRequest: {
+            /**
+             * Format: int32
+             * @description Priority — workspace overrides ship with `100` so they win
+             *     against the global `0`. Callers normally don't set this; we
+             *     default to `100` so a freshly-edited override clearly out-
+             *     ranks the seed row.
+             */
+            priority?: number;
+            /**
+             * @description Risk badge surfaced in the admin UI; does not influence
+             *     routing directly (that's `routing`'s job).
+             */
+            risk_level?: components["schemas"]["RiskLevel"];
+            routing: components["schemas"]["ApprovalRouting"];
         };
         /** @description Workbench perspective — saved canvas state. */
         WorkbenchPerspective: {
@@ -2317,6 +2633,128 @@ export interface operations {
             };
         };
     };
+    list_routing_rules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every routing rule visible to the current workspace (global defaults + workspace overrides). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangeRoutingRuleResponse"][];
+                };
+            };
+            /** @description Admin role required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    upsert_routing_rule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Snake-case ChangeType discriminator (e.g. `glossary_term_create`). */
+                change_type: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertRoutingRuleRequest"];
+            };
+        };
+        responses: {
+            /** @description Override upserted at workspace scope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangeRoutingRuleResponse"];
+                };
+            };
+            /** @description Unknown change_type. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Admin role required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    delete_routing_rule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Snake-case ChangeType discriminator. */
+                change_type: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Workspace override removed; the global default now applies. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown change_type. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Admin role required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No workspace override existed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     list_prompt_templates: {
         parameters: {
             query?: never;
@@ -2475,6 +2913,189 @@ export interface operations {
             };
         };
     };
+    list_approvals: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pending approvals for the current workspace. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalRequest"][];
+                };
+            };
+            /** @description Unauthenticated. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_approval: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Approval request id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The approval request. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalRequest"];
+                };
+            };
+            /** @description Not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_approval_comments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Approval request id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Thread of comments attached to this approval, oldest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalComment"][];
+                };
+            };
+            /** @description Not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_approval_comment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Approval request id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CommentRequest"];
+            };
+        };
+        responses: {
+            /** @description Comment created and appended to the thread. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalComment"];
+                };
+            };
+            /** @description Empty body after trim. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Parent approval not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    review_approval: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Approval request id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Decision recorded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewResponse"];
+                };
+            };
+            /** @description Workspace admin required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No pending approval with this id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     chat_stream: {
         parameters: {
             query?: never;
@@ -2581,6 +3202,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UiConfig"];
+                };
+            };
+        };
+    };
+    list_audit_records: {
+        parameters: {
+            query?: {
+                /** @description Restrict to one ontology. */
+                ontology_id?: string | null;
+                /**
+                 * @description `ProvenanceActivityKind` discriminator (`source_scan`,
+                 *     `function_eval`, `rule_validate`, ...).
+                 */
+                activity_kind?: string | null;
+                /** @description `AgentRef` discriminator (`user`, `service`, `llm_model`, `system`). */
+                agent_kind?: string | null;
+                /** @description Inclusive lower bound on `at_time`. */
+                since?: string | null;
+                /** @description Inclusive upper bound on `at_time`. */
+                until?: string | null;
+                /** @description Cursor from the previous response's `next_cursor`. */
+                cursor?: string | null;
+                /** @description Page size — default 50, clamped to [1, 200]. */
+                limit?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description PROV-O records across every committed ontology in the workspace, newest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditRecordPage"];
                 };
             };
         };

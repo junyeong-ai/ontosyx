@@ -7,25 +7,9 @@ import { request } from "@/lib/api/client";
 import { Spinner } from "@/components/ui/spinner";
 import { EditOpPreview } from "@/components/settings/approvals/edit-op-preview";
 import { CommentThread } from "@/components/settings/approvals/comment-thread";
+import type { components } from "@/types/api.generated";
 
-interface ApprovalRequest {
-  id: string;
-  requester_id: string;
-  requester_name: string | null;
-  action_type: string;
-  resource_type: string;
-  resource_id: string;
-  /** Action-specific payload — for OntologyEditOp batches this
-   *  carries the `OntologyEditRequest` shape (operations +
-   *  expected_version + optional message). */
-  payload: unknown;
-  status: string;
-  reviewer_id: string | null;
-  reviewer_name: string | null;
-  reviewed_at: string | null;
-  expires_at: string;
-  created_at: string;
-}
+type ApprovalRequest = components["schemas"]["ApprovalRequest"];
 
 type KnownStatus = "pending" | "approved" | "rejected" | "expired";
 

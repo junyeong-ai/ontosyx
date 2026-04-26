@@ -1,18 +1,9 @@
 // API client for the approval comment thread.
 
+import type { components } from "@/types/api.generated";
 import { request } from "./client";
 
-export interface ApprovalComment {
-  id: string;
-  workspace_id: string;
-  approval_id: string;
-  author_id: string;
-  /** Display name resolved server-side from `users.name`. NULL for
-   *  records whose author has been deleted from the workspace. */
-  author_name: string | null;
-  body: string;
-  created_at: string;
-}
+export type ApprovalComment = components["schemas"]["ApprovalComment"];
 
 export async function listApprovalComments(
   approvalId: string,

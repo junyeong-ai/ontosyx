@@ -22,6 +22,7 @@ use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 use ox_ontology::change_routing::{
     ApprovalRouting, ChangeRoutingRule, ChangeType, RiskLevel,
@@ -38,11 +39,13 @@ use crate::state::AppState;
 /// `routing` and `risk_level` come straight off the IR types —
 /// no parallel schema, the FE consumes them through the
 /// `OntologyEditOp` TS union alongside the rest of the matrix.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct ChangeRoutingRuleResponse {
     /// `false` for global defaults, `true` for workspace overrides.
     /// The UI uses this to badge override vs default rows.
     pub workspace_scoped: bool,
+    /// `ChangeType` discriminator as a snake_case string.
+    #[schema(value_type = String)]
     pub change_type: serde_json::Value,
     pub routing: ApprovalRouting,
     pub risk_level: RiskLevel,
@@ -63,6 +66,16 @@ impl ChangeRoutingRuleResponse {
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/governance/routing",
+    tag = "Admin",
+    responses(
+        (status = 200, description = "Every routing rule visible to the current workspace (global defaults + workspace overrides).", body = Vec<ChangeRoutingRuleResponse>),
+        (status = 403, description = "Admin role required.", body = crate::openapi::ErrorResponse),
+    ),
+    security(("api_key" = [])),
+)]
 pub(crate) async fn list_routing_rules(
     State(state): State<AppState>,
     principal: Principal,
@@ -80,7 +93,7 @@ pub(crate) async fn list_routing_rules(
     Ok(ApiResponse::of(out))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpsertRoutingRuleRequest {
     pub routing: ApprovalRouting,
     /// Risk badge surfaced in the admin UI; does not influence
@@ -103,6 +116,19 @@ fn default_workspace_priority() -> i32 {
     100
 }
 
+#[utoipa::path(
+    put,
+    path = "/api/admin/governance/routing/{change_type}",
+    tag = "Admin",
+    params(("change_type" = String, Path, description = "Snake-case ChangeType discriminator (e.g. `glossary_term_create`).")),
+    request_body = UpsertRoutingRuleRequest,
+    responses(
+        (status = 200, description = "Override upserted at workspace scope.", body = ChangeRoutingRuleResponse),
+        (status = 400, description = "Unknown change_type.", body = crate::openapi::ErrorResponse),
+        (status = 403, description = "Admin role required.", body = crate::openapi::ErrorResponse),
+    ),
+    security(("api_key" = [])),
+)]
 pub(crate) async fn upsert_routing_rule(
     State(state): State<AppState>,
     principal: Principal,
@@ -136,6 +162,19 @@ pub(crate) async fn upsert_routing_rule(
     )?))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/admin/governance/routing/{change_type}",
+    tag = "Admin",
+    params(("change_type" = String, Path, description = "Snake-case ChangeType discriminator.")),
+    responses(
+        (status = 204, description = "Workspace override removed; the global default now applies."),
+        (status = 400, description = "Unknown change_type.", body = crate::openapi::ErrorResponse),
+        (status = 403, description = "Admin role required.", body = crate::openapi::ErrorResponse),
+        (status = 404, description = "No workspace override existed.", body = crate::openapi::ErrorResponse),
+    ),
+    security(("api_key" = [])),
+)]
 pub(crate) async fn delete_routing_rule(
     State(state): State<AppState>,
     principal: Principal,
