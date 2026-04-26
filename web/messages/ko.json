@@ -951,6 +951,21 @@
         "reviewFailed": "승인 처리에 실패했습니다",
         "approved": "승인됨",
         "rejected": "거절됨"
+      },
+      "expandPreview": "변경 내역 보기",
+      "collapsePreview": "변경 내역 접기",
+      "preview": {
+        "summary": "작업 {count}개",
+        "expectedVersion": "@v{v}",
+        "messageLabel": "메모",
+        "truncated": "+{remaining}개 더 (생략됨)",
+        "kinds": {
+          "create": "{count}개 생성",
+          "update": "{count}개 수정",
+          "delete": "{count}개 삭제",
+          "deprecate": "{count}개 폐기",
+          "bind": "{count}개 바인딩"
+        }
       }
     },
     "acl": {

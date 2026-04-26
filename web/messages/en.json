@@ -969,6 +969,21 @@
         "reviewFailed": "Failed to review approval",
         "approved": "Approved",
         "rejected": "Rejected"
+      },
+      "expandPreview": "Show changes",
+      "collapsePreview": "Hide changes",
+      "preview": {
+        "summary": "{count} operation(s)",
+        "expectedVersion": "@v{v}",
+        "messageLabel": "Note",
+        "truncated": "+{remaining} more (truncated)",
+        "kinds": {
+          "create": "{count} create",
+          "update": "{count} update",
+          "delete": "{count} delete",
+          "deprecate": "{count} deprecate",
+          "bind": "{count} bind"
+        }
       }
     },
     "acl": {

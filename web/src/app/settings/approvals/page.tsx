@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { request } from "@/lib/api/client";
 import { Spinner } from "@/components/ui/spinner";
+import { EditOpPreview } from "@/components/settings/approvals/edit-op-preview";
 
 interface ApprovalRequest {
   id: string;
@@ -12,6 +13,10 @@ interface ApprovalRequest {
   action_type: string;
   resource_type: string;
   resource_id: string;
+  /** Action-specific payload — for OntologyEditOp batches this
+   *  carries the `OntologyEditRequest` shape (operations +
+   *  expected_version + optional message). */
+  payload: unknown;
   status: string;
   reviewer_id: string | null;
   review_notes: string | null;
@@ -29,6 +34,7 @@ export default function ApprovalsSettingsPage() {
   const t = useTranslations("settings.approvals");
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -92,36 +98,53 @@ export default function ApprovalsSettingsPage() {
             {t("pendingHeading", { count: pending.length })}
           </h2>
           <div className="mt-2 space-y-3">
-            {pending.map((a) => (
-              <div
-                key={a.id}
-                className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950"
-              >
-                <div>
-                  <div className="font-medium text-zinc-900 dark:text-zinc-100">
-                    {a.action_type.replace(/_/g, " ")}
+            {pending.map((a) => {
+              const isOpen = expanded === a.id;
+              return (
+                <div
+                  key={a.id}
+                  className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950"
+                >
+                  <div className="flex items-center justify-between p-4">
+                    <button
+                      type="button"
+                      onClick={() => setExpanded(isOpen ? null : a.id)}
+                      className="flex-1 text-left"
+                      aria-expanded={isOpen}
+                    >
+                      <div className="font-medium text-zinc-900 dark:text-zinc-100">
+                        {a.action_type.replace(/_/g, " ")}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {a.resource_type} {a.resource_id.slice(0, 8)}... |{" "}
+                        {t("expires")}{" "}
+                        {new Date(a.expires_at).toLocaleDateString()} ·{" "}
+                        {isOpen ? t("collapsePreview") : t("expandPreview")}
+                      </div>
+                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleReview(a.id, true)}
+                        className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800"
+                      >
+                        {t("approve")}
+                      </button>
+                      <button
+                        onClick={() => handleReview(a.id, false)}
+                        className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700"
+                      >
+                        {t("reject")}
+                      </button>
+                    </div>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {a.resource_type} {a.resource_id.slice(0, 8)}... | {t("expires")}{" "}
-                    {new Date(a.expires_at).toLocaleDateString()}
-                  </div>
+                  {isOpen && (
+                    <div className="border-t border-amber-200 bg-white px-4 pb-4 pt-3 dark:border-amber-900 dark:bg-zinc-900">
+                      <EditOpPreview payload={a.payload} />
+                    </div>
+                  )}
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleReview(a.id, true)}
-                    className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800"
-                  >
-                    {t("approve")}
-                  </button>
-                  <button
-                    onClick={() => handleReview(a.id, false)}
-                    className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700"
-                  >
-                    {t("reject")}
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
