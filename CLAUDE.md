@@ -81,11 +81,21 @@ Use `./scripts/dev.sh start` to launch everything (Docker + backend + frontend).
 ## Testing
 
 ```bash
-docker compose up -d                        # Required: PostgreSQL + Neo4j
-cargo test --workspace                      # Unit tests
-./scripts/e2e-test.sh                       # API integration tests
-./scripts/e2e-full.sh                       # Full lifecycle test
+docker compose up -d                                 # Required: PostgreSQL + Neo4j
+cargo test --workspace                               # Unit tests
+OX_TEST_DATABASE_URL=postgres://… cargo test \
+    --workspace --tests -- --ignored                 # Real-Postgres integration tests
+bash scripts/e2e-korean.sh                           # Korean-fixture golden lifecycle
 ```
+
+The Rust test pyramid:
+- Unit tests live next to the function (`#[cfg(test)] mod tests`).
+- HTTP wire-shape tests use `crate::test_support::TestApp::new(Router)`
+  with `mockall` per-trait fakes — narrow router, narrow state.
+- Integration tests that need real Postgres are `#[ignore]` and gated
+  on `OX_TEST_DATABASE_URL`. Pattern reference:
+  `crates/ox-store/tests/rls_enforcement.rs`,
+  `crates/ox-api/src/middleware.rs::tests`.
 
 ## Prompt Templates
 
