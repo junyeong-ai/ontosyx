@@ -382,6 +382,18 @@ async fn main() -> anyhow::Result<()> {
         cancel_token.clone(),
     );
 
+    // Daily retention compaction — hard-deletes nodes whose
+    // `_deleted_at` tombstone is older than the configured cutoff.
+    // Runs under SYSTEM_BYPASS so the SoftDeleteRewriter passes the
+    // destructive `DETACH DELETE` through verbatim instead of
+    // re-soft-deleting it.
+    if let Some(rt) = runtime.as_ref() {
+        ox_api::background::spawn_soft_delete_compaction(
+            Arc::clone(rt),
+            cancel_token.clone(),
+        );
+    }
+
     // Rate limiter (optional, controlled by config)
     let rate_limiter = if config.rate_limit.enabled {
         let rl = Arc::new(RateLimiter::new(&config.rate_limit));

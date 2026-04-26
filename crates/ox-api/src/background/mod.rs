@@ -11,9 +11,11 @@
 pub mod clarification_evict;
 pub mod cron;
 pub mod quality_baseline;
+pub mod soft_delete_compaction;
 pub mod stale_concepts;
 
 pub use clarification_evict::spawn_clarification_evict;
 pub use cron::{CronTask, spawn_cron};
 pub use quality_baseline::spawn_quality_baseline_scan;
+pub use soft_delete_compaction::spawn_soft_delete_compaction;
 pub use stale_concepts::spawn_stale_concept_scan;
