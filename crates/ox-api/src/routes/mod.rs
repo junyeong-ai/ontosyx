@@ -15,6 +15,7 @@ pub mod chat;
 pub mod config;
 pub mod dashboards;
 pub mod federation_admin;
+pub mod governance_audit;
 pub mod governance_routing;
 pub mod health;
 pub mod knowledge;
@@ -330,10 +331,10 @@ pub fn router(state: AppState) -> Router {
             "/admin/federation/health",
             get(federation_admin::federation_health),
         )
-        // Φ6 #1 — admin CRUD for ChangeRoutingRule overrides. The
-        // runtime resolution path is already DB-driven; these
-        // routes let an admin actually edit the workspace's row
-        // through the UI rather than hand-running SQL.
+        // Admin CRUD for ChangeRoutingRule overrides. The runtime
+        // resolution path is already DB-driven; these routes let an
+        // admin edit the workspace's row through the UI rather than
+        // hand-running SQL.
         .route(
             "/admin/governance/routing",
             get(governance_routing::list_routing_rules),
@@ -342,6 +343,12 @@ pub fn router(state: AppState) -> Router {
             "/admin/governance/routing/{change_type}",
             axum::routing::put(governance_routing::upsert_routing_rule)
                 .delete(governance_routing::delete_routing_rule),
+        )
+        // Workspace-wide PROV-O audit trail — streams provenance
+        // entities across every committed ontology in the workspace.
+        .route(
+            "/governance/audit",
+            get(governance_audit::list_audit_records),
         )
         .route(
             "/admin/federation/adapters/{source_id}",

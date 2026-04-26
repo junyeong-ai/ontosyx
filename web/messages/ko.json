@@ -624,7 +624,9 @@
         },
         "ontologyAll": "모든 온톨로지",
         "aggregatedHint": "{count}개 온톨로지 통합 표시",
-        "counts": "전체 {total}개 중 {shown}개 표시",
+        "counts": "{count}개 레코드 로드됨",
+        "loadMore": "더 보기",
+        "loadingMore": "불러오는 중...",
         "usedLabel": "사용",
         "empty": {
           "noRecords": "PROV-O 레코드가 아직 없습니다",

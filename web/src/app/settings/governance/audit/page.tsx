@@ -1,188 +1,65 @@
 "use client";
 
-// Φ6 #3 — Audit trail viewer.
+// PROV-O audit trail viewer.
 //
-// Surfaces the workspace's `ProvenanceDef` entries (PROV-O subject
-// / activity / agent / at_time + used / derived_from) as a
-// filterable list. Read-only — the underlying records are emitted
-// by the LLM design pipeline, rule evaluation, source scans,
-// action execution, etc. Operators see WHY a fact in the graph
-// exists, who ran the activity, and when.
+// Workspace-wide stream of `ProvenanceDef` entries — every source
+// scan, rule evaluation, action execution, LLM draft, etc. emitted
+// by the platform. Read-only: operators see WHY a fact in the
+// graph exists, who ran the activity, and when.
 //
-// Scope: workspace-wide (default) or single-ontology. The PROV-O
-// records are stored on each `OntologyIR.provenance`; the page
-// either picks a single ontology's history or fans out across all
-// committed ontologies in the workspace and merges the streams,
-// attributing each row to its source ontology so a multi-ontology
-// workspace can see the rolled-up view at a glance.
+// Backed by `GET /api/governance/audit` — the server resolves the
+// stream from the content-addressed entity store, applies jsonb-
+// path filters at the SQL layer, and cursor-paginates. The page
+// drives one infinite query against that endpoint; per-ontology
+// scoping is a query-string parameter, not a client-side fan-out.
 
-import { useMemo, useState } from "react";
+import { useState, useMemo } from "react";
 import { useTranslations } from "next-intl";
-import { useQueries } from "@tanstack/react-query";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { Spinner } from "@/components/ui/spinner";
 import { SettingsSelect } from "@/components/ui/form-input";
+import { useOntologies } from "@/hooks/api/use-ontologies";
+import { useAuditTrail } from "@/hooks/api/use-audit-trail";
 import {
-  ontologiesKeys,
-  useOntologies,
-} from "@/hooks/api/use-ontologies";
-import { getOntologyDetail } from "@/lib/api/ontology";
-import type { OntologyDetail } from "@/types/api";
-
-// PROV-O shapes mirrored from `crates/ox-ontology/src/provenance.rs`.
-// We narrow inside the component so a malformed record falls back to
-// "raw payload" rather than crashing the page.
-type EntityRef =
-  | { kind: "node_instance"; node_type_id: string; element_id: string }
-  | { kind: "edge_instance"; edge_type_id: string; element_id: string }
-  | {
-      kind: "property_value";
-      node_type_id: string;
-      element_id: string;
-      property_id: string;
-    }
-  | { kind: "arbitrary"; label: string };
-
-type ProvenanceActivityKind =
-  | { kind: "source_scan"; source_id: string; mapping_id: string }
-  | { kind: "function_eval"; function_id: string }
-  | {
-      kind: "rule_validate";
-      rule_id: string;
-      outcome: "pass" | "warn" | "fail";
-    }
-  | {
-      kind: "action_execute";
-      action_id: string;
-      idempotency_key?: string | null;
-    }
-  | { kind: "ontology_edit"; command_summary: string }
-  | {
-      kind: "draft_proposal";
-      prompt_name: string;
-      prompt_version: string;
-      model_id: string;
-    }
-  | { kind: "cache_refresh"; mapping_id: string }
-  | { kind: "enrichment"; enrichment_id: string }
-  | { kind: "import"; format: string; source_uri?: string | null }
-  | { kind: "export"; format: string; destination_uri?: string | null };
-
-type AgentRef =
-  | { kind: "user"; user_id: string }
-  | { kind: "service"; service_id: string }
-  | { kind: "llm_model"; model_id: string }
-  | { kind: "system" };
-
-interface ProvenanceDef {
-  id: string;
-  subject: EntityRef;
-  activity: ProvenanceActivityKind;
-  agent: AgentRef;
-  at_time: string;
-  used?: EntityRef[];
-  derived_from?: EntityRef[];
-  ontology_valid_at?: string | null;
-  data_valid_at?: string | null;
-}
-
-const ACTIVITY_KINDS: Array<ProvenanceActivityKind["kind"] | "all"> = [
-  "all",
-  "source_scan",
-  "function_eval",
-  "rule_validate",
-  "action_execute",
-  "ontology_edit",
-  "draft_proposal",
-  "cache_refresh",
-  "enrichment",
-  "import",
-  "export",
-];
-
-const AGENT_KINDS: Array<AgentRef["kind"] | "all"> = [
-  "all",
-  "user",
-  "service",
-  "llm_model",
-  "system",
-];
-
-/** A PROV-O record annotated with the source ontology so the
- *  cross-ontology view can attribute each row. */
-interface AttributedRecord extends ProvenanceDef {
-  ontology_id: string;
-  ontology_name: string;
-}
-
-/** Constant value reused by `useQueries` so React-Query cache
- *  hits work across renders. */
-const ONTOLOGY_LIST_LIMIT = 100;
+  type AgentRef,
+  type AuditFilter,
+  type AuditRecord,
+  type EntityRef,
+  type ProvenanceActivityKind,
+  ACTIVITY_KINDS,
+  AGENT_KINDS,
+} from "@/types/audit";
 
 export default function AuditTrailPage() {
   const t = useTranslations("settings.governance.audit");
-  // Pull the full first page so the aggregate view has every
-  // committed ontology to fan out across. A workspace with > 100
-  // ontologies is rare today; the next-cursor pass slots in
-  // trivially when it becomes load-bearing.
-  const ontologies = useOntologies({ limit: ONTOLOGY_LIST_LIMIT });
+  const ontologies = useOntologies({ limit: 200 });
   const items = ontologies.data?.items ?? [];
 
-  // "all" → cross-ontology aggregate; otherwise the specific
-  // ontology id. Default to "all" so a multi-ontology workspace
-  // immediately sees the rolled-up view; single-ontology workspaces
-  // see exactly the same thing they used to.
   const [ontologyFilter, setOntologyFilter] = useState<string>("all");
   const [activityFilter, setActivityFilter] = useState<string>("all");
   const [agentFilter, setAgentFilter] = useState<string>("all");
 
-  // Parallel detail fetch — one query per ontology. React-Query
-  // caches each by detail key, so opening this page after viewing
-  // any single ontology elsewhere reuses the cache.
-  const targets =
-    ontologyFilter === "all"
-      ? items
-      : items.filter((o) => o.id === ontologyFilter);
+  const filter = useMemo<AuditFilter>(
+    () => ({
+      ontology_id: ontologyFilter === "all" ? undefined : ontologyFilter,
+      activity_kind:
+        activityFilter === "all"
+          ? undefined
+          : (activityFilter as ProvenanceActivityKind["kind"]),
+      agent_kind:
+        agentFilter === "all"
+          ? undefined
+          : (agentFilter as AgentRef["kind"]),
+    }),
+    [ontologyFilter, activityFilter, agentFilter],
+  );
 
-  const detailQueries = useQueries({
-    queries: targets.map((o) => ({
-      queryKey: ontologiesKeys.detail(o.id),
-      queryFn: () => getOntologyDetail(o.id),
-    })),
-  });
-
-  const records = useMemo<AttributedRecord[]>(() => {
-    const merged: AttributedRecord[] = [];
-    detailQueries.forEach((q, i) => {
-      const target = targets[i];
-      if (!target) return;
-      const detail = q.data as OntologyDetail | undefined;
-      const provenance = (detail?.ontology_ir?.provenance ?? []) as ProvenanceDef[];
-      provenance.forEach((p) =>
-        merged.push({
-          ...p,
-          ontology_id: target.id,
-          ontology_name: target.name,
-        }),
-      );
-    });
-    // Newest first — the underlying IR doesn't guarantee ordering
-    // and the cross-ontology merge interleaves multiple streams.
-    merged.sort((a, b) => b.at_time.localeCompare(a.at_time));
-    return merged;
-  }, [detailQueries, targets]);
-
-  const filtered = useMemo(() => {
-    return records.filter((r) => {
-      if (activityFilter !== "all" && r.activity.kind !== activityFilter)
-        return false;
-      if (agentFilter !== "all" && r.agent.kind !== agentFilter) return false;
-      return true;
-    });
-  }, [records, activityFilter, agentFilter]);
-
-  const someDetailLoading = detailQueries.some((q) => q.isLoading);
+  const trail = useAuditTrail(filter);
+  const records = useMemo<AuditRecord[]>(
+    () => trail.data?.pages.flatMap((p) => p.items) ?? [],
+    [trail.data],
+  );
 
   if (ontologies.isLoading) {
     return (
@@ -191,6 +68,8 @@ export default function AuditTrailPage() {
       </div>
     );
   }
+
+  const showOntologyBadge = ontologyFilter === "all" && items.length > 1;
 
   return (
     <div className="flex flex-col gap-4">
@@ -233,6 +112,7 @@ export default function AuditTrailPage() {
               onChange={(e) => setActivityFilter(e.target.value)}
               className="w-48"
             >
+              <option value="all">{t("activityKinds.all")}</option>
               {ACTIVITY_KINDS.map((k) => (
                 <option key={k} value={k}>
                   {t(`activityKinds.${k}`)}
@@ -245,6 +125,7 @@ export default function AuditTrailPage() {
               onChange={(e) => setAgentFilter(e.target.value)}
               className="w-40"
             >
+              <option value="all">{t("agentKinds.all")}</option>
               {AGENT_KINDS.map((k) => (
                 <option key={k} value={k}>
                   {t(`agentKinds.${k}`)}
@@ -252,50 +133,64 @@ export default function AuditTrailPage() {
               ))}
             </SettingsSelect>
             <span className="ml-auto text-[11px] text-muted-foreground">
-              {t("counts", {
-                shown: filtered.length,
-                total: records.length,
-              })}
+              {t("counts", { count: records.length })}
             </span>
           </div>
 
-          {ontologyFilter === "all" && items.length > 1 && (
+          {showOntologyBadge && (
             <p className="text-[11px] text-muted-foreground">
               {t("aggregatedHint", { count: items.length })}
             </p>
           )}
 
-          {someDetailLoading ? (
+          {trail.isLoading ? (
             <div className="flex items-center justify-center py-10">
               <Spinner />
             </div>
-          ) : filtered.length === 0 ? (
+          ) : records.length === 0 ? (
             <EmptyState
               title={
-                records.length === 0
-                  ? t("empty.noRecords")
-                  : t("empty.noMatch")
+                isFilterActive(filter)
+                  ? t("empty.noMatch")
+                  : t("empty.noRecords")
               }
               description={
-                records.length === 0
-                  ? t("empty.noRecordsHint")
-                  : t("empty.noMatchHint")
+                isFilterActive(filter)
+                  ? t("empty.noMatchHint")
+                  : t("empty.noRecordsHint")
               }
             />
           ) : (
-            <ul className="flex flex-col gap-2">
-              {filtered.map((r) => (
-                <li
-                  key={`${r.ontology_id}:${r.id}`}
-                  className="rounded border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"
-                >
-                  <ProvenanceRow
-                    record={r}
-                    showOntology={ontologyFilter === "all" && items.length > 1}
-                  />
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="flex flex-col gap-2">
+                {records.map((r) => (
+                  <li
+                    key={`${r.ontology_id}:${r.provenance.id}`}
+                    className="rounded border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"
+                  >
+                    <ProvenanceRow
+                      record={r}
+                      showOntology={showOntologyBadge}
+                    />
+                  </li>
+                ))}
+              </ul>
+
+              {trail.hasNextPage && (
+                <div className="flex justify-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => trail.fetchNextPage()}
+                    disabled={trail.isFetchingNextPage}
+                    className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                  >
+                    {trail.isFetchingNextPage
+                      ? t("loadingMore")
+                      : t("loadMore")}
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </>
       )}
@@ -303,17 +198,25 @@ export default function AuditTrailPage() {
   );
 }
 
+function isFilterActive(filter: AuditFilter): boolean {
+  return (
+    filter.ontology_id !== undefined ||
+    filter.activity_kind !== undefined ||
+    filter.agent_kind !== undefined ||
+    filter.since !== undefined ||
+    filter.until !== undefined
+  );
+}
+
 function ProvenanceRow({
   record,
-  showOntology = false,
+  showOntology,
 }: {
-  record: AttributedRecord;
-  /** Surface the source ontology badge — only useful in the
-   *  cross-ontology aggregate view. Single-ontology view hides it
-   *  to avoid visual noise. */
-  showOntology?: boolean;
+  record: AuditRecord;
+  showOntology: boolean;
 }) {
   const t = useTranslations("settings.governance.audit");
+  const p = record.provenance;
   const at = new Date(record.at_time);
   return (
     <div className="flex flex-col gap-1.5">
@@ -329,32 +232,29 @@ function ProvenanceRow({
               </span>
             )}
             <span className="rounded bg-zinc-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
-              {record.activity.kind}
+              {p.activity.kind}
             </span>
             <span className="rounded bg-sky-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">
-              {record.agent.kind}
+              {p.agent.kind}
             </span>
             <span className="text-[10px] text-muted-foreground">
               {at.toLocaleString()}
             </span>
           </div>
           <p className="mt-1 font-mono text-[11px] text-zinc-700 dark:text-zinc-300">
-            {summariseSubject(record.subject)}
+            {summariseSubject(p.subject)}
           </p>
           <p className="mt-0.5 text-[11px] text-zinc-600 dark:text-zinc-400">
-            {summariseActivity(record.activity)}
+            {summariseActivity(p.activity)}
             {" · "}
-            {summariseAgent(record.agent)}
+            {summariseAgent(p.agent)}
           </p>
-          {(record.used?.length ?? 0) > 0 && (
+          {(p.used?.length ?? 0) > 0 && (
             <p className="mt-1 text-[10px] text-zinc-500 dark:text-zinc-500">
               {t("usedLabel")}:{" "}
-              {(record.used ?? [])
-                .slice(0, 5)
-                .map(summariseSubject)
-                .join(", ")}
-              {(record.used?.length ?? 0) > 5 &&
-                ` +${(record.used?.length ?? 0) - 5}`}
+              {(p.used ?? []).slice(0, 5).map(summariseSubject).join(", ")}
+              {(p.used?.length ?? 0) > 5 &&
+                ` +${(p.used?.length ?? 0) - 5}`}
             </p>
           )}
         </div>

@@ -638,7 +638,9 @@
         "filter": { "activity": "Activity kind", "agent": "Agent kind", "ontology": "Ontology" },
         "ontologyAll": "All ontologies",
         "aggregatedHint": "Aggregated across {count} ontologies",
-        "counts": "{shown} of {total} record(s)",
+        "counts": "{count} record(s) loaded",
+        "loadMore": "Load more",
+        "loadingMore": "Loading...",
         "usedLabel": "used",
         "empty": {
           "noRecords": "No PROV-O records yet",

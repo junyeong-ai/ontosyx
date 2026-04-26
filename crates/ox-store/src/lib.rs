@@ -30,7 +30,8 @@ pub use postgres::PostgresStore;
 pub use postgres::{SYSTEM_BYPASS, WORKSPACE_ID};
 pub use store::{
     AclStore, AgentSessionStore, AmbiguityStore, AnalysisResultStore, AnalysisSnapshot,
-    ApiKeyStore, ApprovalCommentStore, ApprovalStore, AuditStore, ChangeRoutingStore, ConfigStore,
+    ApiKeyStore, ApprovalCommentStore, ApprovalStore, AuditRecord, AuditStore, AuditTrailFilter,
+    AuditTrailStore, ChangeRoutingStore, ConfigStore,
     CursorPage, CursorParams, DashboardStore, DataSourceStore, EmbeddingRetryStore, ExtendResult,
     HealthStore, KnowledgeStore, LineageStore, LoadCheckpointStore, MeteringStore, ModelConfigStore,
     NotificationStore, OntologyNavigationStore, OntologyVersionStore, PatternStore,
