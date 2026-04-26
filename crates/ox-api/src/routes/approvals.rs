@@ -11,7 +11,7 @@ use ox_store::{ApprovalComment, ApprovalRequest};
 use crate::error::AppError;
 use crate::principal::Principal;
 use crate::response::ApiResponse;
-use crate::state::AppState;
+use crate::state::{AppState, ApprovalsState};
 use crate::workspace::WorkspaceContext;
 
 // ---------------------------------------------------------------------------
@@ -53,7 +53,7 @@ pub struct CommentRequest {
     security(("api_key" = [])),
 )]
 pub(crate) async fn list_approvals(
-    State(state): State<AppState>,
+    State(state): State<ApprovalsState>,
     _principal: Principal,
     ws: WorkspaceContext,
 ) -> Result<Json<ApiResponse<Vec<ApprovalRequest>>>, AppError> {
@@ -227,4 +227,104 @@ pub(crate) async fn create_approval_comment(
         .map_err(AppError::from)?;
 
     Ok((StatusCode::CREATED, ApiResponse::of(comment)))
+}
+
+// ---------------------------------------------------------------------------
+// Wire-shape tests — exercise routing + extractors + envelope shape
+// through the focused harness in `crate::test_support`. Per-handler
+// branching tests stay function-shape elsewhere.
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use chrono::{TimeZone, Utc};
+    use serde::Deserialize;
+    use uuid::Uuid;
+
+    use ox_store::ApprovalRequest;
+
+    use crate::test_support::{StubApprovalStore, TestApp};
+
+    /// Mirrors the wire envelope produced by `ApiResponse::of` so the
+    /// test asserts on the actual JSON shape clients consume.
+    #[derive(Deserialize)]
+    struct ListEnvelope {
+        data: Vec<ApprovalRequest>,
+    }
+
+    fn fake_pending(workspace_id: Uuid, requester_id: Uuid) -> ApprovalRequest {
+        let created = Utc.with_ymd_and_hms(2026, 4, 26, 12, 0, 0).unwrap();
+        ApprovalRequest {
+            id: Uuid::new_v4(),
+            workspace_id,
+            requester_id,
+            requester_name: Some("Requester".to_string()),
+            action_type: "schema_deploy".to_string(),
+            resource_type: "ontology".to_string(),
+            resource_id: Uuid::new_v4().to_string(),
+            payload: serde_json::json!({}),
+            status: "pending".to_string(),
+            reviewer_id: None,
+            reviewer_name: None,
+            reviewed_at: None,
+            expires_at: created + chrono::Duration::days(7),
+            created_at: created,
+        }
+    }
+
+    #[tokio::test]
+    async fn list_approvals_returns_pending_for_workspace() {
+        let user_id = Uuid::new_v4();
+        let workspace_id = Uuid::new_v4();
+        let row = fake_pending(workspace_id, user_id);
+
+        let stub = StubApprovalStore::with_pending(vec![row.clone()]);
+        let app = TestApp::builder()
+            .with_admin(user_id)
+            .with_workspace(workspace_id)
+            .with_approval_store(stub.clone())
+            .build();
+
+        let req = Request::builder()
+            .method("GET")
+            .uri("/api/approvals")
+            .body(Body::empty())
+            .unwrap();
+
+        let (status, body): (StatusCode, ListEnvelope) = app.call_json(req).await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body.data.len(), 1);
+        assert_eq!(body.data[0].id, row.id);
+        assert_eq!(body.data[0].workspace_id, workspace_id);
+        // Handler must forward the workspace from `WorkspaceContext`
+        // into the store call — the wire shape can't catch that on
+        // its own, so the stub records the last id.
+        assert_eq!(stub.last_listed_workspace(), Some(workspace_id));
+    }
+
+    #[tokio::test]
+    async fn list_approvals_returns_empty_envelope_when_no_pending() {
+        let user_id = Uuid::new_v4();
+        let workspace_id = Uuid::new_v4();
+
+        let stub = StubApprovalStore::with_pending(Vec::new());
+        let app = TestApp::builder()
+            .with_admin(user_id)
+            .with_workspace(workspace_id)
+            .with_approval_store(stub)
+            .build();
+
+        let req = Request::builder()
+            .method("GET")
+            .uri("/api/approvals")
+            .body(Body::empty())
+            .unwrap();
+
+        let (status, body): (StatusCode, ListEnvelope) = app.call_json(req).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(body.data.is_empty());
+    }
 }

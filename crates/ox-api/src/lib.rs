@@ -41,6 +41,8 @@ pub mod sso;
 pub mod stream_limiter;
 pub mod state;
 pub mod system_config;
+#[cfg(test)]
+mod test_support;
 pub mod validation;
 pub mod workspace;
 pub mod workspace_scope;

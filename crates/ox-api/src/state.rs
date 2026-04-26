@@ -12,7 +12,7 @@ use ox_compiler::{GraphCompiler, PlanCacheHandle};
 use ox_federation::InMemoryAdapterResolver;
 use ox_runtime::GraphRuntime;
 use ox_source::registry::AdapterRegistry;
-use ox_store::{Store, ToolApproval};
+use ox_store::{ApprovalStore, Store, ToolApproval};
 use uuid::Uuid;
 
 use crate::model_router::DbModelRouter;
@@ -139,6 +139,31 @@ impl FromRef<AppState> for FederationState {
             store: Arc::clone(&app.store),
             federation_resolvers: Arc::clone(&app.federation_resolvers),
             secret_resolver: Arc::clone(&app.secret_resolver),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ApprovalsState
+//
+// Narrow view of `AppState` for the approval-workflow handlers. Carries
+// just the `ApprovalStore`-bounded handle so a wire-shape test can build
+// the handler input from a focused mock instead of fabricating every
+// other field on `AppState` (Brain, model router, plan cache, …). The
+// `FromRef<AppState>` impl upcasts the live wide `dyn Store` to the
+// narrow `dyn ApprovalStore` — the supertrait composition guarantees
+// the upcast is identity at runtime.
+// ---------------------------------------------------------------------------
+
+#[derive(Clone)]
+pub struct ApprovalsState {
+    pub store: Arc<dyn ApprovalStore>,
+}
+
+impl FromRef<AppState> for ApprovalsState {
+    fn from_ref(app: &AppState) -> Self {
+        Self {
+            store: Arc::clone(&app.store) as Arc<dyn ApprovalStore>,
         }
     }
 }
