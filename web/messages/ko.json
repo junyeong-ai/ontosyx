@@ -558,6 +558,59 @@
     }
   },
   "settings": {
+    "vocabulary": {
+      "glossary": {
+        "pageTitle": "용어사전",
+        "pageSubtitle": "LLM 과 바인딩 추천기가 참조하는 도메인 어휘. 모든 변경은 OntologyEditOp 으로 ontology 편집 파이프라인을 따라 커밋됩니다.",
+        "noOntology": "커밋된 온톨로지가 없습니다 — 용어사전 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
+        "createButton": "용어 추가",
+        "editButton": "편집",
+        "deleteButton": "삭제",
+        "aliasesLabel": "별칭",
+        "empty": {
+          "title": "아직 등록된 용어가 없습니다",
+          "description": "LLM 이 우선 참조해야 할 첫 비즈니스 개념을 추가하세요 (고객, 주문, 지역 등)."
+        },
+        "createDialog": {
+          "title": "용어 추가",
+          "description": "새 용어는 다음 커밋 버전에 반영됩니다. 바인딩 추천은 다음 /edits 라운드트립에서 재계산됩니다."
+        },
+        "form": {
+          "term": "용어",
+          "termPlaceholder": "고객",
+          "displayName": "표시명",
+          "displayNamePlaceholder": "Customer",
+          "description": "설명",
+          "descriptionPlaceholder": "결제 관계가 있는 플랫폼 사용자.",
+          "aliases": "별칭 (쉼표 구분)",
+          "aliasesPlaceholder": "client, account_holder",
+          "category": "카테고리",
+          "categoryPlaceholder": "business_concept",
+          "cancel": "취소",
+          "submitCreate": "용어 생성",
+          "submitUpdate": "변경 사항 저장"
+        },
+        "messages": {
+          "created": "용어 '{term}' 추가",
+          "updated": "용어 '{term}' 수정",
+          "deleted": "용어 '{term}' 삭제"
+        },
+        "toast": {
+          "created": "용어 '{term}' 추가 완료",
+          "updated": "용어 '{term}' 수정 완료",
+          "deleted": "용어 '{term}' 삭제 완료",
+          "createFailed": "추가 실패: {error}",
+          "updateFailed": "수정 실패: {error}",
+          "deleteFailed": "삭제 실패: {error}"
+        },
+        "confirm": {
+          "deleteTitle": "용어를 삭제하시겠습니까?",
+          "deleteDescription": "'{term}' 을 삭제하면 현재 연결된 속성의 바인딩이 해제됩니다. 바인딩 추천기가 다음 패스부터 이 용어를 제안하지 않습니다.",
+          "deleteConfirm": "삭제",
+          "cancel": "취소"
+        }
+      }
+    },
     "glossaryBinding": {
       "pageTitle": "용어 일괄 바인딩",
       "pageSubtitle": "용어와 별칭을 입력하면 현재 온톨로지의 모든 속성을 점수화합니다. 승인된 매칭은 하나의 /edits 배치로 커밋됩니다.",

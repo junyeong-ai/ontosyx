@@ -576,6 +576,59 @@
     }
   },
   "settings": {
+    "vocabulary": {
+      "glossary": {
+        "pageTitle": "Glossary",
+        "pageSubtitle": "Domain vocabulary the LLM and binding suggester reference. Every change ships as an OntologyEditOp through the same edit pipeline as ontology updates.",
+        "noOntology": "No committed ontology available — create one in Design mode before editing the glossary.",
+        "createButton": "Add term",
+        "editButton": "Edit",
+        "deleteButton": "Delete",
+        "aliasesLabel": "aliases",
+        "empty": {
+          "title": "No glossary terms yet",
+          "description": "Add the first business concept the LLM should reference (customer, order, region, …)."
+        },
+        "createDialog": {
+          "title": "Add glossary term",
+          "description": "The new term lands in the next committed version. Suggestion bindings re-score against it on the next /edits round-trip."
+        },
+        "form": {
+          "term": "Term",
+          "termPlaceholder": "customer",
+          "displayName": "Display name",
+          "displayNamePlaceholder": "Customer",
+          "description": "Description",
+          "descriptionPlaceholder": "End user of the platform with a billing relationship.",
+          "aliases": "Aliases (comma-separated)",
+          "aliasesPlaceholder": "client, account_holder",
+          "category": "Category",
+          "categoryPlaceholder": "business_concept",
+          "cancel": "Cancel",
+          "submitCreate": "Create term",
+          "submitUpdate": "Save changes"
+        },
+        "messages": {
+          "created": "Add glossary term '{term}'",
+          "updated": "Update glossary term '{term}'",
+          "deleted": "Delete glossary term '{term}'"
+        },
+        "toast": {
+          "created": "Glossary term '{term}' added",
+          "updated": "Glossary term '{term}' updated",
+          "deleted": "Glossary term '{term}' deleted",
+          "createFailed": "Add failed: {error}",
+          "updateFailed": "Update failed: {error}",
+          "deleteFailed": "Delete failed: {error}"
+        },
+        "confirm": {
+          "deleteTitle": "Delete glossary term?",
+          "deleteDescription": "Removing '{term}' un-binds it from any property currently linked. The binding suggester will stop proposing it on the next pass.",
+          "deleteConfirm": "Delete",
+          "cancel": "Cancel"
+        }
+      }
+    },
     "glossaryBinding": {
       "pageTitle": "Glossary — Batch bindings",
       "pageSubtitle": "Enter a glossary term and alias list; the engine scores every property in the current ontology and you commit the accepted matches in one /edits batch.",

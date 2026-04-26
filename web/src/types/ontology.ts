@@ -18,6 +18,26 @@ export interface OntologyIR {
   node_types: NodeTypeDef[];
   edge_types: EdgeTypeDef[];
   indexes?: IndexDef[];
+
+  // ---------------------------------------------------------------------
+  // Vocabulary collections (Phase Ω) — surfaced for the Φ4 admin
+  // CRUD pages. The exact shapes mirror the OntologyEditOp
+  // discriminated union in `lib/api/edit-ops.ts`; we keep them as
+  // `unknown[]` here to avoid pulling the full Def shapes into this
+  // module. Pages cast through the edit-ops shapes.
+  // ---------------------------------------------------------------------
+  /** `GlossaryTermDef[]` per `lib/api/edit-ops.ts`. */
+  glossary?: unknown[];
+  /** `CodeSystemDef[]` per `lib/api/edit-ops.ts`. */
+  code_systems?: unknown[];
+  /** `ValueSetDef[]` per `lib/api/edit-ops.ts`. */
+  value_sets?: unknown[];
+  /** `NotationPatternDef[]` per `lib/api/edit-ops.ts`. */
+  notation_patterns?: unknown[];
+  /** `ConceptMapDef[]` per `lib/api/edit-ops.ts`. */
+  concept_maps?: unknown[];
+  /** `RuleDef[]` per `lib/api/edit-ops.ts`. */
+  rules?: unknown[];
 }
 
 export interface NodeTypeDef {
