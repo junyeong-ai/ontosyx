@@ -990,7 +990,7 @@ pub trait ApprovalStore: Send + Sync {
         id: Uuid,
         reviewer_id: Uuid,
         approved: bool,
-        note: Option<&str>,
+        note: Option<String>,
     ) -> OxResult<Option<ApprovalComment>>;
 
     /// Expire old pending approvals past their `expires_at`.

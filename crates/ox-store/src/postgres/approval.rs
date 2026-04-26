@@ -87,13 +87,15 @@ impl ApprovalStore for PostgresStore {
         id: Uuid,
         reviewer_id: Uuid,
         approved: bool,
-        note: Option<&str>,
+        note: Option<String>,
     ) -> OxResult<Option<ApprovalComment>> {
         // Atomic: the row update and the first-comment insert either
         // both land or both roll back. The reviewer's rationale lives
         // in the thread alone — the row carries the decision metadata
         // (status, reviewer, timestamp) and nothing else.
-        let trimmed = note.map(str::trim).filter(|s| !s.is_empty());
+        let trimmed = note
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
 
         let mut tx = self.pool.begin().await.map_err(to_ox_error)?;
 

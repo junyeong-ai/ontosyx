@@ -27,7 +27,8 @@ pub struct ReviewRequest {
     pub note: Option<String>,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Debug, Serialize, ToSchema)]
+#[cfg_attr(test, derive(Deserialize))]
 pub struct ReviewResponse {
     /// `"approved"` or `"rejected"`.
     pub status: String,
@@ -114,7 +115,7 @@ pub(crate) async fn get_approval(
     security(("api_key" = [])),
 )]
 pub(crate) async fn review_approval(
-    State(state): State<AppState>,
+    State(state): State<ApprovalsState>,
     principal: Principal,
     ws: WorkspaceContext,
     Path(id): Path<Uuid>,
@@ -125,7 +126,7 @@ pub(crate) async fn review_approval(
 
     state
         .store
-        .review_approval(id, reviewer_id, req.approved, req.note.as_deref())
+        .review_approval(id, reviewer_id, req.approved, req.note)
         .await
         .map_err(AppError::from)?;
 
@@ -237,21 +238,33 @@ pub(crate) async fn create_approval_comment(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
+    use axum::Router;
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
+    use axum::routing::{get, post};
     use chrono::{TimeZone, Utc};
+    use mockall::predicate::eq;
     use serde::Deserialize;
     use uuid::Uuid;
 
     use ox_store::ApprovalRequest;
 
-    use crate::test_support::{StubApprovalStore, TestApp};
+    use crate::state::ApprovalsState;
+    use crate::test_support::{
+        MockApprovalStore, TestApp, admin_auth_layer, workspace_context_layer,
+    };
+    use crate::workspace::WorkspaceRole;
 
-    /// Mirrors the wire envelope produced by `ApiResponse::of` so the
-    /// test asserts on the actual JSON shape clients consume.
     #[derive(Deserialize)]
     struct ListEnvelope {
         data: Vec<ApprovalRequest>,
+    }
+
+    #[derive(Deserialize)]
+    struct ReviewEnvelope {
+        data: super::ReviewResponse,
     }
 
     fn fake_pending(workspace_id: Uuid, requester_id: Uuid) -> ApprovalRequest {
@@ -274,19 +287,33 @@ mod tests {
         }
     }
 
+    fn build_router(user_id: Uuid, workspace_id: Uuid, store: MockApprovalStore) -> Router {
+        let state = ApprovalsState {
+            store: Arc::new(store),
+        };
+        Router::new()
+            .route("/api/approvals", get(super::list_approvals))
+            .route("/api/approvals/{id}/review", post(super::review_approval))
+            .layer(admin_auth_layer(user_id))
+            .layer(workspace_context_layer(workspace_id, WorkspaceRole::Admin))
+            .with_state(state)
+    }
+
     #[tokio::test]
     async fn list_approvals_returns_pending_for_workspace() {
         let user_id = Uuid::new_v4();
         let workspace_id = Uuid::new_v4();
         let row = fake_pending(workspace_id, user_id);
+        let row_clone = row.clone();
 
-        let stub = StubApprovalStore::with_pending(vec![row.clone()]);
-        let app = TestApp::builder()
-            .with_admin(user_id)
-            .with_workspace(workspace_id)
-            .with_approval_store(stub.clone())
-            .build();
+        let mut store = MockApprovalStore::new();
+        store
+            .expect_list_pending_approvals()
+            .with(eq(workspace_id))
+            .times(1)
+            .returning(move |_| Ok(vec![row_clone.clone()]));
 
+        let app = TestApp::new(build_router(user_id, workspace_id, store));
         let req = Request::builder()
             .method("GET")
             .uri("/api/approvals")
@@ -294,15 +321,10 @@ mod tests {
             .unwrap();
 
         let (status, body): (StatusCode, ListEnvelope) = app.call_json(req).await;
-
         assert_eq!(status, StatusCode::OK);
         assert_eq!(body.data.len(), 1);
         assert_eq!(body.data[0].id, row.id);
         assert_eq!(body.data[0].workspace_id, workspace_id);
-        // Handler must forward the workspace from `WorkspaceContext`
-        // into the store call — the wire shape can't catch that on
-        // its own, so the stub records the last id.
-        assert_eq!(stub.last_listed_workspace(), Some(workspace_id));
     }
 
     #[tokio::test]
@@ -310,13 +332,14 @@ mod tests {
         let user_id = Uuid::new_v4();
         let workspace_id = Uuid::new_v4();
 
-        let stub = StubApprovalStore::with_pending(Vec::new());
-        let app = TestApp::builder()
-            .with_admin(user_id)
-            .with_workspace(workspace_id)
-            .with_approval_store(stub)
-            .build();
+        let mut store = MockApprovalStore::new();
+        store
+            .expect_list_pending_approvals()
+            .with(eq(workspace_id))
+            .times(1)
+            .returning(|_| Ok(Vec::new()));
 
+        let app = TestApp::new(build_router(user_id, workspace_id, store));
         let req = Request::builder()
             .method("GET")
             .uri("/api/approvals")
@@ -326,5 +349,39 @@ mod tests {
         let (status, body): (StatusCode, ListEnvelope) = app.call_json(req).await;
         assert_eq!(status, StatusCode::OK);
         assert!(body.data.is_empty());
+    }
+
+    #[tokio::test]
+    async fn review_approval_records_decision_with_note() {
+        let user_id = Uuid::new_v4();
+        let workspace_id = Uuid::new_v4();
+        let approval_id = Uuid::new_v4();
+
+        let mut store = MockApprovalStore::new();
+        store
+            .expect_review_approval()
+            .withf(move |id, _reviewer, approved, note| {
+                *id == approval_id
+                    && *approved
+                    && note.as_deref() == Some("looks good")
+            })
+            .times(1)
+            .returning(|_, _, _, _| Ok(None));
+
+        let app = TestApp::new(build_router(user_id, workspace_id, store));
+        let body = serde_json::json!({
+            "approved": true,
+            "note": "looks good",
+        });
+        let req = Request::builder()
+            .method("POST")
+            .uri(format!("/api/approvals/{approval_id}/review"))
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+
+        let (status, payload): (StatusCode, ReviewEnvelope) = app.call_json(req).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(payload.data.status, "approved");
     }
 }
