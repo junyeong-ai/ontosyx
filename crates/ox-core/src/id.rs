@@ -52,8 +52,10 @@ macro_rules! define_id_newtype {
             ::serde::Serialize,
             ::serde::Deserialize,
             ::schemars::JsonSchema,
+            ::utoipa::ToSchema,
         )]
         #[serde(transparent)]
+        #[schema(value_type = String)]
         pub struct $name(pub ::std::string::String);
 
         impl $name {
