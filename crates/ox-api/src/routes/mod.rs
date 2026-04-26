@@ -15,6 +15,7 @@ pub mod chat;
 pub mod config;
 pub mod dashboards;
 pub mod federation_admin;
+pub mod governance_routing;
 pub mod health;
 pub mod knowledge;
 pub mod lineage;
@@ -328,6 +329,19 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/admin/federation/health",
             get(federation_admin::federation_health),
+        )
+        // Φ6 #1 — admin CRUD for ChangeRoutingRule overrides. The
+        // runtime resolution path is already DB-driven; these
+        // routes let an admin actually edit the workspace's row
+        // through the UI rather than hand-running SQL.
+        .route(
+            "/admin/governance/routing",
+            get(governance_routing::list_routing_rules),
+        )
+        .route(
+            "/admin/governance/routing/{change_type}",
+            axum::routing::put(governance_routing::upsert_routing_rule)
+                .delete(governance_routing::delete_routing_rule),
         )
         .route(
             "/admin/federation/adapters/{source_id}",
