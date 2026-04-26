@@ -49,6 +49,7 @@ pub mod change_routing;
 pub mod edit;
 pub mod column_profile;
 pub mod integrity;
+pub mod notation_inference;
 pub mod locale_consistency;
 pub mod merge;
 pub mod rule_suggestions;
