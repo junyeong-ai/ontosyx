@@ -26,11 +26,19 @@
 //! exactly how we catch a handler that started reaching into a
 //! sub-trait beyond its declared dependency.
 //!
-//! `mockall` is registered as a workspace dev-dep for traits where
-//! its `mock!` machinery composes cleanly. `ApprovalStore` carries a
-//! `note: Option<&str>` argument whose elided lifetimes do not survive
-//! the async-trait + mockall desugaring round-trip, so a hand-rolled
-//! stub is the cleaner fit here.
+//! ## Why hand-rolled instead of `mockall`
+//!
+//! `ApprovalStore::review_approval` carries a `note: Option<&str>`
+//! argument. With `#[async_trait]`, mockall's `mock!` macro can't
+//! reconcile the elided argument lifetimes against the async-trait
+//! desugared `&self` lifetime — the generated impl complains about
+//! "lifetimes in impl do not match this method in trait." A
+//! hand-rolled trait stub fits the trait verbatim, so we accept the
+//! one-time per-trait boilerplate (panic stubs for the methods the
+//! handler under test doesn't exercise) in exchange for not
+//! re-shaping the live trait signature. When a future trait without
+//! borrowed arguments lands, `mockall` is the right tool — register
+//! it as a workspace dev-dep at that point, not preemptively.
 
 #![cfg(test)]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

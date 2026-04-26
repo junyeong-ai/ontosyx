@@ -42,6 +42,9 @@ use crate::cypher::ast::{
 use crate::cypher::rewrite::{
     CypherRewriter, RewriteContext, RewriteError, RewritePhase, RewrittenAst,
 };
+use crate::cypher::rewrite_helpers::{
+    find_following_where_clause, split_leading_whitespace, strip_leading_keyword,
+};
 use crate::cypher::token::{CypherToken, Span, TokenKind};
 
 // ---------------------------------------------------------------------------
@@ -264,7 +267,7 @@ fn inject_deny_in_statement(
     // Iterate in reverse so inserting a new WHERE at idx+1 doesn't
     // shift the earlier indices we've already validated.
     for &match_idx in targets.iter().rev() {
-        match find_following_where(statement, match_idx) {
+        match find_following_where_clause(statement, match_idx) {
             Some(where_idx) => {
                 prepend_false_to_where(&mut statement.clauses[where_idx]);
             }
@@ -318,45 +321,22 @@ fn clause_touches_denied_resource(
     false
 }
 
-fn find_following_where(statement: &CypherStatement, match_idx: usize) -> Option<usize> {
-    let next = match_idx + 1;
-    statement
-        .clauses
-        .get(next)
-        .filter(|c| c.kind == ClauseKind::Where)
-        .map(|_| next)
-}
-
 /// Rewrite an existing WHERE so it begins with `false AND <body>`.
 /// `false AND <…>` is `false` regardless of the body, so the
 /// rewriter is free to leave the body verbatim — preserves comments
-/// and exotic syntax we haven't taught the parser yet.
+/// and exotic syntax we haven't taught the parser yet. An empty
+/// body collapses to `WHERE false` (no trailing AND) so a
+/// follow-on parse round-trip stays clean.
 fn prepend_false_to_where(clause: &mut CypherClause) {
     let original = std::mem::take(&mut clause.text);
-    let trimmed_len = original.len() - original.trim_start().len();
-    let (lead_ws, after_ws) = original.split_at(trimmed_len);
-    let after_keyword = strip_keyword(after_ws, "WHERE").unwrap_or(after_ws);
-    let body = after_keyword.trim_start();
-    clause.text = format!("{lead_ws}WHERE false AND {body}");
-}
-
-fn strip_keyword<'a>(text: &'a str, keyword: &str) -> Option<&'a str> {
-    let kw = keyword.as_bytes();
-    let bytes = text.as_bytes();
-    if bytes.len() < kw.len() {
-        return None;
-    }
-    for (i, k) in kw.iter().enumerate() {
-        if !bytes[i].eq_ignore_ascii_case(k) {
-            return None;
-        }
-    }
-    let rest = &text[kw.len()..];
-    if rest.is_empty() || rest.starts_with(|c: char| c.is_whitespace()) {
-        Some(rest)
+    let (lead_ws, after_ws) = split_leading_whitespace(&original);
+    let after_keyword = strip_leading_keyword(after_ws, "WHERE").unwrap_or(after_ws);
+    let body = after_keyword.trim();
+    clause.text = if body.is_empty() {
+        format!("{lead_ws}WHERE false")
     } else {
-        None
-    }
+        format!("{lead_ws}WHERE false AND {body}")
+    };
 }
 
 // ---------------------------------------------------------------------------
@@ -408,11 +388,19 @@ fn collect_mask_specs(snapshot: &AclSnapshot) -> Vec<MaskSpec> {
 
 /// The DB stores `mask_pattern` as a free-form string (`***`,
 /// `XXXX-XXXX`, etc.) but the rewriter has to splice it into Cypher
-/// as a literal. Wrap in single quotes and escape any embedded
-/// single quote — the only character a Cypher single-quoted literal
-/// needs escaped.
+/// as a single-quoted literal. Cypher's escape rules (per openCypher
+/// 9.0 §2.5.4) mark backslash as the escape character: `\\`, `\'`,
+/// `\"`, `\b`, `\f`, `\n`, `\r`, `\t`, `\uXXXX`. Anything else
+/// after a `\` is a parse error. So a raw `mask_pattern` containing
+/// a literal `\` MUST be doubled or it will produce an unrecognised
+/// escape sequence at runtime — the bug the audit follow-up
+/// surfaced.
+///
+/// Order matters: escape `\` first so the `\'` we introduce in the
+/// next pass doesn't turn into `\\\'` and re-trigger the rule.
 fn quote_pattern_literal(raw: &str) -> String {
-    format!("'{}'", raw.replace('\'', "\\'"))
+    let escaped = raw.replace('\\', "\\\\").replace('\'', "\\'");
+    format!("'{escaped}'")
 }
 
 /// Apply mask rewrites to every RETURN / WITH clause in `statement`.
@@ -936,6 +924,23 @@ mod tests {
         )]));
         let out = rewrite_str("MATCH (p:Person) RETURN p.nick", &ctx);
         assert!(out.contains("'o\\'malley'"), "got: {out}");
+    }
+
+    #[test]
+    fn mask_pattern_with_backslash_is_escaped() {
+        // Audit-follow-up regression: prior `quote_pattern_literal`
+        // only escaped single quotes. A `mask_pattern` containing a
+        // literal `\` produced `'back\slash'` which Cypher rejects
+        // as an unrecognised escape sequence. The escape order also
+        // matters — `\` must be doubled before `'` is escaped, or
+        // the new `\'` would itself be re-escaped.
+        let ctx = RewriteContext::new("ws").with_acl_snapshot(snapshot(vec![mask_label(
+            "Person",
+            &["nick"],
+            Some("back\\slash"),
+        )]));
+        let out = rewrite_str("MATCH (p:Person) RETURN p.nick", &ctx);
+        assert!(out.contains("'back\\\\slash'"), "got: {out}");
     }
 
     #[test]

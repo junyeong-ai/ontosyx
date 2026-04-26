@@ -136,11 +136,6 @@ config = { version = "0.15", features = ["toml"] }
 ignore = "0.4"
 tempfile = "3"
 
-# Test mocking — used by the ox-api handler test harness
-# (`crates/ox-api/src/test_support.rs`). Workspace dep so future
-# crates that add focused trait-mock harnesses pin one version.
-mockall = "0.13"
-
 # Crypto
 subtle = "2"
 jsonwebtoken = "9"

@@ -28,6 +28,9 @@ use crate::cypher::ast::{
     ClauseKind, CypherAst, CypherClause, CypherPatternElement, CypherStatement, NodePattern,
 };
 use crate::cypher::parse;
+use crate::cypher::rewrite_helpers::{
+    find_following_where_clause, split_leading_whitespace, strip_leading_keyword,
+};
 use crate::cypher::token::Span;
 
 /// Phase ordering for rewriter passes.
@@ -101,7 +104,13 @@ impl std::error::Error for RewriteError {}
 /// receiving its own loader. The snapshot is loaded once per request
 /// by the runtime entry point and threaded through unchanged for
 /// every pass.
-#[derive(Debug, Clone, Default)]
+///
+/// Intentionally **not** `Default` — `Default::default()` would
+/// produce an empty `workspace_id` string, and any rewriter that
+/// reads it would silently scope to "no workspace". Construction
+/// goes through [`RewriteContext::new(workspace_id)`] so the
+/// caller has to think about the scope.
+#[derive(Debug, Clone)]
 pub struct RewriteContext {
     pub workspace_id: String,
     /// UUID of the authenticated principal, if the request carried
@@ -433,7 +442,7 @@ impl WorkspaceScopeRewriter {
                 .collect::<Vec<_>>()
                 .join(" AND ");
 
-            if let Some(where_idx) = find_following_where(statement, *clause_idx) {
+            if let Some(where_idx) = find_following_where_clause(statement, *clause_idx) {
                 prepend_to_where(&mut statement.clauses[where_idx], &combined);
             } else {
                 let where_clause = CypherClause {
@@ -534,17 +543,23 @@ fn first_variable_in_clause_at(statement: &CypherStatement, idx: usize) -> Optio
 }
 
 /// Does some clause in `statement` already contain the literal
-/// `<var>.<property> = $<param_name>` — the system-injected shape?
-/// Signal for idempotency: a rewriter running twice on the same AST,
-/// or a pipeline where a previous pass already stamped the predicate,
-/// should not inject a duplicate.
+/// Idempotency check for the workspace-scope rewriter — does some
+/// clause already carry the literal system-injected shape
+/// `<var>.<property> = $<param>`?
+///
+/// Substring (not token) match on purpose: the rewriter mutates
+/// `clause.text` but not `clause.tokens` after an injection, so a
+/// token-level walk on the second pass would not see the predicate
+/// it just injected on the first pass. Text-substring trivially
+/// observes the just-written text — exactly the property
+/// idempotency wants.
 ///
 /// Only the system-param form satisfies the guard. A user-supplied
-/// predicate such as `n._workspace_id = 'other_ws'` does NOT match —
-/// the rewriter still injects its own `$_ws_id` predicate, and the
-/// two are AND-combined, which evaluates to the empty set for any
-/// non-matching literal. That is the point: the rewriter's gate is
-/// authoritative, not the author's prior text.
+/// predicate such as `n._workspace_id = 'other_ws'` does NOT match,
+/// so the rewriter still injects its own `$_ws_id` clause, and the
+/// two AND-combine to evaluate to the empty set for any non-matching
+/// literal — the rewriter's gate is authoritative, not the author's
+/// prior text.
 fn statement_binds_system_param_for(
     statement: &CypherStatement,
     var: &str,
@@ -553,17 +568,6 @@ fn statement_binds_system_param_for(
 ) -> bool {
     let needle = format!("{var}.{property} = ${param_name}");
     statement.clauses.iter().any(|c| c.text.contains(&needle))
-}
-
-/// Find the WHERE clause that belongs to the MATCH at `match_idx`. WHERE
-/// in Cypher always attaches to the preceding MATCH / OPTIONAL MATCH; any
-/// intervening clause means the WHERE is for something else.
-fn find_following_where(statement: &CypherStatement, match_idx: usize) -> Option<usize> {
-    let next = match_idx + 1;
-    match statement.clauses.get(next) {
-        Some(c) if c.kind == ClauseKind::Where => Some(next),
-        _ => None,
-    }
 }
 
 /// Find a SET clause that sits immediately after `create_idx` (allowing
@@ -617,34 +621,6 @@ fn clause_binds_workspace_for(clause: &CypherClause, var: &str, property: &str) 
     // and those contain the property literally, not inside a literal).
     let needle = format!("{var}.{property}");
     clause.text.contains(&needle)
-}
-
-/// Return (leading whitespace, rest). `text` might look like `" WHERE …"`
-/// — preserving the leading space keeps rendering spacing clean.
-fn split_leading_whitespace(text: &str) -> (&str, &str) {
-    let trimmed_len = text.len() - text.trim_start().len();
-    text.split_at(trimmed_len)
-}
-
-/// If `text` (already left-trimmed) starts with `keyword` followed by
-/// whitespace or EOF, return the remainder after that keyword.
-fn strip_leading_keyword<'a>(text: &'a str, keyword: &str) -> Option<&'a str> {
-    let kw_bytes = keyword.as_bytes();
-    let t_bytes = text.as_bytes();
-    if t_bytes.len() < kw_bytes.len() {
-        return None;
-    }
-    for (i, kb) in kw_bytes.iter().enumerate() {
-        if !t_bytes[i].eq_ignore_ascii_case(kb) {
-            return None;
-        }
-    }
-    let rest = &text[kw_bytes.len()..];
-    if rest.is_empty() || rest.starts_with(|c: char| c.is_whitespace()) {
-        Some(rest)
-    } else {
-        None
-    }
 }
 
 // ---------------------------------------------------------------------------

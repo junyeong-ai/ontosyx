@@ -44,6 +44,10 @@ use crate::cypher::ast::{
 use crate::cypher::rewrite::{
     CypherRewriter, RewriteContext, RewriteError, RewritePhase, RewrittenAst,
 };
+use crate::cypher::rewrite_helpers::{
+    find_following_where_clause, leading_whitespace, split_leading_whitespace,
+    strip_leading_keyword,
+};
 use crate::cypher::token::Span;
 
 /// System-owned tombstone property. Kept as a string constant so
@@ -140,7 +144,7 @@ fn inject_tombstone_predicate(statement: &mut CypherStatement) -> bool {
             .map(|v| format!("{v}.{TOMBSTONE_PROPERTY} IS NULL"))
             .collect::<Vec<_>>()
             .join(" AND ");
-        match find_following_where(statement, *clause_idx) {
+        match find_following_where_clause(statement, *clause_idx) {
             Some(where_idx) => {
                 prepend_to_where(&mut statement.clauses[where_idx], &combined);
             }
@@ -177,51 +181,36 @@ fn bound_node_variables(clause: &CypherClause) -> Vec<String> {
     out
 }
 
-/// True when *any* clause in the statement already mentions the
-/// tombstone check for `var`. Both the system-injected literal form
-/// (`<var>._deleted_at IS NULL`) and an authored equivalent count —
-/// double-injecting `IS NULL AND … IS NULL` is harmless but a noisy
-/// query for the user to read in logs.
+/// Idempotency probe — does some clause already carry a tombstone
+/// check on `var`?
+///
+/// Substring (not token) match: the rewriter mutates `clause.text`
+/// but not `clause.tokens` after an injection, so a token-level
+/// walk on the second pipeline pass would not see the predicate it
+/// just injected on the first pass. The substring needle is the
+/// specific `<var>._deleted_at` access pattern — we accept that an
+/// authored string literal containing the same characters would
+/// also satisfy the guard, since shadowing user input that looks
+/// exactly like the injected shape is a degenerate input we'd
+/// rather skip-inject than double-inject.
 fn statement_already_has_tombstone_check(statement: &CypherStatement, var: &str) -> bool {
     let needle = format!("{var}.{TOMBSTONE_PROPERTY}");
     statement.clauses.iter().any(|c| c.text.contains(&needle))
 }
 
-fn find_following_where(statement: &CypherStatement, match_idx: usize) -> Option<usize> {
-    let next = match_idx + 1;
-    statement
-        .clauses
-        .get(next)
-        .filter(|c| c.kind == ClauseKind::Where)
-        .map(|_| next)
-}
-
 fn prepend_to_where(clause: &mut CypherClause, condition: &str) {
     let original = std::mem::take(&mut clause.text);
-    let trimmed_len = original.len() - original.trim_start().len();
-    let (lead_ws, after_ws) = original.split_at(trimmed_len);
-    let after_keyword = strip_keyword(after_ws, "WHERE").unwrap_or(after_ws);
-    let body = after_keyword.trim_start();
-    clause.text = format!("{lead_ws}WHERE {condition} AND {body}");
-}
-
-fn strip_keyword<'a>(text: &'a str, keyword: &str) -> Option<&'a str> {
-    let kw = keyword.as_bytes();
-    let bytes = text.as_bytes();
-    if bytes.len() < kw.len() {
-        return None;
-    }
-    for (i, k) in kw.iter().enumerate() {
-        if !bytes[i].eq_ignore_ascii_case(k) {
-            return None;
-        }
-    }
-    let rest = &text[kw.len()..];
-    if rest.is_empty() || rest.starts_with(|c: char| c.is_whitespace()) {
-        Some(rest)
+    let (lead_ws, after_ws) = split_leading_whitespace(&original);
+    let after_keyword = strip_leading_keyword(after_ws, "WHERE").unwrap_or(after_ws);
+    let body = after_keyword.trim();
+    // Empty body collapses to plain `WHERE <condition>` — we never
+    // want a trailing dangling `AND` even though the parser's input
+    // shouldn't produce it.
+    clause.text = if body.is_empty() {
+        format!("{lead_ws}WHERE {condition}")
     } else {
-        None
-    }
+        format!("{lead_ws}WHERE {condition} AND {body}")
+    };
 }
 
 // ---------------------------------------------------------------------------
@@ -270,12 +259,12 @@ fn rewrite_delete_clauses(statement: &mut CypherStatement) -> bool {
 /// returning an empty vec.
 fn parse_delete_targets(text: &str) -> Vec<String> {
     let trimmed = text.trim_start();
-    let body = if let Some(rest) = strip_keyword(trimmed, "DETACH") {
-        match strip_keyword(rest.trim_start(), "DELETE") {
+    let body = if let Some(rest) = strip_leading_keyword(trimmed, "DETACH") {
+        match strip_leading_keyword(rest.trim_start(), "DELETE") {
             Some(b) => b,
             None => return Vec::new(),
         }
-    } else if let Some(rest) = strip_keyword(trimmed, "DELETE") {
+    } else if let Some(rest) = strip_leading_keyword(trimmed, "DELETE") {
         rest
     } else {
         return Vec::new();
@@ -312,11 +301,6 @@ fn strip_backticks(s: &str) -> String {
     } else {
         s.to_string()
     }
-}
-
-fn leading_whitespace(text: &str) -> &str {
-    let trimmed_len = text.len() - text.trim_start().len();
-    &text[..trimmed_len]
 }
 
 // ---------------------------------------------------------------------------

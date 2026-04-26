@@ -30,6 +30,7 @@ pub mod ast;
 pub mod diagnostics;
 pub mod parse;
 pub mod rewrite;
+pub(crate) mod rewrite_helpers;
 pub mod shacl_validator;
 pub mod soft_delete_rewriter;
 pub mod token;
