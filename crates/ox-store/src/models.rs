@@ -745,6 +745,21 @@ pub struct ApprovalRequest {
     pub created_at: DateTime<Utc>,
 }
 
+/// One entry in the comment thread attached to an approval request.
+/// The `review_notes` field on the parent row still records the
+/// reviewer's rationale at decision time, but the thread is the
+/// canonical surface — `review_approval` mirrors that note here as
+/// the decision-time entry.
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct ApprovalComment {
+    pub id: Uuid,
+    pub workspace_id: Uuid,
+    pub approval_id: Uuid,
+    pub author_id: Uuid,
+    pub body: String,
+    pub created_at: DateTime<Utc>,
+}
+
 // ---------------------------------------------------------------------------
 // Data Quality — declarative quality rules with evaluation results
 // ---------------------------------------------------------------------------

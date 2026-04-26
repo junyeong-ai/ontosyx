@@ -1031,6 +1031,16 @@
         "label": "검토자 메모 (선택)",
         "placeholder": "승인 또는 거절 사유. 감사 로그에 기록됩니다."
       },
+      "thread": {
+        "heading": "논의",
+        "empty": "아직 댓글이 없습니다.",
+        "addPlaceholder": "스레드에 댓글을 추가하세요.",
+        "addButton": "댓글 등록",
+        "posting": "등록 중...",
+        "loadFailed": "댓글을 불러오지 못했습니다",
+        "postFailed": "댓글 등록에 실패했습니다",
+        "posted": "댓글이 등록되었습니다"
+      },
       "preview": {
         "summary": "작업 {count}개",
         "expectedVersion": "@v{v}",

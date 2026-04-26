@@ -617,6 +617,22 @@ CREATE TABLE approval_requests (
 );
 ALTER TABLE ONLY approval_requests FORCE ROW LEVEL SECURITY;
 
+-- Per-approval comment thread. Each row is one author's note attached
+-- to an approval; the reviewer's `review_notes` rationale on /review
+-- gets persisted here as a comment so the thread carries the decision
+-- alongside any pre/post-decision discussion.
+CREATE TABLE approval_comments (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    workspace_id uuid DEFAULT (current_setting('app.workspace_id', true))::uuid NOT NULL,
+    approval_id uuid NOT NULL,
+    author_id uuid NOT NULL,
+    body text NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+    CONSTRAINT approval_comments_pkey PRIMARY KEY (id),
+    CONSTRAINT approval_comments_body_nonempty CHECK (length(btrim(body)) > 0)
+);
+ALTER TABLE ONLY approval_comments FORCE ROW LEVEL SECURITY;
+
 CREATE TABLE audit_log (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid,
@@ -756,6 +772,14 @@ CREATE INDEX idx_approval_expires ON approval_requests USING btree (expires_at) 
 CREATE INDEX idx_approval_requester ON approval_requests USING btree (requester_id, created_at DESC);
 CREATE INDEX idx_approval_resource ON approval_requests USING btree (resource_type, resource_id);
 CREATE INDEX idx_approval_workspace_status ON approval_requests USING btree (workspace_id, status, created_at DESC);
+
+-- ============================================================================
+-- approval_comments
+-- ============================================================================
+CREATE INDEX idx_approval_comments_thread
+    ON approval_comments USING btree (approval_id, created_at);
+CREATE INDEX idx_approval_comments_workspace
+    ON approval_comments USING btree (workspace_id, created_at DESC);
 
 -- ============================================================================
 -- audit_log
@@ -1128,6 +1152,16 @@ ALTER TABLE ONLY approval_requests
     ADD CONSTRAINT approval_requests_reviewer_id_fkey FOREIGN KEY (reviewer_id) REFERENCES users(id);
 
 -- ============================================================================
+-- approval_comments
+-- ============================================================================
+ALTER TABLE ONLY approval_comments
+    ADD CONSTRAINT approval_comments_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
+ALTER TABLE ONLY approval_comments
+    ADD CONSTRAINT approval_comments_approval_id_fkey FOREIGN KEY (approval_id) REFERENCES approval_requests(id) ON DELETE CASCADE;
+ALTER TABLE ONLY approval_comments
+    ADD CONSTRAINT approval_comments_author_id_fkey FOREIGN KEY (author_id) REFERENCES users(id);
+
+-- ============================================================================
 -- audit_log
 -- ============================================================================
 ALTER TABLE ONLY audit_log
@@ -1230,6 +1264,17 @@ CREATE POLICY ws_isolation ON approval_requests
     USING (workspace_id = current_setting('app.workspace_id', true)::uuid)
     WITH CHECK (workspace_id = current_setting('app.workspace_id', true)::uuid);
 CREATE POLICY system_bypass ON approval_requests
+    USING (current_setting('app.system_bypass', true) = 'true');
+
+-- ============================================================================
+-- approval_comments
+-- ============================================================================
+ALTER TABLE approval_comments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE approval_comments FORCE ROW LEVEL SECURITY;
+CREATE POLICY ws_isolation ON approval_comments
+    USING (workspace_id = current_setting('app.workspace_id', true)::uuid)
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true)::uuid);
+CREATE POLICY system_bypass ON approval_comments
     USING (current_setting('app.system_bypass', true) = 'true');
 
 -- ============================================================================

@@ -1046,6 +1046,16 @@
         "label": "Reviewer note (optional)",
         "placeholder": "Why approve or reject? Visible in the audit trail."
       },
+      "thread": {
+        "heading": "Discussion",
+        "empty": "No comments yet.",
+        "addPlaceholder": "Add a comment to the thread.",
+        "addButton": "Post comment",
+        "posting": "Posting...",
+        "loadFailed": "Failed to load comments",
+        "postFailed": "Failed to post comment",
+        "posted": "Comment posted"
+      },
       "preview": {
         "summary": "{count} operation(s)",
         "expectedVersion": "@v{v}",

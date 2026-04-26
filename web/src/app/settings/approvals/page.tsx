@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { Fragment, useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { request } from "@/lib/api/client";
 import { Spinner } from "@/components/ui/spinner";
 import { EditOpPreview } from "@/components/settings/approvals/edit-op-preview";
+import { CommentThread } from "@/components/settings/approvals/comment-thread";
 
 interface ApprovalRequest {
   id: string;
@@ -153,12 +154,13 @@ export default function ApprovalsSettingsPage() {
                   {isOpen && (
                     <div className="flex flex-col gap-3 border-t border-amber-200 bg-white px-4 pb-4 pt-3 dark:border-amber-900 dark:bg-zinc-900">
                       <EditOpPreview payload={a.payload} />
-                      {/* Φ6 #2 (interim) — reviewer note. The
-                          backend already accepts `notes` on
-                          /review; until the proper comment-thread
-                          table lands (migration 0030), this single
-                          field captures the reviewer's rationale on
-                          decision. */}
+                      {/* Reviewer note — landed as an interim Φ6 #2
+                          surface (71bcff9) before the thread existed.
+                          The decision-time rationale is what the audit
+                          trail expects in `review_notes`; the backend
+                          mirrors it into the thread on /review so
+                          submitting the decision posts the same text
+                          as a thread comment too. */}
                       <label className="flex flex-col gap-1.5">
                         <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                           {t("reviewerNote.label")}
@@ -176,6 +178,7 @@ export default function ApprovalsSettingsPage() {
                           className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs transition-colors focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/50 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-emerald-400"
                         />
                       </label>
+                      <CommentThread approvalId={a.id} />
                     </div>
                   )}
                 </div>
@@ -200,24 +203,39 @@ export default function ApprovalsSettingsPage() {
             </tr>
           </thead>
           <tbody>
-            {resolved.map((a) => (
-              <tr key={a.id} className="border-b border-zinc-100 dark:border-zinc-800">
-                <td className="py-3 pr-6 text-zinc-900 dark:text-zinc-100">
-                  {a.action_type.replace(/_/g, " ")}
-                </td>
-                <td className="py-3 pr-6 text-muted-foreground">
-                  {a.resource_type} {a.resource_id.slice(0, 8)}...
-                </td>
-                <td className="py-3 pr-6">
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge(a.status)}`}>
-                    {statusLabel(a.status)}
-                  </span>
-                </td>
-                <td className="py-3 pr-6 text-muted-foreground">
-                  {new Date(a.created_at).toLocaleDateString()}
-                </td>
-              </tr>
-            ))}
+            {resolved.map((a) => {
+              const isOpen = expanded === a.id;
+              return (
+                <Fragment key={a.id}>
+                  <tr
+                    onClick={() => setExpanded(isOpen ? null : a.id)}
+                    className="cursor-pointer border-b border-zinc-100 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+                  >
+                    <td className="py-3 pr-6 text-zinc-900 dark:text-zinc-100">
+                      {a.action_type.replace(/_/g, " ")}
+                    </td>
+                    <td className="py-3 pr-6 text-muted-foreground">
+                      {a.resource_type} {a.resource_id.slice(0, 8)}...
+                    </td>
+                    <td className="py-3 pr-6">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge(a.status)}`}>
+                        {statusLabel(a.status)}
+                      </span>
+                    </td>
+                    <td className="py-3 pr-6 text-muted-foreground">
+                      {new Date(a.created_at).toLocaleDateString()}
+                    </td>
+                  </tr>
+                  {isOpen && (
+                    <tr className="border-b border-zinc-100 dark:border-zinc-800">
+                      <td colSpan={4} className="bg-zinc-50 px-4 py-3 dark:bg-zinc-900/40">
+                        <CommentThread approvalId={a.id} readOnly />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
             {approvals.length === 0 && (
               <tr>
                 <td colSpan={4} className="py-8 text-center text-muted-foreground">

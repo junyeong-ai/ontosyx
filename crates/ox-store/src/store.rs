@@ -996,6 +996,24 @@ pub trait ApprovalStore: Send + Sync {
 }
 
 // ---------------------------------------------------------------------------
+// ApprovalCommentStore — thread of comments attached to an approval request
+// ---------------------------------------------------------------------------
+
+#[async_trait]
+pub trait ApprovalCommentStore: Send + Sync {
+    /// List every comment attached to an approval, oldest first.
+    async fn list_approval_comments(&self, approval_id: Uuid) -> OxResult<Vec<ApprovalComment>>;
+
+    /// Append a comment to an approval thread.
+    async fn create_approval_comment(
+        &self,
+        approval_id: Uuid,
+        author_id: Uuid,
+        body: &str,
+    ) -> OxResult<ApprovalComment>;
+}
+
+// ---------------------------------------------------------------------------
 // QualityStore — declarative data quality rules with evaluation
 // ---------------------------------------------------------------------------
 
@@ -1592,6 +1610,7 @@ pub trait Store:
     + MeteringStore
     + LineageStore
     + ApprovalStore
+    + ApprovalCommentStore
     + QualityStore
     + AclStore
     + ModelConfigStore
@@ -1634,6 +1653,7 @@ impl<T> Store for T where
         + MeteringStore
         + LineageStore
         + ApprovalStore
+        + ApprovalCommentStore
         + QualityStore
         + AclStore
         + ModelConfigStore

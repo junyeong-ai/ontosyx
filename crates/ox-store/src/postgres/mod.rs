@@ -50,9 +50,10 @@ use ox_core::error::{OxError, OxResult};
 use crate::models::*;
 use crate::store::{
     AclStore, AgentSessionStore, AmbiguityStore, AnalysisResultStore, AnalysisSnapshot,
-    ApprovalStore, AuditStore, ChangeRoutingStore, ConfigStore, CursorPage, CursorParams,
-    DashboardStore, EmbeddingRetryStore, ExtendResult, HealthStore, KnowledgeStore, LineageStore,
-    LoadCheckpointStore, MeteringStore, PatternStore, PerspectiveStore, PinStore, ProjectStore,
+    ApprovalCommentStore, ApprovalStore, AuditStore, ChangeRoutingStore, ConfigStore, CursorPage,
+    CursorParams, DashboardStore, EmbeddingRetryStore, ExtendResult, HealthStore, KnowledgeStore,
+    LineageStore, LoadCheckpointStore, MeteringStore, PatternStore, PerspectiveStore, PinStore,
+    ProjectStore,
     PromptTemplateStore, QualitySignalStore, QualityStore, QueryStore, RecipeStore, ReportStore,
     ScheduledTaskStore, StaleConceptProposalStore, ToolApprovalStore, UserStore,
     VerificationStore, WorkspaceStore,
@@ -302,6 +303,7 @@ mod ambiguity;
 mod analysis_result;
 mod api_key;
 mod approval;
+mod approval_comment;
 mod audit;
 mod change_routing;
 mod config;
