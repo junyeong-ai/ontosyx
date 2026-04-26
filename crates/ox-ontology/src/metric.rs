@@ -29,7 +29,7 @@ ox_core::define_id_newtype!(
 );
 
 /// Named aggregate / KPI.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct MetricDef {
     pub id: MetricId,
     pub name: String,
@@ -55,7 +55,7 @@ pub struct MetricDef {
 }
 
 /// Which part of the ontology the metric aggregates over.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum MetricScope {
     NodeType { node_type_id: NodeTypeId },
@@ -67,7 +67,7 @@ pub enum MetricScope {
 }
 
 /// Aggregation body in a specific dialect.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum MetricExpression {
     SqlExpr { expression: String },
@@ -80,7 +80,7 @@ pub enum MetricExpression {
 /// evaluates at `grain` intervals and produces `(t, value)` points.
 /// The grain is inclusive: `Daily` → one point per day in the
 /// queried window.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum TemporalGrain {
     #[default]

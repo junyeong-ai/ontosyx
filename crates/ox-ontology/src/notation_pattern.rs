@@ -54,7 +54,7 @@ ox_core::define_id_newtype!(
 /// A structured identifier pattern. Parse / render / validate
 /// semantics are all driven by the ordered [`components`] list —
 /// the [`template`] string is documentation only.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct NotationPatternDef {
     pub id: NotationPatternId,
 
@@ -89,7 +89,7 @@ pub struct NotationPatternDef {
 }
 
 /// One component of a notation pattern.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct NotationComponent {
     /// Component name used as the key in parse output
     /// (`{campaign: "SPRING"}`).
@@ -105,7 +105,7 @@ pub struct NotationComponent {
 /// self-validating at parse time — `IntegerRange` rejects values
 /// outside `[min, max]`, `Alphanumeric` rejects wrong-length
 /// tokens, etc.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum NotationComponentKind {
     /// Component must be a code from the referenced value set.

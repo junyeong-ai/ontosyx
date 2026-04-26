@@ -19,7 +19,7 @@ use crate::ir::OntologyIR;
 use ox_core::property_key::PropertyKey;
 
 /// Sync status between ontology and graph data.
-#[derive(Debug, Clone, Serialize, PartialEq, Eq, JsonSchema)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum SyncStatus {
     /// All ontology labels exist in graph and vice versa.
@@ -31,7 +31,7 @@ pub enum SyncStatus {
 }
 
 /// Result of comparing ontology against live graph data.
-#[derive(Debug, Clone, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, JsonSchema, utoipa::ToSchema)]
 pub struct GraphAuditReport {
     /// Node labels that exist in both ontology and graph.
     pub matched_nodes: Vec<String>,

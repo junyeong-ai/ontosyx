@@ -185,7 +185,7 @@ pub struct FileContent {
 
 /// Structured output from the repo navigation LLM agent.
 /// Contains the list of file paths selected for deeper analysis.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct FileSelection {
     /// Relative paths of files to analyze (up to 30)
     pub files: Vec<String>,
@@ -197,7 +197,7 @@ pub struct FileSelection {
 
 /// Structured insights extracted from repository source files by the LLM agent.
 /// Only contains information explicitly present in the analyzed files.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct RepoInsights {
     /// Detected framework/ORM (e.g., "Django", "Rails", "Spring JPA", "Prisma")
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -218,7 +218,7 @@ pub struct RepoInsights {
 // RepoEnumDef — enum/choice field definition from code
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct RepoEnumDef {
     /// Model/entity name (e.g., "Store", "Order")
     pub model: String,
@@ -238,7 +238,7 @@ pub struct RepoEnumDef {
     pub source_file: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct CodeLabel {
     /// The stored value (e.g., "N", "1", "ACTIVE")
     pub code: String,
@@ -250,7 +250,7 @@ pub struct CodeLabel {
 // OrmRelationship — declared relationship from ORM/migration code
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct OrmRelationship {
     /// Source model (e.g., "Order")
     pub from_model: String,
@@ -269,7 +269,7 @@ pub struct OrmRelationship {
     pub source_file: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum OrmRelationType {
     BelongsTo,
@@ -283,7 +283,7 @@ pub enum OrmRelationType {
 // FieldHint — free-form field annotation
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct FieldHint {
     pub model: String,
     pub field: String,

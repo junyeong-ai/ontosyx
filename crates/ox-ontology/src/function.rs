@@ -35,7 +35,7 @@ ox_core::define_id_newtype!(
 );
 
 /// Named derivation / UDF.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct FunctionDef {
     pub id: FunctionId,
 
@@ -69,7 +69,7 @@ pub struct FunctionDef {
 }
 
 /// Reference to a property this function depends on.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct PropertyDependency {
     pub node_type_id: NodeTypeId,
     pub property_id: PropertyId,
@@ -84,7 +84,7 @@ pub struct PropertyDependency {
 /// itself (e.g. `now`, `coalesce`). `Udf` points at a Wasm binary or
 /// other externally-built artifact; the content of the binary is
 /// stored out-of-band.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum FunctionExpression {
     SqlExpr { expression: String },
@@ -94,7 +94,7 @@ pub enum FunctionExpression {
 }
 
 /// Purity tag that drives memoization / plan stability.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum FunctionPurity {
     /// Equal arguments → equal output, forever. Safe to memoize.

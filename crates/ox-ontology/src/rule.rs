@@ -39,7 +39,7 @@ use crate::notation_pattern::NotationPatternId;
 use crate::value_set::ValueSetId;
 
 /// Ontology constraint, named and serializable.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct RuleDef {
     pub id: RuleId,
     pub name: String,
@@ -67,7 +67,7 @@ pub struct RuleDef {
 }
 
 /// Shape variant.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum RuleKind {
     /// `sh:NodeShape` on a node type.
@@ -102,7 +102,7 @@ pub enum RuleKind {
 }
 
 /// Named state transition inside a `StateMachine` rule.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct StateTransition {
     /// `None` → initial creation (no prior state).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -114,7 +114,7 @@ pub struct StateTransition {
 /// real-world rule usage; advanced components (`sh:and`, `sh:or`,
 /// `sh:xone`, recursion rules) land in Phase 11 with the reasoning
 /// engine.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ShaclConstraint {
     /// `sh:minCount`.
@@ -182,7 +182,7 @@ pub enum ShaclConstraint {
 /// components implicitly inherit the target of their enclosing
 /// `RuleDef.kind`; constraints that span multiple targets (e.g.
 /// `Disjoint`) name them explicitly.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ConstraintTarget {
     /// Inherited from the enclosing `RuleDef.kind`. Most constraints
@@ -201,7 +201,7 @@ pub enum ConstraintTarget {
 }
 
 /// Violation severity.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Severity {
     /// Rule failure blocks the operation (write rejected, query
@@ -217,7 +217,7 @@ pub enum Severity {
 }
 
 /// When the rule runs.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum EnforcementKind {
     /// Pre-execute check on a mutation. Failure aborts the write.
@@ -234,7 +234,7 @@ pub enum EnforcementKind {
 }
 
 /// When the rule is live at all.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum RuleActivationKind {
     /// Always active.

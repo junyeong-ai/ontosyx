@@ -101,7 +101,7 @@ ox_core::define_id_newtype!(
 /// collection, a CSV inline `records` relation). `column` is the
 /// physical column name as it appears at the source — the adapter
 /// layer applies any dialect quoting when it renders the scan plan.
-#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct ColumnRef {
     pub relation: String,
     pub column: String,
@@ -127,7 +127,7 @@ impl std::fmt::Display for ColumnRef {
 /// refuse write operations on views without sniffing the source
 /// catalog. `Collection` covers document stores (MongoDB), `File`
 /// covers filesystem-backed sources (CSV, JSON).
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum SourceRelationKind {
     #[default]
@@ -141,7 +141,7 @@ pub enum SourceRelationKind {
 ///
 /// Used by `LinkMappingDef` to describe the bridge relation and to
 /// name an endpoint's owning relation for federated edges.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct SourceRelationRef {
     pub source_id: SourceId,
     pub relation: String,
@@ -156,7 +156,7 @@ pub struct SourceRelationRef {
 /// Per-mapping hint for the graph-cache backend (ADR 0004). The
 /// planner treats `None` as "never cache"; `GraphCache` is an opt-in
 /// that names a freshness window and an explicit refresh cadence.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum CacheHintKind {
     /// No cache participation — every query for this mapping routes

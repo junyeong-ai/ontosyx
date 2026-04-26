@@ -40,7 +40,7 @@ use crate::ir::{DataClassification, PiiKind};
 /// time, every entry here is treated as authoritative for both the
 /// resulting [`crate::ir::PropertyDef::pii_kind`] and any sample-
 /// value redaction performed before the LLM sees the column.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, utoipa::ToSchema)]
 pub struct PiiAnnotation {
     pub table: String,
     pub column: String,
@@ -51,7 +51,7 @@ pub struct PiiAnnotation {
 /// entirely. The column's metadata and sample values never reach
 /// the LLM, and the resulting ontology contains no
 /// [`crate::ir::PropertyDef`] for it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, utoipa::ToSchema)]
 pub struct ExcludedColumn {
     pub table: String,
     pub column: String,
@@ -74,7 +74,7 @@ pub struct PiiSignals<'a> {
 /// Classifier output. Returned from [`PiiClassifier::classify`] when
 /// the inputs raise the classifier's confidence above the
 /// emit-threshold.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema, utoipa::ToSchema)]
 pub struct PiiSuggestion {
     pub table: String,
     pub column: String,

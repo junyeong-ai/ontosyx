@@ -40,7 +40,7 @@ ox_core::define_id_newtype!(
 /// at a specific time. Wraps the same [`ColumnStats`] the
 /// introspection kernel produces, plus the location identity and the
 /// sampling timestamp that locks the snapshot to a window.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct ColumnProfileDef {
     pub id: ColumnProfileId,
     /// Source the profile was sampled from. Matches the `source_id`

@@ -34,7 +34,7 @@ ox_core::define_id_newtype!(
 );
 
 /// External augmentation.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct EnrichmentDef {
     pub id: EnrichmentId,
     pub name: String,
@@ -63,7 +63,7 @@ pub struct EnrichmentDef {
 /// it does not know how to dispatch. Adding a new external-source
 /// shape (gRPC, S3 object) is a variant addition — a major bump of
 /// the ontology schema version.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ExternalSourceRef {
     /// REST / HTTPS endpoint. The platform substitutes the join-key
@@ -88,7 +88,7 @@ pub enum ExternalSourceRef {
 /// `OnAccess` evaluates the enrichment every query; `Cached` reads
 /// from cache when fresh (TTL-gated); `Scheduled` re-evaluates on a
 /// cron cadence regardless of query activity.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum RefreshPolicy {
     #[default]

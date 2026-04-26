@@ -65,7 +65,7 @@ ox_core::define_id_newtype!(
 /// short `name` stay distinguishable — "A" in
 /// `urn:ox:order-status` and "A" in `urn:ox:customer-tier` are
 /// distinct codes even though their `code` strings collide.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct CodeSystemDef {
     pub id: CodeSystemId,
 
@@ -123,7 +123,7 @@ pub struct CodeSystemDef {
 }
 
 /// Governance kind of a [`CodeSystemDef`].
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum CodeSystemKind {
     /// Tenant-editable business codes. Admin UI can add / remove /
@@ -145,7 +145,7 @@ pub enum CodeSystemKind {
 /// One code in a [`CodeSystemDef`]. Carries the raw `code` plus
 /// localized display / definition + synonyms, hierarchy parent,
 /// examples, and temporal validity.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct CodedValue {
     pub id: CodedValueId,
 

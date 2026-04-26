@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 // the appropriate component (TanStack Table, react-force-graph, Recharts).
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "widget", rename_all = "snake_case")]
 pub enum WidgetSpec {
     /// Tabular data display
@@ -32,7 +32,7 @@ pub enum WidgetSpec {
 // TableSpec
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct TableSpec {
     /// Column definitions
     pub columns: Vec<WidgetColumnDef>,
@@ -48,7 +48,7 @@ pub struct TableSpec {
     pub title: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct WidgetColumnDef {
     /// Column key (maps to data field)
     pub key: String,
@@ -62,7 +62,7 @@ pub struct WidgetColumnDef {
     pub align: ColumnAlign,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ColumnDataType {
     Text,
@@ -74,7 +74,7 @@ pub enum ColumnDataType {
     Badge,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ColumnAlign {
     Left,
@@ -86,7 +86,7 @@ pub enum ColumnAlign {
 // GraphSpec — interactive graph visualization
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct GraphSpec {
     /// How to render nodes
     pub node_config: NodeVizConfig,
@@ -104,7 +104,7 @@ pub struct GraphSpec {
     pub max_nodes: Option<usize>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct NodeVizConfig {
     /// Which data field to use as node label
     pub label_field: String,
@@ -118,7 +118,7 @@ pub struct NodeVizConfig {
     pub tooltip_fields: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct EdgeVizConfig {
     /// Which data field to use as edge label
     pub label_field: Option<String>,
@@ -130,13 +130,13 @@ pub struct EdgeVizConfig {
     pub directed: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct ColorMapping {
     pub value: String,
     pub color: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum GraphLayout {
     /// Force-directed (d3-force / react-force-graph)
@@ -153,7 +153,7 @@ pub enum GraphLayout {
 // ChartSpec — statistical visualization
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct ChartSpec {
     /// Chart type
     pub chart_type: ChartType,
@@ -171,7 +171,7 @@ pub struct ChartSpec {
     pub interactive: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ChartType {
     Bar,
@@ -184,7 +184,7 @@ pub enum ChartType {
     Radar,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct AxisSpec {
     /// Data field for this axis
     pub field: String,
@@ -194,7 +194,7 @@ pub struct AxisSpec {
     pub scale: AxisScale,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AxisScale {
     Linear,
@@ -203,7 +203,7 @@ pub enum AxisScale {
     Category,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct SeriesSpec {
     /// Data field for series values
     pub field: String,
@@ -217,7 +217,7 @@ pub struct SeriesSpec {
 // TextSpec — rich text display
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct TextSpec {
     /// The text content
     pub content: String,
@@ -225,7 +225,7 @@ pub struct TextSpec {
     pub format: TextFormat,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum TextFormat {
     Plain,
@@ -237,7 +237,7 @@ pub enum TextFormat {
 // CodeSpec — code/query display
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct CodeSpec {
     /// The code content
     pub content: String,
@@ -253,7 +253,7 @@ pub struct CodeSpec {
 // CompositeSpec — multiple widgets in a layout
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct CompositeSpec {
     /// Layout direction
     pub layout: WidgetLayout,
@@ -263,7 +263,7 @@ pub struct CompositeSpec {
     pub title: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum WidgetLayout {
     /// Horizontal row

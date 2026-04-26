@@ -28,7 +28,7 @@ use crate::mapping::refs::{
 };
 
 /// Binding from a `NodeTypeDef` to a physical relation.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct ObjectMappingDef {
     /// Stable identifier for this mapping. Used in audit trails,
     /// cache invalidation, and mapping-level diagnostics.

@@ -37,7 +37,7 @@ ox_core::define_id_newtype!(
 );
 
 /// Atomic unit of the glossary.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct GlossaryTermDef {
     pub id: GlossaryTermId,
 
@@ -98,7 +98,7 @@ impl GlossaryTermDef {
 /// modelled as separate taxonomies rather than a DAG, so a slow
 /// traversal through a deeply-nested industry classification always
 /// terminates without cycle detection.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct TaxonomyDef {
     pub id: TaxonomyId,
 
@@ -115,7 +115,7 @@ pub struct TaxonomyDef {
 }
 
 /// One node in a taxonomy tree.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct TaxonomyNode {
     pub term_id: GlossaryTermId,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

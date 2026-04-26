@@ -175,11 +175,12 @@ impl JsonSchema for LanguageTag {
 ///
 /// The lenient form makes LLM structured output comfortable (LLMs happily
 /// emit bare strings) without weakening the canonical serialization contract.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, JsonSchema, utoipa::ToSchema)]
 pub struct LocalizedText {
     pub default: String,
 
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    #[schema(value_type = std::collections::HashMap<String, String>)]
     pub translations: HashMap<LanguageTag, String>,
 }
 

@@ -119,7 +119,7 @@ impl AmbiguityContext {
 /// Kind of ambiguity observed. Extending this enum is additive — no
 /// existing `AmbiguityResolution` becomes invalid when a new variant
 /// ships, because resolutions key off `context_id`, not `kind`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AmbiguityKind {
     /// All sampled values parse as integers with low cardinality

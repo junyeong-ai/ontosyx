@@ -37,7 +37,7 @@ ox_core::define_id_newtype!(
 );
 
 /// Named data-quality measure.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct DataQualityDef {
     pub id: DataQualityId,
     pub name: String,
@@ -70,7 +70,7 @@ fn default_threshold() -> f32 {
 }
 
 /// What the measure is taken on.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum DataQualityTarget {
     NodeType { node_type_id: NodeTypeId },
@@ -81,7 +81,7 @@ pub enum DataQualityTarget {
 }
 
 /// Dimension.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum DataQualityDimensionKind {
     Completeness,
@@ -94,7 +94,7 @@ pub enum DataQualityDimensionKind {
 }
 
 /// How the score is computed.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum DataQualityComputationKind {
     /// Delegate to a pre-defined rule. The rule's outcome across
@@ -106,7 +106,7 @@ pub enum DataQualityComputationKind {
 }
 
 /// One run of a quality measure.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct DataQualityMeasurement {
     pub measured_at: DateTime<Utc>,
     /// Score in `[0, 1]`. 1.0 = perfect.

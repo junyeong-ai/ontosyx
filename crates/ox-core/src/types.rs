@@ -46,6 +46,29 @@ impl JsonSchema for PropertyType {
     }
 }
 
+/// utoipa counterpart — same simplification as the JsonSchema impl
+/// (plain string in the OpenAPI spec). Keeping the two impls aligned
+/// ensures the FE-codegen output and the LLM JsonSchemaSpec see the
+/// same shape.
+impl utoipa::PartialSchema for PropertyType {
+    fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
+        use utoipa::openapi::schema::{ObjectBuilder, SchemaType, Type};
+        ObjectBuilder::new()
+            .schema_type(SchemaType::Type(Type::String))
+            .description(Some(
+                "Property type: bool, int, float, string, date, datetime, duration, bytes, map",
+            ))
+            .build()
+            .into()
+    }
+}
+
+impl utoipa::ToSchema for PropertyType {
+    fn name() -> std::borrow::Cow<'static, str> {
+        "PropertyType".into()
+    }
+}
+
 /// Custom deserializer: accepts both `{"type": "string"}` (tagged) and `"string"` (bare).
 impl<'de> Deserialize<'de> for PropertyType {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -397,6 +420,30 @@ impl JsonSchema for PropertyValue {
     }
 }
 
+/// utoipa counterpart — opaque object in OpenAPI to match the
+/// JsonSchema impl. The on-wire shape is a tagged enum
+/// (`{"type": "string", "value": "hello"}`), but exposing every
+/// variant in the spec costs more than it gives — clients route
+/// through the typed `PropertyType` discriminator.
+impl utoipa::PartialSchema for PropertyValue {
+    fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
+        use utoipa::openapi::schema::{ObjectBuilder, SchemaType, Type};
+        ObjectBuilder::new()
+            .schema_type(SchemaType::Type(Type::Object))
+            .description(Some(
+                r#"Typed property value, e.g. {"type": "string", "value": "hello"} or null"#,
+            ))
+            .build()
+            .into()
+    }
+}
+
+impl utoipa::ToSchema for PropertyValue {
+    fn name() -> std::borrow::Cow<'static, str> {
+        "PropertyValue".into()
+    }
+}
+
 impl PropertyValue {
     pub fn property_type(&self) -> Option<PropertyType> {
         match self {
@@ -477,7 +524,7 @@ impl std::fmt::Display for PropertyValue {
 // Direction — edge traversal direction
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Direction {
     Outgoing,

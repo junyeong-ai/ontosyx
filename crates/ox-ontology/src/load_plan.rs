@@ -7,7 +7,7 @@ use ox_core::types::PropertyType;
 // LoadMode — full vs. incremental (watermark-based) loading
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "mode", rename_all = "snake_case")]
 pub enum LoadMode {
     /// Replace all data (default behavior).
@@ -32,7 +32,7 @@ pub enum LoadMode {
 //   Export  → Airflow DAG, dbt model, raw script
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct LoadPlan {
     /// Unique identifier
     pub id: String,
@@ -55,7 +55,7 @@ pub struct LoadPlan {
 // DataSourceSpec — describes the shape of incoming data
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "format", rename_all = "snake_case")]
 pub enum DataSourceSpec {
     /// CSV file source
@@ -166,7 +166,7 @@ impl<'de> Deserialize<'de> for DataSourceSpec {
 }
 
 /// A single column/field in the source data
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct ColumnSpec {
     /// Column name as it appears in the source
     pub name: String,
@@ -182,7 +182,7 @@ pub struct ColumnSpec {
 // LoadStep — a single step in the load plan
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct LoadStep {
     /// Execution order (0-based)
     pub order: u32,
@@ -198,7 +198,7 @@ pub struct LoadStep {
 // LoadOp — the actual load operation (DB-agnostic)
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum LoadOp {
     /// Upsert nodes of a given type
@@ -232,7 +232,7 @@ pub enum LoadOp {
 // PropertyMapping — maps a source column to a graph property
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct PropertyMapping {
     /// Source column/field name
     pub source_column: String,
@@ -243,7 +243,7 @@ pub struct PropertyMapping {
 }
 
 /// Data transformation to apply during mapping
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "transform", rename_all = "snake_case")]
 pub enum Transform {
     /// Convert to string
@@ -274,7 +274,7 @@ pub enum Transform {
 // NodeMatch — how to find an existing node for edge creation
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct NodeMatch {
     /// The node label to match
     pub label: String,
@@ -288,7 +288,7 @@ pub struct NodeMatch {
 // ConflictStrategy — what happens on duplicate
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ConflictStrategy {
     /// Update existing properties with new values
@@ -305,7 +305,7 @@ pub enum ConflictStrategy {
 // BatchConfig — execution tuning
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct BatchConfig {
     /// Number of records per batch
     pub batch_size: usize,
@@ -329,7 +329,7 @@ impl Default for BatchConfig {
 // DryRunResult — preview of what a LoadPlan would do
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct DryRunResult {
     /// The compiled queries that would be executed
     pub compiled_queries: Vec<CompiledStep>,
@@ -343,7 +343,7 @@ pub struct DryRunResult {
     pub warnings: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct CompiledStep {
     pub step_order: u32,
     pub description: String,

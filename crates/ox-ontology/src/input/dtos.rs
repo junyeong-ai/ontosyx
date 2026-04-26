@@ -32,7 +32,7 @@ pub(crate) fn ensure_id(id: Option<String>) -> String {
 // ---------------------------------------------------------------------------
 
 /// LLM output / external JSON / legacy load. Label/name based references.
-#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, utoipa::ToSchema)]
 pub struct InputOntologyDef {
     #[serde(default = "default_format_version")]
     pub format_version: u32,
@@ -72,7 +72,7 @@ where
 // InputNodeTypeDef
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, utoipa::ToSchema)]
 pub struct InputNodeTypeDef {
     pub id: Option<String>,
     pub label: String,
@@ -93,7 +93,7 @@ pub struct InputNodeTypeDef {
 // InputEdgeTypeDef
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, utoipa::ToSchema)]
 pub struct InputEdgeTypeDef {
     pub id: Option<String>,
     pub label: String,
@@ -115,7 +115,7 @@ pub struct InputEdgeTypeDef {
 // InputPropertyDef
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, utoipa::ToSchema)]
 pub struct InputPropertyDef {
     pub id: Option<String>,
     pub name: String,
@@ -138,7 +138,7 @@ pub struct InputPropertyDef {
 // InputNodeConstraint — uses property NAMES (not IDs)
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum InputNodeConstraint {
     Unique {
@@ -162,7 +162,7 @@ pub enum InputNodeConstraint {
 // InputIndexDef — uses label/property NAMES (not IDs)
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum InputIndexDef {
     Single {

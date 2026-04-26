@@ -54,7 +54,7 @@ ox_core::define_id_newtype!(
 /// `ValueSetDef`s, each carving out a different subset for a
 /// different use (order-states allowed in the API vs. the subset
 /// exposed in the admin UI).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct ValueSetDef {
     pub id: ValueSetId,
 
@@ -85,7 +85,7 @@ pub struct ValueSetDef {
 }
 
 /// One include or exclude clause in a [`ValueSetDef::composition`].
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct ValueSetIncludeRule {
     /// Source system. Every code this rule selects comes from
     /// this system.
@@ -97,7 +97,7 @@ pub struct ValueSetIncludeRule {
 }
 
 /// Which codes from a system are selected by a composition rule.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ValueSetSelector {
     /// Every code in the system. Common for "expose the whole
@@ -120,7 +120,7 @@ pub enum ValueSetSelector {
 
 /// Rule mode — include or exclude. A separate enum (rather than a
 /// `bool`) so the wire form is self-documenting.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum IncludeMode {
     Include,

@@ -33,7 +33,7 @@ ox_core::define_id_newtype!(
 );
 
 /// Declarative interface over node types.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct InterfaceDef {
     pub id: InterfaceId,
 
@@ -66,7 +66,7 @@ pub struct InterfaceDef {
 /// The interface names the *shape* (name + required type + required
 /// nullability); the implementer's concrete property id can differ
 /// — the validator matches by `name`, not by `PropertyId`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct InterfaceProperty {
     /// Property key as it appears on the implementer's node.
     pub name: PropertyKey,
@@ -84,7 +84,7 @@ pub struct InterfaceProperty {
 }
 
 /// An edge type an implementer must connect through.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct InterfaceEdge {
     /// Edge label the implementer must participate in (typically as
     /// source). The planner matches by label because edge ids are

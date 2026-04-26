@@ -180,7 +180,7 @@ fn default_ontology_ir_schema_version() -> u32 {
     ONTOLOGY_IR_SCHEMA_VERSION
 }
 
-#[derive(Debug, Clone, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, JsonSchema, utoipa::ToSchema)]
 pub struct OntologyIR {
     /// On-wire struct shape version. See `ONTOLOGY_IR_SCHEMA_VERSION`
     /// for the live constant and version history.

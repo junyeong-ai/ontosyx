@@ -60,7 +60,7 @@ ox_core::define_id_newtype!(
 );
 
 /// A named subset of a single `NodeType`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct SegmentDef {
     pub id: SegmentId,
     pub name: String,
@@ -80,7 +80,7 @@ pub struct SegmentDef {
 /// definitions persist with the ontology and are translated to
 /// `Expr`s at query time, but the authoring surface is kept
 /// minimal.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SegmentFilter {
     And { children: Vec<SegmentFilter> },
@@ -121,7 +121,7 @@ pub enum SegmentFilter {
 /// on purpose — a segment definition is a UI-authored artefact
 /// more than a general-purpose expression. Numeric / string /
 /// boolean covers every segment the launch partners expressed.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SegmentLiteral {
     Int { value: i64 },
@@ -137,7 +137,7 @@ pub enum SegmentLiteral {
 /// segments partition the node type; a downstream validator can
 /// then flag an instance that would satisfy two disjoint-partition
 /// segments.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum OverlapPolicy {
     #[default]
@@ -155,7 +155,7 @@ pub enum OverlapPolicy {
 ///   `2 * ttl_seconds`, to prevent unbounded staleness from a
 ///   misconfigured scheduler.
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema,
+    Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
 )]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SegmentRefreshPolicy {

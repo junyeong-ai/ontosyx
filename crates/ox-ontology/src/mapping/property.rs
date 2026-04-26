@@ -25,7 +25,7 @@ use crate::ir::PropertyId;
 use crate::mapping::refs::ColumnRef;
 
 /// Binding from an ontology property to a physical value location.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct PropertyMappingDef {
     /// Property this binding targets. Must reference a `PropertyId`
     /// owned by the `NodeTypeDef` or `EdgeTypeDef` that the enclosing
@@ -55,7 +55,7 @@ pub struct PropertyMappingDef {
 /// mapping has exactly one storage origin — a future `ExternalCall`
 /// variant (REST / gRPC) can slot in without breaking the wire
 /// format of existing bindings.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PropertyLocation {
     /// A column in the mapping's relation.
@@ -75,7 +75,7 @@ pub enum PropertyLocation {
 /// ontology. Identity is the common case; richer transforms let a
 /// mapping handle legacy schemas without dragging ETL into the
 /// platform.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PropertyTransform {
     /// The source value is the property value — no coercion, no

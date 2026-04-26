@@ -48,7 +48,7 @@ ox_core::define_id_newtype!(
 /// Implements `From<u32>` so that callers can pass a bare version
 /// number and get a zero-metadata instance — preserving compatibility
 /// with the original `version: u32` API surface.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct OntologyVersion {
     pub number: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -92,7 +92,7 @@ impl std::fmt::Display for OntologyVersion {
 // NodeTypeDef
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct NodeTypeDef {
     /// Stable UUID for this node type.
     pub id: NodeTypeId,
@@ -164,7 +164,7 @@ pub struct NodeTypeDef {
 }
 
 /// Type-safe reference to the owner of a property — node or edge.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PropertyOwner {
     Node(NodeTypeId),
@@ -194,7 +194,7 @@ impl std::fmt::Display for PropertyOwner {
 /// Auto-detection (Phase 4.6) produces suggestions — never sets `pii_kind`
 /// directly on PropertyDef. The user confirms or rejects each suggestion
 /// via the UI before it becomes a committed classification.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct PiiSuggestion {
     /// Property affected.
     pub property_id: PropertyId,
@@ -211,7 +211,7 @@ pub struct PiiSuggestion {
 /// Tracks which external data source a node type was derived from.
 /// Richer than the legacy `source_table: Option<String>` — includes
 /// composite primary key and source system identifier for impact analysis.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct SourceLineage {
     /// Registered data source ID (matches `ox-source` registry key).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -224,7 +224,7 @@ pub struct SourceLineage {
 }
 
 /// Governance metadata attached to a node type.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct Governance {
     /// Principal ID of the business owner responsible for this entity.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -288,7 +288,7 @@ impl Default for NodeTypeDef {
 // EdgeTypeDef
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct EdgeTypeDef {
     /// Stable UUID for this edge type.
     pub id: EdgeTypeId,
@@ -368,7 +368,7 @@ impl Default for EdgeTypeDef {
 // DataClassification — sensitivity level for a property
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum DataClassification {
     Public,
@@ -392,7 +392,7 @@ impl std::fmt::Display for DataClassification {
 // PropertyDef — a single property on a node or edge
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct PropertyDef {
     /// Stable UUID for this property.
     pub id: PropertyId,
@@ -561,7 +561,7 @@ pub struct PropertyDef {
 /// The `Identifier` variant maps to dbt's `entity` and is separate
 /// from `Attribute` because LLMs treat identifiers very
 /// differently (join keys vs. informational payload).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AggregationRole {
     /// Numeric property aggregated by metrics (SUM / AVG / MAX).
@@ -624,7 +624,7 @@ impl Default for PropertyDef {
 /// `PropertyDef::is_localized`). `Other(String)` is an open extension point
 /// for domain-specific semantics (e.g. "ISBN", "VIN", "CUSIP") that the
 /// platform does not want to hardcode.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", content = "value", rename_all = "snake_case")]
 pub enum SemanticType {
     Email,
@@ -650,7 +650,7 @@ pub enum SemanticType {
 /// schemes (KR RRN, US SSN, JP My Number, etc.) stay distinguishable in
 /// downstream masking rules. `Custom` is the escape hatch for schemes the
 /// platform has not anticipated — still tracked as PII for audit purposes.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", content = "value", rename_all = "snake_case")]
 pub enum PiiKind {
     // --- Identity ---
@@ -703,7 +703,7 @@ fn default_cardinality() -> Cardinality {
     Cardinality::ManyToMany
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Cardinality {
     OneToOne,
@@ -716,7 +716,7 @@ pub enum Cardinality {
 // ConstraintDef — wrapper with stable ID around NodeConstraint
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct ConstraintDef {
     /// Stable UUID for this constraint
     pub id: ConstraintId,
@@ -729,7 +729,7 @@ pub struct ConstraintDef {
 // NodeConstraint — structural constraint on a node type
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum NodeConstraint {
     /// Properties must be unique across all nodes of this type
@@ -744,7 +744,7 @@ pub enum NodeConstraint {
 // IndexDef — index for query performance
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum IndexDef {
     /// Single-property index
@@ -778,7 +778,7 @@ pub enum IndexDef {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum VectorSimilarity {
     Cosine,

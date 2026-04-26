@@ -47,7 +47,7 @@ ox_core::define_id_newtype!(
 /// The reverse direction is authored as a separate `ConceptMapDef`
 /// when needed; automatically inverting is unsafe when
 /// [`Equivalence`] is anything other than `Equivalent`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct ConceptMapDef {
     pub id: ConceptMapId,
 
@@ -76,7 +76,7 @@ pub struct ConceptMapDef {
 }
 
 /// One source→target entry in a [`ConceptMapDef`].
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct ConceptMapping {
     /// Raw code string in the source system (e.g., `"A"`).
     pub source_code: String,
@@ -95,7 +95,7 @@ pub struct ConceptMapping {
 /// Semantic relationship between a source and target code.
 /// Mirrors HL7 FHIR `ConceptMapEquivalence`; same semantics as W3C
 /// SKOS `*Match` predicates.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Equivalence {
     /// Source and target have the same meaning. Safe to substitute

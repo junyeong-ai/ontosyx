@@ -29,7 +29,7 @@ ox_core::define_id_newtype!(
 );
 
 /// Origin record for one fact the platform produced.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct ProvenanceDef {
     pub id: ProvenanceId,
 
@@ -68,7 +68,7 @@ pub struct ProvenanceDef {
 /// What the record points at — intentionally a closed set of
 /// ontology-modelled entities plus a generic free-form form for
 /// subjects the core model does not type.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum EntityRef {
     NodeInstance {
@@ -91,7 +91,7 @@ pub enum EntityRef {
 }
 
 /// PROV-O activity with platform-specific detail.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ProvenanceActivityKind {
     /// Source scan via an object mapping (ADR 0003). Records which
@@ -141,7 +141,7 @@ pub enum ProvenanceActivityKind {
 }
 
 /// Outcome of a rule evaluation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ValidationOutcomeKind {
     Pass,
@@ -150,7 +150,7 @@ pub enum ValidationOutcomeKind {
 }
 
 /// Who ran the activity.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AgentRef {
     User { user_id: String },

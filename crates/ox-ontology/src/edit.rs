@@ -50,7 +50,7 @@ use crate::value_set::{ValueSetDef, ValueSetId};
 /// Used by the property-level registry-binding edits so the
 /// operation carries both the type kind and the type id without
 /// threading two separate enum variants per op.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PropertyOwnerPath {
     Node { type_id: NodeTypeId },
@@ -60,7 +60,7 @@ pub enum PropertyOwnerPath {
 /// Typed ontology edit. Each variant names exactly one entity kind;
 /// a batch of variants applies atomically (all-or-nothing) and is
 /// validated together at the end.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum OntologyEditOp {
     // --- CodeSystem ---
@@ -682,7 +682,7 @@ fn mutate_property(
 /// handler returns 409 Conflict so the caller can refetch and retry.
 /// Operations apply atomically: an error on any op rolls the whole
 /// batch back.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct OntologyEditRequest {
     pub expected_version: u32,
     pub operations: Vec<OntologyEditOp>,
@@ -701,7 +701,7 @@ pub struct OntologyEditRequest {
 /// Response from a successful commit. Carries enough data for the UI
 /// to update its version pointer without a round-trip refetch of
 /// the whole ontology.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct OntologyEditReceipt {
     pub new_version: u32,
     pub new_version_id: Uuid,
@@ -713,7 +713,7 @@ pub struct OntologyEditReceipt {
 /// Response for a `dry_run=true` edit. Surfaces validation outcome
 /// without touching storage, so the admin UI can render a "would
 /// produce N errors" banner before the operator commits.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct OntologyEditPreCheck {
     /// Number of operations that would apply cleanly to the in-memory
     /// IR. An operation that fails its `apply_to` step halts the

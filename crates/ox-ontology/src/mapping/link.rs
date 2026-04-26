@@ -24,7 +24,7 @@ use crate::mapping::refs::{
 
 /// Binding from an `EdgeTypeDef` to a physical relation (or across
 /// several relations).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct LinkMappingDef {
     pub id: LinkMappingId,
     pub edge_type_id: EdgeTypeId,
@@ -81,7 +81,7 @@ pub struct LinkMappingDef {
 /// product (one/many on each side). Naming matches the dbt /
 /// Cube.js / LookML conventions so imports from those systems
 /// round-trip unchanged.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum LinkCardinality {
     /// Exactly one target per source, exactly one source per
@@ -138,7 +138,7 @@ impl LinkMappingDef {
 }
 
 /// Shape variants for a link mapping.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum LinkMappingKind {
     /// Direct FK on the source relation. `join_columns` names the
@@ -179,7 +179,7 @@ pub enum LinkMappingKind {
 /// Resolvable reference to an endpoint of a link. Either `ObjectMappingId`
 /// (the endpoint is already bound) or a bare `(source, relation,
 /// columns)` tuple for endpoints that are mapped inline.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct EndpointRef {
     pub source_id: SourceId,
     pub relation: String,
@@ -191,7 +191,7 @@ pub struct EndpointRef {
 
 /// Adapter-reported join-cost hint. Coarse on purpose — a richer
 /// cost estimator is scoped to the planner (Phase 6).
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum JoinCostHint {
     #[default]

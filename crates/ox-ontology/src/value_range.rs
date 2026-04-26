@@ -48,7 +48,7 @@ ox_core::define_id_newtype!(
 );
 
 /// A named set of numeric interpretive bands.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct ValueRangeSetDef {
     pub id: ValueRangeSetId,
     pub name: String,
@@ -70,7 +70,7 @@ pub struct ValueRangeSetDef {
 
 /// One band — an interval on the numeric axis plus an
 /// interpretation label.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct ValueBand {
     /// Lower bound. `None` means -∞.
     #[serde(default, skip_serializing_if = "Option::is_none")]

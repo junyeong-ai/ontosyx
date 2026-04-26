@@ -36,8 +36,9 @@ use crate::types::sanitize_variable;
 /// Displayed and compared as the wrapped string; hashes as the string
 /// too, so `HashMap<VariableName, _>` is interchangeable with a
 /// previous `HashMap<String, _>` at lookup time.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, JsonSchema, utoipa::ToSchema)]
 #[schemars(transparent)]
+#[schema(value_type = String)]
 pub struct VariableName(String);
 
 impl VariableName {

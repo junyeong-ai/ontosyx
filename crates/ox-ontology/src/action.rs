@@ -40,7 +40,7 @@ ox_core::define_id_newtype!(
 );
 
 /// Named, approval-aware mutation.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct ActionDef {
     pub id: ActionId,
 
@@ -78,7 +78,7 @@ pub struct ActionDef {
 }
 
 /// What the action writes to.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ActionTarget {
     NodeType { node_type_id: NodeTypeId },
@@ -86,7 +86,7 @@ pub enum ActionTarget {
 }
 
 /// Mutation shape.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ActionKind {
     Create,
@@ -107,7 +107,7 @@ pub enum ActionKind {
 /// instead of re-executing. The platform persists the key +
 /// fingerprint + result; beyond the window the key expires and a
 /// repeat call runs fresh.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum IdempotencyPolicy {
     /// No idempotency. Every call runs independently.
@@ -142,7 +142,7 @@ impl IdempotencyPolicy {
 /// `Delete`) should always require approval — the platform enforces
 /// this by refusing to compile a tool manifest whose approval is
 /// `Automatic` on a `Delete` target.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ApprovalPolicy {
     #[default]
