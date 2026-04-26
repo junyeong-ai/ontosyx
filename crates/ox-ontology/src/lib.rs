@@ -39,6 +39,7 @@ pub mod load_plan;
 pub mod mapping;
 pub mod metric;
 pub mod notation_pattern;
+pub mod pii;
 pub mod provenance;
 pub mod quality;
 pub mod repo_insights;

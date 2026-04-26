@@ -685,6 +685,13 @@ pub enum PiiKind {
     // --- Biometric / Location ---
     Biometric,
     GeoLocation,
+    // --- Auth secrets ---
+    /// Stored password (hashed or plaintext). Never partially redacted
+    /// — the entire value is replaced with a placeholder.
+    Password,
+    /// Bearer / API / refresh token. Treated like `Password` for
+    /// redaction purposes (no last-N tail; full replacement).
+    Token,
     // --- Open extension ---
     /// Caller-supplied PII scheme name for anything the platform has not
     /// predefined. Still treated as PII for audit and masking purposes.
