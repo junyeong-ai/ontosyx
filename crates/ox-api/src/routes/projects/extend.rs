@@ -153,9 +153,11 @@ pub(crate) async fn extend_project(
     let new_source_id = SourceId::from_source_config(&new_source_config);
     let new_ontology = tokio::time::timeout(
         timeout,
-        state
-            .brain
-            .design_ontology(&sample_data, &effective_context, &new_source_id),
+        state.brain.design_ontology(&ox_brain::DesignOntologyInput::bare(
+            &sample_data,
+            &effective_context,
+            &new_source_id,
+        )),
     )
     .await
     .map_err(|_| {

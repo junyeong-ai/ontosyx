@@ -10,6 +10,7 @@
 
 pub mod auth;
 pub mod client_pool;
+pub mod design;
 pub mod knowledge_rag;
 pub mod knowledge_util;
 pub mod model_resolver;
@@ -17,6 +18,8 @@ pub mod prompts;
 pub mod provider;
 pub mod schema;
 pub mod schema_rag;
+
+pub use design::DesignOntologyInput;
 
 use async_trait::async_trait;
 use std::collections::HashMap;
@@ -125,17 +128,24 @@ pub enum WidgetType {
 /// Ontology design and refinement capabilities.
 #[async_trait]
 pub trait OntologyDesigner: Send + Sync {
-    /// Analyze sample data and design an ontology.
+    /// Analyze sample data + the workspace's existing domain context
+    /// and design an ontology.
     ///
-    /// `source_id` stamps every emitted `ObjectMappingDef` in the
-    /// returned IR with the canonical source identity so federation
-    /// plans, provenance, and plan-cache keys stay consistent with
-    /// the DesignProject the caller is operating on.
+    /// The structured input shape lets the LLM see — alongside the
+    /// raw sample data — every glossary term, code system,
+    /// pre-detected ambiguity, and (in extension mode) existing
+    /// ontology the workspace already knows about. The model prefers
+    /// the existing canonical labels over inventing parallel ones,
+    /// reducing the post-pass `binding_suggestions` to a fall-back
+    /// rather than the primary correction step.
+    ///
+    /// `input.source_id` stamps every emitted `ObjectMappingDef` in
+    /// the returned IR with the canonical source identity so
+    /// federation plans, provenance, and plan-cache keys stay
+    /// consistent with the DesignProject the caller is operating on.
     async fn design_ontology(
         &self,
-        sample_data: &str,
-        context: &str,
-        source_id: &SourceId,
+        input: &DesignOntologyInput<'_>,
     ) -> OxResult<OntologyIR>;
 
     /// Design a partial ontology for a batch of tables (divide-and-conquer pipeline).
@@ -408,15 +418,37 @@ fn serialize_pretty(value: &impl serde::Serialize, label: &str) -> OxResult<Stri
 impl OntologyDesigner for DefaultBrain {
     async fn design_ontology(
         &self,
-        sample_data: &str,
-        context: &str,
-        source_id: &SourceId,
+        input: &DesignOntologyInput<'_>,
     ) -> OxResult<OntologyIR> {
-        let mut vars = HashMap::new();
-        vars.insert("sample_data", sample_data);
-        vars.insert("context", context);
+        // Render every domain-context slice into a compact prompt
+        // section. Empty slices produce empty strings so the prompt
+        // collapses without conditional template syntax — no
+        // leftover headers in the rendered prompt.
+        let glossary_section = design::render_glossary_section(input.glossary_terms);
+        let code_systems_section =
+            design::render_code_systems_section(input.code_systems);
+        let ambiguity_section = design::render_ambiguity_section(input.ambiguity_hints);
+        let existing_ontology_section =
+            design::render_existing_ontology_section(input.existing_ontology);
 
-        let input: ox_ontology::input::InputOntologyDef = self
+        let mut vars: HashMap<&str, &str> = HashMap::new();
+        vars.insert("sample_data", input.sample_data);
+        vars.insert("context", input.context);
+        vars.insert("glossary_section", glossary_section.as_str());
+        vars.insert("code_systems_section", code_systems_section.as_str());
+        vars.insert("ambiguity_section", ambiguity_section.as_str());
+        vars.insert("existing_ontology_section", existing_ontology_section.as_str());
+
+        info!(
+            has_domain_context = input.has_domain_context(),
+            glossary_terms = input.glossary_terms.len(),
+            code_systems = input.code_systems.len(),
+            ambiguity_hints = input.ambiguity_hints.len(),
+            extending = input.existing_ontology.is_some(),
+            "Designing ontology from sample data + domain context",
+        );
+
+        let raw_input: ox_ontology::input::InputOntologyDef = self
             .call_structured(
                 "design_ontology",
                 Some("1.0.0"),
@@ -426,14 +458,15 @@ impl OntologyDesigner for DefaultBrain {
             )
             .await?;
 
-        let norm_result = ox_ontology::input::normalize(input, source_id).map_err(|errors| {
-            OxError::Ontology {
-                message: format!(
-                    "LLM-generated ontology normalization failed: {}",
-                    errors.join("; ")
-                ),
-            }
-        })?;
+        let norm_result =
+            ox_ontology::input::normalize(raw_input, input.source_id).map_err(|errors| {
+                OxError::Ontology {
+                    message: format!(
+                        "LLM-generated ontology normalization failed: {}",
+                        errors.join("; ")
+                    ),
+                }
+            })?;
         let ontology = norm_result.ontology;
 
         // validate() is already called inside normalize(), but keep explicit validation

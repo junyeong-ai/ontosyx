@@ -155,4 +155,9 @@ Input:
 
 Context:
 {{context}}
+
+{{glossary_section}}
+{{code_systems_section}}
+{{ambiguity_section}}
+{{existing_ontology_section}}
 """

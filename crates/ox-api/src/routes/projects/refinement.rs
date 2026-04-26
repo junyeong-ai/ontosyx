@@ -120,9 +120,11 @@ pub(crate) async fn design_project(
     let source_id = ox_ontology::mapping::SourceId::new(project.source_id.clone());
     let ontology = tokio::time::timeout(
         timeout,
-        state
-            .brain
-            .design_ontology(&sample_data, &effective_context, &source_id),
+        state.brain.design_ontology(&ox_brain::DesignOntologyInput::bare(
+            &sample_data,
+            &effective_context,
+            &source_id,
+        )),
     )
     .await
     .map_err(|_| {
