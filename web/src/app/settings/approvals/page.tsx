@@ -205,11 +205,26 @@ export default function ApprovalsSettingsPage() {
           <tbody>
             {resolved.map((a) => {
               const isOpen = expanded === a.id;
+              const toggle = () => setExpanded(isOpen ? null : a.id);
               return (
                 <Fragment key={a.id}>
+                  {/* Row is expandable — `role="button"` + tabIndex
+                      + Enter/Space handler so keyboard users can
+                      toggle. `aria-expanded` advertises state to AT.
+                      A real <button> can't wrap a <tr>, so we lift
+                      the keyboard semantics onto the row itself. */}
                   <tr
-                    onClick={() => setExpanded(isOpen ? null : a.id)}
-                    className="cursor-pointer border-b border-zinc-100 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={isOpen}
+                    onClick={toggle}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        toggle();
+                      }
+                    }}
+                    className="cursor-pointer border-b border-zinc-100 hover:bg-zinc-50 focus:bg-zinc-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 dark:border-zinc-800 dark:hover:bg-zinc-900 dark:focus:bg-zinc-900"
                   >
                     <td className="py-3 pr-6 text-zinc-900 dark:text-zinc-100">
                       {a.action_type.replace(/_/g, " ")}

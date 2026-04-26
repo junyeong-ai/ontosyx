@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
 import messages from "../../../messages/en.json";
@@ -12,9 +13,16 @@ vi.mock("sonner", () => ({
 }));
 
 function renderWithProviders(ui: ReactElement) {
+  // Each test gets its own QueryClient so cache state from one test
+  // never bleeds into the next. retry: false keeps failure tests
+  // synchronous — the default 3-attempt retry would otherwise mask
+  // the transition we want to assert.
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
-      {ui}
+      <QueryClientProvider client={qc}>{ui}</QueryClientProvider>
     </NextIntlClientProvider>,
   );
 }
@@ -58,15 +66,17 @@ describe("CommentThread", () => {
     });
   });
 
-  it("posts a new comment and appends it to the thread", async () => {
-    vi.spyOn(approvalsApi, "listApprovalComments").mockResolvedValue([]);
+  it("posts a new comment and the thread reloads via cache invalidation", async () => {
+    const list = vi.spyOn(approvalsApi, "listApprovalComments");
+    list.mockResolvedValueOnce([]); // initial load
+    list.mockResolvedValueOnce([sample({ id: "new", body: "Hello" })]); // post-invalidation refetch
+
     const create = vi
       .spyOn(approvalsApi, "createApprovalComment")
       .mockResolvedValue(sample({ id: "new", body: "Hello" }));
 
     renderWithProviders(<CommentThread approvalId="appr-1" />);
 
-    // Wait for the loading pass to complete so the textarea + button render.
     await waitFor(() => {
       expect(screen.getByPlaceholderText(/add a comment/i)).toBeDefined();
     });
@@ -81,6 +91,10 @@ describe("CommentThread", () => {
       expect(create).toHaveBeenCalledWith("appr-1", "Hello");
       expect(screen.getByText("Hello")).toBeDefined();
     });
+    // The mutation's onSuccess invalidates the thread query — verify
+    // the list refetch actually fired (not just that the mutation
+    // returned, which would only prove optimism).
+    expect(list).toHaveBeenCalledTimes(2);
   });
 
   it("hides the composer when readOnly is set", async () => {

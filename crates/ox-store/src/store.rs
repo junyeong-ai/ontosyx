@@ -980,14 +980,19 @@ pub trait ApprovalStore: Send + Sync {
     /// List pending approvals for the current workspace.
     async fn list_pending_approvals(&self, workspace_id: Uuid) -> OxResult<Vec<ApprovalRequest>>;
 
-    /// Approve or reject an approval request.
+    /// Approve or reject an approval request. When `notes` is a
+    /// non-empty trimmed string, the rationale is also mirrored into
+    /// the thread (`approval_comments`) atomically — both writes land
+    /// or both roll back, so the legacy `review_notes` column and the
+    /// FE-visible thread never disagree. Returns the mirrored comment
+    /// when one was created.
     async fn review_approval(
         &self,
         id: Uuid,
         reviewer_id: Uuid,
         approved: bool,
         notes: Option<&str>,
-    ) -> OxResult<()>;
+    ) -> OxResult<Option<ApprovalComment>>;
 
     /// Expire old pending approvals past their `expires_at`.
     /// Returns per-workspace counts so the maintenance loop can record

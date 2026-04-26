@@ -58,7 +58,17 @@ impl ApprovalStore for PostgresStore {
         reviewer_id: Uuid,
         approved: bool,
         notes: Option<&str>,
-    ) -> OxResult<()> {
+    ) -> OxResult<Option<ApprovalComment>> {
+        // Atomic: the review row update and the thread-comment mirror
+        // either both land or both roll back. Splitting these into two
+        // pool calls would let the decision land while the rationale
+        // disappears from the visible thread (the FE doesn't surface the
+        // legacy `review_notes` column directly), creating a divergence
+        // between what `review_notes` records and what the thread shows.
+        let trimmed_note = notes.map(str::trim).filter(|s| !s.is_empty());
+
+        let mut tx = self.pool.begin().await.map_err(to_ox_error)?;
+
         let status = if approved { "approved" } else { "rejected" };
         let result = sqlx::query(
             "UPDATE approval_requests
@@ -67,18 +77,39 @@ impl ApprovalStore for PostgresStore {
         )
         .bind(status)
         .bind(reviewer_id)
-        .bind(notes)
+        .bind(trimmed_note)
         .bind(id)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await
         .map_err(to_ox_error)?;
 
         if result.rows_affected() == 0 {
+            // Roll back implicitly when `tx` drops without commit —
+            // explicit rollback would just race the drop guard.
             return Err(OxError::NotFound {
                 entity: format!("pending approval request {id}"),
             });
         }
-        Ok(())
+
+        let mirrored = match trimmed_note {
+            Some(body) => Some(
+                sqlx::query_as::<_, ApprovalComment>(
+                    "INSERT INTO approval_comments (approval_id, author_id, body)
+                     VALUES ($1, $2, $3)
+                     RETURNING *",
+                )
+                .bind(id)
+                .bind(reviewer_id)
+                .bind(body)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(to_ox_error)?,
+            ),
+            None => None,
+        };
+
+        tx.commit().await.map_err(to_ox_error)?;
+        Ok(mirrored)
     }
 
     #[tracing::instrument(level = "debug", skip_all)]

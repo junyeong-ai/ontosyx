@@ -87,30 +87,16 @@ pub(crate) async fn review_approval(
 
     let reviewer_id = principal.user_uuid()?;
 
-    // Trim once and re-use for both the legacy review_notes column
-    // and the thread comment so the two surfaces never disagree.
-    let trimmed_note = req.notes.as_deref().map(str::trim).filter(|s| !s.is_empty());
-
+    // Store-level: row update and thread-comment mirror are one
+    // transaction — both writes land or both roll back. The handler
+    // no longer issues a second `create_approval_comment` call; that
+    // was the pre-transaction shape and could leave the visible
+    // thread missing the rationale even though the decision landed.
     state
         .store
-        .review_approval(id, reviewer_id, req.approved, trimmed_note)
+        .review_approval(id, reviewer_id, req.approved, req.notes.as_deref())
         .await
         .map_err(AppError::from)?;
-
-    // Persist the rationale on the thread too so post-decision
-    // viewers see the decision-time note alongside any pre-decision
-    // discussion. Failure to insert the comment must not fail the
-    // review itself — the decision already landed.
-    if let Some(body) = trimmed_note
-        && let Err(err) = state.store.create_approval_comment(id, reviewer_id, body).await
-    {
-        tracing::warn!(
-            approval_id = %id,
-            reviewer_id = %reviewer_id,
-            error = %err,
-            "Failed to mirror review note to comment thread",
-        );
-    }
 
     let status = if req.approved { "approved" } else { "rejected" };
 

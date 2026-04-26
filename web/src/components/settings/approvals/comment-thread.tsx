@@ -2,23 +2,23 @@
 
 // Φ6 #2 proper — comment thread on an approval.
 //
-// Shown alongside (and above) the reviewer-note textarea on a
-// pending row, and surfaced under resolved rows as well so a
-// reader can audit the rationale + any follow-up discussion. The
-// review_notes column on the parent row still records the decision-
-// time rationale for legacy consumers; the backend mirrors that
-// note into this thread on /review so the two surfaces never
-// disagree.
+// Shown on the expanded panel of pending rows (alongside the
+// reviewer-note textarea) and under resolved rows so a reader can
+// audit the rationale + any follow-up discussion. The legacy
+// `review_notes` column on the parent row still records the
+// decision-time rationale; the backend's `review_approval`
+// transactionally mirrors that note into this thread so the two
+// surfaces never disagree (no best-effort log-and-swallow path —
+// either both writes land or both roll back).
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import {
-  type ApprovalComment,
-  createApprovalComment,
-  listApprovalComments,
-} from "@/lib/api/approvals";
+  useApprovalComments,
+  useCreateApprovalComment,
+} from "@/hooks/api/use-approval-comments";
 
 interface CommentThreadProps {
   approvalId: string;
@@ -31,41 +31,33 @@ interface CommentThreadProps {
 
 export function CommentThread({ approvalId, readOnly = false }: CommentThreadProps) {
   const t = useTranslations("settings.approvals.thread");
-  const [comments, setComments] = useState<ApprovalComment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const query = useApprovalComments(approvalId);
+  const mutation = useCreateApprovalComment(approvalId);
   const [draft, setDraft] = useState("");
-  const [posting, setPosting] = useState(false);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      setComments(await listApprovalComments(approvalId));
-    } catch {
-      toast.error(t("loadFailed"));
-    } finally {
-      setLoading(false);
-    }
-  }, [approvalId, t]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
 
   const handlePost = async () => {
     const body = draft.trim();
     if (!body) return;
-    setPosting(true);
     try {
-      const created = await createApprovalComment(approvalId, body);
-      setComments((prev) => [...prev, created]);
+      await mutation.mutateAsync(body);
       setDraft("");
       toast.success(t("posted"));
     } catch {
       toast.error(t("postFailed"));
-    } finally {
-      setPosting(false);
     }
   };
+
+  // Toast on each fresh load failure rather than every render — `isError`
+  // sticks across renders, so a naked `if` would flood the surface.
+  // The dep is `query.errorUpdatedAt` (changes only when a new error
+  // event arrives), not `isError` (a sticky boolean).
+  useEffect(() => {
+    if (query.isError) {
+      toast.error(t("loadFailed"));
+    }
+  }, [query.isError, query.errorUpdatedAt, t]);
+
+  const comments = query.data ?? [];
 
   return (
     <div className="flex flex-col gap-2">
@@ -73,7 +65,7 @@ export function CommentThread({ approvalId, readOnly = false }: CommentThreadPro
         {t("heading")}
       </div>
 
-      {loading ? null : comments.length === 0 ? (
+      {query.isLoading ? null : comments.length === 0 ? (
         <div className="text-xs italic text-muted-foreground">{t("empty")}</div>
       ) : (
         <ul className="flex flex-col gap-2">
@@ -107,10 +99,10 @@ export function CommentThread({ approvalId, readOnly = false }: CommentThreadPro
             <button
               type="button"
               onClick={handlePost}
-              disabled={posting || draft.trim().length === 0}
+              disabled={mutation.isPending || draft.trim().length === 0}
               className="rounded-md bg-zinc-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-200 dark:text-zinc-900 dark:hover:bg-white"
             >
-              {posting ? t("posting") : t("addButton")}
+              {mutation.isPending ? t("posting") : t("addButton")}
             </button>
           </div>
         </div>
