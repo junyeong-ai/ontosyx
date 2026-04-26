@@ -353,6 +353,13 @@ mod tests {
         GRAPH_ONTOLOGY.sync_scope(Arc::new(ontology), body)
     }
 
+    fn with_acl_snapshot<F, R>(snapshot: crate::cypher::AclSnapshot, body: F) -> R
+    where
+        F: FnOnce() -> R,
+    {
+        GRAPH_ACL_SNAPSHOT.sync_scope(Arc::new(snapshot), body)
+    }
+
     fn person_company_ontology() -> OntologyIR {
         OntologyIR::new(
             "ont1".into(),
@@ -629,5 +636,107 @@ mod tests {
         assert!(query_touches_graph(&parse("CREATE (n:Person {name: 'x'})")));
         assert!(!query_touches_graph(&parse("RETURN 1")));
         assert!(!query_touches_graph(&parse("RETURN 'hello'")));
+    }
+
+    #[test]
+    fn acl_deny_runs_in_pipeline_and_yields_zero_rows() {
+        use crate::cypher::{AclAction, AclPolicySpec, AclSnapshot};
+        let snapshot = AclSnapshot {
+            policies: vec![AclPolicySpec {
+                action: AclAction::Deny,
+                resource_type: "label".to_string(),
+                resource_value: Some("Person".to_string()),
+                properties: None,
+                mask_pattern: None,
+                priority: 100,
+            }],
+        };
+        let params = HashMap::new();
+        let strategy = PropertyStrategy;
+        let result = ws_scope(|| {
+            with_acl_snapshot(snapshot, || {
+                run_pre_execute(
+                    Some(&strategy as &dyn GraphIsolationStrategy),
+                    "MATCH (p:Person) RETURN p",
+                    &params,
+                )
+            })
+        });
+        let (rewritten, _) = result.expect("query passes safety + ontology");
+        // SoftDelete + WorkspaceScope inject before us, so the
+        // `false` constant lands inside the combined WHERE rather
+        // than as a leading `WHERE false`. Either shape is correct;
+        // what we want to confirm is that the constant is present.
+        assert!(
+            rewritten.contains("false"),
+            "AclRewriter must inject Deny: {rewritten}"
+        );
+    }
+
+    #[test]
+    fn acl_mask_runs_in_pipeline_and_redacts_property_access() {
+        use crate::cypher::{AclAction, AclPolicySpec, AclSnapshot};
+        let snapshot = AclSnapshot {
+            policies: vec![AclPolicySpec {
+                action: AclAction::Mask,
+                resource_type: "label".to_string(),
+                resource_value: Some("Person".to_string()),
+                properties: Some(vec!["name".to_string()]),
+                mask_pattern: Some("***".to_string()),
+                priority: 100,
+            }],
+        };
+        let params = HashMap::new();
+        let strategy = PropertyStrategy;
+        let result = ws_scope(|| {
+            with_acl_snapshot(snapshot, || {
+                run_pre_execute(
+                    Some(&strategy as &dyn GraphIsolationStrategy),
+                    "MATCH (p:Person) RETURN p.name",
+                    &params,
+                )
+            })
+        });
+        let (rewritten, _) = result.expect("query passes safety + ontology");
+        assert!(rewritten.contains("'***'"), "Mask did not apply: {rewritten}");
+        assert!(!rewritten.contains("p.name"), "raw access leaked: {rewritten}");
+    }
+
+    #[test]
+    fn soft_delete_runs_in_pipeline_and_filters_tombstoned_reads() {
+        let params = HashMap::new();
+        let strategy = PropertyStrategy;
+        let result = ws_scope(|| {
+            run_pre_execute(
+                Some(&strategy as &dyn GraphIsolationStrategy),
+                "MATCH (p:Person) RETURN p",
+                &params,
+            )
+        });
+        let (rewritten, _) = result.expect("query passes safety + ontology");
+        assert!(
+            rewritten.contains("p._deleted_at IS NULL"),
+            "SoftDeleteRewriter must inject tombstone filter: {rewritten}"
+        );
+    }
+
+    #[test]
+    fn soft_delete_skipped_under_system_bypass() {
+        let params = HashMap::new();
+        let strategy = PropertyStrategy;
+        let result = GRAPH_SYSTEM_BYPASS.sync_scope(true, || {
+            ws_scope(|| {
+                run_pre_execute(
+                    Some(&strategy as &dyn GraphIsolationStrategy),
+                    "MATCH (p:Person) RETURN p",
+                    &params,
+                )
+            })
+        });
+        let (rewritten, _) = result.expect("query passes safety + ontology");
+        assert!(
+            !rewritten.contains("_deleted_at"),
+            "SoftDelete must not run under SYSTEM_BYPASS: {rewritten}"
+        );
     }
 }

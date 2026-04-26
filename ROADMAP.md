@@ -19,11 +19,36 @@ lineage naming, ArcSwap live-refresh, parse-once pipeline, JSONB
 ## Current foundations
 
 - **Runtime Cypher pipeline.** `ox-runtime::cypher` owns a partial AST
-  plus two pipelines: `CypherRewriter` for injection passes (workspace
-  isolation lives here; ACL / soft-delete / temporal slot in without
-  forking the surface) and `CypherValidator` for inspection passes
-  (safety gate, ontology conformance, post-rewrite scope check). Every
-  cross-cutting Cypher concern plugs into one of these two pipelines.
+  plus two pipelines: `CypherRewriter` for injection passes
+  (`WorkspaceScopeRewriter` → `AclRewriter` (Deny + Mask) →
+  `SoftDeleteRewriter` → `Custom`, sorted by `RewritePhase`) and
+  `CypherValidator` for inspection passes (`SafetyValidator` with the
+  reserved `system_properties` write guard, ontology conformance,
+  post-rewrite scope check). Every cross-cutting Cypher concern plugs
+  into one of these two pipelines.
+- **ACL enforcement.** `acl_policies` rows project onto an
+  `AclSnapshot` loaded once per request inside the
+  `workspace_context` middleware and threaded through
+  `GRAPH_ACL_SNAPSHOT` + `GRAPH_PRINCIPAL` task-locals. The Cypher
+  pipeline's `AclRewriter` reads the snapshot and rewrites Deny
+  (`WHERE false` injection) + Mask (direct, chained, and bare-var
+  projections rewritten to Cypher map projections). DataFusion
+  federation post-processes `enforce_acl_on_result` because the
+  LogicalPlan executes outside the Cypher pipeline.
+- **Soft-delete + retention.** `SoftDeleteRewriter` injects
+  `<var>._deleted_at IS NULL` on every read and rewrites
+  `DELETE` / `DETACH DELETE` to `SET <var>._deleted_at = timestamp()`,
+  with `DETACH DELETE` additionally hard-detaching edges so traversals
+  don't dead-end on tombstoned nodes. A daily retention compactor
+  hard-deletes rows whose tombstone is older than the configured
+  cutoff (default 90 days).
+- **PII surface.** `ox-ontology::pii` is the single source of truth:
+  `PiiClassifier` suggests annotations from column signals,
+  `PiiAnnotation` carries operator-confirmed kinds into ontology
+  design, `PropertyDef.pii_kind` is the runtime annotation, and
+  `redact_value` / `redact_column_stats` apply deterministic shape-
+  preserving redaction (email keeps the local prefix + TLD, numeric-
+  tail kinds keep the trailing 4, secrets become `<redacted>`).
 - **Data-source layer.** `DataSourceAdapter` exposes five atomic
   primitives (`list_tables`, `describe_table`, `count_rows`,
   `sample_column`, `list_foreign_keys`). `IntrospectionKernel` owns
@@ -59,13 +84,15 @@ lineage naming, ArcSwap live-refresh, parse-once pipeline, JSONB
 
 ### Cypher pipelines
 
-- **Future validators** slot into the `bolt::pipeline::run_pre_execute`
-  pass: `ComplexityValidator` (reject obvious cartesian joins before
-  they hit the DB), `AclValidator` (post-rewrite row-level policy check),
-  `SoftDeleteRewriter` (inject tombstone predicates in the same pipeline
-  position as workspace isolation). The trait surface is intentionally
-  small so adding any of these is "new file, one `impl`, one pipeline
-  registration."
+- **Temporal / as-of queries.** The Cypher rewriter pipeline already
+  sorts a `RewritePhase::Temporal=400` slot above `SoftDelete`; the
+  matching `TemporalRewriter` lands when the PatternIR surface
+  exposes the as-of pivot via a side panel.
+- **DataFusion-side ACL pre-execute.** Federation paths still
+  post-process `enforce_acl_on_result`. A pre-execute hook on the
+  DataFusion plan that mirrors the Cypher rewriter shape would let
+  the federation path drop the post-process in favour of a single
+  consistent enforcement surface.
 - **Warnings / info surface.** `ValidationReport` already carries
   `Warning` / `Info` levels, but `run_pre_execute` currently drops
   non-error issues. Once a request-scoped progress channel reaches the
@@ -79,13 +106,11 @@ lineage naming, ArcSwap live-refresh, parse-once pipeline, JSONB
   validation / quoting helpers only. A compose-based integration suite
   that spins up a credentialed Snowflake workspace is out of scope
   today but belongs in the CI backlog.
-- **BigQuery equivalent** — same gap. `gcp-bigquery-client 0.22` exposes
-  Application Default Credentials directly; the integration test path
-  is blocked only on a GCP project provisioned for CI.
-- **Per-column PII sampling.** `sample_column` returns `ColumnStats`
-  today. PII-aware sampling (masking emails in samples, redacting
-  payment-card column values) would live inside `sample_column` itself
-  so every downstream consumer inherits the guarantee.
+- **BigQuery integration tests in CI.** The matrix lives behind the
+  `bigquery-integration-tests` cargo feature with deterministic
+  alphabetic-first table selection. `OXY_REQUIRE_BIGQUERY_TESTS=true`
+  escalates the silent skip into a hard failure on CI shards with
+  workload-identity wired up.
 
 ### Query IR
 
@@ -117,21 +142,20 @@ lineage naming, ArcSwap live-refresh, parse-once pipeline, JSONB
   blocked on an arrow-version upgrade (the workspace pins arrow 55
   via DataFusion 49; duckdb 1.x needs arrow 58). The upgrade bundles
   DataFusion + snowflake-api + gcp-bigquery-client together.
-- **Extended secret-store backends for `data_sources.config`.** The
-  `env:VAR_NAME` and `file:/path/to/secret` schemes work today via
-  `EnvSecretResolver` + `FileSecretResolver` in `credential.rs`
-  (the latter aimed at Kubernetes projected-volume mounts —
-  reads the target file, trims trailing whitespace, refuses
-  empty / relative-path references). Future schemes (`vault:`,
-  `aws-sm:`, `gcp-sm:`) plug into `CompositeSecretResolver` via one
-  `impl SecretResolver` + one `.register("<scheme>:", …)` call —
-  the call-sites do not change.
-- **Full axum handler test harness.** Pipeline-level tests cover
-  every crate individually (federation planner, admin store CRUD,
-  Arrow conversion); a test that constructs a hand-built `AppState`
-  and exercises the HTTP handlers through `Router::oneshot` would
-  pin the JSON wire format and the auth/ACL plumbing at the same
-  time.
+- **Extended secret-store backends for `data_sources.config`.**
+  `env:`, `file:` (sandboxed to allowed roots, trims trailing
+  whitespace), and `gcp-sm:` (ADC chain — `GOOGLE_APPLICATION_CREDENTIALS` →
+  `~/.config/gcloud/application_default_credentials.json` → workload
+  identity, opt-in via `[server.gcp_sm]` config) ship today.
+  Vault / AWS Secrets Manager land under the same one-impl-plus-one-
+  registration pattern when an operator brings the use case.
+- **Wire-shape handler tests.** `crate::test_support::TestApp::new(Router)`
+  is the canonical harness — assemble a focused `Router` (route
+  list + narrow state + auth/workspace layer helpers), drive it
+  through `Service::oneshot`, parse the JSON envelope. `mockall`
+  generates per-trait fakes (`MockApprovalStore` is the first;
+  sister mocks land in `test_support` as more handlers grow
+  coverage).
 - **Frontend admin UI for federation adapters.** `/api/admin/federation/adapters`
   is curl-only today. The workbench needs a small registration form
   (source_id + kind + payload) and a listing panel in the admin
