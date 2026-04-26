@@ -26,7 +26,9 @@ use tracing::{info, warn};
 
 use ox_core::error::{OxError, OxResult};
 use ox_ontology::source_analysis::ENUM_CARDINALITY_THRESHOLD;
-use ox_core::source_schema::{ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef};
+use ox_core::source_schema::{
+    ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef, TableSummary,
+};
 
 use crate::DataSourceAdapter;
 use crate::normalize::describe_to_arrow_schema;
@@ -120,6 +122,54 @@ impl DataSourceAdapter for PostgresAdapter {
         .map_err(|e| OxError::Runtime {
             message: format!("Failed to list tables: {e}"),
         })
+    }
+
+    async fn list_tables_with_summary(&self) -> OxResult<Vec<TableSummary>> {
+        // Cheap fast path: information_schema for column count joined
+        // against pg_stat_user_tables for autovacuum-maintained row
+        // estimate + last analyze timestamp. No per-table round-trips.
+        #[derive(sqlx::FromRow)]
+        struct Row {
+            table_name: String,
+            column_count: Option<i64>,
+            n_live_tup: Option<i64>,
+            last_modified: Option<chrono::DateTime<chrono::Utc>>,
+        }
+        let rows = sqlx::query_as::<_, Row>(
+            "SELECT t.table_name AS table_name, \
+                    (SELECT COUNT(*)::bigint \
+                       FROM information_schema.columns c \
+                      WHERE c.table_schema = t.table_schema \
+                        AND c.table_name = t.table_name) AS column_count, \
+                    s.n_live_tup AS n_live_tup, \
+                    GREATEST(s.last_autoanalyze, s.last_analyze) AS last_modified \
+             FROM information_schema.tables t \
+             LEFT JOIN pg_stat_user_tables s \
+               ON s.schemaname = t.table_schema \
+              AND s.relname = t.table_name \
+             WHERE t.table_schema = $1 \
+               AND t.table_type = 'BASE TABLE' \
+             ORDER BY t.table_name",
+        )
+        .bind(&self.schema_name)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| OxError::Runtime {
+            message: format!("Failed to list table summaries: {e}"),
+        })?;
+
+        Ok(rows
+            .into_iter()
+            .map(|r| TableSummary {
+                name: r.table_name,
+                estimated_row_count: r
+                    .n_live_tup
+                    .filter(|&n| n >= 0)
+                    .map(|n| n as u64),
+                column_count: r.column_count.unwrap_or(0).max(0) as u32,
+                last_modified: r.last_modified,
+            })
+            .collect())
     }
 
     async fn describe_table(&self, table: &str) -> OxResult<SourceTableDef> {

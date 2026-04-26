@@ -32,7 +32,9 @@ use ox_ontology::source_analysis::ENUM_CARDINALITY_THRESHOLD;
 
 use crate::normalize::describe_to_arrow_schema;
 use crate::text_scan::{append_text_cell, make_builder};
-use ox_core::source_schema::{ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef};
+use ox_core::source_schema::{
+    ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef, TableSummary,
+};
 
 use crate::DataSourceAdapter;
 
@@ -202,6 +204,54 @@ impl DataSourceAdapter for BigQueryAdapter {
             }
         }
         Ok(tables)
+    }
+
+    async fn list_tables_with_summary(&self) -> OxResult<Vec<TableSummary>> {
+        // `__TABLES__` carries per-table row count + last_modified_time
+        // (millis since epoch). Column count joins from
+        // INFORMATION_SCHEMA.COLUMNS via a correlated subquery — both
+        // tables are dataset-scoped, so the path stays within one
+        // backtick segment.
+        let sql = format!(
+            "SELECT t.table_id AS table_name, \
+                    (SELECT COUNT(*) \
+                       FROM `{project}.{dataset}.INFORMATION_SCHEMA.COLUMNS` c \
+                      WHERE c.table_name = t.table_id) AS column_count, \
+                    t.row_count, \
+                    t.last_modified_time \
+             FROM `{project}.{dataset}.__TABLES__` t \
+             ORDER BY t.table_id",
+            project = self.project_id,
+            dataset = self.dataset,
+        );
+        let mut rs = self.run_query(&sql).await?;
+        let mut out = Vec::new();
+        while rs.next_row() {
+            let name = match rs.get_string_by_name("table_name").map_err(bq_row_err)? {
+                Some(n) => n,
+                None => continue,
+            };
+            let column_count = rs
+                .get_i64_by_name("column_count")
+                .map_err(bq_row_err)?
+                .and_then(|n| u32::try_from(n.max(0)).ok())
+                .unwrap_or(0);
+            let row_count = rs
+                .get_i64_by_name("row_count")
+                .map_err(bq_row_err)?
+                .and_then(|n| u64::try_from(n.max(0)).ok());
+            let last_modified = rs
+                .get_i64_by_name("last_modified_time")
+                .map_err(bq_row_err)?
+                .and_then(chrono::DateTime::<chrono::Utc>::from_timestamp_millis);
+            out.push(TableSummary {
+                name,
+                estimated_row_count: row_count,
+                column_count,
+                last_modified,
+            });
+        }
+        Ok(out)
     }
 
     async fn describe_table(&self, table: &str) -> OxResult<SourceTableDef> {

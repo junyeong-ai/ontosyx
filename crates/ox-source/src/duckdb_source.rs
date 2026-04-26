@@ -16,7 +16,7 @@ use async_trait::async_trait;
 use tracing::info;
 
 use ox_core::error::{OxError, OxResult};
-use ox_core::source_schema::{ColumnStats, SourceColumnDef, SourceTableDef};
+use ox_core::source_schema::{ColumnStats, SourceColumnDef, SourceTableDef, TableSummary};
 
 use crate::DataSourceAdapter;
 
@@ -245,6 +245,32 @@ impl DataSourceAdapter for DuckDbAdapter {
     async fn list_tables(&self) -> OxResult<Vec<String>> {
         // DuckDB in-process wraps a single virtual view over the file.
         Ok(vec![VIEW_NAME.to_string()])
+    }
+
+    async fn list_tables_with_summary(&self) -> OxResult<Vec<TableSummary>> {
+        // The adapter exposes one virtual view; describe + count are the
+        // cheapest path to populate the summary, and the underlying file
+        // already owns a stable on-disk representation so a single
+        // round-trip suffices. `last_modified` reads the file's mtime —
+        // a correct, free signal of "this scan window".
+        let described = self.describe_table(VIEW_NAME).await?;
+        let row_count = self.count_rows(VIEW_NAME).await.ok();
+        let last_modified = std::fs::metadata(&self.file_path)
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .and_then(|d| {
+                chrono::DateTime::<chrono::Utc>::from_timestamp(
+                    d.as_secs() as i64,
+                    d.subsec_nanos(),
+                )
+            });
+        Ok(vec![TableSummary {
+            name: VIEW_NAME.to_string(),
+            estimated_row_count: row_count,
+            column_count: u32::try_from(described.columns.len()).unwrap_or(u32::MAX),
+            last_modified,
+        }])
     }
 
     async fn describe_table(&self, _table: &str) -> OxResult<SourceTableDef> {

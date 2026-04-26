@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 use ox_core::error::{OxError, OxResult};
 use ox_core::source_schema::{
     ColumnStats, ForeignKeyDef, SourceColumnDef, SourceProfile, SourceSchema, SourceTableDef,
-    TableProfile,
+    TableProfile, TableSummary,
 };
 use serde_json::Value;
 
@@ -599,6 +599,23 @@ impl JsonAdapter {
     }
 }
 
+/// Build a [`TableSummary`] for one entry of an in-memory CSV / JSON
+/// adapter: row count comes from the pre-computed `counts_by_table`
+/// map, column count from the schema's column slice. Inline payloads
+/// have no `last_modified` because the analyzer runs on a string —
+/// it never sees the source file's mtime.
+fn summary_from_schema(
+    table: &SourceTableDef,
+    counts_by_table: &HashMap<String, u64>,
+) -> TableSummary {
+    TableSummary {
+        name: table.name.clone(),
+        estimated_row_count: counts_by_table.get(&table.name).copied(),
+        column_count: u32::try_from(table.columns.len()).unwrap_or(u32::MAX),
+        last_modified: None,
+    }
+}
+
 #[async_trait]
 impl DataSourceAdapter for CsvAdapter {
     fn source_type(&self) -> &str {
@@ -606,6 +623,14 @@ impl DataSourceAdapter for CsvAdapter {
     }
     async fn list_tables(&self) -> OxResult<Vec<String>> {
         Ok(list_tables_from_schema(&self.schema))
+    }
+    async fn list_tables_with_summary(&self) -> OxResult<Vec<TableSummary>> {
+        Ok(self
+            .schema
+            .tables
+            .iter()
+            .map(|t| summary_from_schema(t, &self.counts_by_table))
+            .collect())
     }
     async fn describe_table(&self, table: &str) -> OxResult<SourceTableDef> {
         describe_from_schema(&self.schema, table)
@@ -644,6 +669,14 @@ impl DataSourceAdapter for JsonAdapter {
     }
     async fn list_tables(&self) -> OxResult<Vec<String>> {
         Ok(list_tables_from_schema(&self.schema))
+    }
+    async fn list_tables_with_summary(&self) -> OxResult<Vec<TableSummary>> {
+        Ok(self
+            .schema
+            .tables
+            .iter()
+            .map(|t| summary_from_schema(t, &self.counts_by_table))
+            .collect())
     }
     async fn describe_table(&self, table: &str) -> OxResult<SourceTableDef> {
         describe_from_schema(&self.schema, table)
@@ -1125,6 +1158,47 @@ mod tests {
         assert_eq!(schema.tables[0].primary_key, vec!["id".to_string()]);
         assert_eq!(profile.table_profiles[0].row_count, 3);
         assert_eq!(profile.table_profiles[0].column_stats[1].distinct_count, 3);
+    }
+
+    #[tokio::test]
+    async fn csv_adapter_list_tables_with_summary_carries_row_and_column_counts() {
+        let csv = "id,status,name\n1,1,Alice\n2,2,Bob\n3,3,Charlie\n";
+        let adapter = CsvAdapter::new(csv).expect("adapter built");
+        let summaries = adapter
+            .list_tables_with_summary()
+            .await
+            .expect("summary listing succeeds");
+        assert_eq!(summaries.len(), 1);
+        let s = &summaries[0];
+        assert_eq!(s.name, "records");
+        assert_eq!(s.estimated_row_count, Some(3));
+        assert_eq!(s.column_count, 3);
+        assert!(s.last_modified.is_none(), "inline payload has no mtime");
+    }
+
+    #[tokio::test]
+    async fn json_adapter_list_tables_with_summary_includes_child_tables() {
+        let json = r#"[{"id":1,"meta":{"tier":"gold"}},{"id":2,"meta":{"tier":"silver"}}]"#;
+        let adapter = JsonAdapter::new(json).expect("adapter built");
+        let summaries = adapter
+            .list_tables_with_summary()
+            .await
+            .expect("summary listing succeeds");
+        let names: BTreeSet<&str> = summaries.iter().map(|s| s.name.as_str()).collect();
+        assert!(names.contains("records"));
+        assert!(names.contains("records_meta"));
+        let parent = summaries
+            .iter()
+            .find(|s| s.name == "records")
+            .expect("parent summary");
+        assert_eq!(parent.estimated_row_count, Some(2));
+        // Parent column count includes inlined scalar fields only (id),
+        // because nested objects become child tables — `meta` does not
+        // count as a parent column under the CSV/JSON adapter rules.
+        assert!(
+            parent.column_count >= 1,
+            "parent must surface at least its scalar columns",
+        );
     }
 
     #[test]

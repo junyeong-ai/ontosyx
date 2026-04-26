@@ -643,6 +643,23 @@ mod tests {
                 .pop_front()
                 .expect("ScriptedAdapter: no more scripted responses")
         }
+        async fn list_tables_with_summary(
+            &self,
+        ) -> OxResult<Vec<ox_core::source_schema::TableSummary>> {
+            // Test scaffolding mirrors `list_tables` — every name maps
+            // to an empty summary. Production adapters override this
+            // with backend-native catalog lookups.
+            let names = self.list_tables().await?;
+            Ok(names
+                .into_iter()
+                .map(|name| ox_core::source_schema::TableSummary {
+                    name,
+                    estimated_row_count: None,
+                    column_count: 0,
+                    last_modified: None,
+                })
+                .collect())
+        }
         async fn describe_table(&self, table: &str) -> OxResult<SourceTableDef> {
             Ok(SourceTableDef {
                 name: table.to_string(),

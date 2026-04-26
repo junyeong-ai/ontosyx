@@ -24,7 +24,9 @@ use snowflake_api::{QueryResult, SnowflakeApi};
 
 use ox_core::error::{OxError, OxResult};
 use ox_ontology::source_analysis::ENUM_CARDINALITY_THRESHOLD;
-use ox_core::source_schema::{ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef};
+use ox_core::source_schema::{
+    ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef, TableSummary,
+};
 
 use crate::DataSourceAdapter;
 
@@ -232,6 +234,57 @@ impl DataSourceAdapter for SnowflakeAdapter {
             .into_iter()
             .filter_map(|r| r.into_iter().next().and_then(|c| c))
             .collect())
+    }
+
+    async fn list_tables_with_summary(&self) -> OxResult<Vec<TableSummary>> {
+        // Single round-trip: ROW_COUNT is the maintained estimate,
+        // LAST_ALTERED is the DDL/DML high-water mark, COLUMN_COUNT
+        // joins via a correlated subquery against
+        // INFORMATION_SCHEMA.COLUMNS.
+        let sql = format!(
+            "SELECT t.TABLE_NAME, \
+                    (SELECT COUNT(*) \
+                       FROM {db}.INFORMATION_SCHEMA.COLUMNS c \
+                      WHERE c.TABLE_SCHEMA = t.TABLE_SCHEMA \
+                        AND c.TABLE_NAME = t.TABLE_NAME) AS COLUMN_COUNT, \
+                    t.ROW_COUNT, \
+                    TO_VARCHAR(t.LAST_ALTERED, 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS LAST_ALTERED \
+             FROM {db}.INFORMATION_SCHEMA.TABLES t \
+             WHERE t.TABLE_SCHEMA = {schema} AND t.TABLE_TYPE = 'BASE TABLE' \
+             ORDER BY t.TABLE_NAME",
+            db = quote_ident(&self.database),
+            schema = quote_literal(&self.schema),
+        );
+        let rows = self.exec_rows(&sql).await?;
+
+        let mut out = Vec::with_capacity(rows.len());
+        for row in rows {
+            let name = match row.first().and_then(|c| c.clone()) {
+                Some(n) => n,
+                None => continue,
+            };
+            let column_count = row
+                .get(1)
+                .and_then(|c| c.as_ref())
+                .and_then(|s| s.parse::<u32>().ok())
+                .unwrap_or(0);
+            let estimated_row_count = row
+                .get(2)
+                .and_then(|c| c.as_ref())
+                .and_then(|s| s.parse::<u64>().ok());
+            let last_modified = row
+                .get(3)
+                .and_then(|c| c.as_ref())
+                .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                .map(|dt| dt.with_timezone(&chrono::Utc));
+            out.push(TableSummary {
+                name,
+                estimated_row_count,
+                column_count,
+                last_modified,
+            });
+        }
+        Ok(out)
     }
 
     async fn describe_table(&self, table: &str) -> OxResult<SourceTableDef> {

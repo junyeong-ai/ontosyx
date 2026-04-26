@@ -47,7 +47,7 @@ pub use graph_label::GraphLabel;
 pub use i18n::{LanguageTag, LocaleError, LocalizedText};
 pub use prompt_version::PromptVersion;
 pub use property_key::PropertyKey;
-pub use source_schema::{SourceProfile, SourceSchema};
+pub use source_schema::{SchemaFingerprint, SourceProfile, SourceSchema, TableSummary};
 pub use types::{escape_cypher_identifier, is_valid_graph_identifier, sanitize_variable};
 pub use variable_name::VariableName;
 

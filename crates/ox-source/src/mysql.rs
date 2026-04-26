@@ -27,7 +27,9 @@ use sqlx::mysql::{MySqlPool, MySqlPoolOptions, MySqlRow};
 use tracing::{info, warn};
 
 use ox_core::error::{OxError, OxResult};
-use ox_core::source_schema::{ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef};
+use ox_core::source_schema::{
+    ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef, TableSummary,
+};
 
 use crate::DataSourceAdapter;
 use crate::normalize::describe_to_arrow_schema;
@@ -94,6 +96,50 @@ impl DataSourceAdapter for MysqlAdapter {
         .map_err(|e| OxError::Runtime {
             message: format!("Failed to list tables: {e}"),
         })
+    }
+
+    async fn list_tables_with_summary(&self) -> OxResult<Vec<TableSummary>> {
+        // Single round-trip: TABLE_ROWS is InnoDB's autovacuum-equivalent
+        // estimate, UPDATE_TIME is set when the table file's last write
+        // landed (NULL for tables never written through the server).
+        // Column count comes from a correlated subquery against
+        // information_schema.COLUMNS.
+        #[derive(sqlx::FromRow)]
+        struct Row {
+            table_name: String,
+            column_count: Option<i64>,
+            table_rows: Option<u64>,
+            update_time: Option<chrono::DateTime<chrono::Utc>>,
+        }
+        let rows = sqlx::query_as::<_, Row>(
+            "SELECT t.TABLE_NAME AS table_name, \
+                    (SELECT COUNT(*) \
+                       FROM information_schema.COLUMNS c \
+                      WHERE c.TABLE_SCHEMA = t.TABLE_SCHEMA \
+                        AND c.TABLE_NAME = t.TABLE_NAME) AS column_count, \
+                    t.TABLE_ROWS AS table_rows, \
+                    t.UPDATE_TIME AS update_time \
+             FROM information_schema.TABLES t \
+             WHERE t.TABLE_SCHEMA = ? \
+               AND t.TABLE_TYPE = 'BASE TABLE' \
+             ORDER BY t.TABLE_NAME",
+        )
+        .bind(&self.schema_name)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| OxError::Runtime {
+            message: format!("Failed to list table summaries: {e}"),
+        })?;
+
+        Ok(rows
+            .into_iter()
+            .map(|r| TableSummary {
+                name: r.table_name,
+                estimated_row_count: r.table_rows,
+                column_count: r.column_count.unwrap_or(0).max(0) as u32,
+                last_modified: r.update_time,
+            })
+            .collect())
     }
 
     async fn describe_table(&self, table: &str) -> OxResult<SourceTableDef> {

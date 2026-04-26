@@ -33,7 +33,9 @@ use tokio::sync::OnceCell;
 use tracing::{info, warn};
 
 use ox_core::error::{OxError, OxResult};
-use ox_core::source_schema::{ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef};
+use ox_core::source_schema::{
+    ColumnStats, ForeignKeyDef, SourceColumnDef, SourceTableDef, TableSummary,
+};
 
 use crate::DataSourceAdapter;
 
@@ -305,6 +307,47 @@ impl DataSourceAdapter for MongoAdapter {
     async fn list_tables(&self) -> OxResult<Vec<String>> {
         let snap = self.snapshot().await?;
         Ok(snap.tables.iter().map(|t| t.name.clone()).collect())
+    }
+
+    async fn list_tables_with_summary(&self) -> OxResult<Vec<TableSummary>> {
+        // Cheap path: enumerate real collections + estimatedDocumentCount.
+        // We deliberately bypass `snapshot()` because the snapshot triggers
+        // full sampling (purpose-built for full introspection); selection
+        // UIs need a fast preview that doesn't pay that cost. Synthesised
+        // child tables (from nested documents) are intentionally absent —
+        // they're a sampling artefact, not a user-pickable entity.
+        let db = self.db();
+        let raw_names = db
+            .list_collection_names()
+            .await
+            .map_err(|e| OxError::Runtime {
+                message: format!("Failed to list collections: {e}"),
+            })?;
+        let mut names: Vec<String> = raw_names
+            .into_iter()
+            .filter(|n| !n.starts_with("system."))
+            .collect();
+        names.sort();
+
+        let mut out = Vec::with_capacity(names.len());
+        for name in names {
+            let count = db
+                .collection::<Document>(&name)
+                .estimated_document_count()
+                .await
+                .ok();
+            out.push(TableSummary {
+                name,
+                estimated_row_count: count,
+                // Document count without sampling — shapes are
+                // heterogeneous, so a single number doesn't apply. The
+                // caller picks tables and `describe_table` produces the
+                // sampled column set on demand.
+                column_count: 0,
+                last_modified: None,
+            });
+        }
+        Ok(out)
     }
 
     async fn describe_table(&self, table: &str) -> OxResult<SourceTableDef> {
