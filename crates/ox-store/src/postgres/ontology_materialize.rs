@@ -1062,6 +1062,7 @@ pub(super) fn assemble_ir(
         Vec::new();
     let mut concept_maps: Vec<ox_ontology::concept_map::ConceptMapDef> = Vec::new();
     let mut value_range_sets: Vec<ox_ontology::value_range::ValueRangeSetDef> = Vec::new();
+    let mut column_profiles: Vec<ox_ontology::column_profile::ColumnProfileDef> = Vec::new();
 
     for row in rows {
         let kind = EntityKind::parse(&row.entity_kind)?;
@@ -1118,6 +1119,9 @@ pub(super) fn assemble_ir(
             }
             EntityKind::ValueRangeSet => {
                 value_range_sets.push(serde_json::from_value(row.content.clone())?)
+            }
+            EntityKind::ColumnProfile => {
+                column_profiles.push(serde_json::from_value(row.content.clone())?)
             }
         }
     }
@@ -1231,6 +1235,11 @@ pub(super) fn assemble_ir(
         ir.add_value_range_set(rs).map_err(|e| OxError::Runtime {
             message: format!("add_value_range_set during hydration: {e:?}"),
         })?;
+    }
+    for cp in column_profiles {
+        // `add_column_profile` is upsert-by-id and infallible — no
+        // OntologyInvariantError shape exists for this collection.
+        ir.add_column_profile(cp);
     }
 
     Ok(ir)

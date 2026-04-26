@@ -146,6 +146,8 @@ struct OntologyLookup {
     concept_map_id_idx: HashMap<crate::concept_map::ConceptMapId, usize>,
     // Ω-7: value range sets.
     value_range_set_id_idx: HashMap<crate::value_range::ValueRangeSetId, usize>,
+    // Φ3: per-column distribution snapshots.
+    column_profile_id_idx: HashMap<crate::column_profile::ColumnProfileId, usize>,
 }
 
 /// Current on-wire schema version for `OntologyIR` JSONB. Bumped whenever
@@ -167,7 +169,12 @@ struct OntologyLookup {
 ///   `code_systems: Vec<CodeSystemDef>` (with nested `CodedValue`
 ///   entries). Same defaults-to-empty guarantee — a v2 payload
 ///   round-trips through v3 unchanged.
-pub const ONTOLOGY_IR_SCHEMA_VERSION: u32 = 3;
+/// - `4` — Phase Φ3 wiring: adds the
+///   `column_profiles: Vec<ColumnProfileDef>` collection so the
+///   data-distribution snapshot the introspection kernel produced
+///   survives commit / hydrate cycles. Defaults-to-empty, so a v3
+///   payload round-trips through v4 unchanged.
+pub const ONTOLOGY_IR_SCHEMA_VERSION: u32 = 4;
 
 fn default_ontology_ir_schema_version() -> u32 {
     ONTOLOGY_IR_SCHEMA_VERSION
@@ -270,6 +277,14 @@ pub struct OntologyIR {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) value_range_sets: Vec<crate::value_range::ValueRangeSetDef>,
 
+    /// Φ3 — per-column distribution snapshots. Keyed by
+    /// `(source_id, relation, column)`. Ingested from `SourceProfile`
+    /// via [`OntologyIR::ingest_source_profile`] so re-running
+    /// value-set / notation-pattern inference doesn't require a
+    /// source rescan.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(crate) column_profiles: Vec<crate::column_profile::ColumnProfileDef>,
+
     /// Precomputed lookup indices — not serialized, rebuilt on deserialize.
     #[serde(skip)]
     #[schemars(skip)]
@@ -326,6 +341,8 @@ impl<'de> Deserialize<'de> for OntologyIR {
             concept_maps: Vec<crate::concept_map::ConceptMapDef>,
             #[serde(default)]
             value_range_sets: Vec<crate::value_range::ValueRangeSetDef>,
+            #[serde(default)]
+            column_profiles: Vec<crate::column_profile::ColumnProfileDef>,
         }
 
         let w = Wire::deserialize(deserializer)?;
@@ -367,6 +384,7 @@ impl<'de> Deserialize<'de> for OntologyIR {
         ont.notation_patterns = w.notation_patterns;
         ont.concept_maps = w.concept_maps;
         ont.value_range_sets = w.value_range_sets;
+        ont.column_profiles = w.column_profiles;
         ont.rebuild_indices().map_err(serde::de::Error::custom)?;
         Ok(ont)
     }
@@ -455,6 +473,7 @@ impl OntologyIR {
             notation_patterns: Vec::new(),
             concept_maps: Vec::new(),
             value_range_sets: Vec::new(),
+            column_profiles: Vec::new(),
             lookup: OntologyLookup::default(),
         };
         ont.rebuild_indices()?;
@@ -594,6 +613,7 @@ impl OntologyIR {
         index_collection!(notation_patterns, notation_pattern_id_idx, "notation_pattern");
         index_collection!(concept_maps, concept_map_id_idx, "concept_map");
         index_collection!(value_range_sets, value_range_set_id_idx, "value_range_set");
+        index_collection!(column_profiles, column_profile_id_idx, "column_profile");
 
         self.lookup = lookup;
         Ok(())
@@ -880,6 +900,13 @@ impl OntologyIR {
         &self.link_mappings
     }
 
+    /// Φ3 — every per-column distribution snapshot the IR carries.
+    /// Ingested from a [`SourceProfile`] via
+    /// [`OntologyIR::ingest_source_profile`].
+    pub fn column_profiles(&self) -> &[crate::column_profile::ColumnProfileDef] {
+        &self.column_profiles
+    }
+
     /// Append an interface definition. Fails with
     /// [`OntologyInvariantError::DuplicateCollectionId`] when the id
     /// is already in use (Phase 5-D enforcement).
@@ -1037,6 +1064,61 @@ impl OntologyIR {
         }
         self.link_mappings.push(def);
         self.rebuild_indices()
+    }
+
+    /// Φ3 — append (or upsert by id) a column profile snapshot.
+    ///
+    /// Identity is `(source_id, relation, column)` — encoded into the
+    /// stable `ColumnProfileId` via
+    /// [`crate::column_profile::ColumnProfileDef::make_id`]. A
+    /// re-snapshot of the same location *replaces* the previous entry
+    /// rather than erroring on duplicate id, because the IR's
+    /// contract is "always carry the most recent profile per
+    /// location" — re-introspection should not require a delete first.
+    pub fn add_column_profile(
+        &mut self,
+        def: crate::column_profile::ColumnProfileDef,
+    ) {
+        if let Some(&idx) = self.lookup.column_profile_id_idx.get(&def.id) {
+            self.column_profiles[idx] = def;
+        } else {
+            self.column_profiles.push(def);
+        }
+        // `rebuild_indices` is infallible here — the upsert keeps id
+        // uniqueness by construction, so no `DuplicateCollectionId`
+        // can fire. We still call it to keep every other lookup map
+        // (which we may have invalidated by mutating
+        // `column_profiles`) in sync.
+        let _ = self.rebuild_indices();
+    }
+
+    /// Φ3 — bulk-ingest every column entry of a [`SourceProfile`] for
+    /// a given source. Each `(table, column)` pair becomes (or
+    /// replaces) one [`ColumnProfileDef`] entry stamped with
+    /// `sampled_at`.
+    ///
+    /// `source_id` is the same identifier the matching
+    /// `ObjectMappingDef` uses, so the snapshot is queryable by the
+    /// same key the rest of the IR addresses the source by.
+    ///
+    /// Returns the count of entries added or updated. Use this from
+    /// the post-`analyze_*` pipeline so the IR captures the full
+    /// distribution snapshot the kernel just computed without
+    /// requiring a second round-trip to the source.
+    pub fn ingest_source_profile(
+        &mut self,
+        source_id: &crate::mapping::SourceId,
+        profile: &ox_core::source_schema::SourceProfile,
+        sampled_at: chrono::DateTime<chrono::Utc>,
+    ) -> usize {
+        let entries = crate::column_profile::profile_to_column_defs(
+            source_id, profile, sampled_at,
+        );
+        let n = entries.len();
+        for entry in entries {
+            self.add_column_profile(entry);
+        }
+        n
     }
 
     /// Ω-7: add a [`crate::value_range::ValueRangeSetDef`]. Optional
@@ -1441,6 +1523,17 @@ impl OntologyIR {
             .value_range_set_id_idx
             .get(id)
             .map(|&i| &self.value_range_sets[i])
+    }
+
+    /// Φ3 — O(1) lookup for a column profile by id.
+    pub fn column_profile_by_id(
+        &self,
+        id: &crate::column_profile::ColumnProfileId,
+    ) -> Option<&crate::column_profile::ColumnProfileDef> {
+        self.lookup
+            .column_profile_id_idx
+            .get(id)
+            .map(|&i| &self.column_profiles[i])
     }
 
     /// Ω-1 terminology — O(1) lookup for a coded value by id. The

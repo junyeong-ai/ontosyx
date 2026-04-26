@@ -101,6 +101,10 @@ pub enum EntityKind {
     NotationPattern,
     ConceptMap,
     ValueRangeSet,
+    /// Φ3 — per-column distribution snapshot. Carries the
+    /// `(source_id, relation, column)` location plus the
+    /// `ColumnStats` payload from the introspection kernel.
+    ColumnProfile,
 }
 
 impl EntityKind {
@@ -129,6 +133,7 @@ impl EntityKind {
             EntityKind::NotationPattern => "notation_pattern",
             EntityKind::ConceptMap => "concept_map",
             EntityKind::ValueRangeSet => "value_range_set",
+            EntityKind::ColumnProfile => "column_profile",
         }
     }
 
@@ -160,6 +165,7 @@ impl EntityKind {
             "notation_pattern" => EntityKind::NotationPattern,
             "concept_map" => EntityKind::ConceptMap,
             "value_range_set" => EntityKind::ValueRangeSet,
+            "column_profile" => EntityKind::ColumnProfile,
             other => {
                 return Err(OxError::Runtime {
                     message: format!(
@@ -405,6 +411,9 @@ pub fn extract_entities(ir: &OntologyIR) -> OxResult<Vec<ExtractedEntity>> {
     for rs in ir.value_range_sets() {
         out.push(extract(EntityKind::ValueRangeSet, &rs.id, rs)?);
     }
+    for cp in ir.column_profiles() {
+        out.push(extract(EntityKind::ColumnProfile, &cp.id, cp)?);
+    }
 
     Ok(out)
 }
@@ -505,6 +514,7 @@ mod tests {
             EntityKind::NotationPattern,
             EntityKind::ConceptMap,
             EntityKind::ValueRangeSet,
+            EntityKind::ColumnProfile,
         ] {
             let wire = kind.as_str();
             let back = EntityKind::parse(wire).unwrap();

@@ -124,6 +124,7 @@ impl OntologyIR {
         merge_metrics(self, other.metrics, &mut report)?;
         merge_enrichments(self, other.enrichments, &mut report)?;
         merge_data_qualities(self, other.data_quality, &mut report)?;
+        merge_column_profiles(self, other.column_profiles, &mut report);
 
         Ok(report)
     }
@@ -682,6 +683,47 @@ fn merge_enrichments(
     Ok(())
 }
 
+/// Φ3 — column profile merge has *upsert* semantics, not the
+/// add/skip/conflict triad the other collections use. The IR's
+/// contract for column profiles is "always carry the most recent
+/// snapshot per `(source_id, relation, column)` location" — a fresh
+/// extension scan that re-profiles a column should overwrite the
+/// stale entry rather than flag it as a conflict.
+///
+/// Reflected in the report: each entry lands in `added` (new id) or
+/// `skipped` (id present, content matches). A different-content
+/// entry for the same id is logged in `added` too because the upsert
+/// did materially update the IR — calling it "skipped" would
+/// understate what happened.
+fn merge_column_profiles(
+    base: &mut OntologyIR,
+    incoming: Vec<crate::column_profile::ColumnProfileDef>,
+    report: &mut MergeReport,
+) {
+    for item in incoming {
+        let id_str = item.id.to_string();
+        let existing = base
+            .column_profiles()
+            .iter()
+            .find(|n| n.id == item.id)
+            .cloned();
+        let kind = match existing {
+            Some(prev) if prev == item => "skipped",
+            _ => "added",
+        };
+        base.add_column_profile(item);
+        let entry = MergedItem {
+            kind: "column_profile".into(),
+            id: id_str,
+        };
+        if kind == "skipped" {
+            report.skipped.push(entry);
+        } else {
+            report.added.push(entry);
+        }
+    }
+}
+
 fn merge_data_qualities(
     base: &mut OntologyIR,
     incoming: Vec<crate::data_quality::DataQualityDef>,
@@ -719,6 +761,7 @@ mod tests {
     use ox_core::graph_label::GraphLabel;
     use ox_core::i18n::LocalizedText;
 
+    use super::MergedItem;
     use crate::ir::{EdgeTypeDef, NodeTypeDef, OntologyIR};
 
     fn label(s: &'static str) -> GraphLabel {
@@ -801,6 +844,45 @@ mod tests {
         assert!(kept.is_some());
         let canonical = kept.expect("kept");
         assert_eq!(canonical.description.default, "original description");
+    }
+
+    #[test]
+    fn extend_upserts_column_profiles_by_id() {
+        use crate::column_profile::ColumnProfileDef;
+        use crate::mapping::SourceId;
+        use chrono::Utc;
+        use ox_core::source_schema::ColumnStats;
+
+        let mut base = empty_ir("base");
+        let mut other = empty_ir("other");
+        let stats_v1 = ColumnStats {
+            column_name: "email".into(),
+            null_count: 0,
+            distinct_count: 100,
+            sample_values: vec![],
+            min_value: None,
+            max_value: None,
+        };
+        let now = Utc::now();
+        let entry = ColumnProfileDef {
+            id: ColumnProfileDef::make_id(&SourceId::from("pg"), "users", "email"),
+            source_id: SourceId::from("pg"),
+            relation: "users".into(),
+            column: "email".into(),
+            stats: stats_v1.clone(),
+            sampled_at: now,
+        };
+        other.add_column_profile(entry);
+
+        let report = base.extend(other).expect("extend");
+        let cp_added: Vec<&MergedItem> = report
+            .added
+            .iter()
+            .filter(|i| i.kind == "column_profile")
+            .collect();
+        assert_eq!(cp_added.len(), 1);
+        assert_eq!(base.column_profiles().len(), 1);
+        assert_eq!(base.column_profiles()[0].stats, stats_v1);
     }
 
     #[test]

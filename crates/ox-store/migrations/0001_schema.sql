@@ -1840,7 +1840,9 @@ CREATE TYPE ontology_entity_kind AS ENUM (
     'value_set',
     'notation_pattern',
     'concept_map',
-    'value_range_set'
+    'value_range_set',
+    -- Φ3 — per-column distribution snapshot
+    'column_profile'
 );
 
 

@@ -119,6 +119,82 @@ mod tests {
     }
 
     #[test]
+    fn ir_ingest_source_profile_creates_one_entry_per_column_and_upserts_on_repeat() {
+        use crate::ir::OntologyIR;
+
+        let profile = SourceProfile {
+            table_profiles: vec![TableProfile {
+                table_name: "users".into(),
+                row_count: 10,
+                column_stats: vec![ColumnStats {
+                    column_name: "email".into(),
+                    null_count: 0,
+                    distinct_count: 8,
+                    sample_values: vec![],
+                    min_value: None,
+                    max_value: None,
+                }],
+            }],
+        };
+        let mut ir = OntologyIR::new(
+            "ont-1".into(),
+            "Test".into(),
+            ox_core::i18n::LocalizedText::default(),
+            1,
+            vec![],
+            vec![],
+            vec![],
+        );
+        let n = ir.ingest_source_profile(&SourceId::from("pg"), &profile, Utc::now());
+        assert_eq!(n, 1);
+        assert_eq!(ir.column_profiles().len(), 1);
+
+        // Re-ingest with a different distinct_count — upsert keeps the
+        // collection size at one and the latest entry wins.
+        let mut profile2 = profile.clone();
+        profile2.table_profiles[0].column_stats[0].distinct_count = 9;
+        let n2 = ir.ingest_source_profile(&SourceId::from("pg"), &profile2, Utc::now());
+        assert_eq!(n2, 1);
+        assert_eq!(ir.column_profiles().len(), 1);
+        assert_eq!(ir.column_profiles()[0].stats.distinct_count, 9);
+    }
+
+    #[test]
+    fn ir_round_trips_column_profiles_through_serde_json() {
+        use crate::ir::OntologyIR;
+
+        let mut ir = OntologyIR::new(
+            "ont-1".into(),
+            "Test".into(),
+            ox_core::i18n::LocalizedText::default(),
+            1,
+            vec![],
+            vec![],
+            vec![],
+        );
+        let profile = SourceProfile {
+            table_profiles: vec![TableProfile {
+                table_name: "orders".into(),
+                row_count: 7,
+                column_stats: vec![ColumnStats {
+                    column_name: "status".into(),
+                    null_count: 0,
+                    distinct_count: 3,
+                    sample_values: vec!["new".into(), "paid".into(), "shipped".into()],
+                    min_value: None,
+                    max_value: None,
+                }],
+            }],
+        };
+        ir.ingest_source_profile(&SourceId::from("pg"), &profile, Utc::now());
+        let json = serde_json::to_string(&ir).expect("serialize");
+        let back: OntologyIR = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(back.column_profiles().len(), 1);
+        assert_eq!(back.column_profiles()[0].stats.distinct_count, 3);
+        assert_eq!(back.column_profiles()[0].relation, "orders");
+    }
+
+    #[test]
     fn profile_to_column_defs_emits_one_entry_per_column() {
         let profile = SourceProfile {
             table_profiles: vec![
