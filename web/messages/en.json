@@ -1042,6 +1042,10 @@
       },
       "expandPreview": "Show changes",
       "collapsePreview": "Hide changes",
+      "reviewerNote": {
+        "label": "Reviewer note (optional)",
+        "placeholder": "Why approve or reject? Visible in the audit trail."
+      },
       "preview": {
         "summary": "{count} operation(s)",
         "expectedVersion": "@v{v}",

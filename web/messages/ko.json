@@ -1027,6 +1027,10 @@
       },
       "expandPreview": "변경 내역 보기",
       "collapsePreview": "변경 내역 접기",
+      "reviewerNote": {
+        "label": "검토자 메모 (선택)",
+        "placeholder": "승인 또는 거절 사유. 감사 로그에 기록됩니다."
+      },
       "preview": {
         "summary": "작업 {count}개",
         "expectedVersion": "@v{v}",

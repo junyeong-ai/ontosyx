@@ -35,6 +35,9 @@ export default function ApprovalsSettingsPage() {
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
+  // Per-row reviewer note. Keyed on approval id so a partly-typed
+  // note survives a row-toggle. Cleared on successful review.
+  const [notes, setNotes] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     try {
@@ -51,9 +54,19 @@ export default function ApprovalsSettingsPage() {
 
   const handleReview = async (id: string, approved: boolean) => {
     try {
+      const note = notes[id]?.trim();
       await request(`/approvals/${id}/review`, {
         method: "POST",
-        body: JSON.stringify({ approved, notes: null }),
+        body: JSON.stringify({
+          approved,
+          notes: note ? note : null,
+        }),
+      });
+      // Clear the note now that it landed on the row.
+      setNotes((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
       });
       toast.success(approved ? t("toast.approved") : t("toast.rejected"));
       load();
@@ -138,8 +151,31 @@ export default function ApprovalsSettingsPage() {
                     </div>
                   </div>
                   {isOpen && (
-                    <div className="border-t border-amber-200 bg-white px-4 pb-4 pt-3 dark:border-amber-900 dark:bg-zinc-900">
+                    <div className="flex flex-col gap-3 border-t border-amber-200 bg-white px-4 pb-4 pt-3 dark:border-amber-900 dark:bg-zinc-900">
                       <EditOpPreview payload={a.payload} />
+                      {/* Φ6 #2 (interim) — reviewer note. The
+                          backend already accepts `notes` on
+                          /review; until the proper comment-thread
+                          table lands (migration 0030), this single
+                          field captures the reviewer's rationale on
+                          decision. */}
+                      <label className="flex flex-col gap-1.5">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                          {t("reviewerNote.label")}
+                        </span>
+                        <textarea
+                          value={notes[a.id] ?? ""}
+                          onChange={(e) =>
+                            setNotes((prev) => ({
+                              ...prev,
+                              [a.id]: e.target.value,
+                            }))
+                          }
+                          placeholder={t("reviewerNote.placeholder")}
+                          rows={2}
+                          className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs transition-colors focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/50 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-emerald-400"
+                        />
+                      </label>
                     </div>
                   )}
                 </div>
