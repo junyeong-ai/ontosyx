@@ -577,6 +577,86 @@
   },
   "settings": {
     "vocabulary": {
+      "codeSystems": {
+        "pageTitle": "Code systems",
+        "pageSubtitle": "Registered terminology systems (national codes, units, internal taxonomies). Properties bind to ValueSets sliced from these systems.",
+        "noOntology": "No committed ontology available — create one in Design mode before editing code systems.",
+        "deleteButton": "Delete",
+        "codeCount": "{count} coded value(s)",
+        "empty": {
+          "title": "No code systems registered",
+          "description": "Register the first system the workspace's properties will reference."
+        },
+        "messages": { "deleted": "Delete code system '{name}'" },
+        "toast": {
+          "deleted": "Code system '{name}' deleted",
+          "deleteFailed": "Delete failed: {error}"
+        },
+        "confirm": {
+          "deleteTitle": "Delete code system?",
+          "deleteDescription": "Removing '{name}' un-binds every value-set composition + concept-map referring to it. The IR validator surfaces any dangling reference."
+        }
+      },
+      "valueSets": {
+        "pageTitle": "Value sets",
+        "pageSubtitle": "Bounded subsets of one or more code systems. Properties bind to a value set so write-time validation can enforce membership.",
+        "noOntology": "No committed ontology available — create one in Design mode before editing value sets.",
+        "deleteButton": "Delete",
+        "includeCount": "{count} include rule(s)",
+        "empty": {
+          "title": "No value sets defined",
+          "description": "Compose the first set from a registered code system."
+        },
+        "messages": { "deleted": "Delete value set '{name}'" },
+        "toast": {
+          "deleted": "Value set '{name}' deleted",
+          "deleteFailed": "Delete failed: {error}"
+        },
+        "confirm": {
+          "deleteTitle": "Delete value set?",
+          "deleteDescription": "Removing '{name}' un-binds every property currently constrained to it. Runtime SHACL stops enforcing the membership rule."
+        }
+      },
+      "conceptMaps": {
+        "pageTitle": "Concept maps",
+        "pageSubtitle": "Translations between two code systems. The compiler rewrites literal codes through these maps before query execution (Φ3-E).",
+        "noOntology": "No committed ontology available — create one in Design mode before editing concept maps.",
+        "deleteButton": "Delete",
+        "mappingSummary": "{source} → {target} · {count} mapping(s)",
+        "empty": {
+          "title": "No concept maps registered",
+          "description": "Register a translation table when migrating between code system versions."
+        },
+        "messages": { "deleted": "Delete concept map '{name}'" },
+        "toast": {
+          "deleted": "Concept map '{name}' deleted",
+          "deleteFailed": "Delete failed: {error}"
+        },
+        "confirm": {
+          "deleteTitle": "Delete concept map?",
+          "deleteDescription": "Removing '{name}' stops the compiler from rewriting literal values along this translation. Existing query plans remain valid against the original codes."
+        }
+      },
+      "rules": {
+        "pageTitle": "Rules",
+        "pageSubtitle": "SHACL-style validation shapes. The runtime enforces them at write / read / batch time depending on the rule's `enforcement` setting.",
+        "noOntology": "No committed ontology available — create one in Design mode before editing rules.",
+        "deleteButton": "Delete",
+        "constraintCount": "{count} constraint(s)",
+        "empty": {
+          "title": "No rules defined",
+          "description": "Add the first SHACL shape that should guard the workspace's data."
+        },
+        "messages": { "deleted": "Delete rule '{name}'" },
+        "toast": {
+          "deleted": "Rule '{name}' deleted",
+          "deleteFailed": "Delete failed: {error}"
+        },
+        "confirm": {
+          "deleteTitle": "Delete rule?",
+          "deleteDescription": "Removing '{name}' drops the corresponding constraint from SHACL validation. Reviewers should understand the coverage loss before approving."
+        }
+      },
       "glossary": {
         "pageTitle": "Glossary",
         "pageSubtitle": "Domain vocabulary the LLM and binding suggester reference. Every change ships as an OntologyEditOp through the same edit pipeline as ontology updates.",

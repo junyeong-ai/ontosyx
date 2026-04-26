@@ -559,6 +559,86 @@
   },
   "settings": {
     "vocabulary": {
+      "codeSystems": {
+        "pageTitle": "코드 시스템",
+        "pageSubtitle": "등록된 용어 체계(국가 코드, 단위, 내부 분류). 속성은 이 시스템에서 잘라낸 ValueSet 에 바인딩됩니다.",
+        "noOntology": "커밋된 온톨로지가 없습니다 — 코드 시스템 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
+        "deleteButton": "삭제",
+        "codeCount": "코드 {count}개",
+        "empty": {
+          "title": "등록된 코드 시스템이 없습니다",
+          "description": "워크스페이스 속성이 참조할 첫 시스템을 등록하세요."
+        },
+        "messages": { "deleted": "코드 시스템 '{name}' 삭제" },
+        "toast": {
+          "deleted": "코드 시스템 '{name}' 삭제 완료",
+          "deleteFailed": "삭제 실패: {error}"
+        },
+        "confirm": {
+          "deleteTitle": "코드 시스템을 삭제하시겠습니까?",
+          "deleteDescription": "'{name}' 을 삭제하면 이 시스템을 참조하는 모든 ValueSet/ConceptMap 의 바인딩이 해제됩니다. IR 검증기가 dangling reference 를 surface 합니다."
+        }
+      },
+      "valueSets": {
+        "pageTitle": "값 집합",
+        "pageSubtitle": "하나 이상의 코드 시스템을 슬라이스한 제한 집합. 속성이 값 집합에 바인딩되면 쓰기 시점에 멤버십 검증이 적용됩니다.",
+        "noOntology": "커밋된 온톨로지가 없습니다 — 값 집합 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
+        "deleteButton": "삭제",
+        "includeCount": "포함 규칙 {count}개",
+        "empty": {
+          "title": "정의된 값 집합이 없습니다",
+          "description": "등록된 코드 시스템에서 첫 집합을 구성하세요."
+        },
+        "messages": { "deleted": "값 집합 '{name}' 삭제" },
+        "toast": {
+          "deleted": "값 집합 '{name}' 삭제 완료",
+          "deleteFailed": "삭제 실패: {error}"
+        },
+        "confirm": {
+          "deleteTitle": "값 집합을 삭제하시겠습니까?",
+          "deleteDescription": "'{name}' 을 삭제하면 이 집합으로 제한된 모든 속성의 바인딩이 해제됩니다. 런타임 SHACL 이 멤버십 규칙을 더 이상 강제하지 않습니다."
+        }
+      },
+      "conceptMaps": {
+        "pageTitle": "개념 매핑",
+        "pageSubtitle": "두 코드 시스템 간 번역. 컴파일러는 쿼리 실행 전 리터럴 코드를 이 매핑을 통해 재작성합니다 (Φ3-E).",
+        "noOntology": "커밋된 온톨로지가 없습니다 — 개념 매핑 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
+        "deleteButton": "삭제",
+        "mappingSummary": "{source} → {target} · 매핑 {count}개",
+        "empty": {
+          "title": "등록된 개념 매핑이 없습니다",
+          "description": "코드 시스템 버전 간 마이그레이션이 필요할 때 번역 테이블을 등록하세요."
+        },
+        "messages": { "deleted": "개념 매핑 '{name}' 삭제" },
+        "toast": {
+          "deleted": "개념 매핑 '{name}' 삭제 완료",
+          "deleteFailed": "삭제 실패: {error}"
+        },
+        "confirm": {
+          "deleteTitle": "개념 매핑을 삭제하시겠습니까?",
+          "deleteDescription": "'{name}' 을 삭제하면 컴파일러가 이 번역을 따라 리터럴을 재작성하지 않습니다. 기존 쿼리 플랜은 원본 코드에 대해 여전히 유효합니다."
+        }
+      },
+      "rules": {
+        "pageTitle": "규칙",
+        "pageSubtitle": "SHACL 스타일 검증 형태. 런타임이 `enforcement` 설정에 따라 쓰기/읽기/배치 시점에 강제합니다.",
+        "noOntology": "커밋된 온톨로지가 없습니다 — 규칙 편집 전에 Design 모드에서 온톨로지를 먼저 생성하세요.",
+        "deleteButton": "삭제",
+        "constraintCount": "제약 {count}개",
+        "empty": {
+          "title": "정의된 규칙이 없습니다",
+          "description": "워크스페이스 데이터를 보호할 첫 SHACL 형태를 추가하세요."
+        },
+        "messages": { "deleted": "규칙 '{name}' 삭제" },
+        "toast": {
+          "deleted": "규칙 '{name}' 삭제 완료",
+          "deleteFailed": "삭제 실패: {error}"
+        },
+        "confirm": {
+          "deleteTitle": "규칙을 삭제하시겠습니까?",
+          "deleteDescription": "'{name}' 을 삭제하면 SHACL 검증에서 해당 제약이 사라집니다. 검토자는 적용 전 적용 범위 손실을 이해해야 합니다."
+        }
+      },
       "glossary": {
         "pageTitle": "용어사전",
         "pageSubtitle": "LLM 과 바인딩 추천기가 참조하는 도메인 어휘. 모든 변경은 OntologyEditOp 으로 ontology 편집 파이프라인을 따라 커밋됩니다.",
