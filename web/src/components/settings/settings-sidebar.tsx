@@ -102,6 +102,15 @@ const NAV_GROUPS: NavGroup[] = [
         href: "/settings/governance/audit",
         adminOnly: true,
       },
+      // Φ6 #1 — change-routing matrix admin. Edits the
+      // workspace's overrides for the per-ChangeType
+      // ApprovalRouting decisions that the runtime evaluates on
+      // every OntologyEditOp.
+      {
+        labelKey: "routingMatrix",
+        href: "/settings/governance/routing",
+        adminOnly: true,
+      },
       { labelKey: "approvals", href: "/settings/approvals", adminOnly: true },
     ],
   },

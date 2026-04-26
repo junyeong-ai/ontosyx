@@ -597,6 +597,75 @@
     }
   },
   "settings": {
+    "governance": {
+      "routing": {
+        "pageTitle": "Change Routing Matrix",
+        "pageSubtitle": "Per-ChangeType ApprovalRouting decisions the runtime evaluates on every OntologyEditOp. Workspace overrides win against the global defaults the seed migration ships; revert an override to fall back to the default.",
+        "currentLabel": "Current",
+        "editLabel": "Routing variant",
+        "riskLabel": "Risk",
+        "revertButton": "Revert to default",
+        "badges": {
+          "override": "Override"
+        },
+        "routingKinds": {
+          "auto_approve": "Auto-approve (no notification)",
+          "auto_approve_with_notification": "Auto-approve + notify",
+          "approval_required_unless": "Approval required unless predicate skips",
+          "approval_required": "Always require approval"
+        },
+        "empty": {
+          "title": "No routing rules visible",
+          "description": "The seed migration should have shipped global defaults — check that 0001_schema.sql ran cleanly."
+        },
+        "toast": {
+          "upserted": "Routing rule updated",
+          "upsertFailed": "Update failed: {error}",
+          "reverted": "Workspace override removed; reverted to global default",
+          "revertFailed": "Revert failed: {error}"
+        },
+        "confirm": {
+          "revertTitle": "Revert override?",
+          "revertDescription": "Drops the workspace override for `{changeType}` and falls back to the global default the migration shipped.",
+          "revertConfirm": "Revert",
+          "cancel": "Cancel"
+        }
+      },
+      "audit": {
+        "pageTitle": "PROV-O Audit",
+        "pageSubtitle": "Per-fact origin records the platform emits during source scans, rule evaluation, action execution, LLM drafts, etc. Read-only — operators see WHY a fact in the graph exists, who ran the activity, and when.",
+        "noOntology": "No committed ontology — open Design mode first to start producing PROV-O records.",
+        "filter": { "activity": "Activity kind", "agent": "Agent kind" },
+        "counts": "{shown} of {total} record(s)",
+        "usedLabel": "used",
+        "empty": {
+          "noRecords": "No PROV-O records yet",
+          "noRecordsHint": "Records are emitted as the platform runs source scans, rule validations, action executions, LLM drafts, etc.",
+          "noMatch": "No matching records",
+          "noMatchHint": "Loosen the filters to see more entries."
+        },
+        "activityKinds": {
+          "all": "All activities",
+          "source_scan": "Source scan",
+          "function_eval": "Function eval",
+          "rule_validate": "Rule validate",
+          "action_execute": "Action execute",
+          "ontology_edit": "Ontology edit",
+          "draft_proposal": "LLM draft",
+          "cache_refresh": "Cache refresh",
+          "enrichment": "Enrichment",
+          "import": "Import",
+          "export": "Export"
+        },
+        "agentKinds": {
+          "all": "All agents",
+          "user": "User",
+          "service": "Service",
+          "llm_model": "LLM model",
+          "system": "System"
+        }
+      }
+    },
     "vocabulary": {
       "codeSystems": {
         "pageTitle": "Code systems",
