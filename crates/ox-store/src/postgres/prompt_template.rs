@@ -35,6 +35,24 @@ impl PromptTemplateStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
+    async fn find_prompt_template_by_name_version(
+        &self,
+        name: &str,
+        version: &ox_core::PromptVersion,
+    ) -> OxResult<Option<PromptTemplateRow>> {
+        sqlx::query_as(
+            "SELECT * FROM prompt_templates WHERE name = $1 AND version = $2 LIMIT 1",
+        )
+        .bind(name)
+        .bind(version.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| OxError::Runtime {
+            message: format!("Database error: {e}"),
+        })
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn get_active_prompt(&self, name: &str) -> OxResult<Option<PromptTemplateRow>> {
         // Active global template (workspace_id IS NULL). Sort by parsed
         // semver components (CHECK constraint guarantees `<int>.<int>.<int>`)

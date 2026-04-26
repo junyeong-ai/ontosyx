@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use chrono::{DateTime, Utc};
+use ox_core::PromptVersion;
 use ox_core::error::OxResult;
 
 use crate::models::*;
@@ -647,6 +648,15 @@ pub trait PromptTemplateStore: Send + Sync {
     async fn list_prompt_templates(&self, active_only: bool) -> OxResult<Vec<PromptTemplateRow>>;
     async fn get_prompt_template(&self, id: Uuid) -> OxResult<Option<PromptTemplateRow>>;
     async fn get_active_prompt(&self, name: &str) -> OxResult<Option<PromptTemplateRow>>;
+    /// Exact lookup by `(name, version)` — required for the TOML seed
+    /// flow's drift-detection pass. Returns the row regardless of
+    /// `is_active` so seed can compare content against an operator-
+    /// deactivated row.
+    async fn find_prompt_template_by_name_version(
+        &self,
+        name: &str,
+        version: &PromptVersion,
+    ) -> OxResult<Option<PromptTemplateRow>>;
     /// Resolve a prompt with workspace-specific override fallback.
     /// Returns the workspace's override if one exists, otherwise the
     /// global active prompt with the same name.

@@ -3,14 +3,24 @@ use std::path::Path;
 
 use ox_core::error::{OxError, OxResult};
 use serde::Deserialize;
-use tracing::{info, warn};
+use tracing::info;
 
 // ---------------------------------------------------------------------------
 // PromptRegistry — DB-backed prompt template management
 //
 // Runtime source: PostgreSQL `prompt_templates` table (single source of truth)
-// Initial seed:  TOML files in `prompts/` directory (first deployment only)
+// Initial seed:  TOML files in `prompts/` directory
 // Admin updates: via REST API (POST/PATCH /api/admin/prompts)
+//
+// TOML / DB precedence:
+//   - No DB row for a `(name, version)` pair → seed inserts it.
+//   - DB row exists with matching content → silent skip (idempotent).
+//   - DB row exists with diverging content + `created_by = "system"` →
+//     hard error. The TOML changed without the version bump that
+//     would have made it a new row. Operator must either bump the
+//     TOML version or update the DB via the admin API.
+//   - DB row exists with diverging content + `created_by != "system"` →
+//     silent skip. An operator-edited row outranks the seed file.
 //
 // Prompts are loaded into an in-memory cache at startup.
 // To apply DB changes at runtime, restart the server.
@@ -80,6 +90,49 @@ pub struct PromptVersionInfo {
 // PromptRegistry — loads and caches prompt templates from DB
 // ---------------------------------------------------------------------------
 
+/// Author tag written to `prompt_templates.created_by` by the TOML
+/// seed path. The drift-detection rule treats anything else as
+/// operator-managed and yields to it.
+const SYSTEM_CREATOR: &str = "system";
+
+/// Decision the seed flow makes for a single TOML file given the
+/// matching DB row (if any). Pure data — `seed_from_toml` performs
+/// the IO; this function isolates the precedence rule for testing.
+#[derive(Debug, PartialEq, Eq)]
+enum SeedAction {
+    /// No row at `(name, version)` — seed it.
+    Insert,
+    /// Row exists with byte-identical content — idempotent skip.
+    SkipMatching,
+    /// Row exists with diverging content authored by an operator.
+    /// Operator wins; TOML hands off.
+    SkipOperator { created_by: String },
+    /// Row exists with diverging content authored by `system` —
+    /// silent drift. Refuse to boot until the operator either bumps
+    /// the TOML version or updates the row via the admin API.
+    DriftError,
+}
+
+fn decide_seed_action(
+    _name: &str,
+    combined_content: &str,
+    existing: Option<&ox_store::PromptTemplateRow>,
+) -> SeedAction {
+    let Some(row) = existing else {
+        return SeedAction::Insert;
+    };
+    if row.content == combined_content {
+        return SeedAction::SkipMatching;
+    }
+    if row.created_by == SYSTEM_CREATOR {
+        SeedAction::DriftError
+    } else {
+        SeedAction::SkipOperator {
+            created_by: row.created_by.clone(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PromptRegistry {
     prompts: HashMap<String, PromptTemplate>,
@@ -147,7 +200,10 @@ impl PromptRegistry {
         Self::from_db_rows(db_prompts)
     }
 
-    /// Seed DB from TOML files (one-time, first deployment only).
+    /// Seed DB from TOML files. Idempotent under matching content,
+    /// hard-errors on silent drift (TOML edited without a version
+    /// bump), and yields to operator-edited rows. See the module-
+    /// header precedence table.
     async fn seed_from_toml(store: &dyn ox_store::Store, dir: &Path) -> OxResult<()> {
         let entries = std::fs::read_dir(dir).map_err(|e| OxError::Runtime {
             message: format!("Failed to read seed directory: {e}"),
@@ -179,43 +235,65 @@ impl PromptRegistry {
                 file.prompt.system, file.prompt.user_template
             );
 
-            // Parse the TOML-supplied string into the canonical
-            // `PromptVersion` so the seed row matches the column's
-            // `try_from = "String"` decode contract.
-            let parsed_version = match PromptVersion::parse(&file.prompt.version) {
-                Ok(v) => v,
-                Err(e) => {
-                    warn!(
+            let parsed_version = PromptVersion::parse(&file.prompt.version).map_err(|e| {
+                OxError::Runtime {
+                    message: format!(
+                        "Prompt TOML {} version '{}' isn't valid semver: {e}",
+                        path.display(),
+                        file.prompt.version
+                    ),
+                }
+            })?;
+
+            let existing = store
+                .find_prompt_template_by_name_version(&name, &parsed_version)
+                .await?;
+
+            match decide_seed_action(&name, &combined, existing.as_ref()) {
+                SeedAction::Insert => {
+                    let row = ox_store::PromptTemplateRow {
+                        id: uuid::Uuid::new_v4(),
+                        name: name.clone(),
+                        version: parsed_version,
+                        content: combined,
+                        variables: serde_json::json!([]),
+                        metadata: serde_json::json!({
+                            "description": file.prompt.description,
+                            "max_tokens": file.prompt.max_tokens,
+                            "temperature": file.prompt.temperature,
+                        }),
+                        created_by: SYSTEM_CREATOR.to_string(),
+                        created_at: chrono::Utc::now(),
+                        is_active: true,
+                        workspace_id: None,
+                    };
+                    store.create_prompt_template(&row).await?;
+                    info!(
                         name = %name,
                         version = %file.prompt.version,
-                        error = %e,
-                        "Skipping seed: prompt TOML version isn't valid semver"
+                        "Seeded prompt from TOML"
                     );
-                    continue;
                 }
-            };
-
-            let row = ox_store::PromptTemplateRow {
-                id: uuid::Uuid::new_v4(),
-                name: name.clone(),
-                version: parsed_version,
-                content: combined,
-                variables: serde_json::json!([]),
-                metadata: serde_json::json!({
-                    "description": file.prompt.description,
-                    "max_tokens": file.prompt.max_tokens,
-                    "temperature": file.prompt.temperature,
-                }),
-                created_by: "system".to_string(),
-                created_at: chrono::Utc::now(),
-                is_active: true,
-                workspace_id: None,
-            };
-
-            if let Err(e) = store.create_prompt_template(&row).await {
-                warn!(name = %name, error = %e, "Failed to seed prompt");
-            } else {
-                info!(name = %name, version = %file.prompt.version, "Seeded prompt from TOML");
+                SeedAction::SkipMatching => {}
+                SeedAction::SkipOperator { created_by } => {
+                    info!(
+                        name = %name,
+                        version = %file.prompt.version,
+                        created_by = %created_by,
+                        "Skipping seed: operator-edited DB row outranks TOML",
+                    );
+                }
+                SeedAction::DriftError => {
+                    return Err(OxError::Runtime {
+                        message: format!(
+                            "Prompt '{name}' v{} TOML diverged from seeded DB row. \
+                             Bump the version in {} or update the row via \
+                             POST /api/admin/prompts.",
+                            file.prompt.version,
+                            path.display(),
+                        ),
+                    });
+                }
             }
         }
         Ok(())
@@ -357,5 +435,54 @@ mod tests {
         assert!(v2_0_0 < v2_0_1);
         assert!(v2_0_1 > v1_0_0);
         assert_eq!(v1_0_0, PromptVersion::parse("1.0.0").unwrap());
+    }
+
+    fn fake_row(content: &str, created_by: &str) -> ox_store::PromptTemplateRow {
+        ox_store::PromptTemplateRow {
+            id: uuid::Uuid::nil(),
+            name: "p".to_string(),
+            version: PromptVersion::parse("1.0.0").unwrap(),
+            content: content.to_string(),
+            variables: serde_json::json!([]),
+            metadata: serde_json::json!({}),
+            created_by: created_by.to_string(),
+            created_at: chrono::Utc::now(),
+            is_active: true,
+            workspace_id: None,
+        }
+    }
+
+    #[test]
+    fn seed_action_inserts_when_db_row_absent() {
+        assert_eq!(decide_seed_action("p", "BODY", None), SeedAction::Insert);
+    }
+
+    #[test]
+    fn seed_action_skips_matching_idempotent() {
+        let row = fake_row("BODY", SYSTEM_CREATOR);
+        assert_eq!(
+            decide_seed_action("p", "BODY", Some(&row)),
+            SeedAction::SkipMatching,
+        );
+    }
+
+    #[test]
+    fn seed_action_errors_on_system_row_drift() {
+        let row = fake_row("OLD BODY", SYSTEM_CREATOR);
+        assert_eq!(
+            decide_seed_action("p", "NEW BODY", Some(&row)),
+            SeedAction::DriftError,
+        );
+    }
+
+    #[test]
+    fn seed_action_yields_to_operator_edited_row() {
+        let row = fake_row("OPERATOR BODY", "alice@example.com");
+        assert_eq!(
+            decide_seed_action("p", "TOML BODY", Some(&row)),
+            SeedAction::SkipOperator {
+                created_by: "alice@example.com".to_string(),
+            },
+        );
     }
 }
