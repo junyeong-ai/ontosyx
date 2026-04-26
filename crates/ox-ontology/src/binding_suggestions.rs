@@ -1,10 +1,25 @@
-//! Glossary ↔ property binding suggestions.
+//! Glossary ↔ property binding suggestions — **fall-back layer**
+//! after the LLM-side context injection (see
+//! [`ox_brain::DesignOntologyInput`]).
 //!
-//! When an operator adds a `GlossaryTermDef`, the platform should
-//! offer "here are the properties that likely realise this concept"
-//! rather than force them to hunt through every type. This module
-//! scores every candidate `PropertyDef` against a glossary term and
-//! returns the ones that cross a confidence threshold.
+//! Φ3 redesign: the design-time prompt now includes the workspace's
+//! glossary in `DesignOntologyInput.glossary_terms`, so the LLM sees
+//! every canonical term up-front and is expected to bind matching
+//! properties at generation time. This module's role narrows to:
+//!
+//! 1. **Catch what the LLM missed.** Some property ↔ term pairs are
+//!    only resolvable by structural / lexical similarity that LLMs
+//!    don't always weigh consistently. The scorer flags those
+//!    candidates so the admin UI can offer a one-click rebind.
+//! 2. **Serve admin-side ad-hoc queries.** "Which properties match
+//!    this term?" / "Which terms match this property?" as a
+//!    deterministic, explainable surface — no LLM round-trip
+//!    required.
+//!
+//! Operators trust what they can explain, so this stays a *pure
+//! function* over `OntologyIR` + `GlossaryTermDef` even if a future
+//! variant layers an embedding re-ranker on top. The baseline must
+//! still stand alone.
 //!
 //! Design choices — all biased toward *deterministic, explainable*
 //! suggestions:
