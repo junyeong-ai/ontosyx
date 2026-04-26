@@ -36,3 +36,9 @@ Zustand with slices in `lib/store/`. UI layout persisted, chat messages not pers
 ## Settings Table Pattern
 
 All settings tables use `py-3 pr-6` on `<th>` and `<td>` for consistent column spacing. Tables with 7+ columns need `min-w-[900px]` or higher to prevent header truncation.
+
+## LocalizedText
+
+Wire shape: `{ default: string; translations?: Record<string, string> }` — the canonical type lives in `@/types/ontology` and mirrors the Rust `ox_core::i18n::LocalizedText`. **Don't** declare ad-hoc inline shapes (`{default?: string; locales?: ...}` etc.) — they drift from the wire format and silently drop translations.
+
+Read the displayable string through `localize()` / `localizePresent()` / `localizeWithFallback()` in `@/lib/locale/localize`. Direct `.default` access bypasses the locale chain. The static `DEFAULT_LOCALE_CHAIN = ["ko", "en"]` mirrors the `workspaces.locale_fallback` column default; surfaces with a workspace context should thread the actual chain in.

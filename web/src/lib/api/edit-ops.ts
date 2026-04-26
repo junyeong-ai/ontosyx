@@ -10,6 +10,7 @@
 // Adding a new variant on the backend requires a parallel entry here
 // — there is no codegen step yet, the pair stays hand-mirrored.
 
+import type { LocalizedText } from "@/types/ontology";
 import { request } from "./client";
 
 // ---------------------------------------------------------------------------
@@ -27,8 +28,8 @@ import { request } from "./client";
 export type GlossaryTermDef = {
   id: string;
   term: string;
-  display_name?: { default?: string; locales?: Record<string, string> };
-  description?: { default?: string; locales?: Record<string, string> };
+  display_name?: LocalizedText;
+  description?: LocalizedText;
   category?: string | null;
   aliases?: string[];
   parent_term_id?: string | null;
@@ -39,12 +40,12 @@ export type CodeSystemKind = "international" | "standard" | "internal" | "custom
 export type CodedValue = {
   id: string;
   code: string;
-  display?: { default?: string; locales?: Record<string, string> };
-  definition?: { default?: string; locales?: Record<string, string> };
+  display?: LocalizedText;
+  definition?: LocalizedText;
   aliases?: string[];
   broader_id?: string | null;
-  examples?: { default?: string; locales?: Record<string, string> }[];
-  scope_note?: { default?: string; locales?: Record<string, string> };
+  examples?: LocalizedText[];
+  scope_note?: LocalizedText;
   valid_from?: string | null;
   valid_to?: string | null;
   deprecated_at?: string | null;
@@ -54,8 +55,8 @@ export type CodedValue = {
 export type CodeSystemDef = {
   id: string;
   name: string;
-  display_name?: { default?: string; locales?: Record<string, string> };
-  description?: { default?: string; locales?: Record<string, string> };
+  display_name?: LocalizedText;
+  description?: LocalizedText;
   version: string;
   kind: CodeSystemKind;
   uri?: string | null;
@@ -68,8 +69,8 @@ export type CodeSystemDef = {
 export type ValueSetDef = {
   id: string;
   name: string;
-  display_name?: { default?: string; locales?: Record<string, string> };
-  description?: { default?: string; locales?: Record<string, string> };
+  display_name?: LocalizedText;
+  description?: LocalizedText;
   version: string;
   composition?: Array<{
     system_id: string;
@@ -81,8 +82,8 @@ export type ValueSetDef = {
 export type ConceptMapDef = {
   id: string;
   name: string;
-  display_name?: { default?: string; locales?: Record<string, string> };
-  description?: { default?: string; locales?: Record<string, string> };
+  display_name?: LocalizedText;
+  description?: LocalizedText;
   version: string;
   source_system_id: string;
   target_system_id: string;
@@ -95,15 +96,15 @@ export type ConceptMapDef = {
       | "broader_than_target"
       | "related"
       | "not_related";
-    comment?: { default?: string; locales?: Record<string, string> };
+    comment?: LocalizedText;
   }>;
 };
 
 export type NotationPatternDef = {
   id: string;
   name: string;
-  display_name?: { default?: string; locales?: Record<string, string> };
-  description?: { default?: string; locales?: Record<string, string> };
+  display_name?: LocalizedText;
+  description?: LocalizedText;
   template: string;
   separator?: string;
   components: Array<Record<string, unknown>>;
@@ -113,7 +114,7 @@ export type NotationPatternDef = {
 export type RuleDef = {
   id: string;
   name: string;
-  description?: { default?: string; locales?: Record<string, string> };
+  description?: LocalizedText;
   kind: Record<string, unknown>;
   constraints?: Array<Record<string, unknown>>;
   enforcement?: "write_time" | "read_time" | "batch";

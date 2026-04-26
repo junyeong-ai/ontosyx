@@ -25,6 +25,7 @@ import {
 } from "@/hooks/api/use-ontologies";
 import { useApplyOntologyEdits } from "@/hooks/api/use-ontology-edits";
 import type { GlossaryTermDef } from "@/lib/api/edit-ops";
+import { DEFAULT_LOCALE_CHAIN, localizePresent } from "@/lib/locale/localize";
 
 // ---------------------------------------------------------------------------
 // id minting — fresh GlossaryTermId for create flows.
@@ -256,8 +257,12 @@ function GlossaryRow({
 }) {
   const t = useTranslations("settings.vocabulary.glossary");
   const aliases = term.aliases ?? [];
-  const displayName = term.display_name?.default;
-  const description = term.description?.default;
+  const displayName = term.display_name
+    ? localizePresent(term.display_name, DEFAULT_LOCALE_CHAIN)
+    : null;
+  const description = term.description
+    ? localizePresent(term.description, DEFAULT_LOCALE_CHAIN)
+    : null;
 
   return (
     <div className="flex items-start justify-between gap-3">

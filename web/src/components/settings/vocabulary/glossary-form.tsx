@@ -68,10 +68,10 @@ export function GlossaryForm({
       id: initial?.id ?? "",
       term: term.trim(),
       display_name: displayDefault
-        ? { default: displayDefault, locales: initial?.display_name?.locales }
+        ? { default: displayDefault, translations: initial?.display_name?.translations ?? {} }
         : undefined,
       description: descriptionDefault
-        ? { default: descriptionDefault, locales: initial?.description?.locales }
+        ? { default: descriptionDefault, translations: initial?.description?.translations ?? {} }
         : undefined,
       aliases,
       category: category.trim() || null,
