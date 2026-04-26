@@ -205,10 +205,10 @@ impl crate::store::OntologyVersionStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn load_version(
+    async fn get_ontology_ir(
         &self,
         version_id: Uuid,
-    ) -> OxResult<ox_ontology::OntologyIR> {
+    ) -> OxResult<Option<ox_ontology::OntologyIR>> {
         // Hydrate every entity that belongs to this version.
         // Order is not important — the extractor / assembler
         // tolerates arbitrary arrival order and re-keys by
@@ -231,9 +231,15 @@ impl crate::store::OntologyVersionStore for PostgresStore {
         .await
         .map_err(to_ox_error)?;
 
-        assemble_ir(&rows).map_err(|e| OxError::Runtime {
-            message: format!("OntologyIR hydration from version {version_id}: {e:?}"),
-        })
+        if rows.is_empty() {
+            return Ok(None);
+        }
+
+        assemble_ir(&rows)
+            .map(Some)
+            .map_err(|e| OxError::Runtime {
+                message: format!("OntologyIR hydration from version {version_id}: {e:?}"),
+            })
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
@@ -321,7 +327,7 @@ impl crate::store::OntologyVersionStore for PostgresStore {
         // changes. Stable ordering by (kind, logical_id) so the
         // diff reads predictably in the admin UI.
         let rows = sqlx::query_as::<_, crate::models::DiffRow>(
-            // `entity_kind::text` cast mirrors `load_version` —
+            // `entity_kind::text` cast mirrors `get_ontology_ir` —
             // DiffRow decodes the column as a Rust `String`.
             "SELECT COALESCE(f.entity_kind, t.entity_kind)::text        AS entity_kind, \
                     COALESCE(f.entity_logical_id, t.entity_logical_id) AS entity_logical_id, \

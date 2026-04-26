@@ -92,9 +92,10 @@ pub(crate) async fn list_cross_refs(
         .ok_or_else(|| AppError::not_found("ontology has no committed version"))?;
     let ir = state
         .store
-        .load_version(current.id)
+        .get_ontology_ir(current.id)
         .await
-        .map_err(AppError::from)?;
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::not_found("Ontology version"))?;
 
     let mut edges = Vec::new();
     emit_edges(&ir, &mut edges);

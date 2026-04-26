@@ -58,9 +58,9 @@ Use `./scripts/dev.sh start` to launch everything (Docker + backend + frontend).
 ### Frontend
 
 - camelCase functions, PascalCase components, PascalCase types.
-- Zustand selectors:
-  - State selectors: `selectState<Noun>` — e.g., `selectStateOntology`.
-  - Action selectors: `selectAction<Verb>` — e.g., `selectActionSetOntology`.
+- Zustand:
+  - State selectors live in `web/src/lib/store/selectors.ts` and follow `selectState<Noun>` — e.g., `selectStateOntology`.
+  - Actions are accessed inline at the call-site (`useStore((s) => s.setX)` or `useStore.getState().setX()`) — the idiomatic Zustand pattern. No selector wrappers.
 - Hooks: `use<Capability>` — e.g., `useGraphInteractions`.
 - File-level `/* eslint-disable */` is **forbidden**. Use `// eslint-disable-next-line` only on the one line that needs it.
 

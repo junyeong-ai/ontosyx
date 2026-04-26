@@ -47,8 +47,8 @@ impl QueryStore for PostgresStore {
         // Returns the raw row — no JOIN to hydrate `ontology_snapshot`.
         // Under the Λ storage model, committed ontologies live in a
         // content-addressed graph spanning four tables; a LEFT JOIN
-        // trick no longer substitutes for `load_version`. Callers that
-        // need the IR follow up with
+        // trick no longer substitutes for `get_ontology_ir`. Callers
+        // that need the IR follow up with
         // `OntologyVersionStore::resolve_version_at(ontology_id, created_at)`.
         sqlx::query_as::<_, QueryExecution>(
             "SELECT id, user_id, question, ontology_lineage_id, ontology_version,

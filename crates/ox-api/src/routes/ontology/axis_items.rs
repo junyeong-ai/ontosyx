@@ -82,9 +82,10 @@ pub(crate) async fn list_axis_items(
         .ok_or_else(|| AppError::not_found("ontology has no committed version"))?;
     let ir = state
         .store
-        .load_version(current.id)
+        .get_ontology_ir(current.id)
         .await
-        .map_err(AppError::from)?;
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::not_found("Ontology version"))?;
 
     let items = collect_axis_items(&ir, &params.kind).ok_or_else(|| {
         AppError::bad_request(format!("unknown axis kind: \"{}\"", params.kind))

@@ -18,8 +18,8 @@ use crate::state::AppState;
 // resolve the `ontologies` row, pick its current-valid version, hydrate the
 // `OntologyIR` from the content-addressed entity store. The three steps are
 // kept as one helper because each route needs the same failure semantics:
-// `404` on unknown identity, `422` on present-but-unversioned, `500` on
-// hydrate failure (surfaced from `load_version` via `AppError::from`).
+// `404` on unknown identity or vanished snapshot, `422` on
+// present-but-unversioned, `500` on malformed stored entities.
 // ---------------------------------------------------------------------------
 
 async fn load_identity_current_ir(
@@ -45,9 +45,10 @@ async fn load_identity_current_ir(
         })?;
     let ir = state
         .store
-        .load_version(version.id)
+        .get_ontology_ir(version.id)
         .await
-        .map_err(AppError::from)?;
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::not_found("Ontology version"))?;
     Ok((identity, version, ir))
 }
 

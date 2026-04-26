@@ -261,9 +261,10 @@ async fn load_current_ir(
         })?;
     state
         .store
-        .load_version(version.id)
+        .get_ontology_ir(version.id)
         .await
-        .map_err(AppError::from)
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::not_found("Ontology version"))
 }
 
 fn shape_candidate(c: PropertyBindingCandidate) -> PropertyCandidateBody {

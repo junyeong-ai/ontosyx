@@ -69,9 +69,10 @@ async fn load_ontology_current(
         })?;
     let ir = state
         .store
-        .load_version(version.id)
+        .get_ontology_ir(version.id)
         .await
-        .map_err(AppError::from)?;
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::not_found("Ontology version"))?;
     Ok(Some(Arc::new(ir)))
 }
 
@@ -121,9 +122,10 @@ async fn resolve_temporal(
         })?;
     let current = state
         .store
-        .load_version(current_version.id)
+        .get_ontology_ir(current_version.id)
         .await
-        .map_err(AppError::from)?;
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::not_found("Ontology version"))?;
 
     // Snapshot version — the bitemporally-live version at `as_of`.
     let snapshot_version = state
@@ -139,9 +141,15 @@ async fn resolve_temporal(
         })?;
     let snapshot = state
         .store
-        .load_version(snapshot_version.id)
+        .get_ontology_ir(snapshot_version.id)
         .await
-        .map_err(AppError::from)?;
+        .map_err(AppError::from)?
+        .ok_or_else(|| {
+            AppError::bad_request(format!(
+                "Ontology version live at {as_of} for lineage `{lineage_id}` \
+                 has been removed and can no longer be hydrated."
+            ))
+        })?;
 
     let rewritten =
         ox_compiler::rewrite_temporal_with_renames(req.query_ir, &snapshot, &current).map_err(

@@ -82,9 +82,10 @@ pub(crate) async fn create_project(
                 })?;
             let ir = state
                 .store
-                .load_version(version.id)
+                .get_ontology_ir(version.id)
                 .await
-                .map_err(AppError::from)?;
+                .map_err(AppError::from)?
+                .ok_or_else(|| AppError::not_found("Ontology version"))?;
             let ontology_json = AppError::to_json(&ir)?;
 
             let source_config = SourceConfig {
@@ -495,13 +496,11 @@ pub(crate) async fn complete_project(
                 .map(|v| super::helpers::next_ontology_version_tag(&v.version))
                 .unwrap_or_else(|| "1".to_string());
             let prev_ir = if let Some(v) = &current {
-                Some(
-                    state
-                        .store
-                        .load_version(v.id)
-                        .await
-                        .map_err(AppError::from)?,
-                )
+                state
+                    .store
+                    .get_ontology_ir(v.id)
+                    .await
+                    .map_err(AppError::from)?
             } else {
                 None
             };
@@ -1256,7 +1255,7 @@ pub(crate) async fn execute_load_from_source(
             let Ok(Some(current_version)) = store.get_current_version(ont_id).await else {
                 return;
             };
-            let Ok(ontology) = store.load_version(current_version.id).await else {
+            let Ok(Some(ontology)) = store.get_ontology_ir(current_version.id).await else {
                 return;
             };
             let config =

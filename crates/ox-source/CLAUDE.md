@@ -4,11 +4,11 @@ Data source introspection: schema discovery + column profiling.
 
 ## Supported Sources
 
-PostgreSQL, MySQL, MongoDB, CSV, JSON. Each implements `DataSourceAdapter` trait.
+PostgreSQL, MySQL, MongoDB, CSV, JSON, DuckDB, Snowflake, BigQuery. Each implements `DataSourceAdapter` trait via the five atomic primitives `list_tables`, `describe_table`, `count_rows`, `sample_column`, `list_foreign_keys`.
 
 ## Adding a New Source
 
-1. Create `my_source.rs` implementing `DataSourceAdapter` (introspect_schema, collect_stats, analyze).
+1. Create `my_source.rs` implementing every `DataSourceAdapter` primitive — no default impls; missing methods are a compile error.
 2. Register in `registry.rs` via `registry.register("my_source", |input| async { ... })`.
 3. Input is `SourceInput` (connection string or file path).
 

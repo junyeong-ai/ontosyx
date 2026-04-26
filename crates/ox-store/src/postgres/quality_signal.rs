@@ -57,7 +57,7 @@ struct WindowCounters {
     shacl_passed: i64,
 }
 
-async fn fetch_window_counters(
+async fn list_window_counters(
     pool: &PgPool,
     days: i64,
     older_than_days: i64,
@@ -142,8 +142,8 @@ impl QualitySignalStore for PostgresStore {
         use crate::quality_signal::{MetricValue, QualityMetricsReport};
 
         let days = window.as_days();
-        let current = fetch_window_counters(&self.pool, days, 0).await?;
-        let previous = fetch_window_counters(&self.pool, days, days).await?;
+        let current = list_window_counters(&self.pool, days, 0).await?;
+        let previous = list_window_counters(&self.pool, days, days).await?;
 
         #[derive(sqlx::FromRow)]
         struct StaleRatio {

@@ -116,14 +116,22 @@ pub(crate) async fn list_type_candidates(
             .await
             .map_err(AppError::from)?;
         let Some(version) = current else { continue };
-        let ir = match state.store.load_version(version.id).await {
-            Ok(ir) => ir,
+        let ir = match state.store.get_ontology_ir(version.id).await {
+            Ok(Some(ir)) => ir,
+            Ok(None) => {
+                tracing::warn!(
+                    ontology_id = %row.id,
+                    version_id = %version.id,
+                    "type_candidates: ontology snapshot vanished; skipping",
+                );
+                continue;
+            }
             Err(e) => {
                 tracing::warn!(
                     error = %e,
                     ontology_id = %row.id,
                     version_id = %version.id,
-                    "type_candidates: load_version failed; skipping",
+                    "type_candidates: ontology hydration failed; skipping",
                 );
                 continue;
             }

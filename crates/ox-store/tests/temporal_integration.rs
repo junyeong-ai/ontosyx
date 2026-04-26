@@ -3,7 +3,7 @@
 //! Validates that the full pipeline
 //!
 //!   `OntologyVersionStore::resolve_version_at` →
-//!   `OntologyVersionStore::load_version` →
+//!   `OntologyVersionStore::get_ontology_ir` →
 //!   `rewrite_temporal_with_renames`
 //!
 //! resolves a point-in-time snapshot and rewrites the query's labels into
@@ -303,7 +303,11 @@ async fn resolve_version_at_picks_v1_mid_window() {
     assert_eq!(snapshot.version, "1", "v1 tag");
 
     let ir = PostgresStore::with_workspace(fx.workspace_id, || async {
-        store.load_version(snapshot.id).await.expect("hydrate v1")
+        store
+            .get_ontology_ir(snapshot.id)
+            .await
+            .expect("hydrate v1")
+            .expect("v1 snapshot exists")
     })
     .await;
     assert_eq!(
@@ -338,7 +342,11 @@ async fn resolve_version_at_picks_v2_after_cutover() {
 
     assert_eq!(snapshot.version, "2", "post-cutover resolves to v2");
     let ir = PostgresStore::with_workspace(fx.workspace_id, || async {
-        store.load_version(snapshot.id).await.expect("hydrate v2")
+        store
+            .get_ontology_ir(snapshot.id)
+            .await
+            .expect("hydrate v2")
+            .expect("v2 snapshot exists")
     })
     .await;
     assert_eq!(
@@ -400,13 +408,15 @@ async fn temporal_rewrite_pivots_customer_to_client() {
             .expect("current version lookup")
             .expect("current version exists");
         let snapshot = store
-            .load_version(snapshot_row.id)
+            .get_ontology_ir(snapshot_row.id)
             .await
-            .expect("hydrate snapshot");
+            .expect("hydrate snapshot")
+            .expect("snapshot exists");
         let current = store
-            .load_version(current_row.id)
+            .get_ontology_ir(current_row.id)
             .await
-            .expect("hydrate current");
+            .expect("hydrate current")
+            .expect("current exists");
         (snapshot, current)
     })
     .await;
@@ -462,13 +472,15 @@ async fn temporal_rewrite_is_noop_inside_v2_window() {
             .expect("current version lookup")
             .expect("current version exists");
         let snapshot = store
-            .load_version(snapshot_row.id)
+            .get_ontology_ir(snapshot_row.id)
             .await
-            .expect("hydrate snapshot");
+            .expect("hydrate snapshot")
+            .expect("snapshot exists");
         let current = store
-            .load_version(current_row.id)
+            .get_ontology_ir(current_row.id)
             .await
-            .expect("hydrate current");
+            .expect("hydrate current")
+            .expect("current exists");
         (snapshot, current)
     })
     .await;
@@ -654,8 +666,16 @@ async fn temporal_rewrite_preserves_property_filters() {
             .expect("current")
             .expect("exists");
         (
-            store.load_version(snap_row.id).await.expect("snap"),
-            store.load_version(cur_row.id).await.expect("cur"),
+            store
+                .get_ontology_ir(snap_row.id)
+                .await
+                .expect("snap")
+                .expect("snap exists"),
+            store
+                .get_ontology_ir(cur_row.id)
+                .await
+                .expect("cur")
+                .expect("cur exists"),
         )
     })
     .await;

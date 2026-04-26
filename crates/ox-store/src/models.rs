@@ -154,7 +154,7 @@ pub enum EntityChangeKind {
 }
 
 /// Hydration join row — one output of the SELECT behind
-/// `OntologyVersionStore::load_version`. Packs the pointer row
+/// `OntologyVersionStore::get_ontology_ir`. Packs the pointer row
 /// with the resolved entity content in a single round trip.
 /// Not surfaced on the public API — internal to the PostgreSQL
 /// implementation.

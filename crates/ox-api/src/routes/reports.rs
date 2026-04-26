@@ -49,7 +49,7 @@ async fn resolve_lineage_current_ir(
 ) -> Option<std::sync::Arc<ox_ontology::ir::OntologyIR>> {
     let identity = state.store.find_ontology_by_lineage(lineage_id).await.ok()??;
     let version = state.store.get_current_version(identity.id).await.ok()??;
-    let ir = state.store.load_version(version.id).await.ok()?;
+    let ir = state.store.get_ontology_ir(version.id).await.ok()??;
     Some(std::sync::Arc::new(ir))
 }
 

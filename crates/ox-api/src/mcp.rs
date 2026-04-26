@@ -367,9 +367,15 @@ async fn load_ontology(store: &dyn Store, name: &str) -> Result<OntologyIR, McpE
             )
         })?;
     store
-        .load_version(version.id)
+        .get_ontology_ir(version.id)
         .await
-        .map_err(|e| McpError::internal_error(format!("Hydrate error: {e}"), None))
+        .map_err(|e| McpError::internal_error(format!("Hydrate error: {e}"), None))?
+        .ok_or_else(|| {
+            McpError::invalid_params(
+                format!("Ontology '{name}' snapshot is no longer available"),
+                None,
+            )
+        })
 }
 
 /// Serialize a response struct to pretty JSON text, mapping errors to McpError.
@@ -714,19 +720,32 @@ impl OntosyxMcpServer {
                 .await
                 .map_err(|e| McpError::internal_error(format!("Store error: {e}"), None))?;
 
-            let (version_tag, node_count, edge_count) = if let Some(version) = version_row {
-                let ir = self.store.load_version(version.id).await.map_err(|e| {
-                    McpError::internal_error(format!("Hydrate error: {e}"), None)
-                })?;
-                (
-                    version.version,
-                    ir.node_types().len(),
-                    ir.edge_types().len(),
-                )
-            } else {
-                // Identity exists but no committed version — rare transitional
-                // state. Surface as "v0 / empty" rather than hiding the row.
-                (String::from("0"), 0, 0)
+            let (version_tag, node_count, edge_count) = match version_row {
+                Some(version) => {
+                    let ir = self
+                        .store
+                        .get_ontology_ir(version.id)
+                        .await
+                        .map_err(|e| {
+                            McpError::internal_error(format!("Hydrate error: {e}"), None)
+                        })?;
+                    match ir {
+                        Some(ir) => (
+                            version.version,
+                            ir.node_types().len(),
+                            ir.edge_types().len(),
+                        ),
+                        // Pointer existed but the snapshot vanished
+                        // between fetch and hydrate — surface as the
+                        // same "transitional" zero shape used for
+                        // unversioned identities.
+                        None => (String::from("0"), 0, 0),
+                    }
+                }
+                // Identity exists but no committed version — rare
+                // transitional state. Surface as "v0 / empty" rather
+                // than hiding the row.
+                None => (String::from("0"), 0, 0),
             };
 
             ontologies.push(OntologySummary {

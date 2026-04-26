@@ -1235,14 +1235,22 @@ async fn evaluate_quality_rules(
                     .await
                 {
                     Ok(Some(identity)) => match store.get_current_version(identity.id).await {
-                        Ok(Some(version)) => match store.load_version(version.id).await {
-                            Ok(ir) => {
+                        Ok(Some(version)) => match store.get_ontology_ir(version.id).await {
+                            Ok(Some(ir)) => {
                                 tracing::info!(
                                     lineage = %rule.ontology_lineage_id,
                                     version = %version.version,
                                     "Quality sweep loaded ontology"
                                 );
                                 Some(Arc::new(ir))
+                            }
+                            Ok(None) => {
+                                tracing::warn!(
+                                    lineage = %rule.ontology_lineage_id,
+                                    version = %version.version,
+                                    "Quality sweep saw a vanished ontology snapshot; rule runs without label validation"
+                                );
+                                None
                             }
                             Err(e) => {
                                 tracing::warn!(

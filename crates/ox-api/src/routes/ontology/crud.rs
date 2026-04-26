@@ -253,13 +253,11 @@ pub(crate) async fn get_ontology_detail(
         .await
         .map_err(AppError::from)?;
     let ir = if let Some(v) = &version {
-        Some(
-            state
-                .store
-                .load_version(v.id)
-                .await
-                .map_err(AppError::from)?,
-        )
+        state
+            .store
+            .get_ontology_ir(v.id)
+            .await
+            .map_err(AppError::from)?
     } else {
         None
     };

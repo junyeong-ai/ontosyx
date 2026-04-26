@@ -97,9 +97,10 @@ pub(crate) async fn apply_ontology_edits(
     if req.dry_run {
         let mut ir = state
             .store
-            .load_version(current.id)
+            .get_ontology_ir(current.id)
             .await
-            .map_err(AppError::from)?;
+            .map_err(AppError::from)?
+            .ok_or_else(|| AppError::not_found("Ontology version"))?;
 
         let classified: Vec<String> = req
             .operations
@@ -158,9 +159,10 @@ pub(crate) async fn apply_ontology_edits(
     // until commit.
     let mut ir = state
         .store
-        .load_version(current.id)
+        .get_ontology_ir(current.id)
         .await
-        .map_err(AppError::from)?;
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::not_found("Ontology version"))?;
 
     for op in &req.operations {
         op.apply_to(&mut ir).map_err(AppError::unprocessable)?;

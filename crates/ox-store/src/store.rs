@@ -156,7 +156,7 @@ pub trait OntologyVersionStore: Send + Sync {
     /// current workspace. Ordered newest-first by `created_at`
     /// (then `id` for tie-break). Returns the identity row only;
     /// callers that need the current version or IR call
-    /// `get_current_version` + `load_version` per row.
+    /// `get_current_version` + `get_ontology_ir` per row.
     async fn list_ontologies(
         &self,
         pagination: &CursorParams,
@@ -207,7 +207,16 @@ pub trait OntologyVersionStore: Send + Sync {
     /// with entity store, rehydrates each entity's `content`
     /// JSONB into the typed `XxxDef`, and assembles the full
     /// `OntologyIR`.
-    async fn load_version(&self, version_id: Uuid) -> OxResult<ox_ontology::OntologyIR>;
+    ///
+    /// Returns `Ok(None)` when no snapshot exists for `version_id`
+    /// (e.g., the snapshot was deleted between a prior lookup and
+    /// this hydrate, or the caller was handed a stale handle).
+    /// Returns `Err` only when stored entities are malformed
+    /// (parse / deserialization failure or missing header).
+    async fn get_ontology_ir(
+        &self,
+        version_id: Uuid,
+    ) -> OxResult<Option<ox_ontology::OntologyIR>>;
 
     /// Fetch a version snapshot record by id (without hydrating
     /// the full IR). Used by routes that need version metadata

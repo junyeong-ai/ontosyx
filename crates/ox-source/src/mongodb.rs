@@ -130,7 +130,7 @@ impl MongoAdapter {
     /// Lazily build the full schema + profile snapshot. `OnceCell`
     /// guarantees this runs exactly once — concurrent callers wait for
     /// the in-flight build rather than kicking off duplicate samplings.
-    async fn get_snapshot(&self) -> OxResult<&Snapshot> {
+    async fn snapshot(&self) -> OxResult<&Snapshot> {
         self.snapshot
             .get_or_try_init(|| async { self.build_snapshot().await })
             .await
@@ -303,12 +303,12 @@ impl DataSourceAdapter for MongoAdapter {
     }
 
     async fn list_tables(&self) -> OxResult<Vec<String>> {
-        let snap = self.get_snapshot().await?;
+        let snap = self.snapshot().await?;
         Ok(snap.tables.iter().map(|t| t.name.clone()).collect())
     }
 
     async fn describe_table(&self, table: &str) -> OxResult<SourceTableDef> {
-        let snap = self.get_snapshot().await?;
+        let snap = self.snapshot().await?;
         snap.tables
             .iter()
             .find(|t| t.name == table)
@@ -319,7 +319,7 @@ impl DataSourceAdapter for MongoAdapter {
     }
 
     async fn count_rows(&self, table: &str) -> OxResult<u64> {
-        let snap = self.get_snapshot().await?;
+        let snap = self.snapshot().await?;
         // Real collections carry an estimated doc count. Synthesised
         // child tables (nested documents) report 0 — the pre-refactor
         // behaviour preserved.
@@ -334,7 +334,7 @@ impl DataSourceAdapter for MongoAdapter {
     }
 
     async fn sample_column(&self, table: &str, column: &SourceColumnDef) -> OxResult<ColumnStats> {
-        let snap = self.get_snapshot().await?;
+        let snap = self.snapshot().await?;
         if let Some(stats) = snap
             .stats_by_column
             .get(&(table.to_string(), column.name.clone()))
@@ -355,7 +355,7 @@ impl DataSourceAdapter for MongoAdapter {
     }
 
     async fn list_foreign_keys(&self) -> OxResult<Vec<ForeignKeyDef>> {
-        let snap = self.get_snapshot().await?;
+        let snap = self.snapshot().await?;
         Ok(snap.foreign_keys.clone())
     }
 }
