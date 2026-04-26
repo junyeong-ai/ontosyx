@@ -32,6 +32,12 @@ duckdb = { workspace = true, optional = true }
 
 [features]
 duckdb = ["dep:duckdb"]
+# Live BigQuery integration tests. Off by default — requires
+# Application Default Credentials and `OXY_BIGQUERY_PROJECT` /
+# `OXY_BIGQUERY_DATASET` env vars at runtime. Set
+# `OXY_REQUIRE_BIGQUERY_TESTS=true` in CI to escalate skip-on-missing-
+# credentials to a hard failure.
+bigquery-integration-tests = []
 
 [lints]
 workspace = true
