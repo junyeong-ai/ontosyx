@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
+import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 
 import messages from "../../../../../../messages/en.json";
 
@@ -56,7 +57,14 @@ function renderPage(): void {
   const ui: ReactElement = (
     <NextIntlClientProvider locale="en" messages={messages}>
       <QueryClientProvider client={qc}>
-        <QualitySignalsPage />
+        {/* ConfirmProvider is required because the stale table now
+            calls `useConfirm()` for the deprecate-proposal flow
+            (Φ5 #4). The test never opens the confirm dialog;
+            mounting the provider lets the hook resolve without
+            throwing. */}
+        <ConfirmProvider>
+          <QualitySignalsPage />
+        </ConfirmProvider>
       </QueryClientProvider>
     </NextIntlClientProvider>
   );

@@ -1918,7 +1918,20 @@
           "kind": "종류",
           "typeId": "Type ID",
           "lastUsed": "최종 참조",
-          "daysSince": "경과일"
+          "daysSince": "경과일",
+          "action": "액션"
+        },
+        "deprecate": {
+          "button": "폐기 제안",
+          "noOntology": "커밋된 온톨로지가 없습니다 — Design 모드에서 먼저 생성하세요.",
+          "confirmTitle": "폐기를 제안하시겠습니까?",
+          "confirmDescription": "`{type}` ({days}일 동안 미사용)의 `deprecate_*` OntologyEditOp 를 작성해 편집 파이프라인으로 제출합니다. change_routing 매트릭스가 직접 적용 또는 승인 대기열로의 라우팅을 결정합니다.",
+          "confirmLabel": "제안",
+          "cancel": "취소",
+          "unsupportedKind": "알 수 없는 type kind 는 폐기 제안할 수 없습니다: {kind}",
+          "message": "Stale 타입 {type} 폐기",
+          "queued": "폐기 제안이 제출되었습니다 — 승인 대기열을 확인하세요.",
+          "failed": "제안 실패: {error}"
         }
       }
     }

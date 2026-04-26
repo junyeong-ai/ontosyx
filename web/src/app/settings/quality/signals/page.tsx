@@ -2,8 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
+
+import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { SettingsSelect } from "@/components/ui/form-input";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/cn";
 import type { MetricWindow } from "@/lib/api/quality";
 import type {
@@ -18,6 +22,12 @@ import {
   useShaclFailures,
   useStaleTypes,
 } from "@/hooks/api/use-quality";
+import {
+  useOntologies,
+  useOntologyDetail,
+} from "@/hooks/api/use-ontologies";
+import { useApplyOntologyEdits } from "@/hooks/api/use-ontology-edits";
+import type { OntologyEditOp } from "@/lib/api/edit-ops";
 
 /**
  * Ontology-quality signal dashboard — the patent's "6 창" surface.
@@ -333,6 +343,65 @@ function StaleTypesTable({
   const t = useTranslations("settings.qualitySignals");
   const data = useMemo(() => rows, [rows]);
 
+  // Φ5 #4 — Stale-jump: clicking the deprecate button on a row
+  // drafts a `DeprecateNodeType` / `DeprecateEdgeType` op and
+  // submits it through the standard edit pipeline, which routes
+  // to the approval queue per the change_routing matrix. The
+  // reviewer then sees the proposal as a queued approval with
+  // payload preview (Φ5 #2). No bypass; the routing rules decide
+  // whether the deprecation lands directly or requires sign-off.
+  const ontologies = useOntologies({ limit: 1 });
+  const ontology = ontologies.data?.items?.[0];
+  const detail = useOntologyDetail(ontology?.id);
+  const apply = useApplyOntologyEdits(ontology?.id);
+  const confirm = useConfirm();
+  const expectedVersion =
+    Number(detail.data?.current_version?.version ?? "0") || 0;
+
+  const handleDeprecate = async (row: StaleTypeEntry) => {
+    if (!ontology?.id) {
+      toast.error(t("stale.deprecate.noOntology"));
+      return;
+    }
+    const ok = await confirm({
+      title: t("stale.deprecate.confirmTitle"),
+      description: t("stale.deprecate.confirmDescription", {
+        type: row.type_id,
+        days: row.days_since_last_use,
+      }),
+      confirmLabel: t("stale.deprecate.confirmLabel"),
+      cancelLabel: t("stale.deprecate.cancel"),
+      variant: "warning",
+    });
+    if (!ok) return;
+    // Map the row's `type_kind` ("node_type" / "edge_type") to
+    // the matching deprecate op variant. Anything else is a
+    // workspace-data inconsistency we surface as a toast rather
+    // than forge an op for.
+    const op: OntologyEditOp | null =
+      row.type_kind === "node_type"
+        ? { op: "deprecate_node_type", id: row.type_id }
+        : row.type_kind === "edge_type"
+          ? { op: "deprecate_edge_type", id: row.type_id }
+          : null;
+    if (!op) {
+      toast.error(t("stale.deprecate.unsupportedKind", { kind: row.type_kind }));
+      return;
+    }
+    apply.mutate(
+      {
+        operations: [op],
+        expected_version: expectedVersion,
+        message: t("stale.deprecate.message", { type: row.type_id }),
+      },
+      {
+        onSuccess: () => toast.success(t("stale.deprecate.queued")),
+        onError: (err) =>
+          toast.error(t("stale.deprecate.failed", { error: err.message })),
+      },
+    );
+  };
+
   if (loading) {
     return (
       <div className="rounded-lg border border-zinc-200 bg-white p-8 text-center dark:border-zinc-800 dark:bg-zinc-950">
@@ -350,7 +419,7 @@ function StaleTypesTable({
 
   return (
     <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-      <table className="w-full min-w-[640px] text-left text-xs">
+      <table className="w-full min-w-[720px] text-left text-xs">
         <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
           <tr>
             <th className="py-3 pl-4 pr-6 font-semibold text-zinc-600 dark:text-zinc-400">
@@ -364,6 +433,9 @@ function StaleTypesTable({
             </th>
             <th className="py-3 pr-6 text-right font-semibold text-zinc-600 dark:text-zinc-400">
               {t("stale.col.daysSince")}
+            </th>
+            <th className="py-3 pl-2 pr-4 text-right font-semibold text-zinc-600 dark:text-zinc-400">
+              {t("stale.col.action")}
             </th>
           </tr>
         </thead>
@@ -386,6 +458,16 @@ function StaleTypesTable({
               </td>
               <td className="py-2 pr-6 text-right tabular-nums text-zinc-600 dark:text-zinc-400">
                 {r.days_since_last_use}
+              </td>
+              <td className="py-2 pl-2 pr-4 text-right">
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => handleDeprecate(r)}
+                  disabled={apply.isPending || !ontology?.id}
+                >
+                  {t("stale.deprecate.button")}
+                </Button>
               </td>
             </tr>
           ))}

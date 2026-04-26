@@ -1936,7 +1936,20 @@
           "kind": "Kind",
           "typeId": "Type ID",
           "lastUsed": "Last used",
-          "daysSince": "Days since"
+          "daysSince": "Days since",
+          "action": "Action"
+        },
+        "deprecate": {
+          "button": "Propose deprecation",
+          "noOntology": "No committed ontology — open Design mode first.",
+          "confirmTitle": "Propose deprecation?",
+          "confirmDescription": "Drafts a `deprecate_*` OntologyEditOp for `{type}` (unused {days} days) and submits it through the edit pipeline. The change_routing matrix decides whether it lands directly or queues for approval.",
+          "confirmLabel": "Propose",
+          "cancel": "Cancel",
+          "unsupportedKind": "Cannot propose deprecation for unknown type kind: {kind}",
+          "message": "Deprecate stale type {type}",
+          "queued": "Deprecation proposal submitted — check the approval queue.",
+          "failed": "Proposal failed: {error}"
         }
       }
     }
