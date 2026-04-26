@@ -805,6 +805,7 @@
         "accessControl": "Access Control",
         "dataLineage": "Data Lineage",
         "auditLog": "Audit Log",
+        "provenanceAudit": "PROV-O Audit",
         "approvals": "Approvals",
         "development": "Development",
         "prompts": "Prompts",

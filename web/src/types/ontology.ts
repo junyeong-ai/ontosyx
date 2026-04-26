@@ -38,6 +38,10 @@ export interface OntologyIR {
   concept_maps?: unknown[];
   /** `RuleDef[]` per `lib/api/edit-ops.ts`. */
   rules?: unknown[];
+  /** PROV-O `ProvenanceDef[]`. Each entry carries subject /
+   *  activity / agent / at_time + used + derived_from. The Φ6
+   *  audit trail viewer reads this slice. */
+  provenance?: unknown[];
 }
 
 export interface NodeTypeDef {

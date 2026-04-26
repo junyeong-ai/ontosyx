@@ -579,6 +579,45 @@
     }
   },
   "settings": {
+    "governance": {
+      "audit": {
+        "pageTitle": "PROV-O 감사",
+        "pageSubtitle": "플랫폼이 소스 스캔, 규칙 평가, 액션 실행, LLM 초안 등을 수행하면서 발행한 fact 단위 origin 레코드. 읽기 전용 — 그래프의 fact 가 왜, 누구에 의해, 언제 생겼는지 확인할 수 있습니다.",
+        "noOntology": "커밋된 온톨로지가 없습니다 — Design 모드에서 PROV-O 레코드를 시작하려면 먼저 ontology 를 만드세요.",
+        "filter": {
+          "activity": "활동 종류",
+          "agent": "에이전트 종류"
+        },
+        "counts": "전체 {total}개 중 {shown}개 표시",
+        "usedLabel": "사용",
+        "empty": {
+          "noRecords": "PROV-O 레코드가 아직 없습니다",
+          "noRecordsHint": "플랫폼이 소스 스캔, 규칙 검증, 액션 실행, LLM 초안 등을 수행하면 레코드가 자동으로 추가됩니다.",
+          "noMatch": "필터에 일치하는 레코드 없음",
+          "noMatchHint": "필터를 넓혀 더 많은 항목을 확인하세요."
+        },
+        "activityKinds": {
+          "all": "모든 활동",
+          "source_scan": "소스 스캔",
+          "function_eval": "함수 평가",
+          "rule_validate": "규칙 검증",
+          "action_execute": "액션 실행",
+          "ontology_edit": "온톨로지 편집",
+          "draft_proposal": "LLM 초안",
+          "cache_refresh": "캐시 갱신",
+          "enrichment": "인리치먼트",
+          "import": "임포트",
+          "export": "익스포트"
+        },
+        "agentKinds": {
+          "all": "모든 에이전트",
+          "user": "사용자",
+          "service": "서비스",
+          "llm_model": "LLM 모델",
+          "system": "시스템"
+        }
+      }
+    },
     "vocabulary": {
       "codeSystems": {
         "pageTitle": "코드 시스템",
@@ -787,6 +826,7 @@
         "accessControl": "접근 제어",
         "dataLineage": "데이터 계보",
         "auditLog": "감사 로그",
+        "provenanceAudit": "PROV-O 감사",
         "approvals": "승인 대기열",
         "development": "개발",
         "prompts": "프롬프트",

@@ -95,6 +95,13 @@ const NAV_GROUPS: NavGroup[] = [
       { labelKey: "accessControl", href: "/settings/acl", adminOnly: true },
       { labelKey: "dataLineage", href: "/settings/lineage" },
       { labelKey: "auditLog", href: "/settings/audit", adminOnly: true },
+      // Φ6 #3 — PROV-O audit trail viewer for the current
+      // ontology. Lives next to the existing per-row audit log.
+      {
+        labelKey: "provenanceAudit",
+        href: "/settings/governance/audit",
+        adminOnly: true,
+      },
       { labelKey: "approvals", href: "/settings/approvals", adminOnly: true },
     ],
   },
