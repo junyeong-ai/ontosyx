@@ -250,8 +250,9 @@ impl PromptRegistry {
 
             match decide_seed_action(&combined, existing.as_ref()) {
                 SeedAction::Insert => {
+                    let row_id = uuid::Uuid::new_v4();
                     let row = ox_store::PromptTemplateRow {
-                        id: uuid::Uuid::new_v4(),
+                        id: row_id,
                         name: name.clone(),
                         version: parsed_version,
                         content: combined,
@@ -267,6 +268,14 @@ impl PromptRegistry {
                         workspace_id: None,
                     };
                     store.create_prompt_template(&row).await?;
+                    // The "at most one active row per name" invariant is the
+                    // producer's responsibility. Mirroring the admin path
+                    // (`POST /api/admin/prompts`) keeps the loader's
+                    // highest-version dedupe as defence in depth, not the
+                    // sole gate.
+                    store
+                        .update_prompt_template_active_only(&name, row_id)
+                        .await?;
                     info!(
                         name = %name,
                         version = %file.prompt.version,
@@ -298,13 +307,11 @@ impl PromptRegistry {
         Ok(())
     }
 
-    /// Build registry from DB rows.
-    ///
-    /// When multiple rows share a name (a TOML version bump leaves the
-    /// older row `is_active = true` because seed never deactivates it —
-    /// only the admin API does), the registry exposes the **highest
-    /// version** per name. The HTTP layer's `checked_for(min_version)`
-    /// then enforces the call-site contract on top of that.
+    /// Build registry from DB rows. Picks the highest version per
+    /// name as defence in depth — the seed and admin paths both
+    /// enforce "at most one active row per name", but an operator
+    /// editing rows by hand can leave inconsistent state and the
+    /// runtime should still serve a deterministic prompt.
     fn from_db_rows(rows: Vec<ox_store::PromptTemplateRow>) -> OxResult<Self> {
         let mut prompts = HashMap::new();
         let mut versions: HashMap<String, PromptVersion> = HashMap::new();
