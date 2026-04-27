@@ -22,12 +22,19 @@ const eslintConfig = defineConfig([
       // Action handles are read inline at the call site
       // (`useAppStore((s) => s.fooBar)`); selector wrappers add no
       // memoization value over Zustand's stable action references
-      // and split the canonical pattern across two files.
+      // and split the canonical pattern across two files. Both export
+      // shapes (`export const selectActionFoo = ...` and
+      // `export { selectActionFoo }`) are blocked.
       "no-restricted-syntax": [
         "error",
         {
           selector:
             "ExportNamedDeclaration > VariableDeclaration > VariableDeclarator[id.name=/^selectAction/]",
+          message:
+            "Action selector wrappers are forbidden. Read actions inline at the call site: useAppStore((s) => s.fooBar).",
+        },
+        {
+          selector: "ExportSpecifier[exported.name=/^selectAction/]",
           message:
             "Action selector wrappers are forbidden. Read actions inline at the call site: useAppStore((s) => s.fooBar).",
         },

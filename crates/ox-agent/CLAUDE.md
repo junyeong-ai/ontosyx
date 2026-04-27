@@ -27,6 +27,29 @@ The `GRAPH_ONTOLOGY.scope(Arc::clone(&ontology), runtime.execute_query(...))` wr
 3. Register in `lib.rs` builder chain.
 4. Add the tool name constant in `tools/mod.rs`.
 
+## Tool Result Contract
+
+`SchemaTool::handle` returns a JSON envelope that goes straight into
+the LLM's tool-result context window. Three rules:
+
+- **LLM-only fields.** Every field in the result struct must inform
+  the model's *next decision*. Backend bookkeeping, persistence
+  identifiers, FE rendering metadata, and per-step instrumentation
+  are not LLM input.
+- **FE rendering data goes through the persisted execution row.**
+  `query_graph` writes the full `QueryExecution` (compiled target,
+  provenance, timing breakdown, results) and the FE fetches via
+  `/api/executions/{id}`. The chat panel does not parse the tool
+  result JSON for rendering.
+- **Real-time UI updates ride SSE progress events.**
+  `ctx.progress("step").completed_with(ms, json!({...}))` is the
+  streaming channel. Don't double-encode the same data on the
+  result envelope as a "drain-mode fallback" — progress events
+  arrive in drain mode too.
+
+A field that crosses any of these lines belongs on the persisted
+row or the SSE stream, not on the tool result.
+
 ## Hooks
 
 Two domain hooks run during agent execution:
