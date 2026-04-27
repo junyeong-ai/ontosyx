@@ -31,7 +31,8 @@ use std::sync::Mutex;
 use async_trait::async_trait;
 use branchforge::client::LlmCall;
 use branchforge::client::provider_client::ChunkStream;
-use branchforge::ir::{ContentPart, FinishReason, ModelRequest, ModelResponse, Usage};
+use branchforge::ir::stream::ModelStreamChunk;
+use branchforge::ir::{ContentPart, FinishReason, ModelRequest, ModelResponse, Role, Usage};
 use tokio_util::sync::CancellationToken;
 
 /// Deterministic [`LlmCall`] backed by a FIFO queue of pre-built
@@ -40,6 +41,11 @@ use tokio_util::sync::CancellationToken;
 #[derive(Debug, Default)]
 pub struct MockLlmCall {
     queued: Mutex<VecDeque<branchforge::Result<ModelResponse>>>,
+    /// Pre-built streaming responses, one full chunk vec per
+    /// `send_stream` call. Each call pops the head of the queue and
+    /// returns its chunks. Empty queue ⇒ Config error so the test
+    /// fails loudly rather than hanging on a phantom stream.
+    streams: Mutex<VecDeque<Vec<ModelStreamChunk>>>,
     requests: Mutex<Vec<ModelRequest>>,
 }
 
@@ -86,6 +92,16 @@ impl MockLlmCall {
     pub fn is_drained(&self) -> bool {
         self.queued.lock().unwrap().is_empty()
     }
+
+    /// Queue a streaming response — one `Vec<ModelStreamChunk>` is
+    /// emitted by the next `send_stream` call. Each chunk yields
+    /// `Ok(chunk)` to the consumer; tests that need an
+    /// `Err`-bearing chunk assemble the vec via
+    /// [`make_chunked_stream_with_errors`] (or hand-roll one).
+    pub fn enqueue_stream(&self, chunks: Vec<ModelStreamChunk>) -> &Self {
+        self.streams.lock().unwrap().push_back(chunks);
+        self
+    }
 }
 
 #[async_trait]
@@ -105,13 +121,39 @@ impl LlmCall for MockLlmCall {
 
     async fn send_stream(
         &self,
-        _request: &ModelRequest,
-        _cancel_token: CancellationToken,
+        request: &ModelRequest,
+        cancel_token: CancellationToken,
     ) -> branchforge::Result<ChunkStream> {
-        unimplemented!(
-            "MockLlmCall.send_stream is not implemented — every Brain operation that \
-             funnels through structured_completion is unary"
-        )
+        self.requests.lock().unwrap().push(request.clone());
+
+        let chunks = self
+            .streams
+            .lock()
+            .unwrap()
+            .pop_front()
+            .ok_or_else(|| {
+                branchforge::Error::Config(
+                    "MockLlmCall stream queue empty — enqueue_stream(...) before \
+                     calling send_stream()"
+                        .into(),
+                )
+            })?;
+
+        // Yield `Ok(chunk)` for every chunk in the pre-built vec, but
+        // honour cancellation between chunks so cancellation-aware
+        // tests can trigger a mid-stream stop.
+        let stream = async_stream::stream! {
+            for chunk in chunks {
+                if cancel_token.is_cancelled() {
+                    yield Err(branchforge::Error::Config(
+                        "stream cancelled mid-flight".into(),
+                    ));
+                    break;
+                }
+                yield Ok(chunk);
+            }
+        };
+        Ok(Box::pin(stream))
     }
 }
 
@@ -139,4 +181,51 @@ pub fn make_truncated_response(partial_text: String) -> ModelResponse {
         finish_reason: FinishReason::Length,
         ..make_text_response(partial_text)
     }
+}
+
+/// Streaming response built from a single concatenated text. Emits
+/// `MessageStart` → one `TextDelta` carrying the full text →
+/// `Finish(Stop)`. Use [`make_chunked_stream`] when the test cares
+/// about delta boundaries.
+pub fn make_text_stream(text: impl Into<String>) -> Vec<ModelStreamChunk> {
+    vec![
+        ModelStreamChunk::MessageStart {
+            id: "mock-response-1".into(),
+            model: "mock-model".into(),
+            role: Role::Assistant,
+        },
+        ModelStreamChunk::TextDelta {
+            index: 0,
+            text: text.into(),
+        },
+        ModelStreamChunk::Finish {
+            reason: FinishReason::Stop,
+            usage: Usage::default(),
+        },
+    ]
+}
+
+/// Streaming response with explicit text-delta boundaries — each
+/// `&str` becomes one `TextDelta` chunk. Tests verify chunk
+/// reassembly by passing multi-segment input and asserting the
+/// concatenated text on the consumer side.
+pub fn make_chunked_stream<'a>(
+    chunks: impl IntoIterator<Item = &'a str>,
+) -> Vec<ModelStreamChunk> {
+    let mut out = vec![ModelStreamChunk::MessageStart {
+        id: "mock-response-1".into(),
+        model: "mock-model".into(),
+        role: Role::Assistant,
+    }];
+    for piece in chunks {
+        out.push(ModelStreamChunk::TextDelta {
+            index: 0,
+            text: piece.to_string(),
+        });
+    }
+    out.push(ModelStreamChunk::Finish {
+        reason: FinishReason::Stop,
+        usage: Usage::default(),
+    });
+    out
 }

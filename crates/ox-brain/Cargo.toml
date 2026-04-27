@@ -30,6 +30,9 @@ uuid = { workspace = true }
 chrono = { workspace = true }
 sha2 = "0.10.9"
 
+[dev-dependencies]
+futures-util = "0.3"
+
 [features]
 # Re-usable test fixtures (`MockLlmCall`, `make_text_response`, …)
 # for downstream integration tests that need a deterministic LLM
