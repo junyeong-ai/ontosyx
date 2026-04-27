@@ -516,6 +516,7 @@ pub fn router(state: AppState) -> Router {
 
     // Workspace management routes: require auth + workspace context for admin checks.
     let workspace_mgmt = Router::new()
+        .route("/workspaces/me", get(workspaces::workspace_me))
         .route("/workspaces/{id}", patch(workspaces::update_workspace))
         .route("/workspaces/{id}", delete(workspaces::delete_workspace))
         .route(

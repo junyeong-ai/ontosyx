@@ -245,6 +245,69 @@ pub(crate) async fn get_workspace(
     Ok(ApiResponse::of(workspace.into()))
 }
 
+/// Per-request workspace identity surface for the FE. Carries the
+/// caller's *active* workspace plus the locale chain the renderer
+/// needs — the FE's `useLocaleChain` hook reads this once per
+/// workspace switch instead of bolting locale onto `/auth/me`
+/// (workspace-level data on a user-level endpoint).
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct WorkspaceMeResponse {
+    pub id: Uuid,
+    pub name: String,
+    pub slug: String,
+    pub role: String,
+    /// BCP 47 tag — the workspace's default locale.
+    pub primary_locale: String,
+    /// Ordered fallback chain (e.g. `["ko", "en"]`). FE
+    /// `localize()` walks this array; first non-empty translation wins.
+    pub locale_fallback: Vec<String>,
+}
+
+/// GET /workspaces/me — return the active workspace context.
+///
+/// `WorkspaceContext` is set by the middleware after authentication;
+/// the handler enriches it with the workspace row's `name` /
+/// `primary_locale` / `locale_fallback` so the FE doesn't make a
+/// second round-trip.
+#[utoipa::path(
+    get,
+    path = "/workspaces/me",
+    responses(
+        (status = 200, description = "Active workspace context", body = WorkspaceMeResponse),
+        (status = 404, description = "Workspace row missing", body = inline(crate::openapi::ErrorResponse)),
+    ),
+    tag = "Workspaces",
+    security(("bearer" = [])),
+)]
+pub(crate) async fn workspace_me(
+    State(state): State<AppState>,
+    ws_ctx: WorkspaceContext,
+) -> Result<Json<ApiResponse<WorkspaceMeResponse>>, AppError> {
+    let workspace = state
+        .store
+        .get_workspace(ws_ctx.workspace_id)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::not_found("Workspace"))?;
+
+    let locale_fallback: Vec<String> = serde_json::from_value(workspace.locale_fallback.clone())
+        .map_err(|e| {
+            AppError::internal(format!(
+                "workspaces.locale_fallback for {} is not a JSON string array: {e}",
+                ws_ctx.workspace_id
+            ))
+        })?;
+
+    Ok(ApiResponse::of(WorkspaceMeResponse {
+        id: workspace.id,
+        name: workspace.name,
+        slug: workspace.slug,
+        role: ws_ctx.workspace_role.as_str().to_string(),
+        primary_locale: workspace.primary_locale,
+        locale_fallback,
+    }))
+}
+
 /// PATCH /workspaces/:id — update workspace name/settings.
 pub(crate) async fn update_workspace(
     State(state): State<AppState>,

@@ -4,7 +4,7 @@ use utoipa::{Modify, OpenApi, ToSchema};
 
 use crate::routes::{
     approvals, chat, config, federation_admin, governance_audit, governance_routing, health, load,
-    ontology, perspectives, pins, prompts_admin, query,
+    ontology, perspectives, pins, prompts_admin, query, workspaces,
 };
 
 // Module aliases for utoipa path resolution — utoipa generates hidden __path_*
@@ -196,6 +196,8 @@ impl Modify for SecurityAddon {
         governance_routing::list_routing_rules,
         governance_routing::upsert_routing_rule,
         governance_routing::delete_routing_rule,
+        // Workspace context (locale chain + role for the FE)
+        workspaces::workspace_me,
     ),
     components(
         schemas(
@@ -291,6 +293,7 @@ impl Modify for SecurityAddon {
             ontology::OntologyListItem,
             ontology::OntologyDetail,
             ontology::CurrentVersionSummary,
+            workspaces::WorkspaceMeResponse,
             QueryExecution,
             QueryExecutionSummary,
             PinboardItem,

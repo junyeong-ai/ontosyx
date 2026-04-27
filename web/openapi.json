@@ -4621,6 +4621,51 @@
           }
         ]
       }
+    },
+    "/workspaces/me": {
+      "get": {
+        "tags": [
+          "Workspaces"
+        ],
+        "summary": "GET /workspaces/me — return the active workspace context.",
+        "description": "`WorkspaceContext` is set by the middleware after authentication;\nthe handler enriches it with the workspace row's `name` /\n`primary_locale` / `locale_fallback` so the FE doesn't make a\nsecond round-trip.",
+        "operationId": "workspace_me",
+        "responses": {
+          "200": {
+            "description": "Active workspace context",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceMeResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace row missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -12907,6 +12952,44 @@
             "type": "string"
           },
           "viewport": {}
+        }
+      },
+      "WorkspaceMeResponse": {
+        "type": "object",
+        "description": "Per-request workspace identity surface for the FE. Carries the\ncaller's *active* workspace plus the locale chain the renderer\nneeds — the FE's `useLocaleChain` hook reads this once per\nworkspace switch instead of bolting locale onto `/auth/me`\n(workspace-level data on a user-level endpoint).",
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "role",
+          "primary_locale",
+          "locale_fallback"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locale_fallback": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Ordered fallback chain (e.g. `[\"ko\", \"en\"]`). FE\n`localize()` walks this array; first non-empty translation wins."
+          },
+          "name": {
+            "type": "string"
+          },
+          "primary_locale": {
+            "type": "string",
+            "description": "BCP 47 tag — the workspace's default locale."
+          },
+          "role": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          }
         }
       }
     },

@@ -25,7 +25,8 @@ import {
 } from "@/hooks/api/use-ontologies";
 import { useApplyOntologyEdits } from "@/hooks/api/use-ontology-edits";
 import type { GlossaryTermDef } from "@/lib/api/edit-ops";
-import { DEFAULT_LOCALE_CHAIN, localizePresent } from "@/lib/locale/localize";
+import { localizePresent } from "@/lib/locale/localize";
+import { useLocaleChain } from "@/lib/use-locale-chain";
 
 // ---------------------------------------------------------------------------
 // id minting — fresh GlossaryTermId for create flows.
@@ -256,12 +257,13 @@ function GlossaryRow({
   busy: boolean;
 }) {
   const t = useTranslations("settings.vocabulary.glossary");
+  const localeChain = useLocaleChain();
   const aliases = term.aliases ?? [];
   const displayName = term.display_name
-    ? localizePresent(term.display_name, DEFAULT_LOCALE_CHAIN)
+    ? localizePresent(term.display_name, localeChain)
     : null;
   const description = term.description
-    ? localizePresent(term.description, DEFAULT_LOCALE_CHAIN)
+    ? localizePresent(term.description, localeChain)
     : null;
 
   return (
