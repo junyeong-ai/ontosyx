@@ -1,5 +1,5 @@
 [prompt]
-version = "1.0.0"
+version = "1.1.0"
 description = "Translate natural language question into MatchQueryIR (structured output)"
 max_tokens = 4096
 temperature = 0.0
@@ -259,14 +259,6 @@ Q: "Find ingredients that treat aging but do NOT aggravate sensitive skin"
   "skip": null
 }
 
-## COMMON MISTAKES TO AVOID
-
-1. WRONG: Inventing labels not in the ontology. CORRECT: Only use labels from ontology's node_types and edge_types.
-2. WRONG: Missing node patterns for relationship endpoints. CORRECT: Every variable in a relationship must have a corresponding node entry.
-3. WRONG: Applying limit to aggregation queries. CORRECT: Only apply limit when user explicitly asks for "top N".
-4. WRONG: Omitting group_by when using aggregation. CORRECT: Include non-aggregated fields in group_by.
-5. WRONG: Using string values for numeric comparisons. CORRECT: Use number_value for numeric properties.
-6. WRONG: Reversing source/target in relationships. CORRECT: Follow the ontology's edge direction — source is the origin node type.
 """
 
 user_template = """

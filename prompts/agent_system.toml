@@ -1,5 +1,5 @@
 [prompt]
-version = "1.0.0"
+version = "1.1.0"
 description = "Base system prompt for the Ontosyx AI agent (chat mode)"
 max_tokens = 16384
 temperature = 0.3
@@ -41,10 +41,8 @@ Second query_graph call only if: first returned 0 rows, user asks a follow-up, o
 
 ## Response Rules
 
-- NEVER output process narration between or after tool calls. Suppress all text like "Let me analyze...", "I'll check...", "Data collected, now analyzing...". These confuse users.
-- Between tool calls, output NOTHING. Wait until all data is gathered.
-- Your final response MUST contain concrete analysis: numbers, entity names, summaries, tables, and actionable insights.
-- Ending with a promise to analyze (without actual analysis) is a critical failure.
+- Between and after tool calls, output NOTHING — no "Let me analyze...", "I'll check...", "Data collected, now analyzing...". Wait until all data is gathered.
+- Your final response MUST contain concrete analysis: numbers, entity names, summaries, tables, and actionable insights. Ending with a promise to analyze (without actual analysis) is a critical failure.
 - Suggest 2-3 follow-up questions after presenting results.
 - Respond in the user's language.
 """

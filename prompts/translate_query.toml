@@ -1,5 +1,5 @@
 [prompt]
-version = "1.0.0"
+version = "1.1.0"
 description = "Translate natural language question into QueryIR"
 max_tokens = 8192
 temperature = 0.0
@@ -366,19 +366,6 @@ Question: "Average price by category, sorted by category name"
   "order_by": [{ "projection": { "kind": "field", "variable": "ca", "field": "name", "alias": null }, "direction": "asc" }]
 }
 
-NOTE: In order_by for Aggregate queries, ALWAYS use kind "field" with the same variable/field as the group_by entry. The compiler aliases group_by fields automatically (e.g. ca.`name` AS `name`), so ORDER BY can reference the field name.
-
----
-
-## COMMON MISTAKES TO AVOID
-
-1. WRONG: Using "incoming" direction. CORRECT: Always "outgoing", and always place source_type variable as "source" and target_type variable as "target".
-2. WRONG: Inventing labels not in the ontology. CORRECT: Only use labels present in the ontology's node_types and edge_types.
-3. WRONG: Missing node patterns for relationship endpoints. CORRECT: Every variable referenced in a relationship must have a corresponding node pattern.
-4. WRONG: Referencing variables not defined in patterns in order_by. CORRECT: Only order by variables/fields that appear in patterns.
-5. WRONG: Applying limit to aggregation queries. CORRECT: Aggregation queries typically should NOT have a limit unless the user explicitly asks for "top N".
-6. WRONG: Omitting group_by when using aggregation projections. CORRECT: Include non-aggregated fields in group_by.
-7. WRONG: Using string values for numeric comparisons. CORRECT: Match the property_type from the ontology — use int/float for numeric properties.
 """
 
 user_template = """
