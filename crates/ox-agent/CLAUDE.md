@@ -50,6 +50,12 @@ the LLM's tool-result context window. Three rules:
 A field that crosses any of these lines belongs on the persisted
 row or the SSE stream, not on the tool result.
 
+**Removing a field is a contract change.** Grep every FE
+`JSON.parse(...output...)` call site for the field name before
+shipping the cut and re-route each consumer to the persisted-row
+(`useExecution`) or SSE-stream (`toolCall.steps`) channel — silent
+regressions surface in panels nobody opened during local testing.
+
 ## Hooks
 
 Two domain hooks run during agent execution:
