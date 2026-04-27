@@ -46,7 +46,6 @@ struct ExecuteAnalysisOutput {
     stdout: String,
     stderr: String,
     exit_code: i32,
-    duration_ms: u64,
 }
 
 /// Executes Python analysis code in a sandboxed Docker container.
@@ -136,7 +135,6 @@ impl SchemaTool for ExecuteAnalysisTool {
             stdout: result.stdout,
             stderr: result.stderr,
             exit_code: result.exit_code,
-            duration_ms,
         };
 
         // Save result to cache (fire-and-forget)
@@ -149,7 +147,7 @@ impl SchemaTool for ExecuteAnalysisTool {
                 "stdout": output.stdout,
                 "stderr": output.stderr,
                 "exit_code": output.exit_code,
-                "duration_ms": output.duration_ms,
+                "duration_ms": duration_ms,
             }),
             duration_ms: duration_ms as i64,
             created_at: Utc::now(),

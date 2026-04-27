@@ -64,9 +64,6 @@ pub struct ResolveAmbiguityValueEntry {
 
 #[derive(Debug, Serialize)]
 struct ResolveAmbiguityOutput {
-    resolution_id: String,
-    context_id: String,
-    supersedes: Option<String>,
     active: bool,
 }
 
@@ -155,9 +152,6 @@ impl SchemaTool for ResolveAmbiguityTool {
                 self.clarification_tracker.record(exec_ctx.session_id());
                 ToolResult::success(
                     serde_json::to_string_pretty(&ResolveAmbiguityOutput {
-                        resolution_id: saved.id.as_str().to_string(),
-                        context_id: saved.context_id.as_str().to_string(),
-                        supersedes: saved.supersedes.map(|s| s.as_str().to_string()),
                         active: saved.revoked_at.is_none(),
                     })
                     .unwrap_or_default(),

@@ -23,7 +23,6 @@ pub struct EditOntologyInput {
 struct EditOntologyOutput {
     commands: serde_json::Value,
     explanation: String,
-    command_count: usize,
 }
 
 /// Generates surgical OntologyCommand operations from a natural language edit request.
@@ -66,7 +65,6 @@ impl SchemaTool for EditOntologyTool {
         );
 
         let result = EditOntologyOutput {
-            command_count: output.commands.len(),
             commands: serde_json::to_value(&output.commands).unwrap_or_default(),
             explanation: output.explanation,
         };

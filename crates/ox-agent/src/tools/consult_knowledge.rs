@@ -29,7 +29,6 @@ struct ConsultKnowledgeOutput {
 
 #[derive(Debug, Serialize)]
 struct KnowledgeHitEntry {
-    id: String,
     kind: String,
     title: String,
     content: String,
@@ -110,7 +109,6 @@ impl SchemaTool for ConsultKnowledgeTool {
         let hits: Vec<KnowledgeHitEntry> = entries
             .into_iter()
             .map(|e| KnowledgeHitEntry {
-                id: e.id.to_string(),
                 kind: e.kind,
                 title: e.title,
                 content: e.content,

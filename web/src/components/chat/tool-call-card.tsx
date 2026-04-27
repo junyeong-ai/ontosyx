@@ -39,8 +39,8 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
   // Parse structured result for inline rendering
   const parsedResult = useMemo(() => {
     if (!isDone || !toolCall.output) return null;
-    return tryParseToolResult(toolCall.name, toolCall.output, t);
-  }, [isDone, toolCall.output, toolCall.name, t]);
+    return tryParseToolResult(toolCall.name, toolCall.output, toolCall.durationMs, t);
+  }, [isDone, toolCall.output, toolCall.name, toolCall.durationMs, t]);
 
   return (
     <div
@@ -290,6 +290,7 @@ type ToolCallTranslator = ReturnType<typeof useTranslations<"workbench.chat.tool
 function tryParseToolResult(
   toolName: string,
   output: string,
+  durationMs: number | undefined,
   t: ToolCallTranslator,
 ): ParsedToolResult | null {
   try {
@@ -331,10 +332,10 @@ function tryParseToolResult(
       };
     }
 
-    if (toolName === "edit_ontology" && parsed.command_count != null) {
-      const commands = parsed.commands as Array<{ type: string }> | undefined;
-      let detail = t("summary.commands", { count: parsed.command_count });
-      if (commands && commands.length > 0) {
+    if (toolName === "edit_ontology" && Array.isArray(parsed.commands)) {
+      const commands = parsed.commands as Array<{ type: string }>;
+      let detail = t("summary.commands", { count: commands.length });
+      if (commands.length > 0) {
         const typeCounts: Record<string, number> = {};
         for (const cmd of commands) {
           const type = cmd.type?.replace(/_/g, " ") ?? "unknown";
@@ -364,7 +365,7 @@ function tryParseToolResult(
       return {
         summary: t("summary.execExit", {
           code: parsed.exit_code,
-          duration: (parsed.duration_ms / 1000).toFixed(1),
+          duration: ((durationMs ?? 0) / 1000).toFixed(1),
         }),
       };
     }
