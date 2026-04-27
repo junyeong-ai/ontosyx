@@ -16,6 +16,24 @@ const eslintConfig = defineConfig([
       "no-console": ["error", { allow: ["warn", "error"] }],
     },
   },
+  {
+    files: ["src/lib/store/selectors.ts"],
+    rules: {
+      // Action handles are read inline at the call site
+      // (`useAppStore((s) => s.fooBar)`); selector wrappers add no
+      // memoization value over Zustand's stable action references
+      // and split the canonical pattern across two files.
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "ExportNamedDeclaration > VariableDeclaration > VariableDeclarator[id.name=/^selectAction/]",
+          message:
+            "Action selector wrappers are forbidden. Read actions inline at the call site: useAppStore((s) => s.fooBar).",
+        },
+      ],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
