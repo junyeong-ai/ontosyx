@@ -283,6 +283,10 @@ impl ProjectStore for PostgresStore {
         ontology: &serde_json::Value,
         quality_report: Option<&serde_json::Value>,
     ) -> OxResult<()> {
+        // idempotent: `(project_id, revision)` uniquely identifies a
+        // snapshot of a project version — the same revision pinned
+        // twice carries the same ontology JSONB, so DO NOTHING is the
+        // intended behavior.
         sqlx::query(
             "INSERT INTO ontology_snapshots (project_id, revision, ontology, quality_report)
              VALUES ($1, $2, $3, $4)

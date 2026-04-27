@@ -109,6 +109,9 @@ impl QualitySignalStore for PostgresStore {
         signal: &crate::quality_signal::QueryExecutionSignal,
     ) -> OxResult<()> {
         let failure_text = signal.shacl_failure_kind.map(shacl_failure_to_str);
+        // idempotent: `execution_id` uniquely identifies one query
+        // execution event. Re-emission carries the same captured
+        // signals — DO NOTHING is safe; first writer wins.
         sqlx::query(
             "INSERT INTO query_execution_signals \
              (execution_id, workspace_id, captured_at, anchor_top_score, anchor_hit_kinds, \

@@ -669,6 +669,10 @@ async fn insert_neighbors_from_ir(
     let to_kinds_owned: Vec<String> = to_kinds.iter().map(|s| s.to_string()).collect();
     let relations_owned: Vec<String> = relations.iter().map(|s| s.to_string()).collect();
 
+    // idempotent: the neighbor row is fully determined by
+    // (version_id, from_kind, from_logical_id, to_kind, to_logical_id,
+    // relation_kind) — the same edge re-materialised carries the
+    // same content. Re-runs of the materialisation pass are safe.
     sqlx::query(
         "INSERT INTO ontology_entity_neighbors \
             (version_id, from_kind, from_logical_id, to_kind, to_logical_id, relation_kind) \
@@ -828,6 +832,10 @@ async fn insert_hierarchy_closure(
         di.push(r.4);
         dp.push(r.5);
     }
+    // idempotent: the hierarchy row is fully determined by
+    // (version_id, relation_kind, ancestor, descendant, depth). Same
+    // closure walk re-emitting the same row produces identical
+    // bytes. Re-runs of the hierarchy materialisation are safe.
     sqlx::query(
         "INSERT INTO ontology_entity_hierarchy \
             (version_id, relation_kind, ancestor_kind, ancestor_logical_id, \

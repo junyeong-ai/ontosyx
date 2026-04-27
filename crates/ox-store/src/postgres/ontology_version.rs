@@ -138,6 +138,9 @@ impl crate::store::OntologyVersionStore for PostgresStore {
             kinds.push(ent.kind.as_str().to_string());
             contents.push(ent.content.clone());
         }
+        // idempotent: `entity_hash` is the SHA-256 of the canonical
+        // JSON content, so a conflict means the *same* row is being
+        // re-inserted — no information lost on skip.
         sqlx::query(
             "INSERT INTO ontology_entity_versions (entity_hash, entity_kind, content) \
              SELECT * FROM UNNEST($1::text[], $2::ontology_entity_kind[], $3::jsonb[]) \
