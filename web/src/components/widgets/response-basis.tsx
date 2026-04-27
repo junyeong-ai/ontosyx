@@ -12,7 +12,8 @@ import type {
   QueryProvenance,
 } from "@/types/api";
 import { arr } from "@/lib/ir-collections";
-import { defaultText } from "@/lib/locale/localize";
+import { localize } from "@/lib/locale/localize";
+import { useLocaleChain } from "@/lib/use-locale-chain";
 
 /**
  * Compact "response basis" panel. Reads `arr(QueryResult.metadata.provenance)`
@@ -62,6 +63,7 @@ export function ResponseBasis({
   className,
 }: ResponseBasisProps) {
   const t = useTranslations("widget.responseBasis");
+  const localeChain = useLocaleChain();
 
   // Hook hygiene — call useOntologyDetail unconditionally and gate
   // via the `enabled` flag the hook already exposes. Passing `null`
@@ -71,8 +73,8 @@ export function ResponseBasis({
   );
 
   const resolvedTypes = useMemo(
-    () => resolveTypeIds(provenance?.type_ids, ontologyDetail),
-    [provenance?.type_ids, ontologyDetail],
+    () => resolveTypeIds(provenance?.type_ids, ontologyDetail, localeChain),
+    [provenance?.type_ids, ontologyDetail, localeChain],
   );
 
   const activeWarnings =
@@ -179,6 +181,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 function resolveTypeIds(
   ids: string[] | undefined,
   detail: OntologyDetail | undefined,
+  chain: readonly string[],
 ): ResolvedType[] {
   if (!ids?.length) return [];
 
@@ -195,11 +198,11 @@ function resolveTypeIds(
   return ids.map((id) => {
     const node = nodeById.get(id);
     if (node) {
-      return { id, label: node.label, description: defaultText(node.description) || null };
+      return { id, label: node.label, description: localize(node.description, chain) || null };
     }
     const edge = edgeById.get(id);
     if (edge) {
-      return { id, label: edge.label, description: defaultText(edge.description) || null };
+      return { id, label: edge.label, description: localize(edge.description, chain) || null };
     }
     return { id, label: null, description: null };
   });

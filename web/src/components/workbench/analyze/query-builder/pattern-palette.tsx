@@ -5,7 +5,8 @@ import { useTranslations } from "next-intl";
 import type { NodeTypeDef, EdgeTypeDef } from "@/types/api";
 import type { Suggestion } from "./use-suggestions";
 import { arr } from "@/lib/ir-collections";
-import { defaultText } from "@/lib/locale/localize";
+import { localize } from "@/lib/locale/localize";
+import { useLocaleChain } from "@/lib/use-locale-chain";
 
 // ---------------------------------------------------------------------------
 // PatternPalette — Available node/edge types from ontology
@@ -37,6 +38,7 @@ export function PatternPalette({
   onTabChange,
 }: PatternPaletteProps) {
   const t = useTranslations("workbench.queryBuilder.palette");
+  const localeChain = useLocaleChain();
   const [search, setSearch] = useState("");
   const [internalTab, setInternalTab] = useState<PaletteTab>("nodes");
 
@@ -48,13 +50,13 @@ export function PatternPalette({
   const filteredNodes = nodeTypes.filter(
     (nt) =>
       nt.label.toLowerCase().includes(lowerSearch) ||
-      defaultText(nt.description).toLowerCase().includes(lowerSearch),
+      localize(nt.description, localeChain).toLowerCase().includes(lowerSearch),
   );
 
   const filteredEdges = edgeTypes.filter(
     (et) =>
       et.label.toLowerCase().includes(lowerSearch) ||
-      defaultText(et.description).toLowerCase().includes(lowerSearch),
+      localize(et.description, localeChain).toLowerCase().includes(lowerSearch),
   );
 
   const handleDragStartNode = useCallback(
@@ -125,30 +127,33 @@ export function PatternPalette({
       {/* List */}
       <div className="flex-1 overflow-auto p-2 space-y-1">
         {tab === "nodes" &&
-          filteredNodes.map((nt) => (
-            <div
-              key={nt.id}
-              draggable
-              onDragStart={(e) => handleDragStartNode(e, nt)}
-              onClick={() => onAddNode(nt)}
-              className="group cursor-grab rounded-lg border border-zinc-200 bg-white px-3 py-2 transition-colors hover:border-emerald-300 hover:bg-emerald-50/50 active:cursor-grabbing dark:border-zinc-700 dark:bg-zinc-800 dark:hover:border-emerald-700 dark:hover:bg-emerald-950/20"
-            >
-              <div className="flex items-center gap-2">
-                <div className="h-2.5 w-2.5 shrink-0 rounded-full bg-blue-400 dark:bg-blue-500" />
-                <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                  {nt.label}
-                </span>
+          filteredNodes.map((nt) => {
+            const description = localize(nt.description, localeChain);
+            return (
+              <div
+                key={nt.id}
+                draggable
+                onDragStart={(e) => handleDragStartNode(e, nt)}
+                onClick={() => onAddNode(nt)}
+                className="group cursor-grab rounded-lg border border-zinc-200 bg-white px-3 py-2 transition-colors hover:border-emerald-300 hover:bg-emerald-50/50 active:cursor-grabbing dark:border-zinc-700 dark:bg-zinc-800 dark:hover:border-emerald-700 dark:hover:bg-emerald-950/20"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="h-2.5 w-2.5 shrink-0 rounded-full bg-blue-400 dark:bg-blue-500" />
+                  <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                    {nt.label}
+                  </span>
+                </div>
+                {description && (
+                  <p className="mt-0.5 text-[10px] text-muted-foreground line-clamp-1">
+                    {description}
+                  </p>
+                )}
+                <div className="mt-1 text-[10px] text-muted-foreground">
+                  {t("propertiesCount", { count: arr(nt.properties).length })}
+                </div>
               </div>
-              {defaultText(nt.description) && (
-                <p className="mt-0.5 text-[10px] text-muted-foreground line-clamp-1">
-                  {defaultText(nt.description)}
-                </p>
-              )}
-              <div className="mt-1 text-[10px] text-muted-foreground">
-                {t("propertiesCount", { count: arr(nt.properties).length })}
-              </div>
-            </div>
-          ))}
+            );
+          })}
 
         {tab === "edges" &&
           filteredEdges.map((et) => {
