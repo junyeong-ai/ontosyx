@@ -19,9 +19,15 @@
  * The fetch goes through the BFF proxy at `/api/proxy/workspaces/me`
  * — the same path every other API call uses, so the workspace
  * header is injected server-side.
+ *
+ * **Multi-instance safety.** Backed by TanStack Query so N components
+ * calling this hook share a single fetch per workspace. Without the
+ * shared cache, an N-instance consumer (e.g., the canvas's per-edge
+ * tooltip) would mount N concurrent fetches at workbench load.
  */
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import { getWorkspaceId } from "@/lib/workspace";
 import { DEFAULT_LOCALE_CHAIN } from "@/lib/locale/localize";
@@ -61,10 +67,29 @@ interface WorkspaceMe {
   locale_fallback: string[];
 }
 
+async function fetchWorkspaceMe(workspaceId: string): Promise<WorkspaceMe | null> {
+  const response = await fetch("/api/proxy/workspaces/me", {
+    headers: { "x-workspace-id": workspaceId },
+  });
+  if (!response.ok) return null;
+  const envelope = (await response.json()) as { data?: WorkspaceMe };
+  return envelope.data ?? null;
+}
+
+export const localeChainKeys = {
+  all: ["localeChain"] as const,
+  workspace: (workspaceId: string) =>
+    [...localeChainKeys.all, workspaceId] as const,
+};
+
 /**
  * Returns the current workspace's locale fallback chain. Returns
  * `DEFAULT_LOCALE_CHAIN` while the fetch is in flight or when no
  * workspace is selected, so call-sites never receive `undefined`.
+ *
+ * The chain reference is stable for a given workspace — re-renders
+ * of consuming components from this hook only fire on workspace
+ * switch or initial fetch resolution.
  */
 export function useLocaleChain(): readonly string[] {
   const workspaceId = useSyncExternalStore(
@@ -72,29 +97,15 @@ export function useLocaleChain(): readonly string[] {
     readWorkspaceId,
     readWorkspaceIdServer,
   );
-  const [chain, setChain] = useState<readonly string[]>(DEFAULT_LOCALE_CHAIN);
 
-  useEffect(() => {
-    if (!workspaceId) return;
-    let cancelled = false;
-    fetch("/api/proxy/workspaces/me", { headers: { "x-workspace-id": workspaceId } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((envelope) => {
-        if (cancelled) return;
-        const data: WorkspaceMe | undefined = envelope?.data;
-        if (data?.locale_fallback?.length) {
-          setChain(data.locale_fallback);
-        } else {
-          setChain(DEFAULT_LOCALE_CHAIN);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setChain(DEFAULT_LOCALE_CHAIN);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [workspaceId]);
+  const { data } = useQuery({
+    queryKey: workspaceId ? localeChainKeys.workspace(workspaceId) : localeChainKeys.all,
+    queryFn: () => fetchWorkspaceMe(workspaceId!),
+    enabled: !!workspaceId,
+    // Locale fallback is admin-set workspace metadata; treat the
+    // value as effectively static between explicit invalidations.
+    staleTime: Infinity,
+  });
 
-  return chain;
+  return data?.locale_fallback?.length ? data.locale_fallback : DEFAULT_LOCALE_CHAIN;
 }

@@ -9,7 +9,8 @@ import {
 } from "@xyflow/react";
 import type { Cardinality, EdgeTypeDef } from "@/types/api";
 import { cn } from "@/lib/cn";
-import { defaultText } from "@/lib/locale/localize";
+import { localize } from "@/lib/locale/localize";
+import { useLocaleChain } from "@/lib/use-locale-chain";
 import type { DiffStatus } from "./schema-node";
 
 // ---------------------------------------------------------------------------
@@ -76,6 +77,9 @@ export const SchemaEdge = memo(function SchemaEdge({
   markerEnd,
 }: SchemaEdgeProps) {
   const { edgeDef, selected, highlighted, highlightKind, diffStatus } = data ?? {};
+  // The locale chain is shared across all edge instances via the
+  // hook's TanStack Query cache — N edges resolve to one fetch.
+  const localeChain = useLocaleChain();
 
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
@@ -106,7 +110,7 @@ export const SchemaEdge = memo(function SchemaEdge({
   // the cost of an extra dependency; we land the native version
   // first and upgrade only if a designer asks for the prettier
   // shape.
-  const hoverTitle = buildHoverTitle(edgeDef);
+  const hoverTitle = buildHoverTitle(edgeDef, localeChain);
 
   return (
     <>
@@ -173,7 +177,10 @@ function formatCardinality(c: Cardinality): string {
  *  edge tooltip. Lines stay compact so the native tooltip stays
  *  readable; description gets truncated past 200 chars to prevent
  *  a wall-of-text on richly-documented edges. */
-function buildHoverTitle(edgeDef?: EdgeTypeDef): string | undefined {
+function buildHoverTitle(
+  edgeDef: EdgeTypeDef | undefined,
+  chain: readonly string[],
+): string | undefined {
   if (!edgeDef) return undefined;
   const lines: string[] = [];
   lines.push(edgeDef.label);
@@ -186,7 +193,7 @@ function buildHoverTitle(edgeDef?: EdgeTypeDef): string | undefined {
   if (edgeDef.cardinality) {
     lines.push(`Cardinality: ${formatCardinality(edgeDef.cardinality)}`);
   }
-  const description = defaultText(edgeDef.description);
+  const description = localize(edgeDef.description, chain);
   if (description) {
     const trimmed =
       description.length > 200 ? `${description.slice(0, 200)}…` : description;

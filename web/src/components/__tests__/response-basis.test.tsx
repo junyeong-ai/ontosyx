@@ -18,6 +18,13 @@ vi.mock("@/hooks/api/use-ontologies", () => ({
   useOntologyDetail: (...args: unknown[]) => useOntologyDetailMock(...args),
 }));
 
+// `useLocaleChain` is also a TanStack-backed hook (workspace fetch).
+// Tests don't exercise the chain itself, so a fixed boot fallback
+// keeps the resolution path deterministic.
+vi.mock("@/lib/use-locale-chain", () => ({
+  useLocaleChain: () => ["en"],
+}));
+
 function renderWithIntl(ui: React.ReactElement) {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
