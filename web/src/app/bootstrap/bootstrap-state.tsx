@@ -20,7 +20,11 @@ import { z } from "zod";
 // reads. v1 payloads still parse cleanly — the new fields default
 // — but the version bump signals the schema change to any future
 // migration / audit reader.
-const STORAGE_KEY = "ontosyx.bootstrap.v2";
+//
+// Exported so Playwright fixtures and any future tooling reads
+// from the same definition; bumping the suffix stays a single
+// edit.
+export const BOOTSTRAP_STORAGE_KEY = "ontosyx.bootstrap.v2";
 
 // Single source of truth — Zod schema doubles as the type and the
 // runtime validator. Any field added here has to declare a default
@@ -70,7 +74,7 @@ function readFromStorage(): BootstrapState {
   if (typeof window === "undefined") return EMPTY;
   let raw: string | null;
   try {
-    raw = window.localStorage.getItem(STORAGE_KEY);
+    raw = window.localStorage.getItem(BOOTSTRAP_STORAGE_KEY);
   } catch {
     // Private mode / disabled storage — in-memory EMPTY is fine.
     return EMPTY;
@@ -95,7 +99,7 @@ function readFromStorage(): BootstrapState {
 function writeToStorage(next: BootstrapState): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    window.localStorage.setItem(BOOTSTRAP_STORAGE_KEY, JSON.stringify(next));
   } catch {
     // Quota or disabled — in-memory is still functional.
   }
@@ -176,7 +180,7 @@ export function BootstrapProvider({ children }: { children: React.ReactNode }) {
     setSnapshot(EMPTY);
     if (typeof window !== "undefined") {
       try {
-        window.localStorage.removeItem(STORAGE_KEY);
+        window.localStorage.removeItem(BOOTSTRAP_STORAGE_KEY);
       } catch {
         // no-op
       }

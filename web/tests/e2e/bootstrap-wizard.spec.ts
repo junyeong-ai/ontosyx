@@ -1,4 +1,5 @@
 import { test, expect } from "./fixtures";
+import { BOOTSTRAP_STORAGE_KEY } from "@/app/bootstrap/bootstrap-state";
 
 /**
  * Phase 5 — Bootstrap wizard happy path.
@@ -39,9 +40,9 @@ test.describe("bootstrap wizard", () => {
   test.beforeEach(async ({ page }) => {
     // Clear localStorage between runs so the wizard starts fresh
     // every time.
-    await page.addInitScript(() =>
-      window.localStorage.removeItem("ontosyx.bootstrap.v1"),
-    );
+    await page.addInitScript((key: string) => {
+      window.localStorage.removeItem(key);
+    }, BOOTSTRAP_STORAGE_KEY);
 
     // `/api/proxy/ontologies` serves both the pre-flight name
     // lookup (GET with `?name_eq=...`) and the unified creation POST.
@@ -286,9 +287,9 @@ test.describe("bootstrap wizard", () => {
 
     // Seed wizard state directly rather than walking all 6 steps —
     // we're testing the collision branch, not the happy path.
-    await page.addInitScript(() => {
+    await page.addInitScript((key: string) => {
       window.localStorage.setItem(
-        "ontosyx.bootstrap.v2",
+        key,
         JSON.stringify({
           pilotName: "E2E Pilot",
           pilotScope: "repeat run",
@@ -306,7 +307,7 @@ test.describe("bootstrap wizard", () => {
           ],
         }),
       );
-    });
+    }, BOOTSTRAP_STORAGE_KEY);
 
     await page.goto("/bootstrap/6-validate");
 

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 
 import {
+  BOOTSTRAP_STORAGE_KEY,
   BootstrapProvider,
   __resetBootstrapStore,
   useBootstrap,
@@ -35,7 +36,7 @@ describe("BootstrapProvider", () => {
     expect(result.current.state.pilotName).toBe("Order pilot");
     expect(result.current.state.sourceKind).toBe("postgresql");
     const persisted = JSON.parse(
-      window.localStorage.getItem("ontosyx.bootstrap.v2") ?? "null",
+      window.localStorage.getItem(BOOTSTRAP_STORAGE_KEY) ?? "null",
     );
     expect(persisted.pilotName).toBe("Order pilot");
   });
@@ -62,12 +63,12 @@ describe("BootstrapProvider", () => {
     });
     expect(result.current.state.pilotName).toBe("");
     expect(result.current.state.completedSteps).toEqual([]);
-    expect(window.localStorage.getItem("ontosyx.bootstrap.v2")).toBeNull();
+    expect(window.localStorage.getItem(BOOTSTRAP_STORAGE_KEY)).toBeNull();
   });
 
   it("re-hydrates from localStorage on mount", async () => {
     window.localStorage.setItem(
-      "ontosyx.bootstrap.v2",
+      BOOTSTRAP_STORAGE_KEY,
       JSON.stringify({ pilotName: "Resumed pilot", completedSteps: ["1-pilot"] }),
     );
     const { result } = renderHook(() => useBootstrap(), { wrapper });
@@ -88,7 +89,7 @@ describe("BootstrapProvider", () => {
     // reject the whole thing rather than let `pilotName: [...]`
     // flow into React state.
     window.localStorage.setItem(
-      "ontosyx.bootstrap.v2",
+      BOOTSTRAP_STORAGE_KEY,
       JSON.stringify({ pilotName: ["wrong", "shape"], completedSteps: "not-an-array" }),
     );
     const { result } = renderHook(() => useBootstrap(), { wrapper });
@@ -102,7 +103,7 @@ describe("BootstrapProvider", () => {
   it("falls back to EMPTY when the stored payload is not valid JSON", async () => {
     // Corrupted key — nothing we can do but reset. The wizard
     // continues instead of crashing.
-    window.localStorage.setItem("ontosyx.bootstrap.v2", "{not-json");
+    window.localStorage.setItem(BOOTSTRAP_STORAGE_KEY, "{not-json");
     const { result } = renderHook(() => useBootstrap(), { wrapper });
     await act(async () => {
       await Promise.resolve();
@@ -116,7 +117,7 @@ describe("BootstrapProvider", () => {
     // only `pilotName`. Zod's per-field defaults must fill the
     // remaining fields so downstream code never sees `undefined`.
     window.localStorage.setItem(
-      "ontosyx.bootstrap.v2",
+      BOOTSTRAP_STORAGE_KEY,
       JSON.stringify({ pilotName: "Legacy writer" }),
     );
     const { result } = renderHook(() => useBootstrap(), { wrapper });
