@@ -25,38 +25,28 @@ pub struct QueryGraphInput {
     pub question: String,
 }
 
+/// Tool result returned to the LLM. Carries only what the model needs
+/// to reason about the next step — execution metadata (provenance,
+/// compiled target language, attribution) lives on the persisted
+/// `QueryExecution` row and the FE fetches it through
+/// `/api/executions/{id}` when it needs to render the response-basis
+/// panel.
 #[derive(Debug, Serialize)]
 struct QueryGraphOutput {
     execution_id: String,
     compiled_query: String,
-    compiled_target: String,
     columns: Vec<String>,
     row_count: usize,
     rows: serde_json::Value,
     #[serde(skip_serializing_if = "Option::is_none")]
     widget_hint: Option<WidgetHintOutput>,
-    /// Query cost estimation (risk level + warnings).
     #[serde(skip_serializing_if = "Option::is_none")]
     cost: Option<ox_compiler::cost::QueryCost>,
-    /// Per-step timing breakdown.
     step_timings: Vec<StepTiming>,
-    /// Guidance for the agent on how to proceed with results.
     #[serde(skip_serializing_if = "Option::is_none")]
     guidance: Option<String>,
-    /// Π-3 response-attribution trail. Mirrors the wire shape the HTTP
-    /// query routes stamp onto `QueryResult.metadata.provenance`, so
-    /// the front-end's `ResponseBasis` panel renders the same summary
-    /// whether the query ran through the agent tool path or the raw
-    /// HTTP path. `None` iff the session has no pinned ontology
-    /// identity (ad-hoc draft execution).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    provenance: Option<ox_query_ir::query::QueryProvenance>,
-    /// Advisory validator diagnostics — same shape as
-    /// `QueryMetadata.warnings`. Surfaced here as a structured field
-    /// so the frontend's ResponseBasis panel renders identically
-    /// whether the query took the agent tool path or the HTTP
-    /// `/api/query/from-ir` path. The LLM reads a flattened form of
-    /// the same content via the `guidance` tail.
+    /// Validator diagnostics; the LLM reads a flattened form via
+    /// `guidance`, the structured list stays here for the chat UI.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     warnings: Vec<ox_query_ir::query::QueryDiagnostic>,
 }
@@ -601,7 +591,6 @@ impl SchemaTool for QueryGraphTool {
         let output = QueryGraphOutput {
             execution_id: execution_id.to_string(),
             compiled_query: compiled.statement,
-            compiled_target: self.domain.compiler.name().to_string(),
             columns: results.columns.clone(),
             row_count: results.metadata.rows_returned as usize,
             rows: serde_json::to_value(&results.rows).unwrap_or_default(),
@@ -609,7 +598,6 @@ impl SchemaTool for QueryGraphTool {
             cost,
             step_timings,
             guidance,
-            provenance,
             warnings: validator_notes,
         };
 
