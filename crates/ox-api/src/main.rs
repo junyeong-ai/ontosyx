@@ -5,6 +5,12 @@
 // (`ox_api`) is still held to the stricter rule via workspace-level
 // clippy config.
 #![allow(clippy::expect_used)]
+// Background retry / cleanup tasks (embedding retry sweep, periodic
+// metrics, signal-handler graceful-shutdown coordination) are
+// fire-and-forget by design — operators can't intervene in a
+// retry-loop's individual DB calls. Library-level call-sites that
+// need surfacing convert to `if let Err(error) = ...` per-site.
+#![allow(clippy::let_underscore_must_use)]
 
 use std::net::SocketAddr;
 use std::path::PathBuf;

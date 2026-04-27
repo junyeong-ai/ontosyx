@@ -110,6 +110,7 @@ impl PostgresStore {
                         // "relation does not exist" in that window; the
                         // system_bypass policy already covers the RLS path
                         // for the migration's seed INSERTs.
+                        #[allow(clippy::let_underscore_must_use)]
                         let _ = sqlx::query(
                             "SELECT set_config('app.workspace_id', id::text, false) \
                              FROM workspaces WHERE slug = 'default' LIMIT 1",

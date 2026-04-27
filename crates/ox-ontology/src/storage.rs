@@ -266,6 +266,10 @@ pub fn hash_canonical(canonical: &str) -> String {
     let mut out = String::with_capacity(64);
     for byte in digest.iter() {
         use std::fmt::Write as _;
+        // `write!` to a `String` buffer is infallible — String's
+        // `fmt::Write` impl never returns Err. `let_underscore_must_use`
+        // gate is satisfied by the explicit allow.
+        #[allow(clippy::let_underscore_must_use)]
         let _ = write!(&mut out, "{byte:02x}");
     }
     out

@@ -306,6 +306,12 @@ pub struct SubgraphEdge {
 /// pin the LLM-context shape without a Postgres pool; the
 /// `OntologyNavigationStore::render_subgraph_for_llm` trait method
 /// is a thin forwarder to this function.
+//
+// `writeln!`/`write!` to a `String` buffer is infallible — the
+// `fmt::Write` impl for `String` never returns Err, so the
+// `let_underscore_must_use` gate is satisfied by the function-level
+// allow rather than wrapping each call.
+#[allow(clippy::let_underscore_must_use)]
 pub fn render_subgraph_as_llm_markdown(
     subgraph: &Subgraph,
     options: &LlmRenderOptions,

@@ -29,7 +29,8 @@
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic,
-    clippy::unreachable
+    clippy::unreachable,
+    clippy::let_underscore_must_use
 )]
 
 use chrono::{DateTime, TimeZone, Utc};

@@ -1089,7 +1089,9 @@ impl OntologyIR {
         // can fire. We still call it to keep every other lookup map
         // (which we may have invalidated by mutating
         // `column_profiles`) in sync.
-        let _ = self.rebuild_indices();
+        if let Err(error) = self.rebuild_indices() {
+            tracing::warn!(?error, "rebuild_indices unexpectedly failed during column-profile bulk update");
+        }
     }
 
     /// Φ3 — bulk-ingest every column entry of a [`SourceProfile`] for

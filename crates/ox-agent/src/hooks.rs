@@ -122,10 +122,16 @@ impl EmbeddingHook {
                         Ok(()) => info!(id = %entry_id, "Embedded in memory"),
                         Err(e) => {
                             warn!(id = %entry_id, error = %e, "Memory embedding failed");
-                            if let Some(store) = retry_store {
-                                let _ = store
+                            if let Some(store) = retry_store
+                                && let Err(retry_err) = store
                                     .create_pending_embedding(&content_clone, &metadata_json)
-                                    .await;
+                                    .await
+                            {
+                                warn!(
+                                    id = %entry_id,
+                                    error = %retry_err,
+                                    "Failed to enqueue embedding for retry — entry lost",
+                                );
                             }
                         }
                     }

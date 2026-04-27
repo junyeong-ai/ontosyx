@@ -337,7 +337,9 @@ pub(crate) async fn chat_stream(
                                 };
                                 let store = Arc::clone(&store_for_events);
                                 crate::spawn_scoped::spawn_with_ws(ws_scope.clone(), async move {
-                                    let _ = store.create_agent_event(&audit_event).await;
+                                    if let Err(error) = store.create_agent_event(&audit_event).await {
+                                        tracing::warn!(?error, "agent audit event emit failed");
+                                    }
                                 });
 
                                 yield Ok(sse_event);
@@ -363,7 +365,9 @@ pub(crate) async fn chat_stream(
                                         0.0, // cost computed by aggregation layer
                                         serde_json::json!({}),
                                     );
-                                    let _ = fut.await;
+                                    if let Err(error) = fut.await {
+                                        tracing::warn!(?error, "usage metering record failed");
+                                    }
                                 });
                             }
 
@@ -444,7 +448,9 @@ pub(crate) async fn chat_stream(
                                         audit_session_id,
                                         Some(&final_text),
                                     );
-                                    let _ = fut.await;
+                                    if let Err(error) = fut.await {
+                                        tracing::warn!(?error, %audit_session_id, "agent session completion record failed");
+                                    }
                                 });
                             }
                         }

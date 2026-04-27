@@ -137,12 +137,18 @@ impl VectorStore for PgVectorStore {
         // (indexed UPDATE on 1-N ids) — worth the correctness.
         if !rows.is_empty() {
             let ids: Vec<String> = rows.iter().map(|(id, _, _, _)| id.clone()).collect();
-            let _ = sqlx::query(
+            // Last-access bookkeeping. Failure here only loses the
+            // hot-set tracking signal; the search rows the caller
+            // wanted are already returned.
+            if let Err(error) = sqlx::query(
                 "UPDATE memory_entries SET last_accessed_at = NOW() WHERE id = ANY($1)",
             )
             .bind(&ids)
             .execute(&self.pool)
-            .await;
+            .await
+            {
+                tracing::warn!(?error, hits = ids.len(), "vector last_accessed_at update failed");
+            }
         }
 
         let hits = rows
@@ -223,12 +229,18 @@ impl VectorStore for PgVectorStore {
         // same task-local-propagation reason.
         if !rows.is_empty() {
             let ids: Vec<String> = rows.iter().map(|(id, _, _, _)| id.clone()).collect();
-            let _ = sqlx::query(
+            // Last-access bookkeeping. Failure here only loses the
+            // hot-set tracking signal; the search rows the caller
+            // wanted are already returned.
+            if let Err(error) = sqlx::query(
                 "UPDATE memory_entries SET last_accessed_at = NOW() WHERE id = ANY($1)",
             )
             .bind(&ids)
             .execute(&self.pool)
-            .await;
+            .await
+            {
+                tracing::warn!(?error, hits = ids.len(), "vector last_accessed_at update failed");
+            }
         }
 
         let hits = rows

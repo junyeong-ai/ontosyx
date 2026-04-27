@@ -182,7 +182,7 @@ pub(crate) async fn create_project(
                     let audit_store = Arc::clone(&state.store);
                     let audit_project_id = project.id.to_string();
                     crate::spawn_scoped::spawn_scoped(async move {
-                        let _ = audit_store
+                        if let Err(error) = audit_store
                             .record_audit(
                                 audit_user_id,
                                 "project.create",
@@ -190,7 +190,9 @@ pub(crate) async fn create_project(
                                 Some(&audit_project_id),
                                 serde_json::json!({"source_type": "code_repository"}),
                             )
-                            .await;
+                            .await {
+                            tracing::warn!(?error, "telemetry record failed");
+                        }
                     });
                 }
 
@@ -277,7 +279,7 @@ pub(crate) async fn create_project(
         let audit_project_id = project.id.to_string();
         let audit_source_type = source_type.clone();
         crate::spawn_scoped::spawn_scoped(async move {
-            let _ = audit_store
+            if let Err(error) = audit_store
                 .record_audit(
                     audit_user_id,
                     "project.create",
@@ -285,7 +287,9 @@ pub(crate) async fn create_project(
                     Some(&audit_project_id),
                     serde_json::json!({"source_type": audit_source_type}),
                 )
-                .await;
+                .await {
+                tracing::warn!(?error, "telemetry record failed");
+            }
         });
     }
 
@@ -388,7 +392,7 @@ pub(crate) async fn delete_project(
             let audit_user_id = principal.user_uuid().ok();
             let audit_project_id = id.to_string();
             crate::spawn_scoped::spawn_scoped(async move {
-                let _ = audit_store
+                if let Err(error) = audit_store
                     .record_audit(
                         audit_user_id,
                         "project.delete",
@@ -396,7 +400,9 @@ pub(crate) async fn delete_project(
                         Some(&audit_project_id),
                         serde_json::json!({}),
                     )
-                    .await;
+                    .await {
+                    tracing::warn!(?error, "telemetry record failed");
+                }
             });
         }
 
@@ -728,7 +734,7 @@ pub(crate) async fn deploy_schema(
         let audit_project_id = id.to_string();
         let stmt_count = statements.len();
         crate::spawn_scoped::spawn_scoped(async move {
-            let _ = audit_store
+            if let Err(error) = audit_store
                 .record_audit(
                     audit_user_id,
                     "schema.deploy",
@@ -736,7 +742,9 @@ pub(crate) async fn deploy_schema(
                     Some(&audit_project_id),
                     serde_json::json!({"statements_count": stmt_count}),
                 )
-                .await;
+                .await {
+                tracing::warn!(?error, "telemetry record failed");
+            }
         });
     }
 
@@ -855,8 +863,10 @@ pub(crate) async fn compile_load(
 ) -> Result<Json<ApiResponse<ProjectLoadCompileResponse>>, AppError> {
     principal.require_designer()?;
 
-    // Verify project exists
-    let _ = state
+    // Verify project exists. The `?` chain propagates the error; we
+    // discard the resolved value because compile_load only needs the
+    // request payload.
+    state
         .store
         .get_design_project(id)
         .await
@@ -1002,7 +1012,9 @@ pub(crate) async fn execute_load_from_source(
         status: "running".to_string(),
         error_message: None,
     };
-    let _ = state.store.create_lineage_entry(&lineage_entry).await;
+    if let Err(error) = state.store.create_lineage_entry(&lineage_entry).await {
+        tracing::warn!(?error, "lineage entry create failed");
+    }
 
     let mut total_rows_fetched: u64 = 0;
     let mut combined_result = ox_runtime::LoadResult {
@@ -1151,7 +1163,9 @@ pub(crate) async fn execute_load_from_source(
                     record_count: step_rows,
                     loaded_at: Utc::now(),
                 };
-                let _ = state.store.upsert_checkpoint(&cp).await;
+                if let Err(error) = state.store.upsert_checkpoint(&cp).await {
+                    tracing::warn!(?error, %graph_label, "load checkpoint upsert failed");
+                }
             }
         } else {
             // Full mode: original pagination-based fetch
@@ -1225,7 +1239,7 @@ pub(crate) async fn execute_load_from_source(
                 .join("; "),
         )
     };
-    let _ = state
+    if let Err(error) = state
         .store
         .complete_lineage_entry(
             lineage_id,
@@ -1233,7 +1247,10 @@ pub(crate) async fn execute_load_from_source(
             lineage_status,
             lineage_error.as_deref(),
         )
-        .await;
+        .await
+    {
+        tracing::warn!(?error, %lineage_id, "lineage completion record failed");
+    }
 
     info!(
         project_id = %id,
@@ -1307,7 +1324,7 @@ pub(crate) async fn execute_load_from_source(
         let edges = combined_result.edges_created;
         let rows = total_rows_fetched;
         crate::spawn_scoped::spawn_scoped(async move {
-            let _ = meter_store
+            if let Err(error) = meter_store
                 .record_usage(
                     meter_user,
                     "data_load",
@@ -1325,7 +1342,9 @@ pub(crate) async fn execute_load_from_source(
                         "steps": steps,
                     }),
                 )
-                .await;
+                .await {
+                tracing::warn!(?error, "telemetry record failed");
+            }
         });
     }
 

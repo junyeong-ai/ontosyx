@@ -60,6 +60,11 @@ static AUTO_INDEX_CONFIG: OnceLock<AutoIndexConfig> = OnceLock::new();
 /// the `ox-memory` initialization pattern. Call this once at startup
 /// from `ox-api::main` before the first ontology is compiled.
 pub fn init_auto_index_config(config: AutoIndexConfig) {
+    // `OnceLock::set` returns `Err(value)` after the first successful
+    // set — the first-write-wins semantic this function documents.
+    // Silent skip is intentional; subsequent boots in long-running
+    // tests don't need to know they were pre-empted.
+    #[allow(clippy::let_underscore_must_use)]
     let _ = AUTO_INDEX_CONFIG.set(config);
 }
 

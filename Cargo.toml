@@ -42,6 +42,13 @@ panic = "deny"
 unreachable = "deny"
 dbg_macro = "deny"
 
+# `let _ = expr_returning_result;` silently swallows `Result` errors
+# in production paths. Telemetry / fire-and-forget call-sites switch
+# to `if let Err(error) = ... { tracing::warn!(...) }` so DB outages
+# don't disappear into the void. Test modules exempt via the same
+# `#![cfg_attr(test, allow(...))]` block as the other gates.
+let_underscore_must_use = "deny"
+
 # Raw `tokio::spawn` in application code drops our workspace task-locals
 # and breaks RLS. The forbidden-methods list lives in `clippy.toml` since
 # Cargo.toml can't express structured lint arguments.

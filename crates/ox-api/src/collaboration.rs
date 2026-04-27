@@ -1,3 +1,10 @@
+// `tokio::sync::broadcast::Sender::send` returns `Err(SendError)`
+// only when there are zero active receivers — a legitimate "nobody
+// listening" state for a presence channel, not a failure to surface.
+// Every collaboration broadcast is fire-and-forget by the same
+// design.
+#![allow(clippy::let_underscore_must_use)]
+
 // ---------------------------------------------------------------------------
 // Collaboration — real-time presence and cursor sharing
 // ---------------------------------------------------------------------------

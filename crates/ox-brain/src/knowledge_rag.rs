@@ -46,9 +46,12 @@ pub async fn discover_knowledge(
         return String::new();
     }
 
-    // Fire-and-forget: record usage for retrieved entries
+    // Fire-and-forget: record usage for retrieved entries.
+    // Telemetry — surface the failure so DB outages aren't silent.
     let ids: Vec<uuid::Uuid> = entries.iter().map(|e| e.id).collect();
-    let _ = store.record_knowledge_usage(&ids).await;
+    if let Err(error) = store.record_knowledge_usage(&ids).await {
+        tracing::warn!(?error, hits = ids.len(), "knowledge usage record failed");
+    }
 
     // Only the kind tag and content cross into the prompt. Confidence
     // scores and ontology-version checks are retrieval-side bookkeeping —

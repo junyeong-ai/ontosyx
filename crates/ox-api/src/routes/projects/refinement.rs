@@ -153,7 +153,7 @@ pub(crate) async fn design_project(
         let meter_store = Arc::clone(&state.store);
         let meter_user = principal.user_uuid().ok();
         crate::spawn_scoped::spawn_scoped(async move {
-            let _ = meter_store
+            if let Err(error) = meter_store
                 .record_usage(
                     meter_user,
                     "llm",
@@ -166,7 +166,9 @@ pub(crate) async fn design_project(
                     0.0,
                     serde_json::json!({}),
                 )
-                .await;
+                .await {
+                tracing::warn!(?error, "telemetry record failed");
+            }
         });
     }
 
@@ -376,7 +378,7 @@ pub(crate) async fn refine_project(
         let meter_store = Arc::clone(&state.store);
         let meter_user = principal.user_uuid().ok();
         crate::spawn_scoped::spawn_scoped(async move {
-            let _ = meter_store
+            if let Err(error) = meter_store
                 .record_usage(
                     meter_user,
                     "llm",
@@ -389,7 +391,9 @@ pub(crate) async fn refine_project(
                     0.0,
                     serde_json::json!({}),
                 )
-                .await;
+                .await {
+                tracing::warn!(?error, "telemetry record failed");
+            }
         });
     }
 

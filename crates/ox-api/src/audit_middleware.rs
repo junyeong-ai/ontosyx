@@ -74,9 +74,12 @@ pub async fn audit_log(State(state): State<AppState>, req: Request, next: Next) 
     // spawned future — tokio::spawn would drop it and RLS would reject
     // the audit INSERT.
     crate::spawn_scoped::spawn_scoped(async move {
-        let _ = store
+        if let Err(error) = store
             .record_audit(user_id, &action, &resource_type, None, details)
-            .await;
+            .await
+        {
+            tracing::warn!(?error, %action, %resource_type, "audit record failed");
+        }
     });
 
     response

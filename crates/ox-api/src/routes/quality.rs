@@ -353,7 +353,17 @@ pub(crate) async fn execute_all_rules(
                     details: serde_json::json!({ "error": err_msg }),
                     evaluated_at: Utc::now(),
                 };
-                let _ = state.store.record_quality_result(&failed_result).await;
+                // Failure-recording-failure is the worst silent
+                // path — when DB-level errors compound the original
+                // rule failure, operators need *both* logged. Error
+                // (not warn) so it surfaces in production alerting.
+                if let Err(error) = state.store.record_quality_result(&failed_result).await {
+                    tracing::error!(
+                        ?error,
+                        rule = %rule.id,
+                        "quality result record failed for already-failing rule",
+                    );
+                }
                 results.push(failed_result);
             }
         }

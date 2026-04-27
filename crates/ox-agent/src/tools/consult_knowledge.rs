@@ -99,9 +99,13 @@ impl SchemaTool for ConsultKnowledgeTool {
                 .unwrap_or_default();
         }
 
-        // Record usage
+        // Telemetry — surfacing the failure as a tool error would
+        // be more disruptive than the missed metric, but a silent
+        // drop hides DB outages from operators.
         let ids: Vec<uuid::Uuid> = entries.iter().map(|e| e.id).collect();
-        let _ = self.knowledge_store.record_knowledge_usage(&ids).await;
+        if let Err(error) = self.knowledge_store.record_knowledge_usage(&ids).await {
+            tracing::warn!(?error, hits = ids.len(), "knowledge usage record failed");
+        }
 
         let hits: Vec<KnowledgeHitEntry> = entries
             .into_iter()

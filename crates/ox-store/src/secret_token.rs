@@ -19,6 +19,8 @@ pub fn generate_hex(bytes: usize) -> String {
     use std::fmt::Write;
     buf.iter()
         .fold(String::with_capacity(bytes * 2), |mut s, b| {
+            // `write!` to a String buffer is infallible.
+            #[allow(clippy::let_underscore_must_use)]
             let _ = write!(s, "{b:02x}");
             s
         })
@@ -75,6 +77,7 @@ mod tests {
     fn hex_lower(bytes: &[u8]) -> String {
         use std::fmt::Write;
         bytes.iter().fold(String::new(), |mut s, b| {
+            #[allow(clippy::let_underscore_must_use)]
             let _ = write!(s, "{b:02x}");
             s
         })

@@ -216,6 +216,8 @@ impl QueryIR {
         // without base64 padding.
         let mut out = String::with_capacity(64);
         for byte in digest.iter() {
+            // `write_fmt` to a `String` buffer is infallible.
+            #[allow(clippy::let_underscore_must_use)]
             let _ = std::fmt::Write::write_fmt(&mut out, format_args!("{byte:02x}"));
         }
         out

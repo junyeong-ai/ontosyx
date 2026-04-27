@@ -380,7 +380,7 @@ pub(crate) async fn raw_query(
         let meter_store = Arc::clone(&state.store);
         let meter_user = principal.user_uuid().ok();
         crate::spawn_scoped::spawn_scoped(async move {
-            let _ = meter_store
+            if let Err(error) = meter_store
                 .record_usage(
                     meter_user,
                     "query",
@@ -393,7 +393,9 @@ pub(crate) async fn raw_query(
                     0.0,
                     serde_json::json!({"rows": row_count}),
                 )
-                .await;
+                .await {
+                tracing::warn!(?error, "telemetry record failed");
+            }
         });
     }
 
@@ -691,7 +693,7 @@ pub(crate) async fn execute_from_ir(
         let meter_store = Arc::clone(&state.store);
         let meter_user = principal.user_uuid().ok();
         crate::spawn_scoped::spawn_scoped(async move {
-            let _ = meter_store
+            if let Err(error) = meter_store
                 .record_usage(
                     meter_user,
                     "query",
@@ -704,7 +706,9 @@ pub(crate) async fn execute_from_ir(
                     0.0,
                     serde_json::json!({"rows": row_count}),
                 )
-                .await;
+                .await {
+                tracing::warn!(?error, "telemetry record failed");
+            }
         });
     }
 
@@ -888,7 +892,7 @@ pub(crate) async fn execute_from_ir_federation(
         let meter_store = Arc::clone(&state.store);
         let meter_user = principal.user_uuid().ok();
         crate::spawn_scoped::spawn_scoped(async move {
-            let _ = meter_store
+            if let Err(error) = meter_store
                 .record_usage(
                     meter_user,
                     "query",
@@ -901,7 +905,9 @@ pub(crate) async fn execute_from_ir_federation(
                     0.0,
                     serde_json::json!({"rows": row_count}),
                 )
-                .await;
+                .await {
+                tracing::warn!(?error, "telemetry record failed");
+            }
         });
     }
 

@@ -1,3 +1,10 @@
+// WebSocket close-frame sends and lock acquire/release calls are
+// fire-and-forget by design: the socket is already going down on a
+// close, and lock contention is its own surface (`LockGranted` vs
+// `LockDenied` come back through the broadcast). The collaboration
+// channel — not the call-site — owns lock semantics.
+#![allow(clippy::let_underscore_must_use)]
+
 use std::sync::Arc;
 use std::time::Duration;
 

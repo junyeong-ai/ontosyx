@@ -82,6 +82,9 @@ async fn postgres_scan_returns_typed_record_batch() {
     // Cleanup runs regardless of assertion outcome so a failed test
     // does not leave stray tables behind.
     let cleanup = format!("DROP TABLE {qualified}");
+    // Best-effort cleanup — leftover state is fine for the next run
+    // because every test creates a uniquely-suffixed table.
+    #[allow(clippy::let_underscore_must_use)]
     let _ = pool.execute(cleanup.as_str()).await;
 
     assert_eq!(batch.num_rows(), 3, "3 inserted rows round-trip");
