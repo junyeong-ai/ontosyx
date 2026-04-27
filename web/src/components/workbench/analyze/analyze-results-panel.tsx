@@ -2,14 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppStore, type ToolCall } from "@/lib/store";
-import type {
-  QueryDiagnostic,
-  QueryProvenance,
-  QueryResult,
-  WidgetSpec,
-} from "@/types/api";
+import type { QueryDiagnostic, QueryResult, WidgetSpec } from "@/types/api";
 import { addWidget, normalizeQueryResult } from "@/lib/api";
 import { useDashboards } from "@/hooks/api/use-dashboards";
+import { useExecution } from "@/hooks/api/use-executions";
 import { Message01Icon } from "@hugeicons/core-free-icons";
 import { CopyButton } from "@/components/ui/copy-button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -95,6 +91,8 @@ export function AnalyzeResultsPanel() {
 
 function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
   const parsed = tryParseQueryOutput(toolCall.output);
+  const { data: execution } = useExecution(parsed?.execution_id ?? null);
+  const provenance = execution?.results?.metadata?.provenance ?? undefined;
   const [pinOpen, setPinOpen] = useState(false);
   const [selectedDashId, setSelectedDashId] = useState<string>("");
   const [widgetTitle, setWidgetTitle] = useState(
@@ -175,12 +173,12 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
           <QueryBlock query={parsed.compiled_query} />
         </div>
       )}
-      {/* Step timings — separate line below header for readability */}
-      {parsed?.step_timings && parsed.step_timings.length > 0 && (
+      {/* Step timings — populated from SSE progress events on toolCall.steps */}
+      {toolCall.steps && toolCall.steps.length > 0 && (
         <div className="flex flex-wrap gap-x-3 gap-y-0.5 px-3 pb-2 pt-1 text-[10px] text-muted-foreground">
-          {parsed.step_timings.map((st) => {
+          {toolCall.steps.map((st) => {
             const label = STEP_TIMING_LABELS[st.step] ?? st.step;
-            const ms = st.duration_ms;
+            const ms = st.durationMs ?? 0;
             return (
               <span key={st.step}>
                 {label} {ms < 100 ? "<0.1s" : `${(ms / 1000).toFixed(1)}s`}
@@ -242,14 +240,11 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
                   rows_returned: parsed.row_count,
                   nodes_affected: null,
                   edges_affected: null,
-                  provenance: parsed.provenance,
+                  provenance,
                 },
               }}
             />
-            <ResponseBasis
-              provenance={parsed.provenance}
-              warnings={parsed.warnings}
-            />
+            <ResponseBasis provenance={provenance} warnings={parsed.warnings} />
           </>
         ) : toolCall.name === "visualize" && tryParseVisualize(toolCall.output) ? (
           (() => {
@@ -264,7 +259,7 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
         ) : toolCall.name === "recall_memory" ? (
           <MemoryHitsList raw={toolCall.output} />
         ) : toolCall.name === "execute_analysis" ? (
-          <AnalysisResultBlock raw={toolCall.output} />
+          <AnalysisResultBlock raw={toolCall.output} durationMs={toolCall.durationMs} />
         ) : (
           <JsonPreview raw={toolCall.output} />
         )}
@@ -285,13 +280,18 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
 // AnalysisResultBlock — structured display for execute_analysis output
 // ---------------------------------------------------------------------------
 
-function AnalysisResultBlock({ raw }: { raw?: string }) {
+function AnalysisResultBlock({
+  raw,
+  durationMs,
+}: {
+  raw?: string;
+  durationMs?: number;
+}) {
   const [expanded, setExpanded] = useState(false);
 
   if (!raw) return null;
 
   let exitCode = 0;
-  let durationMs = 0;
   let stdout = "";
   let stderr = "";
   let parsedStdout: unknown = null;
@@ -299,12 +299,12 @@ function AnalysisResultBlock({ raw }: { raw?: string }) {
   try {
     const parsed = JSON.parse(raw);
     exitCode = parsed.exit_code ?? 0;
-    durationMs = parsed.duration_ms ?? 0;
     stdout = typeof parsed.stdout === "string" ? parsed.stdout : JSON.stringify(parsed.stdout);
     stderr = parsed.stderr ?? "";
   } catch {
     stdout = raw;
   }
+  const ms = durationMs ?? 0;
 
   // Try parsing stdout as JSON for structured display
   try {
@@ -324,9 +324,9 @@ function AnalysisResultBlock({ raw }: { raw?: string }) {
         <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${exitCode === 0 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"}`}>
           exit {exitCode}
         </span>
-        {durationMs > 0 && (
+        {ms > 0 && (
           <span className="text-[10px] text-muted-foreground">
-            {(durationMs / 1000).toFixed(1)}s
+            {(ms / 1000).toFixed(1)}s
           </span>
         )}
       </div>
@@ -399,17 +399,12 @@ function JsonPreview({ raw }: { raw?: string }) {
 function tryParseQueryOutput(
   output: string | undefined,
 ): {
+  execution_id: string;
   compiled_query: string;
   columns: string[];
   rows: unknown[][];
   row_count: number;
   widget_hint?: { widget_type: string; title: string };
-  step_timings?: { step: string; duration_ms: number }[];
-  /** Π-3 response-attribution trail. Carried forward from the
-   *  `query_graph` tool output so the Results panel can render the
-   *  same "Response basis" card the /api/query/from-ir handler
-   *  surfaces for raw HTTP callers. */
-  provenance?: QueryProvenance;
   /** Structured advisory validator diagnostics — same shape as
    *  `QueryMetadata.warnings` on the HTTP route path. */
   warnings?: QueryDiagnostic[];
@@ -419,13 +414,12 @@ function tryParseQueryOutput(
     const parsed = JSON.parse(output);
     if (parsed.columns && parsed.rows && typeof parsed.row_count === "number") {
       return {
+        execution_id: parsed.execution_id ?? "",
         compiled_query: parsed.compiled_query ?? "",
         columns: parsed.columns,
         rows: parsed.rows,
         row_count: parsed.row_count,
         widget_hint: parsed.widget_hint ?? undefined,
-        step_timings: Array.isArray(parsed.step_timings) ? parsed.step_timings : undefined,
-        provenance: parsed.provenance ?? undefined,
         warnings: Array.isArray(parsed.warnings) ? parsed.warnings : undefined,
       };
     }
