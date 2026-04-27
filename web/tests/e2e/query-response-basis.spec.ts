@@ -50,7 +50,7 @@ const ONTOLOGY_DETAIL = mockOntologyDetail({
       {
         id: "type-customer",
         label: "Customer",
-        description: "End-user buyer",
+        description: { default: "End-user buyer" },
         properties: [],
       },
     ],

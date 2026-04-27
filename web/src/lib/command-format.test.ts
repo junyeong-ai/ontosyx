@@ -121,7 +121,7 @@ describe("formatCommand — per-op rendering", () => {
       op: "add_node",
       id: "new",
       label: "Customer",
-      description: "A paying user",
+      description: { default: "A paying user" },
     };
     expect(formatCommand(cmd)).toBe("Add node: Customer");
   });

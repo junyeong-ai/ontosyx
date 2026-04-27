@@ -4,6 +4,7 @@ import { useCallback, useMemo } from "react";
 import { useTranslations } from "next-intl";
 import type { PatternNode, PatternEdge, PatternReturnField, Aggregation, PatternOrderClause } from "./ir-builder";
 import type { NodeTypeDef, EdgeTypeDef } from "@/types/api";
+import { arr } from "@/lib/ir-collections";
 
 // ---------------------------------------------------------------------------
 // ReturnSelector — RETURN clause configurator
@@ -155,7 +156,7 @@ export function ReturnSelector({
               </span>
             </span>
             <div className="mt-1 space-y-0.5">
-              {group.properties.map((prop) => {
+              {arr(group.properties).map((prop) => {
                 const checked = isChecked(group.alias, prop);
                 const field = returnFields.find(
                   (f) => f.alias === group.alias && f.property === prop,
@@ -262,13 +263,13 @@ function buildPropertyGroups(
 
   for (const node of nodes) {
     const typeDef = nodeTypes.find((nt) => nt.label === node.label);
-    const props = typeDef?.properties.map((p) => p.name) ?? [];
+    const props = arr(typeDef?.properties).map((p) => p.name);
     groups.push({ alias: node.alias, label: node.label, properties: props });
   }
 
   for (const edge of edges) {
     const typeDef = edgeTypes.find((et) => et.label === edge.relType);
-    const props = typeDef?.properties.map((p) => p.name) ?? [];
+    const props = arr(typeDef?.properties).map((p) => p.name);
     if (props.length > 0) {
       groups.push({ alias: edge.alias, label: edge.relType, properties: props });
     }

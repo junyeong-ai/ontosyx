@@ -11,9 +11,11 @@ import type {
   QueryDiagnostic,
   QueryProvenance,
 } from "@/types/api";
+import { arr } from "@/lib/ir-collections";
+import { defaultText } from "@/lib/locale/localize";
 
 /**
- * Compact "response basis" panel. Reads `QueryResult.metadata.provenance`
+ * Compact "response basis" panel. Reads `arr(QueryResult.metadata.provenance)`
  * (Π-3) and shows the identity facts the LLM / admin UI needs to justify
  * a result: ontology + version, temporal pivot, touched data sources and
  * types, filter summary.
@@ -186,18 +188,18 @@ function resolveTypeIds(
   }
 
   const nodeById = new Map<string, NodeTypeDef>();
-  for (const n of ir.node_types) nodeById.set(n.id, n);
+  for (const n of arr(ir.node_types)) nodeById.set(n.id, n);
   const edgeById = new Map<string, EdgeTypeDef>();
-  for (const e of ir.edge_types) edgeById.set(e.id, e);
+  for (const e of arr(ir.edge_types)) edgeById.set(e.id, e);
 
   return ids.map((id) => {
     const node = nodeById.get(id);
     if (node) {
-      return { id, label: node.label, description: node.description ?? null };
+      return { id, label: node.label, description: defaultText(node.description) || null };
     }
     const edge = edgeById.get(id);
     if (edge) {
-      return { id, label: edge.label, description: edge.description ?? null };
+      return { id, label: edge.label, description: defaultText(edge.description) || null };
     }
     return { id, label: null, description: null };
   });

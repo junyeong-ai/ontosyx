@@ -23,6 +23,7 @@ import {
 } from "@xyflow/react";
 
 import type { NodeTypeDef, EdgeTypeDef } from "@/types/api";
+import { arr } from "@/lib/ir-collections";
 import { ContextMenu, type ContextMenuItem } from "@/components/workbench/canvas/context-menu";
 import { GraphCanvas } from "@/components/workbench/canvas/graph-canvas";
 import { useGraphInteractions } from "@/lib/use-graph-interactions";
@@ -331,7 +332,7 @@ const QueryCanvasInner = forwardRef<QueryCanvasHandle, QueryCanvasProps>(functio
       const nt = nodeTypes.find((nodeType) => nodeType.label === n.label);
       const position =
         n.position ?? fallbackPositions[n.id] ?? defaultGridPosition(idx);
-      const propCount = nt?.properties.length ?? 0;
+      const propCount = arr(nt?.properties).length;
       return {
         id: n.id,
         type: "query",

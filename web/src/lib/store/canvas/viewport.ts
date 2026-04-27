@@ -9,6 +9,7 @@ import {
   computeAutoGroups,
 } from "@/components/workbench/canvas/canvas-helpers";
 import type { OntologyIR, QualityGap } from "@/types/api";
+import { arr } from "@/lib/ir-collections";
 
 /**
  * Computes a deterministic topology signature for the ontology.
@@ -20,9 +21,9 @@ import type { OntologyIR, QualityGap } from "@/types/api";
 function useTopologySignature(ontology: OntologyIR | null): string {
   return useMemo(() => {
     if (!ontology) return "";
-    const labelById = new Map(ontology.node_types.map((n) => [n.id, n.label]));
-    const nodeLabels = ontology.node_types.map((n) => n.label).sort();
-    const edgeSigs = ontology.edge_types
+    const labelById = new Map(arr(ontology.node_types).map((n) => [n.id, n.label]));
+    const nodeLabels = arr(ontology.node_types).map((n) => n.label).sort();
+    const edgeSigs = arr(ontology.edge_types)
       .map((e) => {
         const src = labelById.get(e.source_node_id) ?? e.source_node_id;
         const tgt = labelById.get(e.target_node_id) ?? e.target_node_id;

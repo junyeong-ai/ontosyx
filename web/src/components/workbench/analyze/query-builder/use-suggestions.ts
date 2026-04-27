@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { OntologyIR, NodeTypeDef, EdgeTypeDef } from "@/types/api";
 import type { PatternNode } from "./ir-builder";
+import { arr } from "@/lib/ir-collections";
 
 export interface Suggestion {
   edge: EdgeTypeDef;
@@ -17,7 +18,7 @@ export function useSuggestions(
   return useMemo(() => {
     if (!selectedNodeLabel || !ontology) return [];
 
-    const selectedNodeType = ontology.node_types.find(
+    const selectedNodeType = arr(ontology.node_types).find(
       (nt) => nt.label === selectedNodeLabel,
     );
     if (!selectedNodeType) return [];
@@ -25,9 +26,9 @@ export function useSuggestions(
     const addedLabels = new Set(patternNodes.map((n) => n.label));
     const suggestions: Suggestion[] = [];
 
-    for (const edge of ontology.edge_types) {
+    for (const edge of arr(ontology.edge_types)) {
       if (edge.source_node_id === selectedNodeType.id) {
-        const target = ontology.node_types.find(
+        const target = arr(ontology.node_types).find(
           (nt) => nt.id === edge.target_node_id,
         );
         if (target) {
@@ -40,7 +41,7 @@ export function useSuggestions(
         }
       }
       if (edge.target_node_id === selectedNodeType.id) {
-        const source = ontology.node_types.find(
+        const source = arr(ontology.node_types).find(
           (nt) => nt.id === edge.source_node_id,
         );
         if (source) {

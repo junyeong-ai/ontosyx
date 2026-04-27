@@ -14,6 +14,7 @@ import type { SchemaNodeData, NodeLayer, DiffStatus } from "./schema-node";
 import type { SchemaEdgeData } from "./schema-edge";
 import type { GroupNodeData } from "./node-group";
 import type { OntologyIR, OntologyDiff, QualityGap, QualityGapRef, ReconcileReport, ResolvedQueryBindings, BindingKind } from "@/types/api";
+import { arr } from "@/lib/ir-collections";
 
 // ---------------------------------------------------------------------------
 // Highlight sets
@@ -151,7 +152,7 @@ export function nodeLayer(
   const hasHighGaps = nodeGaps.some((g) => g.severity === "high");
   if (hasHighGaps) return "problematic";
   if (addedIds.has(nodeDef.id)) return "suggested";
-  if (nodeDef.source_table) return "asserted";
+  if (nodeDef.source_lineage?.table) return "asserted";
   return "inferred";
 }
 
@@ -198,7 +199,7 @@ export function buildFlowElements(
   // Add group nodes first (they must come before child nodes in React Flow)
   for (const [groupId, group] of Object.entries(nodeGroups)) {
     const validNodeIds = group.nodeIds.filter((nid) =>
-      ontology.node_types.some((n) => n.id === nid),
+      arr(ontology.node_types).some((n) => n.id === nid),
     );
     if (validNodeIds.length === 0) continue;
 
@@ -220,8 +221,8 @@ export function buildFlowElements(
   }
 
   // Add schema nodes
-  for (let i = 0; i < ontology.node_types.length; i++) {
-    const n = ontology.node_types[i];
+  for (let i = 0; i < arr(ontology.node_types).length; i++) {
+    const n = arr(ontology.node_types)[i];
     const groupId = nodeToGroup.get(n.id);
     const group = groupId ? nodeGroups[groupId] : undefined;
 
@@ -255,7 +256,7 @@ export function buildFlowElements(
     nodes.push(node);
   }
 
-  const edges: Edge[] = ontology.edge_types.map((e) => ({
+  const edges: Edge[] = arr(ontology.edge_types).map((e) => ({
     id: e.id,
     source: e.source_node_id,
     target: e.target_node_id,
@@ -295,18 +296,18 @@ export function computeAutoGroups(
   ontology: OntologyIR,
   threshold = 50,
 ): Record<string, NodeGroup> {
-  if (ontology.node_types.length < threshold) return {};
+  if (arr(ontology.node_types).length < threshold) return {};
 
   // Build adjacency + ID mappings
   const adj = new Map<string, Set<string>>(); // label → neighbor labels
   const idToLabel = new Map<string, string>();
   const labelToId = new Map<string, string>();
-  for (const n of ontology.node_types) {
+  for (const n of arr(ontology.node_types)) {
     adj.set(n.label, new Set());
     idToLabel.set(n.id, n.label);
     labelToId.set(n.label, n.id);
   }
-  for (const e of ontology.edge_types) {
+  for (const e of arr(ontology.edge_types)) {
     const srcLabel = idToLabel.get(e.source_node_id);
     const tgtLabel = idToLabel.get(e.target_node_id);
     if (srcLabel && tgtLabel) {
@@ -319,7 +320,7 @@ export function computeAutoGroups(
   const visited = new Set<string>();
   const components: string[][] = []; // each component = array of labels
 
-  for (const n of ontology.node_types) {
+  for (const n of arr(ontology.node_types)) {
     if (visited.has(n.label)) continue;
     const component: string[] = [];
     const queue = [n.label];
@@ -340,7 +341,7 @@ export function computeAutoGroups(
     labels.map((l) => labelToId.get(l)).filter((id): id is string => !!id);
 
   // If everything is one big component, split by degree
-  if (components.length <= 1 && ontology.node_types.length >= threshold) {
+  if (components.length <= 1 && arr(ontology.node_types).length >= threshold) {
     return splitByDegree(ontology, adj);
   }
 
@@ -365,7 +366,7 @@ function splitByDegree(
   ontology: OntologyIR,
   adj: Map<string, Set<string>>,
 ): Record<string, NodeGroup> {
-  const sorted = ontology.node_types
+  const sorted = arr(ontology.node_types)
     .map((n) => ({ id: n.id, label: n.label, degree: adj.get(n.label)?.size ?? 0 }))
     .sort((a, b) => b.degree - a.degree);
 

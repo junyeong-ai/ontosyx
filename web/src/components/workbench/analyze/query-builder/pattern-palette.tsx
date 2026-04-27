@@ -4,6 +4,8 @@ import { useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import type { NodeTypeDef, EdgeTypeDef } from "@/types/api";
 import type { Suggestion } from "./use-suggestions";
+import { arr } from "@/lib/ir-collections";
+import { defaultText } from "@/lib/locale/localize";
 
 // ---------------------------------------------------------------------------
 // PatternPalette — Available node/edge types from ontology
@@ -46,13 +48,13 @@ export function PatternPalette({
   const filteredNodes = nodeTypes.filter(
     (nt) =>
       nt.label.toLowerCase().includes(lowerSearch) ||
-      nt.description?.toLowerCase().includes(lowerSearch),
+      defaultText(nt.description).toLowerCase().includes(lowerSearch),
   );
 
   const filteredEdges = edgeTypes.filter(
     (et) =>
       et.label.toLowerCase().includes(lowerSearch) ||
-      et.description?.toLowerCase().includes(lowerSearch),
+      defaultText(et.description).toLowerCase().includes(lowerSearch),
   );
 
   const handleDragStartNode = useCallback(
@@ -137,13 +139,13 @@ export function PatternPalette({
                   {nt.label}
                 </span>
               </div>
-              {nt.description && (
+              {defaultText(nt.description) && (
                 <p className="mt-0.5 text-[10px] text-muted-foreground line-clamp-1">
-                  {nt.description}
+                  {defaultText(nt.description)}
                 </p>
               )}
               <div className="mt-1 text-[10px] text-muted-foreground">
-                {t("propertiesCount", { count: nt.properties.length })}
+                {t("propertiesCount", { count: arr(nt.properties).length })}
               </div>
             </div>
           ))}

@@ -3,6 +3,7 @@ import type { OntologyIR, OntologyCommand, PropertyPatch, Cardinality } from "@/
 import type { AppStore, OntologySlice } from "./types";
 import { type OntologyIndex, buildOntologyIndex } from "@/lib/ontology-index";
 import { toast } from "sonner";
+import { arr } from "@/lib/ir-collections";
 
 const MAX_UNDO_DEPTH = 50;
 
@@ -54,7 +55,9 @@ function applyCommandToOntology(
             id: cmd.id!,
             label: cmd.label!,
             description: cmd.description,
-            source_table: cmd.source_table,
+            source_lineage: cmd.source_table
+              ? { table: cmd.source_table }
+              : null,
             properties: [],
           },
         ],
@@ -66,21 +69,21 @@ function applyCommandToOntology(
     }
 
     case "delete_node": {
-      const node = ontology.node_types.find((n) => n.id === cmd.node_id);
+      const node = arr(ontology.node_types).find((n) => n.id === cmd.node_id);
       if (!node) return { ontology, inverse: { op: "batch", description: "noop", commands: [] } };
-      const removedEdges = ontology.edge_types.filter(
+      const removedEdges = arr(ontology.edge_types).filter(
         (e) => e.source_node_id === cmd.node_id || e.target_node_id === cmd.node_id,
       );
-      const removedIndexes = (ontology.indexes ?? []).filter(
+      const removedIndexes = (arr(ontology.indexes) ?? []).filter(
         (idx) => idx.node_id === cmd.node_id,
       );
       const newOntology: OntologyIR = {
         ...ontology,
-        node_types: ontology.node_types.filter((n) => n.id !== cmd.node_id),
-        edge_types: ontology.edge_types.filter(
+        node_types: arr(ontology.node_types).filter((n) => n.id !== cmd.node_id),
+        edge_types: arr(ontology.edge_types).filter(
           (e) => e.source_node_id !== cmd.node_id && e.target_node_id !== cmd.node_id,
         ),
-        indexes: (ontology.indexes ?? []).filter((idx) => idx.node_id !== cmd.node_id),
+        indexes: (arr(ontology.indexes) ?? []).filter((idx) => idx.node_id !== cmd.node_id),
       };
       const inverseCommands: OntologyCommand[] = [
         {
@@ -88,16 +91,16 @@ function applyCommandToOntology(
           id: node.id,
           label: node.label,
           description: node.description ?? undefined,
-          source_table: node.source_table ?? undefined,
+          source_table: node.source_lineage?.table ?? undefined,
         },
         // Re-add properties
-        ...node.properties.map((p) => ({
+        ...arr(node.properties).map((p) => ({
           op: "add_property" as const,
           owner_id: node.id,
           property: p,
         })),
         // Re-add constraints
-        ...(node.constraints ?? []).map((c) => ({
+        ...(arr(node.constraints) ?? []).map((c) => ({
           op: "add_constraint" as const,
           node_id: node.id,
           constraint: c,
@@ -112,7 +115,7 @@ function applyCommandToOntology(
             target_node_id: e.target_node_id,
             cardinality: e.cardinality ?? "many_to_many",
           },
-          ...e.properties.map((p) => ({
+          ...arr(e.properties).map((p) => ({
             op: "add_property" as const,
             owner_id: e.id,
             property: p,
@@ -131,12 +134,12 @@ function applyCommandToOntology(
     }
 
     case "rename_node": {
-      const node = ontology.node_types.find((n) => n.id === cmd.node_id);
+      const node = arr(ontology.node_types).find((n) => n.id === cmd.node_id);
       if (!node) return { ontology, inverse: { op: "batch", description: "noop", commands: [] } };
       const oldLabel = node.label;
       const newOntology: OntologyIR = {
         ...ontology,
-        node_types: ontology.node_types.map((n) =>
+        node_types: arr(ontology.node_types).map((n) =>
           n.id === cmd.node_id ? { ...n, label: cmd.new_label! } : n,
         ),
       };
@@ -147,12 +150,12 @@ function applyCommandToOntology(
     }
 
     case "update_node_description": {
-      const node = ontology.node_types.find((n) => n.id === cmd.node_id);
+      const node = arr(ontology.node_types).find((n) => n.id === cmd.node_id);
       if (!node) return { ontology, inverse: { op: "batch", description: "noop", commands: [] } };
       const oldDesc = node.description;
       const newOntology: OntologyIR = {
         ...ontology,
-        node_types: ontology.node_types.map((n) =>
+        node_types: arr(ontology.node_types).map((n) =>
           n.id === cmd.node_id ? { ...n, description: cmd.description } : n,
         ),
       };
@@ -184,11 +187,11 @@ function applyCommandToOntology(
     }
 
     case "delete_edge": {
-      const edge = ontology.edge_types.find((e) => e.id === cmd.edge_id);
+      const edge = arr(ontology.edge_types).find((e) => e.id === cmd.edge_id);
       if (!edge) return { ontology, inverse: { op: "batch", description: "noop", commands: [] } };
       const newOntology: OntologyIR = {
         ...ontology,
-        edge_types: ontology.edge_types.filter((e) => e.id !== cmd.edge_id),
+        edge_types: arr(ontology.edge_types).filter((e) => e.id !== cmd.edge_id),
       };
       const inverseCommands: OntologyCommand[] = [
         {
@@ -200,7 +203,7 @@ function applyCommandToOntology(
           cardinality: edge.cardinality ?? "many_to_many",
         },
         // Re-add edge properties
-        ...edge.properties.map((p) => ({
+        ...arr(edge.properties).map((p) => ({
           op: "add_property" as const,
           owner_id: edge.id,
           property: p,
@@ -215,12 +218,12 @@ function applyCommandToOntology(
     }
 
     case "rename_edge": {
-      const edge = ontology.edge_types.find((e) => e.id === cmd.edge_id);
+      const edge = arr(ontology.edge_types).find((e) => e.id === cmd.edge_id);
       if (!edge) return { ontology, inverse: { op: "batch", description: "noop", commands: [] } };
       const oldLabel = edge.label;
       const newOntology: OntologyIR = {
         ...ontology,
-        edge_types: ontology.edge_types.map((e) =>
+        edge_types: arr(ontology.edge_types).map((e) =>
           e.id === cmd.edge_id ? { ...e, label: cmd.new_label! } : e,
         ),
       };
@@ -231,12 +234,12 @@ function applyCommandToOntology(
     }
 
     case "update_edge_cardinality": {
-      const edge = ontology.edge_types.find((e) => e.id === cmd.edge_id);
+      const edge = arr(ontology.edge_types).find((e) => e.id === cmd.edge_id);
       if (!edge) return { ontology, inverse: { op: "batch", description: "noop", commands: [] } };
       const oldCard = edge.cardinality;
       const newOntology: OntologyIR = {
         ...ontology,
-        edge_types: ontology.edge_types.map((e) =>
+        edge_types: arr(ontology.edge_types).map((e) =>
           e.id === cmd.edge_id ? { ...e, cardinality: cmd.cardinality as Cardinality } : e,
         ),
       };
@@ -247,12 +250,12 @@ function applyCommandToOntology(
     }
 
     case "update_edge_description": {
-      const edge = ontology.edge_types.find((e) => e.id === cmd.edge_id);
+      const edge = arr(ontology.edge_types).find((e) => e.id === cmd.edge_id);
       if (!edge) return { ontology, inverse: { op: "batch", description: "noop", commands: [] } };
       const oldDesc = edge.description;
       const newOntology: OntologyIR = {
         ...ontology,
-        edge_types: ontology.edge_types.map((e) =>
+        edge_types: arr(ontology.edge_types).map((e) =>
           e.id === cmd.edge_id ? { ...e, description: cmd.description } : e,
         ),
       };
@@ -275,11 +278,11 @@ function applyCommandToOntology(
 
     case "delete_property": {
       const owner = findOwner(ontology, cmd.owner_id!);
-      const prop = owner?.properties.find((p) => p.id === cmd.property_id);
+      const prop = arr(owner?.properties).find((p) => p.id === cmd.property_id);
       if (!owner || !prop) return { ontology, inverse: { op: "batch", description: "noop", commands: [] } };
       const newOntology = mapOwner(ontology, cmd.owner_id!, (o) => ({
         ...o,
-        properties: o.properties.filter((p) => p.id !== cmd.property_id),
+        properties: arr(o.properties).filter((p) => p.id !== cmd.property_id),
       }));
       return {
         ontology: newOntology,
@@ -289,7 +292,7 @@ function applyCommandToOntology(
 
     case "update_property": {
       const owner = findOwner(ontology, cmd.owner_id);
-      const prop = owner?.properties.find((p) => p.id === cmd.property_id);
+      const prop = arr(owner?.properties).find((p) => p.id === cmd.property_id);
       if (!owner || !prop) return { ontology, inverse: { op: "batch", description: "noop", commands: [] } };
       const inversePatch: PropertyPatch = {};
       const { patch } = cmd;
@@ -300,7 +303,7 @@ function applyCommandToOntology(
 
       const newOntology = mapOwner(ontology, cmd.owner_id, (o) => ({
         ...o,
-        properties: o.properties.map((p) =>
+        properties: arr(o.properties).map((p) =>
           p.id === cmd.property_id
             ? {
                 ...p,
@@ -321,9 +324,9 @@ function applyCommandToOntology(
     case "add_constraint": {
       const newOntology: OntologyIR = {
         ...ontology,
-        node_types: ontology.node_types.map((n) =>
+        node_types: arr(ontology.node_types).map((n) =>
           n.id === cmd.node_id
-            ? { ...n, constraints: [...(n.constraints ?? []), cmd.constraint!] }
+            ? { ...n, constraints: [...(arr(n.constraints) ?? []), cmd.constraint!] }
             : n,
         ),
       };
@@ -334,14 +337,14 @@ function applyCommandToOntology(
     }
 
     case "remove_constraint": {
-      const node = ontology.node_types.find((n) => n.id === cmd.node_id);
+      const node = arr(ontology.node_types).find((n) => n.id === cmd.node_id);
       const constraint = node?.constraints?.find((c) => c.id === cmd.constraint_id);
       if (!constraint) return { ontology, inverse: { op: "batch", description: "noop", commands: [] } };
       const newOntology: OntologyIR = {
         ...ontology,
-        node_types: ontology.node_types.map((n) =>
+        node_types: arr(ontology.node_types).map((n) =>
           n.id === cmd.node_id
-            ? { ...n, constraints: (n.constraints ?? []).filter((c) => c.id !== cmd.constraint_id) }
+            ? { ...n, constraints: (arr(n.constraints) ?? []).filter((c) => c.id !== cmd.constraint_id) }
             : n,
         ),
       };
@@ -354,7 +357,7 @@ function applyCommandToOntology(
     case "add_index": {
       const newOntology: OntologyIR = {
         ...ontology,
-        indexes: [...(ontology.indexes ?? []), cmd.index!],
+        indexes: [...(arr(ontology.indexes) ?? []), cmd.index!],
       };
       return {
         ontology: newOntology,
@@ -363,11 +366,11 @@ function applyCommandToOntology(
     }
 
     case "remove_index": {
-      const idx = (ontology.indexes ?? []).find((i) => i.id === cmd.index_id);
+      const idx = (arr(ontology.indexes) ?? []).find((i) => i.id === cmd.index_id);
       if (!idx) return { ontology, inverse: { op: "batch", description: "noop", commands: [] } };
       const newOntology: OntologyIR = {
         ...ontology,
-        indexes: (ontology.indexes ?? []).filter((i) => i.id !== cmd.index_id),
+        indexes: (arr(ontology.indexes) ?? []).filter((i) => i.id !== cmd.index_id),
       };
       return {
         ontology: newOntology,
@@ -401,8 +404,8 @@ function findOwner(ontology: OntologyIR, ownerId: string) {
     return cachedIndex.nodeById.get(ownerId) ?? cachedIndex.edgeById.get(ownerId);
   }
   return (
-    ontology.node_types.find((n) => n.id === ownerId) ??
-    ontology.edge_types.find((e) => e.id === ownerId)
+    arr(ontology.node_types).find((n) => n.id === ownerId) ??
+    arr(ontology.edge_types).find((e) => e.id === ownerId)
   );
 }
 
@@ -417,18 +420,18 @@ function mapOwner(
   const isNode =
     cachedIndex && cachedOntologyRef === ontology
       ? cachedIndex.nodeById.has(ownerId)
-      : ontology.node_types.some((n) => n.id === ownerId);
+      : arr(ontology.node_types).some((n) => n.id === ownerId);
   if (isNode) {
     return {
       ...ontology,
-      node_types: ontology.node_types.map((n) =>
+      node_types: arr(ontology.node_types).map((n) =>
         n.id === ownerId ? (fn(n) as OntologyIR["node_types"][number]) : n,
       ),
     };
   }
   return {
     ...ontology,
-    edge_types: ontology.edge_types.map((e) =>
+    edge_types: arr(ontology.edge_types).map((e) =>
       e.id === ownerId ? (fn(e) as OntologyIR["edge_types"][number]) : e,
     ),
   };

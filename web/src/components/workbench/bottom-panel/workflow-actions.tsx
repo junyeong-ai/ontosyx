@@ -50,6 +50,7 @@ import { ReanalyzeForm, ExtendSourceForm } from "./workflow-forms";
 import { ProgressIndicator, SourceHistorySection } from "./workflow-indicators";
 import { useWorkflowFormState } from "./use-workflow-form-state";
 import type { DesignDecisions } from "./use-design-decisions";
+import { arr } from "@/lib/ir-collections";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -199,8 +200,8 @@ export function WorkflowActions({
           toast.success(t("ontologyDesigned"), {
             description: resp.project.ontology
               ? t("completeDesignedDescription", {
-                  nodeCount: resp.project.ontology.node_types.length,
-                  edgeCount: resp.project.ontology.edge_types.length,
+                  nodeCount: arr(resp.project.ontology.node_types).length,
+                  edgeCount: arr(resp.project.ontology.edge_types).length,
                 })
               : undefined,
           });
@@ -910,8 +911,8 @@ function GraphAuditSection({ ontologyId }: { ontologyId: string }) {
       setOntology(adopted);
       toast.success(
         t("adopted", {
-          nodeCount: adopted.node_types.length,
-          edgeCount: adopted.edge_types.length,
+          nodeCount: arr(adopted.node_types).length,
+          edgeCount: arr(adopted.edge_types).length,
         }),
       );
       // Re-audit to confirm sync

@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { Tooltip } from "@/components/ui/tooltip";
 import type { OntologyIR, QualityGap } from "@/types/api";
 import { NodeDetail, EdgeDetail } from "./entity-detail";
+import { arr } from "@/lib/ir-collections";
 
 // ---------------------------------------------------------------------------
 // Inspector — editable detail view for selected node or edge
@@ -64,7 +65,7 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
 
   const content = (() => {
     if (selectedNodeId) {
-      const node = ontology.node_types.find((n) => n.id === selectedNodeId);
+      const node = arr(ontology.node_types).find((n) => n.id === selectedNodeId);
       if (!node) return <Empty text="Node not found" />;
       const nodeGaps = gaps.filter((g) => {
         const loc = g.location;
@@ -82,7 +83,7 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
     }
 
     if (selectedEdgeId) {
-      const edge = ontology.edge_types.find((e) => e.id === selectedEdgeId);
+      const edge = arr(ontology.edge_types).find((e) => e.id === selectedEdgeId);
       if (!edge) return <Empty text="Edge not found" />;
       const edgeGaps = gaps.filter((g) => {
         const loc = g.location;

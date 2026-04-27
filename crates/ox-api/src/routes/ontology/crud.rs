@@ -211,8 +211,10 @@ pub struct OntologyDetail {
     pub id: Uuid,
     pub lineage_id: String,
     pub name: String,
-    /// LocalizedText JSONB — `{default, translations}` shape.
-    #[schema(value_type = Object)]
+    /// Localized description. Stored as JSONB; the OpenAPI surface
+    /// uses the typed `LocalizedText` from the ontology IR so FE
+    /// codegen carries the same shape.
+    #[schema(value_type = ox_core::i18n::LocalizedText)]
     pub description: serde_json::Value,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -222,7 +224,6 @@ pub struct OntologyDetail {
     /// identity exists but has no committed version yet — the caller
     /// should treat it as an empty ontology (fresh project seed).
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schema(value_type = Object)]
     pub ontology_ir: Option<ox_ontology::ir::OntologyIR>,
 }
 

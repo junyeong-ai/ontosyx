@@ -43,7 +43,7 @@ function ontologyDetailFixture(): OntologyDetail {
         {
           id: "nt_customer",
           label: "Customer",
-          description: "Buyers of products",
+          description: { default: "Buyers of products" },
           properties: [],
         },
         {
@@ -57,7 +57,7 @@ function ontologyDetailFixture(): OntologyDetail {
         {
           id: "et_purchased",
           label: "PURCHASED",
-          description: "Purchase event linking customers to products",
+          description: { default: "Purchase event linking customers to products" },
           source_node_id: "nt_customer",
           target_node_id: "nt_product",
           properties: [],

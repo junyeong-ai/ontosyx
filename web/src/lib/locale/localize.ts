@@ -18,6 +18,16 @@
 import type { LocalizedText } from "@/types/ontology";
 
 /**
+ * Read the canonical default text without localising. Use for
+ * cases where a downstream API takes a plain string and the
+ * caller has no locale context (test fixtures, low-level
+ * comparisons, etc). Render code should prefer {@link localize}.
+ */
+export function defaultText(text: LocalizedText | null | undefined): string {
+  return text?.default ?? "";
+}
+
+/**
  * Static fallback when a workspace's `locale_fallback` chain isn't
  * available at the call-site. Mirrors the `workspaces.locale_fallback`
  * column default. Surfaces that gain a workspace context should

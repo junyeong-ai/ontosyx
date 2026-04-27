@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { useAppStore } from "@/lib/store";
 import { editProject } from "@/lib/api";
+import { defaultText } from "@/lib/locale/localize";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Tick01Icon,
@@ -37,11 +38,11 @@ export function AiSuggestionRow({
       case "add_edge":
         return `Add edge "${cmd.label}"`;
       case "update_node_description":
-        return `Update description: "${cmd.description?.slice(0, 60) ?? ""}..."`;
+        return `Update description: "${defaultText(cmd.description).slice(0, 60)}..."`;
       case "update_edge_description":
-        return `Update description: "${cmd.description?.slice(0, 60) ?? ""}..."`;
+        return `Update description: "${defaultText(cmd.description).slice(0, 60)}..."`;
       case "update_property":
-        return `Update property: ${cmd.patch.description ? `description "${cmd.patch.description.slice(0, 50)}..."` : JSON.stringify(cmd.patch)}`;
+        return `Update property: ${cmd.patch.description ? `description "${defaultText(cmd.patch.description).slice(0, 50)}..."` : JSON.stringify(cmd.patch)}`;
       case "batch":
         return `${cmd.description} (${cmd.commands.length} changes)`;
       default:

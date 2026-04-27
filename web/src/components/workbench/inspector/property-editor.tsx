@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useAppStore } from "@/lib/store";
+import { defaultText } from "@/lib/locale/localize";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Delete01Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
@@ -236,9 +237,11 @@ export function PropertyRow({
           )}
         </div>
         <InlineEdit
-          value={prop.description || ""}
+          value={defaultText(prop.description)}
           placeholder="Add description..."
-          onSave={(description) => onUpdate({ description: description || null })}
+          onSave={(description) =>
+            onUpdate({ description: description ? { default: description } : null })
+          }
           className="mt-0.5 break-words text-muted-foreground"
         />
         {prop.source_column && (

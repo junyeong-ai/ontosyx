@@ -13,6 +13,7 @@ import type {
   NodeTypeDef,
   EdgeTypeDef,
 } from "@/types/api";
+import { arr } from "@/lib/ir-collections";
 
 type DiffTranslator = ReturnType<typeof useTranslations<"workbench.bottomPanel.diff">>;
 
@@ -214,9 +215,9 @@ function AddedNodeItem({ node, t }: { node: NodeTypeDef; t: DiffTranslator }) {
       <span className="font-medium text-emerald-700 dark:text-emerald-300">
         + {node.label}
       </span>
-      {node.properties.length > 0 && (
+      {arr(node.properties).length > 0 && (
         <span className="ml-1.5 text-muted-foreground">
-          {t("propertiesCount", { count: node.properties.length })}
+          {t("propertiesCount", { count: arr(node.properties).length })}
         </span>
       )}
     </div>
@@ -229,9 +230,9 @@ function RemovedNodeItem({ node, t }: { node: NodeTypeDef; t: DiffTranslator }) 
       <span className="font-medium text-red-700 dark:text-red-300">
         - {node.label}
       </span>
-      {node.properties.length > 0 && (
+      {arr(node.properties).length > 0 && (
         <span className="ml-1.5 text-muted-foreground">
-          {t("propertiesCount", { count: node.properties.length })}
+          {t("propertiesCount", { count: arr(node.properties).length })}
         </span>
       )}
     </div>

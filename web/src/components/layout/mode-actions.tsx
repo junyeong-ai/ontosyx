@@ -17,6 +17,7 @@ import { normalizeOntology, importOwl, auditGraph } from "@/lib/api";
 import type { GraphAuditReport } from "@/lib/api/ontology";
 import { handleSchemaExport } from "@/lib/export-utils";
 import type { ExportFormat } from "@/lib/export-utils";
+import { arr } from "@/lib/ir-collections";
 
 // ---------------------------------------------------------------------------
 // ModeActions — mode-specific action buttons on the right side of the header
@@ -110,8 +111,8 @@ function DesignActions() {
       setOntology(imported);
       toast.success(t("toast.imported"), {
         description: t("importedDescription", {
-          nodes: imported.node_types.length,
-          edges: imported.edge_types.length,
+          nodes: arr(imported.node_types).length,
+          edges: arr(imported.edge_types).length,
         }),
       });
     } catch (err) {

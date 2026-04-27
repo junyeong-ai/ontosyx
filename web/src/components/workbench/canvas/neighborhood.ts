@@ -1,4 +1,5 @@
 import type { OntologyIR } from "@/types/api";
+import { arr } from "@/lib/ir-collections";
 
 // ---------------------------------------------------------------------------
 // Neighborhood computation — returns all node IDs within N hops of a node
@@ -15,7 +16,7 @@ export function getNeighborhood(
 ): Set<string> {
   // Build adjacency list (undirected — both directions)
   const adj = new Map<string, Set<string>>();
-  for (const edge of ontology.edge_types) {
+  for (const edge of arr(ontology.edge_types)) {
     if (!adj.has(edge.source_node_id)) adj.set(edge.source_node_id, new Set());
     if (!adj.has(edge.target_node_id)) adj.set(edge.target_node_id, new Set());
     adj.get(edge.source_node_id)!.add(edge.target_node_id);
@@ -52,7 +53,7 @@ export function getNeighborhoodEdges(
   neighborhoodNodeIds: Set<string>,
 ): Set<string> {
   const edgeIds = new Set<string>();
-  for (const edge of ontology.edge_types) {
+  for (const edge of arr(ontology.edge_types)) {
     if (neighborhoodNodeIds.has(edge.source_node_id) && neighborhoodNodeIds.has(edge.target_node_id)) {
       edgeIds.add(edge.id);
     }

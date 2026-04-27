@@ -18,11 +18,13 @@ import type {
   QualityGap,
   ElementVerification,
 } from "@/types/api";
+import { defaultText } from "@/lib/locale/localize";
 import { InlineEdit } from "./inline-edit";
 import { useAiEdit, AiSuggestionList, AiAssistButton } from "./ai-suggestions";
 import { AddPropertyForm, PropertyRow } from "./property-editor";
 import { Section, formatConstraint } from "./shared";
 import { GapsList } from "./quality-gaps";
+import { arr } from "@/lib/ir-collections";
 
 // Re-export for external consumers
 export { InlineEdit } from "./inline-edit";
@@ -94,7 +96,7 @@ export function NodeDetail({
   const { loading: descLoading, suggestions: descSuggestions, requestEdit: requestDescEdit, dismiss: dismissDesc } = useAiEdit();
   const anyAiLoading = propsLoading || descLoading;
 
-  const connectedEdges = ontology.edge_types.filter(
+  const connectedEdges = arr(ontology.edge_types).filter(
     (e) => e.source_node_id === node.id || e.target_node_id === node.id,
   );
 
@@ -107,7 +109,7 @@ export function NodeDetail({
 
   const handleUpdateDescription = useCallback(
     (desc: string) => {
-      applyCommand({ op: "update_node_description", node_id: node.id, description: desc || undefined });
+      applyCommand({ op: "update_node_description", node_id: node.id, description: desc ? { default: desc } : undefined });
     },
     [applyCommand, node.id],
   );
@@ -185,7 +187,7 @@ export function NodeDetail({
         </div>
         <div className="mt-1 flex items-center gap-1">
           <InlineEdit
-            value={node.description ?? ""}
+            value={defaultText(node.description)}
             placeholder="Add description..."
             onSave={handleUpdateDescription}
             className="flex-1 text-muted-foreground"
@@ -205,8 +207,8 @@ export function NodeDetail({
             onDismiss={dismissDesc}
           />
         )}
-        {node.source_table && (
-          <p className="mt-0.5 text-muted-foreground">Source: {node.source_table}</p>
+        {node.source_lineage?.table && (
+          <p className="mt-0.5 text-muted-foreground">Source: {node.source_lineage?.table}</p>
         )}
         <div className="mt-1.5">
           <VerificationBadge verifications={verifications} elementId={node.id} onVerify={onVerify} />
@@ -215,7 +217,7 @@ export function NodeDetail({
 
       {/* Properties */}
       <Section
-        title={`Properties (${node.properties.length})`}
+        title={`Properties (${arr(node.properties).length})`}
         action={
           <>
             {canEdit && (
@@ -247,7 +249,7 @@ export function NodeDetail({
         {addingProp && (
           <AddPropertyForm ownerId={node.id} onClose={() => setAddingProp(false)} />
         )}
-        {node.properties.map((prop) => (
+        {arr(node.properties).map((prop) => (
           <PropertyRow
             key={prop.id}
             prop={prop}
@@ -268,9 +270,9 @@ export function NodeDetail({
       </Section>
 
       {/* Constraints */}
-      {node.constraints && node.constraints.length > 0 && (
-        <Section title={`Constraints (${node.constraints.length})`}>
-          {node.constraints.map((cd) => (
+      {node.constraints && arr(node.constraints).length > 0 && (
+        <Section title={`Constraints (${arr(node.constraints).length})`}>
+          {arr(node.constraints).map((cd) => (
             <div key={cd.id} className="group flex items-center justify-between px-3 py-1 text-zinc-600 dark:text-muted-foreground">
               <span>{formatConstraint(cd, node)}</span>
               <Tooltip content="Remove constraint">
@@ -291,8 +293,8 @@ export function NodeDetail({
       {connectedEdges.length > 0 && (
         <Section title={`Relationships (${connectedEdges.length})`}>
           {connectedEdges.map((edge) => {
-            const src = ontology.node_types.find((n) => n.id === edge.source_node_id)?.label ?? "?";
-            const tgt = ontology.node_types.find((n) => n.id === edge.target_node_id)?.label ?? "?";
+            const src = arr(ontology.node_types).find((n) => n.id === edge.source_node_id)?.label ?? "?";
+            const tgt = arr(ontology.node_types).find((n) => n.id === edge.target_node_id)?.label ?? "?";
             return (
               <div key={edge.id} className="px-3 py-1 text-zinc-600 dark:text-muted-foreground">
                 {src} —[{edge.label}]→ {tgt}
@@ -336,8 +338,8 @@ export function EdgeDetail({
   const { loading: descLoading, suggestions: descSuggestions, requestEdit: requestDescEdit, dismiss: dismissDesc } = useAiEdit();
   const anyAiLoading = propsLoading || descLoading;
 
-  const src = ontology.node_types.find((n) => n.id === edge.source_node_id)?.label ?? "?";
-  const tgt = ontology.node_types.find((n) => n.id === edge.target_node_id)?.label ?? "?";
+  const src = arr(ontology.node_types).find((n) => n.id === edge.source_node_id)?.label ?? "?";
+  const tgt = arr(ontology.node_types).find((n) => n.id === edge.target_node_id)?.label ?? "?";
 
   const handleRename = useCallback(
     (newLabel: string) => {
@@ -348,7 +350,7 @@ export function EdgeDetail({
 
   const handleUpdateDescription = useCallback(
     (desc: string) => {
-      applyCommand({ op: "update_edge_description", edge_id: edge.id, description: desc || undefined });
+      applyCommand({ op: "update_edge_description", edge_id: edge.id, description: desc ? { default: desc } : undefined });
     },
     [applyCommand, edge.id],
   );
@@ -418,7 +420,7 @@ export function EdgeDetail({
         </div>
         <div className="mt-1 flex items-center gap-1">
           <InlineEdit
-            value={edge.description ?? ""}
+            value={defaultText(edge.description)}
             placeholder="Add description..."
             onSave={handleUpdateDescription}
             className="flex-1 text-muted-foreground"
@@ -451,7 +453,7 @@ export function EdgeDetail({
 
       {/* Properties */}
       <Section
-        title={`Properties (${edge.properties.length})`}
+        title={`Properties (${arr(edge.properties).length})`}
         action={
           <>
             {canEdit && (
@@ -483,7 +485,7 @@ export function EdgeDetail({
         {addingProp && (
           <AddPropertyForm ownerId={edge.id} onClose={() => setAddingProp(false)} />
         )}
-        {edge.properties.map((prop) => (
+        {arr(edge.properties).map((prop) => (
           <PropertyRow
             key={prop.id}
             prop={prop}

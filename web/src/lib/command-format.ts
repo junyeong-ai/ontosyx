@@ -1,4 +1,5 @@
 import type { OntologyCommand, OntologyIR } from "@/types/api";
+import { arr } from "@/lib/ir-collections";
 
 /** Resolve a node/edge ID to its label using the ontology. Falls back to truncated ID. */
 function resolveLabel(
@@ -8,11 +9,11 @@ function resolveLabel(
 ): string {
   if (ontology) {
     if (kind !== "edge") {
-      const node = ontology.node_types.find((n) => n.id === id);
+      const node = arr(ontology.node_types).find((n) => n.id === id);
       if (node) return node.label;
     }
     if (kind !== "node") {
-      const edge = ontology.edge_types.find((e) => e.id === id);
+      const edge = arr(ontology.edge_types).find((e) => e.id === id);
       if (edge) return edge.label;
     }
   }
@@ -27,10 +28,10 @@ function resolveProperty(
 ): string {
   if (ontology) {
     const owner =
-      ontology.node_types.find((n) => n.id === ownerId) ??
-      ontology.edge_types.find((e) => e.id === ownerId);
+      arr(ontology.node_types).find((n) => n.id === ownerId) ??
+      arr(ontology.edge_types).find((e) => e.id === ownerId);
     if (owner) {
-      const prop = owner.properties.find((p) => p.id === propertyId);
+      const prop = arr(owner.properties).find((p) => p.id === propertyId);
       if (prop) return prop.name;
     }
   }

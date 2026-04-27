@@ -9,6 +9,7 @@ import {
 } from "@xyflow/react";
 import type { Cardinality, EdgeTypeDef } from "@/types/api";
 import { cn } from "@/lib/cn";
+import { defaultText } from "@/lib/locale/localize";
 import type { DiffStatus } from "./schema-node";
 
 // ---------------------------------------------------------------------------
@@ -185,11 +186,10 @@ function buildHoverTitle(edgeDef?: EdgeTypeDef): string | undefined {
   if (edgeDef.cardinality) {
     lines.push(`Cardinality: ${formatCardinality(edgeDef.cardinality)}`);
   }
-  if (edgeDef.description) {
+  const description = defaultText(edgeDef.description);
+  if (description) {
     const trimmed =
-      edgeDef.description.length > 200
-        ? `${edgeDef.description.slice(0, 200)}…`
-        : edgeDef.description;
+      description.length > 200 ? `${description.slice(0, 200)}…` : description;
     lines.push("");
     lines.push(trimmed);
   }

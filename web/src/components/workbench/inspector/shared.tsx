@@ -1,6 +1,7 @@
 "use client";
 
 import type { ConstraintDef, NodeTypeDef } from "@/types/api";
+import { arr } from "@/lib/ir-collections";
 
 // ---------------------------------------------------------------------------
 // Shared section wrapper
@@ -37,7 +38,7 @@ export function formatConstraint(
   node: NodeTypeDef,
 ): string {
   const resolveName = (pid: string) =>
-    node.properties.find((p) => p.id === pid)?.name ?? pid;
+    arr(node.properties).find((p) => p.id === pid)?.name ?? pid;
 
   switch (cd.type) {
     case "unique":

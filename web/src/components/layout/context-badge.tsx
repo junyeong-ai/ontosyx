@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import { useAppStore } from "@/lib/store";
 import { useWorkspaceMode } from "@/lib/use-workspace-mode";
+import { arr } from "@/lib/ir-collections";
 
 // ---------------------------------------------------------------------------
 // ContextBadge — mode-appropriate metadata badge in the header
@@ -21,8 +22,8 @@ export function ContextBadge() {
       return (
         <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400">
           {t("nodesEdges", {
-            nodes: ontology.node_types.length,
-            edges: ontology.edge_types.length,
+            nodes: arr(ontology.node_types).length,
+            edges: arr(ontology.edge_types).length,
           })}
         </span>
       );

@@ -7,6 +7,7 @@ import type { NodeTypeDef, PropertyDef, QualityGap } from "@/types/api";
 import { formatPropertyType } from "@/types/api";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
+import { arr } from "@/lib/ir-collections";
 
 type NodeTranslator = ReturnType<typeof useTranslations<"workbench.canvas.node">>;
 
@@ -50,7 +51,7 @@ function schemaNodeEqual(prev: SchemaNodeProps, next: SchemaNodeProps): boolean 
   return (
     a.nodeDef.id === b.nodeDef.id &&
     a.nodeDef.label === b.nodeDef.label &&
-    a.nodeDef.properties.length === b.nodeDef.properties.length &&
+    arr(a.nodeDef.properties).length === arr(b.nodeDef.properties).length &&
     a.gaps.length === b.gaps.length &&
     a.highlighted === b.highlighted &&
     a.highlightKind === b.highlightKind &&
@@ -203,14 +204,14 @@ export const SchemaNode = memo(function SchemaNode({ data, id }: SchemaNodeProps
 
         {/* Summary badges */}
         <div className="flex items-center gap-2 border-t border-zinc-100 px-3 py-1 dark:border-zinc-800">
-          {nodeDef.properties.length > 0 && (
+          {arr(nodeDef.properties).length > 0 && (
             <span className="pl-1.5 text-[9px] text-muted-foreground">
-              {t("properties", { count: nodeDef.properties.length })}
+              {t("properties", { count: arr(nodeDef.properties).length })}
             </span>
           )}
-          {nodeDef.constraints && nodeDef.constraints.length > 0 && (
+          {nodeDef.constraints && arr(nodeDef.constraints).length > 0 && (
             <span className="text-[9px] text-muted-foreground">
-              {t("constraints", { count: nodeDef.constraints.length })}
+              {t("constraints", { count: arr(nodeDef.constraints).length })}
             </span>
           )}
         </div>
@@ -268,25 +269,25 @@ export const SchemaNode = memo(function SchemaNode({ data, id }: SchemaNodeProps
             </span>
           </Tooltip>
         )}
-        {nodeDef.source_table && (
-          <Tooltip content={t("sourceTooltip", { table: nodeDef.source_table })}>
+        {nodeDef.source_lineage?.table && (
+          <Tooltip content={t("sourceTooltip", { table: nodeDef.source_lineage?.table })}>
             <span className="ml-auto shrink-0 text-[9px] text-muted-foreground">
-              {nodeDef.source_table}
+              {nodeDef.source_lineage?.table}
             </span>
           </Tooltip>
         )}
       </div>
 
       {/* Properties — separated for independent memoization */}
-      {nodeDef.properties.length > 0 && (
+      {arr(nodeDef.properties).length > 0 && (
         <PropertyList properties={nodeDef.properties} highlightedPropertyIds={highlightedPropertyIds} t={t} />
       )}
 
       {/* Constraints badge */}
-      {nodeDef.constraints && nodeDef.constraints.length > 0 && (
+      {nodeDef.constraints && arr(nodeDef.constraints).length > 0 && (
         <div className="border-t border-zinc-100 px-3 py-1 dark:border-zinc-800">
           <span className="pl-1.5 text-[9px] text-muted-foreground">
-            {t("constraints", { count: nodeDef.constraints.length })}
+            {t("constraints", { count: arr(nodeDef.constraints).length })}
           </span>
         </div>
       )}

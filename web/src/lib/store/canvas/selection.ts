@@ -6,6 +6,7 @@ import { useReactFlow, type Node, type Edge } from "@xyflow/react";
 import { useAppStore, selectStateSelectedNodeId, selectStateSelectedEdgeId } from "@/lib/store";
 import { getNeighborhood, getNeighborhoodEdges } from "@/components/workbench/canvas/neighborhood";
 import type { OntologyIR } from "@/types/api";
+import { arr } from "@/lib/ir-collections";
 
 interface SelectionOptions {
   ontology: OntologyIR | null;
@@ -50,7 +51,7 @@ export function useCanvasSelection(options: SelectionOptions) {
     if (selectedNodeId) {
       fitView({ nodes: [{ id: selectedNodeId }], duration: 300, padding: 0.3 });
     } else if (selectedEdgeId && ontology) {
-      const edge = ontology.edge_types.find((e) => e.id === selectedEdgeId);
+      const edge = arr(ontology.edge_types).find((e) => e.id === selectedEdgeId);
       if (edge) {
         fitView({ nodes: [{ id: edge.source_node_id }, { id: edge.target_node_id }], duration: 300, padding: 0.3 });
       }

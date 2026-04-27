@@ -16,6 +16,8 @@ import {
   resolveDisplayName,
   resolveSubtitle,
 } from "./explore/graph-utils";
+import { arr } from "@/lib/ir-collections";
+import { defaultText } from "@/lib/locale/localize";
 
 // ---------------------------------------------------------------------------
 // SearchDialog — Cmd+K graph entity search overlay
@@ -55,10 +57,10 @@ function searchSchema(query: string, ontology: { node_types: NodeTypeDef[]; edge
   for (const node of ontology.node_types) {
     if (node.label.toLowerCase().includes(q)) {
       results.push({ kind: "node", node, matchReason: "label" });
-    } else if (node.properties.some((p) => p.name.toLowerCase().includes(q))) {
-      const matchingProp = node.properties.find((p) => p.name.toLowerCase().includes(q));
+    } else if (arr(node.properties).some((p) => p.name.toLowerCase().includes(q))) {
+      const matchingProp = arr(node.properties).find((p) => p.name.toLowerCase().includes(q));
       results.push({ kind: "node", node, matchReason: `property: ${matchingProp?.name}` });
-    } else if (node.description?.toLowerCase().includes(q)) {
+    } else if (defaultText(node.description).toLowerCase().includes(q)) {
       results.push({ kind: "node", node, matchReason: "description" });
     }
   }
@@ -70,8 +72,8 @@ function searchSchema(query: string, ontology: { node_types: NodeTypeDef[]; edge
       results.push({ kind: "edge", edge, sourceLabel, targetLabel, matchReason: "label" });
     } else if (sourceLabel.toLowerCase().includes(q) || targetLabel.toLowerCase().includes(q)) {
       results.push({ kind: "edge", edge, sourceLabel, targetLabel, matchReason: "endpoint" });
-    } else if (edge.properties.some((p) => p.name.toLowerCase().includes(q))) {
-      const matchingProp = edge.properties.find((p) => p.name.toLowerCase().includes(q));
+    } else if (arr(edge.properties).some((p) => p.name.toLowerCase().includes(q))) {
+      const matchingProp = arr(edge.properties).find((p) => p.name.toLowerCase().includes(q));
       results.push({ kind: "edge", edge, sourceLabel, targetLabel, matchReason: `property: ${matchingProp?.name}` });
     }
   }
@@ -151,7 +153,7 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
     const ont = useAppStore.getState().ontology;
     if (ont) {
       const matchLabel = hit.labels[0];
-      const node = ont.node_types.find((n) => n.label === matchLabel);
+      const node = arr(ont.node_types).find((n) => n.label === matchLabel);
       if (node) {
         select({ type: "node", nodeId: node.id });
         if (!useAppStore.getState().isInspectorOpen) {
@@ -270,7 +272,7 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
               {schemaMatches.map((match, i) => {
                 const isSelected = i === selectedIdx;
                 if (match.kind === "node") {
-                  const propCount = match.node.properties.length;
+                  const propCount = arr(match.node.properties).length;
                   const constraintCount = match.node.constraints?.length ?? 0;
                   return (
                     <button

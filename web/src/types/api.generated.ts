@@ -1097,6 +1097,52 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description Named, approval-aware mutation. */
+        ActionDef: {
+            /** @description Approval contract. See `ApprovalPolicy`. */
+            approval?: components["schemas"]["ApprovalPolicy"];
+            description?: components["schemas"]["LocalizedText"];
+            id: components["schemas"]["ActionId"];
+            /** @description Idempotency contract. See `IdempotencyPolicy`. */
+            idempotency?: components["schemas"]["IdempotencyPolicy"];
+            kind: components["schemas"]["ActionKind"];
+            name: string;
+            /**
+             * @description Rules evaluated *after* the action commits, inside the same
+             *     transaction — failure rolls back. Used for invariants that
+             *     depend on the post-state (e.g. account balance ≥ 0).
+             */
+            postconditions?: components["schemas"]["RuleId"][];
+            /**
+             * @description Rules evaluated *before* the action runs — failure aborts.
+             *     Typical uses: authorization, referential-integrity checks,
+             *     quota guards.
+             */
+            preconditions?: components["schemas"]["RuleId"][];
+            /**
+             * @description Ontology target of the action. `ActionTarget::NodeType`
+             *     covers "create / update / delete a User", `ActionTarget::EdgeType`
+             *     covers "connect two existing objects".
+             */
+            target: components["schemas"]["ActionTarget"];
+        };
+        /** @description Stable identifier for an `ActionDef`. */
+        ActionId: string;
+        /**
+         * @description Mutation shape.
+         * @enum {string}
+         */
+        ActionKind: "create" | "update" | "upsert" | "delete" | "custom";
+        /** @description What the action writes to. */
+        ActionTarget: {
+            /** @enum {string} */
+            kind: "node_type";
+            node_type_id: components["schemas"]["NodeTypeId"];
+        } | {
+            edge_type_id: components["schemas"]["EdgeTypeId"];
+            /** @enum {string} */
+            kind: "edge_type";
+        };
         /**
          * @description Detail view of one registered adapter.
          *
@@ -1154,6 +1200,41 @@ export interface components {
             source_id: string;
             source_type: string;
         };
+        /** @description Who ran the activity. */
+        AgentRef: {
+            /** @enum {string} */
+            kind: "user";
+            user_id: string;
+        } | {
+            /** @enum {string} */
+            kind: "service";
+            service_id: string;
+        } | {
+            /** @enum {string} */
+            kind: "llm_model";
+            model_id: string;
+        } | {
+            /** @enum {string} */
+            kind: "system";
+        };
+        /**
+         * @description Π-1: Analytical role of a property in a NL2SQL query — drives
+         *     whether the property appears in aggregation (`Measure`), group-by
+         *     (`Dimension`), carry-through projection (`Attribute`), or
+         *     identity (`Identifier`).
+         *
+         *     Industry reference:
+         *     - **dbt Semantic Layer** — `measure` / `dimension` / `entity`.
+         *     - **Cube.js** — `measures` / `dimensions`.
+         *     - **Looker LookML** — `measure` / `dimension`.
+         *     - **OMG SBVR** — noun-concept vs. verb-concept roles.
+         *
+         *     The `Identifier` variant maps to dbt's `entity` and is separate
+         *     from `Attribute` because LLMs treat identifiers very
+         *     differently (join keys vs. informational payload).
+         * @enum {string}
+         */
+        AggregationRole: "measure" | "dimension" | "attribute" | "identifier";
         /**
          * @description One entry in the comment thread attached to an approval. The
          *     reviewer's decision-time rationale is the first comment; any
@@ -1172,6 +1253,30 @@ export interface components {
             id: string;
             /** Format: uuid */
             workspace_id: string;
+        };
+        /**
+         * @description Approval contract.
+         *
+         *     `Automatic` actions are executed without a prompt; `RequireApproval`
+         *     pauses the agent loop until a human confirms. Approvers are
+         *     declared by workspace role. A dangerous action (e.g. mass
+         *     `Delete`) should always require approval — the platform enforces
+         *     this by refusing to compile a tool manifest whose approval is
+         *     `Automatic` on a `Delete` target.
+         */
+        ApprovalPolicy: {
+            /** @enum {string} */
+            kind: "automatic";
+        } | {
+            /**
+             * @description Workspace roles that may approve. At least one of these
+             *     must confirm before the action executes.
+             */
+            approver_roles: string[];
+            /** @enum {string} */
+            kind: "require_approval";
+            /** @description Human-readable rationale shown in the approval UI. */
+            rationale?: components["schemas"]["LocalizedText"];
         };
         /** @description Approval request — a queued gated operation awaiting review. */
         ApprovalRequest: {
@@ -1290,6 +1395,28 @@ export interface components {
             weight_fuzzy_name?: number | null;
         };
         /**
+         * @description Per-mapping hint for the graph-cache backend (ADR 0004). The
+         *     planner treats `None` as "never cache"; `GraphCache` is an opt-in
+         *     that names a freshness window and an explicit refresh cadence.
+         */
+        CacheHintKind: {
+            /** @enum {string} */
+            kind: "none";
+        } | {
+            /** @enum {string} */
+            kind: "graph_cache";
+            /**
+             * @description Optional cron-style schedule that invalidates / refreshes
+             *     the cache entry. Stored as free-form text and validated
+             *     at registration time; `None` means manual refresh only.
+             */
+            schedule?: string | null;
+            /** Format: int64 */
+            ttl_seconds?: number;
+        };
+        /** @enum {string} */
+        Cardinality: "one_to_one" | "one_to_many" | "many_to_one" | "many_to_many";
+        /**
          * @description Wire shape returned by the list / upsert endpoints. The
          *     `change_type` round-trips through serde so the wire string
          *     matches the storage format exactly (snake_case discriminator).
@@ -1332,8 +1459,264 @@ export interface components {
             project_revision?: number | null;
             session_id?: string | null;
         };
+        /**
+         * @description A named, versioned set of codes that together carry semantic
+         *     meaning for one domain concept.
+         *
+         *     A `CodeSystemDef` is the terminology equivalent of a typed
+         *     enumeration. The `uri` field is how two systems with the same
+         *     short `name` stay distinguishable — "A" in
+         *     `urn:ox:order-status` and "A" in `urn:ox:customer-tier` are
+         *     distinct codes even though their `code` strings collide.
+         */
+        CodeSystemDef: {
+            /** @description The codes themselves — DDD aggregate (nested). */
+            codes?: components["schemas"]["CodedValue"][];
+            /**
+             * Format: date-time
+             * @description Deprecation timestamp for the whole system. A superseded
+             *     system still round-trips but the admin UI nudges users onto
+             *     `replaced_by_id`.
+             */
+            deprecated_at?: string | null;
+            /**
+             * @description Localized description — longer than `name`, used in admin UIs
+             *     and injected into LLM prompt context.
+             */
+            description?: components["schemas"]["LocalizedText"];
+            /** @description Localized display name shown in the admin UI. */
+            display_name?: components["schemas"]["LocalizedText"];
+            /**
+             * @description Whether codes form a hierarchy via
+             *     [`CodedValue::broader_id`]. `true` unlocks descendants-of /
+             *     narrower-than queries; `false` keeps the system flat
+             *     (catalogue shape). A code with `broader_id` set in a flat
+             *     system is a validation error.
+             */
+            hierarchical?: boolean;
+            id: components["schemas"]["CodeSystemId"];
+            /**
+             * @description Governance kind. [`CodeSystemKind::External`] systems must
+             *     not be edited through the admin UI — they are mirrors of an
+             *     authoritative registry and their codes must round-trip.
+             */
+            kind: components["schemas"]["CodeSystemKind"];
+            /**
+             * @description Short human identifier (e.g. `"OrderStatus"`). Not required
+             *     to be Cypher-safe; this is display / lookup text only.
+             */
+            name: string;
+            replaced_by_id?: null | components["schemas"]["CodeSystemId"];
+            /**
+             * @description URI that globally identifies the system. For internal systems
+             *     use `urn:ox:<tenant>:<name>`; for external systems point at
+             *     the authoritative registry (`http://unitsofmeasure.org`,
+             *     `urn:iso:std:iso:3166`, etc.). Optional — plain `name` is
+             *     enough for small deployments.
+             */
+            uri?: string | null;
+            /**
+             * @description Version string. Semver-ish but free-form — external systems
+             *     like ICD-10 have their own versioning scheme ("2019", "2024").
+             */
+            version: string;
+        };
+        /** @description Stable identifier for a [`CodeSystemDef`]. */
+        CodeSystemId: string;
+        /** @description Governance kind of a [`CodeSystemDef`]. */
+        CodeSystemKind: {
+            /** @enum {string} */
+            kind: "internal";
+        } | {
+            /** @enum {string} */
+            kind: "external";
+            /**
+             * @description Canonical source reference — URL, OID, or registry name
+             *     (`"http://unitsofmeasure.org"`, `"urn:iso:std:iso:3166"`,
+             *     `"urn:legacy-crm:cust-status"`).
+             */
+            source_ref: string;
+        };
+        /**
+         * @description One code in a [`CodeSystemDef`]. Carries the raw `code` plus
+         *     localized display / definition + synonyms, hierarchy parent,
+         *     examples, and temporal validity.
+         */
+        CodedValue: {
+            /**
+             * @description Alternate spellings / short codes / legacy synonyms used for
+             *     lookup. The admin UI index + LLM prompt expansion both read
+             *     this so a user query for `"ACT"` resolves to `"A"`.
+             */
+            aliases?: string[];
+            broader_id?: null | components["schemas"]["CodedValueId"];
+            /**
+             * @description The canonical code (`"A"`, `"SPRING"`, `"KR"`, `"kg"`). Not
+             *     localized — codes are the invariant; display names vary by
+             *     locale. Case-sensitive; the admin is expected to pick a
+             *     consistent convention.
+             */
+            code: string;
+            /**
+             * @description Localized definition — the precise meaning of the code.
+             *     Separate from `scope_note`, which carries usage guidance.
+             */
+            definition?: components["schemas"]["LocalizedText"];
+            /**
+             * Format: date-time
+             * @description Deprecation marker — set when the code is soft-retired.
+             *     Admin UI grays out; new registrations rejected unless
+             *     `Severity::Warn` flag is acknowledged.
+             */
+            deprecated_at?: string | null;
+            /** @description Localized display label (`{en: "Active", ko: "활성"}`). */
+            display?: components["schemas"]["LocalizedText"];
+            /**
+             * @description Curated representative examples (SKOS `skos:example`).
+             *     Distinct from the profiler-emitted `ColumnStats.sample_values`:
+             *     these are *authored*, not observed, so the LLM gets stable
+             *     anchors that do not drift as data changes.
+             */
+            examples?: components["schemas"]["LocalizedText"][];
+            id: components["schemas"]["CodedValueId"];
+            replaced_by_id?: null | components["schemas"]["CodedValueId"];
+            /**
+             * @description SKOS `skos:scopeNote` — when *should* this code be used,
+             *     what's the typical misuse to avoid. Longer than `definition`,
+             *     shown in the admin UI tooltip.
+             */
+            scope_note?: components["schemas"]["LocalizedText"];
+            /**
+             * Format: date-time
+             * @description Start of the code's validity window. `None` means "since
+             *     inception". Used by temporal queries that need "what was
+             *     valid on 2024-01-01".
+             */
+            valid_from?: string | null;
+            /**
+             * Format: date-time
+             * @description End of the code's validity window. `None` means "currently
+             *     valid". Distinct from `deprecated_at`: a code can be valid
+             *     but deprecated (still in use, new registrations discouraged)
+             *     or invalid (no new uses accepted at all).
+             */
+            valid_to?: string | null;
+        };
+        /**
+         * @description Stable identifier for a [`CodedValue`]. Globally unique
+         *     inside an `OntologyIR` — two systems cannot share a code's
+         *     id even if they share its `code` string.
+         */
+        CodedValueId: string;
+        /**
+         * @description One column's distribution snapshot, taken from a specific source
+         *     at a specific time. Wraps the same [`ColumnStats`] the
+         *     introspection kernel produces, plus the location identity and the
+         *     sampling timestamp that locks the snapshot to a window.
+         */
+        ColumnProfileDef: {
+            /** @description Column name as the source advertises it. */
+            column: string;
+            id: components["schemas"]["ColumnProfileId"];
+            /** @description Source-side relation name (table / collection / file relation). */
+            relation: string;
+            /**
+             * Format: date-time
+             * @description Wall-clock timestamp of the sampling pass that produced this
+             *     snapshot. Used to age out stale profiles in admin UIs and to
+             *     attribute distribution diffs to a window.
+             */
+            sampled_at: string;
+            /**
+             * @description Source the profile was sampled from. Matches the `source_id`
+             *     used by the matching `ObjectMappingDef`.
+             */
+            source_id: components["schemas"]["SourceId"];
+            /**
+             * @description The sampled distribution itself — null count, distinct count,
+             *     up-to-30 sample values, min / max. Carried verbatim so the
+             *     inference pipeline reads the same shape it always has.
+             */
+            stats: components["schemas"]["ColumnStats"];
+        };
+        /**
+         * @description Type-safe identifier for a column profile entry. Stable across
+         *     re-snapshots so the IR-level diff treats them as updates, not
+         *     add+remove pairs.
+         */
+        ColumnProfileId: string;
+        /**
+         * @description Qualified reference to a column within a source relation.
+         *
+         *     `relation` is the relation name (`public.customers`, a Mongo
+         *     collection, a CSV inline `records` relation). `column` is the
+         *     physical column name as it appears at the source — the adapter
+         *     layer applies any dialect quoting when it renders the scan plan.
+         */
+        ColumnRef: {
+            column: string;
+            relation: string;
+        };
+        ColumnStats: {
+            column_name: string;
+            /** Format: int64 */
+            distinct_count: number;
+            max_value?: string | null;
+            min_value?: string | null;
+            /** Format: int64 */
+            null_count: number;
+            /** @description Up to 30 distinct values. Empty if too many distinct values. */
+            sample_values: string[];
+        };
         CommentRequest: {
             body: string;
+        };
+        /**
+         * @description A declarative mapping between codes in two code systems.
+         *
+         *     Mappings are directional — `source_system_id` → `target_system_id`.
+         *     The reverse direction is authored as a separate `ConceptMapDef`
+         *     when needed; automatically inverting is unsafe when
+         *     [`Equivalence`] is anything other than `Equivalent`.
+         */
+        ConceptMapDef: {
+            description?: components["schemas"]["LocalizedText"];
+            display_name?: components["schemas"]["LocalizedText"];
+            id: components["schemas"]["ConceptMapId"];
+            /**
+             * @description The individual code-to-code mappings. Duplicates on
+             *     `source_code` are legal (a source code may map to multiple
+             *     target codes — record each with its own equivalence); the
+             *     translator returns all matches, the caller decides which to
+             *     take.
+             */
+            mappings?: components["schemas"]["ConceptMapping"][];
+            name: string;
+            source_system_id: components["schemas"]["CodeSystemId"];
+            target_system_id: components["schemas"]["CodeSystemId"];
+            /**
+             * @description Semver-ish version string — concept maps evolve as source /
+             *     target systems add or retire codes.
+             */
+            version: string;
+        };
+        /** @description Stable identifier for a [`ConceptMapDef`]. */
+        ConceptMapId: string;
+        /** @description One source→target entry in a [`ConceptMapDef`]. */
+        ConceptMapping: {
+            /**
+             * @description Optional author note explaining the mapping. Rendered in
+             *     the admin UI and surfaced via the translator when a
+             *     non-equivalent mapping is chosen, so the operator can see
+             *     why the codes are linked.
+             */
+            comment?: components["schemas"]["LocalizedText"];
+            /** @description Semantic relationship between source and target. */
+            equivalence: components["schemas"]["Equivalence"];
+            /** @description Raw code string in the source system (e.g., `"A"`). */
+            source_code: string;
+            /** @description Raw code string in the target system (e.g., `"ACTIVE"`). */
+            target_code: string;
         };
         ConfigEntry: {
             data_type: string;
@@ -1348,6 +1731,35 @@ export interface components {
         };
         ConfigUpdateRequest: {
             updates: components["schemas"]["ConfigUpdate"][];
+        };
+        ConstraintDef: components["schemas"]["NodeConstraint"] & {
+            /** @description Stable UUID for this constraint */
+            id: components["schemas"]["ConstraintId"];
+        };
+        /** @description Type-safe identifier for constraint definitions. */
+        ConstraintId: string;
+        /**
+         * @description The node / property / edge a constraint component targets. Most
+         *     components implicitly inherit the target of their enclosing
+         *     `RuleDef.kind`; constraints that span multiple targets (e.g.
+         *     `Disjoint`) name them explicitly.
+         */
+        ConstraintTarget: {
+            /** @enum {string} */
+            kind: "inherit";
+        } | {
+            /** @enum {string} */
+            kind: "property";
+            node_type_id: components["schemas"]["NodeTypeId"];
+            property_id: components["schemas"]["PropertyId"];
+        } | {
+            /** @enum {string} */
+            kind: "node_type";
+            node_type_id: components["schemas"]["NodeTypeId"];
+        } | {
+            /** @enum {string} */
+            kind: "edge_label";
+            label: components["schemas"]["GraphLabel"];
         };
         /**
          * @description Request body for `POST /api/ontologies`.
@@ -1488,6 +1900,77 @@ export interface components {
              */
             limit?: number | null;
         };
+        /** @enum {string} */
+        DataClassification: "public" | "internal" | "confidential" | "restricted";
+        /** @description How the score is computed. */
+        DataQualityComputationKind: {
+            /** @enum {string} */
+            kind: "rule";
+            rule_id: components["schemas"]["RuleId"];
+        } | {
+            /** @enum {string} */
+            kind: "sql_assertion";
+            query: string;
+        };
+        /** @description Named data-quality measure. */
+        DataQualityDef: {
+            /**
+             * @description How the score is computed. Either a reference to a rule or an
+             *     inline source-dialect assertion the scheduler evaluates.
+             */
+            computation: components["schemas"]["DataQualityComputationKind"];
+            description?: components["schemas"]["LocalizedText"];
+            dimension: components["schemas"]["DataQualityDimensionKind"];
+            id: components["schemas"]["DataQualityId"];
+            last_measurement?: null | components["schemas"]["DataQualityMeasurement"];
+            name: string;
+            target: components["schemas"]["DataQualityTarget"];
+            /**
+             * Format: float
+             * @description Score threshold in `[0, 1]`. A run whose score falls below
+             *     `threshold` marks the measure as failing; the consumer
+             *     (alert, dashboard, UI badge) decides what to do next.
+             */
+            threshold?: number;
+        };
+        /**
+         * @description Dimension.
+         * @enum {string}
+         */
+        DataQualityDimensionKind: "completeness" | "validity" | "uniqueness" | "consistency" | "timeliness" | "accuracy";
+        /** @description Stable identifier for a `DataQualityDef`. */
+        DataQualityId: string;
+        /** @description One run of a quality measure. */
+        DataQualityMeasurement: {
+            /** Format: date-time */
+            measured_at: string;
+            /**
+             * @description Free-form note — useful for human reviewers when the score
+             *     drops and the dashboard wants to show the reason.
+             */
+            note?: string | null;
+            /**
+             * Format: int64
+             * @description Number of entities inspected, for context in the UI.
+             */
+            sample_size?: number | null;
+            /**
+             * Format: float
+             * @description Score in `[0, 1]`. 1.0 = perfect.
+             */
+            score: number;
+        };
+        /** @description What the measure is taken on. */
+        DataQualityTarget: {
+            /** @enum {string} */
+            kind: "node_type";
+            node_type_id: components["schemas"]["NodeTypeId"];
+        } | {
+            /** @enum {string} */
+            kind: "property";
+            node_type_id: components["schemas"]["NodeTypeId"];
+            property_id: components["schemas"]["PropertyId"];
+        };
         /** @description Design project — ontology design lifecycle. */
         DesignProject: {
             analysis_report?: unknown;
@@ -1539,6 +2022,124 @@ export interface components {
             updated_at: string;
             user_id: string;
         };
+        EdgeTypeDef: {
+            /** @description Cardinality constraint. */
+            cardinality?: components["schemas"]["Cardinality"];
+            /**
+             * Format: date-time
+             * @description Deprecation timestamp. See [`NodeTypeDef::deprecated_at`].
+             */
+            deprecated_at?: string | null;
+            /** @description Localized human-readable description. */
+            description?: components["schemas"]["LocalizedText"];
+            /** @description Localized display name shown in the UI. */
+            display_name?: components["schemas"]["LocalizedText"];
+            /** @description Stable UUID for this edge type. */
+            id: components["schemas"]["EdgeTypeId"];
+            inverse_of?: null | components["schemas"]["EdgeTypeId"];
+            /**
+             * @description Canonical, language-neutral relationship label (e.g. "PURCHASED",
+             *     "REVIEWED"). Used as the Neo4j relationship type. [`GraphLabel`]
+             *     enforces the `is_valid_graph_identifier` invariant at the type
+             *     level — an EdgeTypeDef cannot exist with a label that would
+             *     fail Cypher emission.
+             */
+            label: components["schemas"]["GraphLabel"];
+            /** @description Properties on this edge type. */
+            properties?: components["schemas"]["PropertyDef"][];
+            replaced_by_id?: null | components["schemas"]["EdgeTypeId"];
+            /** @description Source node type ID (references NodeTypeDef.id). */
+            source_node_id: components["schemas"]["NodeTypeId"];
+            /**
+             * @description Role played by the source endpoint, e.g. "manager" for a MANAGES edge
+             *     from Employee to Employee. Distinguishes the *functional* role from
+             *     the edge label itself when the same relationship label could carry
+             *     different semantics depending on direction.
+             */
+            source_role?: string | null;
+            /**
+             * @description Free-form tags (e.g. "i18n", "derived", "temporal") for downstream
+             *     filtering and UI grouping. Not validated; ontology designer's choice.
+             */
+            tags?: string[];
+            /** @description Target node type ID (references NodeTypeDef.id). */
+            target_node_id: components["schemas"]["NodeTypeId"];
+            /** @description Role played by the target endpoint (e.g. "direct_report"). */
+            target_role?: string | null;
+        };
+        /** @description Type-safe identifier for edge types in an ontology. */
+        EdgeTypeId: string;
+        /**
+         * @description Resolvable reference to an endpoint of a link. Either `ObjectMappingId`
+         *     (the endpoint is already bound) or a bare `(source, relation,
+         *     columns)` tuple for endpoints that are mapped inline.
+         */
+        EndpointRef: {
+            /**
+             * @description Column(s) whose values identify the endpoint instance. Must
+             *     match the endpoint object mapping's `primary_key_columns`
+             *     (validated at registration).
+             */
+            key_columns: string[];
+            relation: string;
+            source_id: components["schemas"]["SourceId"];
+        };
+        /**
+         * @description When the rule runs.
+         * @enum {string}
+         */
+        EnforcementKind: "write" | "read" | "batch";
+        /** @description External augmentation. */
+        EnrichmentDef: {
+            description?: components["schemas"]["LocalizedText"];
+            external_source: components["schemas"]["ExternalSourceRef"];
+            id: components["schemas"]["EnrichmentId"];
+            /**
+             * @description Property on the target node used as the lookup key — e.g.
+             *     the IP address, the customer id, the postal code.
+             */
+            join_key_property_id: components["schemas"]["PropertyId"];
+            name: string;
+            refresh?: components["schemas"]["RefreshPolicy"];
+            target_node_type_id: components["schemas"]["NodeTypeId"];
+            /** @description Property on the target node that receives the enriched value. */
+            target_property_id: components["schemas"]["PropertyId"];
+        };
+        /** @description Stable identifier for an `EnrichmentDef`. */
+        EnrichmentId: string;
+        /**
+         * @description What the record points at — intentionally a closed set of
+         *     ontology-modelled entities plus a generic free-form form for
+         *     subjects the core model does not type.
+         */
+        EntityRef: {
+            element_id: string;
+            /** @enum {string} */
+            kind: "node_instance";
+            node_type_id: components["schemas"]["NodeTypeId"];
+        } | {
+            edge_type_id: components["schemas"]["EdgeTypeId"];
+            element_id: string;
+            /** @enum {string} */
+            kind: "edge_instance";
+        } | {
+            element_id: string;
+            /** @enum {string} */
+            kind: "property_value";
+            node_type_id: components["schemas"]["NodeTypeId"];
+            property_id: components["schemas"]["PropertyId"];
+        } | {
+            /** @enum {string} */
+            kind: "arbitrary";
+            label: string;
+        };
+        /**
+         * @description Semantic relationship between a source and target code.
+         *     Mirrors HL7 FHIR `ConceptMapEquivalence`; same semantics as W3C
+         *     SKOS `*Match` predicates.
+         * @enum {string}
+         */
+        Equivalence: "equivalent" | "narrower_than_target" | "broader_than_target" | "related" | "disjoint";
         ErrorBody: {
             /** @description Optional additional details */
             details?: unknown;
@@ -1583,6 +2184,29 @@ export interface components {
             /** @description Widget hint for optimal result visualization. */
             widget_hint?: unknown;
         };
+        /**
+         * @description Pointer to the external service.
+         *
+         *     `kind` is a small, closed set so the planner can refuse a config
+         *     it does not know how to dispatch. Adding a new external-source
+         *     shape (gRPC, S3 object) is a variant addition — a major bump of
+         *     the ontology schema version.
+         */
+        ExternalSourceRef: {
+            /**
+             * @description Authentication reference (a secret id registered in the
+             *     workspace secret store).
+             */
+            auth_secret_id?: string | null;
+            endpoint_template: string;
+            /** @enum {string} */
+            kind: "http";
+        } | {
+            /** @enum {string} */
+            kind: "sibling_ontology";
+            node_type_id: components["schemas"]["NodeTypeId"];
+            workspace_slug: string;
+        };
         FederationHealthResponse: {
             in_sync: boolean;
             missing_from_resolver: string[];
@@ -1592,6 +2216,349 @@ export interface components {
             store_count: number;
             /** Format: uuid */
             workspace_id: string;
+        };
+        /** @description Named derivation / UDF. */
+        FunctionDef: {
+            description?: components["schemas"]["LocalizedText"];
+            /**
+             * @description Edges the function traverses. Same role as
+             *     `property_dependencies` but for relationship presence.
+             */
+            edge_dependencies?: components["schemas"]["EdgeTypeId"][];
+            expression: components["schemas"]["FunctionExpression"];
+            id: components["schemas"]["FunctionId"];
+            /**
+             * @description Short, human-readable name. Not required to be a valid
+             *     identifier — the compilation step that lowers a function to
+             *     a source dialect produces a mangled name from the id.
+             */
+            name: string;
+            /**
+             * @description Properties the function reads. Used for cache-invalidation
+             *     fan-out — when any listed property changes, memoized results
+             *     for this function are dropped.
+             */
+            property_dependencies?: components["schemas"]["PropertyDependency"][];
+            /**
+             * @description Whether the planner may memoize calls with equal arguments.
+             *     `Impure` functions (today / now / random) never get cached.
+             */
+            purity?: components["schemas"]["FunctionPurity"];
+            return_type: components["schemas"]["PropertyType"];
+        };
+        /**
+         * @description Dialect-free function body.
+         *
+         *     Each variant carries the shape the compiler needs to emit the
+         *     appropriate source dialect. `SqlExpr` and `CypherExpr` are
+         *     verbatim — the author's expression must already be valid for the
+         *     target. `BuiltIn` names a function the platform implements
+         *     itself (e.g. `now`, `coalesce`). `Udf` points at a Wasm binary or
+         *     other externally-built artifact; the content of the binary is
+         *     stored out-of-band.
+         */
+        FunctionExpression: {
+            expression: string;
+            /** @enum {string} */
+            kind: "sql_expr";
+        } | {
+            expression: string;
+            /** @enum {string} */
+            kind: "cypher_expr";
+        } | {
+            /** @enum {string} */
+            kind: "built_in";
+            name: string;
+        } | {
+            artifact_ref: string;
+            /** @enum {string} */
+            kind: "udf";
+        };
+        /** @description Stable identifier for a `FunctionDef`. */
+        FunctionId: string;
+        /**
+         * @description Purity tag that drives memoization / plan stability.
+         * @enum {string}
+         */
+        FunctionPurity: "pure" | "impure";
+        /** @description Atomic unit of the glossary. */
+        GlossaryTermDef: {
+            /**
+             * @description Alternate names the term may be known as. Used for
+             *     synonym-aware search in the glossary UI and for LLM prompts
+             *     that need to normalise arbitrary user phrasing onto a term.
+             */
+            aliases?: string[];
+            /**
+             * @description Author-supplied category (e.g. `"business_concept"`,
+             *     `"measure"`, `"dimension"`). No fixed taxonomy — categories
+             *     are tenant-defined so the glossary doesn't force an
+             *     upstream ontology.
+             */
+            category?: string | null;
+            /**
+             * @description Free-form domain description. Longer than the term, localized
+             *     so a bilingual deployment can ship English + Korean text
+             *     without inventing a second glossary store.
+             */
+            description?: components["schemas"]["LocalizedText"];
+            /**
+             * @description Localized display name (same role as `GlossaryTermDef.term`
+             *     but per-locale — takes precedence when the viewer's locale
+             *     matches).
+             */
+            display_name?: components["schemas"]["LocalizedText"];
+            id: components["schemas"]["GlossaryTermId"];
+            parent_term_id?: null | components["schemas"]["GlossaryTermId"];
+            /**
+             * @description Canonical short name, rendered as the column label in
+             *     glossary UIs. Tools treat `term` as human-readable text — it
+             *     does not need to be Cypher-safe.
+             */
+            term: string;
+        };
+        /** @description Stable identifier for a glossary term. */
+        GlossaryTermId: string;
+        /** @description Governance metadata attached to a node type. */
+        Governance: {
+            /** @description Principal ID of the business owner responsible for this entity. */
+            owner_principal?: string | null;
+            /**
+             * Format: int32
+             * @description Data retention period in days. `None` = no automatic deletion.
+             */
+            retention_days?: number | null;
+            /** @description Principal ID of the data steward (operational contact). */
+            steward?: string | null;
+            /** @description Free-form tags for classification (e.g., "core", "legal", "deprecated"). */
+            tags?: string[];
+        };
+        /**
+         * @description A validated graph label. See the module docs for the invariants.
+         *
+         *     Displayed and compared as the wrapped string; hashes as the string
+         *     too, so `HashMap<GraphLabel, _>` is interchangeable with the
+         *     previous `HashMap<String, _>` at lookup time.
+         */
+        GraphLabel: string;
+        /**
+         * @description Idempotency contract.
+         *
+         *     Actions with a non-`None` policy accept an opaque key from the
+         *     caller; a replay within the window returns the cached outcome
+         *     instead of re-executing. The platform persists the key +
+         *     fingerprint + result; beyond the window the key expires and a
+         *     repeat call runs fresh.
+         */
+        IdempotencyPolicy: {
+            /** @enum {string} */
+            kind: "none";
+        } | {
+            /** @enum {string} */
+            kind: "keyed";
+            /**
+             * Format: int64
+             * @description Minimum supported window: 0 (cache forever). 0 is
+             *     permitted because a Stripe-style `idempotency_key` never
+             *     ages out in normal operation.
+             */
+            window_seconds: number;
+        };
+        /**
+         * @description Rule mode — include or exclude. A separate enum (rather than a
+         *     `bool`) so the wire form is self-documenting.
+         * @enum {string}
+         */
+        IncludeMode: "include" | "exclude";
+        IndexDef: {
+            id: string;
+            node_id: components["schemas"]["NodeTypeId"];
+            property_id: components["schemas"]["PropertyId"];
+            /** @enum {string} */
+            type: "single";
+        } | {
+            id: string;
+            node_id: components["schemas"]["NodeTypeId"];
+            property_ids: components["schemas"]["PropertyId"][];
+            /** @enum {string} */
+            type: "composite";
+        } | {
+            id: string;
+            name: components["schemas"]["GraphLabel"];
+            node_id: components["schemas"]["NodeTypeId"];
+            property_ids: components["schemas"]["PropertyId"][];
+            /** @enum {string} */
+            type: "full_text";
+        } | {
+            dimensions: number;
+            id: string;
+            node_id: components["schemas"]["NodeTypeId"];
+            property_id: components["schemas"]["PropertyId"];
+            similarity: components["schemas"]["VectorSimilarity"];
+            /** @enum {string} */
+            type: "vector";
+        };
+        /** @description Declarative interface over node types. */
+        InterfaceDef: {
+            description?: components["schemas"]["LocalizedText"];
+            display_name?: components["schemas"]["LocalizedText"];
+            id: components["schemas"]["InterfaceId"];
+            /**
+             * @description Canonical, Cypher-safe label. Displayed in the query surface
+             *     when a user pins a query to the interface rather than a
+             *     concrete node type.
+             */
+            label: components["schemas"]["GraphLabel"];
+            /**
+             * @description Edge types an implementer must connect through. Similar
+             *     validation semantics — an implementer missing a declared
+             *     edge is rejected.
+             */
+            required_edges?: components["schemas"]["InterfaceEdge"][];
+            /**
+             * @description Properties every implementer must expose. The node type
+             *     validator rejects implementers that lack any of these or
+             *     whose matching property has an incompatible type.
+             */
+            required_properties?: components["schemas"]["InterfaceProperty"][];
+        };
+        /** @description An edge type an implementer must connect through. */
+        InterfaceEdge: {
+            /**
+             * @description Whether the implementer must be the *source* side of the
+             *     edge. When `false`, both source and target count as
+             *     satisfying the interface.
+             */
+            as_source?: boolean;
+            expected_edge_type_id?: null | components["schemas"]["EdgeTypeId"];
+            /**
+             * @description Edge label the implementer must participate in (typically as
+             *     source). The planner matches by label because edge ids are
+             *     not meaningful across implementers.
+             */
+            label: components["schemas"]["GraphLabel"];
+        };
+        /**
+         * @description Stable identifier for an `InterfaceDef`. A node type declares
+         *     the interfaces it fulfils by listing these ids in its
+         *     `implements` collection.
+         */
+        InterfaceId: string;
+        /**
+         * @description A property that every implementer of the interface must expose.
+         *
+         *     The interface names the *shape* (name + required type + required
+         *     nullability); the implementer's concrete property id can differ
+         *     — the validator matches by `name`, not by `PropertyId`.
+         */
+        InterfaceProperty: {
+            expected_property_id?: null | components["schemas"]["PropertyId"];
+            /** @description Property key as it appears on the implementer's node. */
+            name: components["schemas"]["PropertyKey"];
+            /**
+             * @description Whether implementers are allowed to mark this property
+             *     nullable. `false` means the implementer's property must be
+             *     non-nullable; `true` means either is acceptable.
+             */
+            nullable?: boolean;
+            property_type: components["schemas"]["PropertyType"];
+        };
+        /**
+         * @description Adapter-reported join-cost hint. Coarse on purpose — a richer
+         *     cost estimator is scoped to the planner (Phase 6).
+         * @enum {string}
+         */
+        JoinCostHint: "unknown" | "indexed" | "scan" | "cartesian";
+        /**
+         * @description Π-2: Semantic cardinality of a link (edge) — drives compiler
+         *     decisions about when to inject `DISTINCT` in generated SQL.
+         *
+         *     The four values form the standard relational-algebra cross
+         *     product (one/many on each side). Naming matches the dbt /
+         *     Cube.js / LookML conventions so imports from those systems
+         *     round-trip unchanged.
+         * @enum {string}
+         */
+        LinkCardinality: "one_to_one" | "one_to_many" | "many_to_one" | "many_to_many";
+        /**
+         * @description Binding from an `EdgeTypeDef` to a physical relation (or across
+         *     several relations).
+         */
+        LinkMappingDef: {
+            /**
+             * @description Π-2: Semantic cardinality of the edge. **Correctness-critical
+             *     for NL2SQL**: a `ManyToMany` traversal without an explicit
+             *     `DISTINCT` at the aggregation step inflates row counts,
+             *     making `SUM`/`COUNT` silently 2-3× wrong. The compiler
+             *     consults this field and injects `DISTINCT` automatically
+             *     when a query aggregates across a many-side link.
+             *
+             *     Distinct from [`JoinCostHint`] which is a **performance**
+             *     signal: cardinality is **semantic correctness**. The two
+             *     axes are orthogonal — a `ManyToMany` edge may be cheap
+             *     (tiny bridge table) and a `ManyToOne` edge may be expensive
+             *     (large source table).
+             *
+             *     Defaults per kind follow the conservative choice — picking
+             *     `ManyToMany` over-estimates (adds a redundant `DISTINCT`)
+             *     but never under-estimates (which would produce the
+             *     inflation bug). Authors override when they know better.
+             *
+             *     Reference: dbt Semantic Layer `many_to_many`, Cube.js
+             *     relationships `hasMany` / `belongsTo`, OWL
+             *     `FunctionalProperty` / `InverseFunctionalProperty`.
+             */
+            cardinality?: components["schemas"]["LinkCardinality"];
+            edge_type_id: components["schemas"]["EdgeTypeId"];
+            id: components["schemas"]["LinkMappingId"];
+            /**
+             * @description Hint the planner consults when ordering joins. The scalar is
+             *     an adapter-reported estimate, not a precise cardinality.
+             */
+            join_cost_hint?: components["schemas"]["JoinCostHint"];
+            /**
+             * @description Shape of the binding — see module-level docs for when to pick
+             *     which variant.
+             */
+            kind: components["schemas"]["LinkMappingKind"];
+            /**
+             * Format: int32
+             * @description Higher precedence wins in multi-mapping dedup on the same
+             *     edge type. Mirrors `ObjectMappingDef::precedence`.
+             */
+            precedence?: number;
+            /** @description Where the source (tail) endpoint lives. */
+            source_endpoint: components["schemas"]["EndpointRef"];
+            /** @description Where the target (head) endpoint lives. */
+            target_endpoint: components["schemas"]["EndpointRef"];
+        };
+        /**
+         * @description Stable identifier for a `LinkMappingDef` — the binding between
+         *     one `EdgeTypeDef` and the physical relation(s) that supply
+         *     edges of that type.
+         */
+        LinkMappingId: string;
+        /** @description Shape variants for a link mapping. */
+        LinkMappingKind: {
+            /** @enum {string} */
+            kind: "foreign_key";
+            source_column: components["schemas"]["ColumnRef"];
+            target_column: components["schemas"]["ColumnRef"];
+        } | {
+            bridge_relation: components["schemas"]["SourceRelationRef"];
+            /** @enum {string} */
+            kind: "bridge";
+            source_join: components["schemas"]["ColumnRef"][];
+            target_join: components["schemas"]["ColumnRef"][];
+        } | {
+            /** @enum {string} */
+            kind: "computed";
+            predicate: string;
+        } | {
+            /** @enum {string} */
+            kind: "federated";
+            source_match_column: components["schemas"]["ColumnRef"];
+            target_match_column: components["schemas"]["ColumnRef"];
         };
         LoadExecuteRequest: {
             /** @description Data batches to load. Each element is a JSON object representing one record. */
@@ -1627,6 +2594,326 @@ export interface components {
             /** @description Compiler target language (e.g., "cypher"). */
             target: string;
         };
+        /**
+         * @description Language-tagged text with a canonical `default` and optional per-locale
+         *     `translations`.
+         *
+         *     Semantics:
+         *
+         *     - `default` is the value authored by whoever created the ontology, in
+         *       whichever language they chose. It is always present (possibly empty for
+         *       truly optional fields) so every consumer can display *something*.
+         *     - `translations` holds per-locale overrides keyed by [`LanguageTag`].
+         *
+         *     Consumers call [`LocalizedText::resolve`] with a caller-controlled
+         *     fallback chain (usually derived from the user's preference plus the
+         *     workspace's configured fallback). The result is always a displayable
+         *     `&str` — the chain is walked in order, non-empty matches win, and
+         *     `default` is used as the final fallback.
+         *
+         *     ## Wire format
+         *
+         *     Serialization always emits the canonical `{"default": "…", "translations":
+         *     {…}}` form (with `translations` omitted when empty).
+         *
+         *     Deserialization is **lenient** and accepts any of:
+         *
+         *     - `null` → [`LocalizedText::empty`]
+         *     - bare string `"text"` → `{default: "text", translations: {}}`
+         *     - canonical object `{"default": "…", "translations": {…}}`
+         *
+         *     The lenient form makes LLM structured output comfortable (LLMs happily
+         *     emit bare strings) without weakening the canonical serialization contract.
+         */
+        LocalizedText: {
+            default: string;
+            translations?: {
+                [key: string]: string;
+            };
+        };
+        /** @description Named aggregate / KPI. */
+        MetricDef: {
+            description?: components["schemas"]["LocalizedText"];
+            /**
+             * @description Aggregation body. Dialect-tagged so the compiler can pick
+             *     the right emitter at evaluation time.
+             */
+            expression: components["schemas"]["MetricExpression"];
+            id: components["schemas"]["MetricId"];
+            name: string;
+            target_scope: components["schemas"]["MetricScope"];
+            /** @description Temporal shape of the metric. */
+            temporal_grain?: components["schemas"]["TemporalGrain"];
+            /**
+             * @description Unit of the result, rendered alongside the value in the UI.
+             *     Free-form so a bilingual deployment can declare `"KRW"` or
+             *     `"₩/월"` directly.
+             */
+            unit?: string | null;
+        };
+        /** @description Aggregation body in a specific dialect. */
+        MetricExpression: {
+            expression: string;
+            /** @enum {string} */
+            kind: "sql_expr";
+        } | {
+            expression: string;
+            /** @enum {string} */
+            kind: "cypher_expr";
+        };
+        /** @description Stable identifier for a `MetricDef`. */
+        MetricId: string;
+        /** @description Which part of the ontology the metric aggregates over. */
+        MetricScope: {
+            /** @enum {string} */
+            kind: "node_type";
+            node_type_id: components["schemas"]["NodeTypeId"];
+        } | {
+            edge_type_id: components["schemas"]["EdgeTypeId"];
+            /** @enum {string} */
+            kind: "edge_type";
+        } | {
+            /** @enum {string} */
+            kind: "global";
+        };
+        NodeConstraint: {
+            property_ids: components["schemas"]["PropertyId"][];
+            /** @enum {string} */
+            type: "unique";
+        } | {
+            property_id: components["schemas"]["PropertyId"];
+            /** @enum {string} */
+            type: "exists";
+        } | {
+            property_ids: components["schemas"]["PropertyId"][];
+            /** @enum {string} */
+            type: "node_key";
+        };
+        NodeTypeDef: {
+            /**
+             * @description Actions (writes / mutations) that apply to this node type.
+             *     Actions stay owned by the top-level `actions` collection; the
+             *     node type just points at the ones it supports.
+             */
+            actions?: components["schemas"]["ActionId"][];
+            /** @description Constraints on this node type. */
+            constraints?: components["schemas"]["ConstraintDef"][];
+            /**
+             * Format: date-time
+             * @description Deprecation timestamp. When set, the node is marked for removal and
+             *     UI consumers should render it with a deprecated indicator. Queries
+             *     still work for compatibility until the deprecation window elapses.
+             */
+            deprecated_at?: string | null;
+            /** @description Localized human-readable description. */
+            description?: components["schemas"]["LocalizedText"];
+            /**
+             * @description Localized display name shown in the UI. Defaults to empty; consumers
+             *     typically fall back to `label` when the display name is empty.
+             */
+            display_name?: components["schemas"]["LocalizedText"];
+            governance?: null | components["schemas"]["Governance"];
+            /** @description Stable UUID for this node type. */
+            id: components["schemas"]["NodeTypeId"];
+            /**
+             * @description Interfaces this node type fulfils. Must reference
+             *     `InterfaceDef`s declared on the enclosing `OntologyIR`; the
+             *     validator rejects a node that claims to implement an interface
+             *     without providing every required property / edge.
+             */
+            implements?: components["schemas"]["InterfaceId"][];
+            /**
+             * @description Canonical, language-neutral label used as the Neo4j node label and in
+             *     query identifiers. The [`GraphLabel`] newtype enforces the
+             *     `is_valid_graph_identifier` invariant at the type level — a
+             *     `NodeTypeDef` cannot exist with a label that would fail Cypher
+             *     emission.
+             */
+            label: components["schemas"]["GraphLabel"];
+            /** @description Metrics (KPIs / aggregates) scoped to this node type. */
+            metrics?: components["schemas"]["MetricId"][];
+            /** @description Properties on this node type. */
+            properties?: components["schemas"]["PropertyDef"][];
+            replaced_by_id?: null | components["schemas"]["NodeTypeId"];
+            /**
+             * @description Rules that govern this node type. Any rule whose `kind`
+             *     targets this node is eligible; the planner cross-checks at
+             *     query time.
+             */
+            rules?: components["schemas"]["RuleId"][];
+            source_lineage?: null | components["schemas"]["SourceLineage"];
+        };
+        /** @description Type-safe identifier for node types in an ontology. */
+        NodeTypeId: string;
+        /** @description One component of a notation pattern. */
+        NotationComponent: {
+            display?: components["schemas"]["LocalizedText"];
+            kind: components["schemas"]["NotationComponentKind"];
+            /**
+             * @description Component name used as the key in parse output
+             *     (`{campaign: "SPRING"}`).
+             */
+            name: string;
+        };
+        /**
+         * @description Kind of value a [`NotationComponent`] carries. Each variant is
+         *     self-validating at parse time — `IntegerRange` rejects values
+         *     outside `[min, max]`, `Alphanumeric` rejects wrong-length
+         *     tokens, etc.
+         */
+        NotationComponentKind: {
+            /** @enum {string} */
+            kind: "code_from_set";
+            value_set_id: components["schemas"]["ValueSetId"];
+        } | {
+            /** @enum {string} */
+            kind: "integer_range";
+            /** Format: int64 */
+            max: number;
+            /** Format: int64 */
+            min: number;
+            /**
+             * Format: int32
+             * @description Exact decimal digit count. `0` disables padding (variable
+             *     width); non-zero enforces exact match.
+             */
+            width: number;
+        } | {
+            /** @enum {string} */
+            kind: "alphanumeric";
+            uppercase: boolean;
+            /** Format: int32 */
+            width: number;
+        } | {
+            /** @enum {string} */
+            kind: "free_text";
+            /** Format: int32 */
+            max_len?: number | null;
+        };
+        /**
+         * @description A structured identifier pattern. Parse / render / validate
+         *     semantics are all driven by the ordered [`components`] list —
+         *     the [`template`] string is documentation only.
+         */
+        NotationPatternDef: {
+            /** @description Ordered component list. Parse operates left-to-right. */
+            components: components["schemas"]["NotationComponent"][];
+            description?: components["schemas"]["LocalizedText"];
+            display_name?: components["schemas"]["LocalizedText"];
+            /**
+             * @description Curated valid examples for documentation + property UI
+             *     placeholder text.
+             */
+            examples?: string[];
+            id: components["schemas"]["NotationPatternId"];
+            /** @description Short human identifier (`"CampaignCode"`). */
+            name: string;
+            /**
+             * @description Separator string between components. Empty string means
+             *     components are concatenated back-to-back (for formats like
+             *     Korean national ID: `YYMMDD-NNNNNNN` has `-` separator,
+             *     `YYMMDDNNNNNNN` has empty).
+             */
+            separator?: string;
+            /**
+             * @description Human-readable template for docs and UI help.
+             *     **Not** used by the parser — components + separator drive
+             *     the actual semantics. Example: `"{campaign}_{year:%02d}_{seq:%03d}"`.
+             */
+            template: string;
+        };
+        /** @description Stable identifier for a [`NotationPatternDef`]. */
+        NotationPatternId: string;
+        /** @description Binding from a `NodeTypeDef` to a physical relation. */
+        ObjectMappingDef: {
+            /** @description Graph-cache participation for this mapping. ADR 0004. */
+            cache_hint?: components["schemas"]["CacheHintKind"];
+            /**
+             * @description Stable identifier for this mapping. Used in audit trails,
+             *     cache invalidation, and mapping-level diagnostics.
+             */
+            id: components["schemas"]["ObjectMappingId"];
+            /**
+             * @description Node type this mapping fulfils. The planner expands a
+             *     `MATCH (n:Label)` to every mapping whose `node_type_id`
+             *     resolves to that label, respecting `precedence`.
+             */
+            node_type_id: components["schemas"]["NodeTypeId"];
+            /**
+             * Format: int32
+             * @description Higher precedence wins in multi-mapping dedup. A new mapping
+             *     that shadows an older one simply uses a higher number; the
+             *     oldest mapping can stay registered for audit purposes.
+             */
+            precedence?: number;
+            /**
+             * @description Column(s) that form the primary key in the source. Multi-
+             *     column PKs are supported so that DISTINCT-ON dedup works on
+             *     legacy composite keys. `None` = no PK — the planner cannot
+             *     dedup multi-mapping unions for this node type and surfaces
+             *     that as a warning.
+             */
+            primary_key_columns?: components["schemas"]["ColumnRef"][];
+            /**
+             * @description How each property is materialised. The planner validates at
+             *     registration that every property on the node type is either
+             *     mapped here or declared derived (via a `DerivedProperty`
+             *     function).
+             */
+            property_mappings: components["schemas"]["PropertyMappingDef"][];
+            /**
+             * @description The physical relation name inside the source
+             *     (`public.customers`, a Mongo collection, the inline `records`
+             *     table for CSV).
+             */
+            relation: string;
+            /**
+             * @description What kind of source object the relation points at — the
+             *     planner treats `View` and `Collection` differently from
+             *     `Table` on write paths.
+             */
+            relation_kind?: components["schemas"]["SourceRelationKind"];
+            /**
+             * @description Optional row filter pushed into the `TableProvider::scan`.
+             *     Expressed in the source's dialect — the planner does NOT
+             *     translate across dialects. Typically used for soft-delete
+             *     tombstones and per-mapping sub-setting.
+             */
+            row_filter?: string | null;
+            /**
+             * @description Source the relation lives in. Paired with `relation`, this is
+             *     the (source, name) tuple the adapter receives.
+             */
+            source_id: components["schemas"]["SourceId"];
+            /**
+             * Format: date-time
+             * @description When this mapping became (or will become) authoritative. A
+             *     planner evaluating a query with `ontology_valid_at = t`
+             *     rejects the mapping when `t < valid_from`.
+             */
+            valid_from?: string | null;
+            /**
+             * Format: date-time
+             * @description When this mapping stops being authoritative. Open-ended when
+             *     `None`.
+             */
+            valid_to?: string | null;
+            workspace_scope?: null | components["schemas"]["ColumnRef"];
+        };
+        /**
+         * @description Stable identifier for an `ObjectMappingDef` — the binding
+         *     between one `NodeTypeDef` and one physical relation.
+         *
+         *     Construction: prefer [`ObjectMappingId::for_node_source`]
+         *     — the canonical rule is `om-{node_type_id}@{source_id}`,
+         *     which keeps the id deterministic across re-runs and encodes
+         *     the (node, source) tuple so the id alone is informative
+         *     in audit diffs and cache keys. Ad-hoc ids (via the bare
+         *     `::new` constructor) stay supported for tests and for
+         *     admin-supplied overrides when a node has multiple mappings
+         *     on the same source and the rule needs disambiguation.
+         */
+        ObjectMappingId: string;
         OntologyCommandsRequest: {
             /** @description List of ontology mutation commands. */
             commands: Record<string, never>[];
@@ -1640,20 +2927,112 @@ export interface components {
             /** Format: date-time */
             created_at: string;
             current_version?: null | components["schemas"]["CurrentVersionSummary"];
-            /** @description LocalizedText JSONB — `{default, translations}` shape. */
-            description: Record<string, never>;
+            /**
+             * @description Localized description. Stored as JSONB; the OpenAPI surface
+             *     uses the typed `LocalizedText` from the ontology IR so FE
+             *     codegen carries the same shape.
+             */
+            description: components["schemas"]["LocalizedText"];
             /** Format: uuid */
             id: string;
             lineage_id: string;
             name: string;
-            /**
-             * @description Fully hydrated `OntologyIR` at the current version. `None` when the
-             *     identity exists but has no committed version yet — the caller
-             *     should treat it as an empty ontology (fresh project seed).
-             */
-            ontology_ir?: Record<string, never>;
+            ontology_ir?: null | components["schemas"]["OntologyIR"];
             /** Format: date-time */
             updated_at: string;
+        };
+        OntologyIR: {
+            actions?: components["schemas"]["ActionDef"][];
+            /**
+             * @description Terminology registry — named code systems with nested
+             *     [`CodedValue`] entries. Phase Ω-1 foundation; value sets,
+             *     concept maps, notation patterns, units of measure, and
+             *     numeric range bands all layer on top of this.
+             */
+            code_systems?: components["schemas"]["CodeSystemDef"][];
+            /**
+             * @description Φ3 — per-column distribution snapshots. Keyed by
+             *     `(source_id, relation, column)`. Ingested from `SourceProfile`
+             *     via [`OntologyIR::ingest_source_profile`] so re-running
+             *     value-set / notation-pattern inference doesn't require a
+             *     source rescan.
+             */
+            column_profiles?: components["schemas"]["ColumnProfileDef"][];
+            /**
+             * @description Ω-5: concept maps — declarative code↔code translations
+             *     between two [`crate::code_system::CodeSystemDef`]s.
+             */
+            concept_maps?: components["schemas"]["ConceptMapDef"][];
+            data_quality?: components["schemas"]["DataQualityDef"][];
+            /** @description Localized human-readable description of the ontology. */
+            description?: components["schemas"]["LocalizedText"];
+            /**
+             * @description All edge types (relationships) in this ontology. See
+             *     [`OntologyIR::edge_types`] / [`OntologyIR::add_edge_type`].
+             */
+            edge_types?: components["schemas"]["EdgeTypeDef"][];
+            enrichments?: components["schemas"]["EnrichmentDef"][];
+            functions?: components["schemas"]["FunctionDef"][];
+            glossary?: components["schemas"]["GlossaryTermDef"][];
+            /** @description Unique identifier for this ontology version. */
+            id: string;
+            /**
+             * @description Global indexes that span multiple types. See
+             *     [`OntologyIR::indexes`] / [`OntologyIR::add_index`].
+             */
+            indexes?: components["schemas"]["IndexDef"][];
+            interfaces?: components["schemas"]["InterfaceDef"][];
+            /**
+             * @description Edge-level mappings (ADR 0003). Binds an edge type to the
+             *     relation(s) that supply edges — FK, bridge, computed, or
+             *     federated across sources.
+             */
+            link_mappings?: components["schemas"]["LinkMappingDef"][];
+            metrics?: components["schemas"]["MetricDef"][];
+            /**
+             * @description Human-readable name (e.g. "E-commerce Ontology"). Single canonical
+             *     string; for localized display use the workspace's ontology catalog
+             *     layer rather than embedding locale variants into the identifier.
+             */
+            name: string;
+            /**
+             * @description All node types in this ontology. Accessed externally via
+             *     [`OntologyIR::node_types`]; structural mutations go through
+             *     [`OntologyIR::add_node_type`], [`OntologyIR::remove_node_type`], etc.
+             */
+            node_types: components["schemas"]["NodeTypeDef"][];
+            /**
+             * @description Ω-4: notation patterns — structured identifier formats.
+             *     A property's `notation_pattern_id` points here.
+             */
+            notation_patterns?: components["schemas"]["NotationPatternDef"][];
+            /**
+             * @description Object-level mappings (ADR 0003). Binds a node type to a
+             *     physical relation in a specific source. Multi-mapping per
+             *     node type is allowed; the federation planner deduplicates
+             *     using `precedence` + `primary_key_columns`.
+             */
+            object_mappings?: components["schemas"]["ObjectMappingDef"][];
+            provenance?: components["schemas"]["ProvenanceDef"][];
+            rules?: components["schemas"]["RuleDef"][];
+            /**
+             * Format: int32
+             * @description On-wire struct shape version. See `ONTOLOGY_IR_SCHEMA_VERSION`
+             *     for the live constant and version history.
+             */
+            schema_version?: number;
+            /**
+             * @description Ω-7: numeric interpretive band sets — "normal / elevated /
+             *     high" style value classifications over a numeric property.
+             */
+            value_range_sets?: components["schemas"]["ValueRangeSetDef"][];
+            /**
+             * @description Ω-2: value sets — bounded subsets of one or more code
+             *     systems. A property's `value_set_id` points here.
+             */
+            value_sets?: components["schemas"]["ValueSetDef"][];
+            /** @description Version metadata (number + temporal window + provenance). */
+            version: components["schemas"]["OntologyVersion"];
         };
         OntologyImportRequest: {
             /** @description OWL ontology in Turtle format. */
@@ -1697,6 +3076,29 @@ export interface components {
             node_count: number;
             /** Format: int32 */
             revision: number;
+        };
+        /**
+         * @description Version metadata for a point-in-time ontology snapshot.
+         *
+         *     `number` is monotonically increasing and is the primary comparator.
+         *     The remaining fields provide temporal and provenance context:
+         *     - `valid_from` / `valid_to`: the window during which this version
+         *       was the active schema (used by `as_of` queries).
+         *     - `committed_by` / `commit_message`: audit trail.
+         *
+         *     Implements `From<u32>` so that callers can pass a bare version
+         *     number and get a zero-metadata instance — preserving compatibility
+         *     with the original `version: u32` API surface.
+         */
+        OntologyVersion: {
+            commit_message?: string | null;
+            committed_by?: string | null;
+            /** Format: int32 */
+            number: number;
+            /** Format: date-time */
+            valid_from?: string | null;
+            /** Format: date-time */
+            valid_to?: string | null;
         };
         /**
          * @description Cursor-based pagination metadata.
@@ -1754,6 +3156,93 @@ export interface components {
             topology_signature: string;
             /** @description Viewport state JSON. */
             viewport: unknown;
+        };
+        /**
+         * @description PII (Personally Identifiable Information) classification.
+         *     Set explicitly by the user via UI confirmation, never auto-assigned.
+         *
+         *     Covers the union of GDPR Article 4(1), HIPAA Safe Harbor identifiers,
+         *     PCI DSS cardholder data, and ICAO / national-identity schemes. `NationalId`
+         *     is parameterised by ISO 3166-1 alpha-2 country code so country-specific
+         *     schemes (KR RRN, US SSN, JP My Number, etc.) stay distinguishable in
+         *     downstream masking rules. `Custom` is the escape hatch for schemes the
+         *     platform has not anticipated — still tracked as PII for audit purposes.
+         */
+        PiiKind: {
+            /** @enum {string} */
+            kind: "name";
+        } | {
+            /** @enum {string} */
+            kind: "date_of_birth";
+        } | {
+            /** @enum {string} */
+            kind: "national_id";
+            /**
+             * @description National identifier scoped by ISO 3166-1 alpha-2 country code
+             *     (e.g. `{"kind":"national_id","value":"kr"}`).
+             */
+            value: {
+                country: string;
+            };
+        } | {
+            /** @enum {string} */
+            kind: "passport";
+        } | {
+            /** @enum {string} */
+            kind: "drivers_license";
+        } | {
+            /** @enum {string} */
+            kind: "email";
+        } | {
+            /** @enum {string} */
+            kind: "phone";
+        } | {
+            /** @enum {string} */
+            kind: "address";
+        } | {
+            /** @enum {string} */
+            kind: "ip_address";
+        } | {
+            /** @enum {string} */
+            kind: "payment_card_number";
+        } | {
+            /** @enum {string} */
+            kind: "bank_account_number";
+        } | {
+            /** @enum {string} */
+            kind: "iban";
+        } | {
+            /** @enum {string} */
+            kind: "credit_card";
+        } | {
+            /** @enum {string} */
+            kind: "ssn";
+        } | {
+            /** @enum {string} */
+            kind: "medical_record_number";
+        } | {
+            /** @enum {string} */
+            kind: "insurance_id";
+        } | {
+            /** @enum {string} */
+            kind: "biometric";
+        } | {
+            /** @enum {string} */
+            kind: "geo_location";
+        } | {
+            /** @enum {string} */
+            kind: "password";
+        } | {
+            /** @enum {string} */
+            kind: "token";
+        } | {
+            /** @enum {string} */
+            kind: "custom";
+            /**
+             * @description Caller-supplied PII scheme name for anything the platform has not
+             *     predefined. Still treated as PII for audit and masking purposes.
+             */
+            value: string;
         };
         PinCreateRequest: {
             /** Format: uuid */
@@ -2012,6 +3501,162 @@ export interface components {
             score: number;
             signals: components["schemas"]["SignalBody"][];
         };
+        PropertyDef: {
+            aggregation_role?: null | components["schemas"]["AggregationRole"];
+            /**
+             * @description Localized alternate names used for synonym-aware UI search
+             *     and for LLM prompts that normalise arbitrary user phrasing
+             *     onto the property. Not required to be Cypher-safe — the
+             *     property key is still the compile target.
+             */
+            aliases?: components["schemas"]["LocalizedText"][];
+            /**
+             * @description Free-form business-context note (e.g. "extracted from legacy
+             *     CRM; maps to CUST_STATUS column"). Shown in the property
+             *     inspector and fed into the design-agent's context prompt.
+             */
+            business_context?: components["schemas"]["LocalizedText"];
+            classification?: null | components["schemas"]["DataClassification"];
+            default_value?: null | components["schemas"]["PropertyValue"];
+            /**
+             * Format: date-time
+             * @description Deprecation timestamp. See [`NodeTypeDef::deprecated_at`].
+             */
+            deprecated_at?: string | null;
+            derived_from?: null | components["schemas"]["FunctionId"];
+            /** @description Localized human-readable description. */
+            description?: components["schemas"]["LocalizedText"];
+            /** @description Localized display name shown in the UI. */
+            display_name?: components["schemas"]["LocalizedText"];
+            glossary_term_id?: null | components["schemas"]["GlossaryTermId"];
+            /** @description Stable UUID for this property. */
+            id: components["schemas"]["PropertyId"];
+            /**
+             * @description Marks the property as storing a localized value. The expected runtime
+             *     shape is `PropertyType::Map` with `{locale: value}` entries, or a
+             *     structured `LocalizedText` document. UI and LLM consumers use this
+             *     hint to filter or merge translations based on the caller's locale.
+             */
+            is_localized?: boolean;
+            /**
+             * Format: int32
+             * @description Maximum cardinality for list-valued properties (inclusive). `None`
+             *     means unbounded. Maps to `owl:maxCardinality` and SHACL `sh:maxCount`.
+             */
+            max_count?: number | null;
+            /**
+             * Format: int32
+             * @description Minimum cardinality for list-valued properties (inclusive). `None`
+             *     means unbounded at the lower end (i.e., the list can be empty when
+             *     `nullable` is also permissive). Maps to `owl:minCardinality` and
+             *     SHACL `sh:minCount` on export.
+             */
+            min_count?: number | null;
+            /**
+             * @description Canonical, language-neutral property name (e.g. "name", "price",
+             *     "created_at"). Used as the Neo4j property key. [`PropertyKey`]
+             *     enforces the `is_valid_graph_identifier` invariant at the type
+             *     level — a PropertyDef cannot exist with a name that would fail
+             *     Cypher emission.
+             */
+            name: components["schemas"]["PropertyKey"];
+            notation_pattern_id?: null | components["schemas"]["NotationPatternId"];
+            /** @description Whether this property can be null. */
+            nullable?: boolean;
+            pii_kind?: null | components["schemas"]["PiiKind"];
+            /** @description Data type. */
+            property_type: components["schemas"]["PropertyType"];
+            replaced_by_id?: null | components["schemas"]["PropertyId"];
+            semantic_type?: null | components["schemas"]["SemanticType"];
+            /** @description Source column name this property was derived from. */
+            source_column?: string | null;
+            /** @description Transformation expression applied to the source column (e.g., `UPPER(col)`). */
+            transform?: string | null;
+            unit_id?: null | components["schemas"]["CodedValueId"];
+            value_range_set_id?: null | components["schemas"]["ValueRangeSetId"];
+            value_set_id?: null | components["schemas"]["ValueSetId"];
+        };
+        /** @description Reference to a property this function depends on. */
+        PropertyDependency: {
+            node_type_id: components["schemas"]["NodeTypeId"];
+            property_id: components["schemas"]["PropertyId"];
+        };
+        /** @description Type-safe identifier for property definitions. */
+        PropertyId: string;
+        /**
+         * @description A validated property key. See the module docs for the rule.
+         *
+         *     Displayed and compared as the wrapped string; hashes as the string
+         *     too, so `HashMap<PropertyKey, _>` is interchangeable with a
+         *     previous `HashMap<String, _>` at lookup time.
+         */
+        PropertyKey: string;
+        /**
+         * @description Physical-side location of a property value.
+         *
+         *     A sum type rather than two separate `Option` fields so that every
+         *     mapping has exactly one storage origin — a future `ExternalCall`
+         *     variant (REST / gRPC) can slot in without breaking the wire
+         *     format of existing bindings.
+         */
+        PropertyLocation: (components["schemas"]["ColumnRef"] & {
+            /** @enum {string} */
+            kind: "column";
+        }) | {
+            /** @enum {string} */
+            kind: "json_path";
+            /** @description Dotted JSON path ending at the value — e.g. `"address.zip"`. */
+            path: string;
+            /** @description Column or field the path is anchored on. */
+            root_column: string;
+        };
+        /** @description Binding from an ontology property to a physical value location. */
+        PropertyMappingDef: {
+            /** @description Where the value comes from. */
+            location: components["schemas"]["PropertyLocation"];
+            /**
+             * @description Property this binding targets. Must reference a `PropertyId`
+             *     owned by the `NodeTypeDef` or `EdgeTypeDef` that the enclosing
+             *     mapping is bound to — validated at mapping registration.
+             */
+            property_id: components["schemas"]["PropertyId"];
+            /**
+             * @description For display + debugging. The property key used by the
+             *     ontology (not the source column). Kept alongside `property_id`
+             *     so a mapping export is readable without re-resolving against
+             *     the ontology.
+             */
+            property_key: components["schemas"]["PropertyKey"];
+            /**
+             * @description How the value is shaped on extraction. `Identity` by default —
+             *     explicit so that a round-trip through the wire format is
+             *     lossless, and so the planner can detect pushdown-safe bindings
+             *     by pattern-matching on `Identity`.
+             */
+            transform?: components["schemas"]["PropertyTransform"];
+        };
+        /**
+         * @description Value transform applied on the way from the source to the
+         *     ontology. Identity is the common case; richer transforms let a
+         *     mapping handle legacy schemas without dragging ETL into the
+         *     platform.
+         */
+        PropertyTransform: {
+            /** @enum {string} */
+            kind: "identity";
+        } | {
+            expression: string;
+            /** @enum {string} */
+            kind: "sql_expr";
+        } | {
+            function_id: string;
+            /** @enum {string} */
+            kind: "derived";
+        };
+        /** @description Property type: bool, int, float, string, date, datetime, duration, bytes, map */
+        PropertyType: string;
+        /** @description Typed property value, e.g. {"type": "string", "value": "hello"} or null */
+        PropertyValue: Record<string, never>;
         ProposalBody: {
             code_system_id: string;
             /**
@@ -2059,6 +3704,93 @@ export interface components {
             proposals: components["schemas"]["ProposalBody"][];
             skipped: components["schemas"]["SkipBody"][];
         };
+        /** @description PROV-O activity with platform-specific detail. */
+        ProvenanceActivityKind: {
+            /** @enum {string} */
+            kind: "source_scan";
+            mapping_id: components["schemas"]["ObjectMappingId"];
+            source_id: components["schemas"]["SourceId"];
+        } | {
+            function_id: components["schemas"]["FunctionId"];
+            /** @enum {string} */
+            kind: "function_eval";
+        } | {
+            /** @enum {string} */
+            kind: "rule_validate";
+            outcome: components["schemas"]["ValidationOutcomeKind"];
+            rule_id: components["schemas"]["RuleId"];
+        } | {
+            action_id: components["schemas"]["ActionId"];
+            idempotency_key?: string | null;
+            /** @enum {string} */
+            kind: "action_execute";
+        } | {
+            command_summary: string;
+            /** @enum {string} */
+            kind: "ontology_edit";
+        } | {
+            /** @enum {string} */
+            kind: "draft_proposal";
+            model_id: string;
+            prompt_name: string;
+            prompt_version: string;
+        } | {
+            /** @enum {string} */
+            kind: "cache_refresh";
+            mapping_id: components["schemas"]["ObjectMappingId"];
+        } | {
+            enrichment_id: components["schemas"]["EnrichmentId"];
+            /** @enum {string} */
+            kind: "enrichment";
+        } | {
+            format: string;
+            /** @enum {string} */
+            kind: "import";
+            source_uri?: string | null;
+        } | {
+            destination_uri?: string | null;
+            format: string;
+            /** @enum {string} */
+            kind: "export";
+        };
+        /** @description Origin record for one fact the platform produced. */
+        ProvenanceDef: {
+            /** @description The activity that produced `subject`. PROV-O: `prov:Activity`. */
+            activity: components["schemas"]["ProvenanceActivityKind"];
+            /** @description Who ran the activity. PROV-O: `prov:wasAssociatedWith`. */
+            agent: components["schemas"]["AgentRef"];
+            /**
+             * Format: date-time
+             * @description Timestamp the activity occurred at. PROV-O: `prov:atTime`.
+             */
+            at_time: string;
+            /**
+             * Format: date-time
+             * @description Data time the subject was valid under (bitemporal axis).
+             */
+            data_valid_at?: string | null;
+            /**
+             * @description Parent entities `subject` was derived from. PROV-O:
+             *     `prov:wasDerivedFrom`.
+             */
+            derived_from?: components["schemas"]["EntityRef"][];
+            id: components["schemas"]["ProvenanceId"];
+            /**
+             * Format: date-time
+             * @description Ontology time the subject was valid under (bitemporal axis,
+             *     ADR 0007). `None` means "current".
+             */
+            ontology_valid_at?: string | null;
+            /**
+             * @description The entity whose origin this record explains. Polymorphic —
+             *     PROV-O equivalent: `prov:Entity`.
+             */
+            subject: components["schemas"]["EntityRef"];
+            /** @description Input entities the activity used. PROV-O: `prov:used`. */
+            used?: components["schemas"]["EntityRef"][];
+        };
+        /** @description Stable identifier for a provenance record. */
+        ProvenanceId: string;
         /** @description Query execution record. */
         QueryExecution: {
             compiled_query: string;
@@ -2126,6 +3858,26 @@ export interface components {
         RefreshAdaptersResponse: {
             count: number;
             refreshed: boolean;
+        };
+        /**
+         * @description How often the enrichment value is refreshed.
+         *
+         *     `OnAccess` evaluates the enrichment every query; `Cached` reads
+         *     from cache when fresh (TTL-gated); `Scheduled` re-evaluates on a
+         *     cron cadence regardless of query activity.
+         */
+        RefreshPolicy: {
+            /** @enum {string} */
+            kind: "on_access";
+        } | {
+            /** @enum {string} */
+            kind: "cached";
+            /** Format: int64 */
+            ttl_seconds: number;
+        } | {
+            cron_expression: string;
+            /** @enum {string} */
+            kind: "scheduled";
         };
         /**
          * @description Adapter kind + its credential + any kind-specific options.
@@ -2221,6 +3973,72 @@ export interface components {
          * @enum {string}
          */
         RoleRef: "admin" | "data_steward" | "analyst";
+        /** @description When the rule is live at all. */
+        RuleActivationKind: {
+            /** @enum {string} */
+            kind: "always";
+        } | {
+            action_id: components["schemas"]["ActionId"];
+            /** @enum {string} */
+            kind: "on_action";
+        } | {
+            cron_expression: string;
+            /** @enum {string} */
+            kind: "on_schedule";
+        };
+        /** @description Ontology constraint, named and serializable. */
+        RuleDef: {
+            activation?: components["schemas"]["RuleActivationKind"];
+            /**
+             * @description One or more constraint components, AND'd together. Empty is
+             *     syntactically valid — treated as "always passes" so the
+             *     editor can save a work-in-progress rule without faking a
+             *     constraint.
+             */
+            constraints?: components["schemas"]["ShaclConstraint"][];
+            description?: components["schemas"]["LocalizedText"];
+            enforcement?: components["schemas"]["EnforcementKind"];
+            id: components["schemas"]["RuleId"];
+            kind: components["schemas"]["RuleKind"];
+            name: string;
+            severity?: components["schemas"]["Severity"];
+        };
+        /**
+         * @description Stable identifier for a `RuleDef`. Declared here instead of
+         *     `rule.rs` to break the import cycle — `ActionDef` references
+         *     rules for preconditions / postconditions.
+         */
+        RuleId: string;
+        /** @description Shape variant. */
+        RuleKind: {
+            /** @enum {string} */
+            kind: "node_shape";
+            target_node_type_id: components["schemas"]["NodeTypeId"];
+        } | {
+            /** @enum {string} */
+            kind: "property_shape";
+            target_node_type_id: components["schemas"]["NodeTypeId"];
+            target_property_id: components["schemas"]["PropertyId"];
+        } | {
+            /** @enum {string} */
+            kind: "edge_shape";
+            target_edge_type_id: components["schemas"]["EdgeTypeId"];
+        } | {
+            /** @enum {string} */
+            kind: "cross_entity_shape";
+            /** @description Source-dialect predicate evaluated against the scan. */
+            predicate: string;
+        } | {
+            /** @enum {string} */
+            kind: "state_machine";
+            state_property_id: components["schemas"]["PropertyId"];
+            target_node_type_id: components["schemas"]["NodeTypeId"];
+            /**
+             * @description Allowed transitions as `(from_state, to_state)` pairs.
+             *     `from_state == None` is the initial creation transition.
+             */
+            transitions: components["schemas"]["StateTransition"][];
+        };
         SavedPatternResponse: {
             /** Format: date-time */
             created_at: string;
@@ -2246,6 +4064,139 @@ export interface components {
          * @enum {string}
          */
         ScopeKind: "code_count";
+        /**
+         * @description Semantic type of a property value — higher-level than PropertyType.
+         *
+         *     Canonical variants cover globally common semantics. `LocalizedText` marks
+         *     a property whose runtime value is a `{locale: text}` map (pairs with
+         *     `PropertyDef::is_localized`). `Other(String)` is an open extension point
+         *     for domain-specific semantics (e.g. "ISBN", "VIN", "CUSIP") that the
+         *     platform does not want to hardcode.
+         */
+        SemanticType: {
+            /** @enum {string} */
+            kind: "email";
+        } | {
+            /** @enum {string} */
+            kind: "phone";
+        } | {
+            /** @enum {string} */
+            kind: "url";
+        } | {
+            /** @enum {string} */
+            kind: "address";
+        } | {
+            /** @enum {string} */
+            kind: "coordinate";
+        } | {
+            /** @enum {string} */
+            kind: "currency";
+        } | {
+            /** @enum {string} */
+            kind: "percentage";
+        } | {
+            /** @enum {string} */
+            kind: "iso8601";
+        } | {
+            /** @enum {string} */
+            kind: "localized_text";
+        } | {
+            /** @enum {string} */
+            kind: "other";
+            /** @description Open extension: caller-supplied semantic identifier (e.g. "ISBN", "VIN"). */
+            value: string;
+        };
+        /**
+         * @description Violation severity.
+         * @enum {string}
+         */
+        Severity: "violation" | "warning" | "info";
+        /**
+         * @description SHACL Core constraint component. The subset covers ~95% of
+         *     real-world rule usage; advanced components (`sh:and`, `sh:or`,
+         *     `sh:xone`, recursion rules) land in Phase 11 with the reasoning
+         *     engine.
+         */
+        ShaclConstraint: {
+            /** @enum {string} */
+            kind: "min_count";
+            /** Format: int32 */
+            min: number;
+            target: components["schemas"]["ConstraintTarget"];
+        } | {
+            /** @enum {string} */
+            kind: "max_count";
+            /** Format: int32 */
+            max: number;
+            target: components["schemas"]["ConstraintTarget"];
+        } | {
+            expected: components["schemas"]["PropertyType"];
+            /** @enum {string} */
+            kind: "datatype";
+            target: components["schemas"]["ConstraintTarget"];
+        } | {
+            /** @enum {string} */
+            kind: "matches_pattern";
+            notation_pattern_id: components["schemas"]["NotationPatternId"];
+            target: components["schemas"]["ConstraintTarget"];
+        } | {
+            /** @enum {string} */
+            kind: "in_value_set";
+            target: components["schemas"]["ConstraintTarget"];
+            value_set_id: components["schemas"]["ValueSetId"];
+        } | {
+            /** @enum {string} */
+            kind: "has_value";
+            target: components["schemas"]["ConstraintTarget"];
+            value: string;
+        } | {
+            /** @enum {string} */
+            kind: "min_inclusive";
+            /** Format: double */
+            min: number;
+            target: components["schemas"]["ConstraintTarget"];
+        } | {
+            /** @enum {string} */
+            kind: "max_inclusive";
+            /** Format: double */
+            max: number;
+            target: components["schemas"]["ConstraintTarget"];
+        } | {
+            /** @enum {string} */
+            kind: "min_length";
+            /** Format: int32 */
+            min: number;
+            target: components["schemas"]["ConstraintTarget"];
+        } | {
+            /** @enum {string} */
+            kind: "max_length";
+            /** Format: int32 */
+            max: number;
+            target: components["schemas"]["ConstraintTarget"];
+        } | {
+            /** @enum {string} */
+            kind: "unique_lang";
+            target: components["schemas"]["ConstraintTarget"];
+        } | {
+            /**
+             * @description Properties the shape explicitly allows; anything outside
+             *     this set plus the shape's property shapes is a violation.
+             */
+            allowed_properties: components["schemas"]["PropertyKey"][];
+            /** @enum {string} */
+            kind: "closed";
+            target: components["schemas"]["ConstraintTarget"];
+        } | {
+            a: components["schemas"]["ConstraintTarget"];
+            b: components["schemas"]["ConstraintTarget"];
+            /** @enum {string} */
+            kind: "disjoint";
+        } | {
+            /** @enum {string} */
+            kind: "unique_key";
+            property_keys: components["schemas"]["PropertyKey"][];
+            target_node_type_id: components["schemas"]["NodeTypeId"];
+        };
         SignalBody: {
             detail?: string | null;
             kind: string;
@@ -2260,6 +4211,60 @@ export interface components {
             column: string;
             reason: string;
             relation: string;
+        };
+        /**
+         * @description Stable identifier for a configured data source (a Postgres
+         *     connection, a Snowflake warehouse, a CSV file, etc.). Wire
+         *     format is a bare string, so the id survives serde round-trips
+         *     unchanged.
+         *
+         *     Construction: prefer [`SourceId::from_source_config`] — the
+         *     canonical rule is `{source_type}:{fingerprint}`, which keeps
+         *     identity deterministic across reanalysis and prevents two
+         *     sources of different kinds that happen to share a
+         *     fingerprint from colliding. The bare `::new` constructor
+         *     stays for tests and for adapters that synthesise an id
+         *     outside the `SourceConfig` lifecycle.
+         */
+        SourceId: string;
+        /**
+         * @description Tracks which external data source a node type was derived from.
+         *     Richer than the legacy `source_table: Option<String>` — includes
+         *     composite primary key and source system identifier for impact analysis.
+         */
+        SourceLineage: {
+            /** @description Primary key columns in the source table. */
+            primary_key?: string[];
+            /** @description Registered data source ID (matches `ox-source` registry key). */
+            source_id?: string | null;
+            /** @description Source table or collection name. */
+            table: string;
+        };
+        /**
+         * @description Source-side shape a mapping can bind to. `Table` is the default,
+         *     `View` keeps a strong distinction from it so the planner can
+         *     refuse write operations on views without sniffing the source
+         *     catalog. `Collection` covers document stores (MongoDB), `File`
+         *     covers filesystem-backed sources (CSV, JSON).
+         * @enum {string}
+         */
+        SourceRelationKind: "table" | "view" | "collection" | "file";
+        /**
+         * @description Fully qualified reference to a relation in a specific source.
+         *
+         *     Used by `LinkMappingDef` to describe the bridge relation and to
+         *     name an endpoint's owning relation for federated edges.
+         */
+        SourceRelationRef: {
+            kind?: components["schemas"]["SourceRelationKind"];
+            relation: string;
+            source_id: components["schemas"]["SourceId"];
+        };
+        /** @description Named state transition inside a `StateMachine` rule. */
+        StateTransition: {
+            /** @description `None` → initial creation (no prior state). */
+            from?: string | null;
+            to: string;
         };
         SuggestBindingsRequest: {
             aliases?: string[];
@@ -2287,6 +4292,16 @@ export interface components {
             /** Format: uuid */
             ontology_id: string;
         };
+        /**
+         * @description Snapshot / series choice.
+         *
+         *     A snapshot metric evaluates to a single value; a series metric
+         *     evaluates at `grain` intervals and produces `(t, value)` points.
+         *     The grain is inclusive: `Daily` → one point per day in the
+         *     queried window.
+         * @enum {string}
+         */
+        TemporalGrain: "snapshot" | "daily" | "weekly" | "monthly" | "quarterly" | "yearly";
         TermCandidateBody: {
             /** Format: float */
             score: number;
@@ -2331,6 +4346,119 @@ export interface components {
             risk_level?: components["schemas"]["RiskLevel"];
             routing: components["schemas"]["ApprovalRouting"];
         };
+        /**
+         * @description Outcome of a rule evaluation.
+         * @enum {string}
+         */
+        ValidationOutcomeKind: "pass" | "warn" | "fail";
+        /**
+         * @description One band — an interval on the numeric axis plus an
+         *     interpretation label.
+         */
+        ValueBand: {
+            /** @description Whether `max` is inclusive. Ignored when `max.is_none()`. */
+            inclusive_max?: boolean;
+            /** @description Whether `min` is inclusive. Ignored when `min.is_none()`. */
+            inclusive_min?: boolean;
+            /** @description Localized display label (`"Normal"` / `"정상"`). */
+            label?: components["schemas"]["LocalizedText"];
+            /**
+             * Format: double
+             * @description Upper bound. `None` means +∞.
+             */
+            max?: number | null;
+            /**
+             * Format: double
+             * @description Lower bound. `None` means -∞.
+             */
+            min?: number | null;
+            severity?: null | components["schemas"]["Severity"];
+        };
+        /** @description A named set of numeric interpretive bands. */
+        ValueRangeSetDef: {
+            /**
+             * @description Ordered bands. Authored non-overlapping; the declaration
+             *     order drives tie-breaking on any accidental overlap and
+             *     drives UI rendering order.
+             */
+            bands?: components["schemas"]["ValueBand"][];
+            description?: components["schemas"]["LocalizedText"];
+            display_name?: components["schemas"]["LocalizedText"];
+            id: components["schemas"]["ValueRangeSetId"];
+            name: string;
+            version: string;
+        };
+        /** @description Stable identifier for a [`ValueRangeSetDef`]. */
+        ValueRangeSetId: string;
+        /**
+         * @description A named subset of one or more [`CodeSystemDef`]s.
+         *
+         *     A `ValueSetDef` decouples "what values are allowed in this
+         *     context" from "what codes exist in the system". A single
+         *     `CodeSystemDef` may be referenced by any number of
+         *     `ValueSetDef`s, each carving out a different subset for a
+         *     different use (order-states allowed in the API vs. the subset
+         *     exposed in the admin UI).
+         */
+        ValueSetDef: {
+            /**
+             * @description Ordered composition rules. Empty composition is legal (the
+             *     set is empty), but usually a bug — `validate()` surfaces it
+             *     as a diagnostic, not a hard error.
+             */
+            composition?: components["schemas"]["ValueSetIncludeRule"][];
+            /**
+             * @description Localized description — what's the context this set applies
+             *     to, when would an engineer pick this one over a sibling.
+             */
+            description?: components["schemas"]["LocalizedText"];
+            /** @description Localized display name. */
+            display_name?: components["schemas"]["LocalizedText"];
+            id: components["schemas"]["ValueSetId"];
+            /** @description Short human identifier (`"OpenOrderStates"`). */
+            name: string;
+            /**
+             * @description Version string. Value sets evolve as business requirements
+             *     change (a new status gets added, a deprecated one is
+             *     dropped); `PropertyDef.value_set_id` tracks the set *id*,
+             *     not the version — the admin UI shows the version so
+             *     operators know which one they're looking at.
+             */
+            version: string;
+        };
+        /** @description Stable identifier for a [`ValueSetDef`]. */
+        ValueSetId: string;
+        /** @description One include or exclude clause in a [`ValueSetDef::composition`]. */
+        ValueSetIncludeRule: {
+            /** @description Whether the rule includes or excludes the selected codes. */
+            mode: components["schemas"]["IncludeMode"];
+            /** @description Which codes this rule applies to. */
+            selector: components["schemas"]["ValueSetSelector"];
+            /**
+             * @description Source system. Every code this rule selects comes from
+             *     this system.
+             */
+            system_id: components["schemas"]["CodeSystemId"];
+        };
+        /** @description Which codes from a system are selected by a composition rule. */
+        ValueSetSelector: {
+            /** @enum {string} */
+            kind: "all";
+        } | {
+            codes: string[];
+            /** @enum {string} */
+            kind: "explicit";
+        } | {
+            /** @enum {string} */
+            kind: "descendants_of";
+            root_id: components["schemas"]["CodedValueId"];
+        } | {
+            /** @enum {string} */
+            kind: "code_pattern";
+            pattern: string;
+        };
+        /** @enum {string} */
+        VectorSimilarity: "cosine" | "euclidean";
         /** @description Workbench perspective — saved canvas state. */
         WorkbenchPerspective: {
             collapsed_groups: unknown;

@@ -11,6 +11,7 @@ import { editProject } from "@/lib/api";
 import type { ContextMenuItem } from "@/components/workbench/canvas/context-menu";
 import type { UseGraphContextMenuResult } from "@/lib/use-graph-context-menu";
 import type { OntologyIR, OntologyCommand } from "@/types/api";
+import { arr } from "@/lib/ir-collections";
 
 // ---------------------------------------------------------------------------
 // useOntologyContextMenu — ontology-aware right-click menu contributions
@@ -107,9 +108,9 @@ export function useOntologyContextMenu(
   const nodeContextMenuItems = useMemo((): ContextMenuItem[] => {
     if (!target || target.type !== "node" || !ontology) return [];
     const nodeId = target.id;
-    const nodeDef = ontology.node_types.find((n) => n.id === nodeId);
+    const nodeDef = arr(ontology.node_types).find((n) => n.id === nodeId);
     if (!nodeDef) return [];
-    const connectedEdges = ontology.edge_types.filter(
+    const connectedEdges = arr(ontology.edge_types).filter(
       (e) => e.source_node_id === nodeId || e.target_node_id === nodeId,
     );
     const activeProject = useAppStore.getState().activeProject;
@@ -167,7 +168,7 @@ export function useOntologyContextMenu(
   const edgeContextMenuItems = useMemo((): ContextMenuItem[] => {
     if (!target || target.type !== "edge" || !ontology) return [];
     const edgeId = target.id;
-    const edgeDef = ontology.edge_types.find((e) => e.id === edgeId);
+    const edgeDef = arr(ontology.edge_types).find((e) => e.id === edgeId);
     if (!edgeDef) return [];
     const project = useAppStore.getState().activeProject;
     return [

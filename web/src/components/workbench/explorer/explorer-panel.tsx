@@ -8,6 +8,7 @@ import { useAppStore, selectStateSelectedNodeId, selectStateSelectedEdgeId } fro
 import { cn } from "@/lib/cn";
 import { Tooltip } from "@/components/ui/tooltip";
 import type { QualityGap, NodeTypeDef, EdgeTypeDef } from "@/types/api";
+import { arr } from "@/lib/ir-collections";
 
 // ---------------------------------------------------------------------------
 // Explorer — node/edge list with search and quality indicators
@@ -69,18 +70,18 @@ const NodeItem = memo(function NodeItem({
         selected && "bg-emerald-50 dark:bg-emerald-950/30",
       )}
     >
-      <Tooltip content={nodeLayerTooltip(node.source_table, highGapCount, isAdded)}>
+      <Tooltip content={nodeLayerTooltip(node.source_lineage?.table, highGapCount, isAdded)}>
         <span className={cn(
           "inline-block h-2 w-2 rounded-full",
-          nodeLayerColor(node.source_table, highGapCount, isAdded),
+          nodeLayerColor(node.source_lineage?.table, highGapCount, isAdded),
         )} />
       </Tooltip>
       <span className="flex-1 truncate text-zinc-700 dark:text-zinc-300">
         {node.label}
       </span>
-      <Tooltip content={`${node.properties.length} properties`}>
+      <Tooltip content={`${arr(node.properties).length} properties`}>
         <span className="text-[10px] text-muted-foreground">
-          {node.properties.length} props
+          {arr(node.properties).length} props
         </span>
       </Tooltip>
       {isAdded && (
@@ -213,20 +214,20 @@ export function ExplorerPanel({ gaps }: { gaps: QualityGap[] }) {
     if (!ontology) return { nodes: [], edges: [] };
     const q = search.toLowerCase();
     return {
-      nodes: ontology.node_types.filter(
+      nodes: arr(ontology.node_types).filter(
         (n) =>
           !q ||
           n.label.toLowerCase().includes(q) ||
-          n.properties.some((p) => p.name.toLowerCase().includes(q)),
+          arr(n.properties).some((p) => p.name.toLowerCase().includes(q)),
       ),
-      edges: ontology.edge_types.filter(
+      edges: arr(ontology.edge_types).filter(
         (e) =>
           !q ||
           e.label.toLowerCase().includes(q) ||
-          (ontology.node_types.find((n) => n.id === e.source_node_id)?.label ?? "")
+          (arr(ontology.node_types).find((n) => n.id === e.source_node_id)?.label ?? "")
             .toLowerCase()
             .includes(q) ||
-          (ontology.node_types.find((n) => n.id === e.target_node_id)?.label ?? "")
+          (arr(ontology.node_types).find((n) => n.id === e.target_node_id)?.label ?? "")
             .toLowerCase()
             .includes(q),
       ),

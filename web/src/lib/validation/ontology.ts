@@ -16,13 +16,24 @@ export const PropertyTypeSchema: z.ZodType<PropertyType> =
     }),
   );
 
+export const LocalizedTextSchema = z.object({
+  default: z.string(),
+  translations: z.record(z.string(), z.string()).optional(),
+});
+
+export const SourceLineageSchema = z.object({
+  source_id: z.string().nullish(),
+  table: z.string(),
+  primary_key: z.array(z.string()).optional(),
+});
+
 export const PropertyDefSchema = z.object({
   id: z.string(),
   name: z.string(),
   property_type: PropertyTypeSchema,
   nullable: z.boolean().optional(),
   default_value: z.unknown().optional(),
-  description: z.string().nullish(),
+  description: LocalizedTextSchema.nullish(),
   source_column: z.string().nullish(),
 });
 
@@ -35,8 +46,8 @@ export const ConstraintDefSchema = z.union([
 export const NodeTypeDefSchema = z.object({
   id: z.string(),
   label: z.string(),
-  description: z.string().nullish(),
-  source_table: z.string().nullish(),
+  description: LocalizedTextSchema.nullish(),
+  source_lineage: SourceLineageSchema.nullish(),
   properties: z.array(PropertyDefSchema),
   constraints: z.array(ConstraintDefSchema).optional(),
 });
@@ -51,7 +62,7 @@ export const CardinalitySchema = z.enum([
 export const EdgeTypeDefSchema = z.object({
   id: z.string(),
   label: z.string(),
-  description: z.string().nullish(),
+  description: LocalizedTextSchema.nullish(),
   source_node_id: z.string(),
   target_node_id: z.string(),
   properties: z.array(PropertyDefSchema),
@@ -72,16 +83,11 @@ export const IndexDefSchema = z.object({
 export const OntologyIRSchema = z.object({
   id: z.string(),
   name: z.string(),
-  description: z.string().nullish(),
+  description: LocalizedTextSchema.nullish(),
   version: z.number(),
   node_types: z.array(NodeTypeDefSchema),
   edge_types: z.array(EdgeTypeDefSchema),
   indexes: z.array(IndexDefSchema).optional(),
-});
-
-export const LocalizedTextSchema = z.object({
-  default: z.string(),
-  translations: z.record(z.string(), z.string()).optional(),
 });
 
 export const CurrentVersionSummarySchema = z.object({

@@ -1,4 +1,5 @@
 import type { OntologyIR, NodeTypeDef, EdgeTypeDef } from "@/types/api";
+import { arr } from "@/lib/ir-collections";
 
 
 /**
@@ -17,13 +18,13 @@ export interface OntologyIndex {
 
 export function buildOntologyIndex(ontology: OntologyIR): OntologyIndex {
   const nodeById = new Map<string, NodeTypeDef>();
-  for (const n of ontology.node_types) {
+  for (const n of arr(ontology.node_types)) {
     nodeById.set(n.id, n);
   }
 
   const edgeById = new Map<string, EdgeTypeDef>();
   const edgesByNodeId = new Map<string, EdgeTypeDef[]>();
-  for (const e of ontology.edge_types) {
+  for (const e of arr(ontology.edge_types)) {
     edgeById.set(e.id, e);
 
     const srcList = edgesByNodeId.get(e.source_node_id) ?? [];

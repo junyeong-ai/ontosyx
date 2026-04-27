@@ -16,6 +16,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 import { useGuardPendingEdits } from "@/lib/guard-pending-edits";
+import { arr } from "@/lib/ir-collections";
 
 /**
  * Resolve the ontology IR for a past execution. Draft executions carry
@@ -106,8 +107,8 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
 
     // Validate that referenced node/edge IDs exist in current ontology
     const bindings = execution.query_bindings;
-    const currentNodeIds = new Set(currentOntology.node_types.map((n: { id: string }) => n.id));
-    const currentEdgeIds = new Set(currentOntology.edge_types.map((e: { id: string }) => e.id));
+    const currentNodeIds = new Set(arr(currentOntology.node_types).map((n: { id: string }) => n.id));
+    const currentEdgeIds = new Set(arr(currentOntology.edge_types).map((e: { id: string }) => e.id));
 
     const validNodeBindings = bindings.node_bindings.filter(
       (b: { node_id: string }) => currentNodeIds.has(b.node_id),
