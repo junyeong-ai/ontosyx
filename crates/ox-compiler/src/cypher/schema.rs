@@ -1,10 +1,19 @@
+use std::collections::HashMap;
 use std::sync::OnceLock;
 
-use ox_ontology::ir::{IndexDef, NodeConstraint, NodeTypeDef, OntologyIR, PropertyDef};
+use ox_ontology::ir::{IndexDef, NodeConstraint, NodeTypeDef, OntologyIR, PropertyDef, PropertyId};
+use ox_core::property_key::PropertyKey;
 use ox_core::types::PropertyType;
 
 use super::CypherDialect;
 use super::params::escape_identifier;
+
+/// O(1) `PropertyId → PropertyKey` lookup over a node's properties.
+/// Built once per call site that needs to resolve multiple ids against
+/// the same node, replacing the linear `properties.iter().find()` walk.
+fn property_name_index(node: &NodeTypeDef) -> HashMap<&PropertyId, &PropertyKey> {
+    node.properties.iter().map(|p| (&p.id, &p.name)).collect()
+}
 
 /// Default maximum number of auto-generated range indices when
 /// [`init_auto_index_config`] has not been called.
@@ -90,14 +99,15 @@ pub(crate) fn compile_node_constraints(node: &NodeTypeDef, dialect: CypherDialec
     let mut stmts = Vec::new();
     let label = &node.label;
     let escaped_label = escape_identifier(label);
+    let prop_names = property_name_index(node);
 
     for constraint_def in &node.constraints {
         match &constraint_def.constraint {
             NodeConstraint::Unique { property_ids } => {
                 let prop_paths: Vec<String> = property_ids
                     .iter()
-                    .filter_map(|pid| node.properties.iter().find(|p| p.id == *pid))
-                    .map(|p| format!("n.{}", escape_identifier(&p.name)))
+                    .filter_map(|pid| prop_names.get(pid).copied())
+                    .map(|name| format!("n.{}", escape_identifier(name)))
                     .collect();
                 if prop_paths.is_empty() {
                     continue;
@@ -145,8 +155,8 @@ pub(crate) fn compile_node_constraints(node: &NodeTypeDef, dialect: CypherDialec
                 CypherDialect::Neo4j => {
                     let props = property_ids
                         .iter()
-                        .filter_map(|pid| node.properties.iter().find(|p| p.id == *pid))
-                        .map(|p| format!("n.{}", escape_identifier(&p.name)))
+                        .filter_map(|pid| prop_names.get(pid).copied())
+                        .map(|name| format!("n.{}", escape_identifier(name)))
                         .collect::<Vec<_>>()
                         .join(", ");
                     stmts.push(format!(
@@ -207,12 +217,14 @@ pub(super) fn compile_index(
             property_ids,
         } => {
             let label = escape_identifier(ontology.node_label(node_id).unwrap_or("UNKNOWN"));
-            let node = ontology.node_by_id(node_id);
+            let lookup = ontology.node_by_id(node_id).map(property_name_index);
             let prop_names: Vec<String> = property_ids
                 .iter()
                 .map(|pid| {
-                    node.and_then(|n| n.properties.iter().find(|p| p.id == *pid))
-                        .map(|p| escape_identifier(&p.name))
+                    lookup
+                        .as_ref()
+                        .and_then(|m| m.get(pid).copied())
+                        .map(|name| escape_identifier(name))
                         .unwrap_or_else(|| escape_identifier("UNKNOWN"))
                 })
                 .collect();
@@ -260,12 +272,14 @@ pub(super) fn compile_index(
             }
             let label = escape_identifier(ontology.node_label(node_id).unwrap_or("UNKNOWN"));
             let escaped_name = escape_identifier(name);
-            let node = ontology.node_by_id(node_id);
+            let lookup = ontology.node_by_id(node_id).map(property_name_index);
             let props = property_ids
                 .iter()
                 .map(|pid| {
-                    node.and_then(|n| n.properties.iter().find(|p| p.id == *pid))
-                        .map(|p| format!("n.{}", escape_identifier(&p.name)))
+                    lookup
+                        .as_ref()
+                        .and_then(|m| m.get(pid).copied())
+                        .map(|name| format!("n.{}", escape_identifier(name)))
                         .unwrap_or_else(|| format!("n.{}", escape_identifier("UNKNOWN")))
                 })
                 .collect::<Vec<_>>()

@@ -6,7 +6,8 @@ PostgreSQL persistence with Row-Level Security.
 
 1. Define the trait in `store.rs` with async methods.
 2. Add it to the `Store` supertrait (both trait def and blanket impl).
-3. Implement in `postgres.rs`.
+3. Implement in `postgres/<domain>.rs` — one file per trait, mirroring
+   `postgres/ontology_version.rs`, `postgres/ambiguity.rs`, etc.
 4. Re-export from `lib.rs`.
 
 ## Migration Conventions
