@@ -248,3 +248,165 @@ async fn deny_policy_drops_named_property_from_result_entirely() {
     assert_eq!(string_at(&result, 0, 0), "Alice");
     assert_eq!(string_at(&result, 1, 0), "Bob");
 }
+
+#[tokio::test]
+async fn deny_supersedes_mask_when_both_target_the_same_property() {
+    // The verified semantic of `enforce_acl_on_result`: Deny lands
+    // first in the column-removal pass and Mask is only applied to
+    // properties that aren't denied. Same-column Mask + Deny resolve
+    // to "column dropped, mask never applied" — Deny wins by being
+    // absolute, regardless of which policy comes first in the
+    // snapshot. This pin guards against a future refactor that
+    // reorders the deny/mask passes and silently lets a sensitive
+    // column ship as the literal mask pattern.
+    let mut result = execute_against_fixture(&select_name_and_ssn()).await;
+
+    let combined = AclSnapshot {
+        policies: vec![
+            AclPolicySpec {
+                action: AclAction::Mask,
+                resource_type: "label".into(),
+                resource_value: Some("Customer".into()),
+                properties: Some(vec!["ssn".into()]),
+                mask_pattern: Some("MASKED".into()),
+                priority: 100,
+            },
+            AclPolicySpec {
+                action: AclAction::Deny,
+                resource_type: "label".into(),
+                resource_value: Some("Customer".into()),
+                properties: Some(vec!["ssn".into()]),
+                mask_pattern: None,
+                priority: 50,
+            },
+        ],
+    };
+
+    ox_api::acl_enforcement::enforce_acl_on_result(&mut result, &combined);
+
+    assert_eq!(
+        result.columns,
+        vec!["name".to_string()],
+        "Deny is absolute — column removed, mask pattern never reaches the wire",
+    );
+    for row in &result.rows {
+        assert!(
+            row.iter().all(|v| !matches!(
+                v,
+                PropertyValue::String(s) if s == "MASKED"
+            )),
+            "the mask pattern must never surface for a denied column",
+        );
+    }
+}
+
+#[tokio::test]
+async fn mask_and_deny_on_distinct_columns_apply_additively() {
+    // Independent properties — both policies apply because the deny
+    // set and the mask set don't intersect. The non-denied column
+    // gets its mask pattern; the denied column disappears.
+    let csv = "id,name,ssn\n1,Alice,123-45-6789\n2,Bob,987-65-4321\n";
+    let (ont, resolver) = build_customer_ontology_with_csv(csv);
+    let workspace_id = "ws-acl-e2e";
+    let plan = build_query_ir_scoped(&ont, &select_name_and_ssn(), workspace_id, &resolver)
+        .await
+        .expect("planner accepts the fixture query");
+    let ctx = FederationContext::new(WorkspaceRef::new(workspace_id));
+    let batches = ctx.execute_plan(plan).await.expect("execute_plan");
+    let mut result =
+        ox_api::arrow_conversion::record_batches_to_query_result(&batches, 0).expect("convert");
+
+    let multi = AclSnapshot {
+        policies: vec![
+            AclPolicySpec {
+                action: AclAction::Mask,
+                resource_type: "label".into(),
+                resource_value: Some("Customer".into()),
+                properties: Some(vec!["name".into()]),
+                mask_pattern: Some("[redacted]".into()),
+                priority: 100,
+            },
+            AclPolicySpec {
+                action: AclAction::Deny,
+                resource_type: "label".into(),
+                resource_value: Some("Customer".into()),
+                properties: Some(vec!["ssn".into()]),
+                mask_pattern: None,
+                priority: 100,
+            },
+        ],
+    };
+
+    ox_api::acl_enforcement::enforce_acl_on_result(&mut result, &multi);
+
+    assert_eq!(
+        result.columns,
+        vec!["name".to_string()],
+        "ssn dropped by Deny; name kept (masked) — distinct columns merge the two actions",
+    );
+    assert_eq!(string_at(&result, 0, 0), "[redacted]");
+    assert_eq!(string_at(&result, 1, 0), "[redacted]");
+}
+
+#[tokio::test]
+async fn policy_targeting_a_different_label_is_a_noop() {
+    // Sanity: an `Order`-targeted policy must not affect a Customer
+    // query. The post-process layer compares column names against
+    // the snapshot's `properties` whitelist, but the production
+    // load-acl-snapshot path filters by `resource_value` upstream.
+    // This test pins the post-process behaviour: an in-snapshot
+    // policy whose `properties` don't intersect the result's
+    // columns is a no-op.
+    let mut result = execute_against_fixture(&select_name_and_ssn()).await;
+
+    let unrelated = AclSnapshot {
+        policies: vec![AclPolicySpec {
+            action: AclAction::Mask,
+            resource_type: "label".into(),
+            resource_value: Some("Order".into()),
+            properties: Some(vec!["total".into()]),
+            mask_pattern: Some("***".into()),
+            priority: 100,
+        }],
+    };
+
+    ox_api::acl_enforcement::enforce_acl_on_result(&mut result, &unrelated);
+
+    assert_eq!(result.columns, vec!["name".to_string(), "ssn".to_string()]);
+    assert_eq!(string_at(&result, 0, 0), "Alice");
+    assert_eq!(string_at(&result, 0, 1), "123-45-6789");
+}
+
+// Helper for `mask_and_deny_on_distinct_columns_apply_additively` — the
+// other tests use the module-level `execute_against_fixture` which
+// hard-codes the SENSITIVE_CSV constant. Letting this scenario specify
+// its own CSV keeps the rebuild minimal.
+fn build_customer_ontology_with_csv(csv: &str) -> (OntologyIR, InMemoryAdapterResolver) {
+    let mut ont = OntologyIR::new(
+        "ont-acl".into(),
+        "acl-fixture".into(),
+        LocalizedText::default(),
+        1,
+        vec![NodeTypeDef {
+            id: "nt-customer".into(),
+            label: gl("Customer"),
+            ..Default::default()
+        }],
+        vec![],
+        vec![],
+    );
+    ont.add_object_mapping(ObjectMappingDef::new(
+        "om-customer",
+        "nt-customer",
+        "csv-crm",
+        "records",
+    ))
+    .unwrap();
+
+    let mut resolver = InMemoryAdapterResolver::new();
+    let adapter: Arc<dyn DataSourceAdapter> =
+        Arc::new(CsvAdapter::new(csv).expect("csv adapter"));
+    resolver.register("csv-crm", adapter);
+
+    (ont, resolver)
+}
