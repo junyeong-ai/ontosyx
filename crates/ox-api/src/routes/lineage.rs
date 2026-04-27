@@ -67,7 +67,7 @@ pub(crate) async fn get_lineage_for_project(
     principal.require_designer()?;
     let entries = state
         .store
-        .get_lineage_for_project(id)
+        .list_lineage_for_project(id)
         .await
         .map_err(AppError::from)?;
     Ok(ApiResponse::of(entries))

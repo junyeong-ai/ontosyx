@@ -962,7 +962,7 @@ pub trait LineageStore: Send + Sync {
     async fn list_lineage_for_label(&self, graph_label: &str) -> OxResult<Vec<LineageEntry>>;
 
     /// Get lineage entries for a project.
-    async fn get_lineage_for_project(&self, project_id: Uuid) -> OxResult<Vec<LineageEntry>>;
+    async fn list_lineage_for_project(&self, project_id: Uuid) -> OxResult<Vec<LineageEntry>>;
 
     /// Get a summary of lineage per graph label (for overview).
     async fn lineage_summary(&self) -> OxResult<Vec<LineageSummary>>;

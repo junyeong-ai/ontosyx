@@ -66,7 +66,7 @@ impl LineageStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn get_lineage_for_project(&self, project_id: Uuid) -> OxResult<Vec<LineageEntry>> {
+    async fn list_lineage_for_project(&self, project_id: Uuid) -> OxResult<Vec<LineageEntry>> {
         sqlx::query_as("SELECT * FROM data_lineage WHERE project_id = $1 ORDER BY started_at DESC")
             .bind(project_id)
             .fetch_all(&self.pool)
