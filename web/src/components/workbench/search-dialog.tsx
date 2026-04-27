@@ -17,7 +17,8 @@ import {
   resolveSubtitle,
 } from "./explore/graph-utils";
 import { arr } from "@/lib/ir-collections";
-import { defaultText } from "@/lib/locale/localize";
+import { localize } from "@/lib/locale/localize";
+import { useLocaleChain } from "@/lib/use-locale-chain";
 
 // ---------------------------------------------------------------------------
 // SearchDialog — Cmd+K graph entity search overlay
@@ -43,7 +44,11 @@ type SchemaMatch = SchemaNodeMatch | SchemaEdgeMatch;
 
 // --- Schema search (local, instant) ---
 
-function searchSchema(query: string, ontology: { node_types: NodeTypeDef[]; edge_types: EdgeTypeDef[] }): SchemaMatch[] {
+function searchSchema(
+  query: string,
+  ontology: { node_types: NodeTypeDef[]; edge_types: EdgeTypeDef[] },
+  chain: readonly string[],
+): SchemaMatch[] {
   const q = query.toLowerCase();
   if (!q) return [];
 
@@ -60,7 +65,7 @@ function searchSchema(query: string, ontology: { node_types: NodeTypeDef[]; edge
     } else if (arr(node.properties).some((p) => p.name.toLowerCase().includes(q))) {
       const matchingProp = arr(node.properties).find((p) => p.name.toLowerCase().includes(q));
       results.push({ kind: "node", node, matchReason: `property: ${matchingProp?.name}` });
-    } else if (defaultText(node.description).toLowerCase().includes(q)) {
+    } else if (localize(node.description, chain).toLowerCase().includes(q)) {
       results.push({ kind: "node", node, matchReason: "description" });
     }
   }
@@ -96,12 +101,13 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
 
   const select = useAppStore((s) => s.select);
   const ontology = useAppStore((s) => s.ontology);
+  const localeChain = useLocaleChain();
 
   // Instant schema search as user types
   const schemaMatches = useMemo(() => {
     if (!ontology || !query.trim()) return [];
-    return searchSchema(query.trim(), ontology);
-  }, [query, ontology]);
+    return searchSchema(query.trim(), ontology, localeChain);
+  }, [query, ontology, localeChain]);
 
   // Total selectable items count
   const totalItems = schemaMatches.length + dataHits.length;
