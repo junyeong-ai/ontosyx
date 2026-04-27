@@ -283,22 +283,6 @@ export function ChatPanel() {
               });
             },
             onToolComplete(event) {
-              // Parse step_timings from tool output to populate steps
-              // (progress events arrive simultaneously with complete in drain mode)
-              let completedSteps: ToolStep[] | undefined;
-              if (!event.is_error && event.output) {
-                try {
-                  const parsed = JSON.parse(event.output);
-                  if (Array.isArray(parsed.step_timings)) {
-                    completedSteps = parsed.step_timings.map((t: { step: string; duration_ms: number }) => ({
-                      step: t.step,
-                      status: "completed" as const,
-                      durationMs: t.duration_ms,
-                    }));
-                  }
-                } catch { /* not JSON or no step_timings */ }
-              }
-
               updateMessage(assistantId, {
                 toolCalls: (getAssistant()?.toolCalls ?? []).map((tc) =>
                   tc.id === event.id
@@ -307,8 +291,6 @@ export function ChatPanel() {
                         output: event.output,
                         status: event.is_error ? "error" : "done",
                         durationMs: event.duration_ms,
-                        // Populate steps from step_timings if not already set from progress events
-                        steps: tc.steps?.length ? tc.steps : completedSteps,
                       }
                     : tc,
                 ),

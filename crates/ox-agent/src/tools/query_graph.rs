@@ -27,10 +27,10 @@ pub struct QueryGraphInput {
 
 /// Tool result returned to the LLM. Carries only what the model needs
 /// to reason about the next step — execution metadata (provenance,
-/// compiled target language, attribution) lives on the persisted
-/// `QueryExecution` row and the FE fetches it through
-/// `/api/executions/{id}` when it needs to render the response-basis
-/// panel.
+/// compiled target, per-step timing, attribution) lives on the
+/// persisted `QueryExecution` row and the streaming progress events;
+/// the FE renders timing from the SSE stream and provenance via
+/// `/api/executions/{id}`.
 #[derive(Debug, Serialize)]
 struct QueryGraphOutput {
     execution_id: String,
@@ -42,19 +42,12 @@ struct QueryGraphOutput {
     widget_hint: Option<WidgetHintOutput>,
     #[serde(skip_serializing_if = "Option::is_none")]
     cost: Option<ox_compiler::cost::QueryCost>,
-    step_timings: Vec<StepTiming>,
     #[serde(skip_serializing_if = "Option::is_none")]
     guidance: Option<String>,
     /// Validator diagnostics; the LLM reads a flattened form via
     /// `guidance`, the structured list stays here for the chat UI.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     warnings: Vec<ox_query_ir::query::QueryDiagnostic>,
-}
-
-#[derive(Debug, Serialize)]
-struct StepTiming {
-    step: String,
-    duration_ms: u64,
 }
 
 #[derive(Debug, Serialize)]
@@ -109,7 +102,6 @@ impl SchemaTool for QueryGraphTool {
         };
 
         let start = std::time::Instant::now();
-        let mut step_timings = Vec::with_capacity(3);
         let cancel = ctx.cancel_token().cloned();
 
         let question = input.question.clone();
@@ -118,21 +110,13 @@ impl SchemaTool for QueryGraphTool {
         // Brain emits sub-steps (schema_discovery, llm_primary, llm_fallback)
         // via ctx.emit_progress(), providing real-time visibility.
         // Cancel is handled by branchforge ToolRegistry at the outer level.
-        let t1 = std::time::Instant::now();
         let query_ir = match tokio::time::timeout(
             std::time::Duration::from_secs(60),
             self.brain.translate_query(&question, &ontology, ctx),
         )
         .await
         {
-            Ok(Ok(ir)) => {
-                let ms = t1.elapsed().as_millis() as u64;
-                step_timings.push(StepTiming {
-                    step: "translating".into(),
-                    duration_ms: ms,
-                });
-                ir
-            }
+            Ok(Ok(ir)) => ir,
             Ok(Err(e)) => {
                 warn!(question = %question, error = %e, "Query translation failed");
                 return ToolResult::error(format!("Query translation failed: {e}"));
@@ -196,13 +180,8 @@ impl SchemaTool for QueryGraphTool {
         let t2 = std::time::Instant::now();
         let compiled = match self.domain.compiler.compile_query(&query_ir) {
             Ok(c) => {
-                let ms = t2.elapsed().as_millis() as u64;
-                step_timings.push(StepTiming {
-                    step: "compiling".into(),
-                    duration_ms: ms,
-                });
                 ctx.progress("compiling").completed_with(
-                    ms,
+                    t2.elapsed().as_millis() as u64,
                     serde_json::json!({ "cypher": truncate(&c.statement, 500) }),
                 );
                 c
@@ -237,10 +216,10 @@ impl SchemaTool for QueryGraphTool {
             ) => {
                 match timeout_result {
                     Ok(Ok(r)) => {
-                        let ms = t3.elapsed().as_millis() as u64;
-                        step_timings.push(StepTiming { step: "executing".into(), duration_ms: ms });
-                        ctx.progress("executing").completed_with(ms,
-                            serde_json::json!({ "row_count": r.metadata.rows_returned }));
+                        ctx.progress("executing").completed_with(
+                            t3.elapsed().as_millis() as u64,
+                            serde_json::json!({ "row_count": r.metadata.rows_returned }),
+                        );
                         r
                     }
                     Ok(Err(e)) => {
@@ -596,7 +575,6 @@ impl SchemaTool for QueryGraphTool {
             rows: serde_json::to_value(&results.rows).unwrap_or_default(),
             widget_hint,
             cost,
-            step_timings,
             guidance,
             warnings: validator_notes,
         };
