@@ -73,15 +73,17 @@ Multi-mapping hops (`link_mappings.len() > 1`) are supported at all three positi
 
 ## Scan coverage
 
-Today only CSV and JSON adapters ship `scan()` against arrow-55 `RecordBatch`.
-JSON handles the top-level `records` table plus nested `records_<a>_<b>...`
-relations of arbitrary depth (the adapter walks `schema.tables` longest-
-prefix to disambiguate field names that contain `_`, and flattens array-of-
-object hops top-down). PostgreSQL / MySQL / DuckDB / Snowflake / BigQuery
-are introspection-only; each returns `UnsupportedOperation` on scan until
-the adapter layer grows a materialisation path. DuckDB specifically is
-blocked on the arrow 55 → 58 upgrade (duckdb 1.x needs arrow 58; DataFusion
-49 pins 55).
+PostgreSQL / MySQL / BigQuery / CSV / JSON adapters ship `scan()` against
+arrow-55 `RecordBatch`. JSON handles the top-level `records` table plus
+nested `records_<a>_<b>...` relations of arbitrary depth (the adapter
+walks `schema.tables` longest-prefix to disambiguate field names that
+contain `_`, and flattens array-of-object hops top-down). DuckDB,
+Snowflake, and MongoDB are introspection-only; each returns
+`UnsupportedOperation` on scan until the adapter layer grows a
+materialisation path. DuckDB specifically pairs that work with the
+arrow 55 → 58 upgrade — duckdb 1.x already pulls arrow 58 transitively,
+so its scan path needs the workspace to coordinate the bump across
+DataFusion + snowflake-api + gcp-bigquery-client at the same slice.
 
 ## Don't
 
