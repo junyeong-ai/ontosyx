@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { Spinner } from "@/components/ui/spinner";
@@ -14,6 +15,8 @@ import {
   listMembers,
 } from "@/lib/api/workspaces";
 import { getWorkspaceId, setWorkspaceName } from "@/lib/workspace";
+import { workspacesKeys } from "@/hooks/api/use-workspaces";
+import { localeChainKeys } from "@/lib/use-locale-chain";
 import { MembersTable } from "@/components/workspace/members-table";
 import type { Workspace, WorkspaceMember } from "@/types/workspace";
 
@@ -26,6 +29,7 @@ export default function WorkspaceSettingsPage() {
   const t = useTranslations("settings.workspace");
   const tCommon = useTranslations("common");
   const wsId = getWorkspaceId();
+  const qc = useQueryClient();
 
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
@@ -67,6 +71,7 @@ export default function WorkspaceSettingsPage() {
       const updated = await updateWorkspace(wsId, { name: editName.trim() });
       setWorkspace(updated);
       setWorkspaceName(updated.name);
+      qc.invalidateQueries({ queryKey: workspacesKeys.all });
       toast.success(t("toast.updated"));
     } catch {
       toast.error(t("toast.updateFailed"));
@@ -99,6 +104,8 @@ export default function WorkspaceSettingsPage() {
       setWorkspace(updated);
       setEditPrimaryLocale(updated.primary_locale);
       setEditFallback((updated.locale_fallback ?? []).join(","));
+      qc.invalidateQueries({ queryKey: localeChainKeys.all });
+      qc.invalidateQueries({ queryKey: workspacesKeys.all });
       toast.success(t("locale.toast.updated"));
     } catch {
       toast.error(t("locale.toast.updateFailed"));
