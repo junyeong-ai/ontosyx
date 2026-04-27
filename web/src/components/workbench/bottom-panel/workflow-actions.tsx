@@ -5,56 +5,44 @@ import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Tick01Icon,
-  Refresh01Icon,
   Delete01Icon,
   MagicWand01Icon,
-  Add01Icon,
 } from "@hugeicons/core-free-icons";
+import { toast } from "sonner";
+
 import { Spinner } from "@/components/ui/spinner";
-import { useAppStore } from "@/lib/store";
-import {
-  ApiError,
-  designProjectStream,
-  reanalyzeProject,
-  completeProject,
-  updateDecisions,
-  deleteProject,
-  extendProject,
-  deploySchema,
-  generateLoadPlan,
-  compileLoad,
-  auditGraph,
-  adoptGraph,
-} from "@/lib/api";
-import type { GraphAuditReport } from "@/lib/api";
-import { isGitUrl } from "@/lib/git-url";
 import { Button } from "@/components/ui/button";
 import { FormInput } from "@/components/ui/form-input";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useAppStore } from "@/lib/store";
+import {
+  ApiError,
+  completeProject,
+  deleteProject,
+  deploySchema,
+  designProjectStream,
+  updateDecisions,
+} from "@/lib/api";
 import { useGuardPendingEdits } from "@/lib/guard-pending-edits";
-import { toast } from "sonner";
 import { errorMessage } from "@/lib/error-messages";
+import { arr } from "@/lib/ir-collections";
 import type {
   DesignOptions,
   DesignProject,
-  DesignSource,
   OntologyIR,
 } from "@/types/api";
+
 import {
   StatusBadge,
-  relationshipKey,
   columnKey,
+  relationshipKey,
 } from "./design-panel-shared";
-import { ReconcileReportPanel } from "./reconcile-report-panel";
-import { ReanalyzeForm, ExtendSourceForm } from "./workflow-forms";
 import { ProgressIndicator, SourceHistorySection } from "./workflow-indicators";
 import { useWorkflowFormState } from "./use-workflow-form-state";
 import type { DesignDecisions } from "./use-design-decisions";
-import { arr } from "@/lib/ir-collections";
-
-// ---------------------------------------------------------------------------
-// Props
-// ---------------------------------------------------------------------------
+import { DeploymentActions } from "./deployment-actions";
+import { EnhanceActions } from "./enhance-actions";
+import { GraphAuditSection } from "./graph-audit-section";
 
 export interface WorkflowActionsProps extends DesignDecisions {
   project: DesignProject;
@@ -66,10 +54,6 @@ export interface WorkflowActionsProps extends DesignDecisions {
   /** Ref to the analysis review <details> element in the right panel */
   analysisRef: React.RefObject<HTMLDetailsElement | null>;
 }
-
-// ---------------------------------------------------------------------------
-// Left panel: project actions (analyzed -> design, designed -> enhance/complete)
-// ---------------------------------------------------------------------------
 
 export function WorkflowActions({
   project,
@@ -93,18 +77,15 @@ export function WorkflowActions({
   const report = project.analysis_report;
   const [progressPhase, setProgressPhase] = useState<string | null>(null);
   const [progressDetail, setProgressDetail] = useState<string | null>(null);
-  const lastReconcileReport = useAppStore((s) => s.lastReconcileReport);
-  const setLastReconcileReport = useAppStore((s) => s.setLastReconcileReport);
   const guardPendingEdits = useGuardPendingEdits();
   const confirmDialog = useConfirm();
 
-  const form = useWorkflowFormState(project.id, project.title, project.source_config.schema_name);
+  const form = useWorkflowFormState(
+    project.id,
+    project.title,
+    project.source_config.schema_name,
+  );
   const hasLargeSchema = (report?.schema_stats?.table_count ?? 0) > 100;
-  const reanalyzeSourceType = project.source_config.source_type;
-
-  // ---------------------------------------------------------------------------
-  // Derived values
-  // ---------------------------------------------------------------------------
 
   const isCompleted = project.status === "completed";
   const isDesigned = project.status === "designed";
@@ -114,10 +95,6 @@ export function WorkflowActions({
     !isCompleted &&
     unresolvedClarificationCount === 0 &&
     !needsPartialAcknowledgement;
-
-  // ---------------------------------------------------------------------------
-  // Handlers
-  // ---------------------------------------------------------------------------
 
   function buildDesignOptions(): DesignOptions {
     if (!report) return {};
@@ -213,7 +190,9 @@ export function WorkflowActions({
       });
 
       if (streamErrorMsg) {
-        toast.error(t("designFailed"), { description: errorMessage(streamErrorType, streamErrorMsg) });
+        toast.error(t("designFailed"), {
+          description: errorMessage(streamErrorType, streamErrorMsg),
+        });
       }
     } catch (err) {
       if (await onApiError(err, t("designFailed"))) return;
@@ -246,7 +225,8 @@ export function WorkflowActions({
           await deploySchema(project.id, { dry_run: false });
           toast.success(t("completeWithDeploy"));
         } catch (deployErr) {
-          const msg = deployErr instanceof ApiError ? deployErr.message : t("toast.unknownError");
+          const msg =
+            deployErr instanceof ApiError ? deployErr.message : t("toast.unknownError");
           toast.warning(t("deployFailedPartial", { error: msg }));
         }
       } else {
@@ -292,216 +272,8 @@ export function WorkflowActions({
     }
   }
 
-  async function handleReanalyze() {
-    if (!(await guardPendingEdits(t("guardActions.reanalyze")))) return;
-    let source: DesignSource;
-    if (reanalyzeSourceType === "postgresql") {
-      if (!form.reanalyze.connectionString.trim()) {
-        toast.error(t("connectionStringRequired"));
-        return;
-      }
-      source = {
-        type: "postgresql",
-        connection_string: form.reanalyze.connectionString.trim(),
-        schema: form.reanalyze.schemaName.trim() || "public",
-      };
-    } else if (reanalyzeSourceType === "code_repository") {
-      if (!form.reanalyze.repoUrl.trim()) {
-        toast.error(t("repoUrlRequired"));
-        return;
-      }
-      source = { type: "code_repository", url: form.reanalyze.repoUrl.trim() };
-    } else {
-      if (!form.reanalyze.sampleData.trim()) {
-        toast.error(t("sourceDataRequired"));
-        return;
-      }
-      source = { type: reanalyzeSourceType as "text" | "csv" | "json", data: form.reanalyze.sampleData.trim() };
-    }
-
-    setLoading(true);
-    try {
-      const resp = await reanalyzeProject(project.id, {
-        source,
-        revision: project.revision,
-        repo_source: form.reanalyze.repoPath.trim()
-          ? isGitUrl(form.reanalyze.repoPath.trim())
-            ? { type: "git_url" as const, url: form.reanalyze.repoPath.trim() }
-            : { type: "local" as const, path: form.reanalyze.repoPath.trim() }
-          : undefined,
-      });
-      setProject(resp.project);
-      form.reanalyze.setShowReanalyze(false);
-      toast.success(t("reanalyzed"), {
-        description: resp.invalidated_decisions?.length
-          ? t("reanalyzedDescription", { count: resp.invalidated_decisions.length })
-          : undefined,
-      });
-    } catch (err) {
-      if (await onApiError(err, t("reanalyzeFailed"))) return;
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleExtend() {
-    if (!(await guardPendingEdits(t("guardActions.extend")))) return;
-    let source: DesignSource;
-    if (form.extend.sourceType === "postgresql") {
-      if (!form.extend.connectionString.trim()) {
-        toast.error(t("connectionStringRequired"));
-        return;
-      }
-      source = {
-        type: "postgresql",
-        connection_string: form.extend.connectionString.trim(),
-        schema: form.extend.schemaName.trim() || "public",
-      };
-    } else if (form.extend.sourceType === "mysql") {
-      if (!form.extend.connectionString.trim()) {
-        toast.error(t("connectionStringRequired"));
-        return;
-      }
-      if (!form.extend.database.trim()) {
-        toast.error(t("databaseRequired"));
-        return;
-      }
-      source = {
-        type: "mysql",
-        connection_string: form.extend.connectionString.trim(),
-        schema: form.extend.database.trim(),
-      };
-    } else if (form.extend.sourceType === "mongodb") {
-      if (!form.extend.connectionString.trim()) {
-        toast.error(t("connectionStringRequired"));
-        return;
-      }
-      if (!form.extend.database.trim()) {
-        toast.error(t("databaseRequired"));
-        return;
-      }
-      source = {
-        type: "mongodb",
-        connection_string: form.extend.connectionString.trim(),
-        database: form.extend.database.trim(),
-      };
-    } else if (form.extend.sourceType === "duckdb") {
-      if (!form.extend.duckdbFilePath.trim()) {
-        toast.error(t("filePathRequired"));
-        return;
-      }
-      source = { type: "duckdb", file_path: form.extend.duckdbFilePath.trim() };
-    } else if (form.extend.sourceType === "snowflake") {
-      toast.error(t("snowflakeExtendUnsupported"));
-      return;
-    } else if (form.extend.sourceType === "bigquery") {
-      toast.error(t("bigqueryExtendUnsupported"));
-      return;
-    } else if (form.extend.sourceType === "code_repository") {
-      if (!form.extend.repoUrl.trim()) {
-        toast.error(t("repoUrlRequired"));
-        return;
-      }
-      source = { type: "code_repository", url: form.extend.repoUrl.trim() };
-    } else {
-      if (!form.extend.sampleData.trim()) {
-        toast.error(t("sourceDataRequired"));
-        return;
-      }
-      source = { type: form.extend.sourceType, data: form.extend.sampleData.trim() };
-    }
-
-    setLoading(true);
-    try {
-      const resp = await extendProject(project.id, {
-        revision: project.revision,
-        source,
-      });
-      setProject(resp.project);
-      if (resp.project.ontology) {
-        setOntology(resp.project.ontology as OntologyIR);
-      }
-      setLastReconcileReport(resp.reconcile_report);
-      form.extend.setShowExtend(false);
-      toast.success(t("extendSuccess"));
-      if (analysisRef.current) analysisRef.current.open = true;
-    } catch (err) {
-      if (await onApiError(err, t("extendFailed"))) return;
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Schema Deploy & Load handlers
-  // ---------------------------------------------------------------------------
-
-  async function handleDeployPreview() {
-    setLoading(true);
-    try {
-      const resp = await deploySchema(project.id, { dry_run: true });
-      form.deploy.setDeployPreview(resp.statements);
-    } catch (err) {
-      if (await onApiError(err, t("deployPreviewFailed"))) return;
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleDeployExecute(skipConfirm = false) {
-    if (!skipConfirm && !form.deploy.deployPreview) {
-      const ok = await confirmDialog({
-        title: t("deployConfirmTitle"),
-        description: t("deployConfirmDescription"),
-        confirmLabel: t("deployConfirmLabel"),
-        variant: "warning",
-      });
-      if (!ok) return;
-    }
-    setLoading(true);
-    try {
-      const resp = await deploySchema(project.id, { dry_run: false });
-      form.deploy.setDeployPreview(null);
-      toast.success(t("schemaDeployed", { count: resp.statements.length }));
-    } catch (err) {
-      if (await onApiError(err, t("schemaDeployFailed"))) return;
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleGenerateLoadPlan() {
-    setLoading(true);
-    try {
-      const resp = await generateLoadPlan(project.id);
-      form.deploy.setLoadPlan(resp.plan);
-    } catch (err) {
-      if (await onApiError(err, t("loadPlanFailed"))) return;
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleCompileLoad() {
-    if (!form.deploy.loadPlan) return;
-    setLoading(true);
-    try {
-      const resp = await compileLoad(project.id, { plan: form.deploy.loadPlan });
-      toast.success(t("loadCompiled", { count: resp.statements.length }));
-    } catch (err) {
-      if (await onApiError(err, t("loadCompileFailed"))) return;
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------------------------
-
   return (
     <>
-      {/* Project header */}
       <div className="flex items-start justify-between gap-2">
         <div>
           <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
@@ -522,7 +294,6 @@ export function WorkflowActions({
             onClick={async () => {
               if (!(await guardPendingEdits(t("guardActions.closeProject")))) return;
               setProject(null);
-              // Clear ontology from canvas
               useAppStore.getState().resetOntology();
             }}
             className="text-xs"
@@ -541,17 +312,15 @@ export function WorkflowActions({
         </div>
       </div>
 
-      {/* Source history */}
       {project.source_history?.length > 0 && (
         <SourceHistorySection entries={project.source_history} />
       )}
 
-      {/* Progress indicator */}
       {loading && progressPhase && (
         <ProgressIndicator phase={progressPhase} detail={progressDetail} />
       )}
 
-      {/* Analyzed state: Design is the primary action */}
+      {/* Analyzed: design is the primary action */}
       {!isDesigned && !isCompleted && (
         <>
           <div>
@@ -586,8 +355,7 @@ export function WorkflowActions({
             onClick={handleDesign}
             disabled={!canDesign || (hasLargeSchema && !form.design.acknowledgeLargeSchema)}
             title={
-              !canDesign &&
-              (unresolvedClarificationCount > 0 || needsPartialAcknowledgement)
+              !canDesign && (unresolvedClarificationCount > 0 || needsPartialAcknowledgement)
                 ? t("tipDisabledResolve")
                 : hasLargeSchema && !form.design.acknowledgeLargeSchema
                   ? t("tipDisabledLargeSchema")
@@ -603,109 +371,36 @@ export function WorkflowActions({
             {t("designOntology")}
           </Button>
           {report && (
-            <Button variant="outline" size="sm" onClick={handleSaveDecisions} disabled={loading} className="w-full text-xs">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSaveDecisions}
+              disabled={loading}
+              className="w-full text-xs"
+            >
               {t("saveDecisions")}
             </Button>
           )}
         </>
       )}
 
-      {/* Designed/Completed state: Enhance & Finalize */}
+      {/* Designed/Completed: enhance + advanced */}
       {(isDesigned || isCompleted) && (
-        <>
-          {/* Enhance section */}
-          <div className="space-y-1.5">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("enhanceHeader")}</p>
-            <p className="text-[10px] text-muted-foreground">
-              {t.rich("enhanceHint", {
-                kbd: (chunks) => (
-                  <kbd className="rounded bg-zinc-200 px-1 py-0.5 font-mono text-[9px] dark:bg-zinc-700">
-                    {chunks}
-                  </kbd>
-                ),
-              })}
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => form.extend.setShowExtend(!form.extend.showExtend)}
-              disabled={loading}
-              className="w-full text-xs"
-            >
-              <HugeiconsIcon icon={Add01Icon} className="mr-1.5 h-3 w-3" size="100%" />
-              {form.extend.showExtend ? tCommon("cancel") : t("extendWithSource")}
-            </Button>
-            {form.extend.showExtend && (
-              <ExtendSourceForm
-                sourceType={form.extend.sourceType}
-                setSourceType={form.extend.setSourceType}
-                connectionString={form.extend.connectionString}
-                setConnectionString={form.extend.setConnectionString}
-                schemaName={form.extend.schemaName}
-                setSchemaName={form.extend.setSchemaName}
-                database={form.extend.database}
-                setDatabase={form.extend.setDatabase}
-                sampleData={form.extend.sampleData}
-                setSampleData={form.extend.setSampleData}
-                repoUrl={form.extend.repoUrl}
-                setRepoUrl={form.extend.setRepoUrl}
-                duckdbFilePath={form.extend.duckdbFilePath}
-                setDuckdbFilePath={form.extend.setDuckdbFilePath}
-                loading={loading}
-                onSubmit={handleExtend}
-              />
-            )}
-          </div>
-
-          {/* Reconcile report */}
-          {lastReconcileReport && (
-            <ReconcileReportPanel
-              report={lastReconcileReport}
-              onDismiss={() => { setLastReconcileReport(null); useAppStore.getState().setPendingReconcile(null); }}
-            />
-          )}
-
-          {/* Advanced section (collapsed) */}
-          <details className="text-xs">
-            <summary className="cursor-pointer text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300">
-              {t("advanced")}
-            </summary>
-            <div className="mt-2 space-y-2">
-              <Button variant="outline" size="sm" onClick={handleDesign} disabled={loading} className="w-full text-xs">
-                <HugeiconsIcon icon={MagicWand01Icon} className="mr-1.5 h-3 w-3" size="100%" />
-                {t("redesign")}
-              </Button>
-              {reanalyzeSourceType !== "ontology" && (
-                <>
-                  <Button variant="outline" size="sm" onClick={() => form.reanalyze.setShowReanalyze(!form.reanalyze.showReanalyze)} disabled={loading} className="w-full text-xs">
-                    <HugeiconsIcon icon={Refresh01Icon} className="mr-1.5 h-3 w-3" size="100%" />
-                    {form.reanalyze.showReanalyze ? tCommon("cancel") : t("reanalyzeSource")}
-                  </Button>
-                  {form.reanalyze.showReanalyze && (
-                    <ReanalyzeForm
-                      sourceType={reanalyzeSourceType}
-                      connectionString={form.reanalyze.connectionString}
-                      setConnectionString={form.reanalyze.setConnectionString}
-                      schemaName={form.reanalyze.schemaName}
-                      setSchemaName={form.reanalyze.setSchemaName}
-                      sampleData={form.reanalyze.sampleData}
-                      setSampleData={form.reanalyze.setSampleData}
-                      repoPath={form.reanalyze.repoPath}
-                      setRepoPath={form.reanalyze.setRepoPath}
-                      repoUrl={form.reanalyze.repoUrl}
-                      setRepoUrl={form.reanalyze.setRepoUrl}
-                      loading={loading}
-                      onSubmit={handleReanalyze}
-                    />
-                  )}
-                </>
-              )}
-            </div>
-          </details>
-        </>
+        <EnhanceActions
+          project={project}
+          loading={loading}
+          setLoading={setLoading}
+          setProject={setProject}
+          setOntology={setOntology}
+          onApiError={onApiError}
+          onRedesign={handleDesign}
+          analysisRef={analysisRef}
+          extend={form.extend}
+          reanalyze={form.reanalyze}
+        />
       )}
 
-      {/* Complete */}
+      {/* Designed: bridge to completed */}
       {isDesigned && !isCompleted && (
         <div className="space-y-2 rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 dark:border-emerald-900 dark:bg-emerald-950/20">
           <h4 className="text-xs font-semibold text-emerald-800 dark:text-emerald-200">
@@ -742,7 +437,7 @@ export function WorkflowActions({
         </div>
       )}
 
-      {/* Completed state */}
+      {/* Completed status */}
       {isCompleted && (
         <div className="space-y-2 rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 dark:border-emerald-900 dark:bg-emerald-950/20">
           <div className="flex items-center gap-2">
@@ -757,270 +452,23 @@ export function WorkflowActions({
         </div>
       )}
 
-      {/* Schema Deployment */}
+      {/* Completed: deployment + load + graph audit */}
       {isCompleted && project.ontology && (
-        <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50/50 p-3 dark:border-blue-900 dark:bg-blue-950/20">
-          <h4 className="text-xs font-semibold text-blue-800 dark:text-blue-200">
-            {t("schemaDeployment")}
-          </h4>
-          {form.deploy.deployPreview ? (
-            <div className="space-y-2">
-              <p className="text-[10px] text-blue-700 dark:text-blue-400">
-                {t("ddlStatements", {
-                  count: form.deploy.deployPreview.length,
-                  plural: form.deploy.deployPreview.length !== 1 ? t("ddlStatementsPlural") : "",
-                })}
-              </p>
-              <pre className="max-h-32 overflow-auto rounded bg-zinc-900 p-2 text-[10px] text-zinc-300">
-                {form.deploy.deployPreview.join(";\n")}
-              </pre>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  onClick={() => handleDeployExecute(true)}
-                  disabled={loading}
-                  className="text-xs"
-                >
-                  {t("execute")}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => form.deploy.setDeployPreview(null)}
-                  className="text-xs"
-                >
-                  {tCommon("cancel")}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleDeployPreview}
-                disabled={loading}
-                className="flex-1 text-xs"
-              >
-                {t("previewDdl")}
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => handleDeployExecute()}
-                disabled={loading}
-                className="flex-1 text-xs"
-              >
-                {t("deployToNeo4j")}
-              </Button>
-            </div>
-          )}
-        </div>
+        <DeploymentActions
+          projectId={project.id}
+          loading={loading}
+          setLoading={setLoading}
+          onApiError={onApiError}
+          deployPreview={form.deploy.deployPreview}
+          setDeployPreview={form.deploy.setDeployPreview}
+          loadPlan={form.deploy.loadPlan}
+          setLoadPlan={form.deploy.setLoadPlan}
+        />
       )}
 
-      {/* Graph Audit & Sync */}
       {isCompleted && project.ontology_id && (
         <GraphAuditSection ontologyId={project.ontology_id} />
       )}
-
-      {/* Load Data — object_mappings live on the ontology itself now,
-          so a completed project with an ontology always has mapping
-          state. */}
-      {isCompleted && project.ontology && (
-        <div className="space-y-2 rounded-lg border border-purple-200 bg-purple-50/50 p-3 dark:border-purple-900 dark:bg-purple-950/20">
-          <h4 className="text-xs font-semibold text-purple-800 dark:text-purple-200">
-            {t("dataLoading")}
-          </h4>
-          {form.deploy.loadPlan ? (
-            <div className="space-y-2">
-              <p className="text-[10px] text-purple-700 dark:text-purple-400">
-                {t("loadSteps", {
-                  count: form.deploy.loadPlan.steps.length,
-                  plural: form.deploy.loadPlan.steps.length !== 1 ? t("ddlStatementsPlural") : "",
-                })}
-              </p>
-              <div className="space-y-1">
-                {form.deploy.loadPlan.steps.map((step, i) => (
-                  <div key={i} className="rounded bg-zinc-100 px-2 py-1 text-[10px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                    {t("loadStepItem", { order: step.order + 1, description: step.description })}
-                  </div>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  onClick={handleCompileLoad}
-                  disabled={loading}
-                  className="text-xs"
-                >
-                  {t("compileDdl")}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => form.deploy.setLoadPlan(null)}
-                  className="text-xs"
-                >
-                  {tCommon("cancel")}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleGenerateLoadPlan}
-              disabled={loading}
-              className="w-full text-xs"
-            >
-              {t("generateLoadPlan")}
-            </Button>
-          )}
-        </div>
-      )}
     </>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Graph Audit & Sync Section
-// ---------------------------------------------------------------------------
-
-function GraphAuditSection({ ontologyId }: { ontologyId: string }) {
-  const t = useTranslations("workbench.bottomPanel.workflowActions");
-  const [report, setReport] = useState<GraphAuditReport | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [adopting, setAdopting] = useState(false);
-  const { setOntology } = useAppStore();
-
-  const handleAudit = async () => {
-    setLoading(true);
-    try {
-      const result = await auditGraph(ontologyId);
-      setReport(result);
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : t("auditFailed"));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleAdopt = async () => {
-    setAdopting(true);
-    try {
-      const adopted = await adoptGraph(t("adoptedName"), true);
-      setOntology(adopted);
-      toast.success(
-        t("adopted", {
-          nodeCount: arr(adopted.node_types).length,
-          edgeCount: arr(adopted.edge_types).length,
-        }),
-      );
-      // Re-audit to confirm sync
-      const result = await auditGraph(ontologyId);
-      setReport(result);
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : t("adoptFailed"));
-    } finally {
-      setAdopting(false);
-    }
-  };
-
-  const syncColor = report?.sync_status === "synced"
-    ? "emerald" : report?.sync_status === "partial"
-    ? "amber" : "red";
-
-  return (
-    <div className="space-y-2 rounded-lg border border-teal-200 bg-teal-50/50 p-3 dark:border-teal-900 dark:bg-teal-950/20">
-      <h4 className="text-xs font-semibold text-teal-800 dark:text-teal-200">
-        {t("graphSync")}
-      </h4>
-
-      {!report ? (
-        <div className="space-y-2">
-          <p className="text-[10px] text-teal-700 dark:text-teal-400">
-            {t("graphSyncDescription")}
-          </p>
-          <Button size="sm" onClick={handleAudit} disabled={loading}>
-            {loading ? <Spinner size="xs" /> : <HugeiconsIcon icon={Refresh01Icon} className="mr-1 h-3 w-3" />}
-            {t("auditGraph")}
-          </Button>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {/* Sync status badge */}
-          <div className="flex items-center gap-2">
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-              syncColor === "emerald" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300" :
-              syncColor === "amber" ? "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300" :
-              "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
-            }`}>
-              {report.sync_status === "synced"
-                ? t("syncStatusSynced")
-                : report.sync_status === "partial"
-                  ? t("syncStatusPartial")
-                  : t("syncStatusUnsynced")}
-            </span>
-            <span className="text-[10px] text-muted-foreground">
-              {t("syncPercentage", { percent: report.sync_percentage })}
-            </span>
-          </div>
-
-          {/* Matched */}
-          {report.matched_nodes.length > 0 && (
-            <p className="text-[10px] text-emerald-600 dark:text-emerald-400">
-              {t("syncMatched", {
-                nodeCount: report.matched_nodes.length,
-                edgeCount: report.matched_edges.length,
-              })}
-            </p>
-          )}
-
-          {/* Orphan graph labels (in graph but not in ontology) */}
-          {report.orphan_graph_edges.length > 0 && (
-            <details className="text-[10px]">
-              <summary className="cursor-pointer text-amber-600 dark:text-amber-400">
-                {t("orphanGraphEdges", { count: report.orphan_graph_edges.length })}
-              </summary>
-              <div className="mt-1 flex flex-wrap gap-1">
-                {report.orphan_graph_edges.map((e) => (
-                  <span key={e} className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
-                    {e}
-                  </span>
-                ))}
-              </div>
-            </details>
-          )}
-
-          {/* Missing graph labels (in ontology but not in graph) */}
-          {report.missing_graph_edges.length > 0 && (
-            <details className="text-[10px]">
-              <summary className="cursor-pointer text-red-600 dark:text-red-400">
-                {t("missingGraphEdges", { count: report.missing_graph_edges.length })}
-              </summary>
-              <div className="mt-1 flex flex-wrap gap-1">
-                {report.missing_graph_edges.map((e) => (
-                  <span key={e} className="rounded bg-red-100 px-1.5 py-0.5 text-red-700 dark:bg-red-900 dark:text-red-300">
-                    {e}
-                  </span>
-                ))}
-              </div>
-            </details>
-          )}
-
-          {/* Actions */}
-          <div className="flex gap-2">
-            <Button size="sm" variant="ghost" onClick={handleAudit} disabled={loading}>
-              {loading ? <Spinner size="xs" /> : t("reaudit")}
-            </Button>
-            {report.sync_status !== "synced" && (
-              <Button size="sm" onClick={handleAdopt} disabled={adopting}>
-                {adopting ? <Spinner size="xs" /> : <HugeiconsIcon icon={MagicWand01Icon} className="mr-1 h-3 w-3" />}
-                {t("adoptGraphLabels")}
-              </Button>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
   );
 }
