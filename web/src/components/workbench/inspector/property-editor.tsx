@@ -82,6 +82,7 @@ export function AddPropertyForm({
         name: name.trim(),
         property_type: { type: propType },
         nullable,
+        description: { default: "" },
       },
     };
     applyCommand(cmd);

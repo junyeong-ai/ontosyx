@@ -324,6 +324,7 @@ pub struct EdgeTypeDef {
     #[serde(default = "default_cardinality")]
     pub cardinality: Cardinality,
     /// Logical inverse edge (e.g., PURCHASED ↔ PURCHASED_BY).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub inverse_of: Option<EdgeTypeId>,
     /// Free-form tags (e.g. "i18n", "derived", "temporal") for downstream
     /// filtering and UI grouping. Not validated; ontology designer's choice.
@@ -411,7 +412,11 @@ pub struct PropertyDef {
     #[serde(default)]
     pub nullable: bool,
     /// Default value if not provided.
-    #[serde(default, deserialize_with = "deserialize_optional_property_value")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_property_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub default_value: Option<PropertyValue>,
     /// Localized human-readable description.
     #[serde(default)]

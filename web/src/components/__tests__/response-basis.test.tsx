@@ -38,6 +38,7 @@ function ontologyDetailFixture(): OntologyDetail {
     ontology_ir: {
       id: "lineage-1",
       name: "Fixture",
+      description: { default: "" },
       version: 1,
       node_types: [
         {
@@ -49,7 +50,7 @@ function ontologyDetailFixture(): OntologyDetail {
         {
           id: "nt_product",
           label: "Product",
-          description: null,
+          description: { default: "" },
           properties: [],
         },
       ],

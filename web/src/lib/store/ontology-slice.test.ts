@@ -26,13 +26,16 @@ function makeOntology(overrides?: Partial<OntologyIR>): OntologyIR {
   return {
     id: "test-ont",
     name: "Test",
+description: { default: "" },
     version: 1,
     node_types: [
       {
         id: "n1",
         label: "Person",
+description: { default: "" },
         properties: [
-          { id: "p1", name: "name", property_type: { type: "string" }, nullable: false },
+          { id: "p1", name: "name",
+description: { default: "" }, property_type: { type: "string" }, nullable: false },
         ],
         constraints: [],
       },

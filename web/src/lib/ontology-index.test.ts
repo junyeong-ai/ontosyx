@@ -12,24 +12,25 @@ function ontology(): OntologyIR {
   return {
     id: "ont-1",
     name: "test",
+    description: { default: "" },
     version: 1,
     node_types: [
       {
         id: "n-person",
         label: "Person",
-        description: null,
+        description: { default: "" },
         properties: [],
       },
       {
         id: "n-company",
         label: "Company",
-        description: null,
+        description: { default: "" },
         properties: [],
       },
       {
         id: "n-order",
         label: "Order",
-        description: null,
+        description: { default: "" },
         properties: [],
       },
     ],
@@ -37,7 +38,7 @@ function ontology(): OntologyIR {
       {
         id: "e-works-at",
         label: "WORKS_AT",
-        description: null,
+        description: { default: "" },
         source_node_id: "n-person",
         target_node_id: "n-company",
         properties: [],
@@ -46,7 +47,7 @@ function ontology(): OntologyIR {
       {
         id: "e-placed",
         label: "PLACED",
-        description: null,
+        description: { default: "" },
         source_node_id: "n-person",
         target_node_id: "n-order",
         properties: [],
@@ -106,15 +107,16 @@ describe("buildOntologyIndex — edgesByNodeId adjacency", () => {
     const ir: OntologyIR = {
       id: "ont-loop",
       name: "loop",
+      description: { default: "" },
       version: 1,
       node_types: [
-        { id: "n-page", label: "Page", description: null, properties: [] },
+        { id: "n-page", label: "Page", description: { default: "" }, properties: [] },
       ],
       edge_types: [
         {
           id: "e-links-to",
           label: "LINKS_TO",
-          description: null,
+          description: { default: "" },
           source_node_id: "n-page",
           target_node_id: "n-page",
           properties: [],
@@ -135,9 +137,10 @@ describe("buildOntologyIndex — edgesByNodeId adjacency", () => {
     const ir: OntologyIR = {
       id: "ont-solo",
       name: "solo",
+      description: { default: "" },
       version: 1,
       node_types: [
-        { id: "n-solo", label: "Solo", description: null, properties: [] },
+        { id: "n-solo", label: "Solo", description: { default: "" }, properties: [] },
       ],
       edge_types: [],
     };

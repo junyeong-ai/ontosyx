@@ -33,8 +33,10 @@ function createTestStore() {
 const MINIMAL_ONTOLOGY: OntologyIR = {
   id: "test",
   name: "Test",
+description: { default: "" },
   version: 1,
-  node_types: [{ id: "n1", label: "Person", properties: [] }],
+  node_types: [{ id: "n1", label: "Person",
+description: { default: "" }, properties: [] }],
   edge_types: [],
 };
 

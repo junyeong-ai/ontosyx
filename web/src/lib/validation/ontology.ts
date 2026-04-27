@@ -22,7 +22,7 @@ export const LocalizedTextSchema = z.object({
 });
 
 export const SourceLineageSchema = z.object({
-  source_id: z.string().nullish(),
+  source_id: z.string().optional(),
   table: z.string(),
   primary_key: z.array(z.string()).optional(),
 });
@@ -33,8 +33,8 @@ export const PropertyDefSchema = z.object({
   property_type: PropertyTypeSchema,
   nullable: z.boolean().optional(),
   default_value: z.unknown().optional(),
-  description: LocalizedTextSchema.nullish(),
-  source_column: z.string().nullish(),
+  description: LocalizedTextSchema,
+  source_column: z.string().optional(),
 });
 
 export const ConstraintDefSchema = z.union([
@@ -46,8 +46,8 @@ export const ConstraintDefSchema = z.union([
 export const NodeTypeDefSchema = z.object({
   id: z.string(),
   label: z.string(),
-  description: LocalizedTextSchema.nullish(),
-  source_lineage: SourceLineageSchema.nullish(),
+  description: LocalizedTextSchema,
+  source_lineage: SourceLineageSchema.optional(),
   properties: z.array(PropertyDefSchema),
   constraints: z.array(ConstraintDefSchema).optional(),
 });
@@ -62,7 +62,7 @@ export const CardinalitySchema = z.enum([
 export const EdgeTypeDefSchema = z.object({
   id: z.string(),
   label: z.string(),
-  description: LocalizedTextSchema.nullish(),
+  description: LocalizedTextSchema,
   source_node_id: z.string(),
   target_node_id: z.string(),
   properties: z.array(PropertyDefSchema),
@@ -83,7 +83,7 @@ export const IndexDefSchema = z.object({
 export const OntologyIRSchema = z.object({
   id: z.string(),
   name: z.string(),
-  description: LocalizedTextSchema.nullish(),
+  description: LocalizedTextSchema,
   version: z.number(),
   node_types: z.array(NodeTypeDefSchema),
   edge_types: z.array(EdgeTypeDefSchema),

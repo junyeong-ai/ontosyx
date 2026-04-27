@@ -54,10 +54,10 @@ function applyCommandToOntology(
           {
             id: cmd.id!,
             label: cmd.label!,
-            description: cmd.description,
-            source_lineage: cmd.source_table
-              ? { table: cmd.source_table }
-              : null,
+            description: cmd.description ?? { default: "" },
+            ...(cmd.source_table
+              ? { source_lineage: { table: cmd.source_table } }
+              : {}),
             properties: [],
           },
         ],
@@ -156,7 +156,9 @@ function applyCommandToOntology(
       const newOntology: OntologyIR = {
         ...ontology,
         node_types: arr(ontology.node_types).map((n) =>
-          n.id === cmd.node_id ? { ...n, description: cmd.description } : n,
+          n.id === cmd.node_id
+            ? { ...n, description: cmd.description ?? { default: "" } }
+            : n,
         ),
       };
       return {
@@ -173,6 +175,7 @@ function applyCommandToOntology(
           {
             id: cmd.id!,
             label: cmd.label!,
+            description: { default: "" },
             source_node_id: cmd.source_node_id!,
             target_node_id: cmd.target_node_id!,
             properties: [],
@@ -256,7 +259,9 @@ function applyCommandToOntology(
       const newOntology: OntologyIR = {
         ...ontology,
         edge_types: arr(ontology.edge_types).map((e) =>
-          e.id === cmd.edge_id ? { ...e, description: cmd.description } : e,
+          e.id === cmd.edge_id
+            ? { ...e, description: cmd.description ?? { default: "" } }
+            : e,
         ),
       };
       return {

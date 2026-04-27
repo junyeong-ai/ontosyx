@@ -41,13 +41,30 @@ export interface CursorPage<T> {
   next_cursor?: string;
 }
 
+// Optionality below tracks the *wire shape*, not loose
+// over-permissiveness. The rule:
+//   - `T` (required, no `?`): backend always serialises (no Option,
+//     or Option without `skip_serializing_if`).
+//   - `T?` (optional, no `| null`): backend `Option<T>` with
+//     `skip_serializing_if = "Option::is_none"` — the field is
+//     omitted from JSON when absent. The agent prompt path saves
+//     the `null` token cost on every absent field.
+// `T | null` is reserved for backend fields that genuinely send
+// `null` (none today). A naive `?: T | null` everywhere
+// under-promised the actual wire shape.
+
 export interface OntologyIR {
   id: string;
   name: string;
-  description?: LocalizedText | null;
+  /** `LocalizedText` defaults to `{default: "", translations: {}}`,
+   *  so the wire always carries the field — empty when no
+   *  description is set. */
+  description: LocalizedText;
   version: number;
   node_types: NodeTypeDef[];
   edge_types: EdgeTypeDef[];
+  /** Backend `Vec<IndexDef>` with `skip_serializing_if =
+   *  "Vec::is_empty"` — omitted when empty. */
   indexes?: IndexDef[];
   glossary?: unknown[];
   code_systems?: unknown[];
@@ -61,16 +78,20 @@ export interface OntologyIR {
 export interface NodeTypeDef {
   id: string;
   label: string;
-  description?: LocalizedText | null;
-  source_lineage?: SourceLineage | null;
+  /** Always serialised (`LocalizedText` non-Option on backend). */
+  description: LocalizedText;
+  /** `Option<SourceLineage>` with skip — omitted when absent. */
+  source_lineage?: SourceLineage;
   properties: PropertyDef[];
+  /** `Vec<ConstraintDef>` with skip — omitted when empty. */
   constraints?: ConstraintDef[];
 }
 
 export interface EdgeTypeDef {
   id: string;
   label: string;
-  description?: LocalizedText | null;
+  /** Always serialised (`LocalizedText` non-Option on backend). */
+  description: LocalizedText;
   source_node_id: string;
   target_node_id: string;
   properties: PropertyDef[];
@@ -82,8 +103,10 @@ export interface EdgeTypeDef {
  * field with the richer (source_id + table + primary_key) shape.
  */
 export interface SourceLineage {
-  source_id?: string | null;
+  /** Optional with skip — omitted when absent. */
+  source_id?: string;
   table: string;
+  /** `Vec<String>` with skip — omitted when empty. */
   primary_key?: string[];
 }
 
@@ -103,13 +126,15 @@ export interface PropertyDef {
   name: string;
   property_type: PropertyType;
   nullable?: boolean;
+  /** Backend `Option<PropertyValue>` with skip — omitted when absent. */
   default_value?: unknown;
-  description?: LocalizedText | null;
-  source_column?: string | null;
-  classification?: DataClassification | null;
-  glossary_term_id?: string | null;
-  value_set_id?: string | null;
-  notation_pattern_id?: string | null;
+  /** Always serialised (`LocalizedText` non-Option on backend). */
+  description: LocalizedText;
+  source_column?: string;
+  classification?: DataClassification;
+  glossary_term_id?: string;
+  value_set_id?: string;
+  notation_pattern_id?: string;
 }
 
 export type ConstraintDef =
@@ -258,6 +283,16 @@ export type OntologyCommand =
   | { op: "remove_index"; index_id: string }
   | { op: "batch"; description: string; commands: OntologyCommand[] };
 
+/**
+ * PATCH-style update for a property. The wire semantic *requires*
+ * the absent / null distinction:
+ *   - field omitted = leave unchanged.
+ *   - field present with `null` = clear / unset.
+ *   - field present with value = set to value.
+ *
+ * `?: T | null` is correct here — the only place in the IR types
+ * where `null` carries meaning beyond "absent."
+ */
 export interface PropertyPatch {
   name?: string;
   property_type?: PropertyType;

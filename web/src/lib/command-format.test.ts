@@ -12,11 +12,12 @@ function person(): NonNullable<OntologyIR["node_types"]>[number] {
   return {
     id: "node-person-uuid",
     label: "Person",
-    description: null,
+    description: { default: "" },
     properties: [
       {
         id: "prop-email-uuid",
         name: "email",
+description: { default: "" },
         property_type: { type: "string" },
         nullable: false,
       },
@@ -28,7 +29,7 @@ function company(): NonNullable<OntologyIR["node_types"]>[number] {
   return {
     id: "node-company-uuid",
     label: "Company",
-    description: null,
+    description: { default: "" },
     properties: [],
   };
 }
@@ -37,7 +38,7 @@ function worksAt(): NonNullable<OntologyIR["edge_types"]>[number] {
   return {
     id: "edge-worksat-uuid",
     label: "WORKS_AT",
-    description: null,
+    description: { default: "" },
     source_node_id: "node-person-uuid",
     target_node_id: "node-company-uuid",
     properties: [],
@@ -49,6 +50,7 @@ function ontology(): OntologyIR {
   return {
     id: "ont-1",
     name: "test",
+description: { default: "" },
     version: 1,
     node_types: [person(), company()],
     edge_types: [worksAt()],
@@ -161,6 +163,7 @@ describe("formatCommand — per-op rendering", () => {
     const prop: PropertyDef = {
       id: "prop-new",
       name: "phone",
+description: { default: "" },
       property_type: { type: "string" },
     };
     const cmd: OntologyCommand = {
@@ -191,7 +194,8 @@ describe("commandOpBadge", () => {
       {
         op: "add_property",
         owner_id: "a",
-        property: { id: "p", name: "x", property_type: { type: "string" } },
+        property: { id: "p", name: "x",
+description: { default: "" }, property_type: { type: "string" } },
       } as const,
     ]) {
       const badge = commandOpBadge(op as OntologyCommand);

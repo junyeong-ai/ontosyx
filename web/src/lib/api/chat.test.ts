@@ -25,7 +25,14 @@ function mockErrorResponse(status: number, body: unknown): Response {
 
 const BASE_REQUEST = {
   message: "test",
-  ontology: { id: "o1", name: "Test", version: 1, node_types: [], edge_types: [] },
+  ontology: {
+    id: "o1",
+    name: "Test",
+    description: { default: "" },
+    version: 1,
+    node_types: [],
+    edge_types: [],
+  },
 };
 
 describe("chatStream", () => {
