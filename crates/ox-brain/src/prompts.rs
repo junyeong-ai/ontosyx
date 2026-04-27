@@ -299,11 +299,25 @@ impl PromptRegistry {
     }
 
     /// Build registry from DB rows.
+    ///
+    /// When multiple rows share a name (a TOML version bump leaves the
+    /// older row `is_active = true` because seed never deactivates it —
+    /// only the admin API does), the registry exposes the **highest
+    /// version** per name. The HTTP layer's `checked_for(min_version)`
+    /// then enforces the call-site contract on top of that.
     fn from_db_rows(rows: Vec<ox_store::PromptTemplateRow>) -> OxResult<Self> {
         let mut prompts = HashMap::new();
-        let mut versions = HashMap::new();
+        let mut versions: HashMap<String, PromptVersion> = HashMap::new();
 
         for row in rows {
+            // Skip when an already-seen name carries a higher version.
+            // The DB already orders `name, version DESC`, but defending
+            // here keeps the loader independent of caller ordering.
+            if let Some(existing) = versions.get(&row.name)
+                && *existing >= row.version
+            {
+                continue;
+            }
             let (system, user_template) = parse_db_content(&row.content);
 
             let max_tokens = row
@@ -483,5 +497,52 @@ mod tests {
                 created_by: "alice@example.com".to_string(),
             },
         );
+    }
+
+    fn versioned_row(name: &str, version: &str, body: &str) -> ox_store::PromptTemplateRow {
+        ox_store::PromptTemplateRow {
+            id: uuid::Uuid::new_v4(),
+            name: name.to_string(),
+            version: PromptVersion::parse(version).unwrap(),
+            content: format!("[system]\n{body}\n\n[user_template]\n"),
+            variables: serde_json::json!([]),
+            metadata: serde_json::json!({}),
+            created_by: SYSTEM_CREATOR.to_string(),
+            created_at: chrono::Utc::now(),
+            is_active: true,
+            workspace_id: None,
+        }
+    }
+
+    /// When a TOML version bump leaves the older row `is_active = true`
+    /// (seed inserts a new row but never deactivates the old one — only
+    /// the admin API does), the registry must still serve the highest
+    /// version. Without the dedupe step, the loader's HashMap insert
+    /// silently exposes whichever row arrived last regardless of order.
+    #[test]
+    fn from_db_rows_picks_highest_version_per_name() {
+        // Mirrors postgres `ORDER BY name, version DESC` (highest first).
+        let rows = vec![
+            versioned_row("translate_query", "1.1.0", "NEW BODY"),
+            versioned_row("translate_query", "1.0.0", "OLD BODY"),
+        ];
+        let registry = PromptRegistry::from_db_rows(rows).unwrap();
+        let tmpl = registry.get("translate_query").unwrap();
+        assert_eq!(tmpl.version, "1.1.0");
+        assert_eq!(tmpl.system, "NEW BODY");
+    }
+
+    /// Same scenario in reversed order — defends against future
+    /// changes to the DB query that flip the sort direction.
+    #[test]
+    fn from_db_rows_picks_highest_version_regardless_of_input_order() {
+        let rows = vec![
+            versioned_row("translate_query", "1.0.0", "OLD BODY"),
+            versioned_row("translate_query", "1.1.0", "NEW BODY"),
+        ];
+        let registry = PromptRegistry::from_db_rows(rows).unwrap();
+        let tmpl = registry.get("translate_query").unwrap();
+        assert_eq!(tmpl.version, "1.1.0");
+        assert_eq!(tmpl.system, "NEW BODY");
     }
 }
