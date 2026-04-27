@@ -204,9 +204,11 @@ pub(crate) fn build_progressive_schema(ontology: &OntologyIR, expanded_labels: &
 
     let mut output = String::with_capacity(2048);
 
-    // Tier 1: Graph topology — edges between relevant nodes
-    // Explicit labels help the LLM use EXACT edge names (critical in JSON mode)
-    output.push_str("Graph edges (use EXACTLY these edge labels):\n");
+    // Tier 1: Graph topology — edges between relevant nodes.
+    // The "use exact labels" rule lives in the translate prompts, not
+    // here — repeating it on every payload spends prefix-cache budget
+    // on a sentence the LLM has already read in the system prompt.
+    output.push_str("Graph edges:\n");
     for edge in ontology.edge_types() {
         let src = ontology
             .node_label(edge.source_node_id.as_ref())
@@ -305,8 +307,11 @@ pub(crate) fn build_progressive_schema(ontology: &OntologyIR, expanded_labels: &
                     }
                 }
                 if total > MAX_DESCRIBED_PROPS_PER_NODE {
+                    // The pruned property names still appear above under
+                    // "Node properties:" — no internal "Tier" reference
+                    // since the LLM never sees that label.
                     output.push_str(&format!(
-                        "  ... and {} more properties (see Tier 2 for names)\n",
+                        "  ... and {} more properties\n",
                         total - MAX_DESCRIBED_PROPS_PER_NODE,
                     ));
                 }
