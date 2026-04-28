@@ -213,13 +213,19 @@ pub struct Workspace {
     pub owner_id: Uuid,
     pub settings: serde_json::Value,
     pub created_at: DateTime<Utc>,
-    /// Workspace's canonical UI / LLM locale (BCP 47). Always lowercase;
+    /// Workspace's canonical authoring locale (BCP 47). Always lowercase;
     /// enforced by `workspaces_primary_locale_check` at the DB layer.
     pub primary_locale: String,
-    /// Ordered fallback chain (JSON array of BCP 47 tags, non-empty) used
-    /// by `LocalizedText::resolve`. Validated by
-    /// `workspaces_locale_fallback_check`.
-    pub locale_fallback: serde_json::Value,
+    /// Ordered fallback chain (JSON array of BCP 47 tags, non-empty) the
+    /// admin / operator UI walks when resolving translations. Validated by
+    /// `workspaces_admin_locale_fallback_check`.
+    pub admin_locale_fallback: serde_json::Value,
+    /// Ordered fallback chain (JSON array of BCP 47 tags, non-empty) the
+    /// agent / Brain prompts and tool-result contexts walk. Distinct from
+    /// `admin_locale_fallback` so a Korean-first admin surface can pair
+    /// with an English-first LLM context. Validated by
+    /// `workspaces_llm_locale_fallback_check`.
+    pub llm_locale_fallback: serde_json::Value,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

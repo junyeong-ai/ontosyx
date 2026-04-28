@@ -11,7 +11,9 @@
 //! ```
 //!
 //! They cover:
-//! 1. Schema additions: `workspaces.primary_locale` + `workspaces.locale_fallback`.
+//! 1. Schema additions: `workspaces.primary_locale` +
+//!    `workspaces.admin_locale_fallback` +
+//!    `workspaces.llm_locale_fallback`.
 //! 2. Constraint enforcement: BCP 47 shape on the locale columns.
 //! 3. Lifecycle of helper functions: validator survives, converters dropped.
 //! 4. Idempotency of the JSONB conversion helpers when re-applied to data
@@ -77,7 +79,7 @@ async fn workspace_locale_columns_exist_with_canonical_defaults() {
         "SELECT column_name, data_type, column_default \
            FROM information_schema.columns \
           WHERE table_name = 'workspaces' \
-            AND column_name IN ('primary_locale', 'locale_fallback') \
+            AND column_name IN ('primary_locale', 'admin_locale_fallback', 'llm_locale_fallback') \
        ORDER BY column_name",
     )
     .fetch_all(&pool)
@@ -86,13 +88,14 @@ async fn workspace_locale_columns_exist_with_canonical_defaults() {
 
     assert_eq!(
         row.len(),
-        2,
-        "expected primary_locale + locale_fallback columns to exist"
+        3,
+        "expected primary_locale + admin_locale_fallback + llm_locale_fallback columns to exist"
     );
 
-    // The migration sets `'ko'` as primary and `["ko","en"]` as fallback —
-    // sane defaults for Korean-first deployments. New workspaces created
-    // without explicit locale should inherit these.
+    // Defaults: Korean-first authoring (`primary_locale = 'ko'`),
+    // Korean-first admin chain (`["ko", "en"]`), English-first LLM
+    // chain (`["en", "ko"]`). New workspaces created without
+    // explicit locale inherit these.
     let mut by_name = std::collections::HashMap::new();
     for r in &row {
         let name: String = r.try_get("column_name").unwrap();
@@ -107,13 +110,27 @@ async fn workspace_locale_columns_exist_with_canonical_defaults() {
         primary.contains("'ko'"),
         "primary_locale default should be 'ko', got: {primary}"
     );
-    let fallback = by_name
-        .get("locale_fallback")
+    let admin = by_name
+        .get("admin_locale_fallback")
         .and_then(|d| d.clone())
         .unwrap_or_default();
     assert!(
-        fallback.contains("ko") && fallback.contains("en"),
-        "locale_fallback default should include ko and en, got: {fallback}"
+        admin.contains("ko") && admin.contains("en"),
+        "admin_locale_fallback default should include ko and en, got: {admin}"
+    );
+    // LLM default leads with English — the model's preferred reasoning
+    // language for ontology context. Asserts the order, not just presence.
+    let llm = by_name
+        .get("llm_locale_fallback")
+        .and_then(|d| d.clone())
+        .unwrap_or_default();
+    assert!(
+        llm.contains("en") && llm.contains("ko"),
+        "llm_locale_fallback default should include en and ko, got: {llm}"
+    );
+    assert!(
+        llm.find("en").unwrap_or(usize::MAX) < llm.find("ko").unwrap_or(0),
+        "llm_locale_fallback default must lead with `en` before `ko`, got: {llm}"
     );
 }
 

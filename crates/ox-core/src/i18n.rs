@@ -89,6 +89,78 @@ impl LanguageTag {
     pub fn primary(&self) -> &str {
         self.0.split('-').next().unwrap_or(&self.0)
     }
+
+    /// Canonical `ko` tag. Infallible — `LanguageTag::parse("ko")`
+    /// always succeeds, so the convenience constructor sidesteps
+    /// the workspace's no-panic lints. Use everywhere the platform
+    /// needs the canonical Korean tag without paying for a parse.
+    pub fn ko() -> Self {
+        Self(String::from("ko"))
+    }
+
+    /// Canonical `en` tag. See [`LanguageTag::ko`] for rationale.
+    pub fn en() -> Self {
+        Self(String::from("en"))
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Workspace locale defaults — single source of truth
+// ---------------------------------------------------------------------------
+
+/// The platform's default authoring locale. Mirrored by the
+/// `workspaces.primary_locale` column DEFAULT.
+pub const PRIMARY_LOCALE_DEFAULT: &str = "ko";
+
+/// Default fallback chain for admin / operator UI surfaces.
+/// Mirrored by the `workspaces.admin_locale_fallback` column
+/// DEFAULT (`'["ko","en"]'::jsonb`).
+pub const ADMIN_LOCALE_FALLBACK_DEFAULT: &[&str] = &["ko", "en"];
+
+/// Default fallback chain for agent / Brain prompts and tool-result
+/// contexts. English-first because the model reasons measurably
+/// better on English ontology context. Mirrored by the
+/// `workspaces.llm_locale_fallback` column DEFAULT
+/// (`'["en","ko"]'::jsonb`).
+pub const LLM_LOCALE_FALLBACK_DEFAULT: &[&str] = &["en", "ko"];
+
+/// Pre-parsed `LanguageTag` form of [`LLM_LOCALE_FALLBACK_DEFAULT`]
+/// — single source of truth for callers that pass the chain into
+/// [`LocalizedText::resolve`] or
+/// [`crate::OntologyIR::to_agent_view`] without per-call
+/// allocation. Ensures the default chain stays in sync with the
+/// workspace column DEFAULT.
+pub fn llm_locale_fallback_default_tags() -> &'static [LanguageTag] {
+    use std::sync::LazyLock;
+    static TAGS: LazyLock<Vec<LanguageTag>> = LazyLock::new(|| {
+        LLM_LOCALE_FALLBACK_DEFAULT
+            .iter()
+            .map(|s| match LanguageTag::parse(s) {
+                Ok(tag) => tag,
+                // The constant is exhaustively tested
+                // (`locale_default_tags_parse_cleanly`); a parse
+                // failure would mean a typo in the constant which
+                // CI catches before release.
+                Err(_) => LanguageTag::en(),
+            })
+            .collect()
+    });
+    &TAGS
+}
+
+/// Pre-parsed `LanguageTag` form of [`ADMIN_LOCALE_FALLBACK_DEFAULT`].
+pub fn admin_locale_fallback_default_tags() -> &'static [LanguageTag] {
+    use std::sync::LazyLock;
+    static TAGS: LazyLock<Vec<LanguageTag>> = LazyLock::new(|| {
+        ADMIN_LOCALE_FALLBACK_DEFAULT
+            .iter()
+            .map(|s| match LanguageTag::parse(s) {
+                Ok(tag) => tag,
+                Err(_) => LanguageTag::ko(),
+            })
+            .collect()
+    });
+    &TAGS
 }
 
 impl fmt::Display for LanguageTag {
@@ -234,6 +306,56 @@ impl LocalizedText {
         Self::default()
     }
 
+    /// Bilingual constructor — Korean and English translations
+    /// populated explicitly so chain-based resolution lands on the
+    /// expected language regardless of which side of the chain the
+    /// consumer prefers. Korean also rides as the canonical
+    /// `default` so callers reading `default` directly (raw logs,
+    /// fallback paths) see Korean.
+    ///
+    /// Resolution semantics ([`LocalizedText::resolve`]): the first
+    /// chain entry that has a translation wins; `default` is the
+    /// final fallback only when no chain entry has one. So an
+    /// English LLM consumer with chain `["en"]` reads the English
+    /// translation; a Korean admin with chain `["ko"]` reads the
+    /// Korean translation; mixed chain `["ko", "en"]` reads Korean
+    /// (ko translation wins over en); `["en", "ko"]` reads English.
+    /// This matches the project's two locale axes:
+    /// `workspace.admin_locale_fallback` (default
+    /// [`ADMIN_LOCALE_FALLBACK_DEFAULT`]) and
+    /// `workspace.llm_locale_fallback` (default
+    /// [`LLM_LOCALE_FALLBACK_DEFAULT`]).
+    pub fn bilingual(ko: impl Into<String>, en: impl Into<String>) -> Self {
+        let ko_text = ko.into();
+        let en_text = en.into();
+        let mut translations = HashMap::new();
+        translations.insert(LanguageTag::ko(), ko_text.clone());
+        translations.insert(LanguageTag::en(), en_text);
+        Self {
+            default: ko_text,
+            translations,
+        }
+    }
+
+    /// Resolve to the English translation when present and non-empty,
+    /// otherwise fall back to [`LocalizedText::default`].
+    ///
+    /// Used by system diagnostics whose [`crate::DiagnosticMessage`]
+    /// `message` field is the universal English rendering: when the
+    /// diagnostic embeds authored content (rule names, glossary
+    /// entries) into the English message body, this helper picks the
+    /// English form so the rendering stays single-language. Surfaces
+    /// rendering for end-users should use [`LocalizedText::resolve`]
+    /// with the workspace's locale chain instead.
+    pub fn english_or_default(&self) -> &str {
+        use std::sync::LazyLock;
+        static EN: LazyLock<LanguageTag> = LazyLock::new(LanguageTag::en);
+        match self.translations.get(&*EN) {
+            Some(s) if !s.is_empty() => s,
+            _ => &self.default,
+        }
+    }
+
     /// True when neither `default` nor any translation carries visible text.
     pub fn is_empty(&self) -> bool {
         self.default.is_empty() && self.translations.values().all(|v| v.is_empty())
@@ -331,6 +453,57 @@ impl From<Option<&str>> for LocalizedText {
     }
 }
 
+/// Pick the displayable name for a registry entry that carries
+/// both a canonical `name: String` (Cypher / id-shaped) and a
+/// localised `display_name: LocalizedText` (the user-facing form).
+///
+/// Returns `(param, english)` where:
+///
+/// - `param` — [`serde_json::Value`] ready to thread into a
+///   [`crate::DiagnosticMessage`] param. Carries the canonical
+///   `LocalizedText` wire shape when `display` is authored,
+///   otherwise falls back to `canonical` as a bare string so the
+///   FE renders something useful instead of an empty placeholder.
+/// - `english` — the English rendering used inside the diagnostic's
+///   `message` body (operator logs and LLM tool-result fallback).
+///
+/// Used by every diagnostic emit site that embeds a registry
+/// entry's display name (value sets, notation patterns, glossary
+/// terms): the `param` form lets each consumer resolve the
+/// language it prefers, while the `english` form keeps the
+/// universal English `message` rendering single-language.
+pub fn display_name_with_fallback<'a>(
+    display: &'a LocalizedText,
+    canonical: &'a str,
+) -> (serde_json::Value, &'a str) {
+    if display.is_empty() {
+        (serde_json::Value::String(canonical.to_string()), canonical)
+    } else {
+        (serde_json::Value::from(display), display.english_or_default())
+    }
+}
+
+/// Serialise a [`LocalizedText`] into the canonical
+/// `{"default": "...", "translations": {...}}` wire shape as
+/// [`serde_json::Value`].
+///
+/// Used at diagnostic emit sites that carry multilingual content
+/// inside [`crate::DiagnosticMessage::params`]: passing the
+/// structured value (instead of pre-resolving to one language)
+/// lets every consumer pick the language it needs — admin UI
+/// reads the workspace's `admin_locale_fallback`, the LLM
+/// tool-result channel reads `llm_locale_fallback`, the BE log
+/// path reads the canonical `default` directly.
+///
+/// Round-trips through [`serde_json::to_value`]; falls back to
+/// [`serde_json::Value::Null`] on the never-taken serialisation
+/// failure path so the call site stays panic-free.
+impl From<&LocalizedText> for serde_json::Value {
+    fn from(lt: &LocalizedText) -> Self {
+        serde_json::to_value(lt).unwrap_or(Self::Null)
+    }
+}
+
 impl fmt::Display for LocalizedText {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.default.fmt(f)
@@ -364,6 +537,22 @@ mod tests {
     fn parses_simple_two_letter_primary() {
         assert_eq!(ko().as_str(), "ko");
         assert_eq!(en().as_str(), "en");
+    }
+
+    #[test]
+    fn bilingual_resolves_each_chain_to_its_language() {
+        let lt = LocalizedText::bilingual("필수", "required");
+        // Korean rides as canonical default + as the "ko" translation
+        // entry, so chain-based resolvers land on Korean for any chain
+        // starting with "ko" and on English for any chain starting
+        // with "en". Mirrors the project's two locale axes:
+        //   admin chain     ["ko", "en"] → 필수
+        //   LLM chain       ["en", "ko"] → required
+        assert_eq!(lt.default, "필수");
+        assert_eq!(lt.resolve(&[ko()]), "필수");
+        assert_eq!(lt.resolve(&[en()]), "required");
+        assert_eq!(lt.resolve(&[ko(), en()]), "필수");
+        assert_eq!(lt.resolve(&[en(), ko()]), "required");
     }
 
     #[test]
@@ -598,5 +787,96 @@ mod tests {
     fn schema_names_are_stable() {
         assert_eq!(LanguageTag::schema_name(), "LanguageTag");
         assert_eq!(LocalizedText::schema_name(), "LocalizedText");
+    }
+
+    // -- LanguageTag canonical-tag constructors --------------------------------
+
+    #[test]
+    fn language_tag_ko_equals_parse_ko() {
+        assert_eq!(LanguageTag::ko(), LanguageTag::parse("ko").unwrap());
+    }
+
+    #[test]
+    fn language_tag_en_equals_parse_en() {
+        assert_eq!(LanguageTag::en(), LanguageTag::parse("en").unwrap());
+    }
+
+    // -- LocalizedText::english_or_default -------------------------------------
+
+    #[test]
+    fn english_or_default_prefers_english_translation() {
+        let lt = LocalizedText::bilingual("필수", "required");
+        assert_eq!(lt.english_or_default(), "required");
+    }
+
+    #[test]
+    fn english_or_default_falls_back_when_no_english() {
+        let lt = LocalizedText::new("默认值");
+        assert_eq!(lt.english_or_default(), "默认值");
+    }
+
+    #[test]
+    fn english_or_default_skips_empty_english() {
+        let lt = LocalizedText::new("기본").with_translation(en(), "");
+        assert_eq!(lt.english_or_default(), "기본");
+    }
+
+    // -- Locale defaults -------------------------------------------------------
+
+    #[test]
+    fn locale_defaults_match_db_column_defaults() {
+        // Mirror of `workspaces.primary_locale` /
+        // `admin_locale_fallback` / `llm_locale_fallback` DEFAULT
+        // clauses in `0001_schema.sql`. Drift between Rust and SQL
+        // is a real source of bootstrap bugs, so the assertion
+        // freezes the contract.
+        assert_eq!(PRIMARY_LOCALE_DEFAULT, "ko");
+        assert_eq!(ADMIN_LOCALE_FALLBACK_DEFAULT, &["ko", "en"]);
+        assert_eq!(LLM_LOCALE_FALLBACK_DEFAULT, &["en", "ko"]);
+    }
+
+    // -- LocalizedText → serde_json::Value -------------------------------------
+
+    #[test]
+    fn localized_text_into_value_carries_default_and_translations() {
+        let lt = LocalizedText::bilingual("필수", "required");
+        let v: serde_json::Value = (&lt).into();
+        assert_eq!(v["default"], serde_json::Value::String("필수".into()));
+        assert_eq!(v["translations"]["ko"], serde_json::Value::String("필수".into()));
+        assert_eq!(v["translations"]["en"], serde_json::Value::String("required".into()));
+    }
+
+    #[test]
+    fn localized_text_into_value_omits_empty_translations_map() {
+        let lt = LocalizedText::new("alone");
+        let v: serde_json::Value = (&lt).into();
+        assert_eq!(v["default"], serde_json::Value::String("alone".into()));
+        assert!(
+            v.get("translations").is_none(),
+            "empty translations map must serialise away: {v}"
+        );
+    }
+
+    #[test]
+    fn localized_text_into_value_round_trips_through_deserialize() {
+        let lt = LocalizedText::bilingual("값", "value")
+            .with_translation(zh_hant(), "値");
+        let v: serde_json::Value = (&lt).into();
+        let back: LocalizedText = serde_json::from_value(v).unwrap();
+        assert_eq!(back, lt);
+    }
+
+    #[test]
+    fn locale_default_tags_parse_cleanly() {
+        // The defaults must be valid BCP 47 tags; if a typo slips
+        // into a constant, this test catches it before the
+        // workspace bootstrap rejects the row.
+        LanguageTag::parse(PRIMARY_LOCALE_DEFAULT).unwrap();
+        for tag in ADMIN_LOCALE_FALLBACK_DEFAULT {
+            LanguageTag::parse(tag).unwrap();
+        }
+        for tag in LLM_LOCALE_FALLBACK_DEFAULT {
+            LanguageTag::parse(tag).unwrap();
+        }
     }
 }

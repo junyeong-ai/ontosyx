@@ -7,8 +7,8 @@ impl WorkspaceStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn create_workspace(&self, w: &Workspace) -> OxResult<()> {
         sqlx::query(
-            "INSERT INTO workspaces (id, name, slug, owner_id, settings, primary_locale, locale_fallback)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)",
+            "INSERT INTO workspaces (id, name, slug, owner_id, settings, primary_locale, admin_locale_fallback, llm_locale_fallback)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
         )
         .bind(w.id)
         .bind(&w.name)
@@ -16,7 +16,8 @@ impl WorkspaceStore for PostgresStore {
         .bind(w.owner_id)
         .bind(&w.settings)
         .bind(&w.primary_locale)
-        .bind(&w.locale_fallback)
+        .bind(&w.admin_locale_fallback)
+        .bind(&w.llm_locale_fallback)
         .execute(&self.pool)
         .await
         .map_err(to_ox_error)?;
@@ -94,17 +95,20 @@ impl WorkspaceStore for PostgresStore {
         &self,
         id: Uuid,
         primary_locale: &str,
-        locale_fallback: &serde_json::Value,
+        admin_locale_fallback: &serde_json::Value,
+        llm_locale_fallback: &serde_json::Value,
     ) -> OxResult<()> {
         sqlx::query(
             "UPDATE workspaces
                 SET primary_locale = $2,
-                    locale_fallback = $3
+                    admin_locale_fallback = $3,
+                    llm_locale_fallback = $4
               WHERE id = $1",
         )
         .bind(id)
         .bind(primary_locale)
-        .bind(locale_fallback)
+        .bind(admin_locale_fallback)
+        .bind(llm_locale_fallback)
         .execute(&self.pool)
         .await
         .map_err(to_ox_error)?;

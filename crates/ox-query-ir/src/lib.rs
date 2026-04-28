@@ -14,11 +14,13 @@
 
 pub mod bindings;
 pub mod eval;
+pub mod insight;
 pub mod ontology_conformance;
 pub mod pattern;
 pub mod query;
 pub mod structured_match;
 
+pub use insight::{InsightDef, InsightId};
 pub use ontology_conformance::unknown_labels_in_query;
 
 // ---------------------------------------------------------------------------

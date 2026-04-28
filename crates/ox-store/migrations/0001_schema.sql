@@ -18,9 +18,11 @@
 -- ============================================================================
 --
 -- Defined before any table that references them from a CHECK clause.
--- `fn_validate_locale_chain` backs the workspaces.locale_fallback
--- constraint: the chain must be a non-empty JSON array of BCP 47
--- tags (`ko`, `en-us`, `zh-hant-tw`, …).
+-- `fn_validate_locale_chain` backs the
+-- `workspaces.admin_locale_fallback` and
+-- `workspaces.llm_locale_fallback` constraints: each chain must be
+-- a non-empty JSON array of BCP 47 tags (`ko`, `en-us`,
+-- `zh-hant-tw`, …).
 
 CREATE OR REPLACE FUNCTION fn_validate_locale_chain(chain jsonb) RETURNS boolean AS $$
 DECLARE
@@ -71,20 +73,40 @@ CREATE TABLE workspaces (
     owner_id uuid NOT NULL,
     settings jsonb DEFAULT '{}' NOT NULL,
     created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
-    -- I18n policy. `primary_locale` is the workspace default; the
-    -- `locale_fallback` chain is walked in order when a requested
-    -- locale is missing. Both stay in BCP 47 shape (e.g. `ko`,
-    -- `en`, `en-us`, `zh-hant-tw`) — validated by the two CHECK
-    -- constraints below. `fn_validate_locale_chain` lives in this
-    -- file, defined alongside these constraints.
+    -- I18n policy. Two locale chains, one per surface:
+    --
+    -- * `admin_locale_fallback` — the chain admin / operator UI
+    --   walks when picking a translation (Korean primary).
+    -- * `llm_locale_fallback` — the chain agent / Brain prompts
+    --   and tool-result contexts walk (English primary; LLMs
+    --   reason best on English content).
+    --
+    -- Splitting the chains lets the workspace serve a Korean admin
+    -- audience without forcing every LLM tool call to receive
+    -- Korean glossary entries first — the platform's quality
+    -- signal improves measurably when the model sees its preferred
+    -- language for ontology context. `primary_locale` remains the
+    -- workspace default for content authoring.
+    --
+    -- DEFAULTs mirror `ox_core::{PRIMARY_LOCALE_DEFAULT,
+    -- ADMIN_LOCALE_FALLBACK_DEFAULT, LLM_LOCALE_FALLBACK_DEFAULT}`
+    -- — the contract is pinned by
+    -- `i18n::tests::locale_defaults_match_db_column_defaults`.
+    --
+    -- Both chains stay in BCP 47 shape (e.g. `ko`, `en`, `en-us`,
+    -- `zh-hant-tw`) — validated by `fn_validate_locale_chain`,
+    -- defined alongside these constraints.
     primary_locale TEXT NOT NULL DEFAULT 'ko',
-    locale_fallback JSONB NOT NULL DEFAULT '["ko","en"]'::jsonb,
+    admin_locale_fallback JSONB NOT NULL DEFAULT '["ko","en"]'::jsonb,
+    llm_locale_fallback JSONB NOT NULL DEFAULT '["en","ko"]'::jsonb,
     CONSTRAINT workspaces_pkey PRIMARY KEY (id),
     CONSTRAINT workspaces_slug_key UNIQUE (slug),
     CONSTRAINT workspaces_primary_locale_check
         CHECK (primary_locale ~ '^[a-z]{2,3}(-[a-z0-9]{2,8})*$'),
-    CONSTRAINT workspaces_locale_fallback_check
-        CHECK (fn_validate_locale_chain(locale_fallback))
+    CONSTRAINT workspaces_admin_locale_fallback_check
+        CHECK (fn_validate_locale_chain(admin_locale_fallback)),
+    CONSTRAINT workspaces_llm_locale_fallback_check
+        CHECK (fn_validate_locale_chain(llm_locale_fallback))
 );
 
 CREATE TABLE workspace_members (
@@ -183,6 +205,54 @@ CREATE TABLE pinboard_items (
     CONSTRAINT pinboard_items_query_execution_id_key UNIQUE (query_execution_id)
 );
 ALTER TABLE ONLY pinboard_items FORCE ROW LEVEL SECURITY;
+
+-- Persisted insights — saved multi-hop discoveries with the
+-- `QueryIR` re-run anchor + the original ontology/registry
+-- provenance. See `ox_query_ir::insight::InsightDef` for the typed
+-- shape; `query_ir` and `original_provenance` are JSONB blobs of the
+-- canonical wire form.
+CREATE TABLE insights (
+    id                    TEXT PRIMARY KEY,
+    question              JSONB NOT NULL,                 -- LocalizedText
+    description           JSONB NOT NULL DEFAULT '{}'::jsonb,
+    tags                  TEXT[] NOT NULL DEFAULT '{}',
+    -- GlossaryTermId references — typed concept anchors per the
+    -- 1-pager's "용어 사전이 다리" axis. Distinct from `tags`
+    -- (freeform admin shorthand) so cross-team filtering by concept
+    -- stays consistent even when tag wording drifts.
+    concept_anchors       TEXT[] NOT NULL DEFAULT '{}',
+    query_ir              JSONB NOT NULL,
+    original_provenance   JSONB,
+    author_id             UUID NOT NULL,
+    expires_at            TIMESTAMPTZ,
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    workspace_id          UUID NOT NULL DEFAULT (current_setting('app.workspace_id', true))::uuid
+                               REFERENCES workspaces(id) ON DELETE CASCADE
+);
+ALTER TABLE insights ENABLE ROW LEVEL SECURITY;
+ALTER TABLE insights FORCE ROW LEVEL SECURITY;
+CREATE POLICY ws_isolation ON insights
+    USING (workspace_id = current_setting('app.workspace_id', true)::uuid)
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true)::uuid);
+CREATE POLICY system_bypass ON insights
+    USING (current_setting('app.system_bypass', true) = 'true');
+
+-- Filter by author (admin "my insights" tab) + by expiry sweep
+-- (background job that hides stale insights from the default
+-- surface).
+CREATE INDEX insights_author_idx
+    ON insights (workspace_id, author_id);
+CREATE INDEX insights_expires_idx
+    ON insights (workspace_id, expires_at)
+    WHERE expires_at IS NOT NULL;
+-- Concept-anchor / tag overlap (`array && array`) — pairs with the
+-- `InsightFilter` axes (1-pager: "용어 사전이 다리"). GIN is the
+-- index family Postgres ships for `&&` over `text[]`.
+CREATE INDEX insights_concept_anchors_gin
+    ON insights USING gin (concept_anchors);
+CREATE INDEX insights_tags_gin
+    ON insights USING gin (tags);
 
 -- ============================================================================
 -- 4. Agent
@@ -1546,7 +1616,8 @@ CREATE POLICY system_bypass ON workbench_perspectives
 -- Columns that live on the owner table are declared inline in each
 -- CREATE TABLE above (`audit_log.affected_workspace_id`,
 -- `dashboards.share_expires_at`, `prompt_templates.workspace_id`,
--- `workspaces.primary_locale` / `locale_fallback`); this section
+-- `workspaces.primary_locale` / `admin_locale_fallback` /
+-- `llm_locale_fallback`); this section
 -- ships only the pieces that can't fit inside a single CREATE —
 -- namely the composite index + extended RLS policy + a full sibling
 -- table for `api_keys`.
@@ -2061,9 +2132,14 @@ CREATE INDEX ontology_edge_type_index_target_idx
 -- Properties are NESTED in node_type / edge_type at the IR level
 -- (they're not top-level entities in Level 2), but they carry the
 -- richest facet set for NL2SQL prompt enrichment — aggregation_role,
--- value_set_id, notation_pattern_id, semantic_type, pii_kind — so
--- the materialisation here lets the prompt-builder ask "show me all
--- Measure-role properties referencing value sets" in one index seek.
+-- semantic_type, pii_kind — so the materialisation here lets the
+-- prompt-builder ask "show me all Measure-role properties" in one
+-- index seek.
+--
+-- Semantic bindings (value-set / notation-pattern / value-range /
+-- glossary / code-system) are normalised into the sibling
+-- `ontology_property_binding` table — multi-binding properties are
+-- first-class, strength + concept-map + temporal scope all preserved.
 
 CREATE TABLE ontology_property_index (
     version_id             UUID NOT NULL
@@ -2078,13 +2154,9 @@ CREATE TABLE ontology_property_index (
     nullable               BOOLEAN NOT NULL,
     is_localized           BOOLEAN NOT NULL,
     aggregation_role       TEXT,                                -- measure | dimension | attribute | identifier
-    value_set_id           TEXT,
-    notation_pattern_id    TEXT,
-    value_range_set_id     TEXT,
     semantic_type          TEXT,
     pii_kind               TEXT,
     unit_id                TEXT,
-    glossary_term_id       TEXT,
     deprecated_at          TIMESTAMPTZ,
     workspace_id           UUID NOT NULL DEFAULT (current_setting('app.workspace_id', true))::uuid
                                 REFERENCES workspaces(id) ON DELETE CASCADE,
@@ -2092,12 +2164,48 @@ CREATE TABLE ontology_property_index (
 );
 CREATE INDEX ontology_property_index_version_idx
     ON ontology_property_index (version_id);
-CREATE INDEX ontology_property_index_value_set_idx
-    ON ontology_property_index (version_id, value_set_id)
-    WHERE value_set_id IS NOT NULL;
-CREATE INDEX ontology_property_index_notation_pattern_idx
-    ON ontology_property_index (version_id, notation_pattern_id)
-    WHERE notation_pattern_id IS NOT NULL;
+
+-- One row per binding on a property; targets a registry entry by
+-- `(target_kind, target_id)`. Multi-binding properties produce
+-- multiple rows. Strength + concept-map + temporal-window fields
+-- carry every dimension the in-memory `PropertyBinding` does, so a
+-- registry-keyed search ("which properties bind to value-set X with
+-- Required strength") lands in one indexed seek.
+CREATE TABLE ontology_property_binding (
+    version_id             UUID NOT NULL
+                                REFERENCES ontology_version_snapshots(id)
+                                ON DELETE CASCADE,
+    owner_kind             ontology_entity_kind NOT NULL,
+    owner_logical_id       TEXT NOT NULL,
+    property_logical_id    TEXT NOT NULL,
+    -- ordinal index inside the property's `bindings` Vec — preserves
+    -- author intent when two bindings would both classify a value
+    -- (consumers honour the first match).
+    ordinal                INTEGER NOT NULL,
+    -- snake_case discriminator: value_set | code_system |
+    -- notation_pattern | value_range | glossary
+    target_kind            TEXT NOT NULL,
+    target_id              TEXT NOT NULL,
+    -- snake_case strength: required | preferred | extensible | example
+    strength               TEXT NOT NULL,
+    concept_map_id         TEXT,
+    valid_from             TIMESTAMPTZ,
+    valid_to               TIMESTAMPTZ,
+    workspace_id           UUID NOT NULL DEFAULT (current_setting('app.workspace_id', true))::uuid
+                                REFERENCES workspaces(id) ON DELETE CASCADE,
+    PRIMARY KEY (version_id, owner_kind, owner_logical_id, property_logical_id, ordinal)
+);
+-- Lookup by registry target — answers the admin UI's
+-- "which properties use this value set?" question per snapshot.
+-- Workspace prefix keeps multi-tenant scans tight; RLS additionally
+-- enforces row-level isolation, but the index prefix lets the
+-- planner narrow before the policy check.
+CREATE INDEX ontology_property_binding_target_idx
+    ON ontology_property_binding (workspace_id, version_id, target_kind, target_id);
+-- Lookup by version + strength — Required-binding sweep for the
+-- write-time validator's pre-flight cache.
+CREATE INDEX ontology_property_binding_strength_idx
+    ON ontology_property_binding (workspace_id, version_id, strength);
 
 
 -- --- interface --------------------------------------------------------------
@@ -2298,16 +2406,15 @@ CREATE TABLE ontology_glossary_term_index (
                            REFERENCES ontology_entity_versions(entity_hash),
     term              TEXT NOT NULL,
     category          TEXT,
-    parent_term_id    TEXT,
+    related_terms     JSONB NOT NULL DEFAULT '[]'::jsonb,
     workspace_id      UUID NOT NULL DEFAULT (current_setting('app.workspace_id', true))::uuid
                            REFERENCES workspaces(id) ON DELETE CASCADE,
     PRIMARY KEY (version_id, logical_id)
 );
 CREATE INDEX ontology_glossary_term_index_term_idx
     ON ontology_glossary_term_index (version_id, term);
-CREATE INDEX ontology_glossary_term_index_parent_idx
-    ON ontology_glossary_term_index (version_id, parent_term_id)
-    WHERE parent_term_id IS NOT NULL;
+CREATE INDEX ontology_glossary_term_index_related_idx
+    ON ontology_glossary_term_index USING GIN (related_terms);
 
 
 -- --- rule ------------------------------------------------------------------
@@ -2377,6 +2484,7 @@ BEGIN
             'ontology_node_type_index',
             'ontology_edge_type_index',
             'ontology_property_index',
+            'ontology_property_binding',
             'ontology_interface_index',
             'ontology_object_mapping_index',
             'ontology_link_mapping_index',
@@ -2445,7 +2553,7 @@ CREATE INDEX ontology_entity_neighbors_reverse_idx
 -- indicated by `relation_kind`. Relation kinds covered:
 --
 --   code_system_broader       CodedValue.broader_id chain inside a system
---   glossary_term_parent      GlossaryTermDef.parent_term_id chain
+--   glossary_term_broader     GlossaryTermDef.related_terms[Broader] chain
 --   interface_implements      NodeType → Interface (implements)
 --
 -- `depth = 0` is the self-reference (every entity is its own
@@ -2583,9 +2691,9 @@ CREATE POLICY system_bypass ON ontology_entity_embedding
 -- Ontology facet indexes
 -- ============================================================================
 
-CREATE INDEX ontology_property_index_role_type_vs_facet_idx
+CREATE INDEX ontology_property_index_role_type_facet_idx
     ON ontology_property_index
-       (version_id, aggregation_role, property_type, value_set_id);
+       (version_id, aggregation_role, property_type);
 
 -- PII surface: pick the PII-classified properties first, then
 -- narrow by semantic_type (Email, Phone, Address, ...).

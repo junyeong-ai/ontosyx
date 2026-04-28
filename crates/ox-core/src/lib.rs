@@ -27,6 +27,7 @@
 // Module declarations
 // ---------------------------------------------------------------------------
 
+pub mod diagnostic;
 pub mod error;
 pub mod graph_label;
 pub mod i18n;
@@ -42,9 +43,16 @@ pub mod variable_name;
 // more; everything ontology/query-shaped lives in the sibling crates).
 // ---------------------------------------------------------------------------
 
+pub use diagnostic::{
+    diag, is_valid_diagnostic_code, join_messages, DiagnosticBuilder, DiagnosticMessage,
+};
 pub use error::{ErrorContext, OxError};
 pub use graph_label::GraphLabel;
-pub use i18n::{LanguageTag, LocaleError, LocalizedText};
+pub use i18n::{
+    admin_locale_fallback_default_tags, display_name_with_fallback,
+    llm_locale_fallback_default_tags, LanguageTag, LocaleError, LocalizedText,
+    ADMIN_LOCALE_FALLBACK_DEFAULT, LLM_LOCALE_FALLBACK_DEFAULT, PRIMARY_LOCALE_DEFAULT,
+};
 pub use prompt_version::PromptVersion;
 pub use property_key::PropertyKey;
 pub use source_schema::{SchemaFingerprint, SourceProfile, SourceSchema, TableSummary};

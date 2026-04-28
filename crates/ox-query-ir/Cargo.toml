@@ -20,6 +20,8 @@ thiserror = { workspace = true }
 chrono = { workspace = true }
 tracing = { workspace = true }
 sha2 = { workspace = true }
+uuid = { workspace = true }
+utoipa = { workspace = true }
 
 [lints]
 workspace = true
