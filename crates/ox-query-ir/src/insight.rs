@@ -24,6 +24,74 @@ use ox_core::i18n::LocalizedText;
 
 use crate::query::{QueryIR, QueryProvenance};
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn make_insight(provenance: Option<serde_json::Value>) -> InsightDef {
+        InsightDef {
+            id: InsightId::new("ins-test"),
+            question: LocalizedText::default(),
+            description: LocalizedText::default(),
+            tags: Vec::new(),
+            concept_anchors: Vec::new(),
+            query_ir: serde_json::Value::Null,
+            original_provenance: provenance,
+            author_id: Uuid::nil(),
+            expires_at: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
+
+    #[test]
+    fn compatibility_returns_compatible_when_ontology_and_version_match() {
+        let ins = make_insight(Some(json!({
+            "ontology_id": "ont-x", "ontology_version": "3"
+        })));
+        assert_eq!(
+            ins.compatibility_with("ont-x", "3"),
+            InsightCompatibility::Compatible
+        );
+    }
+
+    #[test]
+    fn compatibility_returns_version_drift_for_same_ontology_different_version() {
+        let ins = make_insight(Some(json!({
+            "ontology_id": "ont-x", "ontology_version": "2"
+        })));
+        match ins.compatibility_with("ont-x", "3") {
+            InsightCompatibility::VersionDrift { saved_version } => {
+                assert_eq!(saved_version, "2");
+            }
+            other => panic!("expected VersionDrift, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn compatibility_returns_ontology_mismatch_for_different_lineage() {
+        let ins = make_insight(Some(json!({
+            "ontology_id": "ont-old", "ontology_version": "3"
+        })));
+        match ins.compatibility_with("ont-new", "3") {
+            InsightCompatibility::OntologyMismatch { saved_ontology_id } => {
+                assert_eq!(saved_ontology_id, "ont-old");
+            }
+            other => panic!("expected OntologyMismatch, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn compatibility_returns_provenance_missing_when_provenance_absent() {
+        let ins = make_insight(None);
+        assert_eq!(
+            ins.compatibility_with("ont-x", "3"),
+            InsightCompatibility::ProvenanceMissing
+        );
+    }
+}
+
 define_id_newtype!(
     /// Stable identifier for an [`InsightDef`].
     InsightId
@@ -104,4 +172,72 @@ impl InsightDef {
             None => Ok(None),
         }
     }
+
+    /// Lightweight typed accessors over `original_provenance` so
+    /// consumers can ask "what ontology / version was this against?"
+    /// without round-tripping the full `QueryProvenance`. Returns
+    /// `None` when the provenance is absent or the field wasn't
+    /// captured at save time.
+    pub fn ontology_id(&self) -> Option<String> {
+        self.original_provenance
+            .as_ref()
+            .and_then(|v| v.get("ontology_id"))
+            .and_then(|v| v.as_str())
+            .map(String::from)
+    }
+
+    pub fn ontology_version(&self) -> Option<String> {
+        self.original_provenance
+            .as_ref()
+            .and_then(|v| v.get("ontology_version"))
+            .and_then(|v| v.as_str())
+            .map(String::from)
+    }
+
+    /// Compatibility classification against the current ontology
+    /// snapshot. Drives the FE's `InsightListPanel` badges so an
+    /// operator can tell at a glance whether a saved discovery is
+    /// runnable as-is, was authored on a different ontology
+    /// (cannot migrate without a re-bind), or just lags the current
+    /// version (re-running may produce different bindings but the
+    /// schema is the same lineage).
+    pub fn compatibility_with(
+        &self,
+        current_ontology_id: &str,
+        current_version: &str,
+    ) -> InsightCompatibility {
+        match self.ontology_id() {
+            None => InsightCompatibility::ProvenanceMissing,
+            Some(saved) if saved != current_ontology_id => {
+                InsightCompatibility::OntologyMismatch {
+                    saved_ontology_id: saved,
+                }
+            }
+            Some(_) => match self.ontology_version() {
+                Some(v) if v == current_version => InsightCompatibility::Compatible,
+                Some(saved) => InsightCompatibility::VersionDrift {
+                    saved_version: saved,
+                },
+                None => InsightCompatibility::ProvenanceMissing,
+            },
+        }
+    }
+}
+
+/// Result of [`InsightDef::compatibility_with`]. The FE renders one
+/// badge per variant:
+/// - `Compatible` — green, "runnable as-is"
+/// - `VersionDrift` — amber, "same ontology, newer version; bindings
+///   may need re-resolution"
+/// - `OntologyMismatch` — red, "different ontology lineage; rebind
+///   manually before running"
+/// - `ProvenanceMissing` — grey, "saved without provenance; cannot
+///   classify"
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[serde(tag = "kind", content = "detail", rename_all = "snake_case")]
+pub enum InsightCompatibility {
+    Compatible,
+    VersionDrift { saved_version: String },
+    OntologyMismatch { saved_ontology_id: String },
+    ProvenanceMissing,
 }
