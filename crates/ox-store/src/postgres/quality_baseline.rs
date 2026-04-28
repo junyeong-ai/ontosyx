@@ -9,6 +9,7 @@ impl crate::store::QualityBaselineStore for PostgresStore {
         &self,
         baseline: &crate::quality_signal::WorkspaceQualityBaseline,
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "INSERT INTO workspace_quality_baseline
                  (workspace_id, window_label, sample_size, thresholds, computed_at)

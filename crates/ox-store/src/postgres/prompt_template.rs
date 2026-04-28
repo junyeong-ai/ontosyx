@@ -114,6 +114,7 @@ impl PromptTemplateStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn create_prompt_template(&self, r: &PromptTemplateRow) -> OxResult<()> {
+        super::require_workspace_context()?;
         // Strict insert. A duplicate `(name, version)` surfaces as
         // `OxError::Conflict` rather than a silent no-op — both
         // callers (TOML seed + admin POST) need the collision to be
@@ -166,6 +167,7 @@ impl PromptTemplateStore for PostgresStore {
         variables: &serde_json::Value,
         is_active: bool,
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "UPDATE prompt_templates SET content = $2, variables = $3, is_active = $4 WHERE id = $1",
         )
@@ -183,6 +185,7 @@ impl PromptTemplateStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_prompt_template(&self, id: Uuid) -> OxResult<bool> {
+        super::require_workspace_context()?;
         let result = sqlx::query("DELETE FROM prompt_templates WHERE id = $1")
             .bind(id)
             .execute(&self.pool)
@@ -199,6 +202,7 @@ impl PromptTemplateStore for PostgresStore {
         name: &str,
         exclude_id: Uuid,
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "UPDATE prompt_templates SET is_active = false WHERE name = $1 AND id != $2 AND is_active = true",
         )

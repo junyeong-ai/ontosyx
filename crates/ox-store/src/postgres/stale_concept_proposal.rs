@@ -99,6 +99,7 @@ impl StaleConceptProposalStore for PostgresStore {
         &self,
         proposal: crate::quality_signal::StaleConceptProposal,
     ) -> OxResult<crate::quality_signal::StaleConceptProposal> {
+        super::require_workspace_context()?;
         // Cron-friendly: natural key dedup. A re-proposal after a
         // previous `dismissed` decision needs the admin to clear the
         // old row first — we don't auto-resurrect, because that
@@ -135,6 +136,7 @@ impl StaleConceptProposalStore for PostgresStore {
         decided_by_user_id: Option<Uuid>,
         reason: Option<String>,
     ) -> OxResult<crate::quality_signal::StaleConceptProposal> {
+        super::require_workspace_context()?;
         // Only transition from `pending` — repeated decisions are
         // silent no-ops that return the existing row (so the UI can
         // double-click the button without error). Terminal → terminal

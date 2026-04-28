@@ -6,6 +6,7 @@ use super::*;
 impl RecipeStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn upsert_recipe(&self, r: &AnalysisRecipe) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "INSERT INTO analysis_recipes
              (id, name, description, algorithm_type, code_template, parameters,
@@ -88,6 +89,7 @@ impl RecipeStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_recipe(&self, id: Uuid) -> OxResult<bool> {
+        super::require_workspace_context()?;
         let result = sqlx::query("DELETE FROM analysis_recipes WHERE id = $1")
             .bind(id)
             .execute(&self.pool)
@@ -98,6 +100,7 @@ impl RecipeStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn update_recipe_status(&self, id: Uuid, status: &str) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query("UPDATE analysis_recipes SET status = $2 WHERE id = $1")
             .bind(id)
             .bind(status)
@@ -109,6 +112,7 @@ impl RecipeStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn create_recipe_version(&self, recipe: &AnalysisRecipe) -> OxResult<()> {
+        super::require_workspace_context()?;
         self.upsert_recipe(recipe).await
     }
 
@@ -127,6 +131,7 @@ impl RecipeStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn upsert_recipes_batch(&self, recipes: &[AnalysisRecipe]) -> OxResult<()> {
+        super::require_workspace_context()?;
         if recipes.is_empty() {
             return Ok(());
         }

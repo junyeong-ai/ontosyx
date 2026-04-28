@@ -6,6 +6,7 @@ use super::*;
 impl KnowledgeStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn create_knowledge_entry(&self, entry: &KnowledgeEntry) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "INSERT INTO knowledge_entries (
                 id, workspace_id, ontology_name, ontology_version_min, ontology_version_max,
@@ -67,6 +68,7 @@ impl KnowledgeStore for PostgresStore {
         affected_labels: &[String],
         affected_properties: &[String],
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "UPDATE knowledge_entries SET title = $2, content = $3, structured_data = $4,
                     affected_labels = $5, affected_properties = $6,
@@ -96,6 +98,7 @@ impl KnowledgeStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_knowledge_entry(&self, id: Uuid) -> OxResult<bool> {
+        super::require_workspace_context()?;
         let result = sqlx::query("DELETE FROM knowledge_entries WHERE id = $1")
             .bind(id)
             .execute(&self.pool)
@@ -196,6 +199,7 @@ impl KnowledgeStore for PostgresStore {
         reviewer_id: Option<Uuid>,
         review_notes: Option<&str>,
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         let result = sqlx::query(
             "UPDATE knowledge_entries SET status = $2, reviewed_by = $3, review_notes = $4,
                     reviewed_at = now(), updated_at = now()
@@ -218,6 +222,7 @@ impl KnowledgeStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn update_knowledge_confidence(&self, id: Uuid, confidence: f64) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "UPDATE knowledge_entries SET confidence = $2, updated_at = now() WHERE id = $1",
         )
@@ -235,6 +240,7 @@ impl KnowledgeStore for PostgresStore {
         ontology_name: &str,
         changed_labels: &[String],
     ) -> OxResult<u64> {
+        super::require_workspace_context()?;
         let result = sqlx::query(
             "UPDATE knowledge_entries
              SET status = 'stale', confidence = confidence * 0.5, updated_at = now()
@@ -252,6 +258,7 @@ impl KnowledgeStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn record_knowledge_usage(&self, ids: &[Uuid]) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "UPDATE knowledge_entries SET use_count = use_count + 1, last_used_at = now()
              WHERE id = ANY($1)",
@@ -320,6 +327,7 @@ impl KnowledgeStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn cleanup_knowledge(&self, older_than_days: i64) -> OxResult<u64> {
+        super::require_workspace_context()?;
         // Auto-deprecate low-confidence entries
         sqlx::query(
             "UPDATE knowledge_entries SET status = 'deprecated', updated_at = now()

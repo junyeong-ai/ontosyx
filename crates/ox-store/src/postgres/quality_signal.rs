@@ -108,6 +108,7 @@ impl QualitySignalStore for PostgresStore {
         &self,
         signal: &crate::quality_signal::QueryExecutionSignal,
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         let failure_text = signal.shacl_failure_kind.map(shacl_failure_to_str);
         // idempotent: `execution_id` uniquely identifies one query
         // execution event. Re-emission carries the same captured
@@ -259,6 +260,7 @@ impl QualitySignalStore for PostgresStore {
         &self,
         type_ids: &[(uuid::Uuid, &str)],
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         if type_ids.is_empty() {
             return Ok(());
         }

@@ -13,6 +13,7 @@ impl crate::store::OntologyVersionStore for PostgresStore {
         description: &serde_json::Value,
         lineage_id: Option<&str>,
     ) -> OxResult<crate::models::OntologyRow> {
+        super::require_workspace_context()?;
         // Explicit lineage takes precedence; otherwise a fresh UUID
         // v4 goes into the TEXT column. Clients can always overwrite
         // later via a sibling update path — for now creation is the

@@ -25,6 +25,7 @@ impl LoadCheckpointStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn upsert_checkpoint(&self, c: &LoadCheckpoint) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "INSERT INTO load_checkpoints
              (id, workspace_id, project_id, source_table, graph_label,
@@ -67,6 +68,7 @@ impl LoadCheckpointStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_checkpoint(&self, id: Uuid) -> OxResult<bool> {
+        super::require_workspace_context()?;
         let result = sqlx::query("DELETE FROM load_checkpoints WHERE id = $1")
             .bind(id)
             .execute(&self.pool)

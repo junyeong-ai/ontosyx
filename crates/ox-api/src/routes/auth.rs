@@ -89,48 +89,64 @@ pub(crate) async fn create_token(
         last_login_at: Some(now),
     };
 
-    let mut user = state
-        .store
-        .upsert_user(&user)
-        .await
-        .map_err(AppError::from)?;
-
-    // Auto-promote first user to admin
-    let user_count = state.store.count_users().await.map_err(AppError::from)?;
-    if user_count == 1 && user.role != "admin" {
-        let should_promote = match &state.auth_config.first_admin_email {
-            Some(admin_email) => user.email == *admin_email,
-            None => true,
-        };
-        if should_promote {
-            state
+    // Auth runs before workspace_context middleware (the route is
+    // public), so user / membership writes lack a per-request
+    // workspace scope. Wrap the user-side bookkeeping in
+    // `SYSTEM_BYPASS` — login is a system-level operation by design,
+    // and the bypass keeps the `require_workspace_context` guard
+    // happy on every mutating call below.
+    let user = ox_store::SYSTEM_BYPASS
+        .scope(true, async {
+            let mut user = state
                 .store
-                .update_user_role(user.id, "admin")
+                .upsert_user(&user)
                 .await
                 .map_err(AppError::from)?;
-            user.role = "admin".to_string();
-            tracing::info!(user_id = %user.id, "First user auto-promoted to admin");
-        }
-    }
 
-    // Auto-join default workspace for new users
-    if user.created_at == now
-        && let Ok(Some(ws)) = state
-            .store
-            .get_workspace_by_slug(crate::workspace::DEFAULT_WORKSPACE_SLUG)
-            .await
-        && let Err(e) = state
-            .store
-            .add_workspace_member(ws.id, user.id, "member")
-            .await
-    {
-        tracing::error!(
-            user_id = %user.id,
-            workspace_id = %ws.id,
-            error = ?e,
-            "Failed to auto-join default workspace"
-        );
-    }
+            // Auto-promote first user to admin
+            let user_count = state
+                .store
+                .count_users()
+                .await
+                .map_err(AppError::from)?;
+            if user_count == 1 && user.role != "admin" {
+                let should_promote = match &state.auth_config.first_admin_email {
+                    Some(admin_email) => user.email == *admin_email,
+                    None => true,
+                };
+                if should_promote {
+                    state
+                        .store
+                        .update_user_role(user.id, "admin")
+                        .await
+                        .map_err(AppError::from)?;
+                    user.role = "admin".to_string();
+                    tracing::info!(user_id = %user.id, "First user auto-promoted to admin");
+                }
+            }
+
+            // Auto-join default workspace for new users
+            if user.created_at == now
+                && let Ok(Some(ws)) = state
+                    .store
+                    .get_workspace_by_slug(crate::workspace::DEFAULT_WORKSPACE_SLUG)
+                    .await
+                && let Err(e) = state
+                    .store
+                    .add_workspace_member(ws.id, user.id, "member")
+                    .await
+            {
+                tracing::error!(
+                    user_id = %user.id,
+                    workspace_id = %ws.id,
+                    error = ?e,
+                    "Failed to auto-join default workspace"
+                );
+            }
+
+            Ok::<User, AppError>(user)
+        })
+        .await?;
 
     // Create platform JWT
     let exp_secs = state.auth_config.session_hours * 3600;

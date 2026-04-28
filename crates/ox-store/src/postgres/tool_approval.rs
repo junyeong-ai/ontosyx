@@ -6,6 +6,7 @@ use super::*;
 impl ToolApprovalStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn create_tool_approval(&self, a: &ToolApproval) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "INSERT INTO tool_approvals
              (session_id, tool_call_id, approved, reason, modified_input, user_id)

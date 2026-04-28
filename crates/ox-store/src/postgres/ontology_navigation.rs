@@ -203,6 +203,7 @@ impl crate::store::OntologyNavigationStore for PostgresStore {
         subgraph: crate::navigation::Subgraph,
         options: crate::navigation::HierarchyFacetOptions,
     ) -> OxResult<crate::navigation::Subgraph> {
+        super::require_workspace_context()?;
         use crate::navigation::{
             EntityRef, FacetFilter, HierarchyExpand, Subgraph, SubgraphEdge, SubgraphNode,
         };

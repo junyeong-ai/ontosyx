@@ -40,6 +40,7 @@ impl ApprovalCommentStore for PostgresStore {
         author_id: Uuid,
         body: &str,
     ) -> OxResult<ApprovalComment> {
+        super::require_workspace_context()?;
         sqlx::query_as(
             "WITH inserted AS (
                  INSERT INTO approval_comments (approval_id, author_id, body)

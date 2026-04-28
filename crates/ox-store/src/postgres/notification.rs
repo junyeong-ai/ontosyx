@@ -5,6 +5,7 @@ use super::*;
 #[async_trait]
 impl crate::store::NotificationStore for PostgresStore {
     async fn create_notification_channel(&self, ch: &NotificationChannel) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "INSERT INTO notification_channels (id, workspace_id, name, channel_type, config, events, enabled, created_at, updated_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
@@ -51,6 +52,7 @@ impl crate::store::NotificationStore for PostgresStore {
         events: Option<&[String]>,
         enabled: Option<bool>,
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "UPDATE notification_channels SET
                 name = COALESCE($1, name),
@@ -72,6 +74,7 @@ impl crate::store::NotificationStore for PostgresStore {
     }
 
     async fn delete_notification_channel(&self, id: Uuid) -> OxResult<bool> {
+        super::require_workspace_context()?;
         let result = sqlx::query("DELETE FROM notification_channels WHERE id = $1")
             .bind(id)
             .execute(&self.pool)
@@ -94,6 +97,7 @@ impl crate::store::NotificationStore for PostgresStore {
     }
 
     async fn create_notification_log(&self, log: &NotificationLog) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "INSERT INTO notification_log (id, workspace_id, channel_id, event_type, subject, body, status, error, created_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",

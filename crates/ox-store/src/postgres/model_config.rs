@@ -32,6 +32,7 @@ impl crate::store::ModelConfigStore for PostgresStore {
         &self,
         config: &crate::NewModelConfig,
     ) -> OxResult<crate::ModelConfig> {
+        super::require_workspace_context()?;
         sqlx::query_as::<_, crate::ModelConfig>(
             "INSERT INTO model_configs
                 (workspace_id, name, provider, model_id, max_tokens, temperature,
@@ -67,6 +68,7 @@ impl crate::store::ModelConfigStore for PostgresStore {
         id: Uuid,
         update: &crate::ModelConfigUpdate,
     ) -> OxResult<crate::ModelConfig> {
+        super::require_workspace_context()?;
         sqlx::query_as::<_, crate::ModelConfig>(
             "UPDATE model_configs SET
                 name = COALESCE($2, name),
@@ -108,6 +110,7 @@ impl crate::store::ModelConfigStore for PostgresStore {
     }
 
     async fn delete_model_config(&self, id: Uuid) -> OxResult<bool> {
+        super::require_workspace_context()?;
         let result = sqlx::query("DELETE FROM model_configs WHERE id = $1")
             .bind(id)
             .execute(&self.pool)
@@ -145,6 +148,7 @@ impl crate::store::ModelConfigStore for PostgresStore {
         &self,
         rule: &crate::NewRoutingRule,
     ) -> OxResult<crate::ModelRoutingRule> {
+        super::require_workspace_context()?;
         sqlx::query_as::<_, crate::ModelRoutingRule>(
             "INSERT INTO model_routing_rules
                 (workspace_id, operation, model_config_id, priority)
@@ -165,6 +169,7 @@ impl crate::store::ModelConfigStore for PostgresStore {
         id: Uuid,
         update: &crate::RoutingRuleUpdate,
     ) -> OxResult<crate::ModelRoutingRule> {
+        super::require_workspace_context()?;
         sqlx::query_as::<_, crate::ModelRoutingRule>(
             "UPDATE model_routing_rules SET
                 operation = COALESCE($2, operation),
@@ -185,6 +190,7 @@ impl crate::store::ModelConfigStore for PostgresStore {
     }
 
     async fn delete_routing_rule(&self, id: Uuid) -> OxResult<bool> {
+        super::require_workspace_context()?;
         let result = sqlx::query("DELETE FROM model_routing_rules WHERE id = $1")
             .bind(id)
             .execute(&self.pool)

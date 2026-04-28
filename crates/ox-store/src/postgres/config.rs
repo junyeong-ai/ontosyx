@@ -28,6 +28,7 @@ impl ConfigStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn update_config(&self, category: &str, key: &str, value: &str) -> OxResult<()> {
+        super::require_workspace_context()?;
         let result = sqlx::query(
             "UPDATE system_config SET value = $3, updated_at = NOW()
              WHERE category = $1 AND key = $2",
@@ -49,6 +50,7 @@ impl ConfigStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn update_config_batch(&self, updates: &[(String, String, String)]) -> OxResult<()> {
+        super::require_workspace_context()?;
         let mut tx = self.pool.begin().await.map_err(to_ox_error)?;
 
         for (category, key, value) in updates {

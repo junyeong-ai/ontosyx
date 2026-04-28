@@ -6,6 +6,7 @@ use super::*;
 impl ProjectStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn create_design_project(&self, project: &DesignProject) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "INSERT INTO design_projects
              (id, user_id, status, revision, title, source_config, source_id,
@@ -94,6 +95,7 @@ impl ProjectStore for PostgresStore {
         options: &serde_json::Value,
         expected_revision: i32,
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         let result = sqlx::query(
             "UPDATE design_projects
              SET design_options = $1, updated_at = NOW(),
@@ -117,6 +119,7 @@ impl ProjectStore for PostgresStore {
         quality_report: Option<&serde_json::Value>,
         expected_revision: i32,
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         let result = sqlx::query(
             "UPDATE design_projects
              SET ontology = $1, quality_report = $2, status = 'designed',
@@ -140,6 +143,7 @@ impl ProjectStore for PostgresStore {
         result: &ExtendResult,
         expected_revision: i32,
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         let rows = sqlx::query(
             "UPDATE design_projects
              SET ontology = $1, quality_report = $2,
@@ -199,6 +203,7 @@ impl ProjectStore for PostgresStore {
         ontology_id: Uuid,
         expected_revision: i32,
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         // The caller has already committed a new version through
         // OntologyVersionStore; this path only links the project
         // row to the new ontology identity. Single-statement path
@@ -221,6 +226,7 @@ impl ProjectStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_design_project(&self, id: Uuid) -> OxResult<bool> {
+        super::require_workspace_context()?;
         let result = sqlx::query("DELETE FROM design_projects WHERE id = $1")
             .bind(id)
             .execute(&self.pool)
@@ -231,6 +237,7 @@ impl ProjectStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn archive_stale_projects(&self, max_age_days: i64) -> OxResult<Vec<(Uuid, u64)>> {
+        super::require_workspace_context()?;
         // RETURNING the workspace_id of each affected row, then GROUP
         // BY in SQL — keeps the per-workspace breakdown server-side
         // instead of round-tripping every row to Rust.
@@ -256,6 +263,7 @@ impl ProjectStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_archived_projects(&self, max_archive_days: i64) -> OxResult<Vec<(Uuid, u64)>> {
+        super::require_workspace_context()?;
         let rows: Vec<(Uuid, i64)> = sqlx::query_as(
             "WITH affected AS (
                  DELETE FROM design_projects
@@ -284,6 +292,7 @@ impl ProjectStore for PostgresStore {
         ontology: &serde_json::Value,
         quality_report: Option<&serde_json::Value>,
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         // idempotent: `(project_id, revision)` uniquely identifies a
         // snapshot of a project version — the same revision pinned
         // twice carries the same ontology JSONB, so DO NOTHING is the

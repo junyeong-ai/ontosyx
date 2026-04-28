@@ -10,6 +10,7 @@ impl EmbeddingRetryStore for PostgresStore {
         content: &str,
         metadata: &serde_json::Value,
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query("INSERT INTO pending_embeddings (content, metadata) VALUES ($1, $2)")
             .bind(content)
             .bind(metadata)
@@ -36,6 +37,7 @@ impl EmbeddingRetryStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn mark_embedding_failed(&self, id: Uuid, error: &str) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "UPDATE pending_embeddings SET retry_count = retry_count + 1, last_error = $2 WHERE id = $1",
         )
@@ -51,6 +53,7 @@ impl EmbeddingRetryStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_pending_embedding(&self, id: Uuid) -> OxResult<bool> {
+        super::require_workspace_context()?;
         let result = sqlx::query("DELETE FROM pending_embeddings WHERE id = $1")
             .bind(id)
             .execute(&self.pool)

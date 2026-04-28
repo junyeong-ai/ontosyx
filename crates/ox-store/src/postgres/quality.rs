@@ -6,6 +6,7 @@ use super::*;
 impl QualityStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn create_quality_rule(&self, rule: &QualityRule) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "INSERT INTO quality_rules
              (id, ontology_lineage_id, name, description, rule_type, target_label,
@@ -82,6 +83,7 @@ impl QualityStore for PostgresStore {
         threshold: f64,
         is_active: bool,
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         let result = sqlx::query(
             "UPDATE quality_rules
              SET name = $1, threshold = $2, is_active = $3, updated_at = NOW()
@@ -105,6 +107,7 @@ impl QualityStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_quality_rule(&self, id: Uuid) -> OxResult<bool> {
+        super::require_workspace_context()?;
         let result = sqlx::query("DELETE FROM quality_rules WHERE id = $1")
             .bind(id)
             .execute(&self.pool)
@@ -115,6 +118,7 @@ impl QualityStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn record_quality_result(&self, result: &QualityResult) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "INSERT INTO quality_results (id, rule_id, passed, actual_value, details, evaluated_at)
              VALUES ($1, $2, $3, $4, $5, $6)",

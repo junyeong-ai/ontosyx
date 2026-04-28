@@ -6,6 +6,7 @@ use super::*;
 impl DashboardStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn create_dashboard(&self, d: &Dashboard) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "INSERT INTO dashboards (id, workspace_id, user_id, name, description, layout, is_public, share_token, shared_at, share_expires_at, created_at, updated_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
@@ -114,6 +115,7 @@ impl DashboardStore for PostgresStore {
         layout: &serde_json::Value,
         is_public: bool,
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "UPDATE dashboards SET name = $1, description = $2, layout = $3, is_public = $4, updated_at = NOW() WHERE id = $5",
         )
@@ -130,6 +132,7 @@ impl DashboardStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_dashboard(&self, id: Uuid) -> OxResult<bool> {
+        super::require_workspace_context()?;
         let result = sqlx::query("DELETE FROM dashboards WHERE id = $1")
             .bind(id)
             .execute(&self.pool)
@@ -145,6 +148,7 @@ impl DashboardStore for PostgresStore {
         token: Option<&str>,
         expires_at: Option<chrono::DateTime<chrono::Utc>>,
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         if let Some(token) = token {
             sqlx::query(
                 "UPDATE dashboards
@@ -187,6 +191,7 @@ impl DashboardStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn create_widget(&self, w: &DashboardWidget) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "INSERT INTO dashboard_widgets
              (id, dashboard_id, title, widget_type, query, widget_spec, position,
@@ -230,6 +235,7 @@ impl DashboardStore for PostgresStore {
         refresh_interval_secs: Option<i32>,
         thresholds: Option<&serde_json::Value>,
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "UPDATE dashboard_widgets SET
                title = COALESCE($1, title),
@@ -253,6 +259,7 @@ impl DashboardStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn update_widget_result(&self, id: Uuid, result: &serde_json::Value) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "UPDATE dashboard_widgets SET last_result = $1, last_refreshed = NOW() WHERE id = $2",
         )
@@ -266,6 +273,7 @@ impl DashboardStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_widget(&self, id: Uuid) -> OxResult<bool> {
+        super::require_workspace_context()?;
         let result = sqlx::query("DELETE FROM dashboard_widgets WHERE id = $1")
             .bind(id)
             .execute(&self.pool)
@@ -276,6 +284,7 @@ impl DashboardStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn create_widgets_batch(&self, widgets: &[DashboardWidget]) -> OxResult<()> {
+        super::require_workspace_context()?;
         if widgets.is_empty() {
             return Ok(());
         }

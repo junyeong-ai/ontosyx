@@ -6,6 +6,7 @@ use super::*;
 impl PinStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn create_pin(&self, user_id: &str, item: &PinboardItem) -> OxResult<()> {
+        super::require_workspace_context()?;
         // Verify ownership: query_execution must belong to the principal
         let result = sqlx::query(
             "INSERT INTO pinboard_items (id, query_execution_id, user_id, widget_spec, title, pinned_at)
@@ -74,6 +75,7 @@ impl PinStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_pin(&self, user_id: &str, id: Uuid) -> OxResult<bool> {
+        super::require_workspace_context()?;
         let result = sqlx::query(
             "DELETE FROM pinboard_items
              WHERE id = $1 AND user_id = $2",

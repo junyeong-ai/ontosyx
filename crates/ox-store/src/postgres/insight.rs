@@ -42,6 +42,7 @@ impl InsightStore for PostgresStore {
         &self,
         input: CreateInsightInput,
     ) -> OxResult<InsightDef> {
+        super::require_workspace_context()?;
         // UUID v7 is timestamp-ordered (RFC 9562) — every insert
         // produces an id that sorts by creation time, so cursor
         // pagination on `(updated_at, id)` stays stable even when
@@ -82,6 +83,7 @@ impl InsightStore for PostgresStore {
         id: &InsightId,
         input: UpdateInsightInput,
     ) -> OxResult<InsightDef> {
+        super::require_workspace_context()?;
         let row = sqlx::query(
             "UPDATE insights SET \
                 question = $2, \
@@ -216,6 +218,7 @@ impl InsightStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all, fields(insight_id = %id.as_str()))]
     async fn delete_insight(&self, id: &InsightId) -> OxResult<bool> {
+        super::require_workspace_context()?;
         let result = sqlx::query("DELETE FROM insights WHERE id = $1")
             .bind(id.as_str())
             .execute(&self.pool)

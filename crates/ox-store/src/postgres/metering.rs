@@ -18,6 +18,7 @@ impl MeteringStore for PostgresStore {
         cost_usd: f64,
         metadata: serde_json::Value,
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "INSERT INTO usage_records
              (user_id, resource_type, provider, model, operation,

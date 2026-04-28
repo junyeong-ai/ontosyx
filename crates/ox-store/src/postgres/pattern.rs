@@ -6,6 +6,7 @@ use super::*;
 impl PatternStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn create_pattern(&self, p: &SavedQueryPattern) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "INSERT INTO saved_query_patterns
              (id, user_id, ontology_lineage_id, name, description, pattern_ir,
@@ -88,6 +89,7 @@ impl PatternStore for PostgresStore {
         description: Option<&str>,
         pattern_ir: &serde_json::Value,
     ) -> OxResult<bool> {
+        super::require_workspace_context()?;
         let result = sqlx::query(
             "UPDATE saved_query_patterns
              SET name = $1, description = $2, pattern_ir = $3, updated_at = NOW()
@@ -105,6 +107,7 @@ impl PatternStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_pattern(&self, id: Uuid) -> OxResult<bool> {
+        super::require_workspace_context()?;
         let result = sqlx::query("DELETE FROM saved_query_patterns WHERE id = $1")
             .bind(id)
             .execute(&self.pool)

@@ -6,6 +6,7 @@ use super::*;
 impl WorkspaceStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn create_workspace(&self, w: &Workspace) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "INSERT INTO workspaces (id, name, slug, owner_id, settings, primary_locale, admin_locale_fallback, llm_locale_fallback)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
@@ -64,6 +65,7 @@ impl WorkspaceStore for PostgresStore {
         name: &str,
         settings: &serde_json::Value,
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         let result = sqlx::query("UPDATE workspaces SET name = $2, settings = $3 WHERE id = $1")
             .bind(id)
             .bind(name)
@@ -82,6 +84,7 @@ impl WorkspaceStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_workspace(&self, id: Uuid) -> OxResult<bool> {
+        super::require_workspace_context()?;
         let result = sqlx::query("DELETE FROM workspaces WHERE id = $1")
             .bind(id)
             .execute(&self.pool)
@@ -98,6 +101,7 @@ impl WorkspaceStore for PostgresStore {
         admin_locale_fallback: &serde_json::Value,
         llm_locale_fallback: &serde_json::Value,
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "UPDATE workspaces
                 SET primary_locale = $2,
@@ -122,6 +126,7 @@ impl WorkspaceStore for PostgresStore {
         user_id: Uuid,
         role: &str,
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "INSERT INTO workspace_members (workspace_id, user_id, role)
              VALUES ($1, $2, $3)
@@ -138,6 +143,7 @@ impl WorkspaceStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn remove_workspace_member(&self, workspace_id: Uuid, user_id: Uuid) -> OxResult<bool> {
+        super::require_workspace_context()?;
         let result =
             sqlx::query("DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2")
                 .bind(workspace_id)
@@ -155,6 +161,7 @@ impl WorkspaceStore for PostgresStore {
         user_id: Uuid,
         role: &str,
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         let result = sqlx::query(
             "UPDATE workspace_members SET role = $3 WHERE workspace_id = $1 AND user_id = $2",
         )

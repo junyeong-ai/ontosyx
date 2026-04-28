@@ -6,6 +6,7 @@ use super::*;
 impl AclStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn create_acl_policy(&self, p: &AclPolicy) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "INSERT INTO acl_policies
              (id, name, description, subject_type, subject_value,
@@ -101,6 +102,7 @@ impl AclStore for PostgresStore {
         priority: i32,
         is_active: bool,
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         let result = sqlx::query(
             "UPDATE acl_policies
              SET name = $2, action = $3, properties = $4, mask_pattern = $5,
@@ -128,6 +130,7 @@ impl AclStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_acl_policy(&self, id: Uuid) -> OxResult<bool> {
+        super::require_workspace_context()?;
         let result = sqlx::query("DELETE FROM acl_policies WHERE id = $1")
             .bind(id)
             .execute(&self.pool)

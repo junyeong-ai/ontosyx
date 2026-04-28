@@ -6,6 +6,7 @@ use super::*;
 impl LineageStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn create_lineage_entry(&self, e: &LineageEntry) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "INSERT INTO data_lineage
              (id, project_id, graph_label, graph_element_type, source_type,
@@ -41,6 +42,7 @@ impl LineageStore for PostgresStore {
         status: &str,
         error_message: Option<&str>,
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "UPDATE data_lineage
              SET record_count = $2, status = $3, error_message = $4, completed_at = NOW()

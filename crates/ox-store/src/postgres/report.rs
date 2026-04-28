@@ -6,6 +6,7 @@ use super::*;
 impl ReportStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn create_report(&self, r: &SavedReport) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "INSERT INTO saved_reports
              (id, user_id, ontology_lineage_id, title, description, query_template,
@@ -94,6 +95,7 @@ impl ReportStore for PostgresStore {
         widget_type: Option<&str>,
         is_public: bool,
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "UPDATE saved_reports
              SET title = $1, description = $2, query_template = $3,
@@ -116,6 +118,7 @@ impl ReportStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_report(&self, id: Uuid) -> OxResult<bool> {
+        super::require_workspace_context()?;
         let result = sqlx::query("DELETE FROM saved_reports WHERE id = $1")
             .bind(id)
             .execute(&self.pool)

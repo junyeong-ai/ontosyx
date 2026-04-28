@@ -37,6 +37,7 @@ impl ApprovalStore for PostgresStore {
         resource_id: &str,
         payload: serde_json::Value,
     ) -> OxResult<ApprovalRequest> {
+        super::require_workspace_context()?;
         let inserted_id: (Uuid,) = sqlx::query_as(
             "INSERT INTO approval_requests
              (requester_id, action_type, resource_type, resource_id, payload)

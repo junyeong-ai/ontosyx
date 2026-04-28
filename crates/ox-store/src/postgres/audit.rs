@@ -13,6 +13,7 @@ impl AuditStore for PostgresStore {
         resource_id: Option<&str>,
         details: serde_json::Value,
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         self.record_audit_for_workspace(user_id, None, action, resource_type, resource_id, details)
             .await
     }
@@ -27,6 +28,7 @@ impl AuditStore for PostgresStore {
         resource_id: Option<&str>,
         details: serde_json::Value,
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "INSERT INTO audit_log (user_id, action, resource_type, resource_id, details, affected_workspace_id)
              VALUES ($1, $2, $3, $4, $5, $6)",

@@ -6,6 +6,7 @@ use super::*;
 impl AgentSessionStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn create_agent_session(&self, s: &AgentSession) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "INSERT INTO agent_sessions (id, user_id, ontology_lineage_id, prompt_hash, tool_schema_hash,
              model_id, model_config, user_message, created_at)
@@ -30,6 +31,7 @@ impl AgentSessionStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn complete_agent_session(&self, id: Uuid, final_text: Option<&str>) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "UPDATE agent_sessions SET final_text = $2, completed_at = NOW() WHERE id = $1",
         )
@@ -114,6 +116,7 @@ impl AgentSessionStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn create_agent_event(&self, e: &AgentEvent) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "INSERT INTO agent_events (id, session_id, workspace_id, sequence, event_type, payload, created_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7)",
@@ -146,6 +149,7 @@ impl AgentSessionStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_agent_session(&self, id: Uuid) -> OxResult<bool> {
+        super::require_workspace_context()?;
         // Delete events first (explicit rather than relying on CASCADE)
         sqlx::query("DELETE FROM agent_events WHERE session_id = $1")
             .bind(id)
@@ -168,6 +172,7 @@ impl AgentSessionStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn cleanup_old_sessions(&self, retention_days: i64) -> OxResult<Vec<(Uuid, u64)>> {
+        super::require_workspace_context()?;
         // Delete events first (CASCADE would handle this but be explicit)
         sqlx::query(
             "DELETE FROM agent_events WHERE session_id IN (

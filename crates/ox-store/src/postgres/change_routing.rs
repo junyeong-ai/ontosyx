@@ -153,6 +153,7 @@ impl ChangeRoutingStore for PostgresStore {
         &self,
         rule: ox_ontology::change_routing::ChangeRoutingRule,
     ) -> OxResult<ox_ontology::change_routing::ChangeRoutingRule> {
+        super::require_workspace_context()?;
         let id_uuid: Uuid = rule.id.as_str().parse().map_err(|e: uuid::Error| {
             OxError::Runtime {
                 message: format!("routing rule id must be uuid: {e}"),
@@ -190,6 +191,7 @@ impl ChangeRoutingStore for PostgresStore {
         &self,
         change_type: ox_ontology::change_routing::ChangeType,
     ) -> OxResult<bool> {
+        super::require_workspace_context()?;
         // Delete only the workspace override — the global default row
         // lives under `workspace_id IS NULL` and is never touched
         // through this path (migrations or SYSTEM_BYPASS own it).

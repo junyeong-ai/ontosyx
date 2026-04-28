@@ -198,6 +198,7 @@ impl AmbiguityStore for PostgresStore {
         &self,
         context: ox_ontology::ambiguity::AmbiguityContext,
     ) -> OxResult<ox_ontology::ambiguity::AmbiguityContext> {
+        super::require_workspace_context()?;
         // Workspace column uses the `app.workspace_id` setting the pool
         // injects on each connection acquisition — we read it back via
         // `current_setting(...)::uuid` so the row lands in the right
@@ -265,6 +266,7 @@ impl AmbiguityStore for PostgresStore {
         &self,
         id: &ox_ontology::ambiguity::AmbiguityId,
     ) -> OxResult<bool> {
+        super::require_workspace_context()?;
         let uuid: Uuid = id.as_str().parse().map_err(|e: uuid::Error| OxError::Runtime {
             message: format!("ambiguity id must be uuid: {e}"),
         })?;
@@ -327,6 +329,7 @@ impl AmbiguityStore for PostgresStore {
         &self,
         resolution: ox_ontology::ambiguity::AmbiguityResolution,
     ) -> OxResult<ox_ontology::ambiguity::AmbiguityResolution> {
+        super::require_workspace_context()?;
         // Atomic: revoke the current active row (if any) and insert the
         // new one in a single transaction so the partial unique index
         // (one active per context) is never violated at read time.
@@ -406,6 +409,7 @@ impl AmbiguityStore for PostgresStore {
         &self,
         context_id: &ox_ontology::ambiguity::AmbiguityId,
     ) -> OxResult<bool> {
+        super::require_workspace_context()?;
         let ctx_uuid: Uuid = context_id.as_str().parse().map_err(|e: uuid::Error| {
             OxError::Runtime {
                 message: format!("context id must be uuid: {e}"),

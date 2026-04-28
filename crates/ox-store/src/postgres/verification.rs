@@ -76,6 +76,7 @@ impl VerificationStore for PostgresStore {
         element_id: &str,
         user_id: Uuid,
     ) -> OxResult<bool> {
+        super::require_workspace_context()?;
         let result = sqlx::query(
             "UPDATE ontology_verifications
              SET invalidated_at = NOW(), invalidation_reason = 'manually_revoked'

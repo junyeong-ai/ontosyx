@@ -6,6 +6,7 @@ use super::*;
 impl PerspectiveStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn upsert_perspective(&self, p: &WorkbenchPerspective) -> OxResult<()> {
+        super::require_workspace_context()?;
         let mut tx = self.pool.begin().await.map_err(to_ox_error)?;
 
         // When saving a default perspective, clear any existing defaults for this ontology
@@ -158,6 +159,7 @@ impl PerspectiveStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_perspective(&self, user_id: &str, id: Uuid) -> OxResult<bool> {
+        super::require_workspace_context()?;
         let result =
             sqlx::query("DELETE FROM workbench_perspectives WHERE id = $1 AND user_id = $2")
                 .bind(id)

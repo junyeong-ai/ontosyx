@@ -6,6 +6,7 @@ use super::*;
 impl UserStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn upsert_user(&self, user: &User) -> OxResult<User> {
+        super::require_workspace_context()?;
         sqlx::query_as::<_, User>(
             "INSERT INTO users (id, email, name, picture, provider, provider_sub, role, created_at, last_login_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -88,6 +89,7 @@ impl UserStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn update_user_role(&self, id: Uuid, role: &str) -> OxResult<()> {
+        super::require_workspace_context()?;
         let result = sqlx::query("UPDATE users SET role = $1 WHERE id = $2")
             .bind(role)
             .bind(id)

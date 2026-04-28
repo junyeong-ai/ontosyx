@@ -6,6 +6,7 @@ use super::*;
 impl ScheduledTaskStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn create_scheduled_task(&self, t: &ScheduledTask) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "INSERT INTO scheduled_tasks (id, recipe_id, ontology_lineage_id, cron_expression, description,
              enabled, next_run_at, webhook_url, created_by, created_at)
@@ -72,6 +73,7 @@ impl ScheduledTaskStore for PostgresStore {
         next_run_at: DateTime<Utc>,
         status: &str,
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "UPDATE scheduled_tasks SET last_run_at = NOW(), next_run_at = $2, last_status = $3 WHERE id = $1",
         )
@@ -86,6 +88,7 @@ impl ScheduledTaskStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn update_scheduled_task_enabled(&self, id: Uuid, enabled: bool) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query("UPDATE scheduled_tasks SET enabled = $2 WHERE id = $1")
             .bind(id)
             .bind(enabled)
@@ -97,6 +100,7 @@ impl ScheduledTaskStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn delete_scheduled_task(&self, id: Uuid) -> OxResult<bool> {
+        super::require_workspace_context()?;
         let result = sqlx::query("DELETE FROM scheduled_tasks WHERE id = $1")
             .bind(id)
             .execute(&self.pool)

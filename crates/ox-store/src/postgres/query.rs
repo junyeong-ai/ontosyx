@@ -6,6 +6,7 @@ use super::*;
 impl QueryStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn create_query_execution(&self, exec: &QueryExecution) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "INSERT INTO query_executions
              (id, user_id, question, ontology_lineage_id, ontology_version,
@@ -114,6 +115,7 @@ impl QueryStore for PostgresStore {
         user_id: &str,
         feedback: Option<&str>,
     ) -> OxResult<bool> {
+        super::require_workspace_context()?;
         let result =
             sqlx::query("UPDATE query_executions SET feedback = $1 WHERE id = $2 AND user_id = $3")
                 .bind(feedback)

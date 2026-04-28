@@ -11,6 +11,7 @@ impl crate::store::ApiKeyStore for PostgresStore {
         created_by: &str,
         role: &str,
     ) -> OxResult<(crate::models::ApiKey, String)> {
+        super::require_workspace_context()?;
         // 256 bits of CSPRNG entropy. Plaintext is shown to the caller
         // exactly once; only the SHA-256 hash is persisted, so a leaked
         // DB row cannot be used to authenticate.
@@ -86,6 +87,7 @@ impl crate::store::ApiKeyStore for PostgresStore {
     }
 
     async fn update_api_key_revoked(&self, id: Uuid) -> OxResult<bool> {
+        super::require_workspace_context()?;
         let res = sqlx::query(
             "UPDATE api_keys SET revoked_at = NOW() WHERE id = $1 AND revoked_at IS NULL",
         )

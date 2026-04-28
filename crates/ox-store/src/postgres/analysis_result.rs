@@ -6,6 +6,7 @@ use super::*;
 impl AnalysisResultStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn create_analysis_result(&self, r: &AnalysisResult) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "INSERT INTO analysis_results (id, recipe_id, ontology_lineage_id, input_hash, output, duration_ms, created_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7)",
@@ -76,6 +77,7 @@ impl AnalysisResultStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn cleanup_old_results(&self, max_age_days: i64) -> OxResult<Vec<(Uuid, u64)>> {
+        super::require_workspace_context()?;
         let rows: Vec<(Uuid, i64)> = sqlx::query_as(
             "WITH affected AS (
                  DELETE FROM analysis_results
