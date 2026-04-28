@@ -1186,8 +1186,9 @@ async fn seed_default_workspace_if_missing(
         owner_id: owner.id,
         settings: serde_json::json!({}),
         created_at: chrono::Utc::now(),
-        primary_locale: "ko".into(),
-        locale_fallback: serde_json::json!(["ko", "en"]),
+        primary_locale: ox_core::PRIMARY_LOCALE_DEFAULT.to_string(),
+        admin_locale_fallback: serde_json::json!(ox_core::ADMIN_LOCALE_FALLBACK_DEFAULT),
+        llm_locale_fallback: serde_json::json!(ox_core::LLM_LOCALE_FALLBACK_DEFAULT),
     };
     store.create_workspace(&workspace).await?;
 

@@ -24,13 +24,14 @@ use ox_source::analyzer::build_design_context;
 use super::helpers::{
     LlmInputContext, assess_quality_from_project, assess_quality_from_project_with_mapping,
     build_batch_llm_input, build_llm_input, build_refinement_context, build_source_schema_summary,
-    find_uncovered_cross_fks, format_cross_fks, format_existing_edges_for_resolution,
-    format_existing_nodes, format_node_labels_for_resolution, format_uncovered_fks,
-    get_design_options, load_mutable_project, load_project_in_status, maybe_require_review,
-    merge_input_irs, reload_project,
+    enforce_design_gates, find_uncovered_cross_fks, format_cross_fks,
+    format_existing_edges_for_resolution, format_existing_nodes, format_node_labels_for_resolution,
+    format_uncovered_fks, get_design_options, load_analysis_report, load_mutable_project,
+    load_project_in_status, merge_input_irs, reload_project,
 };
 use super::types::{
-    ProjectDesignRequest, ProjectDesignResponse, ProjectRefineRequest, ProjectRefineResponse,
+    DesignProjectRequest, DesignProjectResponse, ProjectView, RefineProjectRequest,
+    RefineProjectResponse,
 };
 
 // ---------------------------------------------------------------------------
@@ -68,7 +69,7 @@ fn sse_result<T: Serialize>(data: &T) -> String {
 //   phase   → { phase: "designing", detail: "..." }
 //   phase   → { phase: "assessing_quality" }
 //   phase   → { phase: "persisting" }
-//   result  → ProjectDesignResponse
+//   result  → DesignProjectResponse
 //   error   → { error: { type, message } }
 // ---------------------------------------------------------------------------
 
@@ -76,7 +77,7 @@ fn sse_result<T: Serialize>(data: &T) -> String {
     post,
     path = "/api/projects/{id}/design/stream",
     params(("id" = Uuid, Path, description = "Project ID")),
-    request_body = ProjectDesignRequest,
+    request_body = DesignProjectRequest,
     responses(
         (status = 200, description = "SSE stream: phase* -> result events", content_type = "text/event-stream"),
         (status = 400, description = "Invalid input", body = inline(crate::openapi::ErrorResponse)),
@@ -90,7 +91,7 @@ pub(crate) async fn design_project_stream(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<ProjectDesignRequest>,
+    Json(req): Json<DesignProjectRequest>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppError> {
     principal.require_designer()?;
     // Validate eagerly before entering stream (allows ? error propagation)
@@ -102,36 +103,17 @@ pub(crate) async fn design_project_stream(
     let effective_opts: DesignOptions = serde_json::from_value(project.design_options.clone())
         .map_err(|e| AppError::bad_request(format!("Corrupt design_options: {e}")))?;
 
-    let (gate_threshold, batch_size, sys_config_snapshot) = {
+    let (batch_size, sys_config_snapshot) = {
         let sys_config = state.system_config.read().await;
-        let threshold = sys_config.large_schema_gate_threshold();
         let bs = sys_config.batch_size();
         let snapshot = sys_config.clone();
-        (threshold, bs, snapshot)
+        (bs, snapshot)
     };
 
-    let analysis_report = project
-        .analysis_report
-        .as_ref()
-        .map(|v| {
-            serde_json::from_value::<ox_ontology::source_analysis::SourceAnalysisReport>(v.clone())
-                .map_err(|e| AppError::internal(format!("Corrupt analysis_report: {e}")))
-        })
-        .transpose()?;
+    let analysis_report = load_analysis_report(&project);
 
     if let Some(report) = &analysis_report {
-        maybe_require_review(report, &effective_opts)?;
-
-        if !req.acknowledge_large_schema
-            && let Some(warning) = &report.large_schema_warning
-            && warning.table_count >= gate_threshold
-        {
-            return Err(AppError::bad_request(format!(
-                "Schema has {} tables (limit: {gate_threshold}). Use excluded_tables to reduce scope, \
-                 or set acknowledge_large_schema=true to proceed.",
-                warning.table_count
-            )));
-        }
+        enforce_design_gates(report, &effective_opts)?;
     }
 
     let repo_summary = analysis_report
@@ -529,14 +511,20 @@ pub(crate) async fn design_project_stream(
                     let errors = nr.ontology.validate();
                     if !errors.is_empty() {
                         Err(ox_core::OxError::Ontology {
-                            message: format!("Batch-designed ontology validation errors: {}", errors.join("; ")),
+                            message: format!(
+                                "Batch-designed ontology validation errors: {}",
+                                ox_core::join_messages(&errors, "; ")
+                            ),
                         })
                     } else {
                         Ok(nr.ontology)
                     }
                 }
                 Err(errors) => Err(ox_core::OxError::Ontology {
-                    message: format!("Batch-designed ontology normalization failed: {}", errors.join("; ")),
+                    message: format!(
+                        "Batch-designed ontology normalization failed: {}",
+                        ox_core::join_messages(&errors, "; ")
+                    ),
                 }),
             }
         } else {
@@ -644,7 +632,9 @@ pub(crate) async fn design_project_stream(
         };
 
         yield Ok(Event::default().event("result").data(
-            sse_result(&ProjectDesignResponse { project: updated })
+            sse_result(&DesignProjectResponse {
+                project: ProjectView::from_project(updated),
+            })
         ));
     };
 
@@ -662,7 +652,7 @@ pub(crate) async fn design_project_stream(
 //   phase              → { phase: "reconciling" }
 //   phase              → { phase: "assessing_quality" }
 //   phase              → { phase: "persisting" }
-//   result             → ProjectRefineResponse
+//   result             → RefineProjectResponse
 //   uncertain_reconcile → { report, reconciled_ontology }
 //   error              → { error: { type, message } }
 // ---------------------------------------------------------------------------
@@ -671,7 +661,7 @@ pub(crate) async fn design_project_stream(
     post,
     path = "/api/projects/{id}/refine/stream",
     params(("id" = Uuid, Path, description = "Project ID")),
-    request_body = ProjectRefineRequest,
+    request_body = RefineProjectRequest,
     responses(
         (status = 200, description = "SSE stream: phase* -> result/uncertain_reconcile events", content_type = "text/event-stream"),
         (status = 400, description = "No runtime or context", body = inline(crate::openapi::ErrorResponse)),
@@ -685,7 +675,7 @@ pub(crate) async fn refine_project_stream(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<ProjectRefineRequest>,
+    Json(req): Json<RefineProjectRequest>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppError> {
     principal.require_designer()?;
     // Validate eagerly
@@ -986,8 +976,8 @@ pub(crate) async fn refine_project_stream(
         info!(project_id = %id, total_ms, "Refine completed (stream)");
 
         yield Ok(Event::default().event("result").data(
-            sse_result(&ProjectRefineResponse {
-                project: updated,
+            sse_result(&RefineProjectResponse {
+                project: ProjectView::from_project(updated),
                 profile_summary,
                 reconcile_report: reconciled.report,
             })

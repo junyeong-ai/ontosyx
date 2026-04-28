@@ -17,7 +17,7 @@ use crate::state::AppState;
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct AuthTokenCreateRequest {
+pub struct CreateAuthTokenRequest {
     /// The ID token from an OIDC provider
     pub id_token: String,
     /// OIDC provider name (e.g., "google", "microsoft", "okta")
@@ -25,7 +25,7 @@ pub struct AuthTokenCreateRequest {
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
-pub struct AuthTokenResponse {
+pub struct CreateAuthTokenResponse {
     pub token: String,
     pub user: UserInfo,
 }
@@ -42,17 +42,17 @@ pub struct UserInfo {
 #[utoipa::path(
     post,
     path = "/auth/token",
-    request_body = AuthTokenCreateRequest,
+    request_body = CreateAuthTokenRequest,
     responses(
-        (status = 200, description = "Token created", body = AuthTokenResponse),
+        (status = 200, description = "Token created", body = CreateAuthTokenResponse),
         (status = 401, description = "Invalid ID token", body = inline(crate::openapi::ErrorResponse)),
     ),
     tag = "Auth",
 )]
 pub(crate) async fn create_token(
     State(state): State<AppState>,
-    Json(req): Json<AuthTokenCreateRequest>,
-) -> Result<Json<ApiResponse<AuthTokenResponse>>, AppError> {
+    Json(req): Json<CreateAuthTokenRequest>,
+) -> Result<Json<ApiResponse<CreateAuthTokenResponse>>, AppError> {
     let jwt_secret = state
         .auth_config
         .jwt_secret
@@ -156,7 +156,7 @@ pub(crate) async fn create_token(
         "User authenticated via OIDC"
     );
 
-    Ok(ApiResponse::of(AuthTokenResponse {
+    Ok(ApiResponse::of(CreateAuthTokenResponse {
         token,
         user: UserInfo {
             id: user.id,

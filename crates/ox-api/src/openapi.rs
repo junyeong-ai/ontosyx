@@ -3,8 +3,8 @@ use utoipa::openapi::security::{ApiKey, ApiKeyValue, SecurityScheme};
 use utoipa::{Modify, OpenApi, ToSchema};
 
 use crate::routes::{
-    approvals, chat, config, federation_admin, governance_audit, governance_routing, health, load,
-    ontology, perspectives, pins, prompts_admin, query, workspaces,
+    approvals, chat, config, federation_admin, governance_audit, governance_routing, health,
+    insights, load, ontology, perspectives, pins, prompts_admin, query, workspaces,
 };
 
 // Module aliases for utoipa path resolution — utoipa generates hidden __path_*
@@ -15,6 +15,7 @@ use crate::routes::projects::decisions as project_decisions;
 use crate::routes::projects::edit as project_edit;
 use crate::routes::projects::extend as project_extend;
 use crate::routes::projects::lifecycle as project_lifecycle;
+use crate::routes::projects::preview as project_preview;
 use crate::routes::projects::refinement as project_refinement;
 use crate::routes::projects::revisions as project_revisions;
 use crate::routes::projects::streaming as project_streaming;
@@ -128,6 +129,7 @@ impl Modify for SecurityAddon {
         project_analysis::reanalyze_project,
         project_edit::edit_project,
         project_extend::extend_project,
+        project_preview::preview_source,
         project_streaming::design_project_stream,
         project_streaming::refine_project_stream,
         // Projects — revisions
@@ -152,10 +154,17 @@ impl Modify for SecurityAddon {
         ontology::propose_ontology_value_sets,
         ontology::suggest_glossary_bindings,
         ontology::suggest_glossary_terms_for_property,
+        ontology::get_ontology_dependencies,
         // Pins
         pins::create_pin,
         pins::list_pins,
         pins::delete_pin,
+        // Persisted insights
+        insights::create_insight,
+        insights::update_insight,
+        insights::get_insight,
+        insights::list_insights,
+        insights::delete_insight,
         // Perspectives
         perspectives::save_perspective,
         perspectives::list_perspectives,
@@ -211,31 +220,36 @@ impl Modify for SecurityAddon {
             // Chat
             chat::ChatStreamRequest,
             // Query
-            query::QueryRawRequest,
-            query::QueryRawResponse,
+            query::ExecuteRawQueryRequest,
+            query::ExecuteRawQueryResponse,
             // Projects
             project_types::CreateProjectRequest,
             project_types::ProjectOrigin,
             project_types::ProjectSource,
-            project_types::UpdateDecisionsRequest,
-            project_types::ProjectDesignRequest,
-            project_types::ProjectDesignResponse,
-            project_types::ProjectReanalyzeRequest,
-            project_types::ProjectReanalyzeResponse,
-            project_types::ProjectRefineRequest,
-            project_types::ProjectRefineResponse,
-            project_types::ProjectReconcileRequest,
-            project_types::ProjectExtendRequest,
-            project_types::ProjectExtendResponse,
-            project_types::ProjectCompleteRequest,
-            project_types::ProjectEditRequest,
-            project_types::ProjectEditResponse,
+            project_types::ProjectView,
+            project_types::AnalysisReportStatus,
+            project_types::UpdateProjectDecisionsRequest,
+            project_types::DesignProjectRequest,
+            project_types::DesignProjectResponse,
+            project_types::ReanalyzeProjectRequest,
+            project_types::ReanalyzeProjectResponse,
+            project_types::RefineProjectRequest,
+            project_types::RefineProjectResponse,
+            project_types::ReconcileProjectRequest,
+            project_types::ExtendProjectRequest,
+            project_types::ExtendProjectResponse,
+            project_types::CompleteProjectRequest,
+            project_types::EditProjectRequest,
+            project_types::EditProjectResponse,
+            project_preview::PreviewSourceRequest,
+            project_preview::PreviewSourceResponse,
+            project_preview::PreviewTableSummary,
             // Ontology
             ontology::CreateOntologyRequest,
             ontology::CreateOntologyResponse,
-            ontology::OntologyCommandsRequest,
-            ontology::OntologyCommandsResponse,
-            ontology::OntologyImportRequest,
+            ontology::ApplyOntologyCommandsRequest,
+            ontology::ApplyOntologyCommandsResponse,
+            ontology::ImportOntologyRequest,
             ontology::ProposeValueSetsRequest,
             ontology::ProposeValueSetsResponse,
             ontology::ProposePolicyBody,
@@ -250,27 +264,32 @@ impl Modify for SecurityAddon {
             ontology::PropertyCandidateBody,
             ontology::TermCandidateBody,
             ontology::SignalBody,
+            ox_ontology::SchemaDependencyGraph,
+            ox_ontology::DependencyBucket,
+            ox_ontology::DependencyEdge,
+            ox_ontology::DependencyKind,
+            ox_ontology::SchemaEntityRef,
             // Pins
-            pins::PinCreateRequest,
+            pins::CreatePinRequest,
             // Perspectives
-            perspectives::PerspectiveUpsertRequest,
+            perspectives::UpsertPerspectiveRequest,
             perspectives::PerspectiveFindParams,
             // Config
             config::ConfigEntry,
             config::UiConfig,
-            config::ConfigUpdateRequest,
+            config::UpdateConfigRequest,
             config::ConfigUpdate,
             // Load
-            load::LoadPlanRequest,
-            load::LoadPlanResponse,
-            load::LoadExecuteRequest,
-            load::LoadExecuteResponse,
+            load::GenerateLoadPlanRequest,
+            load::GenerateLoadPlanResponse,
+            load::ExecuteLoadRequest,
+            load::ExecuteLoadResponse,
             load::PromptInfo,
             // Revisions
-            project_revisions::ProjectRestoreResponse,
+            project_revisions::RestoreProjectRevisionResponse,
             // Admin — prompt templates
-            prompts_admin::PromptCreateRequest,
-            prompts_admin::PromptUpdateRequest,
+            prompts_admin::CreatePromptRequest,
+            prompts_admin::UpdatePromptRequest,
             federation_admin::RegisterAdapterRequest,
             federation_admin::RegisterAdapterKind,
             federation_admin::RegisterAdapterResponse,
@@ -303,9 +322,9 @@ impl Modify for SecurityAddon {
             // Approvals
             ApprovalRequest,
             ApprovalComment,
-            approvals::ReviewRequest,
-            approvals::ReviewResponse,
-            approvals::CommentRequest,
+            approvals::ReviewApprovalRequest,
+            approvals::ReviewApprovalResponse,
+            approvals::CreateApprovalCommentRequest,
             // Audit
             AuditRecord,
             AuditRecordPage,

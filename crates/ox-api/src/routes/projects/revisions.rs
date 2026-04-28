@@ -5,7 +5,7 @@ use tracing::warn;
 use uuid::Uuid;
 
 use ox_ontology::{OntologyDiff, OntologyIR, compute_diff};
-use ox_store::{DesignProject, OntologySnapshot, OntologySnapshotSummary};
+use ox_store::{OntologySnapshot, OntologySnapshotSummary};
 
 use crate::error::AppError;
 use crate::principal::Principal;
@@ -86,9 +86,9 @@ pub(crate) async fn get_revision(
 // ---------------------------------------------------------------------------
 
 #[derive(Serialize, utoipa::ToSchema)]
-pub struct ProjectRestoreResponse {
+pub struct RestoreProjectRevisionResponse {
     #[schema(value_type = Object)]
-    pub project: DesignProject,
+    pub project: super::types::ProjectView,
 }
 
 #[utoipa::path(
@@ -99,7 +99,7 @@ pub struct ProjectRestoreResponse {
         ("rev" = i32, Path, description = "Revision number to restore"),
     ),
     responses(
-        (status = 200, description = "Revision restored", body = ProjectRestoreResponse),
+        (status = 200, description = "Revision restored", body = RestoreProjectRevisionResponse),
         (status = 404, description = "Project or revision not found", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
@@ -109,7 +109,7 @@ pub(crate) async fn restore_revision(
     State(state): State<AppState>,
     principal: Principal,
     Path((id, rev)): Path<(Uuid, i32)>,
-) -> Result<Json<ApiResponse<ProjectRestoreResponse>>, AppError> {
+) -> Result<Json<ApiResponse<RestoreProjectRevisionResponse>>, AppError> {
     principal.require_designer()?;
     let project = load_mutable_project(&state, id).await?;
 
@@ -148,7 +148,9 @@ pub(crate) async fn restore_revision(
 
     let updated = reload_project(&state, id).await?;
 
-    Ok(ApiResponse::of(ProjectRestoreResponse { project: updated }))
+    Ok(ApiResponse::of(RestoreProjectRevisionResponse {
+        project: super::types::ProjectView::from_project(updated),
+    }))
 }
 
 // ---------------------------------------------------------------------------
@@ -257,14 +259,14 @@ pub(crate) async fn diff_current(
 // ---------------------------------------------------------------------------
 
 #[derive(serde::Deserialize, utoipa::ToSchema)]
-pub struct ProjectMigrateRequest {
+pub struct MigrateProjectSchemaRequest {
     /// If true, return migration plan without executing it
     #[serde(default)]
     pub dry_run: bool,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
-pub struct ProjectMigrateResponse {
+pub struct MigrateProjectSchemaResponse {
     /// Forward DDL statements
     pub up: Vec<String>,
     /// Rollback DDL statements
@@ -284,9 +286,9 @@ pub struct ProjectMigrateResponse {
         ("id" = Uuid, Path, description = "Project ID"),
         ("rev" = i32, Path, description = "Base revision (deployed state) — migration goes FROM this revision TO current ontology"),
     ),
-    request_body = ProjectMigrateRequest,
+    request_body = MigrateProjectSchemaRequest,
     responses(
-        (status = 200, description = "Migration plan or execution result", body = ProjectMigrateResponse),
+        (status = 200, description = "Migration plan or execution result", body = MigrateProjectSchemaResponse),
         (status = 400, description = "No ontology in project or revision", body = inline(crate::openapi::ErrorResponse)),
         (status = 404, description = "Project or revision not found", body = inline(crate::openapi::ErrorResponse)),
         (status = 503, description = "Graph database not connected", body = inline(crate::openapi::ErrorResponse)),
@@ -298,8 +300,8 @@ pub(crate) async fn migrate_schema(
     State(state): State<AppState>,
     principal: Principal,
     Path((id, rev)): Path<(Uuid, i32)>,
-    Json(req): Json<ProjectMigrateRequest>,
-) -> Result<Json<ApiResponse<ProjectMigrateResponse>>, AppError> {
+    Json(req): Json<MigrateProjectSchemaRequest>,
+) -> Result<Json<ApiResponse<MigrateProjectSchemaResponse>>, AppError> {
     principal.require_designer()?;
 
     // Load current project ontology
@@ -329,7 +331,7 @@ pub(crate) async fn migrate_schema(
     let diff = compute_diff(&old, &current);
 
     if diff.is_empty() {
-        return Ok(ApiResponse::of(ProjectMigrateResponse {
+        return Ok(ApiResponse::of(MigrateProjectSchemaResponse {
             up: vec![],
             down: vec![],
             warnings: vec![],
@@ -349,7 +351,7 @@ pub(crate) async fn migrate_schema(
     );
 
     if req.dry_run || !plan.breaking_changes.is_empty() {
-        return Ok(ApiResponse::of(ProjectMigrateResponse {
+        return Ok(ApiResponse::of(MigrateProjectSchemaResponse {
             up: plan.up,
             down: plan.down,
             warnings: plan.warnings,
@@ -360,7 +362,7 @@ pub(crate) async fn migrate_schema(
 
     // Nothing to execute if up is empty (diff only produced warnings)
     if plan.up.is_empty() {
-        return Ok(ApiResponse::of(ProjectMigrateResponse {
+        return Ok(ApiResponse::of(MigrateProjectSchemaResponse {
             up: plan.up,
             down: plan.down,
             warnings: plan.warnings,
@@ -383,7 +385,7 @@ pub(crate) async fn migrate_schema(
         "Schema migration executed"
     );
 
-    Ok(ApiResponse::of(ProjectMigrateResponse {
+    Ok(ApiResponse::of(MigrateProjectSchemaResponse {
         up: plan.up,
         down: plan.down,
         warnings: plan.warnings,

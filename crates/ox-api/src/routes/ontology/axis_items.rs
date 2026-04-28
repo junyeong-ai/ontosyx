@@ -151,7 +151,7 @@ fn collect_axis_items(ir: &ox_ontology::OntologyIR, kind: &str) -> Option<Vec<Ax
             .iter()
             .map(|g| AxisItem {
                 id: g.id.as_str().to_string(),
-                label: g.term.clone(),
+                label: lt_to_string(&g.term),
                 description: lt_to_string(&g.description),
             })
             .collect(),

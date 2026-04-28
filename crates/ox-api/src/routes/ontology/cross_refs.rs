@@ -295,17 +295,22 @@ fn emit_edges(ir: &ox_ontology::OntologyIR, out: &mut Vec<CrossRefEdge>) {
         }
     }
 
-    // --- Glossary hierarchy (Vocabulary internal) ---------------
+    // --- Glossary SKOS relations (Vocabulary internal) ----------
+    // Each `related_terms` entry surfaces as one cross-ref edge so
+    // the FE can render the SKOS network without re-walking the IR.
     for g in ir.glossary() {
-        if let Some(parent) = &g.parent_term_id {
+        for rel in &g.related_terms {
             out.push(CrossRefEdge {
                 source_axis: Axis::Vocabulary,
                 source_kind: "glossary_term".into(),
                 source_id: g.id.as_str().into(),
-                edge_kind: "parent".into(),
+                edge_kind: serde_json::to_value(rel.kind)
+                    .ok()
+                    .and_then(|v| v.as_str().map(str::to_string))
+                    .unwrap_or_else(|| "related".to_string()),
                 target_axis: Axis::Vocabulary,
                 target_kind: "glossary_term".into(),
-                target_id: parent.as_str().into(),
+                target_id: rel.target.as_str().into(),
             });
         }
     }
@@ -573,38 +578,67 @@ fn emit_property_edges(
     out: &mut Vec<CrossRefEdge>,
 ) {
     let source_id = format!("{owner_kind}:{owner_id}/{}", prop.id.as_str());
-    if let Some(gid) = &prop.glossary_term_id {
-        out.push(CrossRefEdge {
-            source_axis: Axis::Topology,
-            source_kind: "property".into(),
-            source_id: source_id.clone(),
-            edge_kind: "binds_to".into(),
-            target_axis: Axis::Vocabulary,
-            target_kind: "glossary_term".into(),
-            target_id: gid.as_str().into(),
-        });
-    }
-    if let Some(vid) = &prop.value_set_id {
-        out.push(CrossRefEdge {
-            source_axis: Axis::Topology,
-            source_kind: "property".into(),
-            source_id: source_id.clone(),
-            edge_kind: "values_in".into(),
-            target_axis: Axis::Registry,
-            target_kind: "value_set".into(),
-            target_id: vid.as_str().into(),
-        });
-    }
-    if let Some(nid) = &prop.notation_pattern_id {
-        out.push(CrossRefEdge {
-            source_axis: Axis::Topology,
-            source_kind: "property".into(),
-            source_id: source_id.clone(),
-            edge_kind: "matches".into(),
-            target_axis: Axis::Registry,
-            target_kind: "notation_pattern".into(),
-            target_id: nid.as_str().into(),
-        });
+    // Single walk over the property's binding list — every cross-
+    // reference edge is emitted from the same loop so a future
+    // PropertyBinding variant only adds one match arm.
+    for binding in &prop.bindings {
+        match binding {
+            ox_ontology::PropertyBinding::Glossary { id, .. } => {
+                out.push(CrossRefEdge {
+                    source_axis: Axis::Topology,
+                    source_kind: "property".into(),
+                    source_id: source_id.clone(),
+                    edge_kind: "binds_to".into(),
+                    target_axis: Axis::Vocabulary,
+                    target_kind: "glossary_term".into(),
+                    target_id: id.as_str().into(),
+                });
+            }
+            ox_ontology::PropertyBinding::ValueSet { id, .. } => {
+                out.push(CrossRefEdge {
+                    source_axis: Axis::Topology,
+                    source_kind: "property".into(),
+                    source_id: source_id.clone(),
+                    edge_kind: "values_in".into(),
+                    target_axis: Axis::Registry,
+                    target_kind: "value_set".into(),
+                    target_id: id.as_str().into(),
+                });
+            }
+            ox_ontology::PropertyBinding::NotationPattern { id, .. } => {
+                out.push(CrossRefEdge {
+                    source_axis: Axis::Topology,
+                    source_kind: "property".into(),
+                    source_id: source_id.clone(),
+                    edge_kind: "matches".into(),
+                    target_axis: Axis::Registry,
+                    target_kind: "notation_pattern".into(),
+                    target_id: id.as_str().into(),
+                });
+            }
+            ox_ontology::PropertyBinding::ValueRange { id, .. } => {
+                out.push(CrossRefEdge {
+                    source_axis: Axis::Topology,
+                    source_kind: "property".into(),
+                    source_id: source_id.clone(),
+                    edge_kind: "classified_by".into(),
+                    target_axis: Axis::Registry,
+                    target_kind: "value_range_set".into(),
+                    target_id: id.as_str().into(),
+                });
+            }
+            ox_ontology::PropertyBinding::CodeSystem { id, .. } => {
+                out.push(CrossRefEdge {
+                    source_axis: Axis::Topology,
+                    source_kind: "property".into(),
+                    source_id: source_id.clone(),
+                    edge_kind: "values_in".into(),
+                    target_axis: Axis::Registry,
+                    target_kind: "code_system".into(),
+                    target_id: id.as_str().into(),
+                });
+            }
+        }
     }
 }
 
@@ -705,7 +739,7 @@ mod tests {
             id: PropertyId::new("tier"),
             name: pk("tier"),
             property_type: ox_core::types::PropertyType::String,
-            glossary_term_id: Some(GlossaryTermId::new("g-tier")),
+            bindings: vec![ox_ontology::PropertyBinding::glossary(GlossaryTermId::new("g-tier"),)],
             ..Default::default()
         };
         let node = NodeTypeDef {
@@ -717,12 +751,17 @@ mod tests {
         ir.add_node_type(node).unwrap();
         ir.add_glossary_term(GlossaryTermDef {
             id: GlossaryTermId::new("g-tier"),
-            term: "Tier".into(),
+            term: ox_core::i18n::LocalizedText::new("Tier"),
             display_name: Default::default(),
             description: Default::default(),
+            examples: Vec::new(),
             category: None,
             aliases: Vec::new(),
-            parent_term_id: None,
+            related_terms: Vec::new(),
+            governance: ox_ontology::glossary::TermGovernance::default(),
+            valid_from: None,
+            valid_to: None,
+            lifecycle: ox_ontology::glossary::TermLifecycle::default(),
         })
         .unwrap();
 
@@ -741,7 +780,7 @@ mod tests {
             id: PropertyId::new("country"),
             name: pk("country"),
             property_type: ox_core::types::PropertyType::String,
-            value_set_id: Some(ValueSetId::new("v-iso")),
+            bindings: vec![ox_ontology::PropertyBinding::value_set(ValueSetId::new("v-iso"),)],
             ..Default::default()
         };
         let node = NodeTypeDef {
@@ -836,16 +875,20 @@ mod tests {
             id: RuleId::new("r-country"),
             name: "Country must be ISO-2".into(),
             description: Default::default(),
+            rationale: Default::default(),
             kind: RuleKind::NodeShape {
                 target_node_type_id: NodeTypeId::new("Customer"),
             },
             severity: Default::default(),
             enforcement: Default::default(),
             activation: Default::default(),
+            origin: Default::default(),
             constraints: vec![ShaclConstraint::InValueSet {
                 target: ConstraintTarget::Inherit,
                 value_set_id: ValueSetId::new("v-iso"),
             }],
+                    valid_from: None,
+            valid_to: None,
         })
         .unwrap();
 
@@ -883,16 +926,20 @@ mod tests {
             id: RuleId::new("r-email"),
             name: "Email must match RFC 5322".into(),
             description: Default::default(),
+            rationale: Default::default(),
             kind: RuleKind::NodeShape {
                 target_node_type_id: NodeTypeId::new("Customer"),
             },
             severity: Default::default(),
             enforcement: Default::default(),
             activation: Default::default(),
+            origin: Default::default(),
             constraints: vec![ShaclConstraint::MatchesPattern {
                 target: ConstraintTarget::Inherit,
                 notation_pattern_id: NotationPatternId::new("p-email"),
             }],
+                    valid_from: None,
+            valid_to: None,
         })
         .unwrap();
 
@@ -916,7 +963,7 @@ mod tests {
             id: PropertyId::new("name"),
             name: pk("name"),
             property_type: ox_core::types::PropertyType::String,
-            glossary_term_id: Some(GlossaryTermId::new("g-name")),
+            bindings: vec![ox_ontology::PropertyBinding::glossary(GlossaryTermId::new("g-name"),)],
             ..Default::default()
         };
         // Same property id on a node and on an edge — the compound
@@ -946,12 +993,17 @@ mod tests {
         .unwrap();
         ir.add_glossary_term(GlossaryTermDef {
             id: GlossaryTermId::new("g-name"),
-            term: "Name".into(),
+            term: ox_core::i18n::LocalizedText::new("Name"),
             display_name: Default::default(),
             description: Default::default(),
+            examples: Vec::new(),
             category: None,
             aliases: Vec::new(),
-            parent_term_id: None,
+            related_terms: Vec::new(),
+            governance: ox_ontology::glossary::TermGovernance::default(),
+            valid_from: None,
+            valid_to: None,
+            lifecycle: ox_ontology::glossary::TermLifecycle::default(),
         })
         .unwrap();
 

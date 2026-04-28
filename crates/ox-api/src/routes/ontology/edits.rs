@@ -20,7 +20,7 @@ use axum::http::StatusCode;
 use serde::Serialize;
 use uuid::Uuid;
 
-use ox_ontology::{OntologyEditPreCheck, OntologyEditReceipt, OntologyEditRequest};
+use ox_ontology::{OntologyEditPreCheck, OntologyEditReceipt, EditOntologyRequest};
 
 use crate::error::AppError;
 use crate::principal::Principal;
@@ -38,7 +38,7 @@ use crate::state::AppState;
 /// `classified_changes` (pre-check).
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
-pub enum OntologyEditResponse {
+pub enum EditOntologyResponse {
     Receipt(OntologyEditReceipt),
     PreCheck(OntologyEditPreCheck),
 }
@@ -64,8 +64,8 @@ pub(crate) async fn apply_ontology_edits(
     State(state): State<AppState>,
     principal: Principal,
     Path(ontology_id): Path<Uuid>,
-    Json(req): Json<OntologyEditRequest>,
-) -> Result<(StatusCode, Json<ApiResponse<OntologyEditResponse>>), AppError> {
+    Json(req): Json<EditOntologyRequest>,
+) -> Result<(StatusCode, Json<ApiResponse<EditOntologyResponse>>), AppError> {
     principal.require_designer()?;
     if req.operations.is_empty() {
         return Err(AppError::bad_request("operations must not be empty"));
@@ -131,7 +131,7 @@ pub(crate) async fn apply_ontology_edits(
 
         return Ok((
             StatusCode::OK,
-            ApiResponse::of(OntologyEditResponse::PreCheck(OntologyEditPreCheck {
+            ApiResponse::of(EditOntologyResponse::PreCheck(OntologyEditPreCheck {
                 applied_operations: applied,
                 failed_operation_index: failed_index,
                 failure_message: failure,
@@ -175,7 +175,10 @@ pub(crate) async fn apply_ontology_edits(
     // preserve.
     let validation = ir.validate();
     if !validation.is_empty() {
-        return Err(AppError::unprocessable(validation.join("; ")));
+        return Err(AppError::unprocessable(ox_core::join_messages(
+            &validation,
+            "; ",
+        )));
     }
 
     // ---- 6. Commit new version ---------------------------------
@@ -208,7 +211,7 @@ pub(crate) async fn apply_ontology_edits(
 
     Ok((
         StatusCode::CREATED,
-        ApiResponse::of(OntologyEditResponse::Receipt(OntologyEditReceipt {
+        ApiResponse::of(EditOntologyResponse::Receipt(OntologyEditReceipt {
             new_version: new_version_num,
             new_version_id: snapshot.id,
             parent_version_id,

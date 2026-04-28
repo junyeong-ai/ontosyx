@@ -66,12 +66,17 @@ impl BindingPolicyBody {
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct SuggestBindingsRequest {
-    /// Canonical term name — the only required field.
-    pub term: String,
+    /// Canonical term name. `LocalizedText` so a draft term carries
+    /// the same multi-locale shape as a saved one — the scorer matches
+    /// against every locale variant.
+    #[schema(value_type = Object)]
+    pub term: LocalizedText,
     #[serde(default)]
-    pub aliases: Vec<String>,
+    #[schema(value_type = Vec<Object>)]
+    pub aliases: Vec<LocalizedText>,
     #[serde(default)]
-    pub description: Option<String>,
+    #[schema(value_type = Object)]
+    pub description: Option<LocalizedText>,
     /// Pre-existing term id if the term is already saved. When
     /// provided, the endpoint confirms it refers to the saved
     /// definition; otherwise an ephemeral id is minted for scoring.
@@ -138,13 +143,15 @@ pub(crate) async fn suggest_glossary_bindings(
         id: GlossaryTermId::new(req.term_id.as_deref().unwrap_or("__draft__")),
         term: req.term,
         display_name: LocalizedText::default(),
-        description: req
-            .description
-            .map(LocalizedText::new)
-            .unwrap_or_default(),
+        description: req.description.unwrap_or_default(),
+        examples: Vec::new(),
         category: None,
         aliases: req.aliases,
-        parent_term_id: None,
+        related_terms: Vec::new(),
+        governance: ox_ontology::glossary::TermGovernance::default(),
+        valid_from: None,
+        valid_to: None,
+        lifecycle: ox_ontology::glossary::TermLifecycle::default(),
     };
 
     let candidates = suggest_property_bindings_for_term(&ir, &term, policy);
@@ -177,7 +184,8 @@ pub struct SuggestTermsResponse {
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct TermCandidateBody {
     pub term_id: String,
-    pub term: String,
+    #[schema(value_type = Object)]
+    pub term: LocalizedText,
     pub score: f32,
     pub signals: Vec<SignalBody>,
 }

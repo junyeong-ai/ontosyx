@@ -74,7 +74,7 @@ pub(crate) async fn get_prompt_template(
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct PromptCreateRequest {
+pub struct CreatePromptRequest {
     pub name: String,
     pub version: String,
     pub content: String,
@@ -91,7 +91,7 @@ pub struct PromptCreateRequest {
 #[utoipa::path(
     post,
     path = "/api/admin/prompts",
-    request_body = PromptCreateRequest,
+    request_body = CreatePromptRequest,
     responses(
         (status = 200, description = "New template version created",
             body = crate::openapi::PromptTemplateRow),
@@ -103,7 +103,7 @@ pub struct PromptCreateRequest {
 pub(crate) async fn create_prompt_template(
     State(state): State<AppState>,
     principal: Principal,
-    Json(req): Json<PromptCreateRequest>,
+    Json(req): Json<CreatePromptRequest>,
 ) -> Result<Json<ApiResponse<PromptTemplateRow>>, AppError> {
     principal.require_admin()?;
 
@@ -146,7 +146,7 @@ pub(crate) async fn create_prompt_template(
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct PromptUpdateRequest {
+pub struct UpdatePromptRequest {
     pub content: Option<String>,
     pub variables: Option<serde_json::Value>,
     pub is_active: Option<bool>,
@@ -156,7 +156,7 @@ pub struct PromptUpdateRequest {
     patch,
     path = "/api/admin/prompts/{id}",
     params(("id" = uuid::Uuid, Path, description = "Prompt template id")),
-    request_body = PromptUpdateRequest,
+    request_body = UpdatePromptRequest,
     responses(
         (status = 204, description = "Template updated"),
         (status = 404, description = "Not found", body = crate::openapi::ErrorResponse),
@@ -168,7 +168,7 @@ pub(crate) async fn update_prompt_template(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<PromptUpdateRequest>,
+    Json(req): Json<UpdatePromptRequest>,
 ) -> Result<StatusCode, AppError> {
     principal.require_admin()?;
 

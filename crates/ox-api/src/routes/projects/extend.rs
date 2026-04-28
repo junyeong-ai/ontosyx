@@ -20,7 +20,7 @@ use super::helpers::{
     LlmInputContext, analyze_code_repository, analyze_source, build_llm_input, get_design_options,
     load_project_in_status, reload_project,
 };
-use super::types::{ProjectExtendRequest, ProjectExtendResponse, ProjectSource};
+use super::types::{ExtendProjectRequest, ExtendProjectResponse, ProjectSource, ProjectView};
 
 // ---------------------------------------------------------------------------
 // POST /api/projects/:id/extend
@@ -30,9 +30,9 @@ use super::types::{ProjectExtendRequest, ProjectExtendResponse, ProjectSource};
     post,
     path = "/api/projects/{id}/extend",
     params(("id" = Uuid, Path, description = "Project ID")),
-    request_body = ProjectExtendRequest,
+    request_body = ExtendProjectRequest,
     responses(
-        (status = 200, description = "Ontology extended with new source", body = ProjectExtendResponse),
+        (status = 200, description = "Ontology extended with new source", body = ExtendProjectResponse),
         (status = 400, description = "No ontology or empty source data", body = inline(crate::openapi::ErrorResponse)),
         (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
         (status = 504, description = "LLM timeout", body = inline(crate::openapi::ErrorResponse)),
@@ -44,9 +44,10 @@ pub(crate) async fn extend_project(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<ProjectExtendRequest>,
-) -> Result<Json<ApiResponse<ProjectExtendResponse>>, AppError> {
+    Json(req): Json<ExtendProjectRequest>,
+) -> Result<Json<ApiResponse<ExtendProjectResponse>>, AppError> {
     principal.require_designer()?;
+    req.selection.validate().map_err(AppError::from)?;
     let project = load_project_in_status(&state, id, DesignProjectStatus::Designed).await?;
 
     // Snapshot current state before mutation (best-effort)
@@ -82,7 +83,20 @@ pub(crate) async fn extend_project(
             let (config, schema, profile, report) = analyze_code_repository(&state, url).await?;
             (config, None, Some(schema), Some(profile), Some(report))
         } else {
-            analyze_source(req.source, &state.adapter_registry).await?
+            // The extend endpoint passes its own selection — the
+            // caller may pull only a subset of the new source's
+            // tables. No baseline is involved on the source side
+            // (the project's baseline lives in `existing_ontology`,
+            // which is merged via reconcile after design).
+            let analyzed =
+                analyze_source(req.source, &state.adapter_registry, req.selection, None).await?;
+            (
+                analyzed.config,
+                analyzed.raw_data,
+                analyzed.schema,
+                analyzed.profile,
+                analyzed.report,
+            )
         };
 
     // 2. Build LLM input directly from the new source data (no temp struct needed)
@@ -305,8 +319,8 @@ pub(crate) async fn extend_project(
         "Extend completed"
     );
 
-    Ok(ApiResponse::of(ProjectExtendResponse {
-        project: updated,
+    Ok(ApiResponse::of(ExtendProjectResponse {
+        project: ProjectView::from_project(updated),
         reconcile_report: reconciled.report,
     }))
 }

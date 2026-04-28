@@ -20,7 +20,7 @@ use crate::workspace::WorkspaceContext;
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize)]
-pub struct RecipeCreateRequest {
+pub struct CreateRecipeRequest {
     pub name: String,
     pub description: String,
     pub algorithm_type: String,
@@ -37,7 +37,7 @@ pub(crate) async fn create_recipe(
     State(state): State<AppState>,
     principal: Principal,
     ws: WorkspaceContext,
-    Json(req): Json<RecipeCreateRequest>,
+    Json(req): Json<CreateRecipeRequest>,
 ) -> Result<Json<ApiResponse<AnalysisRecipe>>, AppError> {
     principal.require_designer()?;
     validation::validate_name("name", &req.name)?;
@@ -205,7 +205,7 @@ pub(crate) async fn create_recipe_version(
     principal: Principal,
     ws: WorkspaceContext,
     Path(parent_id): Path<Uuid>,
-    Json(req): Json<RecipeCreateRequest>,
+    Json(req): Json<CreateRecipeRequest>,
 ) -> Result<Json<ApiResponse<AnalysisRecipe>>, AppError> {
     principal.require_designer()?;
     validation::validate_name("name", &req.name)?;

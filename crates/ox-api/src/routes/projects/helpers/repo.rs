@@ -3,7 +3,9 @@ use tracing::{info, warn};
 use ox_ontology::design_project::{SourceConfig, SourceTypeKind};
 use ox_ontology::mapping::refs::SourceId;
 use ox_ontology::repo_insights::{RepoSource, ValidatedRepoSource};
-use ox_ontology::source_analysis::{RepoAnalysisStatus, RepoAnalysisSummary, SourceAnalysisReport};
+use ox_ontology::source_analysis::{
+    RepoAnalysisStatus, RepoAnalysisSummary, RepoFailureKind, SourceAnalysisReport,
+};
 use ox_core::source_schema::{SourceProfile, SourceSchema};
 use ox_source::analyzer::{build_analysis_report, enrich_with_repo};
 use ox_source::repo::{RepoIntrospector, clone_repo, repo_insights_to_schema};
@@ -33,7 +35,9 @@ pub(crate) async fn run_repo_enrichment(
             Ok(i) => (i, None, None),
             Err(e) => {
                 warn!(path, error = %e, "Cannot open repo — skipping enrichment");
-                report.repo_summary = Some(skipped_repo_summary(format!("Cannot open repo: {e}")));
+                report.repo_summary = Some(skipped_repo_summary(
+                    RepoFailureKind::LocalRepoUnreadable,
+                ));
                 return;
             }
         },
@@ -46,8 +50,9 @@ pub(crate) async fn run_repo_enrichment(
                 }
                 Err(e) => {
                     warn!(url, error = %e, "Git clone failed — skipping enrichment");
-                    report.repo_summary =
-                        Some(skipped_repo_summary(format!("Git clone failed: {e}")));
+                    report.repo_summary = Some(skipped_repo_summary(
+                        RepoFailureKind::GitCloneFailed,
+                    ));
                     return;
                 }
             }
@@ -60,7 +65,7 @@ pub(crate) async fn run_repo_enrichment(
             warn!(?source, error = %e, "Cannot generate file tree — skipping enrichment");
             report.repo_summary = Some(RepoAnalysisSummary {
                 commit_sha: cloned_sha.clone(),
-                ..skipped_repo_summary(format!("Cannot generate file tree: {e}"))
+                ..skipped_repo_summary(RepoFailureKind::FileTreeFailed)
             });
             return;
         }
@@ -77,18 +82,19 @@ pub(crate) async fn run_repo_enrichment(
                 warn!(?source, error = %e, "Repo navigation LLM call failed — skipping enrichment");
                 report.repo_summary = Some(RepoAnalysisSummary {
                     commit_sha: cloned_sha.clone(),
-                    ..failed_repo_summary(format!("LLM navigation failed: {e}"), tree_truncated)
+                    ..failed_repo_summary(RepoFailureKind::LlmNavigationFailed, tree_truncated)
                 });
                 return;
             }
             Err(_) => {
-                warn!(?source, "Repo navigation timed out — skipping enrichment");
+                warn!(
+                    ?source,
+                    timeout_secs = timeout.as_secs(),
+                    "Repo navigation timed out — skipping enrichment"
+                );
                 report.repo_summary = Some(RepoAnalysisSummary {
                     commit_sha: cloned_sha.clone(),
-                    ..failed_repo_summary(
-                        format!("Navigation timed out after {}s", timeout.as_secs()),
-                        tree_truncated,
-                    )
+                    ..failed_repo_summary(RepoFailureKind::Timeout, tree_truncated)
                 });
                 return;
             }
@@ -101,7 +107,7 @@ pub(crate) async fn run_repo_enrichment(
         );
         report.repo_summary = Some(RepoAnalysisSummary {
             status: RepoAnalysisStatus::Skipped,
-            status_reason: Some("No relevant files found in repository".into()),
+            failure_reason: Some(RepoFailureKind::NoRelevantFiles),
             tree_truncated,
             commit_sha: cloned_sha.clone(),
             ..empty_repo_summary()
@@ -115,7 +121,7 @@ pub(crate) async fn run_repo_enrichment(
             warn!(?source, error = %e, "Cannot read selected files — skipping enrichment");
             report.repo_summary = Some(RepoAnalysisSummary {
                 commit_sha: cloned_sha.clone(),
-                ..failed_repo_summary(format!("Cannot read files: {e}"), tree_truncated)
+                ..failed_repo_summary(RepoFailureKind::NoReadableFiles, tree_truncated)
             });
             return;
         }
@@ -125,7 +131,7 @@ pub(crate) async fn run_repo_enrichment(
         warn!(?source, "No readable source files — skipping enrichment");
         report.repo_summary = Some(RepoAnalysisSummary {
             status: RepoAnalysisStatus::Skipped,
-            status_reason: Some("Selected files could not be read".into()),
+            failure_reason: Some(RepoFailureKind::NoReadableFiles),
             files_requested: selected_files.len(),
             tree_truncated,
             commit_sha: cloned_sha.clone(),
@@ -142,7 +148,7 @@ pub(crate) async fn run_repo_enrichment(
                 warn!(?source, error = %e, "Repo analysis LLM call failed — skipping enrichment");
                 report.repo_summary = Some(RepoAnalysisSummary {
                     status: RepoAnalysisStatus::Failed,
-                    status_reason: Some(format!("LLM analysis failed: {e}")),
+                    failure_reason: Some(RepoFailureKind::LlmAnalysisFailed),
                     files_requested: selected_files.len(),
                     files_analyzed: file_contents.len(),
                     tree_truncated,
@@ -152,10 +158,14 @@ pub(crate) async fn run_repo_enrichment(
                 return;
             }
             Err(_) => {
-                warn!(?source, "Repo analysis timed out — skipping enrichment");
+                warn!(
+                    ?source,
+                    timeout_secs = timeout.as_secs(),
+                    "Repo analysis timed out — skipping enrichment"
+                );
                 report.repo_summary = Some(RepoAnalysisSummary {
                     status: RepoAnalysisStatus::Failed,
-                    status_reason: Some(format!("Analysis timed out after {}s", timeout.as_secs())),
+                    failure_reason: Some(RepoFailureKind::Timeout),
                     files_requested: selected_files.len(),
                     files_analyzed: file_contents.len(),
                     tree_truncated,
@@ -189,7 +199,7 @@ pub(crate) async fn run_repo_enrichment(
 pub(crate) fn empty_repo_summary() -> RepoAnalysisSummary {
     RepoAnalysisSummary {
         status: RepoAnalysisStatus::Skipped,
-        status_reason: None,
+        failure_reason: None,
         framework: None,
         files_requested: 0,
         files_analyzed: 0,
@@ -204,18 +214,18 @@ pub(crate) fn empty_repo_summary() -> RepoAnalysisSummary {
     }
 }
 
-pub(crate) fn skipped_repo_summary(reason: String) -> RepoAnalysisSummary {
+pub(crate) fn skipped_repo_summary(reason: RepoFailureKind) -> RepoAnalysisSummary {
     RepoAnalysisSummary {
         status: RepoAnalysisStatus::Skipped,
-        status_reason: Some(reason),
+        failure_reason: Some(reason),
         ..empty_repo_summary()
     }
 }
 
-fn failed_repo_summary(reason: String, tree_truncated: bool) -> RepoAnalysisSummary {
+fn failed_repo_summary(reason: RepoFailureKind, tree_truncated: bool) -> RepoAnalysisSummary {
     RepoAnalysisSummary {
         status: RepoAnalysisStatus::Failed,
-        status_reason: Some(reason),
+        failure_reason: Some(reason),
         tree_truncated,
         ..empty_repo_summary()
     }
@@ -359,7 +369,7 @@ pub(crate) async fn analyze_code_repository(
         } else {
             RepoAnalysisStatus::Complete
         },
-        status_reason: None,
+        failure_reason: None,
         framework: insights.framework.clone(),
         files_requested: selected_files.len(),
         files_analyzed: file_contents.len(),

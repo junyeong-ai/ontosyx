@@ -19,7 +19,7 @@ use crate::workspace::WorkspaceContext;
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct DashboardCreateRequest {
+pub struct CreateDashboardRequest {
     pub name: String,
     pub description: Option<String>,
 }
@@ -28,7 +28,7 @@ pub(crate) async fn create_dashboard(
     State(state): State<AppState>,
     principal: Principal,
     ws: WorkspaceContext,
-    Json(req): Json<DashboardCreateRequest>,
+    Json(req): Json<CreateDashboardRequest>,
 ) -> Result<Json<ApiResponse<Dashboard>>, AppError> {
     validation::validate_name("name", &req.name)?;
 
@@ -103,7 +103,7 @@ pub(crate) async fn get_dashboard(
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct DashboardUpdateRequest {
+pub struct UpdateDashboardRequest {
     pub name: Option<String>,
     pub description: Option<String>,
     #[schema(value_type = Option<Object>)]
@@ -115,7 +115,7 @@ pub(crate) async fn update_dashboard(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<DashboardUpdateRequest>,
+    Json(req): Json<UpdateDashboardRequest>,
 ) -> Result<Json<ApiResponse<Dashboard>>, AppError> {
     principal.require_designer()?;
 
@@ -194,7 +194,7 @@ pub(crate) async fn delete_dashboard(
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct WidgetCreateRequest {
+pub struct CreateWidgetRequest {
     pub title: String,
     pub widget_type: String,
     pub query: Option<String>,
@@ -216,7 +216,7 @@ pub(crate) async fn add_widget(
     principal: Principal,
     ws: WorkspaceContext,
     Path(dashboard_id): Path<Uuid>,
-    Json(req): Json<WidgetCreateRequest>,
+    Json(req): Json<CreateWidgetRequest>,
 ) -> Result<Json<ApiResponse<ox_store::DashboardWidget>>, AppError> {
     principal.require_designer()?;
 

@@ -14,7 +14,7 @@ use ox_ontology::ir::OntologyIR;
 use ox_query_ir::pattern::PatternIR;
 use ox_query_ir::query::{QueryIR, QueryResult};
 use ox_core::types::PropertyValue;
-use ox_runtime::cypher::strict_advisory_diagnostics;
+use ox_runtime::cypher::{strict_advisory_diagnostics, strict_blocking_gate};
 use ox_store::{CursorParams, QueryExecution, QueryExecutionSummary, SavedQueryPattern};
 
 use crate::error::AppError;
@@ -181,7 +181,7 @@ fn default_search_limit() -> usize {
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct GraphSearchRequest {
+pub struct SearchGraphRequest {
     /// Search term to match against node properties.
     pub query: String,
     /// Max results (default 20, capped at 100).
@@ -194,7 +194,7 @@ pub struct GraphSearchRequest {
 #[utoipa::path(
     post,
     path = "/api/search",
-    request_body = GraphSearchRequest,
+    request_body = SearchGraphRequest,
     responses(
         (status = 200, description = "Search results", body = Object),
         (status = 400, description = "Empty query", body = inline(crate::openapi::ErrorResponse)),
@@ -208,7 +208,7 @@ pub(crate) async fn search_graph(
     State(state): State<AppState>,
     principal: Principal,
     _ws: WorkspaceContext,
-    Json(req): Json<GraphSearchRequest>,
+    Json(req): Json<SearchGraphRequest>,
 ) -> Result<Json<ApiResponse<Vec<ox_ontology::graph_exploration::SearchResultNode>>>, AppError> {
     let search_term = req.query.trim().to_string();
     if search_term.is_empty() {
@@ -244,7 +244,7 @@ pub(crate) async fn search_graph(
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct QueryRawRequest {
+pub struct ExecuteRawQueryRequest {
     /// Raw query statement in the target language (e.g., Cypher).
     pub query: String,
     /// Optional saved-ontology id. When present, the runtime's
@@ -257,7 +257,7 @@ pub struct QueryRawRequest {
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
-pub struct QueryRawResponse {
+pub struct ExecuteRawQueryResponse {
     /// The query that was executed.
     pub query: String,
     /// Compiler target language (e.g., "cypher").
@@ -271,9 +271,9 @@ pub struct QueryRawResponse {
 #[utoipa::path(
     post,
     path = "/api/query/raw",
-    request_body = QueryRawRequest,
+    request_body = ExecuteRawQueryRequest,
     responses(
-        (status = 200, description = "Raw query result", body = QueryRawResponse),
+        (status = 200, description = "Raw query result", body = ExecuteRawQueryResponse),
         (status = 400, description = "Empty query", body = inline(crate::openapi::ErrorResponse)),
         (status = 422, description = "Query execution failed", body = inline(crate::openapi::ErrorResponse)),
         (status = 503, description = "Graph database not connected", body = inline(crate::openapi::ErrorResponse)),
@@ -287,8 +287,8 @@ pub(crate) async fn raw_query(
     State(state): State<AppState>,
     principal: Principal,
     ws: WorkspaceContext,
-    Json(req): Json<QueryRawRequest>,
-) -> Result<Json<ApiResponse<QueryRawResponse>>, AppError> {
+    Json(req): Json<ExecuteRawQueryRequest>,
+) -> Result<Json<ApiResponse<ExecuteRawQueryResponse>>, AppError> {
     if req.query.trim().is_empty() {
         return Err(AppError::bad_request("query must not be empty"));
     }
@@ -303,6 +303,14 @@ pub(crate) async fn raw_query(
 
     let target = state.compiler.name().to_string();
     info!(user_id = %principal.id, target = %target, "Raw query submitted");
+
+    // Pre-execute blocking gate — refuses Cartesian products and
+    // destructive-write smells before they hit the driver. The
+    // existing safety pipeline catches outright forbidden tokens;
+    // this catches the smaller set of patterns that are syntactically
+    // valid but semantically dangerous.
+    strict_blocking_gate(&req.query, &ws.workspace_id.to_string())
+        .map_err(AppError::from)?;
 
     let runtime = state.runtime.as_ref().ok_or_else(AppError::no_runtime)?;
 
@@ -365,6 +373,7 @@ pub(crate) async fn raw_query(
             type_ids: Vec::new(),
             filter_summary: None,
             registry_versions: std::collections::BTreeMap::new(),
+            column_lineage: Vec::new(),
         });
     }
 
@@ -399,7 +408,7 @@ pub(crate) async fn raw_query(
         });
     }
 
-    Ok(ApiResponse::of(QueryRawResponse {
+    Ok(ApiResponse::of(ExecuteRawQueryResponse {
         query: req.query,
         target,
         results: Some(results),
@@ -468,7 +477,7 @@ pub(crate) async fn get_execution(
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct QueryFeedbackRequest {
+pub struct SubmitQueryFeedbackRequest {
     /// "positive", "negative", or null to clear feedback
     pub feedback: Option<String>,
 }
@@ -479,7 +488,7 @@ const VALID_FEEDBACK: &[&str] = &["positive", "negative"];
     patch,
     path = "/api/query/history/{id}/feedback",
     params(("id" = Uuid, Path, description = "Query execution ID")),
-    request_body = QueryFeedbackRequest,
+    request_body = SubmitQueryFeedbackRequest,
     responses(
         (status = 200, description = "Feedback recorded"),
         (status = 400, description = "Invalid feedback value"),
@@ -492,7 +501,7 @@ pub(crate) async fn update_feedback(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<QueryFeedbackRequest>,
+    Json(req): Json<SubmitQueryFeedbackRequest>,
 ) -> Result<StatusCode, AppError> {
     if let Some(ref fb) = req.feedback
         && !VALID_FEEDBACK.contains(&fb.as_str())
@@ -622,6 +631,13 @@ pub(crate) async fn execute_from_ir(
         error!("QueryIR compilation failed: {e}");
         AppError::unprocessable(format!("QueryIR compilation failed: {e}"))
     })?;
+
+    // Pre-execute blocking gate on the compiled Cypher — even when
+    // the IR was authored cleanly, the lowering may have introduced
+    // a Cartesian or other dangerous shape; gate it before the
+    // driver call.
+    strict_blocking_gate(&compiled.statement, &ws.workspace_id.to_string())
+        .map_err(AppError::from)?;
 
     // Step 2: Execute the compiled query
     let runtime = state.runtime.as_ref().ok_or_else(AppError::no_runtime)?;
@@ -928,14 +944,14 @@ pub(crate) async fn execute_from_ir_federation(
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct PatternCompileRequest {
+pub struct CompilePatternRequest {
     /// The canvas PatternIR to lower.
     #[schema(value_type = Object)]
     pub pattern_ir: PatternIR,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
-pub struct PatternCompileResponse {
+pub struct CompilePatternResponse {
     /// The lowered QueryIR, ready to execute via `/api/query/from-ir`.
     #[schema(value_type = Object)]
     pub query_ir: QueryIR,
@@ -944,9 +960,9 @@ pub struct PatternCompileResponse {
 #[utoipa::path(
     post,
     path = "/api/query/pattern/compile",
-    request_body = PatternCompileRequest,
+    request_body = CompilePatternRequest,
     responses(
-        (status = 200, description = "Compiled QueryIR", body = PatternCompileResponse),
+        (status = 200, description = "Compiled QueryIR", body = CompilePatternResponse),
     ),
     security(("api_key" = [])),
     tag = "Query",
@@ -954,10 +970,10 @@ pub struct PatternCompileResponse {
 pub(crate) async fn compile_pattern(
     _principal: Principal,
     _ws: WorkspaceContext,
-    Json(req): Json<PatternCompileRequest>,
-) -> Result<Json<ApiResponse<PatternCompileResponse>>, AppError> {
+    Json(req): Json<CompilePatternRequest>,
+) -> Result<Json<ApiResponse<CompilePatternResponse>>, AppError> {
     let query_ir = req.pattern_ir.compile().map_err(AppError::from)?;
-    Ok(ApiResponse::of(PatternCompileResponse { query_ir }))
+    Ok(ApiResponse::of(CompilePatternResponse { query_ir }))
 }
 
 // ---------------------------------------------------------------------------
@@ -970,14 +986,14 @@ pub(crate) async fn compile_pattern(
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct PatternDecompileRequest {
+pub struct DecompilePatternRequest {
     /// The QueryIR to reconstruct onto the canvas.
     #[schema(value_type = Object)]
     pub query_ir: QueryIR,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
-pub struct PatternDecompileResponse {
+pub struct DecompilePatternResponse {
     /// The reconstructed PatternIR. Positions are always `None` — the
     /// UI runs its own layout pass before rendering.
     #[schema(value_type = Object)]
@@ -992,9 +1008,9 @@ pub struct PatternDecompileResponse {
 #[utoipa::path(
     post,
     path = "/api/query/pattern/decompile",
-    request_body = PatternDecompileRequest,
+    request_body = DecompilePatternRequest,
     responses(
-        (status = 200, description = "Reconstructed PatternIR", body = PatternDecompileResponse),
+        (status = 200, description = "Reconstructed PatternIR", body = DecompilePatternResponse),
     ),
     security(("api_key" = [])),
     tag = "Query",
@@ -1002,14 +1018,14 @@ pub struct PatternDecompileResponse {
 pub(crate) async fn decompile_pattern(
     _principal: Principal,
     _ws: WorkspaceContext,
-    Json(req): Json<PatternDecompileRequest>,
-) -> Result<Json<ApiResponse<PatternDecompileResponse>>, AppError> {
+    Json(req): Json<DecompilePatternRequest>,
+) -> Result<Json<ApiResponse<DecompilePatternResponse>>, AppError> {
     let editable = matches!(
         req.query_ir.operation,
         ox_query_ir::query::QueryOp::Match { .. }
     );
     let pattern_ir = PatternIR::decompile(&req.query_ir);
-    Ok(ApiResponse::of(PatternDecompileResponse {
+    Ok(ApiResponse::of(DecompilePatternResponse {
         pattern_ir,
         editable,
     }))
@@ -1294,7 +1310,7 @@ fn default_expand_limit() -> usize {
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct GraphExpandRequest {
+pub struct ExpandGraphRequest {
     /// Graph element ID of the node to expand.
     pub element_id: String,
     /// Max neighbors to return (default 50, capped at 200).
@@ -1305,7 +1321,7 @@ pub struct GraphExpandRequest {
 #[utoipa::path(
     post,
     path = "/api/search/expand",
-    request_body = GraphExpandRequest,
+    request_body = ExpandGraphRequest,
     responses(
         (status = 200, description = "Neighbors of the node", body = Object),
         (status = 400, description = "Missing element_id"),
@@ -1319,7 +1335,7 @@ pub(crate) async fn expand_node(
     State(state): State<AppState>,
     principal: Principal,
     _ws: WorkspaceContext,
-    Json(req): Json<GraphExpandRequest>,
+    Json(req): Json<ExpandGraphRequest>,
 ) -> Result<Json<ApiResponse<NodeExpansion>>, AppError> {
     if req.element_id.trim().is_empty() {
         return Err(AppError::bad_request("element_id must not be empty"));

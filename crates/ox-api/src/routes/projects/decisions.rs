@@ -10,8 +10,7 @@ use crate::response::ApiResponse;
 use crate::state::AppState;
 
 use super::helpers::validate_decisions;
-use super::types::UpdateDecisionsRequest;
-use ox_store::DesignProject;
+use super::types::{ProjectView, UpdateProjectDecisionsRequest};
 
 // ---------------------------------------------------------------------------
 // PATCH /api/projects/:id/decisions
@@ -21,7 +20,7 @@ use ox_store::DesignProject;
     patch,
     path = "/api/projects/{id}/decisions",
     params(("id" = Uuid, Path, description = "Project ID")),
-    request_body = UpdateDecisionsRequest,
+    request_body = UpdateProjectDecisionsRequest,
     responses(
         (status = 200, description = "Decisions updated", body = Object),
         (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
@@ -34,8 +33,8 @@ pub(crate) async fn update_decisions(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<UpdateDecisionsRequest>,
-) -> Result<Json<ApiResponse<DesignProject>>, AppError> {
+    Json(req): Json<UpdateProjectDecisionsRequest>,
+) -> Result<Json<ApiResponse<ProjectView>>, AppError> {
     principal.require_designer()?;
     let project = state
         .store
@@ -67,5 +66,5 @@ pub(crate) async fn update_decisions(
         .map_err(AppError::from)?
         .ok_or_else(AppError::project_not_found)?;
 
-    Ok(ApiResponse::of(project))
+    Ok(ApiResponse::of(ProjectView::from_project(project)))
 }

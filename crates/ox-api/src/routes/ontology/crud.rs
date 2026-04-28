@@ -8,7 +8,6 @@ use uuid::Uuid;
 
 use ox_ontology::command::OntologyCommand;
 use ox_ontology::ir::OntologyIR;
-use ox_store::DesignProject;
 use ox_store::store::{CursorPage, CursorParams};
 
 use crate::error::AppError;
@@ -17,6 +16,7 @@ use crate::response::ApiResponse;
 use crate::routes::projects::helpers::{
     assess_quality_from_project, get_design_options, load_mutable_project, reload_project,
 };
+use crate::routes::projects::types::ProjectView;
 use crate::state::AppState;
 
 // ---------------------------------------------------------------------------
@@ -286,7 +286,7 @@ pub(crate) async fn get_ontology_detail(
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct OntologyCommandsRequest {
+pub struct ApplyOntologyCommandsRequest {
     pub revision: i32,
     /// List of ontology mutation commands.
     #[schema(value_type = Vec<Object>)]
@@ -294,9 +294,8 @@ pub struct OntologyCommandsRequest {
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
-pub struct OntologyCommandsResponse {
-    #[schema(value_type = Object)]
-    pub project: DesignProject,
+pub struct ApplyOntologyCommandsResponse {
+    pub project: ProjectView,
 }
 
 #[utoipa::path(
@@ -305,9 +304,9 @@ pub struct OntologyCommandsResponse {
     params(
         ("id" = Uuid, Path, description = "Design project ID"),
     ),
-    request_body = OntologyCommandsRequest,
+    request_body = ApplyOntologyCommandsRequest,
     responses(
-        (status = 200, description = "Commands applied", body = OntologyCommandsResponse),
+        (status = 200, description = "Commands applied", body = ApplyOntologyCommandsResponse),
         (status = 400, description = "Empty commands or invalid ontology", body = inline(crate::openapi::ErrorResponse)),
         (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
         (status = 422, description = "Command execution or validation failed", body = inline(crate::openapi::ErrorResponse)),
@@ -319,8 +318,8 @@ pub(crate) async fn apply_ontology_commands(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<OntologyCommandsRequest>,
-) -> Result<(StatusCode, Json<ApiResponse<OntologyCommandsResponse>>), AppError> {
+    Json(req): Json<ApplyOntologyCommandsRequest>,
+) -> Result<(StatusCode, Json<ApiResponse<ApplyOntologyCommandsResponse>>), AppError> {
     principal.require_designer()?;
     if req.commands.is_empty() {
         return Err(AppError::bad_request("commands must not be empty"));
@@ -370,7 +369,9 @@ pub(crate) async fn apply_ontology_commands(
 
     let errors = ontology.validate();
     if !errors.is_empty() {
-        return Err(AppError::unprocessable(errors.join("; ")));
+        return Err(AppError::unprocessable(ox_core::join_messages(
+            &errors, "; ",
+        )));
     }
 
     let opts = get_design_options(&project);
@@ -399,7 +400,9 @@ pub(crate) async fn apply_ontology_commands(
 
     Ok((
         StatusCode::OK,
-        ApiResponse::of(OntologyCommandsResponse { project: updated }),
+        ApiResponse::of(ApplyOntologyCommandsResponse {
+            project: ProjectView::from_project(updated),
+        }),
     ))
 }
 

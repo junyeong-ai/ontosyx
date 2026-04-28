@@ -292,6 +292,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/insights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_insights"];
+        put?: never;
+        post: operations["create_insight"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/insights/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_insight"];
+        put: operations["update_insight"];
+        post?: never;
+        delete: operations["delete_insight"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/load": {
         parameters: {
             query?: never;
@@ -516,6 +548,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ontologies/{id}/dependencies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_ontology_dependencies"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ontologies/{id}/glossary/suggest-bindings": {
         parameters: {
             query?: never;
@@ -687,6 +735,22 @@ export interface paths {
         get: operations["list_projects"];
         put?: never;
         post: operations["create_project"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/source-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["preview_source"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1103,9 +1167,10 @@ export interface paths {
         /**
          * GET /workspaces/me — return the active workspace context.
          * @description `WorkspaceContext` is set by the middleware after authentication;
-         *     the handler enriches it with the workspace row's `name` /
-         *     `primary_locale` / `locale_fallback` so the FE doesn't make a
-         *     second round-trip.
+         *     the handler enriches it with the workspace row's `name`,
+         *     `primary_locale`, `admin_locale_fallback`, and
+         *     `llm_locale_fallback` so the FE doesn't make a second
+         *     round-trip.
          */
         get: operations["workspace_me"];
         put?: never;
@@ -1222,6 +1287,15 @@ export interface components {
         AdapterSummary: {
             source_id: string;
             source_type: string;
+            /**
+             * @description `true` when the adapter implements `DataSourceAdapter::scan`
+             *     — i.e. it can back federated link mappings (cross-source
+             *     joins via DataFusion). Adapters returning `false` are
+             *     introspection-only; mapping a federated link onto them is a
+             *     configuration mistake the admin UI should surface up-front
+             *     rather than discovering it at query time.
+             */
+            supports_scan: boolean;
         };
         /** @description Who ran the activity. */
         AgentRef: {
@@ -1258,6 +1332,20 @@ export interface components {
          * @enum {string}
          */
         AggregationRole: "measure" | "dimension" | "attribute" | "identifier";
+        /**
+         * @description Health of the persisted analysis-report row.
+         * @enum {string}
+         */
+        AnalysisReportStatus: "missing" | "current" | "stale";
+        ApplyOntologyCommandsRequest: {
+            /** @description List of ontology mutation commands. */
+            commands: Record<string, never>[];
+            /** Format: int32 */
+            revision: number;
+        };
+        ApplyOntologyCommandsResponse: {
+            project: components["schemas"]["ProjectView"];
+        };
         /**
          * @description One entry in the comment thread attached to an approval. The
          *     reviewer's decision-time rationale is the first comment; any
@@ -1418,6 +1506,17 @@ export interface components {
             weight_fuzzy_name?: number | null;
         };
         /**
+         * @description How strongly a binding constrains write-time behaviour and how
+         *     editors should rank the binding's domain when offering choices.
+         *
+         *     FHIR's binding-strength axis is the model: `Required`,
+         *     `Extensible`, `Preferred`, `Example`. We collapse FHIR's `Example`
+         *     into the same enum because consumers want a single dimension when
+         *     reasoning about UI ranking + validation policy.
+         * @enum {string}
+         */
+        BindingStrength: "required" | "preferred" | "extensible" | "example";
+        /**
          * @description Per-mapping hint for the graph-cache backend (ADR 0004). The
          *     planner treats `None` as "never cache"; `GraphCache` is an opt-in
          *     that names a freshness window and an explicit refresh cadence.
@@ -1437,7 +1536,23 @@ export interface components {
             /** Format: int64 */
             ttl_seconds?: number;
         };
-        /** @enum {string} */
+        /**
+         * @description Edge multiplicity, expressed as one of the four canonical
+         *     shorthand variants. Each variant lowers to numeric `(min, max)`
+         *     bounds via the `source_*` / `target_*` accessors below — that
+         *     pair is what every consumer (SHACL emitter, cost estimator, FE
+         *     inspector) ultimately reads, so adding a fifth variant in a
+         *     future ADR is mechanical: extend the enum and add the matching
+         *     arm to the four accessors.
+         *
+         *     The shorthand stays the wire shape because it's how authors
+         *     think — "one to many" reads cleaner than `target_min=1,
+         *     target_max=u32::MAX`. When a deployment really needs a custom
+         *     multiplicity (e.g. "Order has between 1 and 5 line items"), the
+         *     SHACL `MinCount` / `MaxCount` rule on the property side is the
+         *     expressive surface; the edge cardinality stays shorthand.
+         * @enum {string}
+         */
         Cardinality: "one_to_one" | "one_to_many" | "many_to_one" | "many_to_many";
         /**
          * @description Wire shape returned by the list / upsert endpoints. The
@@ -1691,8 +1806,25 @@ export interface components {
             /** @description Up to 30 distinct values. Empty if too many distinct values. */
             sample_values: string[];
         };
-        CommentRequest: {
-            body: string;
+        CompilePatternRequest: {
+            /** @description The canvas PatternIR to lower. */
+            pattern_ir: Record<string, never>;
+        };
+        CompilePatternResponse: {
+            /** @description The lowered QueryIR, ready to execute via `/api/query/from-ir`. */
+            query_ir: Record<string, never>;
+        };
+        CompleteProjectRequest: {
+            /**
+             * @description Must be set to true if the quality report has low confidence or high-severity gaps.
+             *     Prevents accidental promotion of low-quality ontologies.
+             */
+            acknowledge_quality_risks?: boolean;
+            description?: string | null;
+            /** @description Name for the saved ontology. */
+            name: string;
+            /** Format: int32 */
+            revision: number;
         };
         /**
          * @description A declarative mapping between codes in two code systems.
@@ -1752,9 +1884,6 @@ export interface components {
             key: string;
             value: string;
         };
-        ConfigUpdateRequest: {
-            updates: components["schemas"]["ConfigUpdate"][];
-        };
         ConstraintDef: components["schemas"]["NodeConstraint"] & {
             /** @description Stable UUID for this constraint */
             id: components["schemas"]["ConstraintId"];
@@ -1783,6 +1912,41 @@ export interface components {
             /** @enum {string} */
             kind: "edge_label";
             label: components["schemas"]["GraphLabel"];
+        };
+        CreateApprovalCommentRequest: {
+            body: string;
+        };
+        CreateInsightRequest: {
+            /**
+             * @description `GlossaryTermId` strings — the typed concept anchors per the
+             *     1-pager's "용어 사전이 다리" axis. Distinct from `tags`
+             *     (freeform shorthand) so cross-team filtering by concept stays
+             *     stable as tag wording drifts. Empty when no glossary terms
+             *     apply.
+             */
+            concept_anchors?: string[];
+            /**
+             * @description Required on the wire — clients always send a `LocalizedText`
+             *     payload (`{default: ""}` is acceptable). Mirrors the canonical
+             *     `InsightDef.description: LocalizedText` shape; not making the
+             *     request DTO optional avoids producer/consumer asymmetry where
+             *     the response always carries the field.
+             */
+            description: Record<string, never>;
+            /** Format: date-time */
+            expires_at?: string | null;
+            /**
+             * @description Provenance the insight was originally computed against —
+             *     the platform's response basis at save time.
+             */
+            original_provenance?: Record<string, never> | null;
+            /**
+             * @description Logical query the insight executes. Validated as
+             *     `QueryIR` on submit so a malformed IR is rejected up-front.
+             */
+            query_ir: Record<string, never>;
+            question: Record<string, never>;
+            tags?: string[];
         };
         /**
          * @description Request body for `POST /api/ontologies`.
@@ -1845,8 +2009,28 @@ export interface components {
             /** Format: uuid */
             version_id: string;
         };
+        CreatePinRequest: {
+            /** Format: uuid */
+            query_execution_id: string;
+            title?: string | null;
+            /** @description Widget specification JSON. */
+            widget_spec: unknown;
+        };
         CreateProjectRequest: Record<string, never> & {
             title?: string | null;
+        };
+        CreatePromptRequest: {
+            content: string;
+            metadata?: unknown;
+            name: string;
+            variables?: unknown;
+            version: string;
+            /**
+             * Format: uuid
+             * @description When set, the prompt is a workspace-scoped override of the
+             *     global template. When `None`, it's a new global version.
+             */
+            workspace_id?: string | null;
         };
         CreateSavedPatternRequest: {
             /** @description Optional free-form note. */
@@ -1994,6 +2178,79 @@ export interface components {
             node_type_id: components["schemas"]["NodeTypeId"];
             property_id: components["schemas"]["PropertyId"];
         };
+        DecompilePatternRequest: {
+            /** @description The QueryIR to reconstruct onto the canvas. */
+            query_ir: Record<string, never>;
+        };
+        DecompilePatternResponse: {
+            /**
+             * @description `true` iff the source QueryIR was a `Match` operation and
+             *     therefore fully representable on the canvas. `false` for
+             *     PathFind / Union / Chain / Aggregate / CallSubquery / Mutate /
+             *     Analytics — the UI should surface a "read-only" indicator.
+             */
+            editable: boolean;
+            /**
+             * @description The reconstructed PatternIR. Positions are always `None` — the
+             *     UI runs its own layout pass before rendering.
+             */
+            pattern_ir: Record<string, never>;
+        };
+        /**
+         * @description One entry in [`SchemaDependencyGraph::buckets`] — a target and
+         *     every inbound dependency. Tuple-shaped on the wire so the
+         *     graph round-trips through JSON cleanly (enum keys can't ride
+         *     in JSON object keys).
+         */
+        DependencyBucket: {
+            edges: components["schemas"]["DependencyEdge"][];
+            target: components["schemas"]["SchemaEntityRef"];
+        };
+        /**
+         * @description A single reverse-edge in the dependency graph: the
+         *     [`SchemaEntityRef`] target was referenced by `dependent` via a
+         *     [`DependencyKind`] relationship.
+         */
+        DependencyEdge: {
+            dependent: components["schemas"]["SchemaEntityRef"];
+            kind: components["schemas"]["DependencyKind"];
+            /**
+             * @description Short human-readable summary of *how* the dependent
+             *     references the target — surfaced as a tooltip in the FE
+             *     (`"MinCount constraint"`, `"foreign-key bridge"`, etc.).
+             */
+            label: string;
+        };
+        /**
+         * @description Classification of a [`DependencyEdge`]. Each kind carries a
+         *     distinct semantic — the FE picks an icon and groups by kind.
+         * @enum {string}
+         */
+        DependencyKind: "property_of" | "edge_source" | "edge_target" | "interface_implementation" | "property_binding_ref" | "function_derivation" | "unit_reference" | "rule_constraint" | "rule_activation" | "rule_vocabulary" | "metric_scope" | "action_target" | "action_rule" | "enrichment_target" | "object_mapping_target" | "link_mapping_target" | "property_mapping_target" | "value_set_composition" | "concept_map_endpoint" | "data_quality_target";
+        /**
+         * @description One condition the operator must satisfy before designing.
+         *
+         *     `blocks_design` is the contract the HTTP layer enforces: any
+         *     `blocks_design = true` gate with `status = Unmet` rejects the
+         *     design call. `params` carries interpolation values for the FE
+         *     i18n catalogue (e.g. `pending_count`, `table_count`); the
+         *     backend never produces user-facing prose itself. `anchor` is the
+         *     FE element id to scroll to when the operator clicks the gate
+         *     row.
+         */
+        DesignGate: {
+            /**
+             * @description FE element id for click-to-anchor scroll. `None` when the
+             *     gate has no inline control to focus.
+             */
+            anchor?: string | null;
+            blocks_design: boolean;
+            id: components["schemas"]["GateId"];
+            params?: {
+                [key: string]: string;
+            };
+            status: components["schemas"]["GateStatus"];
+        };
         /** @description Design project — ontology design lifecycle. */
         DesignProject: {
             analysis_report?: unknown;
@@ -2026,6 +2283,15 @@ export interface components {
             updated_at: string;
             user_id: string;
         };
+        DesignProjectRequest: {
+            /** @description Domain hints for the LLM. */
+            context?: string;
+            /** Format: int32 */
+            revision: number;
+        };
+        DesignProjectResponse: {
+            project: Record<string, never>;
+        };
         /** @description Design project summary (lightweight, for list endpoints). */
         DesignProjectSummary: {
             /** Format: date-time */
@@ -2045,6 +2311,30 @@ export interface components {
             updated_at: string;
             user_id: string;
         };
+        /**
+         * @description UML / OMG-aligned edge classification.
+         *
+         *     `Association` is the default for any plain semantic relationship
+         *     (Customer `PLACED_ORDER` Order). `Composition` and `Aggregation`
+         *     express part-whole relationships with different lifetime
+         *     semantics:
+         *
+         *     - **Composition** — strong ownership, the part's lifetime is bound
+         *       to the whole. Deleting the whole cascades to the parts. Example:
+         *       `Order COMPOSED_OF OrderItem` (an OrderItem cannot exist
+         *       without its parent Order).
+         *     - **Aggregation** — loose containment, the part outlives the whole
+         *       and is shared across wholes. No cascade delete. Example:
+         *       `Department CONTAINS Employee` (an Employee outlives any one
+         *       department; cross-department reassignment is normal).
+         *
+         *     The default is [`Association`](EdgeKind::Association) — both
+         *     existing edges and new authored ones get the safe non-cascading
+         *     semantics unless the operator explicitly opts into a stronger
+         *     classification.
+         * @enum {string}
+         */
+        EdgeKind: "association" | "composition" | "aggregation";
         EdgeTypeDef: {
             /** @description Cardinality constraint. */
             cardinality?: components["schemas"]["Cardinality"];
@@ -2060,6 +2350,14 @@ export interface components {
             /** @description Stable UUID for this edge type. */
             id: components["schemas"]["EdgeTypeId"];
             inverse_of?: null | components["schemas"]["EdgeTypeId"];
+            /**
+             * @description Relationship classification — UML / OMG-style. Drives
+             *     downstream affordances: cascade-delete inference for
+             *     [`EdgeKind::Composition`], hierarchical visualisation hints
+             *     for [`EdgeKind::Aggregation`], and a neutral default of
+             *     [`EdgeKind::Association`] for plain semantic links.
+             */
+            kind?: components["schemas"]["EdgeKind"];
             /**
              * @description Canonical, language-neutral relationship label (e.g. "PURCHASED",
              *     "REVIEWED"). Used as the Neo4j relationship type. [`GraphLabel`]
@@ -2092,6 +2390,22 @@ export interface components {
         };
         /** @description Type-safe identifier for edge types in an ontology. */
         EdgeTypeId: string;
+        EditProjectRequest: {
+            /** @description If true, returns generated commands without applying them. */
+            dry_run?: boolean;
+            /** Format: int32 */
+            revision: number;
+            /** @description Natural language description of the desired ontology change. */
+            user_request: string;
+        };
+        EditProjectResponse: {
+            /** @description Generated ontology mutation commands. */
+            commands: Record<string, never>[];
+            /** @description LLM explanation of what was changed and why. */
+            explanation: string;
+            /** @description Updated project (null in dry_run mode). */
+            project?: Record<string, never> | null;
+        };
         /**
          * @description Resolvable reference to an endpoint of a link. Either `ObjectMappingId`
          *     (the endpoint is already bound) or a bare `(source, relation,
@@ -2207,6 +2521,65 @@ export interface components {
             /** @description Widget hint for optimal result visualization. */
             widget_hint?: unknown;
         };
+        ExecuteLoadRequest: {
+            /** @description Data batches to load. Each element is a JSON object representing one record. */
+            data: unknown[];
+            /** @description OntologyIR for the target graph schema. */
+            ontology: Record<string, never>;
+            /** @description Optional pre-computed load plan. If omitted, the plan is generated via LLM. */
+            plan?: Record<string, never> | null;
+            /** @description Description of the data source. */
+            source_description: string;
+        };
+        ExecuteLoadResponse: {
+            /** @description Compiled statements executed. */
+            compiled_statements: string[];
+            /** @description Load plan used. */
+            plan: Record<string, never>;
+            /** @description Execution results. */
+            result: Record<string, never>;
+            /** @description Compiler target language. */
+            target: string;
+        };
+        ExecuteRawQueryRequest: {
+            /**
+             * Format: uuid
+             * @description Optional saved-ontology id. When present, the runtime's
+             *     OntologyValidator gates the query against this ontology (rejects
+             *     unknown labels / relationship types / property keys). When
+             *     omitted, the raw path stays ontology-free and only the safety
+             *     + workspace-scope gates apply.
+             */
+            ontology_id?: string | null;
+            /** @description Raw query statement in the target language (e.g., Cypher). */
+            query: string;
+        };
+        ExecuteRawQueryResponse: {
+            /** @description The query that was executed. */
+            query: string;
+            /** @description Query result rows and metadata. */
+            results?: Record<string, never> | null;
+            /** @description Compiler target language (e.g., "cypher"). */
+            target: string;
+        };
+        ExtendProjectRequest: {
+            /** Format: int32 */
+            revision: number;
+            /**
+             * @description Which tables of the new source to introspect. Required —
+             *     `kind: "all"` to take everything advertised, `kind: "subset"`
+             *     for a curated list, `kind: "extend"` to grow the existing
+             *     baseline with the named tables.
+             */
+            selection: Record<string, never>;
+            /** @description New data source to merge into the project. */
+            source: components["schemas"]["ProjectSource"];
+        };
+        ExtendProjectResponse: {
+            project: Record<string, never>;
+            /** @description Report on ID reconciliation between existing and new ontology entities. */
+            reconcile_report: Record<string, never>;
+        };
         /**
          * @description Pointer to the external service.
          *
@@ -2304,41 +2677,98 @@ export interface components {
          * @enum {string}
          */
         FunctionPurity: "pure" | "impure";
+        /**
+         * @description Stable identifier for a single gate the operator must satisfy
+         *     before invoking the design action. New variants are additive —
+         *     the FE i18n catalogue keys gate copy by `GateId`.
+         * @enum {string}
+         */
+        GateId: "column_clarifications_resolved" | "partial_analysis_acknowledged" | "large_schema_acknowledged";
+        /** @enum {string} */
+        GateStatus: "met" | "unmet";
+        GenerateLoadPlanRequest: {
+            /** @description OntologyIR for the target graph schema. */
+            ontology: Record<string, never>;
+            /** @description Description of the data source for the LLM. */
+            source_description: string;
+        };
+        GenerateLoadPlanResponse: {
+            /** @description Compiled statements in the target language. */
+            compiled_statements: string[];
+            /** @description Generated load plan. */
+            plan: Record<string, never>;
+            /** @description Compiler target language (e.g., "cypher"). */
+            target: string;
+        };
         /** @description Atomic unit of the glossary. */
         GlossaryTermDef: {
             /**
-             * @description Alternate names the term may be known as. Used for
+             * @description Alternate names per locale (synonyms, abbreviations). Used for
              *     synonym-aware search in the glossary UI and for LLM prompts
              *     that need to normalise arbitrary user phrasing onto a term.
+             *     SKOS `skos:altLabel`.
              */
-            aliases?: string[];
+            aliases?: components["schemas"]["LocalizedText"][];
             /**
              * @description Author-supplied category (e.g. `"business_concept"`,
              *     `"measure"`, `"dimension"`). No fixed taxonomy — categories
-             *     are tenant-defined so the glossary doesn't force an
-             *     upstream ontology.
+             *     are tenant-defined so the glossary doesn't force an upstream
+             *     ontology.
              */
             category?: string | null;
             /**
-             * @description Free-form domain description. Longer than the term, localized
-             *     so a bilingual deployment can ship English + Korean text
-             *     without inventing a second glossary store.
+             * @description Domain definition. Longer than the term, localised so a
+             *     bilingual deployment can ship English + Korean text without
+             *     inventing a second glossary store.
              */
             description?: components["schemas"]["LocalizedText"];
             /**
-             * @description Localized display name (same role as `GlossaryTermDef.term`
-             *     but per-locale — takes precedence when the viewer's locale
-             *     matches).
+             * @description Operator-facing display label. Most callers want `term`; the
+             *     distinction matters when the catalogue UI wants a longer
+             *     human-friendly form ("Active Paying Customer") while
+             *     downstream code keeps a compact identifier label
+             *     ("paying_customer").
              */
             display_name?: components["schemas"]["LocalizedText"];
-            id: components["schemas"]["GlossaryTermId"];
-            parent_term_id?: null | components["schemas"]["GlossaryTermId"];
             /**
-             * @description Canonical short name, rendered as the column label in
-             *     glossary UIs. Tools treat `term` as human-readable text — it
-             *     does not need to be Cypher-safe.
+             * @description Illustrative examples that disambiguate abstract definitions.
+             *     Each entry is a self-contained sentence. SKOS `skos:example`.
              */
-            term: string;
+            examples?: components["schemas"]["LocalizedText"][];
+            /** @description Authorship and editorial trail. */
+            governance?: components["schemas"]["TermGovernance"];
+            id: components["schemas"]["GlossaryTermId"];
+            /**
+             * @description Lifecycle state. Drives UI affordances (deprecation strikethrough,
+             *     retired filter) and downstream resolvers (NL-to-Cypher should
+             *     route a deprecated term through its `replaced_by` automatically).
+             */
+            lifecycle?: components["schemas"]["TermLifecycle"];
+            /**
+             * @description SKOS relations to other terms — hierarchy / association /
+             *     equivalence — encoded from this term's perspective.
+             */
+            related_terms?: components["schemas"]["TermRelation"][];
+            /**
+             * @description Canonical preferred label. `LocalizedText` so deployments that
+             *     surface terms in multiple languages can ship one record per
+             *     concept (English `Customer`, Korean `고객`) instead of two
+             *     duplicate records linked by ad-hoc convention.
+             */
+            term: components["schemas"]["LocalizedText"];
+            /**
+             * Format: date-time
+             * @description Inclusive lower bound on the term's validity period. `None`
+             *     means "valid since the beginning of the ontology lineage".
+             */
+            valid_from?: string | null;
+            /**
+             * Format: date-time
+             * @description Exclusive upper bound on the term's validity period. `None`
+             *     means open-ended. A retired term keeps its `valid_to` set so
+             *     historical queries can still reference the concept as it was.
+             */
+            valid_to?: string | null;
         };
         /** @description Stable identifier for a glossary term. */
         GlossaryTermId: string;
@@ -2387,6 +2817,10 @@ export interface components {
              */
             window_seconds: number;
         };
+        ImportOntologyRequest: {
+            /** @description OWL ontology in Turtle format. */
+            content: string;
+        };
         /**
          * @description Rule mode — include or exclude. A separate enum (rather than a
          *     `bool`) so the wire form is self-documenting.
@@ -2420,6 +2854,9 @@ export interface components {
             similarity: components["schemas"]["VectorSimilarity"];
             /** @enum {string} */
             type: "vector";
+        };
+        InsightResponse: {
+            insight: Record<string, never>;
         };
         /** @description Declarative interface over node types. */
         InterfaceDef: {
@@ -2569,6 +3006,7 @@ export interface components {
             target_column: components["schemas"]["ColumnRef"];
         } | {
             bridge_relation: components["schemas"]["SourceRelationRef"];
+            bridge_workspace_scope?: null | components["schemas"]["ColumnRef"];
             /** @enum {string} */
             kind: "bridge";
             source_join: components["schemas"]["ColumnRef"][];
@@ -2582,40 +3020,6 @@ export interface components {
             kind: "federated";
             source_match_column: components["schemas"]["ColumnRef"];
             target_match_column: components["schemas"]["ColumnRef"];
-        };
-        LoadExecuteRequest: {
-            /** @description Data batches to load. Each element is a JSON object representing one record. */
-            data: unknown[];
-            /** @description OntologyIR for the target graph schema. */
-            ontology: Record<string, never>;
-            /** @description Optional pre-computed load plan. If omitted, the plan is generated via LLM. */
-            plan?: Record<string, never> | null;
-            /** @description Description of the data source. */
-            source_description: string;
-        };
-        LoadExecuteResponse: {
-            /** @description Compiled statements executed. */
-            compiled_statements: string[];
-            /** @description Load plan used. */
-            plan: Record<string, never>;
-            /** @description Execution results. */
-            result: Record<string, never>;
-            /** @description Compiler target language. */
-            target: string;
-        };
-        LoadPlanRequest: {
-            /** @description OntologyIR for the target graph schema. */
-            ontology: Record<string, never>;
-            /** @description Description of the data source for the LLM. */
-            source_description: string;
-        };
-        LoadPlanResponse: {
-            /** @description Compiled statements in the target language. */
-            compiled_statements: string[];
-            /** @description Generated load plan. */
-            plan: Record<string, never>;
-            /** @description Compiler target language (e.g., "cypher"). */
-            target: string;
         };
         /**
          * @description Language-tagged text with a canonical `default` and optional per-locale
@@ -2699,6 +3103,24 @@ export interface components {
             /** @enum {string} */
             kind: "global";
         };
+        /**
+         * @description Storage-engine constraint that compiles to native graph-DB DDL.
+         *
+         *     `NodeConstraint` lives at the **physical** layer — the schema
+         *     compiler emits `CREATE CONSTRAINT … REQUIRE … IS UNIQUE`,
+         *     `IS NOT NULL`, or `IS NODE KEY` so the database engine itself
+         *     rejects writes that violate the rule. This is the strongest
+         *     guarantee available: even direct DB writes outside the platform
+         *     pipeline fail. The trade-off is expressiveness: only uniqueness
+         *     and existence are universally portable across backends.
+         *
+         *     For shape-level rules that go beyond DDL (property pairs, value
+         *     sets, patterns, language uniqueness), use
+         *     [`crate::rule::ShaclConstraint`] on a `RuleDef` — those run in
+         *     the SHACL validator at write/read time. The two surfaces are
+         *     intentionally separate; do not collapse them. SQL has the same
+         *     split: `UNIQUE/NOT NULL/CHECK` (DDL) vs application validators.
+         */
         NodeConstraint: {
             property_ids: components["schemas"]["PropertyId"][];
             /** @enum {string} */
@@ -2937,15 +3359,6 @@ export interface components {
          *     on the same source and the rule needs disambiguation.
          */
         ObjectMappingId: string;
-        OntologyCommandsRequest: {
-            /** @description List of ontology mutation commands. */
-            commands: Record<string, never>[];
-            /** Format: int32 */
-            revision: number;
-        };
-        OntologyCommandsResponse: {
-            project: Record<string, never>;
-        };
         OntologyDetail: {
             /** Format: date-time */
             created_at: string;
@@ -3057,10 +3470,6 @@ export interface components {
             /** @description Version metadata (number + temporal window + provenance). */
             version: components["schemas"]["OntologyVersion"];
         };
-        OntologyImportRequest: {
-            /** @description OWL ontology in Turtle format. */
-            content: string;
-        };
         OntologyListItem: {
             /** Format: date-time */
             created_at: string;
@@ -3135,50 +3544,8 @@ export interface components {
             /** @description Opaque cursor for the next page. `None` when this is the last page. */
             next_cursor?: string | null;
         };
-        PatternCompileRequest: {
-            /** @description The canvas PatternIR to lower. */
-            pattern_ir: Record<string, never>;
-        };
-        PatternCompileResponse: {
-            /** @description The lowered QueryIR, ready to execute via `/api/query/from-ir`. */
-            query_ir: Record<string, never>;
-        };
-        PatternDecompileRequest: {
-            /** @description The QueryIR to reconstruct onto the canvas. */
-            query_ir: Record<string, never>;
-        };
-        PatternDecompileResponse: {
-            /**
-             * @description `true` iff the source QueryIR was a `Match` operation and
-             *     therefore fully representable on the canvas. `false` for
-             *     PathFind / Union / Chain / Aggregate / CallSubquery / Mutate /
-             *     Analytics — the UI should surface a "read-only" indicator.
-             */
-            editable: boolean;
-            /**
-             * @description The reconstructed PatternIR. Positions are always `None` — the
-             *     UI runs its own layout pass before rendering.
-             */
-            pattern_ir: Record<string, never>;
-        };
         PerspectiveFindParams: {
             topology_signature: string;
-        };
-        PerspectiveUpsertRequest: {
-            /** @description Collapsed group settings JSON. */
-            collapsed_groups?: unknown;
-            /** @description Filter settings JSON. */
-            filters?: unknown;
-            is_default?: boolean;
-            lineage_id: string;
-            name: string;
-            /** @description Node positions JSON. */
-            positions: unknown;
-            /** Format: uuid */
-            project_id?: string | null;
-            topology_signature: string;
-            /** @description Viewport state JSON. */
-            viewport: unknown;
         };
         /**
          * @description PII (Personally Identifiable Information) classification.
@@ -3267,13 +3634,6 @@ export interface components {
              */
             value: string;
         };
-        PinCreateRequest: {
-            /** Format: uuid */
-            query_execution_id: string;
-            title?: string | null;
-            /** @description Widget specification JSON. */
-            widget_spec: unknown;
-        };
         /** @description Pinboard item — a saved query result. */
         PinboardItem: {
             /** Format: uuid */
@@ -3296,64 +3656,48 @@ export interface components {
             name: string;
             nullable: boolean;
         };
+        PreviewSourceRequest: Record<string, never>;
+        PreviewSourceResponse: {
+            /**
+             * @description Source kind — useful for the UI to render type-specific
+             *     affordances (e.g., schema picker for SQL backends).
+             */
+            source_type: string;
+            tables: components["schemas"]["PreviewTableSummary"][];
+        };
         PreviewTable: {
             columns: components["schemas"]["PreviewColumn"][];
             name: string;
         };
-        ProjectCompleteRequest: {
+        PreviewTableSummary: {
             /**
-             * @description Must be set to true if the quality report has low confidence or high-severity gaps.
-             *     Prevents accidental promotion of low-quality ontologies.
+             * Format: int32
+             * @description Number of columns reported by the catalog.
              */
-            acknowledge_quality_risks?: boolean;
-            description?: string | null;
-            /** @description Name for the saved ontology. */
+            column_count: number;
+            /**
+             * Format: int64
+             * @description Approximate row count from cheap backend statistics.
+             *     `None` when the backend has no cheap path to this answer.
+             */
+            estimated_row_count?: number | null;
+            /**
+             * Format: date-time
+             * @description Last-modified timestamp when the backend exposes one.
+             */
+            last_modified?: string | null;
             name: string;
-            /** Format: int32 */
-            revision: number;
-        };
-        ProjectDesignRequest: {
-            /** @description Must be set to true if the schema has >100 tables and the user wants to proceed anyway. */
-            acknowledge_large_schema?: boolean;
-            /** @description Domain hints for the LLM. */
-            context?: string;
-            /** Format: int32 */
-            revision: number;
-        };
-        ProjectDesignResponse: {
-            project: Record<string, never>;
-        };
-        ProjectEditRequest: {
-            /** @description If true, returns generated commands without applying them. */
-            dry_run?: boolean;
-            /** Format: int32 */
-            revision: number;
-            /** @description Natural language description of the desired ontology change. */
-            user_request: string;
-        };
-        ProjectEditResponse: {
-            /** @description Generated ontology mutation commands. */
-            commands: Record<string, never>[];
-            /** @description LLM explanation of what was changed and why. */
-            explanation: string;
-            /** @description Updated project (null in dry_run mode). */
-            project?: Record<string, never> | null;
-        };
-        ProjectExtendRequest: {
-            /** Format: int32 */
-            revision: number;
-            /** @description New data source to merge into the project. */
-            source: components["schemas"]["ProjectSource"];
-        };
-        ProjectExtendResponse: {
-            project: Record<string, never>;
-            /** @description Report on ID reconciliation between existing and new ontology entities. */
-            reconcile_report: Record<string, never>;
         };
         ProjectOrigin: {
             /** @enum {string} */
             origin_type: "source";
             repo_source?: Record<string, never> | null;
+            /**
+             * @description Which tables of the source to introspect. The caller picks
+             *     `{"kind": "all"}` deliberately or names a `subset` /
+             *     `extend` list — there is no implicit full-warehouse sweep.
+             */
+            selection: Record<string, never>;
             source: components["schemas"]["ProjectSource"];
         } | {
             /**
@@ -3365,45 +3709,6 @@ export interface components {
             base_ontology_id: string;
             /** @enum {string} */
             origin_type: "base_ontology";
-        };
-        ProjectReanalyzeRequest: {
-            /** @description Optional repository source for enrichment. */
-            repo_source?: Record<string, never> | null;
-            /** Format: int32 */
-            revision: number;
-            /** @description Data source to re-analyze (must match original source type). */
-            source: components["schemas"]["ProjectSource"];
-        };
-        ProjectReanalyzeResponse: {
-            /** @description Design decisions that were invalidated by the schema change. */
-            invalidated_decisions?: string[];
-            project: Record<string, never>;
-        };
-        ProjectReconcileRequest: {
-            /** @description User accept/reject decisions for uncertain matches. */
-            decisions: Record<string, never>[];
-            /** @description Reconciled ontology with user decisions applied. */
-            reconciled_ontology: Record<string, never>;
-            /** Format: int32 */
-            revision: number;
-            /** @description The uncertain matches being decided upon. */
-            uncertain_matches: Record<string, never>[];
-        };
-        ProjectRefineRequest: {
-            /** @description Additional context for the LLM refinement. */
-            additional_context?: string | null;
-            /** Format: int32 */
-            revision: number;
-        };
-        ProjectRefineResponse: {
-            /** @description Summary of graph profiling results. */
-            profile_summary: string;
-            project: Record<string, never>;
-            /** @description Report on ID reconciliation between original and refined ontology. */
-            reconcile_report: Record<string, never>;
-        };
-        ProjectRestoreResponse: {
-            project: Record<string, never>;
         };
         ProjectSource: {
             data: string;
@@ -3451,13 +3756,29 @@ export interface components {
             warehouse?: string;
         } | {
             /**
-             * @description Optional path to service account credentials JSON file.
-             *     Falls back to GOOGLE_APPLICATION_CREDENTIALS env var if omitted.
+             * @description Project that runs and is billed for the BigQuery jobs.
+             *     Defaults to `project_id`. Required when the caller has
+             *     `bigquery.tables.list` on the data project but lacks
+             *     `bigquery.jobs.create` there (typical for shared data
+             *     projects), or when a VPC Service Controls perimeter forces
+             *     jobs to run from a specific project.
+             */
+            billing_project_id?: string | null;
+            /**
+             * @description Optional path to a credentials file. Accepts either a
+             *     service-account JSON key or an authorized-user secret
+             *     (the file `gcloud auth application-default login` writes).
+             *     Falls back to ADC chain (`GOOGLE_APPLICATION_CREDENTIALS`,
+             *     gcloud default file, workload-identity metadata server)
+             *     when omitted.
              */
             credentials_path?: string | null;
-            /** @description BigQuery dataset name */
+            /** @description BigQuery dataset name. */
             dataset: string;
-            /** @description GCP project ID */
+            /**
+             * @description Data project — the GCP project that owns the dataset. Used
+             *     to fully-qualify identifiers in `INFORMATION_SCHEMA` queries.
+             */
             project_id: string;
             /** @enum {string} */
             type: "bigquery";
@@ -3470,18 +3791,26 @@ export interface components {
             type: "code_repository";
             url: string;
         };
-        PromptCreateRequest: {
-            content: string;
-            metadata?: unknown;
-            name: string;
-            variables?: unknown;
-            version: string;
+        /**
+         * @description Wire shape for any endpoint that returns a project. Carries the
+         *     underlying [`DesignProject`] flattened (so existing fields stay
+         *     at the top level) plus the server-evaluated [`Vec<DesignGate>`]
+         *     the FE renders alongside the disabled-design-button checklist.
+         *
+         *     Computing gates server-side keeps the FE from reimplementing the
+         *     gate-evaluation rules and guarantees the rendering matches what
+         *     the design endpoint will accept.
+         */
+        ProjectView: components["schemas"]["DesignProject"] & {
             /**
-             * Format: uuid
-             * @description When set, the prompt is a workspace-scoped override of the
-             *     global template. When `None`, it's a new global version.
+             * @description Status of the persisted `analysis_report` blob against the
+             *     current wire shape. The FE renders a soft banner when
+             *     `Stale` so the operator knows gate enforcement was skipped
+             *     even though design proceeded — re-running analyse refreshes
+             *     the report and the gates start enforcing again.
              */
-            workspace_id?: string | null;
+            analysis_report_status: components["schemas"]["AnalysisReportStatus"];
+            design_gates: components["schemas"]["DesignGate"][];
         };
         PromptInfo: {
             name: string;
@@ -3509,10 +3838,72 @@ export interface components {
             /** Format: uuid */
             workspace_id?: string | null;
         };
-        PromptUpdateRequest: {
-            content?: string | null;
-            is_active?: boolean | null;
-            variables?: unknown;
+        /**
+         * @description One semantic constraint on a property — discriminated by the
+         *     registry kind it points at. Each variant carries only the
+         *     fields that are meaningful for that target:
+         *
+         *     - `ValueSet` / `CodeSystem` — strength + concept_map (vocabulary
+         *       translation makes sense)
+         *     - `NotationPattern` — strength only (structural format, no
+         *       vocabulary translation)
+         *     - `ValueRange` — temporal window only (the IR treats ranges as
+         *       classifiers, not rejectors; strength would have no enforcement)
+         *     - `Glossary` — temporal window only (semantic anchor; strength
+         *       carries no enforcement semantics for "this property realises
+         *       this concept")
+         *
+         *     Ordering matters in [`PropertyDef::bindings`](crate::ir::PropertyDef::bindings):
+         *     when two bindings would both classify a value (e.g. one notation
+         *     pattern is a stricter form of another), consumers honour the
+         *     first match. `valid_from` / `valid_to` filter the active set
+         *     before that ordering applies.
+         */
+        PropertyBinding: {
+            concept_map_id?: null | components["schemas"]["ConceptMapId"];
+            id: components["schemas"]["ValueSetId"];
+            /** @enum {string} */
+            kind: "value_set";
+            strength?: components["schemas"]["BindingStrength"];
+            /** Format: date-time */
+            valid_from?: string | null;
+            /** Format: date-time */
+            valid_to?: string | null;
+        } | {
+            concept_map_id?: null | components["schemas"]["ConceptMapId"];
+            id: components["schemas"]["CodeSystemId"];
+            /** @enum {string} */
+            kind: "code_system";
+            strength?: components["schemas"]["BindingStrength"];
+            /** Format: date-time */
+            valid_from?: string | null;
+            /** Format: date-time */
+            valid_to?: string | null;
+        } | {
+            id: components["schemas"]["NotationPatternId"];
+            /** @enum {string} */
+            kind: "notation_pattern";
+            strength?: components["schemas"]["BindingStrength"];
+            /** Format: date-time */
+            valid_from?: string | null;
+            /** Format: date-time */
+            valid_to?: string | null;
+        } | {
+            id: components["schemas"]["ValueRangeSetId"];
+            /** @enum {string} */
+            kind: "value_range";
+            /** Format: date-time */
+            valid_from?: string | null;
+            /** Format: date-time */
+            valid_to?: string | null;
+        } | {
+            id: components["schemas"]["GlossaryTermId"];
+            /** @enum {string} */
+            kind: "glossary";
+            /** Format: date-time */
+            valid_from?: string | null;
+            /** Format: date-time */
+            valid_to?: string | null;
         };
         PropertyCandidateBody: {
             owner_kind: string;
@@ -3533,6 +3924,7 @@ export interface components {
              *     property key is still the compile target.
              */
             aliases?: components["schemas"]["LocalizedText"][];
+            bindings?: components["schemas"]["PropertyBinding"][];
             /**
              * @description Free-form business-context note (e.g. "extracted from legacy
              *     CRM; maps to CUST_STATUS column"). Shown in the property
@@ -3551,7 +3943,6 @@ export interface components {
             description?: components["schemas"]["LocalizedText"];
             /** @description Localized display name shown in the UI. */
             display_name?: components["schemas"]["LocalizedText"];
-            glossary_term_id?: null | components["schemas"]["GlossaryTermId"];
             /** @description Stable UUID for this property. */
             id: components["schemas"]["PropertyId"];
             /**
@@ -3583,7 +3974,6 @@ export interface components {
              *     Cypher emission.
              */
             name: components["schemas"]["PropertyKey"];
-            notation_pattern_id?: null | components["schemas"]["NotationPatternId"];
             /** @description Whether this property can be null. */
             nullable?: boolean;
             pii_kind?: null | components["schemas"]["PiiKind"];
@@ -3596,8 +3986,6 @@ export interface components {
             /** @description Transformation expression applied to the source column (e.g., `UPPER(col)`). */
             transform?: string | null;
             unit_id?: null | components["schemas"]["CodedValueId"];
-            value_range_set_id?: null | components["schemas"]["ValueRangeSetId"];
-            value_set_id?: null | components["schemas"]["ValueSetId"];
         };
         /** @description Reference to a property this function depends on. */
         PropertyDependency: {
@@ -3635,6 +4023,7 @@ export interface components {
         };
         /** @description Binding from an ontology property to a physical value location. */
         PropertyMappingDef: {
+            concept_map_id?: null | components["schemas"]["ConceptMapId"];
             /** @description Where the value comes from. */
             location: components["schemas"]["PropertyLocation"];
             /**
@@ -3857,26 +4246,47 @@ export interface components {
             /** Format: int64 */
             row_count: number;
         };
-        QueryRawRequest: {
+        ReanalyzeProjectRequest: {
+            /** @description Optional repository source for enrichment. */
+            repo_source?: Record<string, never> | null;
+            /** Format: int32 */
+            revision: number;
             /**
-             * Format: uuid
-             * @description Optional saved-ontology id. When present, the runtime's
-             *     OntologyValidator gates the query against this ontology (rejects
-             *     unknown labels / relationship types / property keys). When
-             *     omitted, the raw path stays ontology-free and only the safety
-             *     + workspace-scope gates apply.
+             * @description Which tables of the source to introspect on this re-analysis.
+             *     Required and explicit — `kind: "all"` for a full sweep,
+             *     `kind: "subset"` to narrow.
              */
-            ontology_id?: string | null;
-            /** @description Raw query statement in the target language (e.g., Cypher). */
-            query: string;
+            selection: Record<string, never>;
+            /** @description Data source to re-analyze (must match original source type). */
+            source: components["schemas"]["ProjectSource"];
         };
-        QueryRawResponse: {
-            /** @description The query that was executed. */
-            query: string;
-            /** @description Query result rows and metadata. */
-            results?: Record<string, never> | null;
-            /** @description Compiler target language (e.g., "cypher"). */
-            target: string;
+        ReanalyzeProjectResponse: {
+            /** @description Design decisions that were invalidated by the schema change. */
+            invalidated_decisions?: string[];
+            project: Record<string, never>;
+        };
+        ReconcileProjectRequest: {
+            /** @description User accept/reject decisions for uncertain matches. */
+            decisions: Record<string, never>[];
+            /** @description Reconciled ontology with user decisions applied. */
+            reconciled_ontology: Record<string, never>;
+            /** Format: int32 */
+            revision: number;
+            /** @description The uncertain matches being decided upon. */
+            uncertain_matches: Record<string, never>[];
+        };
+        RefineProjectRequest: {
+            /** @description Additional context for the LLM refinement. */
+            additional_context?: string | null;
+            /** Format: int32 */
+            revision: number;
+        };
+        RefineProjectResponse: {
+            /** @description Summary of graph profiling results. */
+            profile_summary: string;
+            project: Record<string, never>;
+            /** @description Report on ID reconciliation between original and refined ontology. */
+            reconcile_report: Record<string, never>;
         };
         RefreshAdaptersResponse: {
             count: number;
@@ -3972,7 +4382,10 @@ export interface components {
              */
             replaced: boolean;
         };
-        ReviewRequest: {
+        RestoreProjectRevisionResponse: {
+            project: Record<string, never>;
+        };
+        ReviewApprovalRequest: {
             approved: boolean;
             /**
              * @description Reviewer rationale recorded as the first comment on the
@@ -3980,7 +4393,7 @@ export interface components {
              */
             note?: string | null;
         };
-        ReviewResponse: {
+        ReviewApprovalResponse: {
             /** @description `"approved"` or `"rejected"`. */
             status: string;
         };
@@ -4009,7 +4422,16 @@ export interface components {
             /** @enum {string} */
             kind: "on_schedule";
         };
-        /** @description Ontology constraint, named and serializable. */
+        /**
+         * @description Ontology constraint, named and serializable.
+         *
+         *     `name` is `LocalizedText` so admin surfaces (and the SHACL
+         *     violation message that reaches the LLM via tool results) can
+         *     render the rule in the workspace's locale chain. The IR's other
+         *     human-facing fields (`description`, `display_name`, glossary
+         *     `term`) follow the same pattern; making `name` a bare `String`
+         *     would be the only single-language island left.
+         */
         RuleDef: {
             activation?: components["schemas"]["RuleActivationKind"];
             /**
@@ -4023,8 +4445,40 @@ export interface components {
             enforcement?: components["schemas"]["EnforcementKind"];
             id: components["schemas"]["RuleId"];
             kind: components["schemas"]["RuleKind"];
-            name: string;
+            name: components["schemas"]["LocalizedText"];
+            /**
+             * @description Provenance of the rule. Authored rules accept edits; derived
+             *     rules are regenerated from the source binding and must not be
+             *     hand-edited (the editor disables controls; exporters skip
+             *     them to avoid double-emit). Defaults to `Authored` when
+             *     missing on the wire.
+             */
+            origin?: components["schemas"]["RuleOrigin"];
+            /**
+             * @description Why this rule exists — operator-facing explanation that
+             *     outlives the rule's authors. Surfaced verbatim in the rule
+             *     editor and the violation diagnostic so a future engineer
+             *     reading a SHACL failure understands the policy intent
+             *     without spelunking commit history. Empty when the rule
+             *     pre-dates the rationale field; the editor prompts to
+             *     backfill on next edit.
+             */
+            rationale?: components["schemas"]["LocalizedText"];
             severity?: components["schemas"]["Severity"];
+            /**
+             * Format: date-time
+             * @description Inclusive lower bound on the rule's effective window.
+             *     Validators that filter the active rule set against an `as_of`
+             *     instant skip rules whose `valid_from > as_of`. `None` means
+             *     "in effect from the start of the ontology version".
+             */
+            valid_from?: string | null;
+            /**
+             * Format: date-time
+             * @description Exclusive upper bound on the rule's effective window. `None`
+             *     means "indefinitely". Same filter contract as `valid_from`.
+             */
+            valid_to?: string | null;
         };
         /**
          * @description Stable identifier for a `RuleDef`. Declared here instead of
@@ -4062,6 +4516,32 @@ export interface components {
              */
             transitions: components["schemas"]["StateTransition"][];
         };
+        /**
+         * @description Where a `RuleDef` came from. Authored rules are first-class user
+         *     input the admin UI lets people edit; derived rules are synthesised
+         *     by the platform from another piece of the IR (typically a
+         *     `Required`-strength `PropertyBinding` via
+         *     [`crate::derived_rules::derive_binding_rules`]) and must be
+         *     regenerated rather than edited.
+         *
+         *     Consumers gate behaviour on this field:
+         *     - **Editors** disable controls for `DerivedFromBinding` rules and
+         *       redirect the user to the source binding instead.
+         *     - **Exporters** (OWL/Turtle, SHACL, etc.) skip derived rules to
+         *       avoid double-emitting the constraint that the binding will
+         *       re-derive on import.
+         *     - **LLM context builders** strip derived rules to keep the prompt
+         *       focused on user intent.
+         */
+        RuleOrigin: {
+            /** @enum {string} */
+            kind: "authored";
+        } | {
+            /** @enum {string} */
+            kind: "derived_from_binding";
+            node_type_id: components["schemas"]["NodeTypeId"];
+            property_id: components["schemas"]["PropertyId"];
+        };
         SavedPatternResponse: {
             /** Format: date-time */
             created_at: string;
@@ -4073,6 +4553,112 @@ export interface components {
             pattern_ir: Record<string, never>;
             /** Format: date-time */
             updated_at: string;
+        };
+        /**
+         * @description Inverted index of every schema-level reference in an
+         *     [`OntologyIR`]. Build once per snapshot; query many times via
+         *     [`SchemaDependencyGraph::dependents_of`].
+         *
+         *     Stored as a sorted [`DependencyBucket`] vector so the wire
+         *     shape is a clean JSON array and `dependents_of` runs in
+         *     O(log n) via binary search. Both build and query paths are
+         *     deterministic.
+         */
+        SchemaDependencyGraph: {
+            /**
+             * @description Targets sorted by [`SchemaEntityRef`] ordering; each
+             *     bucket's edges sorted within.
+             */
+            buckets: components["schemas"]["DependencyBucket"][];
+        };
+        /**
+         * @description Stable handle that addresses any first-class entity in an
+         *     [`OntologyIR`]. Used as the key into
+         *     [`SchemaDependencyGraph`]'s inverted index.
+         *
+         *     Each variant carries plain `String` ids (not the typed
+         *     `XxxId` newtypes) so the graph is self-contained — callers can
+         *     serialise the whole shape over the wire without depending on
+         *     the per-id wrapper types.
+         */
+        SchemaEntityRef: {
+            id: string;
+            /** @enum {string} */
+            kind: "node_type";
+        } | {
+            id: string;
+            /** @enum {string} */
+            kind: "edge_type";
+        } | {
+            id: string;
+            /** @enum {string} */
+            kind: "property";
+            owner: string;
+        } | {
+            id: string;
+            /** @enum {string} */
+            kind: "interface";
+        } | {
+            id: string;
+            /** @enum {string} */
+            kind: "glossary_term";
+        } | {
+            id: string;
+            /** @enum {string} */
+            kind: "value_set";
+        } | {
+            id: string;
+            /** @enum {string} */
+            kind: "code_system";
+        } | {
+            id: string;
+            /** @enum {string} */
+            kind: "notation_pattern";
+        } | {
+            id: string;
+            /** @enum {string} */
+            kind: "value_range_set";
+        } | {
+            id: string;
+            /** @enum {string} */
+            kind: "rule";
+        } | {
+            id: string;
+            /** @enum {string} */
+            kind: "function";
+        } | {
+            id: string;
+            /** @enum {string} */
+            kind: "metric";
+        } | {
+            id: string;
+            /** @enum {string} */
+            kind: "action";
+        } | {
+            id: string;
+            /** @enum {string} */
+            kind: "enrichment";
+        } | {
+            id: string;
+            /** @enum {string} */
+            kind: "object_mapping";
+        } | {
+            id: string;
+            /** @enum {string} */
+            kind: "link_mapping";
+        } | {
+            id: string;
+            /** @enum {string} */
+            kind: "concept_map";
+        } | {
+            id: string;
+            /** @enum {string} */
+            kind: "data_quality";
+        } | {
+            code_system: string;
+            id: string;
+            /** @enum {string} */
+            kind: "coded_value";
         };
         /**
          * @description Dimension a [`ApprovalSkipPredicate::ChangeScopeBelow`]
@@ -4139,6 +4725,16 @@ export interface components {
          *     real-world rule usage; advanced components (`sh:and`, `sh:or`,
          *     `sh:xone`, recursion rules) land in Phase 11 with the reasoning
          *     engine.
+         *
+         *     `ShaclConstraint` lives at the **logical** layer — the SHACL
+         *     validator pipeline checks each constraint at write/read time and
+         *     produces a structured violation report. For storage-engine
+         *     constraints that compile to graph-DB DDL (uniqueness, existence,
+         *     node keys), use [`crate::ir::NodeConstraint`] on `NodeTypeDef`
+         *     instead. The two surfaces deliberately do not overlap: DDL
+         *     constraints buy database-native enforcement at the cost of
+         *     portability; SHACL constraints buy expressiveness at the cost of
+         *     requiring the validator on the write path.
          */
         ShaclConstraint: {
             /** @enum {string} */
@@ -4219,6 +4815,21 @@ export interface components {
             kind: "unique_key";
             property_keys: components["schemas"]["PropertyKey"][];
             target_node_type_id: components["schemas"]["NodeTypeId"];
+        } | {
+            /** @enum {string} */
+            kind: "less_than";
+            /**
+             * @description Sibling property the value is compared against. Both
+             *     properties belong to the same node-type shape; the
+             *     integrity layer rejects unknown ids.
+             */
+            other_property: components["schemas"]["PropertyId"];
+            target: components["schemas"]["ConstraintTarget"];
+        } | {
+            /** @enum {string} */
+            kind: "equals";
+            other_property: components["schemas"]["PropertyId"];
+            target: components["schemas"]["ConstraintTarget"];
         };
         SignalBody: {
             detail?: string | null;
@@ -4290,11 +4901,15 @@ export interface components {
             to: string;
         };
         SuggestBindingsRequest: {
-            aliases?: string[];
-            description?: string | null;
+            aliases?: Record<string, never>[];
+            description?: Record<string, never>;
             policy?: null | components["schemas"]["BindingPolicyBody"];
-            /** @description Canonical term name — the only required field. */
-            term: string;
+            /**
+             * @description Canonical term name. `LocalizedText` so a draft term carries
+             *     the same multi-locale shape as a saved one — the scorer matches
+             *     against every locale variant.
+             */
+            term: Record<string, never>;
             /**
              * @description Pre-existing term id if the term is already saved. When
              *     provided, the endpoint confirms it refers to the saved
@@ -4329,9 +4944,128 @@ export interface components {
             /** Format: float */
             score: number;
             signals: components["schemas"]["SignalBody"][];
-            term: string;
+            term: Record<string, never>;
             term_id: string;
         };
+        /**
+         * @description One entry in a term's append-only change log.
+         *
+         *     `provenance` is the optional bridge to the workspace-wide PROV-O
+         *     graph: when a change was driven by a structured activity (a
+         *     chat-driven edit, an LLM enrichment pass, an external import),
+         *     the corresponding [`crate::provenance::ProvenanceDef`] id lives
+         *     here so consumers can walk back to the agent / activity / source
+         *     without parsing the prose `note`. Routine manual edits leave it
+         *     `None`.
+         */
+        TermChangeNote: {
+            /** Format: date-time */
+            at: string;
+            /**
+             * @description Principal who made the change. `None` for system-driven
+             *     rewrites (auto-enrichment, bulk import).
+             */
+            by?: string | null;
+            note: components["schemas"]["LocalizedText"];
+            provenance?: null | components["schemas"]["ProvenanceId"];
+        };
+        /**
+         * @description Authorship and editorial trail. SKOS-XL `dct:creator`,
+         *     `dct:created`, `xl:scopeNote`, `xl:editorialNote`, `xl:changeNote`.
+         */
+        TermGovernance: {
+            /**
+             * @description Append-only change log. Each entry records one revision of
+             *     the term (definition rewrite, alias added, deprecation).
+             */
+            change_notes?: components["schemas"]["TermChangeNote"][];
+            /**
+             * Format: date-time
+             * @description When the term was first added.
+             */
+            created_at?: string | null;
+            /**
+             * @description Identifier of the principal who authored the term. `None`
+             *     when the term was machine-derived without a human author
+             *     (`origin = DerivedFromColumn`, etc.).
+             */
+            created_by?: string | null;
+            /**
+             * @description Editorial notes — instructions to glossary maintainers
+             *     ("verify against legal vocabulary"). Internal, not for the
+             *     catalogue surface.
+             */
+            editorial_notes?: components["schemas"]["LocalizedText"][];
+            /** @description How the term entered the glossary. */
+            origin?: components["schemas"]["TermOrigin"];
+            /**
+             * @description Scope notes — clarifications about applicability ("only in
+             *     retail context", "excludes returns"). One entry per locale.
+             */
+            scope_notes?: components["schemas"]["LocalizedText"][];
+        };
+        /**
+         * @description Lifecycle state. New terms are `Active`; deprecation points to a
+         *     successor; retirement keeps the term in history but excludes it
+         *     from active resolution.
+         */
+        TermLifecycle: {
+            /** @enum {string} */
+            state: "active";
+        } | {
+            /** Format: date-time */
+            deprecated_at: string;
+            replaced_by?: null | components["schemas"]["GlossaryTermId"];
+            /** @enum {string} */
+            state: "deprecated";
+        } | {
+            /** Format: date-time */
+            retired_at: string;
+            /** @enum {string} */
+            state: "retired";
+        };
+        /**
+         * @description Where the term originated. Drives UI affordances like a "machine
+         *     suggestion" badge that prompts a human to validate.
+         */
+        TermOrigin: {
+            /** @enum {string} */
+            kind: "manual";
+        } | {
+            column: string;
+            /** @enum {string} */
+            kind: "derived_from_column";
+            table: string;
+        } | {
+            catalog: string;
+            external_id?: string | null;
+            /** @enum {string} */
+            kind: "imported_from";
+        };
+        /**
+         * @description One SKOS-style edge between two glossary terms.
+         *
+         *     Relations are stored on the term whose perspective they describe
+         *     (`source` is the term the edge "lives on"). Inverse edges are
+         *     authored separately when both directions are meaningful — a
+         *     `Broader → t-parent` lives on the child term, and the parent
+         *     carries `Narrower → t-child` on its own list.
+         */
+        TermRelation: {
+            kind: components["schemas"]["TermRelationKind"];
+            target: components["schemas"]["GlossaryTermId"];
+        };
+        /**
+         * @description SKOS-aligned relation kinds.
+         *
+         *     Reference: <https://www.w3.org/TR/skos-reference/>. The four
+         *     hierarchy / lateral kinds (`Broader`, `Narrower`, `Related`,
+         *     `SeeAlso`) plus the two equivalence kinds (`ExactMatch`,
+         *     `CloseMatch`) cover the canonical SKOS surface for vocabulary
+         *     alignment.
+         * @enum {string}
+         */
+        TermRelationKind: "broader" | "narrower" | "related" | "see_also" | "exact_match" | "close_match";
         UiConfig: {
             elk_direction: string;
             elk_edge_routing: string;
@@ -4342,16 +5076,58 @@ export interface components {
             /** Format: int64 */
             worker_timeout_ms: number;
         };
-        UpdateDecisionsRequest: {
+        UpdateConfigRequest: {
+            updates: components["schemas"]["ConfigUpdate"][];
+        };
+        UpdateInsightRequest: {
+            concept_anchors?: string[];
+            /** @description Required on the wire (see `CreateInsightRequest::description`). */
+            description: Record<string, never>;
+            /**
+             * Format: date-time
+             * @description Optimistic-concurrency handle: must match the row's current
+             *     `updated_at`. Stale writes return 409 so two concurrent
+             *     edits don't silently overwrite each other.
+             */
+            expected_updated_at: string;
+            /** Format: date-time */
+            expires_at?: string | null;
+            original_provenance?: Record<string, never> | null;
+            query_ir: Record<string, never>;
+            question: Record<string, never>;
+            tags?: string[];
+        };
+        UpdateProjectDecisionsRequest: {
             /** @description User design decisions. */
             design_options: Record<string, never>;
             /** Format: int32 */
             revision: number;
         };
+        UpdatePromptRequest: {
+            content?: string | null;
+            is_active?: boolean | null;
+            variables?: unknown;
+        };
         UpdateSavedPatternRequest: {
             description?: string | null;
             name: string;
             pattern_ir: Record<string, never>;
+        };
+        UpsertPerspectiveRequest: {
+            /** @description Collapsed group settings JSON. */
+            collapsed_groups?: unknown;
+            /** @description Filter settings JSON. */
+            filters?: unknown;
+            is_default?: boolean;
+            lineage_id: string;
+            name: string;
+            /** @description Node positions JSON. */
+            positions: unknown;
+            /** Format: uuid */
+            project_id?: string | null;
+            topology_signature: string;
+            /** @description Viewport state JSON. */
+            viewport: unknown;
         };
         UpsertRoutingRuleRequest: {
             /**
@@ -4504,21 +5280,29 @@ export interface components {
         };
         /**
          * @description Per-request workspace identity surface for the FE. Carries the
-         *     caller's *active* workspace plus the locale chain the renderer
+         *     caller's *active* workspace plus both locale chains the renderer
          *     needs — the FE's `useLocaleChain` hook reads this once per
          *     workspace switch instead of bolting locale onto `/auth/me`
          *     (workspace-level data on a user-level endpoint).
          */
         WorkspaceMeResponse: {
+            /**
+             * @description Ordered fallback chain the admin / operator UI walks
+             *     (e.g. `["ko", "en"]`). FE `localize()` reads this; first
+             *     non-empty translation wins.
+             */
+            admin_locale_fallback: string[];
             /** Format: uuid */
             id: string;
             /**
-             * @description Ordered fallback chain (e.g. `["ko", "en"]`). FE
-             *     `localize()` walks this array; first non-empty translation wins.
+             * @description Ordered fallback chain the agent / Brain prompts and
+             *     tool-result contexts walk (e.g. `["en", "ko"]`). Distinct
+             *     from `admin_locale_fallback` so a Korean-first admin
+             *     surface can pair with an English-first LLM context.
              */
-            locale_fallback: string[];
+            llm_locale_fallback: string[];
             name: string;
-            /** @description BCP 47 tag — the workspace's default locale. */
+            /** @description BCP 47 tag — the workspace's default authoring locale. */
             primary_locale: string;
             role: string;
             slug: string;
@@ -4965,7 +5749,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["PromptCreateRequest"];
+                "application/json": components["schemas"]["CreatePromptRequest"];
             };
         };
         responses: {
@@ -5063,7 +5847,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["PromptUpdateRequest"];
+                "application/json": components["schemas"]["UpdatePromptRequest"];
             };
         };
         responses: {
@@ -5190,7 +5974,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CommentRequest"];
+                "application/json": components["schemas"]["CreateApprovalCommentRequest"];
             };
         };
         responses: {
@@ -5235,7 +6019,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ReviewRequest"];
+                "application/json": components["schemas"]["ReviewApprovalRequest"];
             };
         };
         responses: {
@@ -5245,7 +6029,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ReviewResponse"];
+                    "application/json": components["schemas"]["ReviewApprovalResponse"];
                 };
             };
             /** @description Workspace admin required. */
@@ -5332,7 +6116,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ConfigUpdateRequest"];
+                "application/json": components["schemas"]["UpdateConfigRequest"];
             };
         };
         responses: {
@@ -5436,6 +6220,208 @@ export interface operations {
             };
         };
     };
+    list_insights: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Restrict to insights authored by `me` — defaults to the
+                 *     caller. The admin-mode "all insights" view passes `me=false`.
+                 */
+                me?: boolean;
+                /**
+                 * @description Filter by typed concept anchors (`GlossaryTermId` strings).
+                 *     Multi-value: `?concept_anchor=gt-x&concept_anchor=gt-y` returns
+                 *     any insight that carries at least one of those anchors.
+                 */
+                concept_anchor?: string[];
+                /**
+                 * @description Filter by freeform tags. Same multi-value semantics as
+                 *     `concept_anchor`.
+                 */
+                tag?: string[];
+                /** @description Cursor returned by the previous call. */
+                cursor?: string | null;
+                /** @description Page size cap. Server clamps to [1, 100]; defaults to 50. */
+                limit?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated insight list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    create_insight: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateInsightRequest"];
+            };
+        };
+        responses: {
+            /** @description Created insight */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightResponse"];
+                };
+            };
+            /** @description Designer role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description Invalid query_ir */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    get_insight: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Insight id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Insight detail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    update_insight: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Insight id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateInsightRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated insight */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description Stale update — reload + retry */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
+    delete_insight: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Insight id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
     plan_load: {
         parameters: {
             query?: never;
@@ -5445,7 +6431,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["LoadPlanRequest"];
+                "application/json": components["schemas"]["GenerateLoadPlanRequest"];
             };
         };
         responses: {
@@ -5455,7 +6441,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LoadPlanResponse"];
+                    "application/json": components["schemas"]["GenerateLoadPlanResponse"];
                 };
             };
             /** @description Invalid input */
@@ -5491,7 +6477,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["LoadExecuteRequest"];
+                "application/json": components["schemas"]["ExecuteLoadRequest"];
             };
         };
         responses: {
@@ -5501,7 +6487,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LoadExecuteResponse"];
+                    "application/json": components["schemas"]["ExecuteLoadResponse"];
                 };
             };
             /** @description Invalid input */
@@ -5818,7 +6804,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["OntologyImportRequest"];
+                "application/json": components["schemas"]["ImportOntologyRequest"];
             };
         };
         responses: {
@@ -5911,6 +6897,36 @@ export interface operations {
                         error: components["schemas"]["ErrorBody"];
                     };
                 };
+            };
+        };
+    };
+    get_ontology_dependencies: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ontology identity id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Schema dependency graph */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Ontology not found or has no committed version */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -6010,7 +7026,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["PerspectiveUpsertRequest"];
+                "application/json": components["schemas"]["UpsertPerspectiveRequest"];
             };
         };
         responses: {
@@ -6165,7 +7181,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["PinCreateRequest"];
+                "application/json": components["schemas"]["CreatePinRequest"];
             };
         };
         responses: {
@@ -6283,6 +7299,52 @@ export interface operations {
             };
         };
     };
+    preview_source: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreviewSourceRequest"];
+            };
+        };
+        responses: {
+            /** @description Cheap table listing for the source */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreviewSourceResponse"];
+                };
+            };
+            /** @description Source kind not previewable or empty data */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+            /** @description Designer role required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["ErrorBody"];
+                    };
+                };
+            };
+        };
+    };
     get_project: {
         parameters: {
             query?: never;
@@ -6361,7 +7423,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ProjectReconcileRequest"];
+                "application/json": components["schemas"]["ReconcileProjectRequest"];
             };
         };
         responses: {
@@ -6371,7 +7433,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProjectRefineResponse"];
+                    "application/json": components["schemas"]["RefineProjectResponse"];
                 };
             };
             /** @description Invalid decisions */
@@ -6421,7 +7483,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ProjectCompleteRequest"];
+                "application/json": components["schemas"]["CompleteProjectRequest"];
             };
         };
         responses: {
@@ -6481,7 +7543,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["UpdateDecisionsRequest"];
+                "application/json": components["schemas"]["UpdateProjectDecisionsRequest"];
             };
         };
         responses: {
@@ -6530,7 +7592,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ProjectDesignRequest"];
+                "application/json": components["schemas"]["DesignProjectRequest"];
             };
         };
         responses: {
@@ -6540,7 +7602,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProjectDesignResponse"];
+                    "application/json": components["schemas"]["DesignProjectResponse"];
                 };
             };
             /** @description Invalid input or large schema gate */
@@ -6590,7 +7652,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ProjectDesignRequest"];
+                "application/json": components["schemas"]["DesignProjectRequest"];
             };
         };
         responses: {
@@ -6639,7 +7701,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ProjectEditRequest"];
+                "application/json": components["schemas"]["EditProjectRequest"];
             };
         };
         responses: {
@@ -6649,7 +7711,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProjectEditResponse"];
+                    "application/json": components["schemas"]["EditProjectResponse"];
                 };
             };
             /** @description Empty request or no ontology */
@@ -6710,7 +7772,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ProjectExtendRequest"];
+                "application/json": components["schemas"]["ExtendProjectRequest"];
             };
         };
         responses: {
@@ -6720,7 +7782,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProjectExtendResponse"];
+                    "application/json": components["schemas"]["ExtendProjectResponse"];
                 };
             };
             /** @description No ontology or empty source data */
@@ -6770,7 +7832,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["OntologyCommandsRequest"];
+                "application/json": components["schemas"]["ApplyOntologyCommandsRequest"];
             };
         };
         responses: {
@@ -6780,7 +7842,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["OntologyCommandsResponse"];
+                    "application/json": components["schemas"]["ApplyOntologyCommandsResponse"];
                 };
             };
             /** @description Empty commands or invalid ontology */
@@ -6830,7 +7892,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ProjectReanalyzeRequest"];
+                "application/json": components["schemas"]["ReanalyzeProjectRequest"];
             };
         };
         responses: {
@@ -6840,7 +7902,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProjectReanalyzeResponse"];
+                    "application/json": components["schemas"]["ReanalyzeProjectResponse"];
                 };
             };
             /** @description Source type mismatch */
@@ -6879,7 +7941,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ProjectRefineRequest"];
+                "application/json": components["schemas"]["RefineProjectRequest"];
             };
         };
         responses: {
@@ -6889,7 +7951,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProjectRefineResponse"];
+                    "application/json": components["schemas"]["RefineProjectResponse"];
                 };
             };
             /** @description No runtime or additional context */
@@ -6950,7 +8012,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ProjectRefineRequest"];
+                "application/json": components["schemas"]["RefineProjectRequest"];
             };
         };
         responses: {
@@ -7077,7 +8139,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProjectRestoreResponse"];
+                    "application/json": components["schemas"]["RestoreProjectRevisionResponse"];
                 };
             };
             /** @description Project or revision not found */
@@ -7295,7 +8357,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["PatternCompileRequest"];
+                "application/json": components["schemas"]["CompilePatternRequest"];
             };
         };
         responses: {
@@ -7305,7 +8367,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PatternCompileResponse"];
+                    "application/json": components["schemas"]["CompilePatternResponse"];
                 };
             };
         };
@@ -7319,7 +8381,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["PatternDecompileRequest"];
+                "application/json": components["schemas"]["DecompilePatternRequest"];
             };
         };
         responses: {
@@ -7329,7 +8391,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PatternDecompileResponse"];
+                    "application/json": components["schemas"]["DecompilePatternResponse"];
                 };
             };
         };
@@ -7488,7 +8550,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["QueryRawRequest"];
+                "application/json": components["schemas"]["ExecuteRawQueryRequest"];
             };
         };
         responses: {
@@ -7498,7 +8560,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["QueryRawResponse"];
+                    "application/json": components["schemas"]["ExecuteRawQueryResponse"];
                 };
             };
             /** @description Empty query */

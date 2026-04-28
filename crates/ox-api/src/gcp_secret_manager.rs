@@ -40,21 +40,14 @@
 #![cfg(feature = "gcp-sm")]
 
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use base64::Engine as _;
+use ox_gcp::auth::{self, GcpAuthenticator};
 use serde::Deserialize;
 use tokio::sync::Mutex;
-use hyper_util::client::legacy::connect::HttpConnector;
-use yup_oauth2::authenticator::{ApplicationDefaultCredentialsTypes, Authenticator};
-use yup_oauth2::hyper_rustls::HttpsConnector;
-use yup_oauth2::{
-    ApplicationDefaultCredentialsAuthenticator, ApplicationDefaultCredentialsFlowOpts,
-    AuthorizedUserAuthenticator, ServiceAccountAuthenticator,
-};
 
 use crate::credential::SecretResolver;
 use crate::error::AppError;
@@ -66,7 +59,7 @@ const PROJECT_ENV_KEYS: &[&str] = &["GOOGLE_CLOUD_PROJECT", "GCLOUD_PROJECT"];
 
 /// Resolver for the `gcp-sm:` scheme. One instance per server.
 pub struct GcpSecretManagerResolver {
-    auth: Authenticator<HttpsConnector<HttpConnector>>,
+    auth: GcpAuthenticator,
     http: reqwest::Client,
     /// Optional default project used to expand the short-form
     /// `gcp-sm:{secret_id}` reference. `None` means short form is
@@ -102,7 +95,14 @@ impl GcpSecretManagerResolver {
     /// `GOOGLE_CLOUD_PROJECT` / `GCLOUD_PROJECT` (env-var subset of
     /// gcloud's project resolution).
     pub async fn from_adc() -> Result<Self, AppError> {
-        let auth = build_adc_authenticator().await?;
+        let credential = auth::detect_adc(None).await.map_err(|e| {
+            AppError::bad_request(format!("GCP Secret Manager: ADC dispatch failed: {e}"))
+        })?;
+        let auth = auth::build_authenticator(credential).await.map_err(|e| {
+            AppError::bad_request(format!(
+                "GCP Secret Manager: authenticator construction failed: {e}"
+            ))
+        })?;
         let cache = read_cache_ttl_from_env()?.map(|ttl| CacheState {
             ttl,
             entries: Mutex::new(HashMap::new()),
@@ -212,84 +212,6 @@ impl SecretResolver for GcpSecretManagerResolver {
         }
         Ok(value)
     }
-}
-
-// ---------------------------------------------------------------------------
-// ADC authenticator dispatch
-//
-// yup-oauth2's `ApplicationDefaultCredentialsAuthenticator::builder`
-// only handles two of Google's three ADC sources: a service-account
-// JSON pointed at by `GOOGLE_APPLICATION_CREDENTIALS`, and the GCE /
-// GKE metadata server. The third — the authorized-user JSON written
-// by `gcloud auth application-default login` to
-// `$HOME/.config/gcloud/application_default_credentials.json` — has
-// to be wired manually below. Without that branch, `gcp-sm` only
-// works on workload-identity / SA-key deployments and silently
-// fails on a developer laptop.
-// ---------------------------------------------------------------------------
-
-async fn build_adc_authenticator(
-) -> Result<Authenticator<HttpsConnector<HttpConnector>>, AppError> {
-    if let Ok(path) = std::env::var("GOOGLE_APPLICATION_CREDENTIALS")
-        && !path.is_empty()
-    {
-        let key = yup_oauth2::read_service_account_key(&path).await.map_err(|e| {
-            AppError::bad_request(format!(
-                "GOOGLE_APPLICATION_CREDENTIALS='{path}' — failed to read service account key: {e}"
-            ))
-        })?;
-        return ServiceAccountAuthenticator::builder(key).build().await.map_err(|e| {
-            AppError::bad_request(format!(
-                "GOOGLE_APPLICATION_CREDENTIALS='{path}' — failed to build authenticator: {e}"
-            ))
-        });
-    }
-
-    if let Some(adc_path) = gcloud_adc_path()
-        && tokio::fs::try_exists(&adc_path).await.unwrap_or(false)
-    {
-        // gcloud writes either {"type": "authorized_user", ...} or
-        // {"type": "service_account", ...}. Try authorized-user
-        // first (the common local-dev case), fall back to SA.
-        if let Ok(secret) = yup_oauth2::read_authorized_user_secret(&adc_path).await {
-            return AuthorizedUserAuthenticator::builder(secret)
-                .build()
-                .await
-                .map_err(|e| AppError::bad_request(format!(
-                    "{} — failed to build authorized-user authenticator: {e}",
-                    adc_path.display()
-                )));
-        }
-        if let Ok(key) = yup_oauth2::read_service_account_key(&adc_path).await {
-            return ServiceAccountAuthenticator::builder(key)
-                .build()
-                .await
-                .map_err(|e| AppError::bad_request(format!(
-                    "{} — failed to build service-account authenticator: {e}",
-                    adc_path.display()
-                )));
-        }
-    }
-
-    let opts = ApplicationDefaultCredentialsFlowOpts::default();
-    match ApplicationDefaultCredentialsAuthenticator::builder(opts).await {
-        ApplicationDefaultCredentialsTypes::InstanceMetadata(builder) => {
-            builder.build().await.map_err(|e| AppError::bad_request(format!(
-                "GCP Secret Manager: failed to build instance-metadata authenticator \
-                 (workload identity not available?): {e}"
-            )))
-        }
-        ApplicationDefaultCredentialsTypes::ServiceAccount(builder) => {
-            builder.build().await.map_err(|e| AppError::bad_request(format!(
-                "GCP Secret Manager: failed to build service-account authenticator: {e}"
-            )))
-        }
-    }
-}
-
-fn gcloud_adc_path() -> Option<PathBuf> {
-    let home = std::env::var("HOME").ok().filter(|s| !s.is_empty())?;
-    Some(PathBuf::from(home).join(".config/gcloud/application_default_credentials.json"))
 }
 
 fn read_cache_ttl_from_env() -> Result<Option<Duration>, AppError> {

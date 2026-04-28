@@ -19,7 +19,7 @@ use crate::state::AppState;
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct PinCreateRequest {
+pub struct CreatePinRequest {
     pub query_execution_id: Uuid,
     /// Widget specification JSON.
     pub widget_spec: serde_json::Value,
@@ -29,7 +29,7 @@ pub struct PinCreateRequest {
 #[utoipa::path(
     post,
     path = "/api/pins",
-    request_body = PinCreateRequest,
+    request_body = CreatePinRequest,
     responses(
         (status = 201, description = "Pin created", body = Object),
     ),
@@ -38,7 +38,7 @@ pub struct PinCreateRequest {
 pub(crate) async fn create_pin(
     State(state): State<AppState>,
     principal: Principal,
-    Json(req): Json<PinCreateRequest>,
+    Json(req): Json<CreatePinRequest>,
 ) -> Result<(StatusCode, Json<ApiResponse<PinboardItem>>), AppError> {
     let item = PinboardItem {
         id: Uuid::new_v4(),

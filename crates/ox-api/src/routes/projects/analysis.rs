@@ -16,7 +16,7 @@ use super::helpers::{
     analyze_code_repository, analyze_source, get_design_options, load_mutable_project,
     prune_decisions, reload_project, run_repo_enrichment, skipped_repo_summary,
 };
-use super::types::{ProjectReanalyzeRequest, ProjectReanalyzeResponse, ProjectSource};
+use super::types::{ProjectSource, ProjectView, ReanalyzeProjectRequest, ReanalyzeProjectResponse};
 
 // ---------------------------------------------------------------------------
 // POST /api/projects/:id/reanalyze
@@ -26,9 +26,9 @@ use super::types::{ProjectReanalyzeRequest, ProjectReanalyzeResponse, ProjectSou
     post,
     path = "/api/projects/{id}/reanalyze",
     params(("id" = Uuid, Path, description = "Project ID")),
-    request_body = ProjectReanalyzeRequest,
+    request_body = ReanalyzeProjectRequest,
     responses(
-        (status = 200, description = "Source re-analyzed", body = ProjectReanalyzeResponse),
+        (status = 200, description = "Source re-analyzed", body = ReanalyzeProjectResponse),
         (status = 400, description = "Source type mismatch", body = inline(crate::openapi::ErrorResponse)),
         (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
     ),
@@ -39,9 +39,10 @@ pub(crate) async fn reanalyze_project(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<ProjectReanalyzeRequest>,
-) -> Result<Json<ApiResponse<ProjectReanalyzeResponse>>, AppError> {
+    Json(req): Json<ReanalyzeProjectRequest>,
+) -> Result<Json<ApiResponse<ReanalyzeProjectResponse>>, AppError> {
     principal.require_designer()?;
+    req.selection.validate().map_err(AppError::from)?;
     let project = load_mutable_project(&state, id).await?;
 
     let stored_config: SourceConfig = serde_json::from_value(project.source_config.clone())
@@ -74,10 +75,9 @@ pub(crate) async fn reanalyze_project(
             let (config, schema, profile, report) = analyze_code_repository(&state, &url).await?;
             (config, None, Some(schema), Some(profile), Some(report))
         } else {
-            let (config, data, schema, profile, report) =
-                analyze_source(req.source, &state.adapter_registry).await?;
-
-            let mut report = report;
+            let analyzed =
+                analyze_source(req.source, &state.adapter_registry, req.selection, None).await?;
+            let mut report = analyzed.report;
 
             // Optional repo enrichment (non-fatal — failures recorded in repo_summary)
             if let (Some(source), Some(rpt)) = (&req.repo_source, &mut report) {
@@ -87,14 +87,21 @@ pub(crate) async fn reanalyze_project(
                 ) {
                     Ok(validated) => run_repo_enrichment(&state, &validated, rpt).await,
                     Err(reason) => {
-                        let reason = reason.to_string();
-                        warn!(reason, "Repo enrichment skipped");
-                        rpt.repo_summary = Some(skipped_repo_summary(reason));
+                        warn!(reason = %reason, "Repo enrichment skipped");
+                        rpt.repo_summary = Some(skipped_repo_summary(
+                            ox_ontology::source_analysis::RepoFailureKind::PolicyRejected,
+                        ));
                     }
                 }
             }
 
-            (config, data, schema, profile, report)
+            (
+                analyzed.config,
+                analyzed.raw_data,
+                analyzed.schema,
+                analyzed.profile,
+                report,
+            )
         };
 
     // Detect source identity change via fingerprint comparison
@@ -144,8 +151,8 @@ pub(crate) async fn reanalyze_project(
 
     let updated = reload_project(&state, id).await?;
 
-    Ok(ApiResponse::of(ProjectReanalyzeResponse {
-        project: updated,
+    Ok(ApiResponse::of(ReanalyzeProjectResponse {
+        project: ProjectView::from_project(updated),
         invalidated_decisions: invalidated,
     }))
 }

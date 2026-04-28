@@ -19,7 +19,7 @@ use crate::workspace::WorkspaceContext;
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, ToSchema)]
-pub struct ReviewRequest {
+pub struct ReviewApprovalRequest {
     pub approved: bool,
     /// Reviewer rationale recorded as the first comment on the
     /// approval thread when non-empty after trimming.
@@ -29,13 +29,13 @@ pub struct ReviewRequest {
 
 #[derive(Debug, Serialize, ToSchema)]
 #[cfg_attr(test, derive(Deserialize))]
-pub struct ReviewResponse {
+pub struct ReviewApprovalResponse {
     /// `"approved"` or `"rejected"`.
     pub status: String,
 }
 
 #[derive(Deserialize, ToSchema)]
-pub struct CommentRequest {
+pub struct CreateApprovalCommentRequest {
     pub body: String,
 }
 
@@ -106,9 +106,9 @@ pub(crate) async fn get_approval(
     path = "/api/approvals/{id}/review",
     tag = "Approvals",
     params(("id" = Uuid, Path, description = "Approval request id")),
-    request_body = ReviewRequest,
+    request_body = ReviewApprovalRequest,
     responses(
-        (status = 200, description = "Decision recorded.", body = ReviewResponse),
+        (status = 200, description = "Decision recorded.", body = ReviewApprovalResponse),
         (status = 403, description = "Workspace admin required.", body = crate::openapi::ErrorResponse),
         (status = 404, description = "No pending approval with this id.", body = crate::openapi::ErrorResponse),
     ),
@@ -119,8 +119,8 @@ pub(crate) async fn review_approval(
     principal: Principal,
     ws: WorkspaceContext,
     Path(id): Path<Uuid>,
-    Json(req): Json<ReviewRequest>,
-) -> Result<(StatusCode, Json<ApiResponse<ReviewResponse>>), AppError> {
+    Json(req): Json<ReviewApprovalRequest>,
+) -> Result<(StatusCode, Json<ApiResponse<ReviewApprovalResponse>>), AppError> {
     ws.require_admin()?;
     let reviewer_id = principal.user_uuid()?;
 
@@ -141,7 +141,7 @@ pub(crate) async fn review_approval(
 
     Ok((
         StatusCode::OK,
-        ApiResponse::of(ReviewResponse {
+        ApiResponse::of(ReviewApprovalResponse {
             status: status.to_string(),
         }),
     ))
@@ -193,7 +193,7 @@ pub(crate) async fn list_approval_comments(
     path = "/api/approvals/{id}/comments",
     tag = "Approvals",
     params(("id" = Uuid, Path, description = "Approval request id")),
-    request_body = CommentRequest,
+    request_body = CreateApprovalCommentRequest,
     responses(
         (status = 201, description = "Comment created and appended to the thread.", body = crate::openapi::ApprovalComment),
         (status = 400, description = "Empty body after trim.", body = crate::openapi::ErrorResponse),
@@ -206,7 +206,7 @@ pub(crate) async fn create_approval_comment(
     principal: Principal,
     _ws: WorkspaceContext,
     Path(id): Path<Uuid>,
-    Json(req): Json<CommentRequest>,
+    Json(req): Json<CreateApprovalCommentRequest>,
 ) -> Result<(StatusCode, Json<ApiResponse<ApprovalComment>>), AppError> {
     let body = req.body.trim();
     if body.is_empty() {
@@ -264,7 +264,7 @@ mod tests {
 
     #[derive(Deserialize)]
     struct ReviewEnvelope {
-        data: super::ReviewResponse,
+        data: super::ReviewApprovalResponse,
     }
 
     fn fake_pending(workspace_id: Uuid, requester_id: Uuid) -> ApprovalRequest {

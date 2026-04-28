@@ -1085,6 +1085,7 @@ mod tests {
                     target_type: tgt.to_string(),
                     properties: vec![],
                     cardinality: Cardinality::ManyToOne,
+                    kind: ox_ontology::ir::EdgeKind::Association,
                 })
                 .collect(),
             indexes: vec![],

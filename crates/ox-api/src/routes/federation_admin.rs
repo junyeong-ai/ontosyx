@@ -50,6 +50,7 @@ use ox_source::bigquery::BigQueryAdapter;
 use ox_source::mysql::MysqlAdapter;
 use ox_source::postgres::PostgresAdapter;
 use ox_source::sample::{CsvAdapter, JsonAdapter};
+use ox_source::AnalyzeSelection;
 
 // ---------------------------------------------------------------------------
 // Wire / stored types
@@ -346,6 +347,13 @@ impl RegisterAdapterKind {
 pub struct AdapterSummary {
     pub source_id: String,
     pub source_type: String,
+    /// `true` when the adapter implements `DataSourceAdapter::scan`
+    /// — i.e. it can back federated link mappings (cross-source
+    /// joins via DataFusion). Adapters returning `false` are
+    /// introspection-only; mapping a federated link onto them is a
+    /// configuration mistake the admin UI should surface up-front
+    /// rather than discovering it at query time.
+    pub supports_scan: bool,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -392,6 +400,16 @@ pub(crate) async fn register_adapter(
 
     let source_type = req.kind.kind_tag().to_string();
 
+    // Probe the adapter's capability surface up-front so the admin
+    // UI can warn ("this source is introspection-only — federated
+    // links won't work against it") instead of discovering the
+    // limit deep in a planner failure at query time. The probe runs
+    // a single connect-and-`supports_scan()` call; the connection
+    // is dropped immediately afterwards.
+    let probe_adapter = req.kind.build_adapter(state.secret_resolver.as_ref()).await?;
+    let supports_scan = probe_adapter.supports_scan();
+    drop(probe_adapter);
+
     // Delegates the build + store-upsert + memory-register flow to
     // `upsert_workspace_adapter`, which holds the workspace's
     // resolver write lock across the three steps so concurrent
@@ -406,6 +424,7 @@ pub(crate) async fn register_adapter(
         adapter: AdapterSummary {
             source_id: req.source_id,
             source_type,
+            supports_scan,
         },
     }))
 }
@@ -519,11 +538,29 @@ pub(crate) async fn list_adapters(
     let summaries = rows
         .into_iter()
         .map(|row| AdapterSummary {
+            supports_scan: source_type_supports_scan(&row.kind),
             source_id: row.source_id,
             source_type: row.kind,
         })
         .collect();
     Ok(ApiResponse::of(summaries))
+}
+
+/// Static capability lookup keyed on the adapter's `source_type`.
+/// Mirrors the per-adapter `DataSourceAdapter::supports_scan`
+/// override: every backend that returns `true` from that method is
+/// listed here. Listed centrally so the admin list / bulk health
+/// endpoints don't have to build a live adapter per row just to
+/// learn one boolean.
+///
+/// Adding a new federation-capable backend = add the new
+/// `supports_scan` override on its `impl DataSourceAdapter` block,
+/// then list its `source_type` here. The compiler doesn't enforce
+/// the pair, so the integration test
+/// `register_adapter_reports_supports_scan_consistently_across_backends`
+/// (federation_admin tests) cross-checks every registered kind.
+fn source_type_supports_scan(kind: &str) -> bool {
+    matches!(kind, "postgresql" | "mysql" | "bigquery" | "csv" | "json")
 }
 
 // ---------------------------------------------------------------------------
@@ -964,29 +1001,13 @@ pub(crate) async fn list_adapter_tables(
 
 /// Body of `POST /api/admin/federation/adapters/{source_id}/analyze`.
 ///
-/// `selection` carries the user's intent — "all" for a full sweep,
-/// "subset" for an incremental pick (with optional dedup against the
-/// existing snapshot's tables to grow rather than replace). The wire
-/// shape uses `serde(tag)` so the JSON reads `{"selection": {"kind":
-/// "subset", "tables": [...]}}`.
+/// `selection` carries the user's intent through a single tagged
+/// enum — `all` for a full sweep, `subset` for a standalone pick,
+/// `extend` to grow the source's stored baseline. The wire shape
+/// reads `{"selection": {"kind": "extend", "tables": [...]}}`.
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct AnalyzeAdapterRequest {
     pub selection: AnalyzeSelection,
-    /// When `true` and the source already has a cached snapshot,
-    /// produce an extension result by introspecting only tables not
-    /// in the baseline. Ignored for `selection: "all"`. Defaults to
-    /// `false` — the safe interpretation is "replace what's there".
-    #[serde(default)]
-    pub extend: bool,
-}
-
-#[derive(Debug, Deserialize, utoipa::ToSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum AnalyzeSelection {
-    All,
-    Subset {
-        tables: std::collections::BTreeSet<String>,
-    },
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -1023,6 +1044,7 @@ pub(crate) async fn analyze_adapter(
     Json(req): Json<AnalyzeAdapterRequest>,
 ) -> Result<Json<ApiResponse<AnalyzeAdapterResponse>>, AppError> {
     principal.require_admin()?;
+    req.selection.validate().map_err(AppError::from)?;
 
     let row = state
         .store
@@ -1044,24 +1066,34 @@ pub(crate) async fn analyze_adapter(
     let adapter = kind.build_adapter(state.secret_resolver.as_ref()).await?;
     let kernel = ox_source::IntrospectionKernel::new(adapter.clone());
 
-    // Branch the kernel call by intent. `extend` only matters in
-    // subset mode — a full sweep has no baseline to grow from.
+    // Each variant maps to one kernel entry point. `Extend` is the
+    // only branch that needs the stored baseline; the kernel handles
+    // the dedup-and-merge.
     let (analysis, mode) = match req.selection {
         AnalyzeSelection::All => (
             kernel.analyze_all().await.map_err(AppError::from)?,
             "all",
         ),
-        AnalyzeSelection::Subset { tables } if req.extend => {
+        AnalyzeSelection::Subset { tables } => (
+            kernel
+                .analyze_subset(tables)
+                .await
+                .map_err(AppError::from)?,
+            "subset",
+        ),
+        AnalyzeSelection::Extend { tables } => {
             let baseline_snapshot = row.last_analysis_snapshot.clone().ok_or_else(|| {
                 AppError::bad_request(
-                    "extend=true requires an existing analysis snapshot — \
+                    "extend requires an existing analysis snapshot — \
                      run a base analyse first",
                 )
             })?;
-            let baseline: ox_source::AnalysisResult = serde_json::from_value(baseline_snapshot)
-                .map_err(|e| AppError::internal(format!(
-                    "stored analysis snapshot is not a valid AnalysisResult: {e}"
-                )))?;
+            let baseline: ox_source::AnalysisResult =
+                serde_json::from_value(baseline_snapshot).map_err(|e| {
+                    AppError::internal(format!(
+                        "stored analysis snapshot is not a valid AnalysisResult: {e}"
+                    ))
+                })?;
             (
                 kernel
                     .analyze_extension(&baseline, tables)
@@ -1070,13 +1102,6 @@ pub(crate) async fn analyze_adapter(
                 "extension",
             )
         }
-        AnalyzeSelection::Subset { tables } => (
-            kernel
-                .analyze_subset(tables)
-                .await
-                .map_err(AppError::from)?,
-            "subset",
-        ),
     };
 
     // Stamp the result + per-table fingerprints back onto the source

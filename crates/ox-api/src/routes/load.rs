@@ -18,7 +18,7 @@ use crate::validation::validate_ontology_input;
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct LoadPlanRequest {
+pub struct GenerateLoadPlanRequest {
     /// OntologyIR for the target graph schema.
     #[schema(value_type = Object)]
     pub ontology: OntologyIR,
@@ -27,7 +27,7 @@ pub struct LoadPlanRequest {
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
-pub struct LoadPlanResponse {
+pub struct GenerateLoadPlanResponse {
     /// Generated load plan.
     #[schema(value_type = Object)]
     pub plan: LoadPlan,
@@ -40,9 +40,9 @@ pub struct LoadPlanResponse {
 #[utoipa::path(
     post,
     path = "/api/load",
-    request_body = LoadPlanRequest,
+    request_body = GenerateLoadPlanRequest,
     responses(
-        (status = 200, description = "Load plan generated", body = LoadPlanResponse),
+        (status = 200, description = "Load plan generated", body = GenerateLoadPlanResponse),
         (status = 400, description = "Invalid input", body = inline(crate::openapi::ErrorResponse)),
         (status = 504, description = "Timeout", body = inline(crate::openapi::ErrorResponse)),
     ),
@@ -52,8 +52,8 @@ pub struct LoadPlanResponse {
 pub(crate) async fn plan_load(
     State(state): State<AppState>,
     principal: Principal,
-    Json(req): Json<LoadPlanRequest>,
-) -> Result<Json<ApiResponse<LoadPlanResponse>>, AppError> {
+    Json(req): Json<GenerateLoadPlanRequest>,
+) -> Result<Json<ApiResponse<GenerateLoadPlanResponse>>, AppError> {
     principal.require_designer()?;
     validate_ontology_input(&req.ontology)?;
 
@@ -86,7 +86,7 @@ pub(crate) async fn plan_load(
         AppError::from(e)
     })?;
 
-    Ok(ApiResponse::of(LoadPlanResponse {
+    Ok(ApiResponse::of(GenerateLoadPlanResponse {
         plan,
         compiled_statements,
         target: state.compiler.name().to_string(),
@@ -98,7 +98,7 @@ pub(crate) async fn plan_load(
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct LoadExecuteRequest {
+pub struct ExecuteLoadRequest {
     /// OntologyIR for the target graph schema.
     #[schema(value_type = Object)]
     pub ontology: OntologyIR,
@@ -112,7 +112,7 @@ pub struct LoadExecuteRequest {
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
-pub struct LoadExecuteResponse {
+pub struct ExecuteLoadResponse {
     /// Load plan used.
     #[schema(value_type = Object)]
     pub plan: LoadPlan,
@@ -128,9 +128,9 @@ pub struct LoadExecuteResponse {
 #[utoipa::path(
     post,
     path = "/api/load/execute",
-    request_body = LoadExecuteRequest,
+    request_body = ExecuteLoadRequest,
     responses(
-        (status = 200, description = "Load executed", body = LoadExecuteResponse),
+        (status = 200, description = "Load executed", body = ExecuteLoadResponse),
         (status = 400, description = "Invalid input", body = inline(crate::openapi::ErrorResponse)),
         (status = 503, description = "Graph database not connected", body = inline(crate::openapi::ErrorResponse)),
         (status = 504, description = "Timeout", body = inline(crate::openapi::ErrorResponse)),
@@ -141,8 +141,8 @@ pub struct LoadExecuteResponse {
 pub(crate) async fn execute_load(
     State(state): State<AppState>,
     principal: Principal,
-    Json(req): Json<LoadExecuteRequest>,
-) -> Result<Json<ApiResponse<LoadExecuteResponse>>, AppError> {
+    Json(req): Json<ExecuteLoadRequest>,
+) -> Result<Json<ApiResponse<ExecuteLoadResponse>>, AppError> {
     principal.require_designer()?;
     validate_ontology_input(&req.ontology)?;
 
@@ -243,7 +243,7 @@ pub(crate) async fn execute_load(
         "Load execution completed"
     );
 
-    Ok(ApiResponse::of(LoadExecuteResponse {
+    Ok(ApiResponse::of(ExecuteLoadResponse {
         plan,
         compiled_statements,
         target: state.compiler.name().to_string(),

@@ -64,7 +64,7 @@ pub(crate) async fn list_users(
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct UserRoleUpdateRequest {
+pub struct UpdateUserRoleRequest {
     pub role: String,
 }
 
@@ -77,7 +77,7 @@ pub(crate) struct UserRoleUpdateResponse {
     patch,
     path = "/api/users/{id}/role",
     params(("id" = Uuid, Path, description = "User ID")),
-    request_body = UserRoleUpdateRequest,
+    request_body = UpdateUserRoleRequest,
     responses(
         (status = 200, description = "Role updated"),
         (status = 400, description = "Invalid role"),
@@ -91,7 +91,7 @@ pub(crate) async fn update_user_role(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<UserRoleUpdateRequest>,
+    Json(req): Json<UpdateUserRoleRequest>,
 ) -> Result<Json<ApiResponse<UserRoleUpdateResponse>>, AppError> {
     principal.require_admin()?;
 

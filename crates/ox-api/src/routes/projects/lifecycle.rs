@@ -29,7 +29,9 @@ use super::helpers::{
     analyze_code_repository, analyze_source, load_project_in_status, reload_project,
     run_repo_enrichment, skipped_repo_summary,
 };
-use super::types::{CreateProjectRequest, ProjectCompleteRequest, ProjectOrigin, ProjectSource};
+use super::types::{
+    CompleteProjectRequest, CreateProjectRequest, ProjectOrigin, ProjectSource, ProjectView,
+};
 
 // ---------------------------------------------------------------------------
 // POST /api/projects — create + analyze (or from existing ontology)
@@ -51,12 +53,17 @@ pub(crate) async fn create_project(
     State(state): State<AppState>,
     principal: Principal,
     Json(req): Json<CreateProjectRequest>,
-) -> Result<(StatusCode, Json<ApiResponse<DesignProject>>), AppError> {
+) -> Result<(StatusCode, Json<ApiResponse<ProjectView>>), AppError> {
     principal.require_designer()?;
+    if let ProjectOrigin::Source { selection, .. } = &req.origin {
+        selection.validate().map_err(AppError::from)?;
+    }
     let audit_user_id = principal.user_uuid().ok();
     let now = Utc::now();
 
-    let project = match req.origin {
+    let CreateProjectRequest { title, origin } = req;
+
+    let project = match origin {
         ProjectOrigin::BaseOntology { base_ontology_id } => {
             // --- From existing ontology ---
             // Resolve identity → current version → hydrate IR. The new
@@ -107,7 +114,7 @@ pub(crate) async fn create_project(
                 user_id: principal.id,
                 status: DesignProjectStatus::Designed.to_string(),
                 revision: 1,
-                title: req.title,
+                title: title.clone(),
                 source_id: SourceId::from_source_config(&source_config).to_string(),
                 source_config: AppError::to_json(&source_config)?,
                 source_data: None,
@@ -127,6 +134,7 @@ pub(crate) async fn create_project(
         ProjectOrigin::Source {
             source,
             repo_source,
+            selection,
         } => {
             // --- From data source ---
 
@@ -148,7 +156,7 @@ pub(crate) async fn create_project(
                     user_id: principal.id,
                     status: DesignProjectStatus::Analyzed.to_string(),
                     revision: 1,
-                    title: req.title,
+                    title: title.clone(),
                     source_id: SourceId::from_source_config(&source_config).to_string(),
                     source_config: AppError::to_json(&source_config)?,
                     source_data: None,
@@ -196,19 +204,16 @@ pub(crate) async fn create_project(
                     });
                 }
 
-                return Ok((StatusCode::CREATED, ApiResponse::of(project)));
+                return Ok((StatusCode::CREATED, ApiResponse::of(ProjectView::from_project(project))));
             }
 
-            let (source_config, source_data, source_schema, source_profile, analysis_report) =
-                analyze_source(source, &state.adapter_registry).await?;
-
-            let analyzed_at = if source_schema.is_some() {
-                Some(now)
-            } else {
-                None
-            };
-
-            let mut report = analysis_report;
+            let analyzed = analyze_source(source, &state.adapter_registry, selection, None).await?;
+            let analyzed_at = analyzed.schema.as_ref().map(|_| now);
+            let source_config = analyzed.config;
+            let source_data = analyzed.raw_data;
+            let source_schema = analyzed.schema;
+            let source_profile = analyzed.profile;
+            let mut report = analyzed.report;
 
             // Optional repo enrichment (non-fatal — failures recorded in repo_summary)
             if let (Some(source), Some(rpt)) = (&repo_source, &mut report) {
@@ -218,9 +223,10 @@ pub(crate) async fn create_project(
                 ) {
                     Ok(validated) => run_repo_enrichment(&state, &validated, rpt).await,
                     Err(reason) => {
-                        let reason = reason.to_string();
-                        warn!(reason, "Repo enrichment skipped");
-                        rpt.repo_summary = Some(skipped_repo_summary(reason));
+                        warn!(reason = %reason, "Repo enrichment skipped");
+                        rpt.repo_summary = Some(skipped_repo_summary(
+                            ox_ontology::source_analysis::RepoFailureKind::PolicyRejected,
+                        ));
                     }
                 }
             }
@@ -238,7 +244,7 @@ pub(crate) async fn create_project(
                 user_id: principal.id,
                 status: DesignProjectStatus::Analyzed.to_string(),
                 revision: 1,
-                title: req.title,
+                title: title.clone(),
                 source_id: SourceId::from_source_config(&source_config).to_string(),
                 source_config: AppError::to_json(&source_config)?,
                 source_data,
@@ -293,7 +299,7 @@ pub(crate) async fn create_project(
         });
     }
 
-    Ok((StatusCode::CREATED, ApiResponse::of(project)))
+    Ok((StatusCode::CREATED, ApiResponse::of(ProjectView::from_project(project))))
 }
 
 // ---------------------------------------------------------------------------
@@ -343,9 +349,9 @@ pub(crate) async fn list_projects(
 pub(crate) async fn get_project(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-) -> Result<Json<ApiResponse<DesignProject>>, AppError> {
+) -> Result<Json<ApiResponse<ProjectView>>, AppError> {
     let project = reload_project(&state, id).await?;
-    Ok(ApiResponse::of(project))
+    Ok(ApiResponse::of(ProjectView::from_project(project)))
 }
 
 // ---------------------------------------------------------------------------
@@ -436,7 +442,7 @@ pub(crate) async fn delete_project(
     post,
     path = "/api/projects/{id}/complete",
     params(("id" = Uuid, Path, description = "Project ID")),
-    request_body = ProjectCompleteRequest,
+    request_body = CompleteProjectRequest,
     responses(
         (status = 200, description = "Project completed, ontology saved", body = Object),
         (status = 400, description = "Project has no ontology", body = inline(crate::openapi::ErrorResponse)),
@@ -451,8 +457,8 @@ pub(crate) async fn complete_project(
     principal: Principal,
     _ws: crate::workspace::WorkspaceContext,
     Path(id): Path<Uuid>,
-    Json(req): Json<ProjectCompleteRequest>,
-) -> Result<Json<ApiResponse<DesignProject>>, AppError> {
+    Json(req): Json<CompleteProjectRequest>,
+) -> Result<Json<ApiResponse<ProjectView>>, AppError> {
     principal.require_designer()?;
     let project = load_project_in_status(&state, id, DesignProjectStatus::Designed).await?;
 
@@ -627,7 +633,7 @@ pub(crate) async fn complete_project(
         });
     }
 
-    Ok(ApiResponse::of(updated))
+    Ok(ApiResponse::of(ProjectView::from_project(updated)))
 }
 
 // ---------------------------------------------------------------------------
@@ -635,14 +641,14 @@ pub(crate) async fn complete_project(
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct ProjectDeployRequest {
+pub struct DeployProjectSchemaRequest {
     /// If true, return DDL statements without executing them
     #[serde(default)]
     pub dry_run: bool,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
-pub struct ProjectDeployResponse {
+pub struct DeployProjectSchemaResponse {
     /// Generated DDL statements
     pub statements: Vec<String>,
     /// Whether the statements were actually executed
@@ -653,9 +659,9 @@ pub struct ProjectDeployResponse {
     post,
     path = "/api/projects/{id}/deploy-schema",
     params(("id" = Uuid, Path, description = "Project ID")),
-    request_body = ProjectDeployRequest,
+    request_body = DeployProjectSchemaRequest,
     responses(
-        (status = 200, description = "Schema deployed or DDL preview returned", body = ProjectDeployResponse),
+        (status = 200, description = "Schema deployed or DDL preview returned", body = DeployProjectSchemaResponse),
         (status = 400, description = "Project has no ontology", body = inline(crate::openapi::ErrorResponse)),
         (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
         (status = 503, description = "Graph database not connected", body = inline(crate::openapi::ErrorResponse)),
@@ -668,8 +674,8 @@ pub(crate) async fn deploy_schema(
     principal: Principal,
     ws: WorkspaceContext,
     Path(id): Path<Uuid>,
-    Json(req): Json<ProjectDeployRequest>,
-) -> Result<Json<ApiResponse<ProjectDeployResponse>>, AppError> {
+    Json(req): Json<DeployProjectSchemaRequest>,
+) -> Result<Json<ApiResponse<DeployProjectSchemaResponse>>, AppError> {
     principal.require_designer()?;
 
     // Check if workspace has pending approval blocking this deployment
@@ -709,7 +715,7 @@ pub(crate) async fn deploy_schema(
         .map_err(AppError::from)?;
 
     if req.dry_run {
-        return Ok(ApiResponse::of(ProjectDeployResponse {
+        return Ok(ApiResponse::of(DeployProjectSchemaResponse {
             statements,
             executed: false,
         }));
@@ -748,7 +754,7 @@ pub(crate) async fn deploy_schema(
         });
     }
 
-    Ok(ApiResponse::of(ProjectDeployResponse {
+    Ok(ApiResponse::of(DeployProjectSchemaResponse {
         statements,
         executed: true,
     }))
@@ -759,7 +765,7 @@ pub(crate) async fn deploy_schema(
 // ---------------------------------------------------------------------------
 
 #[derive(Serialize, utoipa::ToSchema)]
-pub struct ProjectLoadPlanResponse {
+pub struct GenerateProjectLoadPlanResponse {
     /// The generated load plan
     #[schema(value_type = Object)]
     pub plan: ox_ontology::load_plan::LoadPlan,
@@ -770,7 +776,7 @@ pub struct ProjectLoadPlanResponse {
     path = "/api/projects/{id}/load-plan",
     params(("id" = Uuid, Path, description = "Project ID")),
     responses(
-        (status = 200, description = "Load plan generated", body = ProjectLoadPlanResponse),
+        (status = 200, description = "Load plan generated", body = GenerateProjectLoadPlanResponse),
         (status = 400, description = "Project has no ontology or source mapping", body = inline(crate::openapi::ErrorResponse)),
         (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
     ),
@@ -781,7 +787,7 @@ pub(crate) async fn generate_load_plan(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-) -> Result<Json<ApiResponse<ProjectLoadPlanResponse>>, AppError> {
+) -> Result<Json<ApiResponse<GenerateProjectLoadPlanResponse>>, AppError> {
     principal.require_designer()?;
 
     let project = state
@@ -818,7 +824,7 @@ pub(crate) async fn generate_load_plan(
         "Load plan generated"
     );
 
-    Ok(ApiResponse::of(ProjectLoadPlanResponse { plan }))
+    Ok(ApiResponse::of(GenerateProjectLoadPlanResponse { plan }))
 }
 
 // ---------------------------------------------------------------------------
@@ -831,14 +837,14 @@ pub(crate) async fn generate_load_plan(
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct ProjectLoadCompileRequest {
+pub struct CompileProjectLoadPlanRequest {
     /// The load plan to compile
     #[schema(value_type = Object)]
     pub plan: ox_ontology::load_plan::LoadPlan,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
-pub struct ProjectLoadCompileResponse {
+pub struct CompileProjectLoadPlanResponse {
     /// Compiled load statements (parameterized — $batch must be bound at execution time)
     pub statements: Vec<String>,
 }
@@ -847,9 +853,9 @@ pub struct ProjectLoadCompileResponse {
     post,
     path = "/api/projects/{id}/load/compile",
     params(("id" = Uuid, Path, description = "Project ID")),
-    request_body = ProjectLoadCompileRequest,
+    request_body = CompileProjectLoadPlanRequest,
     responses(
-        (status = 200, description = "Compiled load statements", body = ProjectLoadCompileResponse),
+        (status = 200, description = "Compiled load statements", body = CompileProjectLoadPlanResponse),
         (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
     ),
     security(("api_key" = [])),
@@ -859,8 +865,8 @@ pub(crate) async fn compile_load(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<ProjectLoadCompileRequest>,
-) -> Result<Json<ApiResponse<ProjectLoadCompileResponse>>, AppError> {
+    Json(req): Json<CompileProjectLoadPlanRequest>,
+) -> Result<Json<ApiResponse<CompileProjectLoadPlanResponse>>, AppError> {
     principal.require_designer()?;
 
     // Verify project exists. The `?` chain propagates the error; we
@@ -884,7 +890,7 @@ pub(crate) async fn compile_load(
         "Load plan compiled"
     );
 
-    Ok(ApiResponse::of(ProjectLoadCompileResponse { statements }))
+    Ok(ApiResponse::of(CompileProjectLoadPlanResponse { statements }))
 }
 
 // ---------------------------------------------------------------------------
@@ -895,7 +901,7 @@ pub(crate) async fn compile_load(
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct ProjectLoadExecuteRequest {
+pub struct ExecuteProjectLoadRequest {
     /// Pre-computed load plan (from generate_load_plan or manual)
     #[schema(value_type = Object)]
     pub plan: ox_ontology::load_plan::LoadPlan,
@@ -911,7 +917,7 @@ fn default_batch_size() -> u64 {
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
-pub struct ProjectLoadExecuteResponse {
+pub struct ExecuteProjectLoadResponse {
     /// Total rows fetched from source
     pub rows_fetched: u64,
     /// Load execution result
@@ -925,9 +931,9 @@ pub struct ProjectLoadExecuteResponse {
     post,
     path = "/api/projects/{id}/load/execute",
     params(("id" = Uuid, Path, description = "Project ID")),
-    request_body = ProjectLoadExecuteRequest,
+    request_body = ExecuteProjectLoadRequest,
     responses(
-        (status = 200, description = "Data loaded from source into graph", body = ProjectLoadExecuteResponse),
+        (status = 200, description = "Data loaded from source into graph", body = ExecuteProjectLoadResponse),
         (status = 400, description = "Missing ontology or source mapping", body = inline(crate::openapi::ErrorResponse)),
         (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
         (status = 503, description = "Graph runtime not connected", body = inline(crate::openapi::ErrorResponse)),
@@ -940,8 +946,8 @@ pub(crate) async fn execute_load_from_source(
     principal: Principal,
     ws: WorkspaceContext,
     Path(id): Path<Uuid>,
-    Json(req): Json<ProjectLoadExecuteRequest>,
-) -> Result<Json<ApiResponse<ProjectLoadExecuteResponse>>, AppError> {
+    Json(req): Json<ExecuteProjectLoadRequest>,
+) -> Result<Json<ApiResponse<ExecuteProjectLoadResponse>>, AppError> {
     principal.require_designer()?;
 
     let runtime = state.runtime.as_ref().ok_or_else(AppError::no_runtime)?;
@@ -1348,7 +1354,7 @@ pub(crate) async fn execute_load_from_source(
         });
     }
 
-    Ok(ApiResponse::of(ProjectLoadExecuteResponse {
+    Ok(ApiResponse::of(ExecuteProjectLoadResponse {
         rows_fetched: total_rows_fetched,
         result: combined_result,
         steps_executed: req.plan.steps.len(),

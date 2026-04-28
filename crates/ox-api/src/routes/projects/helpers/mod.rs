@@ -15,7 +15,7 @@ use crate::state::AppState;
 
 // Re-export all public items so that `super::helpers::{...}` imports continue to work.
 pub(crate) use self::decisions::{
-    build_refinement_context, build_source_schema_summary, maybe_require_review, prune_decisions,
+    build_refinement_context, build_source_schema_summary, enforce_design_gates, prune_decisions,
     validate_decisions,
 };
 pub(crate) use self::llm::{
@@ -27,13 +27,46 @@ pub(crate) use self::quality::{
     assess_quality_from_project, assess_quality_from_project_with_mapping,
 };
 pub(crate) use self::repo::{analyze_code_repository, run_repo_enrichment, skipped_repo_summary};
-pub(crate) use self::source::analyze_source;
+pub(crate) use self::source::{analyze_source, build_adapter};
 
 /// Extract `DesignOptions` from a project's JSON field, falling back to defaults.
 pub(crate) fn get_design_options(
     project: &ox_store::DesignProject,
 ) -> ox_ontology::source_analysis::DesignOptions {
     serde_json::from_value(project.design_options.clone()).unwrap_or_default()
+}
+
+/// Deserialise the project's stored `analysis_report` JSON against the
+/// current wire shape. Returns `Ok(None)` when the project has no
+/// report yet (typical for `BaseOntology`-origin projects) **or**
+/// when the persisted JSON cannot be parsed against the current
+/// schema. The latter case is treated as graceful degradation rather
+/// than a hard failure: the design / refine / extend handlers
+/// already model "no analysis report" as a valid state, so a row
+/// written under an older schema simply joins that branch — gates
+/// don't enforce, but the operator can proceed and re-run analysis
+/// from the workflow when the project reaches `designed` status.
+///
+/// The parse error is logged at `warn` so operators / observability
+/// see the schema drift without surfacing it as a blocking 422.
+pub(crate) fn load_analysis_report(
+    project: &ox_store::DesignProject,
+) -> Option<ox_ontology::source_analysis::SourceAnalysisReport> {
+    let value = project.analysis_report.as_ref()?;
+    match serde_json::from_value::<ox_ontology::source_analysis::SourceAnalysisReport>(
+        value.clone(),
+    ) {
+        Ok(report) => Some(report),
+        Err(error) => {
+            tracing::warn!(
+                project_id = %project.id,
+                ?error,
+                "Stored analysis_report does not match the current wire shape — \
+                 treating as absent. Re-run analyse to refresh."
+            );
+            None
+        }
+    }
 }
 
 /// Load a project for mutation. Completed projects are allowed — editing

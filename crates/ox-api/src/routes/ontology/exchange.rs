@@ -53,7 +53,7 @@ pub(crate) async fn normalize_ontology(
     // this path.
     let source_id = SourceId::new("adhoc:normalize-endpoint");
     let result = normalize(input, &source_id)
-        .map_err(|errors| AppError::bad_request(errors.join("; ")))?;
+        .map_err(|errors| AppError::bad_request(ox_core::join_messages(&errors, "; ")))?;
     Ok(ApiResponse::of(serde_json::json!({
         "ontology": result.ontology,
         "warnings": result.warnings,
@@ -218,7 +218,7 @@ pub(crate) async fn export_python(
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct OntologyImportRequest {
+pub struct ImportOntologyRequest {
     /// OWL ontology in Turtle format.
     pub content: String,
 }
@@ -226,7 +226,7 @@ pub struct OntologyImportRequest {
 #[utoipa::path(
     post,
     path = "/api/ontologies/import/owl",
-    request_body = OntologyImportRequest,
+    request_body = ImportOntologyRequest,
     responses(
         (status = 200, description = "Parsed OntologyIR", body = Object),
         (status = 400, description = "Parse or validation errors", body = inline(crate::openapi::ErrorResponse)),
@@ -236,7 +236,7 @@ pub struct OntologyImportRequest {
 )]
 pub(crate) async fn import_owl(
     principal: Principal,
-    Json(req): Json<OntologyImportRequest>,
+    Json(req): Json<ImportOntologyRequest>,
 ) -> Result<Json<ApiResponse<OntologyIR>>, AppError> {
     principal.require_designer()?;
     if req.content.trim().is_empty() {

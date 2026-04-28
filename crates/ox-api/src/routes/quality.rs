@@ -697,7 +697,7 @@ pub(crate) async fn list_stale_proposals(
 }
 
 #[derive(Debug, Deserialize)]
-pub struct StaleProposalDecisionRequest {
+pub struct DecideStaleProposalRequest {
     /// `"approved"` or `"dismissed"`. `"pending"` is rejected —
     /// there's no "un-decide" op; admins clear the row instead.
     pub decision: String,
@@ -714,7 +714,7 @@ pub(crate) async fn decide_stale_proposal(
     principal: Principal,
     _ws: WorkspaceContext,
     Path(id): Path<Uuid>,
-    Json(req): Json<StaleProposalDecisionRequest>,
+    Json(req): Json<DecideStaleProposalRequest>,
 ) -> Result<Json<ApiResponse<StaleConceptProposal>>, AppError> {
     principal.require_designer()?;
     let decision = match req.decision.as_str() {

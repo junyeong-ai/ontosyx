@@ -22,7 +22,7 @@ use crate::state::AppState;
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize)]
-pub struct ReportCreateRequest {
+pub struct CreateReportRequest {
     pub ontology_lineage_id: String,
     pub title: String,
     pub description: Option<String>,
@@ -56,7 +56,7 @@ async fn resolve_lineage_current_ir(
 pub(crate) async fn create_report(
     State(state): State<AppState>,
     principal: Principal,
-    Json(req): Json<ReportCreateRequest>,
+    Json(req): Json<CreateReportRequest>,
 ) -> Result<Json<ApiResponse<SavedReport>>, AppError> {
     if req.title.trim().is_empty() {
         return Err(AppError::bad_request("Report title must not be empty"));
@@ -141,7 +141,7 @@ pub(crate) async fn get_report(
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize)]
-pub struct ReportUpdateRequest {
+pub struct UpdateReportRequest {
     pub title: Option<String>,
     pub description: Option<String>,
     pub query_template: Option<String>,
@@ -154,7 +154,7 @@ pub(crate) async fn update_report(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<ReportUpdateRequest>,
+    Json(req): Json<UpdateReportRequest>,
 ) -> Result<Json<ApiResponse<SavedReport>>, AppError> {
     let existing = state
         .store

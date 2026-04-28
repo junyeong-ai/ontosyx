@@ -1,5 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
+use ox_ontology::design_gate::{
+    DesignGate, GateStatus, evaluate_design_gates, unmet_blocking_gates,
+};
 use ox_ontology::source_analysis::{DesignOptions, SourceAnalysisReport};
 use ox_core::source_schema::SourceSchema;
 
@@ -110,42 +113,35 @@ pub(crate) fn validate_decisions(
     }
 }
 
-/// Review gate: ambiguous columns require an explicit clarification
-/// or repo-derived hint before design can proceed; partial source
-/// analyses require explicit acknowledgement. PII suggestions are
-/// advisory — the operator chooses whether to commit them as
-/// annotations and the gate does not block on review status.
-pub(crate) fn maybe_require_review(
+/// Reject the design call when any blocking gate is unmet.
+///
+/// Both the gate model and the structured 422 payload come from
+/// [`evaluate_design_gates`]. The FE consumes the same gate vector
+/// it received with the project payload, so the rejection lists
+/// exactly the items the operator has to address — no client-side
+/// reverse-engineering of "why did this 422".
+pub(crate) fn enforce_design_gates(
     report: &SourceAnalysisReport,
     options: &DesignOptions,
-) -> Result<(), AppError> {
-    let clarifications_pending: Vec<String> = report
-        .ambiguous_columns
-        .iter()
-        .filter(|a| {
-            !options.column_clarifications.iter().any(|e| {
-                e.table == a.column.relation && e.column == a.column.column
-            })
-        })
-        .map(|a| format!("{}.{}", a.column.relation, a.column.column))
-        .collect();
-
-    let partial_ack_needed = report.is_partial() && !options.allow_partial_source_analysis;
-
-    if clarifications_pending.is_empty() && !partial_ack_needed {
-        return Ok(());
+) -> Result<Vec<DesignGate>, AppError> {
+    let gates = evaluate_design_gates(report, options);
+    let unmet = unmet_blocking_gates(&gates);
+    if unmet.is_empty() {
+        return Ok(gates);
     }
-
+    let unmet_ids: Vec<&str> = unmet.iter().map(|id| id.as_str()).collect();
+    let summary: Vec<&DesignGate> = gates
+        .iter()
+        .filter(|g| g.status == GateStatus::Unmet && g.blocks_design)
+        .collect();
     Err(AppError::unprocessable_with_details(
-        "review_required",
-        "Resolve all review items before designing",
+        "design_gates_unmet",
+        "Resolve every blocking design gate before designing",
         serde_json::json!({
-            "code": "review_required",
+            "code": "design_gates_unmet",
+            "unmet": unmet_ids,
+            "gates": summary,
             "report": report,
-            "pending_review": {
-                "column_clarifications_required": clarifications_pending,
-                "partial_analysis_acknowledgement_required": partial_ack_needed,
-            },
         }),
     ))
 }
@@ -261,7 +257,8 @@ pub(crate) fn prune_decisions(
     }
 
     // Reset partial analysis acknowledgement since snapshot changed
-    opts.allow_partial_source_analysis = false;
+    opts.partial_analysis_acknowledged = false;
+    opts.large_schema_acknowledged = false;
 
     (opts, invalidated)
 }

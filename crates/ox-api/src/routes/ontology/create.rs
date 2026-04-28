@@ -175,7 +175,10 @@ pub(crate) async fn create_ontology(
     // effect fires.
     let validation = ir.validate();
     if !validation.is_empty() {
-        return Err(AppError::unprocessable(validation.join("; ")));
+        return Err(AppError::unprocessable(ox_core::join_messages(
+            &validation,
+            "; ",
+        )));
     }
 
     // ---- 4. Commit ---------------------------------------------

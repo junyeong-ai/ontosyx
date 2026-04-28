@@ -1,12 +1,14 @@
+use std::sync::Arc;
+
 use tracing::info;
 
+use ox_core::source_schema::{SourceProfile, SourceSchema};
 use ox_ontology::design_project::{SourceConfig, SourceTypeKind};
 use ox_ontology::mapping::refs::SourceId;
 use ox_ontology::source_analysis::SourceAnalysisReport;
-use ox_core::source_schema::{SourceProfile, SourceSchema};
-use ox_source::IntrospectionKernel;
 use ox_source::analyzer::build_analysis_report;
 use ox_source::registry::{AdapterRegistry, SourceInput};
+use ox_source::{AnalysisResult, AnalyzeSelection, DataSourceAdapter, IntrospectionKernel};
 
 use crate::error::AppError;
 
@@ -15,6 +17,33 @@ use super::fingerprint::{
     bigquery_fingerprint, mongodb_fingerprint, mysql_fingerprint, pg_fingerprint,
     schema_fingerprint, snowflake_fingerprint,
 };
+
+/// Bundle of derived metadata produced by [`analyze_source`]. Field
+/// order mirrors the persistence flow: source identity → raw bytes
+/// (when applicable) → schema/profile → ambiguity report.
+pub(crate) struct AnalyzedSource {
+    pub config: SourceConfig,
+    pub raw_data: Option<String>,
+    pub schema: Option<SourceSchema>,
+    pub profile: Option<SourceProfile>,
+    pub report: Option<SourceAnalysisReport>,
+}
+
+/// Adapter built from a [`ProjectSource`], paired with the partial
+/// [`SourceConfig`] derived from the connection (fingerprint resolved
+/// later by [`finalize_config`] once schema is known for inline kinds).
+pub(crate) struct PreparedAdapter {
+    pub adapter: Arc<dyn DataSourceAdapter>,
+    /// Source kind, plus `schema_name` and `source_fingerprint` when
+    /// they're determinable from the connection alone (database
+    /// sources). Inline kinds (CSV/JSON/DuckDB) leave `source_fingerprint`
+    /// empty until the schema has been introspected.
+    pub config: SourceConfig,
+    /// Original raw payload for inline kinds, persisted so the
+    /// project row can regenerate the source on demand. `None` for
+    /// connection-based kinds.
+    pub raw_data: Option<String>,
+}
 
 /// Deterministic `(SourceId, source_hash)` pair for analysis-time
 /// ambiguity detection. The SourceId is derived through the
@@ -30,47 +59,30 @@ fn ambiguity_source_handle(kind: &SourceTypeKind, fingerprint: &str) -> (SourceI
     (SourceId::from_source_config(&config), fingerprint.to_string())
 }
 
-/// Analyze a source and return (config, raw_data, schema, profile, report).
+/// Build a live adapter for a `ProjectSource` without performing any
+/// introspection. Used by both the preview endpoint (cheap table
+/// listing) and the full analysis flow ([`analyze_source`]).
 ///
-/// Text sources bypass introspection entirely. Structured sources (CSV, JSON,
-/// PostgreSQL, and any custom type) are dispatched through the
-/// `AdapterRegistry`, making it easy to add new source types without
-/// modifying this function.
-pub(crate) async fn analyze_source(
+/// `Text` and `CodeRepository` kinds are not introspected via an
+/// adapter and are rejected here — the lifecycle handler routes
+/// them through their own paths.
+pub(crate) async fn build_adapter(
     source: ProjectSource,
     registry: &AdapterRegistry,
-) -> Result<
-    (
-        SourceConfig,
-        Option<String>,
-        Option<SourceSchema>,
-        Option<SourceProfile>,
-        Option<SourceAnalysisReport>,
-    ),
-    AppError,
-> {
+) -> Result<PreparedAdapter, AppError> {
     match source {
-        ProjectSource::Text { data } => {
-            if data.trim().is_empty() {
-                return Err(AppError::empty_source_data());
-            }
-            Ok((
-                SourceConfig {
-                    source_type: SourceTypeKind::Text,
-                    schema_name: None,
-                    source_fingerprint: None,
-                },
-                Some(data),
-                None,
-                None,
-                None,
-            ))
-        }
+        ProjectSource::Text { .. } => Err(AppError::bad_request(
+            "Text source has no adapter — handle through the lifecycle path",
+        )),
+        ProjectSource::CodeRepository { .. } => Err(AppError::bad_request(
+            "CodeRepository source must be handled by the project lifecycle handler",
+        )),
+
         ProjectSource::Csv { data } => {
             if data.trim().is_empty() {
                 return Err(AppError::empty_source_data());
             }
-            let introspector = registry
+            let adapter = registry
                 .create(
                     "csv",
                     SourceInput {
@@ -82,32 +94,22 @@ pub(crate) async fn analyze_source(
                 .await
                 .ok_or_else(|| AppError::bad_request("CSV source type is not registered"))?
                 .map_err(AppError::from)?;
-            let analysis = IntrospectionKernel::new(introspector)
-                .analyze_all()
-                .await
-                .map_err(AppError::from)?;
-            let fingerprint = schema_fingerprint(&analysis.schema);
-            let (src_id, src_hash) =
-                ambiguity_source_handle(&SourceTypeKind::Csv, &fingerprint);
-            let report =
-                build_analysis_report(&src_id, &src_hash, &analysis.schema, &analysis.profile);
-            Ok((
-                SourceConfig {
+            Ok(PreparedAdapter {
+                adapter,
+                config: SourceConfig {
                     source_type: SourceTypeKind::Csv,
                     schema_name: None,
-                    source_fingerprint: Some(fingerprint),
+                    source_fingerprint: None,
                 },
-                Some(data),
-                Some(analysis.schema.clone()),
-                Some(analysis.profile.clone()),
-                Some(report),
-            ))
+                raw_data: Some(data),
+            })
         }
+
         ProjectSource::Json { data } => {
             if data.trim().is_empty() {
                 return Err(AppError::empty_source_data());
             }
-            let introspector = registry
+            let adapter = registry
                 .create(
                     "json",
                     SourceInput {
@@ -119,43 +121,24 @@ pub(crate) async fn analyze_source(
                 .await
                 .ok_or_else(|| AppError::bad_request("JSON source type is not registered"))?
                 .map_err(AppError::from)?;
-            let analysis = IntrospectionKernel::new(introspector)
-                .analyze_all()
-                .await
-                .map_err(AppError::from)?;
-            let fingerprint = schema_fingerprint(&analysis.schema);
-            let (src_id, src_hash) =
-                ambiguity_source_handle(&SourceTypeKind::Json, &fingerprint);
-            let report =
-                build_analysis_report(&src_id, &src_hash, &analysis.schema, &analysis.profile);
-            Ok((
-                SourceConfig {
+            Ok(PreparedAdapter {
+                adapter,
+                config: SourceConfig {
                     source_type: SourceTypeKind::Json,
                     schema_name: None,
-                    source_fingerprint: Some(fingerprint),
+                    source_fingerprint: None,
                 },
-                Some(data),
-                Some(analysis.schema.clone()),
-                Some(analysis.profile.clone()),
-                Some(report),
-            ))
+                raw_data: Some(data),
+            })
         }
-        ProjectSource::CodeRepository { .. } => {
-            // CodeRepository analysis requires LLM calls (Brain) and repo infrastructure,
-            // which are not available in this function. It is handled directly by the
-            // create_project / reanalyze_project handlers.
-            Err(AppError::bad_request(
-                "CodeRepository source must be handled by the project lifecycle handler",
-            ))
-        }
+
         ProjectSource::Postgresql {
             connection_string,
             schema,
         } => {
             info!(schema = %schema, "Connecting to PostgreSQL source");
             let fingerprint = pg_fingerprint(&connection_string, &schema);
-
-            let introspector = registry
+            let adapter = registry
                 .create(
                     "postgresql",
                     SourceInput {
@@ -167,49 +150,24 @@ pub(crate) async fn analyze_source(
                 .await
                 .ok_or_else(|| AppError::bad_request("PostgreSQL source type is not registered"))?
                 .map_err(AppError::from)?;
-
-            let analysis = IntrospectionKernel::new(introspector)
-                .analyze_all()
-                .await
-                .map_err(AppError::from)?;
-
-            let (src_id, src_hash) =
-                ambiguity_source_handle(&SourceTypeKind::Postgresql, &fingerprint);
-            let report = build_analysis_report(
-                &src_id,
-                &src_hash,
-                &analysis.schema,
-                &analysis.profile,
-            )
-            .with_analysis_warnings(analysis.warnings.clone());
-
-            info!(
-                tables = analysis.schema.tables.len(),
-                fks = analysis.schema.foreign_keys.len(),
-                partial = report.is_partial(),
-                "PostgreSQL source introspected"
-            );
-
-            Ok((
-                SourceConfig {
+            Ok(PreparedAdapter {
+                adapter,
+                config: SourceConfig {
                     source_type: SourceTypeKind::Postgresql,
                     schema_name: Some(schema),
                     source_fingerprint: Some(fingerprint),
                 },
-                None, // PG: no raw data stored, regenerated from schema+profile
-                Some(analysis.schema.clone()),
-                Some(analysis.profile.clone()),
-                Some(report),
-            ))
+                raw_data: None,
+            })
         }
+
         ProjectSource::Mysql {
             connection_string,
             schema,
         } => {
             info!(database = %schema, "Connecting to MySQL source");
             let fingerprint = mysql_fingerprint(&connection_string, &schema);
-
-            let introspector = registry
+            let adapter = registry
                 .create(
                     "mysql",
                     SourceInput {
@@ -221,49 +179,24 @@ pub(crate) async fn analyze_source(
                 .await
                 .ok_or_else(|| AppError::bad_request("MySQL source type is not registered"))?
                 .map_err(AppError::from)?;
-
-            let analysis = IntrospectionKernel::new(introspector)
-                .analyze_all()
-                .await
-                .map_err(AppError::from)?;
-
-            let (src_id, src_hash) =
-                ambiguity_source_handle(&SourceTypeKind::Mysql, &fingerprint);
-            let report = build_analysis_report(
-                &src_id,
-                &src_hash,
-                &analysis.schema,
-                &analysis.profile,
-            )
-            .with_analysis_warnings(analysis.warnings.clone());
-
-            info!(
-                tables = analysis.schema.tables.len(),
-                fks = analysis.schema.foreign_keys.len(),
-                partial = report.is_partial(),
-                "MySQL source introspected"
-            );
-
-            Ok((
-                SourceConfig {
+            Ok(PreparedAdapter {
+                adapter,
+                config: SourceConfig {
                     source_type: SourceTypeKind::Mysql,
                     schema_name: Some(schema),
                     source_fingerprint: Some(fingerprint),
                 },
-                None, // MySQL: no raw data stored, regenerated from schema+profile
-                Some(analysis.schema.clone()),
-                Some(analysis.profile.clone()),
-                Some(report),
-            ))
+                raw_data: None,
+            })
         }
+
         ProjectSource::Mongodb {
             connection_string,
             database,
         } => {
             info!(database = %database, "Connecting to MongoDB source");
             let fingerprint = mongodb_fingerprint(&connection_string, &database);
-
-            let introspector = registry
+            let adapter = registry
                 .create(
                     "mongodb",
                     SourceInput {
@@ -275,41 +208,17 @@ pub(crate) async fn analyze_source(
                 .await
                 .ok_or_else(|| AppError::bad_request("MongoDB source type is not registered"))?
                 .map_err(AppError::from)?;
-
-            let analysis = IntrospectionKernel::new(introspector)
-                .analyze_all()
-                .await
-                .map_err(AppError::from)?;
-
-            let (src_id, src_hash) =
-                ambiguity_source_handle(&SourceTypeKind::Mongodb, &fingerprint);
-            let report = build_analysis_report(
-                &src_id,
-                &src_hash,
-                &analysis.schema,
-                &analysis.profile,
-            )
-            .with_analysis_warnings(analysis.warnings.clone());
-
-            info!(
-                collections = analysis.schema.tables.len(),
-                fks = analysis.schema.foreign_keys.len(),
-                partial = report.is_partial(),
-                "MongoDB source introspected"
-            );
-
-            Ok((
-                SourceConfig {
+            Ok(PreparedAdapter {
+                adapter,
+                config: SourceConfig {
                     source_type: SourceTypeKind::Mongodb,
                     schema_name: Some(database),
                     source_fingerprint: Some(fingerprint),
                 },
-                None, // MongoDB: no raw data stored, regenerated from schema+profile
-                Some(analysis.schema.clone()),
-                Some(analysis.profile.clone()),
-                Some(report),
-            ))
+                raw_data: None,
+            })
         }
+
         ProjectSource::Snowflake {
             account,
             user,
@@ -320,13 +229,10 @@ pub(crate) async fn analyze_source(
         } => {
             info!(account = %account, database = %database, schema = %schema, "Connecting to Snowflake source");
             let fingerprint = snowflake_fingerprint(&account, &database, &schema);
-
-            // Build a connection string for the registry factory
             let connection_string = format!(
                 "snowflake://{account}/{database}/{schema}?user={user}&password={password}&warehouse={warehouse}"
             );
-
-            let introspector = registry
+            let adapter = registry
                 .create(
                     "snowflake",
                     SourceInput {
@@ -338,56 +244,48 @@ pub(crate) async fn analyze_source(
                 .await
                 .ok_or_else(|| AppError::bad_request("Snowflake source type is not registered"))?
                 .map_err(AppError::from)?;
-
-            let analysis = IntrospectionKernel::new(introspector)
-                .analyze_all()
-                .await
-                .map_err(AppError::from)?;
-
-            let (src_id, src_hash) =
-                ambiguity_source_handle(&SourceTypeKind::Snowflake, &fingerprint);
-            let report = build_analysis_report(
-                &src_id,
-                &src_hash,
-                &analysis.schema,
-                &analysis.profile,
-            )
-            .with_analysis_warnings(analysis.warnings.clone());
-
-            info!(
-                tables = analysis.schema.tables.len(),
-                fks = analysis.schema.foreign_keys.len(),
-                partial = report.is_partial(),
-                "Snowflake source introspected"
-            );
-
-            Ok((
-                SourceConfig {
+            Ok(PreparedAdapter {
+                adapter,
+                config: SourceConfig {
                     source_type: SourceTypeKind::Snowflake,
                     schema_name: Some(schema),
                     source_fingerprint: Some(fingerprint),
                 },
-                None, // Snowflake: no raw data stored, regenerated from schema+profile
-                Some(analysis.schema.clone()),
-                Some(analysis.profile.clone()),
-                Some(report),
-            ))
+                raw_data: None,
+            })
         }
+
         ProjectSource::Bigquery {
             project_id,
             dataset,
+            billing_project_id,
             credentials_path,
         } => {
-            info!(project_id = %project_id, dataset = %dataset, "Connecting to BigQuery source");
+            info!(
+                project_id = %project_id,
+                dataset = %dataset,
+                billing_project_id = ?billing_project_id,
+                "Connecting to BigQuery source"
+            );
             let fingerprint = bigquery_fingerprint(&project_id, &dataset);
-
-            // Build the connection URI for the registry factory
             let mut connection_string = format!("bigquery://{project_id}/{dataset}");
-            if let Some(creds) = &credentials_path {
-                connection_string.push_str(&format!("?credentials_path={creds}"));
+            let mut params: Vec<(&str, &str)> = Vec::new();
+            if let Some(billing) = &billing_project_id {
+                params.push(("billing_project_id", billing));
             }
-
-            let introspector = registry
+            if let Some(creds) = &credentials_path {
+                params.push(("credentials_path", creds));
+            }
+            if !params.is_empty() {
+                let query: String = params
+                    .iter()
+                    .map(|(k, v)| format!("{k}={v}"))
+                    .collect::<Vec<_>>()
+                    .join("&");
+                connection_string.push('?');
+                connection_string.push_str(&query);
+            }
+            let adapter = registry
                 .create(
                     "bigquery",
                     SourceInput {
@@ -399,45 +297,20 @@ pub(crate) async fn analyze_source(
                 .await
                 .ok_or_else(|| AppError::bad_request("BigQuery source type is not registered"))?
                 .map_err(AppError::from)?;
-
-            let analysis = IntrospectionKernel::new(introspector)
-                .analyze_all()
-                .await
-                .map_err(AppError::from)?;
-
-            let (src_id, src_hash) =
-                ambiguity_source_handle(&SourceTypeKind::Bigquery, &fingerprint);
-            let report = build_analysis_report(
-                &src_id,
-                &src_hash,
-                &analysis.schema,
-                &analysis.profile,
-            )
-            .with_analysis_warnings(analysis.warnings.clone());
-
-            info!(
-                tables = analysis.schema.tables.len(),
-                fks = analysis.schema.foreign_keys.len(),
-                partial = report.is_partial(),
-                "BigQuery source introspected"
-            );
-
-            Ok((
-                SourceConfig {
+            Ok(PreparedAdapter {
+                adapter,
+                config: SourceConfig {
                     source_type: SourceTypeKind::Bigquery,
                     schema_name: Some(dataset),
                     source_fingerprint: Some(fingerprint),
                 },
-                None, // BigQuery: no raw data stored, regenerated from schema+profile
-                Some(analysis.schema.clone()),
-                Some(analysis.profile.clone()),
-                Some(report),
-            ))
+                raw_data: None,
+            })
         }
+
         ProjectSource::Duckdb { file_path } => {
             info!(file_path = %file_path, "Connecting to DuckDB file source");
-
-            let introspector = registry
+            let adapter = registry
                 .create(
                     "duckdb",
                     SourceInput {
@@ -449,41 +322,88 @@ pub(crate) async fn analyze_source(
                 .await
                 .ok_or_else(|| AppError::bad_request("DuckDB source type is not registered"))?
                 .map_err(AppError::from)?;
-
-            let analysis = IntrospectionKernel::new(introspector)
-                .analyze_all()
-                .await
-                .map_err(AppError::from)?;
-            let fingerprint = schema_fingerprint(&analysis.schema);
-
-            let (src_id, src_hash) =
-                ambiguity_source_handle(&SourceTypeKind::DuckDb, &fingerprint);
-            let report = build_analysis_report(
-                &src_id,
-                &src_hash,
-                &analysis.schema,
-                &analysis.profile,
-            )
-            .with_analysis_warnings(analysis.warnings.clone());
-
-            info!(
-                tables = analysis.schema.tables.len(),
-                fks = analysis.schema.foreign_keys.len(),
-                partial = report.is_partial(),
-                "DuckDB file source introspected"
-            );
-
-            Ok((
-                SourceConfig {
+            Ok(PreparedAdapter {
+                adapter,
+                config: SourceConfig {
                     source_type: SourceTypeKind::DuckDb,
                     schema_name: None,
-                    source_fingerprint: Some(fingerprint),
+                    source_fingerprint: None,
                 },
-                None, // DuckDB: no raw data stored, regenerated from schema+profile
-                Some(analysis.schema.clone()),
-                Some(analysis.profile.clone()),
-                Some(report),
-            ))
+                raw_data: None,
+            })
         }
     }
+}
+
+/// Analyze a source against the user-supplied [`AnalyzeSelection`].
+///
+/// `Text` sources bypass introspection entirely and are returned with
+/// raw data only. Every other kind dispatches through
+/// [`build_adapter`] so the same connection logic services both the
+/// preview endpoint and the analysis path.
+///
+/// `baseline` is only consulted when `selection` is
+/// [`AnalyzeSelection::Extend`] — the caller passes the project's
+/// previously stored `AnalysisResult` so extension dedupes against
+/// it.
+pub(crate) async fn analyze_source(
+    source: ProjectSource,
+    registry: &AdapterRegistry,
+    selection: AnalyzeSelection,
+    baseline: Option<&AnalysisResult>,
+) -> Result<AnalyzedSource, AppError> {
+    if let ProjectSource::Text { data } = &source {
+        if data.trim().is_empty() {
+            return Err(AppError::empty_source_data());
+        }
+        return Ok(AnalyzedSource {
+            config: SourceConfig {
+                source_type: SourceTypeKind::Text,
+                schema_name: None,
+                source_fingerprint: None,
+            },
+            raw_data: Some(data.clone()),
+            schema: None,
+            profile: None,
+            report: None,
+        });
+    }
+
+    let prepared = build_adapter(source, registry).await?;
+    let analysis = IntrospectionKernel::new(prepared.adapter)
+        .analyze(selection, baseline)
+        .await
+        .map_err(AppError::from)?;
+
+    // Fingerprint for inline kinds (Csv/Json/DuckDb) is resolvable
+    // only after introspection — derive it from the schema.
+    let fingerprint = prepared
+        .config
+        .source_fingerprint
+        .clone()
+        .unwrap_or_else(|| schema_fingerprint(&analysis.schema));
+
+    let (src_id, src_hash) =
+        ambiguity_source_handle(&prepared.config.source_type, &fingerprint);
+    let report = build_analysis_report(&src_id, &src_hash, &analysis.schema, &analysis.profile)
+        .with_analysis_warnings(analysis.warnings.clone());
+
+    info!(
+        source_type = %prepared.config.source_type,
+        tables = analysis.schema.tables.len(),
+        fks = analysis.schema.foreign_keys.len(),
+        "Source introspected"
+    );
+
+    Ok(AnalyzedSource {
+        config: SourceConfig {
+            source_type: prepared.config.source_type,
+            schema_name: prepared.config.schema_name,
+            source_fingerprint: Some(fingerprint),
+        },
+        raw_data: prepared.raw_data,
+        schema: Some(analysis.schema.clone()),
+        profile: Some(analysis.profile.clone()),
+        report: Some(report),
+    })
 }

@@ -17,7 +17,7 @@ use crate::workspace::WorkspaceContext;
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct PerspectiveUpsertRequest {
+pub struct UpsertPerspectiveRequest {
     pub lineage_id: String,
     pub topology_signature: String,
     pub project_id: Option<Uuid>,
@@ -43,7 +43,7 @@ pub struct PerspectiveUpsertRequest {
 #[utoipa::path(
     put,
     path = "/api/perspectives",
-    request_body = PerspectiveUpsertRequest,
+    request_body = UpsertPerspectiveRequest,
     responses(
         (status = 200, description = "Perspective saved", body = Object),
     ),
@@ -53,7 +53,7 @@ pub(crate) async fn save_perspective(
     State(state): State<AppState>,
     principal: Principal,
     ws: WorkspaceContext,
-    Json(req): Json<PerspectiveUpsertRequest>,
+    Json(req): Json<UpsertPerspectiveRequest>,
 ) -> Result<Json<ApiResponse<WorkbenchPerspective>>, AppError> {
     let perspective = WorkbenchPerspective {
         id: Uuid::new_v4(),

@@ -17,7 +17,7 @@ use crate::state::AppState;
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize)]
-pub struct KnowledgeCreateRequest {
+pub struct CreateKnowledgeEntryRequest {
     pub ontology_name: String,
     pub kind: String,
     pub title: String,
@@ -35,7 +35,7 @@ const VALID_STATUSES: &[&str] = &["draft", "approved", "stale", "deprecated"];
 pub(crate) async fn create_knowledge(
     State(state): State<AppState>,
     principal: Principal,
-    Json(req): Json<KnowledgeCreateRequest>,
+    Json(req): Json<CreateKnowledgeEntryRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     principal.require_designer()?;
     if !VALID_KINDS.contains(&req.kind.as_str()) {
@@ -147,7 +147,7 @@ pub(crate) async fn get_knowledge(
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize)]
-pub struct KnowledgeUpdateRequest {
+pub struct UpdateKnowledgeEntryRequest {
     pub title: String,
     pub content: String,
     #[serde(default)]
@@ -162,7 +162,7 @@ pub(crate) async fn update_knowledge(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<KnowledgeUpdateRequest>,
+    Json(req): Json<UpdateKnowledgeEntryRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     principal.require_designer()?;
     state
@@ -198,7 +198,7 @@ pub(crate) async fn delete_knowledge(
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize)]
-pub struct KnowledgeStatusRequest {
+pub struct UpdateKnowledgeStatusRequest {
     pub status: String,
     pub review_notes: Option<String>,
 }
@@ -207,7 +207,7 @@ pub(crate) async fn update_status(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<KnowledgeStatusRequest>,
+    Json(req): Json<UpdateKnowledgeStatusRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     principal.require_admin()?;
     if !VALID_STATUSES.contains(&req.status.as_str()) {
@@ -292,7 +292,7 @@ pub(crate) async fn knowledge_stats(
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize)]
-pub struct BulkReviewRequest {
+pub struct BulkReviewApprovalsRequest {
     pub ids: Vec<Uuid>,
     pub status: String,
     pub review_notes: Option<String>,
@@ -301,7 +301,7 @@ pub struct BulkReviewRequest {
 pub(crate) async fn bulk_review(
     State(state): State<AppState>,
     principal: Principal,
-    Json(req): Json<BulkReviewRequest>,
+    Json(req): Json<BulkReviewApprovalsRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     principal.require_admin()?;
     if !VALID_STATUSES.contains(&req.status.as_str()) {

@@ -19,12 +19,13 @@ use ox_source::analyzer::build_design_context;
 
 use super::helpers::{
     LlmInputContext, assess_quality_from_project, assess_quality_from_project_with_mapping,
-    build_llm_input, build_refinement_context, build_source_schema_summary, get_design_options,
-    load_mutable_project, load_project_in_status, maybe_require_review, reload_project,
+    build_llm_input, build_refinement_context, build_source_schema_summary, enforce_design_gates,
+    get_design_options, load_analysis_report, load_mutable_project, load_project_in_status,
+    reload_project,
 };
 use super::types::{
-    ProjectDesignRequest, ProjectDesignResponse, ProjectReconcileRequest, ProjectRefineRequest,
-    ProjectRefineResponse,
+    DesignProjectRequest, DesignProjectResponse, ProjectView, ReconcileProjectRequest,
+    RefineProjectRequest, RefineProjectResponse,
 };
 
 // ---------------------------------------------------------------------------
@@ -35,9 +36,9 @@ use super::types::{
     post,
     path = "/api/projects/{id}/design",
     params(("id" = Uuid, Path, description = "Project ID")),
-    request_body = ProjectDesignRequest,
+    request_body = DesignProjectRequest,
     responses(
-        (status = 200, description = "Ontology designed", body = ProjectDesignResponse),
+        (status = 200, description = "Ontology designed", body = DesignProjectResponse),
         (status = 400, description = "Invalid input or large schema gate", body = inline(crate::openapi::ErrorResponse)),
         (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
         (status = 504, description = "LLM timeout", body = inline(crate::openapi::ErrorResponse)),
@@ -49,8 +50,8 @@ pub(crate) async fn design_project(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<ProjectDesignRequest>,
-) -> Result<Json<ApiResponse<ProjectDesignResponse>>, AppError> {
+    Json(req): Json<DesignProjectRequest>,
+) -> Result<Json<ApiResponse<DesignProjectResponse>>, AppError> {
     principal.require_designer()?;
     let project = load_mutable_project(&state, id).await?;
 
@@ -62,44 +63,25 @@ pub(crate) async fn design_project(
         .map_err(|e| AppError::bad_request(format!("Corrupt design_options: {e}")))?;
 
     // Read runtime-tunable config (scoped guard — released before async operations)
-    let (gate_threshold, sample_data) = {
+    let sample_data = {
         let sys_config = state.system_config.read().await;
-        let threshold = sys_config.large_schema_gate_threshold();
         let ctx = LlmInputContext::from_project(&project);
-        let data = build_llm_input(&ctx, &source_config, &effective_opts, &sys_config)?;
-        (threshold, data)
+        build_llm_input(&ctx, &source_config, &effective_opts, &sys_config)?
     };
 
     if sample_data.trim().is_empty() {
         return Err(AppError::empty_source_data());
     }
 
-    // Deserialize analysis report once for review gate, large schema gate, and design context.
-    let analysis_report = project
-        .analysis_report
-        .as_ref()
-        .map(|v| {
-            serde_json::from_value::<ox_ontology::source_analysis::SourceAnalysisReport>(v.clone())
-                .map_err(|e| AppError::internal(format!("Corrupt analysis_report: {e}")))
-        })
-        .transpose()?;
+    // Deserialize analysis report once for gate evaluation + design context.
+    let analysis_report = load_analysis_report(&project);
 
-    // Review gate: use the stored analysis report (which reflects repo enrichment)
-    // rather than reconstructing from schema+profile (which would lose repo resolutions).
+    // Single-source-of-truth gate enforcement — same evaluator the FE
+    // uses to render the checklist. Rejects the call when any
+    // blocking gate is unmet (clarifications missing,
+    // partial-analysis or large-schema not acknowledged).
     if let Some(report) = &analysis_report {
-        maybe_require_review(report, &effective_opts)?;
-
-        // Large schema governance gate
-        if !req.acknowledge_large_schema
-            && let Some(warning) = &report.large_schema_warning
-            && warning.table_count >= gate_threshold
-        {
-            return Err(AppError::bad_request(format!(
-                "Schema has {} tables (limit: {gate_threshold}). Use excluded_tables to reduce scope, \
-                 or set acknowledge_large_schema=true to proceed.",
-                warning.table_count
-            )));
-        }
+        enforce_design_gates(report, &effective_opts)?;
     }
 
     // Build LLM context (include repo field_hints/domain_notes when available)
@@ -193,7 +175,9 @@ pub(crate) async fn design_project(
 
     let updated = reload_project(&state, id).await?;
 
-    Ok(ApiResponse::of(ProjectDesignResponse { project: updated }))
+    Ok(ApiResponse::of(DesignProjectResponse {
+        project: ProjectView::from_project(updated),
+    }))
 }
 
 // ---------------------------------------------------------------------------
@@ -204,9 +188,9 @@ pub(crate) async fn design_project(
     post,
     path = "/api/projects/{id}/refine",
     params(("id" = Uuid, Path, description = "Project ID")),
-    request_body = ProjectRefineRequest,
+    request_body = RefineProjectRequest,
     responses(
-        (status = 200, description = "Ontology refined", body = ProjectRefineResponse),
+        (status = 200, description = "Ontology refined", body = RefineProjectResponse),
         (status = 400, description = "No runtime or additional context", body = inline(crate::openapi::ErrorResponse)),
         (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
         (status = 422, description = "Uncertain reconcile matches", body = inline(crate::openapi::ErrorResponse)),
@@ -219,8 +203,8 @@ pub(crate) async fn refine_project(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<ProjectRefineRequest>,
-) -> Result<Json<ApiResponse<ProjectRefineResponse>>, AppError> {
+    Json(req): Json<RefineProjectRequest>,
+) -> Result<Json<ApiResponse<RefineProjectResponse>>, AppError> {
     principal.require_designer()?;
     let project = load_project_in_status(&state, id, DesignProjectStatus::Designed).await?;
 
@@ -491,8 +475,8 @@ pub(crate) async fn refine_project(
         "Refine completed"
     );
 
-    Ok(ApiResponse::of(ProjectRefineResponse {
-        project: updated,
+    Ok(ApiResponse::of(RefineProjectResponse {
+        project: ProjectView::from_project(updated),
         profile_summary,
         reconcile_report: reconciled.report,
     }))
@@ -506,9 +490,9 @@ pub(crate) async fn refine_project(
     post,
     path = "/api/projects/{id}/apply-reconcile",
     params(("id" = Uuid, Path, description = "Project ID")),
-    request_body = ProjectReconcileRequest,
+    request_body = ReconcileProjectRequest,
     responses(
-        (status = 200, description = "Reconcile decisions applied", body = ProjectRefineResponse),
+        (status = 200, description = "Reconcile decisions applied", body = RefineProjectResponse),
         (status = 400, description = "Invalid decisions", body = inline(crate::openapi::ErrorResponse)),
         (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
         (status = 422, description = "Reconciled ontology invalid", body = inline(crate::openapi::ErrorResponse)),
@@ -520,8 +504,8 @@ pub(crate) async fn apply_reconcile(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<ProjectReconcileRequest>,
-) -> Result<Json<ApiResponse<ProjectRefineResponse>>, AppError> {
+    Json(req): Json<ReconcileProjectRequest>,
+) -> Result<Json<ApiResponse<RefineProjectResponse>>, AppError> {
     principal.require_designer()?;
     let project = load_project_in_status(&state, id, DesignProjectStatus::Designed).await?;
 
@@ -554,7 +538,7 @@ pub(crate) async fn apply_reconcile(
     if !errors.is_empty() {
         return Err(AppError::unprocessable(format!(
             "Reconciled ontology is invalid: {}",
-            errors.join("; ")
+            ox_core::join_messages(&errors, "; ")
         )));
     }
 
@@ -577,8 +561,8 @@ pub(crate) async fn apply_reconcile(
 
     let updated = reload_project(&state, id).await?;
 
-    Ok(ApiResponse::of(ProjectRefineResponse {
-        project: updated,
+    Ok(ApiResponse::of(RefineProjectResponse {
+        project: ProjectView::from_project(updated),
         profile_summary: "Applied reconcile decisions".to_string(),
         reconcile_report: ox_ontology::ReconcileReport {
             preserved_ids: vec![],

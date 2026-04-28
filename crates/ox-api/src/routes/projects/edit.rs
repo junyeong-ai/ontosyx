@@ -16,7 +16,7 @@ use crate::state::AppState;
 use super::helpers::{
     assess_quality_from_project, get_design_options, load_mutable_project, reload_project,
 };
-use super::types::{ProjectEditRequest, ProjectEditResponse};
+use super::types::{EditProjectRequest, EditProjectResponse, ProjectView};
 
 // ---------------------------------------------------------------------------
 // POST /api/projects/:id/edit
@@ -26,9 +26,9 @@ use super::types::{ProjectEditRequest, ProjectEditResponse};
     post,
     path = "/api/projects/{id}/edit",
     params(("id" = Uuid, Path, description = "Project ID")),
-    request_body = ProjectEditRequest,
+    request_body = EditProjectRequest,
     responses(
-        (status = 200, description = "Edit commands generated and optionally applied", body = ProjectEditResponse),
+        (status = 200, description = "Edit commands generated and optionally applied", body = EditProjectResponse),
         (status = 400, description = "Empty request or no ontology", body = inline(crate::openapi::ErrorResponse)),
         (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
         (status = 422, description = "Command validation failed", body = inline(crate::openapi::ErrorResponse)),
@@ -41,8 +41,8 @@ pub(crate) async fn edit_project(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<ProjectEditRequest>,
-) -> Result<Json<ApiResponse<ProjectEditResponse>>, AppError> {
+    Json(req): Json<EditProjectRequest>,
+) -> Result<Json<ApiResponse<EditProjectResponse>>, AppError> {
     principal.require_designer()?;
     // Validate input
     if req.user_request.trim().is_empty() {
@@ -118,8 +118,8 @@ pub(crate) async fn edit_project(
     }
 
     if edit_output.commands.is_empty() {
-        return Ok(ApiResponse::of(ProjectEditResponse {
-            project: Some(project),
+        return Ok(ApiResponse::of(EditProjectResponse {
+            project: Some(ProjectView::from_project(project)),
             commands: vec![],
             explanation: edit_output.explanation,
         }));
@@ -140,7 +140,7 @@ pub(crate) async fn edit_project(
     }
 
     if req.dry_run {
-        return Ok(ApiResponse::of(ProjectEditResponse {
+        return Ok(ApiResponse::of(EditProjectResponse {
             project: None,
             commands: edit_output.commands,
             explanation: edit_output.explanation,
@@ -193,8 +193,8 @@ pub(crate) async fn edit_project(
         "Edit completed"
     );
 
-    Ok(ApiResponse::of(ProjectEditResponse {
-        project: Some(updated),
+    Ok(ApiResponse::of(EditProjectResponse {
+        project: Some(ProjectView::from_project(updated)),
         commands: edit_output.commands,
         explanation: edit_output.explanation,
     }))

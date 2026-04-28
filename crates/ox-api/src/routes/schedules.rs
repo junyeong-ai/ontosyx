@@ -18,7 +18,7 @@ use crate::state::AppState;
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize)]
-pub struct ScheduleCreateRequest {
+pub struct CreateScheduleRequest {
     pub cron_expression: String,
     pub ontology_lineage_id: Option<String>,
     pub description: Option<String>,
@@ -29,7 +29,7 @@ pub(crate) async fn create_schedule(
     State(state): State<AppState>,
     principal: Principal,
     Path(recipe_id): Path<Uuid>,
-    Json(req): Json<ScheduleCreateRequest>,
+    Json(req): Json<CreateScheduleRequest>,
 ) -> Result<(StatusCode, Json<ApiResponse<ScheduledTask>>), AppError> {
     principal.require_designer()?;
 
@@ -119,7 +119,7 @@ pub(crate) async fn get_schedule(
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize)]
-pub struct ScheduleUpdateRequest {
+pub struct UpdateScheduleRequest {
     pub enabled: bool,
 }
 
@@ -127,7 +127,7 @@ pub(crate) async fn update_schedule(
     State(state): State<AppState>,
     principal: Principal,
     Path(id): Path<Uuid>,
-    Json(req): Json<ScheduleUpdateRequest>,
+    Json(req): Json<UpdateScheduleRequest>,
 ) -> Result<StatusCode, AppError> {
     principal.require_designer()?;
 

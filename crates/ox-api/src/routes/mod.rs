@@ -18,6 +18,7 @@ pub mod federation_admin;
 pub mod governance_audit;
 pub mod governance_routing;
 pub mod health;
+pub mod insights;
 pub mod knowledge;
 pub mod lineage;
 pub mod load;
@@ -58,6 +59,10 @@ pub fn router(state: AppState) -> Router {
         // Design projects — ontology design lifecycle
         .route("/projects", post(projects::create_project))
         .route("/projects", get(projects::list_projects))
+        .route(
+            "/projects/source-preview",
+            post(projects::preview_source),
+        )
         .route("/projects/{id}", get(projects::get_project))
         .route("/projects/{id}", delete(projects::delete_project))
         .route(
@@ -143,6 +148,10 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/ontologies/{id}/cross-refs",
             get(ontology::list_cross_refs),
+        )
+        .route(
+            "/ontologies/{id}/dependencies",
+            get(ontology::get_ontology_dependencies),
         )
         .route("/ontologies/{id}/enrich", post(ontology::enrich_ontology))
         .route(
@@ -281,6 +290,12 @@ pub fn router(state: AppState) -> Router {
         .route("/pins", post(pins::create_pin))
         .route("/pins", get(pins::list_pins))
         .route("/pins/{id}", delete(pins::delete_pin))
+        // Persisted insights — first-class saved discoveries.
+        .route("/insights", post(insights::create_insight))
+        .route("/insights", get(insights::list_insights))
+        .route("/insights/{id}", get(insights::get_insight))
+        .route("/insights/{id}", axum::routing::put(insights::update_insight))
+        .route("/insights/{id}", delete(insights::delete_insight))
         // Perspectives
         .route("/perspectives", put(perspectives::save_perspective))
         .route(

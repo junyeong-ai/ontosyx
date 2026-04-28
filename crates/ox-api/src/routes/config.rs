@@ -94,14 +94,14 @@ pub struct ConfigUpdate {
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct ConfigUpdateRequest {
+pub struct UpdateConfigRequest {
     pub updates: Vec<ConfigUpdate>,
 }
 
 #[utoipa::path(
     patch,
     path = "/api/config",
-    request_body = ConfigUpdateRequest,
+    request_body = UpdateConfigRequest,
     responses(
         (status = 200, description = "Config updated", body = Object),
         (status = 400, description = "No updates provided", body = inline(crate::openapi::ErrorResponse)),
@@ -112,7 +112,7 @@ pub struct ConfigUpdateRequest {
 pub(crate) async fn update_config(
     State(state): State<AppState>,
     principal: Principal,
-    Json(req): Json<ConfigUpdateRequest>,
+    Json(req): Json<UpdateConfigRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     principal.require_admin()?;
     if req.updates.is_empty() {

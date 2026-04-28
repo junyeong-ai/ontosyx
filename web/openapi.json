@@ -623,7 +623,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PromptCreateRequest"
+                "$ref": "#/components/schemas/CreatePromptRequest"
               }
             }
           },
@@ -763,7 +763,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PromptUpdateRequest"
+                "$ref": "#/components/schemas/UpdatePromptRequest"
               }
             }
           },
@@ -946,7 +946,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CommentRequest"
+                "$ref": "#/components/schemas/CreateApprovalCommentRequest"
               }
             }
           },
@@ -1013,7 +1013,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ReviewRequest"
+                "$ref": "#/components/schemas/ReviewApprovalRequest"
               }
             }
           },
@@ -1025,7 +1025,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ReviewResponse"
+                  "$ref": "#/components/schemas/ReviewApprovalResponse"
                 }
               }
             }
@@ -1135,7 +1135,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ConfigUpdateRequest"
+                "$ref": "#/components/schemas/UpdateConfigRequest"
               }
             }
           },
@@ -1334,6 +1334,340 @@
         }
       }
     },
+    "/api/insights": {
+      "get": {
+        "tags": [
+          "Insights"
+        ],
+        "operationId": "list_insights",
+        "parameters": [
+          {
+            "name": "me",
+            "in": "query",
+            "description": "Restrict to insights authored by `me` — defaults to the\ncaller. The admin-mode \"all insights\" view passes `me=false`.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "concept_anchor",
+            "in": "query",
+            "description": "Filter by typed concept anchors (`GlossaryTermId` strings).\nMulti-value: `?concept_anchor=gt-x&concept_anchor=gt-y` returns\nany insight that carries at least one of those anchors.",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "description": "Filter by freeform tags. Same multi-value semantics as\n`concept_anchor`.",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Cursor returned by the previous call.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size cap. Server clamps to [1, 100]; defaults to 50.",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated insight list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Insights"
+        ],
+        "operationId": "create_insight",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInsightRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created insight",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsightResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Designer role required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid query_ir",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/insights/{id}": {
+      "get": {
+        "tags": [
+          "Insights"
+        ],
+        "operationId": "get_insight",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Insight id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Insight detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsightResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Insights"
+        ],
+        "operationId": "update_insight",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Insight id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateInsightRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated insight",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsightResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale update — reload + retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Insights"
+        ],
+        "operationId": "delete_insight",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Insight id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/api/load": {
       "post": {
         "tags": [
@@ -1344,7 +1678,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/LoadPlanRequest"
+                "$ref": "#/components/schemas/GenerateLoadPlanRequest"
               }
             }
           },
@@ -1356,7 +1690,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LoadPlanResponse"
+                  "$ref": "#/components/schemas/GenerateLoadPlanResponse"
                 }
               }
             }
@@ -1415,7 +1749,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/LoadExecuteRequest"
+                "$ref": "#/components/schemas/ExecuteLoadRequest"
               }
             }
           },
@@ -1427,7 +1761,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LoadExecuteResponse"
+                  "$ref": "#/components/schemas/ExecuteLoadResponse"
                 }
               }
             }
@@ -1855,7 +2189,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/OntologyImportRequest"
+                "$ref": "#/components/schemas/ImportOntologyRequest"
               }
             }
           },
@@ -1998,6 +2332,46 @@
                 }
               }
             }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/ontologies/{id}/dependencies": {
+      "get": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "get_ontology_dependencies",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Ontology identity id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Schema dependency graph",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ontology not found or has no committed version"
           }
         },
         "security": [
@@ -2185,7 +2559,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PerspectiveUpsertRequest"
+                "$ref": "#/components/schemas/UpsertPerspectiveRequest"
               }
             }
           },
@@ -2408,7 +2782,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PinCreateRequest"
+                "$ref": "#/components/schemas/CreatePinRequest"
               }
             }
           },
@@ -2587,6 +2961,77 @@
         ]
       }
     },
+    "/api/projects/source-preview": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "preview_source",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewSourceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Cheap table listing for the source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewSourceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Source kind not previewable or empty data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Designer role required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/api/projects/{id}": {
       "get": {
         "tags": [
@@ -2710,7 +3155,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ProjectReconcileRequest"
+                "$ref": "#/components/schemas/ReconcileProjectRequest"
               }
             }
           },
@@ -2722,7 +3167,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProjectRefineResponse"
+                  "$ref": "#/components/schemas/RefineProjectResponse"
                 }
               }
             }
@@ -2811,7 +3256,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ProjectCompleteRequest"
+                "$ref": "#/components/schemas/CompleteProjectRequest"
               }
             }
           },
@@ -2912,7 +3357,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateDecisionsRequest"
+                "$ref": "#/components/schemas/UpdateProjectDecisionsRequest"
               }
             }
           },
@@ -2995,7 +3440,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ProjectDesignRequest"
+                "$ref": "#/components/schemas/DesignProjectRequest"
               }
             }
           },
@@ -3007,7 +3452,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProjectDesignResponse"
+                  "$ref": "#/components/schemas/DesignProjectResponse"
                 }
               }
             }
@@ -3096,7 +3541,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ProjectDesignRequest"
+                "$ref": "#/components/schemas/DesignProjectRequest"
               }
             }
           },
@@ -3175,7 +3620,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ProjectEditRequest"
+                "$ref": "#/components/schemas/EditProjectRequest"
               }
             }
           },
@@ -3187,7 +3632,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProjectEditResponse"
+                  "$ref": "#/components/schemas/EditProjectResponse"
                 }
               }
             }
@@ -3294,7 +3739,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ProjectExtendRequest"
+                "$ref": "#/components/schemas/ExtendProjectRequest"
               }
             }
           },
@@ -3306,7 +3751,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProjectExtendResponse"
+                  "$ref": "#/components/schemas/ExtendProjectResponse"
                 }
               }
             }
@@ -3395,7 +3840,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/OntologyCommandsRequest"
+                "$ref": "#/components/schemas/ApplyOntologyCommandsRequest"
               }
             }
           },
@@ -3407,7 +3852,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/OntologyCommandsResponse"
+                  "$ref": "#/components/schemas/ApplyOntologyCommandsResponse"
                 }
               }
             }
@@ -3496,7 +3941,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ProjectReanalyzeRequest"
+                "$ref": "#/components/schemas/ReanalyzeProjectRequest"
               }
             }
           },
@@ -3508,7 +3953,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProjectReanalyzeResponse"
+                  "$ref": "#/components/schemas/ReanalyzeProjectResponse"
                 }
               }
             }
@@ -3579,7 +4024,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ProjectRefineRequest"
+                "$ref": "#/components/schemas/RefineProjectRequest"
               }
             }
           },
@@ -3591,7 +4036,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProjectRefineResponse"
+                  "$ref": "#/components/schemas/RefineProjectResponse"
                 }
               }
             }
@@ -3698,7 +4143,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ProjectRefineRequest"
+                "$ref": "#/components/schemas/RefineProjectRequest"
               }
             }
           },
@@ -3909,7 +4354,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProjectRestoreResponse"
+                  "$ref": "#/components/schemas/RestoreProjectRevisionResponse"
                 }
               }
             }
@@ -4248,7 +4693,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PatternCompileRequest"
+                "$ref": "#/components/schemas/CompilePatternRequest"
               }
             }
           },
@@ -4260,7 +4705,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PatternCompileResponse"
+                  "$ref": "#/components/schemas/CompilePatternResponse"
                 }
               }
             }
@@ -4283,7 +4728,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PatternDecompileRequest"
+                "$ref": "#/components/schemas/DecompilePatternRequest"
               }
             }
           },
@@ -4295,7 +4740,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PatternDecompileResponse"
+                  "$ref": "#/components/schemas/DecompilePatternResponse"
                 }
               }
             }
@@ -4525,7 +4970,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/QueryRawRequest"
+                "$ref": "#/components/schemas/ExecuteRawQueryRequest"
               }
             }
           },
@@ -4537,7 +4982,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/QueryRawResponse"
+                  "$ref": "#/components/schemas/ExecuteRawQueryResponse"
                 }
               }
             }
@@ -4628,7 +5073,7 @@
           "Workspaces"
         ],
         "summary": "GET /workspaces/me — return the active workspace context.",
-        "description": "`WorkspaceContext` is set by the middleware after authentication;\nthe handler enriches it with the workspace row's `name` /\n`primary_locale` / `locale_fallback` so the FE doesn't make a\nsecond round-trip.",
+        "description": "`WorkspaceContext` is set by the middleware after authentication;\nthe handler enriches it with the workspace row's `name`,\n`primary_locale`, `admin_locale_fallback`, and\n`llm_locale_fallback` so the FE doesn't make a second\nround-trip.",
         "operationId": "workspace_me",
         "responses": {
           "200": {
@@ -4905,7 +5350,8 @@
         "type": "object",
         "required": [
           "source_id",
-          "source_type"
+          "source_type",
+          "supports_scan"
         ],
         "properties": {
           "source_id": {
@@ -4913,6 +5359,10 @@
           },
           "source_type": {
             "type": "string"
+          },
+          "supports_scan": {
+            "type": "boolean",
+            "description": "`true` when the adapter implements `DataSourceAdapter::scan`\n— i.e. it can back federated link mappings (cross-source\njoins via DataFusion). Adapters returning `false` are\nintrospection-only; mapping a federated link onto them is a\nconfiguration mistake the admin UI should surface up-front\nrather than discovering it at query time."
           }
         }
       },
@@ -4999,6 +5449,46 @@
           "attribute",
           "identifier"
         ]
+      },
+      "AnalysisReportStatus": {
+        "type": "string",
+        "description": "Health of the persisted analysis-report row.",
+        "enum": [
+          "missing",
+          "current",
+          "stale"
+        ]
+      },
+      "ApplyOntologyCommandsRequest": {
+        "type": "object",
+        "required": [
+          "revision",
+          "commands"
+        ],
+        "properties": {
+          "commands": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "List of ontology mutation commands."
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ApplyOntologyCommandsResponse": {
+        "type": "object",
+        "required": [
+          "project"
+        ],
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/ProjectView"
+          }
+        }
       },
       "ApprovalComment": {
         "type": "object",
@@ -5406,6 +5896,16 @@
           }
         }
       },
+      "BindingStrength": {
+        "type": "string",
+        "description": "How strongly a binding constrains write-time behaviour and how\neditors should rank the binding's domain when offering choices.\n\nFHIR's binding-strength axis is the model: `Required`,\n`Extensible`, `Preferred`, `Example`. We collapse FHIR's `Example`\ninto the same enum because consumers want a single dimension when\nreasoning about UI ranking + validation policy.",
+        "enum": [
+          "required",
+          "preferred",
+          "extensible",
+          "example"
+        ]
+      },
       "CacheHintKind": {
         "oneOf": [
           {
@@ -5455,6 +5955,7 @@
       },
       "Cardinality": {
         "type": "string",
+        "description": "Edge multiplicity, expressed as one of the four canonical\nshorthand variants. Each variant lowers to numeric `(min, max)`\nbounds via the `source_*` / `target_*` accessors below — that\npair is what every consumer (SHACL emitter, cost estimator, FE\ninspector) ultimately reads, so adding a fifth variant in a\nfuture ADR is mechanical: extend the enum and add the matching\narm to the four accessors.\n\nThe shorthand stays the wire shape because it's how authors\nthink — \"one to many\" reads cleaner than `target_min=1,\ntarget_max=u32::MAX`. When a deployment really needs a custom\nmultiplicity (e.g. \"Order has between 1 and 5 line items\"), the\nSHACL `MinCount` / `MaxCount` rule on the property side is the\nexpressive surface; the edge cardinality stays shorthand.",
         "enum": [
           "one_to_one",
           "one_to_many",
@@ -5878,14 +6379,54 @@
           }
         }
       },
-      "CommentRequest": {
+      "CompilePatternRequest": {
         "type": "object",
         "required": [
-          "body"
+          "pattern_ir"
         ],
         "properties": {
-          "body": {
-            "type": "string"
+          "pattern_ir": {
+            "type": "object",
+            "description": "The canvas PatternIR to lower."
+          }
+        }
+      },
+      "CompilePatternResponse": {
+        "type": "object",
+        "required": [
+          "query_ir"
+        ],
+        "properties": {
+          "query_ir": {
+            "type": "object",
+            "description": "The lowered QueryIR, ready to execute via `/api/query/from-ir`."
+          }
+        }
+      },
+      "CompleteProjectRequest": {
+        "type": "object",
+        "required": [
+          "revision",
+          "name"
+        ],
+        "properties": {
+          "acknowledge_quality_risks": {
+            "type": "boolean",
+            "description": "Must be set to true if the quality report has low confidence or high-severity gaps.\nPrevents accidental promotion of low-quality ontologies."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "description": "Name for the saved ontology."
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
@@ -6004,20 +6545,6 @@
           }
         }
       },
-      "ConfigUpdateRequest": {
-        "type": "object",
-        "required": [
-          "updates"
-        ],
-        "properties": {
-          "updates": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ConfigUpdate"
-            }
-          }
-        }
-      },
       "ConstraintDef": {
         "allOf": [
           {
@@ -6120,6 +6647,65 @@
         ],
         "description": "The node / property / edge a constraint component targets. Most\ncomponents implicitly inherit the target of their enclosing\n`RuleDef.kind`; constraints that span multiple targets (e.g.\n`Disjoint`) name them explicitly."
       },
+      "CreateApprovalCommentRequest": {
+        "type": "object",
+        "required": [
+          "body"
+        ],
+        "properties": {
+          "body": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateInsightRequest": {
+        "type": "object",
+        "required": [
+          "question",
+          "description",
+          "query_ir"
+        ],
+        "properties": {
+          "concept_anchors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`GlossaryTermId` strings — the typed concept anchors per the\n1-pager's \"용어 사전이 다리\" axis. Distinct from `tags`\n(freeform shorthand) so cross-team filtering by concept stays\nstable as tag wording drifts. Empty when no glossary terms\napply."
+          },
+          "description": {
+            "type": "object",
+            "description": "Required on the wire — clients always send a `LocalizedText`\npayload (`{default: \"\"}` is acceptable). Mirrors the canonical\n`InsightDef.description: LocalizedText` shape; not making the\nrequest DTO optional avoids producer/consumer asymmetry where\nthe response always carries the field."
+          },
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "original_provenance": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Provenance the insight was originally computed against —\nthe platform's response basis at save time."
+          },
+          "query_ir": {
+            "type": "object",
+            "description": "Logical query the insight executes. Validated as\n`QueryIR` on submit so a malformed IR is rejected up-front."
+          },
+          "question": {
+            "type": "object"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "CreateOntologyRequest": {
         "type": "object",
         "description": "Request body for `POST /api/ontologies`.\n\n`initial_operations` is optional — callers that only need the\nshell (empty ontology with a pilot name) can omit it. When\npresent, the ops apply atomically: an error on any op or on the\npost-batch `validate()` aborts the whole creation with nothing\npersisted.",
@@ -6195,6 +6781,28 @@
           }
         }
       },
+      "CreatePinRequest": {
+        "type": "object",
+        "required": [
+          "query_execution_id",
+          "widget_spec"
+        ],
+        "properties": {
+          "query_execution_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "widget_spec": {
+            "description": "Widget specification JSON."
+          }
+        }
+      },
       "CreateProjectRequest": {
         "allOf": [
           {
@@ -6213,6 +6821,35 @@
             }
           }
         ]
+      },
+      "CreatePromptRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "version",
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "metadata": {},
+          "name": {
+            "type": "string"
+          },
+          "variables": {},
+          "version": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "When set, the prompt is a workspace-scoped override of the\nglobal template. When `None`, it's a new global version."
+          }
+        }
       },
       "CreateSavedPatternRequest": {
         "type": "object",
@@ -6572,6 +7209,137 @@
         ],
         "description": "What the measure is taken on."
       },
+      "DecompilePatternRequest": {
+        "type": "object",
+        "required": [
+          "query_ir"
+        ],
+        "properties": {
+          "query_ir": {
+            "type": "object",
+            "description": "The QueryIR to reconstruct onto the canvas."
+          }
+        }
+      },
+      "DecompilePatternResponse": {
+        "type": "object",
+        "required": [
+          "pattern_ir",
+          "editable"
+        ],
+        "properties": {
+          "editable": {
+            "type": "boolean",
+            "description": "`true` iff the source QueryIR was a `Match` operation and\ntherefore fully representable on the canvas. `false` for\nPathFind / Union / Chain / Aggregate / CallSubquery / Mutate /\nAnalytics — the UI should surface a \"read-only\" indicator."
+          },
+          "pattern_ir": {
+            "type": "object",
+            "description": "The reconstructed PatternIR. Positions are always `None` — the\nUI runs its own layout pass before rendering."
+          }
+        }
+      },
+      "DependencyBucket": {
+        "type": "object",
+        "description": "One entry in [`SchemaDependencyGraph::buckets`] — a target and\nevery inbound dependency. Tuple-shaped on the wire so the\ngraph round-trips through JSON cleanly (enum keys can't ride\nin JSON object keys).",
+        "required": [
+          "target",
+          "edges"
+        ],
+        "properties": {
+          "edges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DependencyEdge"
+            }
+          },
+          "target": {
+            "$ref": "#/components/schemas/SchemaEntityRef"
+          }
+        }
+      },
+      "DependencyEdge": {
+        "type": "object",
+        "description": "A single reverse-edge in the dependency graph: the\n[`SchemaEntityRef`] target was referenced by `dependent` via a\n[`DependencyKind`] relationship.",
+        "required": [
+          "dependent",
+          "kind",
+          "label"
+        ],
+        "properties": {
+          "dependent": {
+            "$ref": "#/components/schemas/SchemaEntityRef"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/DependencyKind"
+          },
+          "label": {
+            "type": "string",
+            "description": "Short human-readable summary of *how* the dependent\nreferences the target — surfaced as a tooltip in the FE\n(`\"MinCount constraint\"`, `\"foreign-key bridge\"`, etc.)."
+          }
+        }
+      },
+      "DependencyKind": {
+        "type": "string",
+        "description": "Classification of a [`DependencyEdge`]. Each kind carries a\ndistinct semantic — the FE picks an icon and groups by kind.",
+        "enum": [
+          "property_of",
+          "edge_source",
+          "edge_target",
+          "interface_implementation",
+          "property_binding_ref",
+          "function_derivation",
+          "unit_reference",
+          "rule_constraint",
+          "rule_activation",
+          "rule_vocabulary",
+          "metric_scope",
+          "action_target",
+          "action_rule",
+          "enrichment_target",
+          "object_mapping_target",
+          "link_mapping_target",
+          "property_mapping_target",
+          "value_set_composition",
+          "concept_map_endpoint",
+          "data_quality_target"
+        ]
+      },
+      "DesignGate": {
+        "type": "object",
+        "description": "One condition the operator must satisfy before designing.\n\n`blocks_design` is the contract the HTTP layer enforces: any\n`blocks_design = true` gate with `status = Unmet` rejects the\ndesign call. `params` carries interpolation values for the FE\ni18n catalogue (e.g. `pending_count`, `table_count`); the\nbackend never produces user-facing prose itself. `anchor` is the\nFE element id to scroll to when the operator clicks the gate\nrow.",
+        "required": [
+          "id",
+          "status",
+          "blocks_design"
+        ],
+        "properties": {
+          "anchor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "FE element id for click-to-anchor scroll. `None` when the\ngate has no inline control to focus."
+          },
+          "blocks_design": {
+            "type": "boolean"
+          },
+          "id": {
+            "$ref": "#/components/schemas/GateId"
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "$ref": "#/components/schemas/GateStatus"
+          }
+        }
+      },
       "DesignProject": {
         "type": "object",
         "description": "Design project — ontology design lifecycle.",
@@ -6650,6 +7418,33 @@
           }
         }
       },
+      "DesignProjectRequest": {
+        "type": "object",
+        "required": [
+          "revision"
+        ],
+        "properties": {
+          "context": {
+            "type": "string",
+            "description": "Domain hints for the LLM."
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "DesignProjectResponse": {
+        "type": "object",
+        "required": [
+          "project"
+        ],
+        "properties": {
+          "project": {
+            "type": "object"
+          }
+        }
+      },
       "DesignProjectSummary": {
         "type": "object",
         "description": "Design project summary (lightweight, for list endpoints).",
@@ -6708,6 +7503,15 @@
           }
         }
       },
+      "EdgeKind": {
+        "type": "string",
+        "description": "UML / OMG-aligned edge classification.\n\n`Association` is the default for any plain semantic relationship\n(Customer `PLACED_ORDER` Order). `Composition` and `Aggregation`\nexpress part-whole relationships with different lifetime\nsemantics:\n\n- **Composition** — strong ownership, the part's lifetime is bound\n  to the whole. Deleting the whole cascades to the parts. Example:\n  `Order COMPOSED_OF OrderItem` (an OrderItem cannot exist\n  without its parent Order).\n- **Aggregation** — loose containment, the part outlives the whole\n  and is shared across wholes. No cascade delete. Example:\n  `Department CONTAINS Employee` (an Employee outlives any one\n  department; cross-department reassignment is normal).\n\nThe default is [`Association`](EdgeKind::Association) — both\nexisting edges and new authored ones get the safe non-cascading\nsemantics unless the operator explicitly opts into a stronger\nclassification.",
+        "enum": [
+          "association",
+          "composition",
+          "aggregation"
+        ]
+      },
       "EdgeTypeDef": {
         "type": "object",
         "required": [
@@ -6751,6 +7555,10 @@
                 "description": "Logical inverse edge (e.g., PURCHASED ↔ PURCHASED_BY)."
               }
             ]
+          },
+          "kind": {
+            "$ref": "#/components/schemas/EdgeKind",
+            "description": "Relationship classification — UML / OMG-style. Drives\ndownstream affordances: cascade-delete inference for\n[`EdgeKind::Composition`], hierarchical visualisation hints\nfor [`EdgeKind::Aggregation`], and a neutral default of\n[`EdgeKind::Association`] for plain semantic links."
           },
           "label": {
             "$ref": "#/components/schemas/GraphLabel",
@@ -6808,6 +7616,54 @@
       "EdgeTypeId": {
         "type": "string",
         "description": "Type-safe identifier for edge types in an ontology."
+      },
+      "EditProjectRequest": {
+        "type": "object",
+        "required": [
+          "revision",
+          "user_request"
+        ],
+        "properties": {
+          "dry_run": {
+            "type": "boolean",
+            "description": "If true, returns generated commands without applying them."
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "user_request": {
+            "type": "string",
+            "description": "Natural language description of the desired ontology change."
+          }
+        }
+      },
+      "EditProjectResponse": {
+        "type": "object",
+        "required": [
+          "commands",
+          "explanation"
+        ],
+        "properties": {
+          "commands": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Generated ontology mutation commands."
+          },
+          "explanation": {
+            "type": "string",
+            "description": "LLM explanation of what was changed and why."
+          },
+          "project": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Updated project (null in dry_run mode)."
+          }
+        }
       },
       "EndpointRef": {
         "type": "object",
@@ -7104,6 +7960,148 @@
           }
         }
       },
+      "ExecuteLoadRequest": {
+        "type": "object",
+        "required": [
+          "ontology",
+          "source_description",
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {},
+            "description": "Data batches to load. Each element is a JSON object representing one record."
+          },
+          "ontology": {
+            "type": "object",
+            "description": "OntologyIR for the target graph schema."
+          },
+          "plan": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Optional pre-computed load plan. If omitted, the plan is generated via LLM."
+          },
+          "source_description": {
+            "type": "string",
+            "description": "Description of the data source."
+          }
+        }
+      },
+      "ExecuteLoadResponse": {
+        "type": "object",
+        "required": [
+          "plan",
+          "compiled_statements",
+          "target",
+          "result"
+        ],
+        "properties": {
+          "compiled_statements": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Compiled statements executed."
+          },
+          "plan": {
+            "type": "object",
+            "description": "Load plan used."
+          },
+          "result": {
+            "type": "object",
+            "description": "Execution results."
+          },
+          "target": {
+            "type": "string",
+            "description": "Compiler target language."
+          }
+        }
+      },
+      "ExecuteRawQueryRequest": {
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "properties": {
+          "ontology_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Optional saved-ontology id. When present, the runtime's\nOntologyValidator gates the query against this ontology (rejects\nunknown labels / relationship types / property keys). When\nomitted, the raw path stays ontology-free and only the safety\n+ workspace-scope gates apply."
+          },
+          "query": {
+            "type": "string",
+            "description": "Raw query statement in the target language (e.g., Cypher)."
+          }
+        }
+      },
+      "ExecuteRawQueryResponse": {
+        "type": "object",
+        "required": [
+          "query",
+          "target"
+        ],
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The query that was executed."
+          },
+          "results": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Query result rows and metadata."
+          },
+          "target": {
+            "type": "string",
+            "description": "Compiler target language (e.g., \"cypher\")."
+          }
+        }
+      },
+      "ExtendProjectRequest": {
+        "type": "object",
+        "required": [
+          "revision",
+          "source",
+          "selection"
+        ],
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "selection": {
+            "type": "object",
+            "description": "Which tables of the new source to introspect. Required —\n`kind: \"all\"` to take everything advertised, `kind: \"subset\"`\nfor a curated list, `kind: \"extend\"` to grow the existing\nbaseline with the named tables."
+          },
+          "source": {
+            "$ref": "#/components/schemas/ProjectSource",
+            "description": "New data source to merge into the project."
+          }
+        }
+      },
+      "ExtendProjectResponse": {
+        "type": "object",
+        "required": [
+          "project",
+          "reconcile_report"
+        ],
+        "properties": {
+          "project": {
+            "type": "object"
+          },
+          "reconcile_report": {
+            "type": "object",
+            "description": "Report on ID reconciliation between existing and new ontology entities."
+          }
+        }
+      },
       "ExternalSourceRef": {
         "oneOf": [
           {
@@ -7337,6 +8335,64 @@
           "impure"
         ]
       },
+      "GateId": {
+        "type": "string",
+        "description": "Stable identifier for a single gate the operator must satisfy\nbefore invoking the design action. New variants are additive —\nthe FE i18n catalogue keys gate copy by `GateId`.",
+        "enum": [
+          "column_clarifications_resolved",
+          "partial_analysis_acknowledged",
+          "large_schema_acknowledged"
+        ]
+      },
+      "GateStatus": {
+        "type": "string",
+        "enum": [
+          "met",
+          "unmet"
+        ]
+      },
+      "GenerateLoadPlanRequest": {
+        "type": "object",
+        "required": [
+          "ontology",
+          "source_description"
+        ],
+        "properties": {
+          "ontology": {
+            "type": "object",
+            "description": "OntologyIR for the target graph schema."
+          },
+          "source_description": {
+            "type": "string",
+            "description": "Description of the data source for the LLM."
+          }
+        }
+      },
+      "GenerateLoadPlanResponse": {
+        "type": "object",
+        "required": [
+          "plan",
+          "compiled_statements",
+          "target"
+        ],
+        "properties": {
+          "compiled_statements": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Compiled statements in the target language."
+          },
+          "plan": {
+            "type": "object",
+            "description": "Generated load plan."
+          },
+          "target": {
+            "type": "string",
+            "description": "Compiler target language (e.g., \"cypher\")."
+          }
+        }
+      },
       "GlossaryTermDef": {
         "type": "object",
         "description": "Atomic unit of the glossary.",
@@ -7348,42 +8404,69 @@
           "aliases": {
             "type": "array",
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/LocalizedText"
             },
-            "description": "Alternate names the term may be known as. Used for\nsynonym-aware search in the glossary UI and for LLM prompts\nthat need to normalise arbitrary user phrasing onto a term."
+            "description": "Alternate names per locale (synonyms, abbreviations). Used for\nsynonym-aware search in the glossary UI and for LLM prompts\nthat need to normalise arbitrary user phrasing onto a term.\nSKOS `skos:altLabel`."
           },
           "category": {
             "type": [
               "string",
               "null"
             ],
-            "description": "Author-supplied category (e.g. `\"business_concept\"`,\n`\"measure\"`, `\"dimension\"`). No fixed taxonomy — categories\nare tenant-defined so the glossary doesn't force an\nupstream ontology."
+            "description": "Author-supplied category (e.g. `\"business_concept\"`,\n`\"measure\"`, `\"dimension\"`). No fixed taxonomy — categories\nare tenant-defined so the glossary doesn't force an upstream\nontology."
           },
           "description": {
             "$ref": "#/components/schemas/LocalizedText",
-            "description": "Free-form domain description. Longer than the term, localized\nso a bilingual deployment can ship English + Korean text\nwithout inventing a second glossary store."
+            "description": "Domain definition. Longer than the term, localised so a\nbilingual deployment can ship English + Korean text without\ninventing a second glossary store."
           },
           "display_name": {
             "$ref": "#/components/schemas/LocalizedText",
-            "description": "Localized display name (same role as `GlossaryTermDef.term`\nbut per-locale — takes precedence when the viewer's locale\nmatches)."
+            "description": "Operator-facing display label. Most callers want `term`; the\ndistinction matters when the catalogue UI wants a longer\nhuman-friendly form (\"Active Paying Customer\") while\ndownstream code keeps a compact identifier label\n(\"paying_customer\")."
+          },
+          "examples": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LocalizedText"
+            },
+            "description": "Illustrative examples that disambiguate abstract definitions.\nEach entry is a self-contained sentence. SKOS `skos:example`."
+          },
+          "governance": {
+            "$ref": "#/components/schemas/TermGovernance",
+            "description": "Authorship and editorial trail."
           },
           "id": {
             "$ref": "#/components/schemas/GlossaryTermId"
           },
-          "parent_term_id": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/GlossaryTermId",
-                "description": "Optional parent term — shallow hierarchy without committing\nto a full taxonomy. Deeper structure is expressed through\n`TaxonomyDef`."
-              }
-            ]
+          "lifecycle": {
+            "$ref": "#/components/schemas/TermLifecycle",
+            "description": "Lifecycle state. Drives UI affordances (deprecation strikethrough,\nretired filter) and downstream resolvers (NL-to-Cypher should\nroute a deprecated term through its `replaced_by` automatically)."
+          },
+          "related_terms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TermRelation"
+            },
+            "description": "SKOS relations to other terms — hierarchy / association /\nequivalence — encoded from this term's perspective."
           },
           "term": {
-            "type": "string",
-            "description": "Canonical short name, rendered as the column label in\nglossary UIs. Tools treat `term` as human-readable text — it\ndoes not need to be Cypher-safe."
+            "$ref": "#/components/schemas/LocalizedText",
+            "description": "Canonical preferred label. `LocalizedText` so deployments that\nsurface terms in multiple languages can ship one record per\nconcept (English `Customer`, Korean `고객`) instead of two\nduplicate records linked by ad-hoc convention."
+          },
+          "valid_from": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Inclusive lower bound on the term's validity period. `None`\nmeans \"valid since the beginning of the ontology lineage\"."
+          },
+          "valid_to": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Exclusive upper bound on the term's validity period. `None`\nmeans open-ended. A retired term keeps its `valid_to` set so\nhistorical queries can still reference the concept as it was."
           }
         }
       },
@@ -7472,6 +8555,18 @@
           }
         ],
         "description": "Idempotency contract.\n\nActions with a non-`None` policy accept an opaque key from the\ncaller; a replay within the window returns the cached outcome\ninstead of re-executing. The platform persists the key +\nfingerprint + result; beyond the window the key expires and a\nrepeat call runs fresh."
+      },
+      "ImportOntologyRequest": {
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "OWL ontology in Turtle format."
+          }
+        }
       },
       "IncludeMode": {
         "type": "string",
@@ -7611,6 +8706,17 @@
             }
           }
         ]
+      },
+      "InsightResponse": {
+        "type": "object",
+        "required": [
+          "insight"
+        ],
+        "properties": {
+          "insight": {
+            "type": "object"
+          }
+        }
       },
       "InterfaceDef": {
         "type": "object",
@@ -7809,7 +8915,7 @@
           },
           {
             "type": "object",
-            "description": "Many-to-many via a bridge relation. `bridge_relation` is the\nintermediate table / collection; `source_join` and\n`target_join` each hold the sequence of bridge-side columns\nthe planner zips against the endpoint's `key_columns` to\nbuild one `AND`-combined equi-predicate per side.\n\nThe vectors must be the same length as the opposite\nendpoint's `key_columns`. A single-column PK therefore uses a\none-element vec; a composite `(region, warehouse)` PK uses a\ntwo-element vec pairing bridge columns in the matching order.",
+            "description": "Many-to-many via a bridge relation. `bridge_relation` is the\nintermediate table / collection; `source_join` and\n`target_join` each hold the sequence of bridge-side columns\nthe planner zips against the endpoint's `key_columns` to\nbuild one `AND`-combined equi-predicate per side.\n\nThe vectors must be the same length as the opposite\nendpoint's `key_columns`. A single-column PK therefore uses a\none-element vec; a composite `(region, warehouse)` PK uses a\ntwo-element vec pairing bridge columns in the matching order.\n\n`bridge_workspace_scope` makes the bridge relation\nworkspace-isolated when populated. The federation planner\nemits an extra equi-predicate on this column against the\ncaller's `WorkspaceScope`, so a multi-tenant bridge table\n(one row set per workspace) doesn't leak rows across the\nscope boundary. `None` keeps the legacy \"shared bridge\"\nbehaviour — only safe when the bridge holds no\nworkspace-private joins.",
             "required": [
               "bridge_relation",
               "source_join",
@@ -7819,6 +8925,16 @@
             "properties": {
               "bridge_relation": {
                 "$ref": "#/components/schemas/SourceRelationRef"
+              },
+              "bridge_workspace_scope": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ColumnRef"
+                  }
+                ]
               },
               "kind": {
                 "type": "string",
@@ -7884,108 +9000,6 @@
           }
         ],
         "description": "Shape variants for a link mapping."
-      },
-      "LoadExecuteRequest": {
-        "type": "object",
-        "required": [
-          "ontology",
-          "source_description",
-          "data"
-        ],
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {},
-            "description": "Data batches to load. Each element is a JSON object representing one record."
-          },
-          "ontology": {
-            "type": "object",
-            "description": "OntologyIR for the target graph schema."
-          },
-          "plan": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "description": "Optional pre-computed load plan. If omitted, the plan is generated via LLM."
-          },
-          "source_description": {
-            "type": "string",
-            "description": "Description of the data source."
-          }
-        }
-      },
-      "LoadExecuteResponse": {
-        "type": "object",
-        "required": [
-          "plan",
-          "compiled_statements",
-          "target",
-          "result"
-        ],
-        "properties": {
-          "compiled_statements": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "Compiled statements executed."
-          },
-          "plan": {
-            "type": "object",
-            "description": "Load plan used."
-          },
-          "result": {
-            "type": "object",
-            "description": "Execution results."
-          },
-          "target": {
-            "type": "string",
-            "description": "Compiler target language."
-          }
-        }
-      },
-      "LoadPlanRequest": {
-        "type": "object",
-        "required": [
-          "ontology",
-          "source_description"
-        ],
-        "properties": {
-          "ontology": {
-            "type": "object",
-            "description": "OntologyIR for the target graph schema."
-          },
-          "source_description": {
-            "type": "string",
-            "description": "Description of the data source for the LLM."
-          }
-        }
-      },
-      "LoadPlanResponse": {
-        "type": "object",
-        "required": [
-          "plan",
-          "compiled_statements",
-          "target"
-        ],
-        "properties": {
-          "compiled_statements": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "Compiled statements in the target language."
-          },
-          "plan": {
-            "type": "object",
-            "description": "Generated load plan."
-          },
-          "target": {
-            "type": "string",
-            "description": "Compiler target language (e.g., \"cypher\")."
-          }
-        }
       },
       "LocalizedText": {
         "type": "object",
@@ -8152,7 +9166,7 @@
         "oneOf": [
           {
             "type": "object",
-            "description": "Properties must be unique across all nodes of this type",
+            "description": "Properties must be unique across all nodes of this type. DDL:\n`CREATE CONSTRAINT FOR (n:L) REQUIRE n.p IS UNIQUE` (Neo4j) /\n`CREATE CONSTRAINT ON (n:L) ASSERT n.p IS UNIQUE` (Memgraph).",
             "required": [
               "property_ids",
               "type"
@@ -8174,7 +9188,7 @@
           },
           {
             "type": "object",
-            "description": "Property must exist (NOT NULL at DB level)",
+            "description": "Property must exist (NOT NULL at DB level). DDL:\n`REQUIRE n.p IS NOT NULL` (Neo4j) / `ASSERT EXISTS(n.p)`\n(Memgraph).",
             "required": [
               "property_id",
               "type"
@@ -8193,7 +9207,7 @@
           },
           {
             "type": "object",
-            "description": "Composite key — combination of properties is unique and required",
+            "description": "Composite key — combination of properties is unique and\nrequired. DDL: `REQUIRE (n.a, n.b) IS NODE KEY` (Neo4j-only;\nMemgraph emits a warning and skips).",
             "required": [
               "property_ids",
               "type"
@@ -8213,7 +9227,8 @@
               }
             }
           }
-        ]
+        ],
+        "description": "Storage-engine constraint that compiles to native graph-DB DDL.\n\n`NodeConstraint` lives at the **physical** layer — the schema\ncompiler emits `CREATE CONSTRAINT … REQUIRE … IS UNIQUE`,\n`IS NOT NULL`, or `IS NODE KEY` so the database engine itself\nrejects writes that violate the rule. This is the strongest\nguarantee available: even direct DB writes outside the platform\npipeline fail. The trade-off is expressiveness: only uniqueness\nand existence are universally portable across backends.\n\nFor shape-level rules that go beyond DDL (property pairs, value\nsets, patterns, language uniqueness), use\n[`crate::rule::ShaclConstraint`] on a `RuleDef` — those run in\nthe SHACL validator at write/read time. The two surfaces are\nintentionally separate; do not collapse them. SQL has the same\nsplit: `UNIQUE/NOT NULL/CHECK` (DDL) vs application validators."
       },
       "NodeTypeDef": {
         "type": "object",
@@ -8597,37 +9612,6 @@
         "type": "string",
         "description": "Stable identifier for an `ObjectMappingDef` — the binding\nbetween one `NodeTypeDef` and one physical relation.\n\nConstruction: prefer [`ObjectMappingId::for_node_source`]\n— the canonical rule is `om-{node_type_id}@{source_id}`,\nwhich keeps the id deterministic across re-runs and encodes\nthe (node, source) tuple so the id alone is informative\nin audit diffs and cache keys. Ad-hoc ids (via the bare\n`::new` constructor) stay supported for tests and for\nadmin-supplied overrides when a node has multiple mappings\non the same source and the rule needs disambiguation."
       },
-      "OntologyCommandsRequest": {
-        "type": "object",
-        "required": [
-          "revision",
-          "commands"
-        ],
-        "properties": {
-          "commands": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            },
-            "description": "List of ontology mutation commands."
-          },
-          "revision": {
-            "type": "integer",
-            "format": "int32"
-          }
-        }
-      },
-      "OntologyCommandsResponse": {
-        "type": "object",
-        "required": [
-          "project"
-        ],
-        "properties": {
-          "project": {
-            "type": "object"
-          }
-        }
-      },
       "OntologyDetail": {
         "type": "object",
         "required": [
@@ -8848,18 +9832,6 @@
           }
         }
       },
-      "OntologyImportRequest": {
-        "type": "object",
-        "required": [
-          "content"
-        ],
-        "properties": {
-          "content": {
-            "type": "string",
-            "description": "OWL ontology in Turtle format."
-          }
-        }
-      },
       "OntologyListItem": {
         "type": "object",
         "required": [
@@ -9023,59 +9995,6 @@
           }
         }
       },
-      "PatternCompileRequest": {
-        "type": "object",
-        "required": [
-          "pattern_ir"
-        ],
-        "properties": {
-          "pattern_ir": {
-            "type": "object",
-            "description": "The canvas PatternIR to lower."
-          }
-        }
-      },
-      "PatternCompileResponse": {
-        "type": "object",
-        "required": [
-          "query_ir"
-        ],
-        "properties": {
-          "query_ir": {
-            "type": "object",
-            "description": "The lowered QueryIR, ready to execute via `/api/query/from-ir`."
-          }
-        }
-      },
-      "PatternDecompileRequest": {
-        "type": "object",
-        "required": [
-          "query_ir"
-        ],
-        "properties": {
-          "query_ir": {
-            "type": "object",
-            "description": "The QueryIR to reconstruct onto the canvas."
-          }
-        }
-      },
-      "PatternDecompileResponse": {
-        "type": "object",
-        "required": [
-          "pattern_ir",
-          "editable"
-        ],
-        "properties": {
-          "editable": {
-            "type": "boolean",
-            "description": "`true` iff the source QueryIR was a `Match` operation and\ntherefore fully representable on the canvas. `false` for\nPathFind / Union / Chain / Aggregate / CallSubquery / Mutate /\nAnalytics — the UI should surface a \"read-only\" indicator."
-          },
-          "pattern_ir": {
-            "type": "object",
-            "description": "The reconstructed PatternIR. Positions are always `None` — the\nUI runs its own layout pass before rendering."
-          }
-        }
-      },
       "PerspectiveFindParams": {
         "type": "object",
         "required": [
@@ -9084,49 +10003,6 @@
         "properties": {
           "topology_signature": {
             "type": "string"
-          }
-        }
-      },
-      "PerspectiveUpsertRequest": {
-        "type": "object",
-        "required": [
-          "lineage_id",
-          "topology_signature",
-          "name",
-          "positions",
-          "viewport"
-        ],
-        "properties": {
-          "collapsed_groups": {
-            "description": "Collapsed group settings JSON."
-          },
-          "filters": {
-            "description": "Filter settings JSON."
-          },
-          "is_default": {
-            "type": "boolean"
-          },
-          "lineage_id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "positions": {
-            "description": "Node positions JSON."
-          },
-          "project_id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "topology_signature": {
-            "type": "string"
-          },
-          "viewport": {
-            "description": "Viewport state JSON."
           }
         }
       },
@@ -9453,28 +10329,6 @@
         ],
         "description": "PII (Personally Identifiable Information) classification.\nSet explicitly by the user via UI confirmation, never auto-assigned.\n\nCovers the union of GDPR Article 4(1), HIPAA Safe Harbor identifiers,\nPCI DSS cardholder data, and ICAO / national-identity schemes. `NationalId`\nis parameterised by ISO 3166-1 alpha-2 country code so country-specific\nschemes (KR RRN, US SSN, JP My Number, etc.) stay distinguishable in\ndownstream masking rules. `Custom` is the escape hatch for schemes the\nplatform has not anticipated — still tracked as PII for audit purposes."
       },
-      "PinCreateRequest": {
-        "type": "object",
-        "required": [
-          "query_execution_id",
-          "widget_spec"
-        ],
-        "properties": {
-          "query_execution_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "title": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "widget_spec": {
-            "description": "Widget specification JSON."
-          }
-        }
-      },
       "PinboardItem": {
         "type": "object",
         "description": "Pinboard item — a saved query result.",
@@ -9554,6 +10408,33 @@
           }
         }
       },
+      "PreviewSourceRequest": {
+        "allOf": [
+          {
+            "type": "object",
+            "description": "Connection details for the source — same shape used by\n`CreateProjectRequest::origin::Source { source }`."
+          }
+        ]
+      },
+      "PreviewSourceResponse": {
+        "type": "object",
+        "required": [
+          "source_type",
+          "tables"
+        ],
+        "properties": {
+          "source_type": {
+            "type": "string",
+            "description": "Source kind — useful for the UI to render type-specific\naffordances (e.g., schema picker for SQL backends)."
+          },
+          "tables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreviewTableSummary"
+            }
+          }
+        }
+      },
       "PreviewTable": {
         "type": "object",
         "required": [
@@ -9572,142 +10453,38 @@
           }
         }
       },
-      "ProjectCompleteRequest": {
+      "PreviewTableSummary": {
         "type": "object",
         "required": [
-          "revision",
-          "name"
+          "name",
+          "column_count"
         ],
         "properties": {
-          "acknowledge_quality_risks": {
-            "type": "boolean",
-            "description": "Must be set to true if the quality report has low confidence or high-severity gaps.\nPrevents accidental promotion of low-quality ontologies."
+          "column_count": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Number of columns reported by the catalog.",
+            "minimum": 0
           },
-          "description": {
+          "estimated_row_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Approximate row count from cheap backend statistics.\n`None` when the backend has no cheap path to this answer.",
+            "minimum": 0
+          },
+          "last_modified": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "format": "date-time",
+            "description": "Last-modified timestamp when the backend exposes one."
           },
           "name": {
-            "type": "string",
-            "description": "Name for the saved ontology."
-          },
-          "revision": {
-            "type": "integer",
-            "format": "int32"
-          }
-        }
-      },
-      "ProjectDesignRequest": {
-        "type": "object",
-        "required": [
-          "revision"
-        ],
-        "properties": {
-          "acknowledge_large_schema": {
-            "type": "boolean",
-            "description": "Must be set to true if the schema has >100 tables and the user wants to proceed anyway."
-          },
-          "context": {
-            "type": "string",
-            "description": "Domain hints for the LLM."
-          },
-          "revision": {
-            "type": "integer",
-            "format": "int32"
-          }
-        }
-      },
-      "ProjectDesignResponse": {
-        "type": "object",
-        "required": [
-          "project"
-        ],
-        "properties": {
-          "project": {
-            "type": "object"
-          }
-        }
-      },
-      "ProjectEditRequest": {
-        "type": "object",
-        "required": [
-          "revision",
-          "user_request"
-        ],
-        "properties": {
-          "dry_run": {
-            "type": "boolean",
-            "description": "If true, returns generated commands without applying them."
-          },
-          "revision": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "user_request": {
-            "type": "string",
-            "description": "Natural language description of the desired ontology change."
-          }
-        }
-      },
-      "ProjectEditResponse": {
-        "type": "object",
-        "required": [
-          "commands",
-          "explanation"
-        ],
-        "properties": {
-          "commands": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            },
-            "description": "Generated ontology mutation commands."
-          },
-          "explanation": {
-            "type": "string",
-            "description": "LLM explanation of what was changed and why."
-          },
-          "project": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "description": "Updated project (null in dry_run mode)."
-          }
-        }
-      },
-      "ProjectExtendRequest": {
-        "type": "object",
-        "required": [
-          "revision",
-          "source"
-        ],
-        "properties": {
-          "revision": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "source": {
-            "$ref": "#/components/schemas/ProjectSource",
-            "description": "New data source to merge into the project."
-          }
-        }
-      },
-      "ProjectExtendResponse": {
-        "type": "object",
-        "required": [
-          "project",
-          "reconcile_report"
-        ],
-        "properties": {
-          "project": {
-            "type": "object"
-          },
-          "reconcile_report": {
-            "type": "object",
-            "description": "Report on ID reconciliation between existing and new ontology entities."
+            "type": "string"
           }
         }
       },
@@ -9717,6 +10494,7 @@
             "type": "object",
             "required": [
               "source",
+              "selection",
               "origin_type"
             ],
             "properties": {
@@ -9731,6 +10509,10 @@
                   "object",
                   "null"
                 ]
+              },
+              "selection": {
+                "type": "object",
+                "description": "Which tables of the source to introspect. The caller picks\n`{\"kind\": \"all\"}` deliberately or names a `subset` /\n`extend` list — there is no implicit full-warehouse sweep."
               },
               "source": {
                 "$ref": "#/components/schemas/ProjectSource"
@@ -9758,132 +10540,6 @@
             }
           }
         ]
-      },
-      "ProjectReanalyzeRequest": {
-        "type": "object",
-        "required": [
-          "source",
-          "revision"
-        ],
-        "properties": {
-          "repo_source": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "description": "Optional repository source for enrichment."
-          },
-          "revision": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "source": {
-            "$ref": "#/components/schemas/ProjectSource",
-            "description": "Data source to re-analyze (must match original source type)."
-          }
-        }
-      },
-      "ProjectReanalyzeResponse": {
-        "type": "object",
-        "required": [
-          "project"
-        ],
-        "properties": {
-          "invalidated_decisions": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "Design decisions that were invalidated by the schema change."
-          },
-          "project": {
-            "type": "object"
-          }
-        }
-      },
-      "ProjectReconcileRequest": {
-        "type": "object",
-        "required": [
-          "revision",
-          "reconciled_ontology",
-          "decisions",
-          "uncertain_matches"
-        ],
-        "properties": {
-          "decisions": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            },
-            "description": "User accept/reject decisions for uncertain matches."
-          },
-          "reconciled_ontology": {
-            "type": "object",
-            "description": "Reconciled ontology with user decisions applied."
-          },
-          "revision": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "uncertain_matches": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            },
-            "description": "The uncertain matches being decided upon."
-          }
-        }
-      },
-      "ProjectRefineRequest": {
-        "type": "object",
-        "required": [
-          "revision"
-        ],
-        "properties": {
-          "additional_context": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Additional context for the LLM refinement."
-          },
-          "revision": {
-            "type": "integer",
-            "format": "int32"
-          }
-        }
-      },
-      "ProjectRefineResponse": {
-        "type": "object",
-        "required": [
-          "project",
-          "profile_summary",
-          "reconcile_report"
-        ],
-        "properties": {
-          "profile_summary": {
-            "type": "string",
-            "description": "Summary of graph profiling results."
-          },
-          "project": {
-            "type": "object"
-          },
-          "reconcile_report": {
-            "type": "object",
-            "description": "Report on ID reconciliation between original and refined ontology."
-          }
-        }
-      },
-      "ProjectRestoreResponse": {
-        "type": "object",
-        "required": [
-          "project"
-        ],
-        "properties": {
-          "project": {
-            "type": "object"
-          }
-        }
       },
       "ProjectSource": {
         "oneOf": [
@@ -10058,20 +10714,27 @@
               "type"
             ],
             "properties": {
+              "billing_project_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Project that runs and is billed for the BigQuery jobs.\nDefaults to `project_id`. Required when the caller has\n`bigquery.tables.list` on the data project but lacks\n`bigquery.jobs.create` there (typical for shared data\nprojects), or when a VPC Service Controls perimeter forces\njobs to run from a specific project."
+              },
               "credentials_path": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "description": "Optional path to service account credentials JSON file.\nFalls back to GOOGLE_APPLICATION_CREDENTIALS env var if omitted."
+                "description": "Optional path to a credentials file. Accepts either a\nservice-account JSON key or an authorized-user secret\n(the file `gcloud auth application-default login` writes).\nFalls back to ADC chain (`GOOGLE_APPLICATION_CREDENTIALS`,\ngcloud default file, workload-identity metadata server)\nwhen omitted."
               },
               "dataset": {
                 "type": "string",
-                "description": "BigQuery dataset name"
+                "description": "BigQuery dataset name."
               },
               "project_id": {
                 "type": "string",
-                "description": "GCP project ID"
+                "description": "Data project — the GCP project that owns the dataset. Used\nto fully-qualify identifiers in `INFORMATION_SCHEMA` queries."
               },
               "type": {
                 "type": "string",
@@ -10120,34 +10783,32 @@
           }
         ]
       },
-      "PromptCreateRequest": {
-        "type": "object",
-        "required": [
-          "name",
-          "version",
-          "content"
-        ],
-        "properties": {
-          "content": {
-            "type": "string"
+      "ProjectView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/DesignProject"
           },
-          "metadata": {},
-          "name": {
-            "type": "string"
-          },
-          "variables": {},
-          "version": {
-            "type": "string"
-          },
-          "workspace_id": {
-            "type": [
-              "string",
-              "null"
+          {
+            "type": "object",
+            "required": [
+              "design_gates",
+              "analysis_report_status"
             ],
-            "format": "uuid",
-            "description": "When set, the prompt is a workspace-scoped override of the\nglobal template. When `None`, it's a new global version."
+            "properties": {
+              "analysis_report_status": {
+                "$ref": "#/components/schemas/AnalysisReportStatus",
+                "description": "Status of the persisted `analysis_report` blob against the\ncurrent wire shape. The FE renders a soft banner when\n`Stale` so the operator knows gate enforcement was skipped\neven though design proceeded — re-running analyse refreshes\nthe report and the gates start enforcing again."
+              },
+              "design_gates": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/DesignGate"
+                }
+              }
+            }
           }
-        }
+        ],
+        "description": "Wire shape for any endpoint that returns a project. Carries the\nunderlying [`DesignProject`] flattened (so existing fields stay\nat the top level) plus the server-evaluated [`Vec<DesignGate>`]\nthe FE renders alongside the disabled-design-button checklist.\n\nComputing gates server-side keeps the FE from reimplementing the\ngate-evaluation rules and guarantees the rendering matches what\nthe design endpoint will accept."
       },
       "PromptInfo": {
         "type": "object",
@@ -10213,23 +10874,205 @@
           }
         }
       },
-      "PromptUpdateRequest": {
-        "type": "object",
-        "properties": {
-          "content": {
-            "type": [
-              "string",
-              "null"
-            ]
+      "PropertyBinding": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Values must come from a [`ValueSetDef`](crate::value_set::ValueSetDef)\nexpansion. The composing code systems describe the domain;\nthe value-set decides which codes from each system the\nproperty accepts.",
+            "required": [
+              "id",
+              "kind"
+            ],
+            "properties": {
+              "concept_map_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ConceptMapId",
+                    "description": "Concept map applied when the upstream source's vocabulary\ndiffers from the binding's canonical vocabulary. The query\ncompiler walks `(variable, property) → concept_map_id` and\nrewrites literals before emitting Cypher / DataFusion\nexpressions."
+                  }
+                ]
+              },
+              "id": {
+                "$ref": "#/components/schemas/ValueSetId"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "value_set"
+                ]
+              },
+              "strength": {
+                "$ref": "#/components/schemas/BindingStrength"
+              },
+              "valid_from": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "valid_to": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              }
+            }
           },
-          "is_active": {
-            "type": [
-              "boolean",
-              "null"
-            ]
+          {
+            "type": "object",
+            "description": "Values must come directly from a\n[`CodeSystemDef`](crate::code_system::CodeSystemDef) — useful\nwhen no narrowing value-set is needed and the whole system\nis in scope.",
+            "required": [
+              "id",
+              "kind"
+            ],
+            "properties": {
+              "concept_map_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ConceptMapId"
+                  }
+                ]
+              },
+              "id": {
+                "$ref": "#/components/schemas/CodeSystemId"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "code_system"
+                ]
+              },
+              "strength": {
+                "$ref": "#/components/schemas/BindingStrength"
+              },
+              "valid_from": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "valid_to": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              }
+            }
           },
-          "variables": {}
-        }
+          {
+            "type": "object",
+            "description": "Values must conform to a\n[`NotationPatternDef`](crate::notation_pattern::NotationPatternDef)\n— structured identifiers like `SPRING_26_001`. Notation\npatterns are structural, not vocabulary-translated, so no\n`concept_map_id`.",
+            "required": [
+              "id",
+              "kind"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/NotationPatternId"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "notation_pattern"
+                ]
+              },
+              "strength": {
+                "$ref": "#/components/schemas/BindingStrength"
+              },
+              "valid_from": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "valid_to": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Numeric values are classified against a\n[`ValueRangeSetDef`](crate::value_range::ValueRangeSetDef).\nRanges classify, they don't reject — strength carries no\nenforcement semantics here, so the field is omitted entirely.",
+            "required": [
+              "id",
+              "kind"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/ValueRangeSetId"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "value_range"
+                ]
+              },
+              "valid_from": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "valid_to": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The property realises a business concept catalogued in the\n[`GlossaryTermDef`](crate::glossary::GlossaryTermDef)\nregistry. Pure semantic anchor — no value-domain constraint,\nno enforcement, no strength axis. Pair with a `ValueSet` /\n`CodeSystem` binding when the concept also dictates the value\nvocabulary.",
+            "required": [
+              "id",
+              "kind"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/GlossaryTermId"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "glossary"
+                ]
+              },
+              "valid_from": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "valid_to": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              }
+            }
+          }
+        ],
+        "description": "One semantic constraint on a property — discriminated by the\nregistry kind it points at. Each variant carries only the\nfields that are meaningful for that target:\n\n- `ValueSet` / `CodeSystem` — strength + concept_map (vocabulary\n  translation makes sense)\n- `NotationPattern` — strength only (structural format, no\n  vocabulary translation)\n- `ValueRange` — temporal window only (the IR treats ranges as\n  classifiers, not rejectors; strength would have no enforcement)\n- `Glossary` — temporal window only (semantic anchor; strength\n  carries no enforcement semantics for \"this property realises\n  this concept\")\n\nOrdering matters in [`PropertyDef::bindings`](crate::ir::PropertyDef::bindings):\nwhen two bindings would both classify a value (e.g. one notation\npattern is a stricter form of another), consumers honour the\nfirst match. `valid_from` / `valid_to` filter the active set\nbefore that ordering applies."
       },
       "PropertyCandidateBody": {
         "type": "object",
@@ -10296,6 +11139,12 @@
             },
             "description": "Localized alternate names used for synonym-aware UI search\nand for LLM prompts that normalise arbitrary user phrasing\nonto the property. Not required to be Cypher-safe — the\nproperty key is still the compile target."
           },
+          "bindings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PropertyBinding"
+            }
+          },
           "business_context": {
             "$ref": "#/components/schemas/LocalizedText",
             "description": "Free-form business-context note (e.g. \"extracted from legacy\nCRM; maps to CUST_STATUS column\"). Shown in the property\ninspector and fed into the design-agent's context prompt."
@@ -10349,16 +11198,6 @@
             "$ref": "#/components/schemas/LocalizedText",
             "description": "Localized display name shown in the UI."
           },
-          "glossary_term_id": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/GlossaryTermId"
-              }
-            ]
-          },
           "id": {
             "$ref": "#/components/schemas/PropertyId",
             "description": "Stable UUID for this property."
@@ -10388,17 +11227,6 @@
           "name": {
             "$ref": "#/components/schemas/PropertyKey",
             "description": "Canonical, language-neutral property name (e.g. \"name\", \"price\",\n\"created_at\"). Used as the Neo4j property key. [`PropertyKey`]\nenforces the `is_valid_graph_identifier` invariant at the type\nlevel — a PropertyDef cannot exist with a name that would fail\nCypher emission."
-          },
-          "notation_pattern_id": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/NotationPatternId",
-                "description": "When set, values of this property must conform to the\nreferenced [`crate::notation_pattern::NotationPatternDef`]\n(e.g. `\"SPRING_26_001\"`). The runtime decomposes values\ninto named components and exposes component-level queries\n(\"all SPRING campaigns regardless of year\") without\nrepeated ad-hoc regex parsing in every caller."
-              }
-            ]
           },
           "nullable": {
             "type": "boolean",
@@ -10463,28 +11291,6 @@
               {
                 "$ref": "#/components/schemas/CodedValueId",
                 "description": "Unit of measure for numeric properties — references a\n[`crate::code_system::CodedValue`] in a UCUM-compatible\n[`crate::code_system::CodeSystemDef`]. Replaces the\nprevious free-form `unit: Option<String>` so the runtime\ncan parse, convert, and dimension-check numeric values\nagainst the UCUM registry (no more `\"kg\" + \"m\"` silent\nnonsense). The UCUM code system is typically seeded as\n`CodeSystemKind::External { source_ref: \"http://unitsofmeasure.org\" }`\nbut any [`crate::code_system::CodeSystemDef`] can supply\ncustom units for domain-specific measures."
-              }
-            ]
-          },
-          "value_range_set_id": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/ValueRangeSetId",
-                "description": "When set, numeric values of this property are classified\nagainst the referenced\n[`crate::value_range::ValueRangeSetDef`] — \"blood pressure\n90–120 is Normal\", \"cost 500k+ is Critical\". The runtime\nexposes the classification label alongside the raw value;\nthe LLM prompt layer injects band labels so natural-language\nqueries like \"high-cost orders\" resolve deterministically."
-              }
-            ]
-          },
-          "value_set_id": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/ValueSetId",
-                "description": "When set, values of this property must be codes from the\nreferenced [`crate::value_set::ValueSetDef`]. The LLM prompt\nlayer injects the expanded code list + display labels so\nnatural-language filters like \"status active\" resolve onto\nthe correct code. Runtime validation rejects writes whose\nvalue is not in the expanded set."
               }
             ]
           }
@@ -10576,6 +11382,17 @@
           "location"
         ],
         "properties": {
+          "concept_map_id": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ConceptMapId",
+                "description": "Optional [`ConceptMapDef`](crate::concept_map::ConceptMapDef)\napplied at query-compile time so the upstream source's codes\nland on the property's canonical vocabulary without authors\nrepeating the mapping at every callsite. The compiler's\n`concept_map_rewrite` walker reads this id when assembling\nits `(variable, property) → ConceptMapDef` translation\ntable."
+              }
+            ]
+          },
           "location": {
             "$ref": "#/components/schemas/PropertyLocation",
             "description": "Where the value comes from."
@@ -11216,47 +12033,123 @@
           }
         }
       },
-      "QueryRawRequest": {
+      "ReanalyzeProjectRequest": {
         "type": "object",
         "required": [
-          "query"
+          "source",
+          "revision",
+          "selection"
         ],
         "properties": {
-          "ontology_id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid",
-            "description": "Optional saved-ontology id. When present, the runtime's\nOntologyValidator gates the query against this ontology (rejects\nunknown labels / relationship types / property keys). When\nomitted, the raw path stays ontology-free and only the safety\n+ workspace-scope gates apply."
-          },
-          "query": {
-            "type": "string",
-            "description": "Raw query statement in the target language (e.g., Cypher)."
-          }
-        }
-      },
-      "QueryRawResponse": {
-        "type": "object",
-        "required": [
-          "query",
-          "target"
-        ],
-        "properties": {
-          "query": {
-            "type": "string",
-            "description": "The query that was executed."
-          },
-          "results": {
+          "repo_source": {
             "type": [
               "object",
               "null"
             ],
-            "description": "Query result rows and metadata."
+            "description": "Optional repository source for enrichment."
           },
-          "target": {
+          "revision": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "selection": {
+            "type": "object",
+            "description": "Which tables of the source to introspect on this re-analysis.\nRequired and explicit — `kind: \"all\"` for a full sweep,\n`kind: \"subset\"` to narrow."
+          },
+          "source": {
+            "$ref": "#/components/schemas/ProjectSource",
+            "description": "Data source to re-analyze (must match original source type)."
+          }
+        }
+      },
+      "ReanalyzeProjectResponse": {
+        "type": "object",
+        "required": [
+          "project"
+        ],
+        "properties": {
+          "invalidated_decisions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Design decisions that were invalidated by the schema change."
+          },
+          "project": {
+            "type": "object"
+          }
+        }
+      },
+      "ReconcileProjectRequest": {
+        "type": "object",
+        "required": [
+          "revision",
+          "reconciled_ontology",
+          "decisions",
+          "uncertain_matches"
+        ],
+        "properties": {
+          "decisions": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "User accept/reject decisions for uncertain matches."
+          },
+          "reconciled_ontology": {
+            "type": "object",
+            "description": "Reconciled ontology with user decisions applied."
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "uncertain_matches": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "The uncertain matches being decided upon."
+          }
+        }
+      },
+      "RefineProjectRequest": {
+        "type": "object",
+        "required": [
+          "revision"
+        ],
+        "properties": {
+          "additional_context": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Additional context for the LLM refinement."
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "RefineProjectResponse": {
+        "type": "object",
+        "required": [
+          "project",
+          "profile_summary",
+          "reconcile_report"
+        ],
+        "properties": {
+          "profile_summary": {
             "type": "string",
-            "description": "Compiler target language (e.g., \"cypher\")."
+            "description": "Summary of graph profiling results."
+          },
+          "project": {
+            "type": "object"
+          },
+          "reconcile_report": {
+            "type": "object",
+            "description": "Report on ID reconciliation between original and refined ontology."
           }
         }
       },
@@ -11481,7 +12374,18 @@
           }
         }
       },
-      "ReviewRequest": {
+      "RestoreProjectRevisionResponse": {
+        "type": "object",
+        "required": [
+          "project"
+        ],
+        "properties": {
+          "project": {
+            "type": "object"
+          }
+        }
+      },
+      "ReviewApprovalRequest": {
         "type": "object",
         "required": [
           "approved"
@@ -11499,7 +12403,7 @@
           }
         }
       },
-      "ReviewResponse": {
+      "ReviewApprovalResponse": {
         "type": "object",
         "required": [
           "status"
@@ -11589,7 +12493,7 @@
       },
       "RuleDef": {
         "type": "object",
-        "description": "Ontology constraint, named and serializable.",
+        "description": "Ontology constraint, named and serializable.\n\n`name` is `LocalizedText` so admin surfaces (and the SHACL\nviolation message that reaches the LLM via tool results) can\nrender the rule in the workspace's locale chain. The IR's other\nhuman-facing fields (`description`, `display_name`, glossary\n`term`) follow the same pattern; making `name` a bare `String`\nwould be the only single-language island left.",
         "required": [
           "id",
           "name",
@@ -11619,10 +12523,34 @@
             "$ref": "#/components/schemas/RuleKind"
           },
           "name": {
-            "type": "string"
+            "$ref": "#/components/schemas/LocalizedText"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/RuleOrigin",
+            "description": "Provenance of the rule. Authored rules accept edits; derived\nrules are regenerated from the source binding and must not be\nhand-edited (the editor disables controls; exporters skip\nthem to avoid double-emit). Defaults to `Authored` when\nmissing on the wire."
+          },
+          "rationale": {
+            "$ref": "#/components/schemas/LocalizedText",
+            "description": "Why this rule exists — operator-facing explanation that\noutlives the rule's authors. Surfaced verbatim in the rule\neditor and the violation diagnostic so a future engineer\nreading a SHACL failure understands the policy intent\nwithout spelunking commit history. Empty when the rule\npre-dates the rationale field; the editor prompts to\nbackfill on next edit."
           },
           "severity": {
             "$ref": "#/components/schemas/Severity"
+          },
+          "valid_from": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Inclusive lower bound on the rule's effective window.\nValidators that filter the active rule set against an `as_of`\ninstant skip rules whose `valid_from > as_of`. `None` means\n\"in effect from the start of the ontology version\"."
+          },
+          "valid_to": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Exclusive upper bound on the rule's effective window. `None`\nmeans \"indefinitely\". Same filter contract as `valid_from`."
           }
         }
       },
@@ -11747,6 +12675,49 @@
         ],
         "description": "Shape variant."
       },
+      "RuleOrigin": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Authored by a human (or persisted by an LLM acting as one).\nDefault — every existing rule deserialises with this origin\nwhen the field is missing on the wire.",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "authored"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Synthesised from a `PropertyBinding`. Carries the source\ncoordinates so consumers can navigate back to the binding.",
+            "required": [
+              "node_type_id",
+              "property_id",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "derived_from_binding"
+                ]
+              },
+              "node_type_id": {
+                "$ref": "#/components/schemas/NodeTypeId"
+              },
+              "property_id": {
+                "$ref": "#/components/schemas/PropertyId"
+              }
+            }
+          }
+        ],
+        "description": "Where a `RuleDef` came from. Authored rules are first-class user\ninput the admin UI lets people edit; derived rules are synthesised\nby the platform from another piece of the IR (typically a\n`Required`-strength `PropertyBinding` via\n[`crate::derived_rules::derive_binding_rules`]) and must be\nregenerated rather than edited.\n\nConsumers gate behaviour on this field:\n- **Editors** disable controls for `DerivedFromBinding` rules and\n  redirect the user to the source binding instead.\n- **Exporters** (OWL/Turtle, SHACL, etc.) skip derived rules to\n  avoid double-emitting the constraint that the binding will\n  re-derive on import.\n- **LLM context builders** strip derived rules to keep the prompt\n  focused on user intent."
+      },
       "SavedPatternResponse": {
         "type": "object",
         "required": [
@@ -11786,6 +12757,379 @@
             "format": "date-time"
           }
         }
+      },
+      "SchemaDependencyGraph": {
+        "type": "object",
+        "description": "Inverted index of every schema-level reference in an\n[`OntologyIR`]. Build once per snapshot; query many times via\n[`SchemaDependencyGraph::dependents_of`].\n\nStored as a sorted [`DependencyBucket`] vector so the wire\nshape is a clean JSON array and `dependents_of` runs in\nO(log n) via binary search. Both build and query paths are\ndeterministic.",
+        "required": [
+          "buckets"
+        ],
+        "properties": {
+          "buckets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DependencyBucket"
+            },
+            "description": "Targets sorted by [`SchemaEntityRef`] ordering; each\nbucket's edges sorted within."
+          }
+        }
+      },
+      "SchemaEntityRef": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "kind"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "node_type"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "kind"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "edge_type"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "`owner` is the parent NodeType or EdgeType id; `id` is the\nPropertyId. Properties are nested entities — the owner\ndisambiguates same-named properties on different parents.",
+            "required": [
+              "owner",
+              "id",
+              "kind"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "property"
+                ]
+              },
+              "owner": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "kind"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "interface"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "kind"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "glossary_term"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "kind"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "value_set"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "kind"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "code_system"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "kind"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "notation_pattern"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "kind"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "value_range_set"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "kind"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "rule"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "kind"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "function"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "kind"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "metric"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "kind"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "action"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "kind"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "enrichment"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "kind"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "object_mapping"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "kind"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "link_mapping"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "kind"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "concept_map"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "kind"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "data_quality"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "CodedValue lives inside a CodeSystem; pinned by both ids\nso a property's `unit_id` can deep-link to the correct\nsystem.",
+            "required": [
+              "code_system",
+              "id",
+              "kind"
+            ],
+            "properties": {
+              "code_system": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "coded_value"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Stable handle that addresses any first-class entity in an\n[`OntologyIR`]. Used as the key into\n[`SchemaDependencyGraph`]'s inverted index.\n\nEach variant carries plain `String` ids (not the typed\n`XxxId` newtypes) so the graph is self-contained — callers can\nserialise the whole shape over the wire without depending on\nthe per-id wrapper types."
       },
       "ScopeKind": {
         "type": "string",
@@ -12291,9 +13635,56 @@
                 "$ref": "#/components/schemas/NodeTypeId"
               }
             }
+          },
+          {
+            "type": "object",
+            "description": "`sh:lessThan` — the property's value must be strictly less\nthan the value of `other_property` on the same node. Used for\ntemporal pairs (`started_at < ended_at`) and bounded numerics\n(`min_value < max_value`). The runtime validator emits a\nCypher predicate; this is not DDL-expressible.",
+            "required": [
+              "target",
+              "other_property",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "less_than"
+                ]
+              },
+              "other_property": {
+                "$ref": "#/components/schemas/PropertyId",
+                "description": "Sibling property the value is compared against. Both\nproperties belong to the same node-type shape; the\nintegrity layer rejects unknown ids."
+              },
+              "target": {
+                "$ref": "#/components/schemas/ConstraintTarget"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "`sh:equals` — the property's value must equal the value of\n`other_property` on the same node. Used to enforce\ncross-system parity (e.g. internal and external invoice\nnumbers must match after sync).",
+            "required": [
+              "target",
+              "other_property",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "equals"
+                ]
+              },
+              "other_property": {
+                "$ref": "#/components/schemas/PropertyId"
+              },
+              "target": {
+                "$ref": "#/components/schemas/ConstraintTarget"
+              }
+            }
           }
         ],
-        "description": "SHACL Core constraint component. The subset covers ~95% of\nreal-world rule usage; advanced components (`sh:and`, `sh:or`,\n`sh:xone`, recursion rules) land in Phase 11 with the reasoning\nengine."
+        "description": "SHACL Core constraint component. The subset covers ~95% of\nreal-world rule usage; advanced components (`sh:and`, `sh:or`,\n`sh:xone`, recursion rules) land in Phase 11 with the reasoning\nengine.\n\n`ShaclConstraint` lives at the **logical** layer — the SHACL\nvalidator pipeline checks each constraint at write/read time and\nproduces a structured violation report. For storage-engine\nconstraints that compile to graph-DB DDL (uniqueness, existence,\nnode keys), use [`crate::ir::NodeConstraint`] on `NodeTypeDef`\ninstead. The two surfaces deliberately do not overlap: DDL\nconstraints buy database-native enforcement at the cost of\nportability; SHACL constraints buy expressiveness at the cost of\nrequiring the validator on the write path."
       },
       "SignalBody": {
         "type": "object",
@@ -12442,14 +13833,11 @@
           "aliases": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "object"
             }
           },
           "description": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "object"
           },
           "policy": {
             "oneOf": [
@@ -12462,8 +13850,8 @@
             ]
           },
           "term": {
-            "type": "string",
-            "description": "Canonical term name — the only required field."
+            "type": "object",
+            "description": "Canonical term name. `LocalizedText` so a draft term carries\nthe same multi-locale shape as a saved one — the scorer matches\nagainst every locale variant."
           },
           "term_id": {
             "type": [
@@ -12559,12 +13947,259 @@
             }
           },
           "term": {
-            "type": "string"
+            "type": "object"
           },
           "term_id": {
             "type": "string"
           }
         }
+      },
+      "TermChangeNote": {
+        "type": "object",
+        "description": "One entry in a term's append-only change log.\n\n`provenance` is the optional bridge to the workspace-wide PROV-O\ngraph: when a change was driven by a structured activity (a\nchat-driven edit, an LLM enrichment pass, an external import),\nthe corresponding [`crate::provenance::ProvenanceDef`] id lives\nhere so consumers can walk back to the agent / activity / source\nwithout parsing the prose `note`. Routine manual edits leave it\n`None`.",
+        "required": [
+          "at",
+          "note"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Principal who made the change. `None` for system-driven\nrewrites (auto-enrichment, bulk import)."
+          },
+          "note": {
+            "$ref": "#/components/schemas/LocalizedText"
+          },
+          "provenance": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProvenanceId",
+                "description": "Optional pointer to the workspace-wide PROV-O entry that\ncaptured the activity behind this change."
+              }
+            ]
+          }
+        }
+      },
+      "TermGovernance": {
+        "type": "object",
+        "description": "Authorship and editorial trail. SKOS-XL `dct:creator`,\n`dct:created`, `xl:scopeNote`, `xl:editorialNote`, `xl:changeNote`.",
+        "properties": {
+          "change_notes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TermChangeNote"
+            },
+            "description": "Append-only change log. Each entry records one revision of\nthe term (definition rewrite, alias added, deprecation)."
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the term was first added."
+          },
+          "created_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier of the principal who authored the term. `None`\nwhen the term was machine-derived without a human author\n(`origin = DerivedFromColumn`, etc.)."
+          },
+          "editorial_notes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LocalizedText"
+            },
+            "description": "Editorial notes — instructions to glossary maintainers\n(\"verify against legal vocabulary\"). Internal, not for the\ncatalogue surface."
+          },
+          "origin": {
+            "$ref": "#/components/schemas/TermOrigin",
+            "description": "How the term entered the glossary."
+          },
+          "scope_notes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LocalizedText"
+            },
+            "description": "Scope notes — clarifications about applicability (\"only in\nretail context\", \"excludes returns\"). One entry per locale."
+          }
+        }
+      },
+      "TermLifecycle": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "In active use. Default for new terms.",
+            "required": [
+              "state"
+            ],
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "active"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Discouraged but still resolvable. `replaced_by` carries the\nsuccessor term so NL-to-Cypher / catalogue UI can offer a\n\"use X instead\" hint without authoring a separate redirect\ntable.",
+            "required": [
+              "deprecated_at",
+              "state"
+            ],
+            "properties": {
+              "deprecated_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "replaced_by": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/GlossaryTermId"
+                  }
+                ]
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "deprecated"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Soft-deleted. Excluded from active resolvers but retained in\nthe IR so historical query plans / load lineage referencing\nthe term continue to compile.",
+            "required": [
+              "retired_at",
+              "state"
+            ],
+            "properties": {
+              "retired_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "retired"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Lifecycle state. New terms are `Active`; deprecation points to a\nsuccessor; retirement keeps the term in history but excludes it\nfrom active resolution."
+      },
+      "TermOrigin": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Authored by hand in the glossary UI or imported via authored\nseed file.",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "manual"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Auto-extracted from a source-data column during analysis. The\nFE shows an \"AI-suggested\" marker; an operator must confirm\nbefore the term participates in NL routing.",
+            "required": [
+              "table",
+              "column",
+              "kind"
+            ],
+            "properties": {
+              "column": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "derived_from_column"
+                ]
+              },
+              "table": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Imported from an external catalogue (Collibra, Atlan, …). The\ncatalogue identifier lets a future re-sync match terms back\nto their upstream record.",
+            "required": [
+              "catalog",
+              "kind"
+            ],
+            "properties": {
+              "catalog": {
+                "type": "string"
+              },
+              "external_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "imported_from"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Where the term originated. Drives UI affordances like a \"machine\nsuggestion\" badge that prompts a human to validate."
+      },
+      "TermRelation": {
+        "type": "object",
+        "description": "One SKOS-style edge between two glossary terms.\n\nRelations are stored on the term whose perspective they describe\n(`source` is the term the edge \"lives on\"). Inverse edges are\nauthored separately when both directions are meaningful — a\n`Broader → t-parent` lives on the child term, and the parent\ncarries `Narrower → t-child` on its own list.",
+        "required": [
+          "kind",
+          "target"
+        ],
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/TermRelationKind"
+          },
+          "target": {
+            "$ref": "#/components/schemas/GlossaryTermId"
+          }
+        }
+      },
+      "TermRelationKind": {
+        "type": "string",
+        "description": "SKOS-aligned relation kinds.\n\nReference: <https://www.w3.org/TR/skos-reference/>. The four\nhierarchy / lateral kinds (`Broader`, `Narrower`, `Related`,\n`SeeAlso`) plus the two equivalence kinds (`ExactMatch`,\n`CloseMatch`) cover the canonical SKOS surface for vocabulary\nalignment.",
+        "enum": [
+          "broader",
+          "narrower",
+          "related",
+          "see_also",
+          "exact_match",
+          "close_match"
+        ]
       },
       "UiConfig": {
         "type": "object",
@@ -12596,7 +14231,72 @@
           }
         }
       },
-      "UpdateDecisionsRequest": {
+      "UpdateConfigRequest": {
+        "type": "object",
+        "required": [
+          "updates"
+        ],
+        "properties": {
+          "updates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConfigUpdate"
+            }
+          }
+        }
+      },
+      "UpdateInsightRequest": {
+        "type": "object",
+        "required": [
+          "question",
+          "description",
+          "query_ir",
+          "expected_updated_at"
+        ],
+        "properties": {
+          "concept_anchors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": {
+            "type": "object",
+            "description": "Required on the wire (see `CreateInsightRequest::description`)."
+          },
+          "expected_updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Optimistic-concurrency handle: must match the row's current\n`updated_at`. Stale writes return 409 so two concurrent\nedits don't silently overwrite each other."
+          },
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "original_provenance": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "query_ir": {
+            "type": "object"
+          },
+          "question": {
+            "type": "object"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "UpdateProjectDecisionsRequest": {
         "type": "object",
         "required": [
           "design_options",
@@ -12611,6 +14311,24 @@
             "type": "integer",
             "format": "int32"
           }
+        }
+      },
+      "UpdatePromptRequest": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "is_active": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "variables": {}
         }
       },
       "UpdateSavedPatternRequest": {
@@ -12631,6 +14349,49 @@
           },
           "pattern_ir": {
             "type": "object"
+          }
+        }
+      },
+      "UpsertPerspectiveRequest": {
+        "type": "object",
+        "required": [
+          "lineage_id",
+          "topology_signature",
+          "name",
+          "positions",
+          "viewport"
+        ],
+        "properties": {
+          "collapsed_groups": {
+            "description": "Collapsed group settings JSON."
+          },
+          "filters": {
+            "description": "Filter settings JSON."
+          },
+          "is_default": {
+            "type": "boolean"
+          },
+          "lineage_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "positions": {
+            "description": "Node positions JSON."
+          },
+          "project_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "topology_signature": {
+            "type": "string"
+          },
+          "viewport": {
+            "description": "Viewport state JSON."
           }
         }
       },
@@ -12956,33 +14717,41 @@
       },
       "WorkspaceMeResponse": {
         "type": "object",
-        "description": "Per-request workspace identity surface for the FE. Carries the\ncaller's *active* workspace plus the locale chain the renderer\nneeds — the FE's `useLocaleChain` hook reads this once per\nworkspace switch instead of bolting locale onto `/auth/me`\n(workspace-level data on a user-level endpoint).",
+        "description": "Per-request workspace identity surface for the FE. Carries the\ncaller's *active* workspace plus both locale chains the renderer\nneeds — the FE's `useLocaleChain` hook reads this once per\nworkspace switch instead of bolting locale onto `/auth/me`\n(workspace-level data on a user-level endpoint).",
         "required": [
           "id",
           "name",
           "slug",
           "role",
           "primary_locale",
-          "locale_fallback"
+          "admin_locale_fallback",
+          "llm_locale_fallback"
         ],
         "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "locale_fallback": {
+          "admin_locale_fallback": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "Ordered fallback chain (e.g. `[\"ko\", \"en\"]`). FE\n`localize()` walks this array; first non-empty translation wins."
+            "description": "Ordered fallback chain the admin / operator UI walks\n(e.g. `[\"ko\", \"en\"]`). FE `localize()` reads this; first\nnon-empty translation wins."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "llm_locale_fallback": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Ordered fallback chain the agent / Brain prompts and\ntool-result contexts walk (e.g. `[\"en\", \"ko\"]`). Distinct\nfrom `admin_locale_fallback` so a Korean-first admin\nsurface can pair with an English-first LLM context."
           },
           "name": {
             "type": "string"
           },
           "primary_locale": {
             "type": "string",
-            "description": "BCP 47 tag — the workspace's default locale."
+            "description": "BCP 47 tag — the workspace's default authoring locale."
           },
           "role": {
             "type": "string"
