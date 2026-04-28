@@ -85,11 +85,6 @@ export function DashboardLayout() {
     }
   }, [activeDashboardId, dashboards, setActiveDashboardId]);
 
-  // Sync widget count into Zustand (external store — same exemption).
-  useEffect(() => {
-    useAppStore.getState().setDashboardWidgetCount(widgets.length);
-  }, [widgets.length]);
-
   const refreshWidgets = useCallback(() => {
     if (!activeDashboardId) return;
     qc.invalidateQueries({ queryKey: widgetsKeys.list(activeDashboardId) });

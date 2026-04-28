@@ -13,8 +13,7 @@ import { PanelLeftIcon, PanelRightIcon, Search01Icon } from "@hugeicons/core-fre
 import { Group, Panel, usePanelRef } from "react-resizable-panels";
 import { ResizeHandle } from "@/components/ui/resize-handle";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import type { OntologyIR, QualityGap } from "@/types/api";
-
+import type { QualityGap } from "@/types/api";
 // ---------------------------------------------------------------------------
 // Design layout — Explorer | Canvas | Inspector / Bottom Panel
 // ---------------------------------------------------------------------------
@@ -26,7 +25,7 @@ export function DesignLayout() {
   const toggleInspector = useAppStore((s) => s.toggleInspector);
   const ontology = useAppStore((s) => s.ontology);
   const activeProject = useAppStore((s) => s.activeProject);
-  const setOntology = useAppStore((s) => s.setOntology);
+  const applyProjectSnapshot = useAppStore((s) => s.applyProjectSnapshot);
   const hasUnsavedEdits = useAppStore((s) => s.commandStack.length > 0);
   const isBottomPanelOpen = useAppStore((s) => s.isBottomPanelOpen);
   const bottomPanelRef = usePanelRef();
@@ -49,18 +48,15 @@ export function DesignLayout() {
     }
   }, [isBottomPanelOpen, bottomPanelRef]);
 
-  // Restore ontology from active project when entering Design mode.
-  // If no active project, clear any orphaned ontology from other modes
-  // (prevents "No project" header with visible ontology — confusing UX).
+  // Sync the ontology cache to the active project on mount and on
+  // any subsequent activeProject change (e.g. cache invalidation
+  // after save, post-refetch). `applyProjectSnapshot` replays the
+  // commandStack on top of the new server snapshot when the project
+  // id is unchanged so unsaved edits survive a refetch; switching
+  // projects clears the stack atomically.
   useEffect(() => {
-    if (activeProject?.ontology) {
-      setOntology(activeProject.ontology as OntologyIR);
-    } else {
-      useAppStore.getState().resetOntology();
-    }
-    // Only restore on mount (when switching TO design mode)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    applyProjectSnapshot(activeProject);
+  }, [activeProject, applyProjectSnapshot]);
 
   // Cmd+K / Ctrl+K to open search; Cmd+\ cycles bottom-panel snap;
   // Cmd+Shift+\ jumps straight to fullscreen; Esc exits fullscreen.

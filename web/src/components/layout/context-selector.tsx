@@ -63,8 +63,7 @@ export function ContextSelector() {
 function DesignSelector() {
   const t = useTranslations("chrome.contextSelector");
   const activeProject = useAppStore((s) => s.activeProject);
-  const setActiveProject = useAppStore((s) => s.setActiveProject);
-  const setOntology = useAppStore((s) => s.setOntology);
+  const applyProjectSnapshot = useAppStore((s) => s.applyProjectSnapshot);
   const setDesignBottomTab = useAppStore((s) => s.setDesignBottomTab);
   const bottomPanelOpen = useAppStore((s) => s.isBottomPanelOpen);
   const toggleBottomPanel = useAppStore((s) => s.toggleBottomPanel);
@@ -86,12 +85,7 @@ function DesignSelector() {
     setOpen(false);
     try {
       const project = await getProject(id);
-      setActiveProject(project);
-      if (project.ontology) {
-        setOntology(project.ontology as OntologyIR);
-      } else {
-        useAppStore.getState().resetOntology();
-      }
+      applyProjectSnapshot(project);
     } catch (err) {
       console.error("Failed to load project:", err);
       toast.error(t("toast.loadProjectFailed"));
@@ -114,8 +108,7 @@ function DesignSelector() {
             onClick={async () => {
               if (!(await guardPendingEdits(t("guardNewProject")))) return;
               setOpen(false);
-              setActiveProject(null);
-              useAppStore.getState().resetOntology();
+              applyProjectSnapshot(null);
               setDesignBottomTab("workflow");
               if (!bottomPanelOpen) toggleBottomPanel();
             }}
@@ -159,8 +152,7 @@ function DesignSelector() {
                           base_ontology_id: p.ontology_id!,
                           title: `${p.title || t("untitledProject")} (fork)`,
                         });
-                        setActiveProject(forked);
-                        if (forked.ontology) setOntology(forked.ontology as OntologyIR);
+                        applyProjectSnapshot(forked);
                         setDesignBottomTab("workflow");
                         if (!bottomPanelOpen) toggleBottomPanel();
                         toast.success(t("toast.forked"), { description: t("forkedDescription", { title: p.title ?? t("untitledProject") }) });
@@ -214,7 +206,7 @@ function AnalyzeSelector() {
         const detail = await getOntologyDetail(item.id);
         if (cancelled || !detail.ontology_ir) return;
         const store = useAppStore.getState();
-        store.loadOntology(detail.ontology_ir as OntologyIR);
+        store.loadStandaloneOntology(detail.ontology_ir as OntologyIR);
         store.setOntologyId(detail.id);
       } catch (err) {
         console.error("Failed to hydrate ontology:", err);
@@ -291,7 +283,7 @@ function ExploreSelector() {
         const detail = await getOntologyDetail(item.id);
         if (cancelled || !detail.ontology_ir) return;
         const store = useAppStore.getState();
-        store.loadOntology(detail.ontology_ir as OntologyIR);
+        store.loadStandaloneOntology(detail.ontology_ir as OntologyIR);
         store.setOntologyId(detail.id);
       } catch (err) {
         console.error("Failed to hydrate ontology:", err);

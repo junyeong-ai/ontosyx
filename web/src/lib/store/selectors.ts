@@ -82,8 +82,6 @@ export const selectStateNeighborhoodFocus = (s: AppStore) =>
 
 export const selectStateActiveDashboardId = (s: AppStore) =>
   s.activeDashboardId;
-export const selectStateDashboardWidgetCount = (s: AppStore) =>
-  s.dashboardWidgetCount;
 export const selectStateDashboardFilters = (s: AppStore) => s.dashboardFilters;
 export const selectStateDashboardTypeFilters = (s: AppStore) =>
   s.dashboardTypeFilters;

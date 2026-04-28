@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { useAppStore } from "@/lib/store";
 import { applyOntologyCommands } from "@/lib/api";
 import { handleSchemaExport, type ExportFormat } from "@/lib/export-utils";
-import type { OntologyIR } from "@/types/api";
 
 interface CanvasCommandsOptions {
   setIsPaletteOpen: (v: boolean | ((v: boolean) => boolean)) => void;
@@ -35,8 +34,7 @@ export function useCanvasCommands(options: CanvasCommandsOptions): CanvasCommand
   const select = useAppStore((s) => s.select);
   const clearSelection = useAppStore((s) => s.clearSelection);
   const applyCommand = useAppStore((s) => s.applyCommand);
-  const setOntology = useAppStore((s) => s.setOntology);
-  const setActiveProject = useAppStore((s) => s.setActiveProject);
+  const applyProjectSnapshot = useAppStore((s) => s.applyProjectSnapshot);
   const setHighlightedBindings = useAppStore((s) => s.setHighlightedBindings);
   const setNeighborhoodFocus = useAppStore((s) => s.setNeighborhoodFocus);
 
@@ -49,13 +47,14 @@ export function useCanvasCommands(options: CanvasCommandsOptions): CanvasCommand
         revision: store.activeProject.revision,
         commands,
       });
-      setOntology(resp.project.ontology as OntologyIR);
-      setActiveProject(resp.project);
+      // Server canonical replaces local state + clears command stack
+      // atomically through `applyProjectSnapshot`.
+      applyProjectSnapshot(resp.project);
       toast.success("Ontology saved");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save");
     }
-  }, [setOntology, setActiveProject]);
+  }, [applyProjectSnapshot]);
 
   const deleteSelected = useCallback(() => {
     const store = useAppStore.getState();

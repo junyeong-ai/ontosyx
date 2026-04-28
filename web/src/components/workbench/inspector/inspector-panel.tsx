@@ -9,8 +9,7 @@ import { UndoIcon, RedoIcon, FloppyDiskIcon } from "@hugeicons/core-free-icons";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { Tooltip } from "@/components/ui/tooltip";
-import type { OntologyIR, QualityGap } from "@/types/api";
-import { NodeDetail, EdgeDetail } from "./entity-detail";
+import type { QualityGap } from "@/types/api";import { NodeDetail, EdgeDetail } from "./entity-detail";
 import { arr } from "@/lib/ir-collections";
 
 // ---------------------------------------------------------------------------
@@ -19,7 +18,7 @@ import { arr } from "@/lib/ir-collections";
 
 export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
   const ontology = useAppStore((s) => s.ontology);
-  const setOntology = useAppStore((s) => s.setOntology);
+  const applyProjectSnapshot = useAppStore((s) => s.applyProjectSnapshot);
   const selectedNodeId = useAppStore(selectStateSelectedNodeId);
   const selectedEdgeId = useAppStore(selectStateSelectedEdgeId);
   const commandStack = useAppStore((s) => s.commandStack);
@@ -27,7 +26,6 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
   const undo = useAppStore((s) => s.undo);
   const redo = useAppStore((s) => s.redo);
   const activeProject = useAppStore((s) => s.activeProject);
-  const setActiveProject = useAppStore((s) => s.setActiveProject);
   const [isSaving, setIsSaving] = useState(false);
 
   // Verification state
@@ -50,15 +48,15 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
         commands,
       });
       // Server canonical replaces local state + clears command stack
-      setOntology(resp.project.ontology as OntologyIR);
-      setActiveProject(resp.project);
+      // atomically — both halves can never drift.
+      applyProjectSnapshot(resp.project);
       toast.success("Ontology saved");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save");
     } finally {
       setIsSaving(false);
     }
-  }, [activeProject, commandStack, setOntology, setActiveProject]);
+  }, [activeProject, commandStack, applyProjectSnapshot]);
 
 
   if (!ontology) return <Empty text="No ontology" />;

@@ -1,6 +1,11 @@
 import type { StateCreator } from "zustand";
-import type { OntologyIR, OntologyCommand, PropertyPatch, Cardinality } from "@/types/api";
-import type { AppStore, OntologySlice } from "./types";
+import type {
+  Cardinality,
+  OntologyCommand,
+  OntologyIR,
+  PropertyPatch,
+} from "@/types/api";
+import type { AppStore, CommandEntry, OntologySlice } from "./types";
 import { type OntologyIndex, buildOntologyIndex } from "@/lib/ontology-index";
 import { toast } from "sonner";
 import { arr } from "@/lib/ir-collections";
@@ -448,12 +453,6 @@ function mapOwner(
 
 export const createOntologySlice: StateCreator<AppStore, [], [], OntologySlice> = (set, get) => ({
   ontology: null,
-  setOntology: (ontology) => {
-    invalidateIndex();
-    capWarningShown = false;
-    if (ontology) ensureIndex(ontology);
-    set({ ontology, commandStack: [], redoStack: [] });
-  },
 
   commandStack: [],
   redoStack: [],
@@ -504,8 +503,66 @@ export const createOntologySlice: StateCreator<AppStore, [], [], OntologySlice> 
     });
   },
   clearCommandStack: () => { capWarningShown = false; set({ commandStack: [], redoStack: [] }); },
-  resetOntology: () => { capWarningShown = false; set({ ontology: null, commandStack: [], redoStack: [] }); },
-  loadOntology: (ontology) => { capWarningShown = false; set({ ontology, commandStack: [], redoStack: [] }); },
+  applyProjectSnapshot: (project) => set((state) => {
+    capWarningShown = false;
+    invalidateIndex();
+
+    if (!project) {
+      return {
+        activeProject: null,
+        ontology: null,
+        commandStack: [],
+        redoStack: [],
+      };
+    }
+
+    const baseOntology = (project.ontology ?? null) as OntologyIR | null;
+    const switchingProjects = state.activeProject?.id !== project.id;
+
+    // Same-project refetch (e.g. cache invalidation after save):
+    // replay unsaved commands on the new server snapshot so the
+    // user's in-flight edits survive. Switching projects clears
+    // the stack — the edits belong to the previous project.
+    if (
+      !switchingProjects
+      && state.commandStack.length > 0
+      && baseOntology
+    ) {
+      let working = baseOntology;
+      const replayed: CommandEntry[] = [];
+      for (const entry of state.commandStack) {
+        const result = applyCommandToOntology(working, entry.command);
+        working = result.ontology;
+        replayed.push({ command: entry.command, inverse: result.inverse });
+      }
+      ensureIndex(working);
+      return {
+        activeProject: project,
+        ontology: working,
+        commandStack: replayed,
+      };
+    }
+
+    if (baseOntology) ensureIndex(baseOntology);
+    return {
+      activeProject: project,
+      ontology: baseOntology,
+      commandStack: [],
+      redoStack: [],
+    };
+  }),
+  loadStandaloneOntology: (ontology) => {
+    capWarningShown = false;
+    invalidateIndex();
+    ensureIndex(ontology);
+    set({
+      // Standalone-mode invariant: never paired with a project.
+      activeProject: null,
+      ontology,
+      commandStack: [],
+      redoStack: [],
+    });
+  },
 
   nodeGroups: {},
   restoreNodeGroups: (groups) => set({ nodeGroups: groups }),

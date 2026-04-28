@@ -22,10 +22,7 @@ import { CommandPreview } from "./command-preview";
 import { cn } from "@/lib/cn";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import type {
-  OntologyIR,
-  OntologyCommand,
-} from "@/types/api";
+import type { OntologyCommand } from "@/types/api";
 
 // Re-export extracted components for backward compatibility
 export { DiffOverlayBar } from "./diff-overlay-bar";
@@ -96,8 +93,7 @@ export function CommandBar() {
   const t = useTranslations("workbench.canvas.commandBar");
   const tCommon = useTranslations("common");
   const activeProject = useAppStore((s) => s.activeProject);
-  const setActiveProject = useAppStore((s) => s.setActiveProject);
-  const setOntology = useAppStore((s) => s.setOntology);
+  const applyProjectSnapshot = useAppStore((s) => s.applyProjectSnapshot);
   const setLastReconcileReport = useAppStore((s) => s.setLastReconcileReport);
   const applyCommand = useAppStore((s) => s.applyCommand);
   const commandStack = useAppStore((s) => s.commandStack);
@@ -238,10 +234,7 @@ export function CommandBar() {
         revision: activeProject.revision,
         additional_context: input.trim(),
       });
-      setActiveProject(resp.project);
-      if (resp.project.ontology) {
-        setOntology(resp.project.ontology as OntologyIR);
-      }
+      applyProjectSnapshot(resp.project);
       if (resp.reconcile_report) {
         setLastReconcileReport(resp.reconcile_report);
       }
@@ -277,8 +270,7 @@ export function CommandBar() {
     activeProject,
     input,
     confirmDialog,
-    setActiveProject,
-    setOntology,
+    applyProjectSnapshot,
     setLastReconcileReport,
     t,
   ]);

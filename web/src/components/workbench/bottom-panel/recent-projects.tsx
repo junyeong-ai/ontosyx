@@ -16,7 +16,6 @@ import { cn } from "@/lib/cn";
 import type {
   DesignProjectSummary,
   DesignProjectStatus,
-  OntologyIR,
 } from "@/types/api";
 
 /**
@@ -39,8 +38,7 @@ const MAX_DISPLAY = 5;
 export function RecentProjects() {
   const t = useTranslations("workbench.bottomPanel.recentProjects");
   const { data, isLoading } = useProjects({ limit: MAX_DISPLAY });
-  const setActiveProject = useAppStore((s) => s.setActiveProject);
-  const setOntology = useAppStore((s) => s.setOntology);
+  const applyProjectSnapshot = useAppStore((s) => s.applyProjectSnapshot);
 
   const items = data?.items ?? [];
   if (isLoading) {
@@ -56,10 +54,7 @@ export function RecentProjects() {
 
   const onResume = async (id: string) => {
     const project = await getProject(id);
-    setActiveProject(project);
-    if (project.ontology) {
-      setOntology(project.ontology as OntologyIR);
-    }
+    applyProjectSnapshot(project);
   };
 
   return (

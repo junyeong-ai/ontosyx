@@ -18,7 +18,7 @@ export function GraphAuditSection({ ontologyId }: { ontologyId: string }) {
   const [report, setReport] = useState<GraphAuditReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [adopting, setAdopting] = useState(false);
-  const { setOntology } = useAppStore();
+  const { loadStandaloneOntology } = useAppStore();
 
   const handleAudit = async () => {
     setLoading(true);
@@ -36,7 +36,7 @@ export function GraphAuditSection({ ontologyId }: { ontologyId: string }) {
     setAdopting(true);
     try {
       const adopted = await adoptGraph(t("adoptedName"), true);
-      setOntology(adopted);
+      loadStandaloneOntology(adopted);
       toast.success(
         t("adopted", {
           nodeCount: arr(adopted.node_types).length,

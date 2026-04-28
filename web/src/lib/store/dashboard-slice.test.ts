@@ -68,15 +68,6 @@ describe("DashboardSlice", () => {
     expect(store.getState().dashboardFilters).toEqual({});
   });
 
-  it("dashboardWidgetCount defaults to 0", () => {
-    expect(store.getState().dashboardWidgetCount).toBe(0);
-  });
-
-  it("setDashboardWidgetCount updates count", () => {
-    store.getState().setDashboardWidgetCount(5);
-    expect(store.getState().dashboardWidgetCount).toBe(5);
-  });
-
   // -------------------------------------------------------------------
   // Dashboard-scoped type-filter cross-widget coordination
   // -------------------------------------------------------------------

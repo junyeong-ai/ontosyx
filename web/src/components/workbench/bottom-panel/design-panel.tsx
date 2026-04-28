@@ -2,7 +2,6 @@
 
 import { useAppStore } from "@/lib/store";
 import { useGuardPendingEdits } from "@/lib/guard-pending-edits";
-import type { OntologyIR } from "@/types/api";
 import { CreateProjectForm } from "./create-project-form";
 import { PhaseStepper } from "./phase-stepper";
 import { ProjectWorkflow } from "./project-workflow";
@@ -14,8 +13,7 @@ import { RecentProjects } from "./recent-projects";
 
 export function DesignPanel() {
   const project = useAppStore((s) => s.activeProject);
-  const setProject = useAppStore((s) => s.setActiveProject);
-  const setOntology = useAppStore((s) => s.setOntology);
+  const applyProjectSnapshot = useAppStore((s) => s.applyProjectSnapshot);
   const guardPendingEdits = useGuardPendingEdits();
 
   if (!project) {
@@ -33,10 +31,7 @@ export function DesignPanel() {
           <PhaseStepper currentStepIndex={-1} />
           <CreateProjectForm
             guardBeforeCreate={guardPendingEdits}
-            onCreated={(p) => {
-              setProject(p);
-              if (p.ontology) setOntology(p.ontology as OntologyIR);
-            }}
+            onCreated={(p) => applyProjectSnapshot(p)}
           />
           <RecentProjects />
         </div>
@@ -54,8 +49,7 @@ export function DesignPanel() {
     <div className="h-full overflow-auto">
       <ProjectWorkflow
         project={project}
-        setProject={setProject}
-        setOntology={setOntology}
+        applyProjectSnapshot={applyProjectSnapshot}
       />
     </div>
   );

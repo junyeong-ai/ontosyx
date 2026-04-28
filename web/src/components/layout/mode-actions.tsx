@@ -40,8 +40,7 @@ function DesignActions() {
   const t = useTranslations("chrome.modeActions");
   const tSelector = useTranslations("chrome.contextSelector");
   const ontology = useAppStore((s) => s.ontology);
-  const setOntology = useAppStore((s) => s.setOntology);
-  const setActiveProject = useAppStore((s) => s.setActiveProject);
+  const loadStandaloneOntology = useAppStore((s) => s.loadStandaloneOntology);
   const activeProject = useAppStore((s) => s.activeProject);
   const guardPendingEdits = useGuardPendingEdits();
 
@@ -107,8 +106,7 @@ function DesignActions() {
         }
       }
 
-      setActiveProject(null);
-      setOntology(imported);
+      loadStandaloneOntology(imported);
       toast.success(t("toast.imported"), {
         description: t("importedDescription", {
           nodes: arr(imported.node_types).length,

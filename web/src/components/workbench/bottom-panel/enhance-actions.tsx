@@ -11,8 +11,7 @@ import { useAppStore } from "@/lib/store";
 import { extendProject, reanalyzeProject } from "@/lib/api";
 import { isGitUrl } from "@/lib/git-url";
 import { useGuardPendingEdits } from "@/lib/guard-pending-edits";
-import type { DesignProject, DesignSource, OntologyIR } from "@/types/api";
-
+import type { DesignProject, DesignSource} from "@/types/api";
 import { ReanalyzeForm, ExtendSourceForm } from "./workflow-forms";
 import { ReconcileReportPanel } from "./reconcile-report-panel";
 import type { useWorkflowFormState } from "./use-workflow-form-state";
@@ -23,8 +22,11 @@ export interface EnhanceActionsProps {
   project: DesignProject;
   loading: boolean;
   setLoading: (v: boolean) => void;
-  setProject: (p: DesignProject | null) => void;
-  setOntology: (o: OntologyIR) => void;
+  /**
+   * Atomic project + ontology cache update — see
+   * `OntologySlice.applyProjectSnapshot`.
+   */
+  applyProjectSnapshot: (project: DesignProject | null) => void;
   onApiError: (err: unknown, label: string) => Promise<boolean>;
   onRedesign: () => Promise<void>;
   analysisRef: React.RefObject<HTMLDetailsElement | null>;
@@ -36,8 +38,7 @@ export function EnhanceActions({
   project,
   loading,
   setLoading,
-  setProject,
-  setOntology,
+  applyProjectSnapshot,
   onApiError,
   onRedesign,
   analysisRef,
@@ -128,10 +129,7 @@ export function EnhanceActions({
         // only the picked tables.
         selection: toAnalyzeSelection(extend.importValue, "extend"),
       });
-      setProject(resp.project);
-      if (resp.project.ontology) {
-        setOntology(resp.project.ontology as OntologyIR);
-      }
+      applyProjectSnapshot(resp.project);
       setLastReconcileReport(resp.reconcile_report);
       extend.setShowExtend(false);
       toast.success(t("extendSuccess"));
@@ -189,7 +187,7 @@ export function EnhanceActions({
         // describing.
         selection: { kind: "all" },
       });
-      setProject(resp.project);
+      applyProjectSnapshot(resp.project);
       reanalyze.setShowReanalyze(false);
       toast.success(t("reanalyzed"), {
         description: resp.invalidated_decisions?.length

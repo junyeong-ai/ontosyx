@@ -54,12 +54,12 @@ describe("OntologySlice", () => {
 
   it("setOntology stores and retrieves ontology", () => {
     const ont = makeOntology();
-    store.getState().setOntology(ont);
+    store.getState().loadStandaloneOntology(ont);
     expect(store.getState().ontology).toEqual(ont);
   });
 
   it("applyCommand: add_node creates a node and pushes undo", () => {
-    store.getState().setOntology(makeOntology());
+    store.getState().loadStandaloneOntology(makeOntology());
     store.getState().applyCommand({
       op: "add_node",
       id: "n2",
@@ -74,7 +74,7 @@ describe("OntologySlice", () => {
   });
 
   it("undo reverses the last command", () => {
-    store.getState().setOntology(makeOntology());
+    store.getState().loadStandaloneOntology(makeOntology());
     store.getState().applyCommand({
       op: "add_node",
       id: "n2",
@@ -91,7 +91,7 @@ describe("OntologySlice", () => {
   });
 
   it("redo re-applies the undone command", () => {
-    store.getState().setOntology(makeOntology());
+    store.getState().loadStandaloneOntology(makeOntology());
     store.getState().applyCommand({
       op: "add_node",
       id: "n2",
@@ -106,7 +106,7 @@ describe("OntologySlice", () => {
   });
 
   it("applyCommand: rename_node changes label", () => {
-    store.getState().setOntology(makeOntology());
+    store.getState().loadStandaloneOntology(makeOntology());
     store.getState().applyCommand({
       op: "rename_node",
       node_id: "n1",
@@ -117,13 +117,13 @@ describe("OntologySlice", () => {
   });
 
   it("applyCommand: delete_node removes node", () => {
-    store.getState().setOntology(makeOntology());
+    store.getState().loadStandaloneOntology(makeOntology());
     store.getState().applyCommand({ op: "delete_node", node_id: "n1" });
     expect(store.getState().ontology!.node_types).toHaveLength(0);
   });
 
   it("clearCommandStack resets undo/redo", () => {
-    store.getState().setOntology(makeOntology());
+    store.getState().loadStandaloneOntology(makeOntology());
     store.getState().applyCommand({
       op: "add_node",
       id: "n2",
@@ -136,7 +136,7 @@ describe("OntologySlice", () => {
   });
 
   it("multiple undo/redo maintains consistency", () => {
-    store.getState().setOntology(makeOntology());
+    store.getState().loadStandaloneOntology(makeOntology());
 
     // Apply 3 commands
     store.getState().applyCommand({ op: "add_node", id: "n2", label: "Product" });
@@ -169,7 +169,7 @@ describe("OntologySlice", () => {
   });
 
   it("new command after undo clears redo stack", () => {
-    store.getState().setOntology(makeOntology());
+    store.getState().loadStandaloneOntology(makeOntology());
     store.getState().applyCommand({ op: "add_node", id: "n2", label: "Product" });
     store.getState().undo();
 

@@ -7,7 +7,6 @@ import { applyReconcile } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { toast } from "sonner";
 import type {
-  OntologyIR,
   ReconcileReport,
   MatchDecision,
 } from "@/types/api";
@@ -29,8 +28,7 @@ export function DiffOverlayBar() {
   const pending = useAppStore((s) => s.pendingReconcile);
   const setPending = useAppStore((s) => s.setPendingReconcile);
   const activeProject = useAppStore((s) => s.activeProject);
-  const setActiveProject = useAppStore((s) => s.setActiveProject);
-  const setOntology = useAppStore((s) => s.setOntology);
+  const applyProjectSnapshot = useAppStore((s) => s.applyProjectSnapshot);
 
   const [decisions, setDecisions] = useState<Record<string, boolean>>({});
   const [applying, setApplying] = useState(false);
@@ -81,10 +79,7 @@ export function DiffOverlayBar() {
         decisions: matchDecisions,
         uncertain_matches: pending.report.uncertain_matches,
       });
-      setActiveProject(resp.project);
-      if (resp.project.ontology) {
-        setOntology(resp.project.ontology as OntologyIR);
-      }
+      applyProjectSnapshot(resp.project);
       setReport(resp.reconcile_report);
       setPending(null);
       toast.success(t("applySuccess"));

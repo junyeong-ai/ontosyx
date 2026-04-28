@@ -48,7 +48,7 @@ describe("Selectors", () => {
 
   it("selectStateHasOntology returns true when set", () => {
     const store = createTestStore();
-    store.getState().setOntology(MINIMAL_ONTOLOGY);
+    store.getState().loadStandaloneOntology(MINIMAL_ONTOLOGY);
     expect(selectStateHasOntology(store.getState())).toBe(true);
   });
 
@@ -56,7 +56,7 @@ describe("Selectors", () => {
     const store = createTestStore();
     expect(selectStateHasUnsavedEdits(store.getState())).toBe(false);
 
-    store.getState().setOntology(MINIMAL_ONTOLOGY);
+    store.getState().loadStandaloneOntology(MINIMAL_ONTOLOGY);
     store.getState().applyCommand({ op: "add_node", id: "n2", label: "Product" });
     expect(selectStateHasUnsavedEdits(store.getState())).toBe(true);
   });
@@ -91,7 +91,7 @@ describe("Selectors", () => {
     const store = createTestStore();
     expect(selectStateCanChat(store.getState())).toBe(false);
 
-    store.getState().setOntology(MINIMAL_ONTOLOGY);
+    store.getState().loadStandaloneOntology(MINIMAL_ONTOLOGY);
     expect(selectStateCanChat(store.getState())).toBe(true);
   });
 });

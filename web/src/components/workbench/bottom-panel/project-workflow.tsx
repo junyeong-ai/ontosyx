@@ -5,8 +5,7 @@ import { useTranslations } from "next-intl";
 import { ApiError, getProject } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { toast } from "sonner";
-import type { DesignProject, OntologyIR } from "@/types/api";
-import { AnalysisReviewSection } from "./analysis-review-section";
+import type { DesignProject} from "@/types/api";import { AnalysisReviewSection } from "./analysis-review-section";
 import { useAppStore } from "@/lib/store";
 import { WorkflowActions } from "./workflow-actions";
 import { PhaseStepper } from "./phase-stepper";
@@ -21,12 +20,16 @@ const STATUS_STEPS = ["analyzed", "designed", "completed"] as const;
 
 export function ProjectWorkflow({
   project,
-  setProject,
-  setOntology,
+  applyProjectSnapshot,
 }: {
   project: DesignProject;
-  setProject: (p: DesignProject | null) => void;
-  setOntology: (o: OntologyIR) => void;
+  /**
+   * Atomic project + ontology cache update — see
+   * `OntologySlice.applyProjectSnapshot`. Workflow actions land
+   * their server response through this single entry point so
+   * `activeProject` and the ontology cache cannot drift.
+   */
+  applyProjectSnapshot: (project: DesignProject | null) => void;
 }) {
   const t = useTranslations("workbench.bottomPanel.workflow");
   const tActions = useTranslations("workbench.bottomPanel.workflowActions");
@@ -44,7 +47,7 @@ export function ProjectWorkflow({
       });
       try {
         const fresh = await getProject(project.id);
-        setProject(fresh);
+        applyProjectSnapshot(fresh);
       } catch {
         /* ignore reload failure */
       }
@@ -64,7 +67,7 @@ export function ProjectWorkflow({
       });
       try {
         const fresh = await getProject(project.id);
-        setProject(fresh);
+        applyProjectSnapshot(fresh);
       } catch {
         /* ignore reload failure */
       }
@@ -142,8 +145,7 @@ export function ProjectWorkflow({
           project={project}
           loading={loading}
           setLoading={setLoading}
-          setProject={setProject}
-          setOntology={setOntology}
+          applyProjectSnapshot={applyProjectSnapshot}
           onApiError={handleApiError}
           analysisRef={analysisRef}
           {...decisions}
@@ -216,8 +218,7 @@ export function ProjectWorkflow({
             project={project}
             loading={loading}
             setLoading={setLoading}
-            setProject={setProject}
-            setOntology={setOntology}
+            applyProjectSnapshot={applyProjectSnapshot}
             onApiError={handleApiError}
           />
         )}

@@ -19,7 +19,6 @@ import {
   focusFirstUnmetGate,
 } from "@/components/workbench/design/design-gate-checklist";
 import { cn } from "@/lib/cn";
-import { useAppStore } from "@/lib/store";
 import {
   ApiError,
   completeProject,
@@ -31,11 +30,7 @@ import {
 import { useGuardPendingEdits } from "@/lib/guard-pending-edits";
 import { errorMessage } from "@/lib/error-messages";
 import { arr } from "@/lib/ir-collections";
-import type {
-  DesignOptions,
-  DesignProject,
-  OntologyIR,
-} from "@/types/api";
+import type { DesignOptions, DesignProject } from "@/types/api";
 
 import {
   StatusBadge,
@@ -53,8 +48,13 @@ export interface WorkflowActionsProps extends DesignDecisions {
   project: DesignProject;
   loading: boolean;
   setLoading: (v: boolean) => void;
-  setProject: (p: DesignProject | null) => void;
-  setOntology: (o: OntologyIR) => void;
+  /**
+   * Atomic project + ontology cache update — see
+   * `OntologySlice.applyProjectSnapshot`. Every analyse / design /
+   * complete / extend / refine action lands its server response
+   * through this single entry point.
+   */
+  applyProjectSnapshot: (project: DesignProject | null) => void;
   onApiError: (err: unknown, label: string) => Promise<boolean>;
   /** Ref to the analysis review <details> element in the right panel */
   analysisRef: React.RefObject<HTMLDetailsElement | null>;
@@ -64,8 +64,7 @@ export function WorkflowActions({
   project,
   loading,
   setLoading,
-  setProject,
-  setOntology,
+  applyProjectSnapshot,
   onApiError,
   analysisRef,
   confirmedRelationships,
@@ -145,7 +144,7 @@ export function WorkflowActions({
         design_options: buildDesignOptions(),
         revision: project.revision,
       });
-      setProject(updated);
+      applyProjectSnapshot(updated);
       toast.success(t("decisionsSaved"));
     } catch (err) {
       if (await onApiError(err, t("decisionsSaveFailed"))) return;
@@ -177,10 +176,7 @@ export function WorkflowActions({
           setProgressDetail(detail ?? null);
         },
         onResult: (resp) => {
-          setProject(resp.project);
-          if (resp.project.ontology) {
-            setOntology(resp.project.ontology);
-          }
+          applyProjectSnapshot(resp.project);
           toast.success(t("ontologyDesigned"), {
             description: resp.project.ontology
               ? t("completeDesignedDescription", {
@@ -223,10 +219,7 @@ export function WorkflowActions({
         name: form.complete.completeName.trim(),
         acknowledge_quality_risks: acknowledgeRisks || undefined,
       });
-      setProject(completed);
-      if (completed.ontology) {
-        setOntology(completed.ontology as OntologyIR);
-      }
+      applyProjectSnapshot(completed);
       if (form.complete.deployOnComplete) {
         try {
           await deploySchema(project.id, { dry_run: false });
@@ -270,7 +263,7 @@ export function WorkflowActions({
     setLoading(true);
     try {
       await deleteProject(project.id);
-      setProject(null);
+      applyProjectSnapshot(null);
       toast.success(t("projectDeleted"));
     } catch (err) {
       if (await onApiError(err, t("deleteProjectFailed"))) return;
@@ -300,8 +293,7 @@ export function WorkflowActions({
             size="sm"
             onClick={async () => {
               if (!(await guardPendingEdits(t("guardActions.closeProject")))) return;
-              setProject(null);
-              useAppStore.getState().resetOntology();
+              applyProjectSnapshot(null);
             }}
             className="text-xs"
           >
@@ -394,8 +386,7 @@ export function WorkflowActions({
           project={project}
           loading={loading}
           setLoading={setLoading}
-          setProject={setProject}
-          setOntology={setOntology}
+          applyProjectSnapshot={applyProjectSnapshot}
           onApiError={onApiError}
           onRedesign={handleDesign}
           analysisRef={analysisRef}

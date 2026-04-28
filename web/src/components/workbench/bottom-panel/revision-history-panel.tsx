@@ -18,7 +18,6 @@ import type {
   DesignProject,
   ProjectMigrateResponse,
   OntologyDiff,
-  OntologyIR,
   RevisionSummary,
 } from "@/types/api";
 import { DiffPanel } from "./diff-panel";
@@ -31,8 +30,13 @@ export interface RevisionHistoryPanelProps {
   project: DesignProject;
   loading: boolean;
   setLoading: (v: boolean) => void;
-  setProject: (p: DesignProject | null) => void;
-  setOntology: (o: OntologyIR) => void;
+  /**
+   * Atomic project + ontology cache update — see
+   * `OntologySlice.applyProjectSnapshot`. Restore / migrate / fork
+   * actions land their result through this single entry point so
+   * `activeProject` and the ontology cache cannot drift.
+   */
+  applyProjectSnapshot: (project: DesignProject | null) => void;
   onApiError: (err: unknown, label: string) => Promise<boolean>;
 }
 
@@ -44,8 +48,7 @@ export function RevisionHistoryPanel({
   project,
   loading,
   setLoading,
-  setProject,
-  setOntology,
+  applyProjectSnapshot,
   onApiError,
 }: RevisionHistoryPanelProps) {
   const t = useTranslations("workbench.bottomPanel.revision");
@@ -128,10 +131,7 @@ export function RevisionHistoryPanel({
     setLoading(true);
     try {
       const resp = await restoreRevision(project.id, rev);
-      setProject(resp.project);
-      if (resp.project.ontology) {
-        setOntology(resp.project.ontology as OntologyIR);
-      }
+      applyProjectSnapshot(resp.project);
       loadRevisions();
       toast.success(t("toast.restored", { revision: rev }));
     } catch (err) {

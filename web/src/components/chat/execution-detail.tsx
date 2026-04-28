@@ -70,7 +70,7 @@ export interface ExecutionDetailProps {
 
 export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
   const t = useTranslations("workbench.chat.execution");
-  const { setOntology, setActiveProject, addMessage, clearMessages, setHighlightedBindings } =
+  const { loadStandaloneOntology, addMessage, clearMessages, setHighlightedBindings } =
     useAppStore();
   const router = useRouter();
   const guardPendingEdits = useGuardPendingEdits();
@@ -82,9 +82,9 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
       toast.error(t("loadOntologyFailed", { default: "Failed to load ontology" }));
       return;
     }
-    // Detach from active project — loaded snapshot is standalone
-    setActiveProject(null);
-    setOntology(ir);
+    // Loaded snapshot is standalone — `loadStandaloneOntology`
+    // detaches `activeProject` and replaces the ontology atomically.
+    loadStandaloneOntology(ir);
     clearMessages();
 
     const userMsg: ChatMessage = {
@@ -140,9 +140,8 @@ export function ExecutionDetail({ execution, onBack }: ExecutionDetailProps) {
       toast.error(t("loadOntologyFailed", { default: "Failed to load ontology" }));
       return;
     }
-    // Detach from active project — viewing historical snapshot
-    setActiveProject(null);
-    setOntology(ir);
+    // Viewing historical snapshot — standalone, no project.
+    loadStandaloneOntology(ir);
     setHighlightedBindings(execution.query_bindings);
   };
 
