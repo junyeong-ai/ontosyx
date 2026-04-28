@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { z } from "zod";
 import { useTranslations } from "next-intl";
 import { useAppStore } from "@/lib/store";
@@ -49,6 +50,11 @@ export function AnalyzeLayout() {
   const t = useTranslations("workbench.analyze");
   const rightTab = useAppStore((s) => s.analyzeRightTab);
   const setRightTab = useAppStore((s) => s.setAnalyzeRightTab);
+  const pinnedOntologyId = useAppStore((s) => s.ontologyId);
+  const setOntologyId = useAppStore((s) => s.setOntologyId);
+  const activeProjectOntologyId = useAppStore(
+    (s) => s.activeProject?.ontology?.id ?? null,
+  );
   const analyzeTabs = ANALYZE_TAB_ICONS.map((row) => ({
     ...row,
     label: t(`tab.${row.id}`),
@@ -60,6 +66,19 @@ export function AnalyzeLayout() {
     parser: z.enum(["chat", "builder"]),
     debounceMs: 0,
   });
+
+  // Auto-pin the Design-mode active ontology when the user crosses
+  // into Analyze with nothing pinned. The chat panel reads
+  // `ontologyId` to scope NL→Cypher prompts; without this effect a
+  // designer who clicks "Analyze" right after saving an ontology
+  // sees an empty chat with no context attached. The pin is a
+  // user-visible header pill, so the user can still unpin / change
+  // it manually after auto-attach.
+  useEffect(() => {
+    if (!pinnedOntologyId && activeProjectOntologyId) {
+      setOntologyId(activeProjectOntologyId);
+    }
+  }, [pinnedOntologyId, activeProjectOntologyId, setOntologyId]);
 
   return (
     <ErrorBoundary name="Analyze">
