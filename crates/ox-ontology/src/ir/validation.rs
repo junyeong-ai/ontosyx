@@ -1,3 +1,4 @@
+use ox_core::diagnostic::{diag, DiagnosticMessage};
 use ox_core::types::PropertyType;
 
 use super::{
@@ -21,21 +22,32 @@ fn validate_property_defs(
     owner_kind: &str,
     owner_label: &str,
     properties: &[PropertyDef],
-    errors: &mut Vec<String>,
+    errors: &mut Vec<DiagnosticMessage>,
 ) {
     let mut seen_ids = std::collections::HashSet::<&PropertyId>::new();
     let mut seen_names = std::collections::HashSet::new();
 
     for property in properties {
         if property.id.trim().is_empty() {
-            errors.push(format!(
-                "{owner_kind} '{owner_label}' has a property with an empty id"
-            ));
+            errors.push(
+                diag("ontology.validate.property.empty_id")
+                    .with("owner_kind", owner_kind)
+                    .with("owner_label", owner_label)
+                    .message(format!(
+                        "{owner_kind} '{owner_label}' has a property with an empty id"
+                    )),
+            );
         } else if !seen_ids.insert(&property.id) {
-            errors.push(format!(
-                "{owner_kind} '{owner_label}' has duplicate property id '{}'",
-                property.id
-            ));
+            errors.push(
+                diag("ontology.validate.property.duplicate_id")
+                    .with("owner_kind", owner_kind)
+                    .with("owner_label", owner_label)
+                    .with("id", property.id.as_str())
+                    .message(format!(
+                        "{owner_kind} '{owner_label}' has duplicate property id '{}'",
+                        property.id
+                    )),
+            );
         }
 
         // `PropertyKey` enforces the non-empty / Cypher-safe invariants
@@ -43,18 +55,29 @@ fn validate_property_defs(
         // detection need checking here.
         let name = property.name.as_str();
         if name == LABEL_PLACEHOLDER {
-            errors.push(format!(
-                "{owner_kind} '{owner_label}' has a property with the \
-                 `Default::default()` placeholder name — struct-update \
-                 callers must override `name` explicitly"
-            ));
+            errors.push(
+                diag("ontology.validate.property.placeholder_name")
+                    .with("owner_kind", owner_kind)
+                    .with("owner_label", owner_label)
+                    .message(format!(
+                        "{owner_kind} '{owner_label}' has a property with the \
+                         `Default::default()` placeholder name — struct-update \
+                         callers must override `name` explicitly"
+                    )),
+            );
             continue;
         }
 
         if !seen_names.insert(name.to_string()) {
-            errors.push(format!(
-                "{owner_kind} '{owner_label}' has duplicate property '{name}'"
-            ));
+            errors.push(
+                diag("ontology.validate.property.duplicate_name")
+                    .with("owner_kind", owner_kind)
+                    .with("owner_label", owner_label)
+                    .with("name", name)
+                    .message(format!(
+                        "{owner_kind} '{owner_label}' has duplicate property '{name}'"
+                    )),
+            );
         }
 
         // Π-1: AggregationRole sanity — Measure on a non-numeric
@@ -67,11 +90,18 @@ fn validate_property_defs(
                 PropertyType::Int | PropertyType::Float
             )
         {
-            errors.push(format!(
-                "{owner_kind} '{owner_label}' property '{name}' has \
-                 aggregation_role=Measure but a non-numeric property_type; \
-                 Measure implies SUM/AVG/MAX semantics"
-            ));
+            errors.push(
+                diag("ontology.validate.property.measure_non_numeric")
+                    .with("owner_kind", owner_kind)
+                    .with("owner_label", owner_label)
+                    .with("name", name)
+                    .with("property_type", format!("{:?}", property.property_type))
+                    .message(format!(
+                        "{owner_kind} '{owner_label}' property '{name}' has \
+                         aggregation_role=Measure but a non-numeric property_type; \
+                         Measure implies SUM/AVG/MAX semantics"
+                    )),
+            );
         }
     }
 }
@@ -85,13 +115,18 @@ fn validate_constraint_fields(
     property_ids: &[PropertyId],
     constraint_name: &str,
     require_non_nullable: bool,
-    errors: &mut Vec<String>,
+    errors: &mut Vec<DiagnosticMessage>,
 ) {
     if property_ids.is_empty() {
-        errors.push(format!(
-            "Node '{}' has an empty {constraint_name} constraint",
-            node.label
-        ));
+        errors.push(
+            diag("ontology.validate.constraint.empty_property_list")
+                .with("node_label", node.label.as_str())
+                .with("constraint", constraint_name)
+                .message(format!(
+                    "Node '{}' has an empty {constraint_name} constraint",
+                    node.label
+                )),
+        );
         return;
     }
 
@@ -99,33 +134,56 @@ fn validate_constraint_fields(
     for prop_id in property_ids {
         let id = prop_id.trim();
         if id.is_empty() {
-            errors.push(format!(
-                "Node '{}' has a {constraint_name} constraint with an empty property id",
-                node.label
-            ));
+            errors.push(
+                diag("ontology.validate.constraint.empty_property_id")
+                    .with("node_label", node.label.as_str())
+                    .with("constraint", constraint_name)
+                    .message(format!(
+                        "Node '{}' has a {constraint_name} constraint with an empty property id",
+                        node.label
+                    )),
+            );
             continue;
         }
 
         if !seen.insert(id) {
-            errors.push(format!(
-                "Node '{}' has duplicate property id '{}' in a {constraint_name} constraint",
-                node.label, id
-            ));
+            errors.push(
+                diag("ontology.validate.constraint.duplicate_property_id")
+                    .with("node_label", node.label.as_str())
+                    .with("constraint", constraint_name)
+                    .with("property_id", id)
+                    .message(format!(
+                        "Node '{}' has duplicate property id '{id}' in a {constraint_name} constraint",
+                        node.label
+                    )),
+            );
         }
 
         match property_def_by_id(&node.properties, id) {
             Some(def) => {
                 if require_non_nullable && def.nullable {
-                    errors.push(format!(
-                        "Node '{}' constraint '{}' requires non-nullable property '{}'",
-                        node.label, constraint_name, def.name
-                    ));
+                    errors.push(
+                        diag("ontology.validate.constraint.requires_non_nullable")
+                            .with("node_label", node.label.as_str())
+                            .with("constraint", constraint_name)
+                            .with("property", def.name.as_str())
+                            .message(format!(
+                                "Node '{}' constraint '{constraint_name}' requires non-nullable property '{}'",
+                                node.label, def.name
+                            )),
+                    );
                 }
             }
-            None => errors.push(format!(
-                "Node '{}' constraint references unknown property id '{}'",
-                node.label, id
-            )),
+            None => errors.push(
+                diag("ontology.validate.constraint.unknown_property_id")
+                    .with("node_label", node.label.as_str())
+                    .with("constraint", constraint_name)
+                    .with("property_id", id)
+                    .message(format!(
+                        "Node '{}' constraint references unknown property id '{id}'",
+                        node.label
+                    )),
+            ),
         }
     }
 }
@@ -135,21 +193,30 @@ fn validate_index_target(
     node_id: &NodeTypeId,
     property_ids: &[PropertyId],
     index_name: &str,
-    errors: &mut Vec<String>,
+    errors: &mut Vec<DiagnosticMessage>,
 ) {
     let Some(node) = node_types.iter().find(|node| node.id == *node_id) else {
-        errors.push(format!(
-            "Index '{}' references unknown node id '{}'",
-            index_name, node_id
-        ));
+        errors.push(
+            diag("ontology.validate.index.unknown_node_id")
+                .with("index", index_name)
+                .with("node_id", node_id.as_str())
+                .message(format!(
+                    "Index '{index_name}' references unknown node id '{node_id}'"
+                )),
+        );
         return;
     };
 
     if property_ids.is_empty() {
-        errors.push(format!(
-            "Index '{}' on node '{}' must reference at least one property",
-            index_name, node.label
-        ));
+        errors.push(
+            diag("ontology.validate.index.empty_property_list")
+                .with("index", index_name)
+                .with("node_label", node.label.as_str())
+                .message(format!(
+                    "Index '{index_name}' on node '{}' must reference at least one property",
+                    node.label
+                )),
+        );
         return;
     }
 
@@ -157,25 +224,42 @@ fn validate_index_target(
     for prop_id in property_ids {
         let id = prop_id.trim();
         if id.is_empty() {
-            errors.push(format!(
-                "Index '{}' on node '{}' contains an empty property id",
-                index_name, node.label
-            ));
+            errors.push(
+                diag("ontology.validate.index.empty_property_id")
+                    .with("index", index_name)
+                    .with("node_label", node.label.as_str())
+                    .message(format!(
+                        "Index '{index_name}' on node '{}' contains an empty property id",
+                        node.label
+                    )),
+            );
             continue;
         }
 
         if !seen.insert(id) {
-            errors.push(format!(
-                "Index '{}' on node '{}' contains duplicate property id '{}'",
-                index_name, node.label, id
-            ));
+            errors.push(
+                diag("ontology.validate.index.duplicate_property_id")
+                    .with("index", index_name)
+                    .with("node_label", node.label.as_str())
+                    .with("property_id", id)
+                    .message(format!(
+                        "Index '{index_name}' on node '{}' contains duplicate property id '{id}'",
+                        node.label
+                    )),
+            );
         }
 
         if property_def_by_id(&node.properties, id).is_none() {
-            errors.push(format!(
-                "Index '{}' references unknown property id '{}' on node '{}'",
-                index_name, id, node.label
-            ));
+            errors.push(
+                diag("ontology.validate.index.unknown_property_id")
+                    .with("index", index_name)
+                    .with("node_label", node.label.as_str())
+                    .with("property_id", id)
+                    .message(format!(
+                        "Index '{index_name}' references unknown property id '{id}' on node '{}'",
+                        node.label
+                    )),
+            );
         }
     }
 }
@@ -186,14 +270,25 @@ fn validate_index_target(
 
 impl OntologyIR {
     /// Validate internal consistency of the ontology.
-    pub fn validate(&self) -> Vec<String> {
-        let mut errors = Vec::new();
+    ///
+    /// Each diagnostic is a structured [`DiagnosticMessage`]
+    /// (RFC 7807 / gRPC `Status` shape): a stable `code`, an English
+    /// `message` rendering, and a `params` map. The FE resolves
+    /// `code` + `params` through its i18n catalogue
+    /// (`next-intl` ICU MessageFormat); operator logs and the LLM
+    /// tool-result channel consume the English `message` rendering.
+    pub fn validate(&self) -> Vec<DiagnosticMessage> {
+        let mut errors: Vec<DiagnosticMessage> = Vec::new();
 
         if self.id.trim().is_empty() {
-            errors.push("Ontology id must not be empty".to_string());
+            errors.push(
+                diag("ontology.validate.id.empty").message("Ontology id must not be empty"),
+            );
         }
         if self.name.trim().is_empty() {
-            errors.push("Ontology name must not be empty".to_string());
+            errors.push(
+                diag("ontology.validate.name.empty").message("Ontology name must not be empty"),
+            );
         }
         // Ontology must carry SOME content — but the bootstrap wizard
         // commits glossary-only v1s (no topology yet), so node_types
@@ -208,9 +303,10 @@ impl OntologyIR {
             || !self.link_mappings.is_empty();
         if !has_content {
             errors.push(
-                "Ontology must populate at least one collection \
-                 (node_types / edge_types / glossary / rules / code_systems / mappings)"
-                    .to_string(),
+                diag("ontology.validate.no_content").message(
+                    "Ontology must populate at least one collection \
+                     (node_types / edge_types / glossary / rules / code_systems / mappings)",
+                ),
             );
         }
 
@@ -220,9 +316,16 @@ impl OntologyIR {
         for node in &self.node_types {
             // Validate node id
             if node.id.trim().is_empty() {
-                errors.push("Node type id must not be empty".to_string());
+                errors.push(
+                    diag("ontology.validate.node.empty_id")
+                        .message("Node type id must not be empty"),
+                );
             } else if !seen_node_ids.insert(node.id.clone()) {
-                errors.push(format!("Duplicate node type id: '{}'", node.id));
+                errors.push(
+                    diag("ontology.validate.node.duplicate_id")
+                        .with("id", node.id.as_str())
+                        .message(format!("Duplicate node type id: '{}'", node.id)),
+                );
             }
 
             // `GraphLabel` already rejects empty / invalid identifiers
@@ -231,26 +334,38 @@ impl OntologyIR {
             // Default::default() label), and duplicate-label detection.
             let label = node.label.as_str();
             if label == LABEL_PLACEHOLDER {
-                errors.push(format!(
-                    "Node type '{}' has the `Default::default()` placeholder label — \
-                     struct-update callers must override `label` explicitly",
-                    node.id
-                ));
+                errors.push(
+                    diag("ontology.validate.node.placeholder_label")
+                        .with("id", node.id.as_str())
+                        .message(format!(
+                            "Node type '{}' has the `Default::default()` placeholder label — \
+                             struct-update callers must override `label` explicitly",
+                            node.id
+                        )),
+                );
                 continue;
             }
 
             if !seen_node_labels.insert(label.to_string()) {
-                errors.push(format!("Duplicate node type label: '{label}'"));
+                errors.push(
+                    diag("ontology.validate.node.duplicate_label")
+                        .with("label", label)
+                        .message(format!("Duplicate node type label: '{label}'")),
+                );
             }
 
             validate_property_defs("Node", label, &node.properties, &mut errors);
 
             for constraint_def in &node.constraints {
                 if constraint_def.id.trim().is_empty() {
-                    errors.push(format!(
-                        "Node '{}' has a constraint with an empty id",
-                        node.label
-                    ));
+                    errors.push(
+                        diag("ontology.validate.constraint.empty_id")
+                            .with("node_label", label)
+                            .message(format!(
+                                "Node '{}' has a constraint with an empty id",
+                                node.label
+                            )),
+                    );
                 }
 
                 match &constraint_def.constraint {
@@ -290,7 +405,10 @@ impl OntologyIR {
         for edge in &self.edge_types {
             // Validate edge id
             if edge.id.trim().is_empty() {
-                errors.push("Edge type id must not be empty".to_string());
+                errors.push(
+                    diag("ontology.validate.edge.empty_id")
+                        .message("Edge type id must not be empty"),
+                );
             }
 
             // Parallel to the node case above: `GraphLabel` enforces
@@ -298,43 +416,67 @@ impl OntologyIR {
             // here only has to catch the sentinel and duplicates.
             let label = edge.label.as_str();
             if label == LABEL_PLACEHOLDER {
-                errors.push(format!(
-                    "Edge type '{}' has the `Default::default()` placeholder label — \
-                     struct-update callers must override `label` explicitly",
-                    edge.id
-                ));
+                errors.push(
+                    diag("ontology.validate.edge.placeholder_label")
+                        .with("id", edge.id.as_str())
+                        .message(format!(
+                            "Edge type '{}' has the `Default::default()` placeholder label — \
+                             struct-update callers must override `label` explicitly",
+                            edge.id
+                        )),
+                );
                 continue;
             }
             if edge.source_node_id.trim().is_empty() || edge.target_node_id.trim().is_empty() {
-                errors.push(format!(
-                    "Edge '{}' must define both source_node_id and target_node_id",
-                    edge.label
-                ));
+                errors.push(
+                    diag("ontology.validate.edge.missing_endpoint")
+                        .with("label", label)
+                        .message(format!(
+                            "Edge '{}' must define both source_node_id and target_node_id",
+                            edge.label
+                        )),
+                );
             }
             if !seen_edge_signatures.insert((
                 edge.label.clone(),
                 edge.source_node_id.clone(),
                 edge.target_node_id.clone(),
             )) {
-                errors.push(format!(
-                    "Duplicate edge type definition: '{}({}->{})'",
-                    edge.label, edge.source_node_id, edge.target_node_id
-                ));
+                errors.push(
+                    diag("ontology.validate.edge.duplicate_signature")
+                        .with("label", label)
+                        .with("source_node_id", edge.source_node_id.as_str())
+                        .with("target_node_id", edge.target_node_id.as_str())
+                        .message(format!(
+                            "Duplicate edge type definition: '{}({}->{})'",
+                            edge.label, edge.source_node_id, edge.target_node_id
+                        )),
+                );
             }
 
             validate_property_defs("Edge", &edge.label, &edge.properties, &mut errors);
 
             if !seen_node_ids.contains::<str>(&edge.source_node_id) {
-                errors.push(format!(
-                    "Edge '{}' references unknown source node id '{}'",
-                    edge.label, edge.source_node_id
-                ));
+                errors.push(
+                    diag("ontology.validate.edge.unknown_source_node_id")
+                        .with("label", label)
+                        .with("source_node_id", edge.source_node_id.as_str())
+                        .message(format!(
+                            "Edge '{}' references unknown source node id '{}'",
+                            edge.label, edge.source_node_id
+                        )),
+                );
             }
             if !seen_node_ids.contains::<str>(&edge.target_node_id) {
-                errors.push(format!(
-                    "Edge '{}' references unknown target node id '{}'",
-                    edge.label, edge.target_node_id
-                ));
+                errors.push(
+                    diag("ontology.validate.edge.unknown_target_node_id")
+                        .with("label", label)
+                        .with("target_node_id", edge.target_node_id.as_str())
+                        .message(format!(
+                            "Edge '{}' references unknown target node id '{}'",
+                            edge.label, edge.target_node_id
+                        )),
+                );
             }
         }
 
@@ -351,53 +493,73 @@ impl OntologyIR {
         for node in &self.node_types {
             for if_id in &node.implements {
                 if !self.lookup.interface_id_idx.contains_key(if_id) {
-                    errors.push(format!(
-                        "Node '{}' implements unknown interface id '{}'",
-                        node.label, if_id
-                    ));
+                    errors.push(
+                        diag("ontology.validate.node.unknown_interface_id")
+                            .with("node_label", node.label.as_str())
+                            .with("interface_id", if_id.as_str())
+                            .message(format!(
+                                "Node '{}' implements unknown interface id '{}'",
+                                node.label, if_id
+                            )),
+                    );
                 }
             }
             for act_id in &node.actions {
                 if !self.lookup.action_id_idx.contains_key(act_id) {
-                    errors.push(format!(
-                        "Node '{}' references unknown action id '{}'",
-                        node.label, act_id
-                    ));
+                    errors.push(
+                        diag("ontology.validate.node.unknown_action_id")
+                            .with("node_label", node.label.as_str())
+                            .with("action_id", act_id.as_str())
+                            .message(format!(
+                                "Node '{}' references unknown action id '{}'",
+                                node.label, act_id
+                            )),
+                    );
                 }
             }
             for met_id in &node.metrics {
                 if !self.lookup.metric_id_idx.contains_key(met_id) {
-                    errors.push(format!(
-                        "Node '{}' references unknown metric id '{}'",
-                        node.label, met_id
-                    ));
+                    errors.push(
+                        diag("ontology.validate.node.unknown_metric_id")
+                            .with("node_label", node.label.as_str())
+                            .with("metric_id", met_id.as_str())
+                            .message(format!(
+                                "Node '{}' references unknown metric id '{}'",
+                                node.label, met_id
+                            )),
+                    );
                 }
             }
             for rule_id in &node.rules {
                 if !self.lookup.rule_id_idx.contains_key(rule_id) {
-                    errors.push(format!(
-                        "Node '{}' references unknown rule id '{}'",
-                        node.label, rule_id
-                    ));
+                    errors.push(
+                        diag("ontology.validate.node.unknown_rule_id")
+                            .with("node_label", node.label.as_str())
+                            .with("rule_id", rule_id.as_str())
+                            .message(format!(
+                                "Node '{}' references unknown rule id '{}'",
+                                node.label, rule_id
+                            )),
+                    );
                 }
             }
 
-            // Property-level Phase 5-B links.
+            // Property-level governance — derived-from checks plus a
+            // single walk over `bindings` so every registry-target
+            // is checked through the same code path.
             for prop in &node.properties {
-                if let Some(term_id) = &prop.glossary_term_id
-                    && !self.lookup.glossary_term_id_idx.contains_key(term_id)
-                {
-                    errors.push(format!(
-                        "Property '{}.{}' references unknown glossary term id '{}'",
-                        node.label, prop.name, term_id
-                    ));
-                }
                 if let Some(fn_id) = &prop.derived_from {
                     if !self.lookup.function_id_idx.contains_key(fn_id) {
-                        errors.push(format!(
-                            "Property '{}.{}' is derived_from unknown function id '{}'",
-                            node.label, prop.name, fn_id
-                        ));
+                        errors.push(
+                            diag("ontology.validate.property.unknown_function_id")
+                                .with("node_label", node.label.as_str())
+                                .with("property", prop.name.as_str())
+                                .with("function_id", fn_id.as_str())
+                                .message(format!(
+                                    "Property '{}.{}' is derived_from unknown function id '{}'",
+                                    node.label, prop.name, fn_id
+                                )),
+                        );
                     }
                     // derived_from and source_column are mutually
                     // exclusive: a value cannot both be computed and
@@ -405,51 +567,57 @@ impl OntologyIR {
                     // such a PropertyDef at compile time; catching it
                     // here gives authors a clearer error.
                     if prop.source_column.is_some() {
-                        errors.push(format!(
-                            "Property '{}.{}' declares both `derived_from` and \
-                             `source_column` — pick one",
-                            node.label, prop.name
-                        ));
+                        errors.push(
+                            diag("ontology.validate.property.derived_and_source_conflict")
+                                .with("node_label", node.label.as_str())
+                                .with("property", prop.name.as_str())
+                                .message(format!(
+                                    "Property '{}.{}' declares both `derived_from` and \
+                                     `source_column` — pick one",
+                                    node.label, prop.name
+                                )),
+                        );
                     }
                 }
-                // Ω-3: value_set_id referential integrity.
-                if let Some(vs_id) = &prop.value_set_id
-                    && !self.lookup.value_set_id_idx.contains_key(vs_id)
-                {
-                    errors.push(format!(
-                        "Property '{}.{}' references unknown value set id '{}'",
-                        node.label, prop.name, vs_id
-                    ));
-                }
-                // Ω-4: notation_pattern_id referential integrity.
-                if let Some(np_id) = &prop.notation_pattern_id
-                    && !self.lookup.notation_pattern_id_idx.contains_key(np_id)
-                {
-                    errors.push(format!(
-                        "Property '{}.{}' references unknown notation pattern id '{}'",
-                        node.label, prop.name, np_id
-                    ));
-                }
-                // Ω-6: unit_id must point at a CodedValue registered
-                // in the global coded_value index. Any CodeSystem
-                // can supply units; UCUM is the canonical external
+                // unit_id must point at a CodedValue registered in
+                // the global coded_value index. Any CodeSystem can
+                // supply units; UCUM is the canonical external
                 // system but domain-specific systems are valid too.
                 if let Some(unit_id) = &prop.unit_id
                     && !self.lookup.coded_value_loc.contains_key(unit_id)
                 {
-                    errors.push(format!(
-                        "Property '{}.{}' references unknown unit (CodedValueId '{}')",
-                        node.label, prop.name, unit_id
-                    ));
+                    errors.push(
+                        diag("ontology.validate.property.unknown_unit_id")
+                            .with("node_label", node.label.as_str())
+                            .with("property", prop.name.as_str())
+                            .with("unit_id", unit_id.as_str())
+                            .message(format!(
+                                "Property '{}.{}' references unknown unit (CodedValueId '{}')",
+                                node.label, prop.name, unit_id
+                            )),
+                    );
                 }
-                // Ω-7: value_range_set_id referential integrity.
-                if let Some(rs_id) = &prop.value_range_set_id
-                    && !self.lookup.value_range_set_id_idx.contains_key(rs_id)
-                {
-                    errors.push(format!(
-                        "Property '{}.{}' references unknown value range set id '{}'",
-                        node.label, prop.name, rs_id
-                    ));
+                // Single walk: every binding's target id must
+                // resolve in its registry. `Required` strength
+                // additionally rejects targets whose domain is
+                // empty (would force every write to fail).
+                for binding in &prop.bindings {
+                    if let Some(msg) = self.check_binding_target_exists(
+                        &node.label,
+                        prop.name.as_str(),
+                        binding,
+                    ) {
+                        errors.push(msg);
+                    }
+                    if binding.strength() == crate::binding::BindingStrength::Required
+                        && let Some(msg) = self.check_required_binding_domain(
+                            &node.label,
+                            prop.name.as_str(),
+                            binding,
+                        )
+                    {
+                        errors.push(msg);
+                    }
                 }
             }
         }
@@ -462,10 +630,53 @@ impl OntologyIR {
             if let crate::rule::RuleActivationKind::OnAction { action_id } = &rule.activation
                 && !self.lookup.action_id_idx.contains_key(action_id)
             {
-                errors.push(format!(
-                    "Rule '{}' activates on unknown action id '{}'",
-                    rule.name, action_id
-                ));
+                errors.push(
+                    diag("ontology.validate.rule.unknown_action_id")
+                        .with("rule_id", rule.id.as_str())
+                        .with("action_id", action_id.as_str())
+                        .message(format!(
+                            "Rule '{}' activates on unknown action id '{}'",
+                            rule.name, action_id
+                        )),
+                );
+            }
+
+            // Property-pair constraints (`LessThan` / `Equals`)
+            // reference a sibling `other_property` on the same node
+            // type that the rule's `PropertyShape` targets. A missing
+            // sibling silently turns the rule into a no-op at write
+            // time, so reject at validate.
+            let crate::rule::RuleKind::PropertyShape {
+                target_node_type_id,
+                target_property_id: _,
+            } = &rule.kind
+            else {
+                continue;
+            };
+            let Some(&node_idx) = self.lookup.node_id_idx.get(target_node_type_id) else {
+                continue;
+            };
+            let node = &self.node_types[node_idx];
+            for sc in &rule.constraints {
+                let other_property_id = match sc {
+                    crate::rule::ShaclConstraint::LessThan { other_property, .. }
+                    | crate::rule::ShaclConstraint::Equals { other_property, .. } => other_property,
+                    _ => continue,
+                };
+                let exists = node.properties.iter().any(|p| p.id == *other_property_id);
+                if !exists {
+                    errors.push(
+                        diag("ontology.validate.rule.property_pair_unknown_sibling")
+                            .with("rule_id", rule.id.as_str())
+                            .with("node_label", node.label.as_str())
+                            .with("other_property_id", other_property_id.as_str())
+                            .message(format!(
+                                "Rule '{}' on node '{}' references unknown sibling \
+                                 property id '{}' in a property-pair constraint",
+                                rule.name, node.label, other_property_id
+                            )),
+                    );
+                }
             }
         }
 
@@ -474,10 +685,15 @@ impl OntologyIR {
         for action in &self.actions {
             for rule_id in action.preconditions.iter().chain(action.postconditions.iter()) {
                 if !self.lookup.rule_id_idx.contains_key(rule_id) {
-                    errors.push(format!(
-                        "Action '{}' references unknown rule id '{}' in its pre/post conditions",
-                        action.name, rule_id
-                    ));
+                    errors.push(
+                        diag("ontology.validate.action.unknown_rule_id")
+                            .with("action_id", action.id.as_str())
+                            .with("rule_id", rule_id.as_str())
+                            .message(format!(
+                                "Action '{}' references unknown rule id '{}' in its pre/post conditions",
+                                action.name, rule_id
+                            )),
+                    );
                 }
             }
         }
@@ -489,18 +705,28 @@ impl OntologyIR {
         // -------------------------------------------------------------
         for om in &self.object_mappings {
             if !self.lookup.node_id_idx.contains_key(&om.node_type_id) {
-                errors.push(format!(
-                    "Object mapping '{}' targets unknown node type id '{}'",
-                    om.id, om.node_type_id
-                ));
+                errors.push(
+                    diag("ontology.validate.object_mapping.unknown_node_type_id")
+                        .with("object_mapping_id", om.id.as_str())
+                        .with("node_type_id", om.node_type_id.as_str())
+                        .message(format!(
+                            "Object mapping '{}' targets unknown node type id '{}'",
+                            om.id, om.node_type_id
+                        )),
+                );
             }
         }
         for lm in &self.link_mappings {
             if !self.lookup.edge_id_idx.contains_key(&lm.edge_type_id) {
-                errors.push(format!(
-                    "Link mapping '{}' targets unknown edge type id '{}'",
-                    lm.id, lm.edge_type_id
-                ));
+                errors.push(
+                    diag("ontology.validate.link_mapping.unknown_edge_type_id")
+                        .with("link_mapping_id", lm.id.as_str())
+                        .with("edge_type_id", lm.edge_type_id.as_str())
+                        .message(format!(
+                            "Link mapping '{}' targets unknown edge type id '{}'",
+                            lm.id, lm.edge_type_id
+                        )),
+                );
             }
             // Π-2: cardinality sanity. A `Bridge` link claiming
             // anything other than `ManyToMany` is almost certainly
@@ -512,12 +738,17 @@ impl OntologyIR {
             if matches!(lm.kind, crate::mapping::LinkMappingKind::Bridge { .. })
                 && lm.cardinality != crate::mapping::LinkCardinality::ManyToMany
             {
-                errors.push(format!(
-                    "Link mapping '{}' uses Bridge kind but declares \
-                     cardinality={:?}; Bridge typically implies \
-                     ManyToMany — verify the override is intentional",
-                    lm.id, lm.cardinality
-                ));
+                errors.push(
+                    diag("ontology.validate.link_mapping.bridge_cardinality_mismatch")
+                        .with("link_mapping_id", lm.id.as_str())
+                        .with("cardinality", format!("{:?}", lm.cardinality))
+                        .message(format!(
+                            "Link mapping '{}' uses Bridge kind but declares \
+                             cardinality={:?}; Bridge typically implies \
+                             ManyToMany — verify the override is intentional",
+                            lm.id, lm.cardinality
+                        )),
+                );
             }
         }
 
@@ -570,10 +801,15 @@ impl OntologyIR {
                     ..
                 } => {
                     if *dimensions == 0 {
-                        errors.push(format!(
-                            "Vector index on node '{}' property '{}' must have dimensions > 0",
-                            node_id, property_id
-                        ));
+                        errors.push(
+                            diag("ontology.validate.index.vector_zero_dimensions")
+                                .with("node_id", node_id.as_str())
+                                .with("property_id", property_id.as_str())
+                                .message(format!(
+                                    "Vector index on node '{}' property '{}' must have dimensions > 0",
+                                    node_id, property_id
+                                )),
+                        );
                     }
                     validate_index_target(
                         &self.node_types,
@@ -594,13 +830,258 @@ impl OntologyIR {
         // flags any id that does not resolve. Using the trait here
         // keeps the walker reusable from ad-hoc edit helpers without
         // round-tripping through the full `validate()` surface.
-        use crate::integrity::{RegistryReferenceCheck, render_dangling_references};
+        use crate::integrity::{render_dangling_references, RegistryReferenceCheck};
         let dangling = self.dangling_references();
         if !dangling.is_empty() {
             errors.extend(render_dangling_references(&dangling));
         }
 
         errors
+    }
+
+    /// Single-pass referential check for one [`PropertyBinding`].
+    /// Returns `Some(diagnostic)` when the binding's target id is
+    /// missing from the corresponding registry index. Strength-aware
+    /// rejection is layered on top by callers that care.
+    fn check_binding_target_exists(
+        &self,
+        node_label: &str,
+        property_name: &str,
+        binding: &crate::binding::PropertyBinding,
+    ) -> Option<DiagnosticMessage> {
+        use crate::binding::PropertyBinding;
+        let (registry, missing_id) = match binding {
+            PropertyBinding::ValueSet { id, .. } => {
+                if self.lookup.value_set_id_idx.contains_key(id) {
+                    return None;
+                }
+                ("value set", id.as_str().to_string())
+            }
+            PropertyBinding::CodeSystem { id, .. } => {
+                if self.lookup.code_system_id_idx.contains_key(id) {
+                    return None;
+                }
+                ("code system", id.as_str().to_string())
+            }
+            PropertyBinding::NotationPattern { id, .. } => {
+                if self.lookup.notation_pattern_id_idx.contains_key(id) {
+                    return None;
+                }
+                ("notation pattern", id.as_str().to_string())
+            }
+            PropertyBinding::ValueRange { id, .. } => {
+                if self.lookup.value_range_set_id_idx.contains_key(id) {
+                    return None;
+                }
+                ("value range set", id.as_str().to_string())
+            }
+            PropertyBinding::Glossary { id, .. } => {
+                if self.lookup.glossary_term_id_idx.contains_key(id) {
+                    return None;
+                }
+                ("glossary term", id.as_str().to_string())
+            }
+        };
+        Some(
+            diag("ontology.validate.binding.unknown_target_id")
+                .with("node_label", node_label)
+                .with("property", property_name)
+                .with("registry", registry)
+                .with("missing_id", missing_id.clone())
+                .message(format!(
+                    "Property '{}.{}' binding references unknown {} id '{}'",
+                    node_label, property_name, registry, missing_id
+                )),
+        )
+    }
+
+    /// Non-blocking author advisories.
+    ///
+    /// Where [`validate`](Self::validate) returns rejections that
+    /// must be fixed before commit, this returns *guidance* — the
+    /// IR is structurally sound but a smaller authoring choice
+    /// would reduce drift risk. Today: same-meaning constraints
+    /// authored on two surfaces (e.g. `NodeConstraint::Exists` plus
+    /// a `ShaclConstraint::MinCount{min:1}` rule on the same
+    /// property — single source of truth is preferred).
+    ///
+    /// Callers surface these in admin UI annotations and as
+    /// quality-report rows; they never block writes.
+    pub fn advisories(&self) -> Vec<DiagnosticMessage> {
+        let mut out = Vec::new();
+
+        // ----- Dedup: NodeConstraint vs ShaclConstraint overlap -----
+        //
+        // Two surfaces, same intent. Collect the (node, property,
+        // intent) triples a node-level structural constraint
+        // declares, then walk every property-shape rule looking
+        // for a matching SHACL emission.
+        use crate::rule::{RuleKind, ShaclConstraint};
+        for node in &self.node_types {
+            // (property_id → intents this node declares)
+            let mut node_intents: std::collections::HashMap<&str, Vec<&'static str>> =
+                std::collections::HashMap::new();
+            for c in &node.constraints {
+                match &c.constraint {
+                    crate::ir::NodeConstraint::Exists { property_id } => {
+                        node_intents
+                            .entry(property_id.as_str())
+                            .or_default()
+                            .push("required");
+                    }
+                    crate::ir::NodeConstraint::Unique { property_ids }
+                        if property_ids.len() == 1 =>
+                    {
+                        node_intents
+                            .entry(property_ids[0].as_str())
+                            .or_default()
+                            .push("unique");
+                    }
+                    crate::ir::NodeConstraint::NodeKey { property_ids }
+                        if property_ids.len() == 1 =>
+                    {
+                        node_intents
+                            .entry(property_ids[0].as_str())
+                            .or_default()
+                            .push("required");
+                        node_intents
+                            .entry(property_ids[0].as_str())
+                            .or_default()
+                            .push("unique");
+                    }
+                    _ => {}
+                }
+            }
+
+            // For each rule with a property-shape target on this
+            // node, see whether its constraint replays an intent
+            // already carried by a node-level structural constraint.
+            for rule_id in &node.rules {
+                let Some(rule) = self.rules.iter().find(|r| r.id == *rule_id) else {
+                    continue;
+                };
+                let RuleKind::PropertyShape {
+                    target_node_type_id,
+                    target_property_id,
+                } = &rule.kind
+                else {
+                    continue;
+                };
+                if target_node_type_id != &node.id {
+                    continue;
+                }
+                let Some(intents) = node_intents.get(target_property_id.as_str()) else {
+                    continue;
+                };
+                for sc in &rule.constraints {
+                    match sc {
+                        ShaclConstraint::MinCount { min: 1, .. }
+                            if intents.contains(&"required") =>
+                        {
+                            out.push(
+                                diag("ontology.advisory.duplicate_required_constraint")
+                                    .with("node_label", node.label.as_str())
+                                    .with("property_id", target_property_id.as_str())
+                                    .with("rule_id", rule.id.as_str())
+                                    .message(format!(
+                                        "Property '{}.{}' is marked Required by both \
+                                         a NodeConstraint and rule '{}' (MinCount=1) — \
+                                         keep one source of truth",
+                                        node.label, target_property_id, rule.id
+                                    )),
+                            );
+                        }
+                        ShaclConstraint::UniqueKey { .. } if intents.contains(&"unique") => {
+                            out.push(
+                                diag("ontology.advisory.duplicate_unique_constraint")
+                                    .with("node_label", node.label.as_str())
+                                    .with("property_id", target_property_id.as_str())
+                                    .with("rule_id", rule.id.as_str())
+                                    .message(format!(
+                                        "Property '{}.{}' is marked Unique by both a \
+                                         NodeConstraint and rule '{}' (UniqueKey) — \
+                                         keep one source of truth",
+                                        node.label, target_property_id, rule.id
+                                    )),
+                            );
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        out
+    }
+
+    /// `Required` strength promises every write satisfies the
+    /// binding's domain. A binding whose target resolves but exposes
+    /// an empty domain would reject every write — the IR refuses to
+    /// commit that contradiction.
+    fn check_required_binding_domain(
+        &self,
+        node_label: &str,
+        property_name: &str,
+        binding: &crate::binding::PropertyBinding,
+    ) -> Option<DiagnosticMessage> {
+        use crate::binding::PropertyBinding;
+        match binding {
+            PropertyBinding::ValueSet { id, .. } => {
+                let vs = self.value_set_by_id(id)?;
+                if vs.composition.is_empty() {
+                    return Some(
+                        diag("ontology.validate.binding.required_value_set_empty")
+                            .with("node_label", node_label)
+                            .with("property", property_name)
+                            .with("value_set_id", id.as_str())
+                            .message(format!(
+                                "Property '{}.{}' Required binding to value set '{}' is empty — \
+                                 no write would be accepted",
+                                node_label, property_name, id
+                            )),
+                    );
+                }
+                None
+            }
+            PropertyBinding::CodeSystem { id, .. } => {
+                let cs = self.code_system_by_id(id)?;
+                if cs.codes.is_empty() {
+                    return Some(
+                        diag("ontology.validate.binding.required_code_system_empty")
+                            .with("node_label", node_label)
+                            .with("property", property_name)
+                            .with("code_system_id", id.as_str())
+                            .message(format!(
+                                "Property '{}.{}' Required binding to code system '{}' has no codes — \
+                                 no write would be accepted",
+                                node_label, property_name, id
+                            )),
+                    );
+                }
+                None
+            }
+            PropertyBinding::NotationPattern { id, .. } => {
+                let np = self.notation_pattern_by_id(id)?;
+                if np.components.is_empty() {
+                    return Some(
+                        diag("ontology.validate.binding.required_notation_pattern_empty")
+                            .with("node_label", node_label)
+                            .with("property", property_name)
+                            .with("notation_pattern_id", id.as_str())
+                            .message(format!(
+                                "Property '{}.{}' Required binding to notation pattern '{}' has no \
+                                 components — pattern accepts nothing",
+                                node_label, property_name, id
+                            )),
+                    );
+                }
+                None
+            }
+            // ValueRange and Glossary variants don't carry a strength
+            // field — they cannot be `Required` and are unreachable
+            // from the strength()==Required gate above.
+            PropertyBinding::ValueRange { .. } | PropertyBinding::Glossary { .. } => None,
+        }
     }
 }
 
@@ -643,12 +1124,14 @@ mod tests {
         assert!(
             errors
                 .iter()
-                .any(|error| error.contains("duplicate property 'email'"))
+                .any(|e| e.code == "ontology.validate.property.duplicate_name"),
+            "{errors:?}"
         );
         assert!(
             errors
                 .iter()
-                .any(|error| error.contains("unknown property id 'prop-missing'"))
+                .any(|e| e.code == "ontology.validate.index.unknown_property_id"),
+            "{errors:?}"
         );
     }
 
@@ -659,9 +1142,12 @@ mod tests {
 
         let errors = ontology.validate();
 
-        assert!(errors.iter().any(|error| {
-            error.contains("constraint 'exists' requires non-nullable property 'id'")
-        }));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.constraint.requires_non_nullable"),
+            "{errors:?}"
+        );
     }
 
     #[test]
@@ -678,11 +1164,11 @@ mod tests {
 
         let errors = ontology.validate();
 
-        assert!(errors.iter().any(|e| e.contains("id must not be empty")));
-        assert!(errors.iter().any(|e| e.contains("name must not be empty")));
+        assert!(errors.iter().any(|e| e.code == "ontology.validate.id.empty"));
+        assert!(errors.iter().any(|e| e.code == "ontology.validate.name.empty"));
         // Empty everything also fails the "populate at least one
         // collection" invariant.
-        assert!(errors.iter().any(|e| e.contains("at least one collection")));
+        assert!(errors.iter().any(|e| e.code == "ontology.validate.no_content"));
     }
 
     #[test]
@@ -695,7 +1181,8 @@ mod tests {
         assert!(
             errors
                 .iter()
-                .any(|e| e.contains("unknown source node id 'node-nonexistent'"))
+                .any(|e| e.code == "ontology.validate.edge.unknown_source_node_id"),
+            "{errors:?}"
         );
     }
 
@@ -714,7 +1201,8 @@ mod tests {
         assert!(
             errors
                 .iter()
-                .any(|e| e.contains("unknown property id 'prop-nonexistent'"))
+                .any(|e| e.code == "ontology.validate.constraint.unknown_property_id"),
+            "{errors:?}"
         );
     }
 
@@ -732,8 +1220,7 @@ mod tests {
         assert!(
             errors
                 .iter()
-                .any(|e| e.contains("aggregation_role=Measure")
-                    && e.contains("non-numeric")),
+                .any(|e| e.code == "ontology.validate.property.measure_non_numeric"),
             "expected Measure/non-numeric warning, got: {errors:?}"
         );
     }
@@ -750,7 +1237,9 @@ mod tests {
         let errors = ontology.validate();
 
         assert!(
-            !errors.iter().any(|e| e.contains("aggregation_role=Measure")),
+            !errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.property.measure_non_numeric"),
             "Int+Measure must validate cleanly: {errors:?}"
         );
     }

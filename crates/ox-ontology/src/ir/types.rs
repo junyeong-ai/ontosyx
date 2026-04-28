@@ -336,6 +336,48 @@ pub struct EdgeTypeDef {
     /// Replacement edge when deprecated. See [`NodeTypeDef::replaced_by_id`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub replaced_by_id: Option<EdgeTypeId>,
+    /// Relationship classification — UML / OMG-style. Drives
+    /// downstream affordances: cascade-delete inference for
+    /// [`EdgeKind::Composition`], hierarchical visualisation hints
+    /// for [`EdgeKind::Aggregation`], and a neutral default of
+    /// [`EdgeKind::Association`] for plain semantic links.
+    #[serde(default)]
+    pub kind: EdgeKind,
+}
+
+/// UML / OMG-aligned edge classification.
+///
+/// `Association` is the default for any plain semantic relationship
+/// (Customer `PLACED_ORDER` Order). `Composition` and `Aggregation`
+/// express part-whole relationships with different lifetime
+/// semantics:
+///
+/// - **Composition** — strong ownership, the part's lifetime is bound
+///   to the whole. Deleting the whole cascades to the parts. Example:
+///   `Order COMPOSED_OF OrderItem` (an OrderItem cannot exist
+///   without its parent Order).
+/// - **Aggregation** — loose containment, the part outlives the whole
+///   and is shared across wholes. No cascade delete. Example:
+///   `Department CONTAINS Employee` (an Employee outlives any one
+///   department; cross-department reassignment is normal).
+///
+/// The default is [`Association`](EdgeKind::Association) — both
+/// existing edges and new authored ones get the safe non-cascading
+/// semantics unless the operator explicitly opts into a stronger
+/// classification.
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema,
+    utoipa::ToSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum EdgeKind {
+    /// Plain semantic relationship; lifetimes independent.
+    #[default]
+    Association,
+    /// Strong part-whole. Target's lifetime bound to source.
+    Composition,
+    /// Loose containment. Target outlives source; no cascade.
+    Aggregation,
 }
 
 impl Default for EdgeTypeDef {
@@ -361,6 +403,7 @@ impl Default for EdgeTypeDef {
             tags: Vec::new(),
             deprecated_at: None,
             replaced_by_id: None,
+            kind: EdgeKind::Association,
         }
     }
 }
@@ -472,20 +515,10 @@ pub struct PropertyDef {
     pub replaced_by_id: Option<PropertyId>,
 
     // -------------------------------------------------------------------
-    // Phase 5-B — semantic annotations pointing at the top-level
-    // collections.
-    //
-    // `glossary_term_id` links a technical property to the business
-    // concept it realises — two `String` columns called `email` on
-    // different nodes can now be distinguished through the glossary.
-    // `aliases` + `business_context` give the LLM prompt richer
-    // context than the technical name alone.
-    // `derived_from` marks the property as computed by a `FunctionDef`;
-    // the planner resolves the value at query time instead of reading
-    // it from the mapped column.
+    // Semantic context — language-level metadata beyond the type
+    // signature. `aliases` and `business_context` feed LLM prompts
+    // and admin UI; `derived_from` flags computed properties.
     // -------------------------------------------------------------------
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub glossary_term_id: Option<crate::glossary::GlossaryTermId>,
     /// Localized alternate names used for synonym-aware UI search
     /// and for LLM prompts that normalise arbitrary user phrasing
     /// onto the property. Not required to be Cypher-safe — the
@@ -505,38 +538,22 @@ pub struct PropertyDef {
     pub derived_from: Option<crate::function::FunctionId>,
 
     // -------------------------------------------------------------------
-    // Phase Ω — terminology wiring. Each field points at a top-level
-    // registry entry that the OntologyIR validator checks for
-    // referential integrity. Runtime (LLM prompt context, validation
-    // rules, admin UI) consumes them via the by_id accessors.
+    // Semantic bindings — every constraint the property carries
+    // against a top-level registry (value set, code system,
+    // notation pattern, value range, glossary term) lives in this
+    // single ordered list. Strength (`Required` / `Preferred` /
+    // `Extensible` / `Example`) and temporal scope are first-class
+    // on each entry; the OntologyIR validator checks referential
+    // integrity per-entry.
+    //
+    // A property may carry several bindings simultaneously — e.g. a
+    // `Preferred` value-set on the canonical vocabulary plus an
+    // `Example` glossary term for context. Ordering matters when
+    // two bindings would both classify a value: consumers honour
+    // the first match.
     // -------------------------------------------------------------------
-    /// When set, values of this property must be codes from the
-    /// referenced [`crate::value_set::ValueSetDef`]. The LLM prompt
-    /// layer injects the expanded code list + display labels so
-    /// natural-language filters like "status active" resolve onto
-    /// the correct code. Runtime validation rejects writes whose
-    /// value is not in the expanded set.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub value_set_id: Option<crate::value_set::ValueSetId>,
-
-    /// When set, values of this property must conform to the
-    /// referenced [`crate::notation_pattern::NotationPatternDef`]
-    /// (e.g. `"SPRING_26_001"`). The runtime decomposes values
-    /// into named components and exposes component-level queries
-    /// ("all SPRING campaigns regardless of year") without
-    /// repeated ad-hoc regex parsing in every caller.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub notation_pattern_id: Option<crate::notation_pattern::NotationPatternId>,
-
-    /// When set, numeric values of this property are classified
-    /// against the referenced
-    /// [`crate::value_range::ValueRangeSetDef`] — "blood pressure
-    /// 90–120 is Normal", "cost 500k+ is Critical". The runtime
-    /// exposes the classification label alongside the raw value;
-    /// the LLM prompt layer injects band labels so natural-language
-    /// queries like "high-cost orders" resolve deterministically.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub value_range_set_id: Option<crate::value_range::ValueRangeSetId>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bindings: Vec<crate::binding::PropertyBinding>,
 
     /// Π-1: Analytical role of this property. Drives NL2SQL
     /// prompt context so LLM-generated queries don't aggregate a
@@ -583,6 +600,81 @@ pub enum AggregationRole {
     Identifier,
 }
 
+impl PropertyDef {
+    /// First binding pointing at a value set, or `None`.
+    pub fn value_set_binding(&self) -> Option<&crate::binding::PropertyBinding> {
+        self.bindings
+            .iter()
+            .find(|b| matches!(b, crate::binding::PropertyBinding::ValueSet { .. }))
+    }
+
+    /// First binding pointing at a notation pattern, or `None`.
+    pub fn notation_pattern_binding(&self) -> Option<&crate::binding::PropertyBinding> {
+        self.bindings
+            .iter()
+            .find(|b| matches!(b, crate::binding::PropertyBinding::NotationPattern { .. }))
+    }
+
+    /// First binding pointing at a value-range set, or `None`.
+    pub fn value_range_binding(&self) -> Option<&crate::binding::PropertyBinding> {
+        self.bindings
+            .iter()
+            .find(|b| matches!(b, crate::binding::PropertyBinding::ValueRange { .. }))
+    }
+
+    /// First binding pointing at a glossary term, or `None`.
+    pub fn glossary_binding(&self) -> Option<&crate::binding::PropertyBinding> {
+        self.bindings
+            .iter()
+            .find(|b| matches!(b, crate::binding::PropertyBinding::Glossary { .. }))
+    }
+
+    /// First binding pointing at a code system, or `None`.
+    pub fn code_system_binding(&self) -> Option<&crate::binding::PropertyBinding> {
+        self.bindings
+            .iter()
+            .find(|b| matches!(b, crate::binding::PropertyBinding::CodeSystem { .. }))
+    }
+
+    /// Convenience id-only accessor: the value-set this property
+    /// binds to, if any.
+    pub fn value_set_id(&self) -> Option<&crate::value_set::ValueSetId> {
+        self.bindings.iter().find_map(|b| match b {
+            crate::binding::PropertyBinding::ValueSet { id, .. } => Some(id),
+            _ => None,
+        })
+    }
+
+    /// Convenience id-only accessor: the notation pattern this
+    /// property binds to, if any.
+    pub fn notation_pattern_id(
+        &self,
+    ) -> Option<&crate::notation_pattern::NotationPatternId> {
+        self.bindings.iter().find_map(|b| match b {
+            crate::binding::PropertyBinding::NotationPattern { id, .. } => Some(id),
+            _ => None,
+        })
+    }
+
+    /// Convenience id-only accessor: the value-range set this
+    /// property binds to, if any.
+    pub fn value_range_set_id(&self) -> Option<&crate::value_range::ValueRangeSetId> {
+        self.bindings.iter().find_map(|b| match b {
+            crate::binding::PropertyBinding::ValueRange { id, .. } => Some(id),
+            _ => None,
+        })
+    }
+
+    /// Convenience id-only accessor: the glossary term this
+    /// property binds to, if any.
+    pub fn glossary_term_id(&self) -> Option<&crate::glossary::GlossaryTermId> {
+        self.bindings.iter().find_map(|b| match b {
+            crate::binding::PropertyBinding::Glossary { id, .. } => Some(id),
+            _ => None,
+        })
+    }
+}
+
 impl Default for PropertyDef {
     // Same sentinel strategy as the label defaults: the name slot
     // needs a populated `PropertyKey` because struct-update syntax
@@ -610,13 +702,10 @@ impl Default for PropertyDef {
             transform: None,
             deprecated_at: None,
             replaced_by_id: None,
-            glossary_term_id: None,
             aliases: Vec::new(),
             business_context: LocalizedText::default(),
             derived_from: None,
-            value_set_id: None,
-            notation_pattern_id: None,
-            value_range_set_id: None,
+            bindings: Vec::new(),
             aggregation_role: None,
         }
     }
@@ -708,6 +797,20 @@ fn default_cardinality() -> Cardinality {
     Cardinality::ManyToMany
 }
 
+/// Edge multiplicity, expressed as one of the four canonical
+/// shorthand variants. Each variant lowers to numeric `(min, max)`
+/// bounds via the `source_*` / `target_*` accessors below — that
+/// pair is what every consumer (SHACL emitter, cost estimator, FE
+/// inspector) ultimately reads, so adding a fifth variant in a
+/// future ADR is mechanical: extend the enum and add the matching
+/// arm to the four accessors.
+///
+/// The shorthand stays the wire shape because it's how authors
+/// think — "one to many" reads cleaner than `target_min=1,
+/// target_max=u32::MAX`. When a deployment really needs a custom
+/// multiplicity (e.g. "Order has between 1 and 5 line items"), the
+/// SHACL `MinCount` / `MaxCount` rule on the property side is the
+/// expressive surface; the edge cardinality stays shorthand.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Cardinality {
@@ -715,6 +818,54 @@ pub enum Cardinality {
     OneToMany,
     ManyToOne,
     ManyToMany,
+}
+
+impl Cardinality {
+    /// Minimum number of source nodes per target. Always `1` today
+    /// — the four canonical variants all model "exists".
+    pub fn source_min(self) -> u32 {
+        1
+    }
+
+    /// Maximum number of source nodes participating per relation
+    /// instance. `1` when the source side reads "One", `u32::MAX`
+    /// when it reads "Many" — i.e. the *left* token of the variant
+    /// name.
+    pub fn source_max(self) -> u32 {
+        match self {
+            Cardinality::OneToOne | Cardinality::OneToMany => 1,
+            Cardinality::ManyToOne | Cardinality::ManyToMany => u32::MAX,
+        }
+    }
+
+    /// Minimum number of target nodes per source. Always `1` today.
+    pub fn target_min(self) -> u32 {
+        1
+    }
+
+    /// Maximum number of target nodes per source. `1` when the
+    /// target side reads "One", `u32::MAX` when it reads "Many" —
+    /// i.e. the *right* token of the variant name.
+    pub fn target_max(self) -> u32 {
+        match self {
+            Cardinality::OneToOne | Cardinality::ManyToOne => 1,
+            Cardinality::OneToMany | Cardinality::ManyToMany => u32::MAX,
+        }
+    }
+
+    /// Whether the source side is constrained to one (the `*ToOne`
+    /// suffix). Convenience for SHACL emitters that key on the
+    /// "is the source unique" axis.
+    pub fn source_is_singular(self) -> bool {
+        self.source_max() == 1
+    }
+
+    /// Whether the target side is constrained to one (the `OneTo*`
+    /// prefix). Convenience for SHACL emitters that key on the
+    /// "is the target unique" axis.
+    pub fn target_is_singular(self) -> bool {
+        self.target_max() == 1
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -731,17 +882,39 @@ pub struct ConstraintDef {
 }
 
 // ---------------------------------------------------------------------------
-// NodeConstraint — structural constraint on a node type
+// NodeConstraint — physical, DDL-emitted structural constraint
 // ---------------------------------------------------------------------------
 
+/// Storage-engine constraint that compiles to native graph-DB DDL.
+///
+/// `NodeConstraint` lives at the **physical** layer — the schema
+/// compiler emits `CREATE CONSTRAINT … REQUIRE … IS UNIQUE`,
+/// `IS NOT NULL`, or `IS NODE KEY` so the database engine itself
+/// rejects writes that violate the rule. This is the strongest
+/// guarantee available: even direct DB writes outside the platform
+/// pipeline fail. The trade-off is expressiveness: only uniqueness
+/// and existence are universally portable across backends.
+///
+/// For shape-level rules that go beyond DDL (property pairs, value
+/// sets, patterns, language uniqueness), use
+/// [`crate::rule::ShaclConstraint`] on a `RuleDef` — those run in
+/// the SHACL validator at write/read time. The two surfaces are
+/// intentionally separate; do not collapse them. SQL has the same
+/// split: `UNIQUE/NOT NULL/CHECK` (DDL) vs application validators.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum NodeConstraint {
-    /// Properties must be unique across all nodes of this type
+    /// Properties must be unique across all nodes of this type. DDL:
+    /// `CREATE CONSTRAINT FOR (n:L) REQUIRE n.p IS UNIQUE` (Neo4j) /
+    /// `CREATE CONSTRAINT ON (n:L) ASSERT n.p IS UNIQUE` (Memgraph).
     Unique { property_ids: Vec<PropertyId> },
-    /// Property must exist (NOT NULL at DB level)
+    /// Property must exist (NOT NULL at DB level). DDL:
+    /// `REQUIRE n.p IS NOT NULL` (Neo4j) / `ASSERT EXISTS(n.p)`
+    /// (Memgraph).
     Exists { property_id: PropertyId },
-    /// Composite key — combination of properties is unique and required
+    /// Composite key — combination of properties is unique and
+    /// required. DDL: `REQUIRE (n.a, n.b) IS NODE KEY` (Neo4j-only;
+    /// Memgraph emits a warning and skips).
     NodeKey { property_ids: Vec<PropertyId> },
 }
 

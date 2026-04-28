@@ -20,11 +20,16 @@
 )]
 
 pub mod action;
+pub mod agent_view;
 pub mod audit;
+pub mod binding;
 pub mod code_system;
 pub mod command;
 pub mod concept_map;
 pub mod data_quality;
+pub mod dependency;
+pub mod derived_rules;
+pub mod design_gate;
 pub mod design_project;
 pub mod diff;
 pub mod enrichment;
@@ -73,7 +78,12 @@ pub mod widget_spec;
 pub use action::{
     ActionDef, ActionId, ActionKind, ActionTarget, ApprovalPolicy, IdempotencyPolicy, RuleId,
 };
+pub use agent_view::{
+    AgentEdgeView, AgentGlossaryView, AgentInterfaceView, AgentNodeView, AgentOntologyView,
+    AgentPropertyView, AgentRuleView,
+};
 pub use audit::*;
+pub use binding::{BindingStrength, PropertyBinding, PropertyBindingHandle};
 pub use code_system::{
     CodeSystemDef, CodeSystemId, CodeSystemKind, CodedValue, CodedValueId, ucum_seed,
 };
@@ -81,6 +91,9 @@ pub use concept_map::{ConceptMapDef, ConceptMapId, ConceptMapping, Equivalence, 
 pub use command::{
     CommandResult, EntityKind, MatchDecision, OntologyCommand, PropertyPatch,
     ReconcileConfidence, ReconcileReport, ReconcileResult, UncertainMatch,
+};
+pub use dependency::{
+    DependencyBucket, DependencyEdge, DependencyKind, SchemaDependencyGraph, SchemaEntityRef,
 };
 pub use data_quality::{
     DataQualityComputationKind, DataQualityDef, DataQualityDimensionKind, DataQualityId,
@@ -91,7 +104,10 @@ pub use enrichment::{EnrichmentDef, EnrichmentId, ExternalSourceRef, RefreshPoli
 pub use function::{
     FunctionDef, FunctionExpression, FunctionId, FunctionPurity, PropertyDependency,
 };
-pub use glossary::{GlossaryTermDef, GlossaryTermId, TaxonomyDef, TaxonomyId, TaxonomyNode};
+pub use glossary::{
+    GlossaryTermDef, GlossaryTermId, TaxonomyDef, TaxonomyId, TaxonomyNode, TermRelation,
+    TermRelationKind,
+};
 pub use interface::{InterfaceDef, InterfaceEdge, InterfaceId, InterfaceProperty};
 pub use diff::{
     DiffSummary, EdgeChange, EdgeDiff, NodeChange, NodeDiff, OntologyDiff, PropertyChange,
@@ -139,15 +155,19 @@ pub use change_routing::{
     EditContext, EditRoutingDecision, RiskLevel, RoleRef, decide_edit_routing,
 };
 pub use edit::{
-    OntologyEditOp, OntologyEditPreCheck, OntologyEditReceipt, OntologyEditRequest,
+    OntologyEditOp, OntologyEditPreCheck, OntologyEditReceipt, EditOntologyRequest,
     PropertyOwnerPath,
 };
+pub use design_gate::{
+    DesignGate, GateId, GateStatus, design_allowed, evaluate_design_gates,
+    unmet_blocking_gates,
+};
 pub use source_analysis::{
-    AnalysisCompleteness, AnalysisPhase, AnalysisWarning, AnalysisWarningKind,
-    ColumnClarification, ConfirmedRelationship, DesignOptions, ImpliedFkPattern,
-    ImpliedRelationship, LargeSchemaWarning, RepoAnalysisSummary, RepoColumnSuggestion,
-    SchemaStats, SourceAnalysisReport, TableExclusionReason, TableExclusionSuggestion,
-    WarningLevel, apply_pii_annotations,
+    AnalysisCompleteness, AnalysisPhase, AnalysisWarning, ColumnClarification,
+    ConfirmedRelationship, DesignOptions, ImpliedFkPattern, ImpliedRelationship,
+    LargeSchemaWarning, RepoAnalysisSummary, RepoColumnSuggestion, SchemaStats,
+    SourceAnalysisReport, TableExclusionReason, TableExclusionSuggestion, WarningClass,
+    WarningLevel, WarningScope, apply_pii_annotations,
 };
 pub use pii::{
     CompositePiiClassifier, ExcludedColumn, PiiAnnotation, PiiClassifier, PiiSignals,

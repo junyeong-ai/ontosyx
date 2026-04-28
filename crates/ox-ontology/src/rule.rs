@@ -38,14 +38,64 @@ use crate::ir::{EdgeTypeId, NodeTypeId, PropertyId};
 use crate::notation_pattern::NotationPatternId;
 use crate::value_set::ValueSetId;
 
+/// Where a `RuleDef` came from. Authored rules are first-class user
+/// input the admin UI lets people edit; derived rules are synthesised
+/// by the platform from another piece of the IR (typically a
+/// `Required`-strength `PropertyBinding` via
+/// [`crate::derived_rules::derive_binding_rules`]) and must be
+/// regenerated rather than edited.
+///
+/// Consumers gate behaviour on this field:
+/// - **Editors** disable controls for `DerivedFromBinding` rules and
+///   redirect the user to the source binding instead.
+/// - **Exporters** (OWL/Turtle, SHACL, etc.) skip derived rules to
+///   avoid double-emitting the constraint that the binding will
+///   re-derive on import.
+/// - **LLM context builders** strip derived rules to keep the prompt
+///   focused on user intent.
+#[derive(
+    Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
+)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum RuleOrigin {
+    /// Authored by a human (or persisted by an LLM acting as one).
+    /// Default — every existing rule deserialises with this origin
+    /// when the field is missing on the wire.
+    #[default]
+    Authored,
+    /// Synthesised from a `PropertyBinding`. Carries the source
+    /// coordinates so consumers can navigate back to the binding.
+    DerivedFromBinding {
+        node_type_id: NodeTypeId,
+        property_id: PropertyId,
+    },
+}
+
 /// Ontology constraint, named and serializable.
+///
+/// `name` is `LocalizedText` so admin surfaces (and the SHACL
+/// violation message that reaches the LLM via tool results) can
+/// render the rule in the workspace's locale chain. The IR's other
+/// human-facing fields (`description`, `display_name`, glossary
+/// `term`) follow the same pattern; making `name` a bare `String`
+/// would be the only single-language island left.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct RuleDef {
     pub id: RuleId,
-    pub name: String,
+    pub name: LocalizedText,
 
     #[serde(default)]
     pub description: LocalizedText,
+
+    /// Why this rule exists — operator-facing explanation that
+    /// outlives the rule's authors. Surfaced verbatim in the rule
+    /// editor and the violation diagnostic so a future engineer
+    /// reading a SHACL failure understands the policy intent
+    /// without spelunking commit history. Empty when the rule
+    /// pre-dates the rationale field; the editor prompts to
+    /// backfill on next edit.
+    #[serde(default)]
+    pub rationale: LocalizedText,
 
     pub kind: RuleKind,
 
@@ -58,12 +108,51 @@ pub struct RuleDef {
     #[serde(default)]
     pub activation: RuleActivationKind,
 
+    /// Provenance of the rule. Authored rules accept edits; derived
+    /// rules are regenerated from the source binding and must not be
+    /// hand-edited (the editor disables controls; exporters skip
+    /// them to avoid double-emit). Defaults to `Authored` when
+    /// missing on the wire.
+    #[serde(default)]
+    pub origin: RuleOrigin,
+
     /// One or more constraint components, AND'd together. Empty is
     /// syntactically valid — treated as "always passes" so the
     /// editor can save a work-in-progress rule without faking a
     /// constraint.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub constraints: Vec<ShaclConstraint>,
+
+    /// Inclusive lower bound on the rule's effective window.
+    /// Validators that filter the active rule set against an `as_of`
+    /// instant skip rules whose `valid_from > as_of`. `None` means
+    /// "in effect from the start of the ontology version".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub valid_from: Option<chrono::DateTime<chrono::Utc>>,
+
+    /// Exclusive upper bound on the rule's effective window. `None`
+    /// means "indefinitely". Same filter contract as `valid_from`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub valid_to: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+impl RuleDef {
+    /// Whether this rule is in effect at `at`. A rule with no
+    /// temporal window is always in effect — the matching default
+    /// for `OntologyIR::as_of` filtering.
+    pub fn covers(&self, at: chrono::DateTime<chrono::Utc>) -> bool {
+        if let Some(start) = self.valid_from
+            && at < start
+        {
+            return false;
+        }
+        if let Some(end) = self.valid_to
+            && at >= end
+        {
+            return false;
+        }
+        true
+    }
 }
 
 /// Shape variant.
@@ -110,10 +199,49 @@ pub struct StateTransition {
     pub to: String,
 }
 
+/// Stable identity for a [`ShaclConstraint`] — two constraints with
+/// the same signature enforce the same intent, even when they carry
+/// cosmetic differences (severity wording, custom name).
+///
+/// **`ShaclConstraint::signature()` returns `Option<Self>`** —
+/// constraints that have not opted into signature-based dedup return
+/// `None`, and the dedup pipeline never collapses two `None`-signed
+/// constraints together. Bucketing unhandled kinds under a shared
+/// catch-all would silently dedup unrelated intents (a `MinCount`
+/// rule against a `Datatype` rule on the same property), corrupting
+/// the safety-net derivation any time a future variant joins the
+/// system. Opt-in is the durable contract.
+///
+/// Keyed by the registry id (e.g. `ValueSetId`) rather than the
+/// `ConstraintTarget` field — two rules whose nominal target
+/// (PropertyShape's `target_property_id`) is the same and whose
+/// constraint identity matches enforce the same intent. Edge case:
+/// an authored rule that points its `ConstraintTarget` at a different
+/// property than the rule's nominal target falls outside this dedup
+/// — derivation always emits `ConstraintTarget::Inherit`, so the
+/// edge case never collides with a derived rule in practice.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ConstraintSignature {
+    /// `sh:in` keyed by the value-set identity.
+    InValueSet(ValueSetId),
+    /// `sh:pattern` keyed by the notation-pattern identity.
+    MatchesPattern(NotationPatternId),
+}
+
 /// SHACL Core constraint component. The subset covers ~95% of
 /// real-world rule usage; advanced components (`sh:and`, `sh:or`,
 /// `sh:xone`, recursion rules) land in Phase 11 with the reasoning
 /// engine.
+///
+/// `ShaclConstraint` lives at the **logical** layer — the SHACL
+/// validator pipeline checks each constraint at write/read time and
+/// produces a structured violation report. For storage-engine
+/// constraints that compile to graph-DB DDL (uniqueness, existence,
+/// node keys), use [`crate::ir::NodeConstraint`] on `NodeTypeDef`
+/// instead. The two surfaces deliberately do not overlap: DDL
+/// constraints buy database-native enforcement at the cost of
+/// portability; SHACL constraints buy expressiveness at the cost of
+/// requiring the validator on the write path.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ShaclConstraint {
@@ -176,6 +304,166 @@ pub enum ShaclConstraint {
         target_node_type_id: NodeTypeId,
         property_keys: Vec<PropertyKey>,
     },
+    /// `sh:lessThan` — the property's value must be strictly less
+    /// than the value of `other_property` on the same node. Used for
+    /// temporal pairs (`started_at < ended_at`) and bounded numerics
+    /// (`min_value < max_value`). The runtime validator emits a
+    /// Cypher predicate; this is not DDL-expressible.
+    LessThan {
+        target: ConstraintTarget,
+        /// Sibling property the value is compared against. Both
+        /// properties belong to the same node-type shape; the
+        /// integrity layer rejects unknown ids.
+        other_property: PropertyId,
+    },
+    /// `sh:equals` — the property's value must equal the value of
+    /// `other_property` on the same node. Used to enforce
+    /// cross-system parity (e.g. internal and external invoice
+    /// numbers must match after sync).
+    Equals {
+        target: ConstraintTarget,
+        other_property: PropertyId,
+    },
+}
+
+impl ShaclConstraint {
+    /// Where the constraint applies. Most variants carry a single
+    /// `target: ConstraintTarget`; multi-target variants (`Disjoint`,
+    /// `UniqueKey`) and node-level variants without a single
+    /// `target` slot return `None`. Used by the dedup pipeline to
+    /// resolve the **effective** property the constraint enforces
+    /// against, taking `ConstraintTarget::Property{...}` overrides
+    /// into account rather than relying on the rule's nominal
+    /// `target_property_id`.
+    pub fn target(&self) -> Option<&ConstraintTarget> {
+        match self {
+            Self::MinCount { target, .. }
+            | Self::MaxCount { target, .. }
+            | Self::Datatype { target, .. }
+            | Self::MatchesPattern { target, .. }
+            | Self::InValueSet { target, .. }
+            | Self::HasValue { target, .. }
+            | Self::MinInclusive { target, .. }
+            | Self::MaxInclusive { target, .. }
+            | Self::MinLength { target, .. }
+            | Self::MaxLength { target, .. }
+            | Self::UniqueLang { target }
+            | Self::Closed { target, .. }
+            | Self::LessThan { target, .. }
+            | Self::Equals { target, .. } => Some(target),
+            Self::Disjoint { .. } | Self::UniqueKey { .. } => None,
+        }
+    }
+
+    /// Dedup signature, opt-in. See [`ConstraintSignature`] for the
+    /// rationale behind `Option` rather than a catch-all variant.
+    ///
+    /// Adding a new `ShaclConstraint` variant forces this match to
+    /// be extended (no `_ =>` arm). The new variant decides
+    /// explicitly whether it participates in dedup:
+    /// - return `Some(ConstraintSignature::NewKind(id))` and add the
+    ///   variant to `ConstraintSignature` to opt in;
+    /// - return `None` to remain dedup-independent.
+    pub fn signature(&self) -> Option<ConstraintSignature> {
+        match self {
+            Self::InValueSet { value_set_id, .. } => {
+                Some(ConstraintSignature::InValueSet(value_set_id.clone()))
+            }
+            Self::MatchesPattern {
+                notation_pattern_id,
+                ..
+            } => Some(ConstraintSignature::MatchesPattern(notation_pattern_id.clone())),
+            Self::MinCount { .. }
+            | Self::MaxCount { .. }
+            | Self::Datatype { .. }
+            | Self::HasValue { .. }
+            | Self::MinInclusive { .. }
+            | Self::MaxInclusive { .. }
+            | Self::MinLength { .. }
+            | Self::MaxLength { .. }
+            | Self::UniqueLang { .. }
+            | Self::Closed { .. }
+            | Self::Disjoint { .. }
+            | Self::UniqueKey { .. }
+            | Self::LessThan { .. }
+            | Self::Equals { .. } => None,
+        }
+    }
+
+    /// Stable identifier ("min_count", "less_than", …) used by
+    /// integrity diagnostics, dedup keys, and the agent-view UI
+    /// label catalogue. Mirrors the variant's `serde` tag so the
+    /// wire shape and the diagnostic surface use the same name.
+    ///
+    /// Adding a new variant forces an arm here, so a missing
+    /// label_kind shows up at compile time, not as a `<unknown>`
+    /// string at runtime.
+    pub fn label_kind(&self) -> &'static str {
+        match self {
+            Self::MinCount { .. } => "min_count",
+            Self::MaxCount { .. } => "max_count",
+            Self::Datatype { .. } => "datatype",
+            Self::MatchesPattern { .. } => "matches_pattern",
+            Self::InValueSet { .. } => "in_value_set",
+            Self::HasValue { .. } => "has_value",
+            Self::MinInclusive { .. } => "min_inclusive",
+            Self::MaxInclusive { .. } => "max_inclusive",
+            Self::MinLength { .. } => "min_length",
+            Self::MaxLength { .. } => "max_length",
+            Self::UniqueLang { .. } => "unique_lang",
+            Self::Closed { .. } => "closed",
+            Self::Disjoint { .. } => "disjoint",
+            Self::UniqueKey { .. } => "unique_key",
+            Self::LessThan { .. } => "less_than",
+            Self::Equals { .. } => "equals",
+        }
+    }
+
+    /// Every cross-collection id this constraint references — value
+    /// sets, notation patterns, sibling property ids — flattened
+    /// into a single iterator.
+    ///
+    /// The integrity pass walks this list to detect dangling refs
+    /// without re-implementing per-variant unwrapping in every
+    /// downstream walker. Adding a new variant that references some
+    /// other entity = one new arm here; the integrity layer picks it
+    /// up automatically.
+    pub fn referenced_ids(&self) -> Vec<ConstraintRef<'_>> {
+        match self {
+            Self::InValueSet { value_set_id, .. } => {
+                vec![ConstraintRef::ValueSet(value_set_id)]
+            }
+            Self::MatchesPattern {
+                notation_pattern_id,
+                ..
+            } => vec![ConstraintRef::NotationPattern(notation_pattern_id)],
+            Self::LessThan { other_property, .. }
+            | Self::Equals { other_property, .. } => {
+                vec![ConstraintRef::PropertyId(other_property)]
+            }
+            Self::MinCount { .. }
+            | Self::MaxCount { .. }
+            | Self::Datatype { .. }
+            | Self::HasValue { .. }
+            | Self::MinInclusive { .. }
+            | Self::MaxInclusive { .. }
+            | Self::MinLength { .. }
+            | Self::MaxLength { .. }
+            | Self::UniqueLang { .. }
+            | Self::Closed { .. }
+            | Self::Disjoint { .. }
+            | Self::UniqueKey { .. } => Vec::new(),
+        }
+    }
+}
+
+/// A single id reference owned by a `ShaclConstraint` — used by the
+/// integrity pass to walk every ref without per-variant unwrapping.
+#[derive(Debug, Clone, Copy)]
+pub enum ConstraintRef<'a> {
+    ValueSet(&'a ValueSetId),
+    NotationPattern(&'a NotationPatternId),
+    PropertyId(&'a PropertyId),
 }
 
 /// The node / property / edge a constraint component targets. Most
@@ -263,11 +551,130 @@ mod tests {
     }
 
     #[test]
+    fn signature_distinguishes_value_sets_by_id() {
+        let a = ShaclConstraint::InValueSet {
+            target: ConstraintTarget::Inherit,
+            value_set_id: ValueSetId::new("vs-a"),
+        };
+        let b = ShaclConstraint::InValueSet {
+            target: ConstraintTarget::Inherit,
+            value_set_id: ValueSetId::new("vs-b"),
+        };
+        let a_dup = ShaclConstraint::InValueSet {
+            // Different `target`, same `value_set_id` — signature
+            // ignores the target since dedup is intent-based, not
+            // syntactic.
+            target: ConstraintTarget::Property {
+                node_type_id: NodeTypeId::new("nt-x"),
+                property_id: PropertyId::new("p-x"),
+            },
+            value_set_id: ValueSetId::new("vs-a"),
+        };
+        assert_eq!(a.signature(), a_dup.signature());
+        assert_ne!(a.signature(), b.signature());
+    }
+
+    #[test]
+    fn signature_distinguishes_notation_patterns_by_id() {
+        let a = ShaclConstraint::MatchesPattern {
+            target: ConstraintTarget::Inherit,
+            notation_pattern_id: NotationPatternId::new("np-a"),
+        };
+        let b = ShaclConstraint::MatchesPattern {
+            target: ConstraintTarget::Inherit,
+            notation_pattern_id: NotationPatternId::new("np-b"),
+        };
+        assert_ne!(a.signature(), b.signature());
+    }
+
+    #[test]
+    fn target_returns_some_for_property_constraints() {
+        let cases: [ShaclConstraint; 4] = [
+            ShaclConstraint::MinCount {
+                target: ConstraintTarget::Inherit,
+                min: 1,
+            },
+            ShaclConstraint::InValueSet {
+                target: ConstraintTarget::Property {
+                    node_type_id: NodeTypeId::new("nt-x"),
+                    property_id: PropertyId::new("p-x"),
+                },
+                value_set_id: ValueSetId::new("vs-x"),
+            },
+            ShaclConstraint::MatchesPattern {
+                target: ConstraintTarget::Inherit,
+                notation_pattern_id: NotationPatternId::new("np-x"),
+            },
+            ShaclConstraint::UniqueLang {
+                target: ConstraintTarget::Inherit,
+            },
+        ];
+        for c in &cases {
+            assert!(
+                c.target().is_some(),
+                "single-target constraint must expose its target: {c:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn target_returns_none_for_multi_target_kinds() {
+        // `Disjoint` carries two targets; `UniqueKey` is node-level.
+        // Neither has a single `target` slot — exposing `None` keeps
+        // the dedup pipeline from accidentally treating a multi-
+        // target constraint as if it had a single effective property.
+        let disjoint = ShaclConstraint::Disjoint {
+            a: ConstraintTarget::Inherit,
+            b: ConstraintTarget::Inherit,
+        };
+        let unique_key = ShaclConstraint::UniqueKey {
+            target_node_type_id: NodeTypeId::new("nt-x"),
+            property_keys: vec![],
+        };
+        assert!(disjoint.target().is_none());
+        assert!(unique_key.target().is_none());
+    }
+
+    #[test]
+    fn signature_returns_none_for_dedup_independent_kinds() {
+        // Variants that have not opted into signature-based dedup
+        // return `None`. Two `None` signatures must NOT collapse —
+        // the dedup pipeline checks `Some(sig) == Some(sig)` only.
+        // Adding finer dedup for any of these kinds is a pure-
+        // additive change: extend `ConstraintSignature` and return
+        // `Some(...)` from `signature()`.
+        let kinds = [
+            ShaclConstraint::MinCount {
+                target: ConstraintTarget::Inherit,
+                min: 1,
+            },
+            ShaclConstraint::Datatype {
+                target: ConstraintTarget::Inherit,
+                expected: PropertyType::String,
+            },
+            ShaclConstraint::HasValue {
+                target: ConstraintTarget::Inherit,
+                value: "x".into(),
+            },
+            ShaclConstraint::UniqueLang {
+                target: ConstraintTarget::Inherit,
+            },
+        ];
+        for c in &kinds {
+            assert!(
+                c.signature().is_none(),
+                "{c:?} must remain dedup-independent until it opts in"
+            );
+        }
+    }
+
+    #[test]
     fn node_shape_rule_round_trips() {
         let r = RuleDef {
             id: RuleId::new("r-email-format"),
             name: "email_is_valid".into(),
             description: LocalizedText::default(),
+            rationale: LocalizedText::default(),
             kind: RuleKind::PropertyShape {
                 target_node_type_id: NodeTypeId::new("nt-user"),
                 target_property_id: PropertyId::new("prop-email"),
@@ -275,6 +682,7 @@ mod tests {
             severity: Severity::Violation,
             enforcement: EnforcementKind::Write,
             activation: RuleActivationKind::Always,
+            origin: RuleOrigin::Authored,
             constraints: vec![
                 ShaclConstraint::MinCount {
                     target: ConstraintTarget::Inherit,
@@ -285,6 +693,8 @@ mod tests {
                     notation_pattern_id: NotationPatternId::new("np-email"),
                 },
             ],
+            valid_from: None,
+            valid_to: None,
         };
         let j = serde_json::to_value(&r).unwrap();
         let back: RuleDef = serde_json::from_value(j).unwrap();
@@ -297,6 +707,7 @@ mod tests {
             id: RuleId::new("r-order-state"),
             name: "order_state_machine".into(),
             description: LocalizedText::default(),
+            rationale: LocalizedText::default(),
             kind: RuleKind::StateMachine {
                 target_node_type_id: NodeTypeId::new("nt-order"),
                 state_property_id: PropertyId::new("prop-status"),
@@ -318,7 +729,10 @@ mod tests {
             severity: Severity::default(),
             enforcement: EnforcementKind::Write,
             activation: RuleActivationKind::Always,
+            origin: RuleOrigin::Authored,
             constraints: vec![],
+            valid_from: None,
+            valid_to: None,
         };
         let j = serde_json::to_value(&r).unwrap();
         let back: RuleDef = serde_json::from_value(j).unwrap();
@@ -336,5 +750,205 @@ mod tests {
         };
         let j = serde_json::to_string(&c).unwrap();
         assert!(j.contains("\"kind\":\"unique_key\""));
+    }
+
+    // -----------------------------------------------------------------
+    // Phase 6 — cross-cutting behaviour on `ShaclConstraint`
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn label_kind_matches_serde_tag_for_every_variant() {
+        // Every variant exposes a stable `label_kind` that mirrors
+        // its serde tag. Drift between the two would make
+        // diagnostics print one name while the wire emitted another.
+        let cases: [(ShaclConstraint, &str); 16] = [
+            (
+                ShaclConstraint::MinCount {
+                    target: ConstraintTarget::Inherit,
+                    min: 1,
+                },
+                "min_count",
+            ),
+            (
+                ShaclConstraint::MaxCount {
+                    target: ConstraintTarget::Inherit,
+                    max: 5,
+                },
+                "max_count",
+            ),
+            (
+                ShaclConstraint::Datatype {
+                    target: ConstraintTarget::Inherit,
+                    expected: PropertyType::String,
+                },
+                "datatype",
+            ),
+            (
+                ShaclConstraint::MatchesPattern {
+                    target: ConstraintTarget::Inherit,
+                    notation_pattern_id: NotationPatternId::new("np-x"),
+                },
+                "matches_pattern",
+            ),
+            (
+                ShaclConstraint::InValueSet {
+                    target: ConstraintTarget::Inherit,
+                    value_set_id: ValueSetId::new("vs-x"),
+                },
+                "in_value_set",
+            ),
+            (
+                ShaclConstraint::HasValue {
+                    target: ConstraintTarget::Inherit,
+                    value: "x".into(),
+                },
+                "has_value",
+            ),
+            (
+                ShaclConstraint::MinInclusive {
+                    target: ConstraintTarget::Inherit,
+                    min: 0.0,
+                },
+                "min_inclusive",
+            ),
+            (
+                ShaclConstraint::MaxInclusive {
+                    target: ConstraintTarget::Inherit,
+                    max: 100.0,
+                },
+                "max_inclusive",
+            ),
+            (
+                ShaclConstraint::MinLength {
+                    target: ConstraintTarget::Inherit,
+                    min: 1,
+                },
+                "min_length",
+            ),
+            (
+                ShaclConstraint::MaxLength {
+                    target: ConstraintTarget::Inherit,
+                    max: 64,
+                },
+                "max_length",
+            ),
+            (
+                ShaclConstraint::UniqueLang {
+                    target: ConstraintTarget::Inherit,
+                },
+                "unique_lang",
+            ),
+            (
+                ShaclConstraint::Closed {
+                    target: ConstraintTarget::Inherit,
+                    allowed_properties: Vec::new(),
+                },
+                "closed",
+            ),
+            (
+                ShaclConstraint::Disjoint {
+                    a: ConstraintTarget::Inherit,
+                    b: ConstraintTarget::Inherit,
+                },
+                "disjoint",
+            ),
+            (
+                ShaclConstraint::UniqueKey {
+                    target_node_type_id: NodeTypeId::new("nt-x"),
+                    property_keys: Vec::new(),
+                },
+                "unique_key",
+            ),
+            (
+                ShaclConstraint::LessThan {
+                    target: ConstraintTarget::Inherit,
+                    other_property: PropertyId::new("p-end"),
+                },
+                "less_than",
+            ),
+            (
+                ShaclConstraint::Equals {
+                    target: ConstraintTarget::Inherit,
+                    other_property: PropertyId::new("p-end"),
+                },
+                "equals",
+            ),
+        ];
+        for (c, expected) in cases {
+            assert_eq!(c.label_kind(), expected, "label_kind for {c:?}");
+            // Serde tag mirrors label_kind so `kind:"<label>"` round-trips.
+            let j = serde_json::to_value(&c).unwrap();
+            let kind = j
+                .get("kind")
+                .and_then(|v| v.as_str())
+                .unwrap_or("<missing>");
+            assert_eq!(kind, expected, "serde kind tag for {c:?}");
+        }
+    }
+
+    #[test]
+    fn referenced_ids_surfaces_value_set_id() {
+        let c = ShaclConstraint::InValueSet {
+            target: ConstraintTarget::Inherit,
+            value_set_id: ValueSetId::new("vs-status"),
+        };
+        let refs = c.referenced_ids();
+        assert_eq!(refs.len(), 1);
+        match refs[0] {
+            ConstraintRef::ValueSet(id) => assert_eq!(id.as_str(), "vs-status"),
+            other => panic!("expected ValueSet ref, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn referenced_ids_surfaces_notation_pattern_id() {
+        let c = ShaclConstraint::MatchesPattern {
+            target: ConstraintTarget::Inherit,
+            notation_pattern_id: NotationPatternId::new("np-iso8601"),
+        };
+        let refs = c.referenced_ids();
+        assert_eq!(refs.len(), 1);
+        match refs[0] {
+            ConstraintRef::NotationPattern(id) => assert_eq!(id.as_str(), "np-iso8601"),
+            other => panic!("expected NotationPattern ref, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn referenced_ids_surfaces_property_pair_sibling() {
+        let c = ShaclConstraint::LessThan {
+            target: ConstraintTarget::Inherit,
+            other_property: PropertyId::new("p-end"),
+        };
+        let refs = c.referenced_ids();
+        assert_eq!(refs.len(), 1);
+        match refs[0] {
+            ConstraintRef::PropertyId(id) => assert_eq!(id.as_str(), "p-end"),
+            other => panic!("expected PropertyId ref, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn referenced_ids_returns_empty_for_non_referencing_kinds() {
+        let cases = [
+            ShaclConstraint::MinCount {
+                target: ConstraintTarget::Inherit,
+                min: 1,
+            },
+            ShaclConstraint::HasValue {
+                target: ConstraintTarget::Inherit,
+                value: "x".into(),
+            },
+            ShaclConstraint::UniqueKey {
+                target_node_type_id: NodeTypeId::new("nt-x"),
+                property_keys: Vec::new(),
+            },
+        ];
+        for c in &cases {
+            assert!(
+                c.referenced_ids().is_empty(),
+                "{c:?} should not surface cross-collection refs"
+            );
+        }
     }
 }

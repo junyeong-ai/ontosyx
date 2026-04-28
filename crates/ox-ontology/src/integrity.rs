@@ -26,12 +26,16 @@
 //! `OntologyIR::validate()` so save-time validation refuses any IR
 //! that would otherwise ship a broken reference.
 
+use ox_core::diagnostic::{diag, DiagnosticMessage};
+
 use crate::code_system::{CodeSystemDef, CodedValueId};
 use crate::concept_map::ConceptMapDef;
 use crate::glossary::GlossaryTermId;
 use crate::ir::{EdgeTypeDef, NodeTypeDef, OntologyIR, PropertyDef};
 use crate::notation_pattern::NotationPatternId;
-use crate::rule::{ConstraintTarget, RuleDef, ShaclConstraint};
+use crate::rule::{RuleDef, ShaclConstraint};
+#[cfg(test)]
+use crate::rule::ConstraintTarget;
 use crate::value_range::ValueRangeSetId;
 use crate::value_set::{ValueSetDef, ValueSetId, ValueSetSelector};
 use crate::code_system::CodeSystemId;
@@ -175,41 +179,57 @@ fn property_pointer_walk(
         field,
     };
 
-    if let Some(gid) = &p.glossary_term_id
-        && !glossary.contains(gid)
-    {
-        out.push(DanglingReference {
-            source: site("glossary_term_id"),
-            kind: DanglingKind::GlossaryTerm,
-            missing_id: gid.to_string(),
-        });
-    }
-    if let Some(vid) = &p.value_set_id
-        && !value_sets.contains_key(vid)
-    {
-        out.push(DanglingReference {
-            source: site("value_set_id"),
-            kind: DanglingKind::ValueSet,
-            missing_id: vid.to_string(),
-        });
-    }
-    if let Some(nid) = &p.notation_pattern_id
-        && !notation_patterns.contains(nid)
-    {
-        out.push(DanglingReference {
-            source: site("notation_pattern_id"),
-            kind: DanglingKind::NotationPattern,
-            missing_id: nid.to_string(),
-        });
-    }
-    if let Some(rid) = &p.value_range_set_id
-        && !value_ranges.contains(rid)
-    {
-        out.push(DanglingReference {
-            source: site("value_range_set_id"),
-            kind: DanglingKind::ValueRangeSet,
-            missing_id: rid.to_string(),
-        });
+    // Single walk over the property's binding list — every target
+    // kind is checked through the same loop, with the field tag
+    // pointing at the binding variant so admin reports stay specific.
+    for binding in &p.bindings {
+        match binding {
+            crate::binding::PropertyBinding::Glossary { id, .. }
+                if !glossary.contains(id) =>
+            {
+                out.push(DanglingReference {
+                    source: site("bindings.glossary"),
+                    kind: DanglingKind::GlossaryTerm,
+                    missing_id: id.to_string(),
+                });
+            }
+            crate::binding::PropertyBinding::ValueSet { id, .. }
+                if !value_sets.contains_key(id) =>
+            {
+                out.push(DanglingReference {
+                    source: site("bindings.value_set"),
+                    kind: DanglingKind::ValueSet,
+                    missing_id: id.to_string(),
+                });
+            }
+            crate::binding::PropertyBinding::NotationPattern { id, .. }
+                if !notation_patterns.contains(id) =>
+            {
+                out.push(DanglingReference {
+                    source: site("bindings.notation_pattern"),
+                    kind: DanglingKind::NotationPattern,
+                    missing_id: id.to_string(),
+                });
+            }
+            crate::binding::PropertyBinding::ValueRange { id, .. }
+                if !value_ranges.contains(id) =>
+            {
+                out.push(DanglingReference {
+                    source: site("bindings.value_range"),
+                    kind: DanglingKind::ValueRangeSet,
+                    missing_id: id.to_string(),
+                });
+            }
+            crate::binding::PropertyBinding::CodeSystem { .. } => {
+                // CodeSystem registry membership is checked by
+                // `OntologyIR::validate()` directly against
+                // `code_system_id_idx`; this walker doesn't carry
+                // a CodeSystem index because the dangling-ref
+                // surface here pre-dates the CodeSystem binding
+                // variant.
+            }
+            _ => {}
+        }
     }
     if let Some(uid) = &p.unit_id
         && !coded_value_exists(code_systems, uid)
@@ -228,41 +248,82 @@ fn rule_pointer_walk(
     notation_patterns: &std::collections::HashSet<&NotationPatternId>,
     out: &mut Vec<DanglingReference>,
 ) {
+    use crate::rule::ConstraintRef;
+
+    // Walk every cross-collection reference each constraint exposes
+    // through `referenced_ids()`. Adding a new constraint variant
+    // that points at a value set / notation pattern / sibling
+    // property requires one match arm in `ShaclConstraint::referenced_ids`
+    // — the integrity pass picks the new ref up automatically.
+    //
+    // PropertyId references (e.g. `LessThan.other_property`) are
+    // resolved in `OntologyIR::validate`'s rule pass against the
+    // owning node's properties; this walker only handles the
+    // sibling-collection refs (ValueSet, NotationPattern).
     for constraint in &rule.constraints {
-        match constraint {
-            ShaclConstraint::InValueSet { value_set_id, .. } => {
-                if !value_sets.contains_key(value_set_id) {
-                    out.push(DanglingReference {
-                        source: RegistrySite::Rule {
-                            rule_name: rule.name.clone(),
-                            constraint_kind: "InValueSet",
-                        },
-                        kind: DanglingKind::ValueSet,
-                        missing_id: value_set_id.to_string(),
-                    });
+        for cref in constraint.referenced_ids() {
+            match cref {
+                ConstraintRef::ValueSet(id) => {
+                    if !value_sets.contains_key(id) {
+                        out.push(DanglingReference {
+                            source: RegistrySite::Rule {
+                                rule_name: rule.name.default.clone(),
+                                constraint_kind: constraint_kind_static(constraint),
+                            },
+                            kind: DanglingKind::ValueSet,
+                            missing_id: id.to_string(),
+                        });
+                    }
+                }
+                ConstraintRef::NotationPattern(id) => {
+                    if !notation_patterns.contains(id) {
+                        out.push(DanglingReference {
+                            source: RegistrySite::Rule {
+                                rule_name: rule.name.default.clone(),
+                                constraint_kind: constraint_kind_static(constraint),
+                            },
+                            kind: DanglingKind::NotationPattern,
+                            missing_id: id.to_string(),
+                        });
+                    }
+                }
+                ConstraintRef::PropertyId(_) => {
+                    // PropertyId references on rule constraints are
+                    // resolved against the owning node's property
+                    // list during `OntologyIR::validate` — handled
+                    // there to keep this walker focused on
+                    // cross-collection ids.
                 }
             }
-            ShaclConstraint::MatchesPattern {
-                notation_pattern_id,
-                ..
-            } => {
-                if !notation_patterns.contains(notation_pattern_id) {
-                    out.push(DanglingReference {
-                        source: RegistrySite::Rule {
-                            rule_name: rule.name.clone(),
-                            constraint_kind: "MatchesPattern",
-                        },
-                        kind: DanglingKind::NotationPattern,
-                        missing_id: notation_pattern_id.to_string(),
-                    });
-                }
-            }
-            // Every other constraint kind either carries inline
-            // literals or targets-by-id into the node-type layer,
-            // which the primary `validate()` pass already checks.
-            _ => {}
         }
-        let _ = ConstraintTarget::Inherit; // silence unused import warning
+    }
+}
+
+/// Map a constraint to a `&'static str` "kind" that can be embedded
+/// in the [`RegistrySite::Rule`] variant. Mirrors `label_kind` in
+/// PascalCase so the diagnostic copy reads naturally
+/// ("constraint_kind: InValueSet").
+fn constraint_kind_static(c: &ShaclConstraint) -> &'static str {
+    match c {
+        ShaclConstraint::InValueSet { .. } => "InValueSet",
+        ShaclConstraint::MatchesPattern { .. } => "MatchesPattern",
+        ShaclConstraint::LessThan { .. } => "LessThan",
+        ShaclConstraint::Equals { .. } => "Equals",
+        // Other variants don't reach this helper because they have
+        // no cross-collection refs; keeping the arm explicit catches
+        // any future variant that does.
+        ShaclConstraint::MinCount { .. }
+        | ShaclConstraint::MaxCount { .. }
+        | ShaclConstraint::Datatype { .. }
+        | ShaclConstraint::HasValue { .. }
+        | ShaclConstraint::MinInclusive { .. }
+        | ShaclConstraint::MaxInclusive { .. }
+        | ShaclConstraint::MinLength { .. }
+        | ShaclConstraint::MaxLength { .. }
+        | ShaclConstraint::UniqueLang { .. }
+        | ShaclConstraint::Closed { .. }
+        | ShaclConstraint::Disjoint { .. }
+        | ShaclConstraint::UniqueKey { .. } => "Other",
     }
 }
 
@@ -330,32 +391,19 @@ fn coded_value_exists(
         .any(|cs| cs.codes.iter().any(|cv| cv.id == *id))
 }
 
-/// Human-readable rendering used by `OntologyIR::validate()` error
-/// messages.
-pub fn render_dangling_references(refs: &[DanglingReference]) -> Vec<String> {
+/// Render dangling-reference reports as structured
+/// [`DiagnosticMessage`]s used by `OntologyIR::validate()`. Each
+/// diagnostic carries:
+///
+/// - `code = "ontology.validate.integrity.dangling_<kind>"` —
+///   stable handle the FE catalogue keys against.
+/// - `params.site_kind`, `params.site_*` fields — describe where
+///   the dangling pointer was found (property / rule / value set /
+///   concept map) so the FE can deep-link.
+/// - `params.missing_id` — the unresolved id.
+pub fn render_dangling_references(refs: &[DanglingReference]) -> Vec<DiagnosticMessage> {
     refs.iter()
         .map(|r| {
-            let site = match &r.source {
-                RegistrySite::Property {
-                    owner_label,
-                    property_name,
-                    field,
-                } => format!(
-                    "property `{owner_label}.{property_name}.{field}`"
-                ),
-                RegistrySite::Rule {
-                    rule_name,
-                    constraint_kind,
-                } => format!("rule `{rule_name}` ({constraint_kind} constraint)"),
-                RegistrySite::ValueSet {
-                    value_set_name,
-                    rule_index,
-                } => format!("value set `{value_set_name}` (composition rule {rule_index})"),
-                RegistrySite::ConceptMap {
-                    concept_map_name,
-                    field,
-                } => format!("concept map `{concept_map_name}.{field}`"),
-            };
             let kind = match r.kind {
                 DanglingKind::GlossaryTerm => "glossary_term",
                 DanglingKind::ValueSet => "value_set",
@@ -364,10 +412,57 @@ pub fn render_dangling_references(refs: &[DanglingReference]) -> Vec<String> {
                 DanglingKind::CodeSystem => "code_system",
                 DanglingKind::CodedValue => "coded_value",
             };
-            format!(
-                "{site} references unknown {kind} `{missing}`",
+            let (site_label, mut builder) = match &r.source {
+                RegistrySite::Property {
+                    owner_label,
+                    property_name,
+                    field,
+                } => (
+                    format!("property `{owner_label}.{property_name}.{field}`"),
+                    diag(format!("ontology.validate.integrity.dangling_{kind}"))
+                        .with("site_kind", "property")
+                        .with("owner_label", owner_label.clone())
+                        .with("property_name", property_name.clone())
+                        .with("field", *field),
+                ),
+                RegistrySite::Rule {
+                    rule_name,
+                    constraint_kind,
+                } => (
+                    format!("rule `{rule_name}` ({constraint_kind} constraint)"),
+                    diag(format!("ontology.validate.integrity.dangling_{kind}"))
+                        .with("site_kind", "rule")
+                        .with("rule_name", rule_name.clone())
+                        .with("constraint_kind", *constraint_kind),
+                ),
+                RegistrySite::ValueSet {
+                    value_set_name,
+                    rule_index,
+                } => (
+                    format!("value set `{value_set_name}` (composition rule {rule_index})"),
+                    diag(format!("ontology.validate.integrity.dangling_{kind}"))
+                        .with("site_kind", "value_set")
+                        .with("value_set_name", value_set_name.clone())
+                        .with("rule_index", *rule_index as u64),
+                ),
+                RegistrySite::ConceptMap {
+                    concept_map_name,
+                    field,
+                } => (
+                    format!("concept map `{concept_map_name}.{field}`"),
+                    diag(format!("ontology.validate.integrity.dangling_{kind}"))
+                        .with("site_kind", "concept_map")
+                        .with("concept_map_name", concept_map_name.clone())
+                        .with("field", *field),
+                ),
+            };
+            builder = builder
+                .with("kind", kind)
+                .with("missing_id", r.missing_id.clone());
+            builder.message(format!(
+                "{site_label} references unknown {kind} `{missing}`",
                 missing = r.missing_id,
-            )
+            ))
         })
         .collect()
 }
@@ -378,7 +473,7 @@ mod tests {
     use crate::code_system::{CodeSystemDef, CodeSystemId, CodeSystemKind};
     use crate::glossary::GlossaryTermId;
     use crate::ir::{NodeTypeDef, NodeTypeId, OntologyIR, PropertyDef, PropertyId};
-    use crate::rule::{
+    use crate::rule::{RuleOrigin, 
         EnforcementKind, RuleActivationKind, RuleDef, RuleKind, Severity, ShaclConstraint,
     };
     use crate::action::RuleId;
@@ -426,7 +521,7 @@ mod tests {
     #[test]
     fn property_with_missing_glossary_term_surfaces() {
         let ir = ontology_with_properties(vec![p_with("name", |p| {
-            p.glossary_term_id = Some(GlossaryTermId::new("g-missing"));
+            p.bindings.push(crate::binding::PropertyBinding::glossary(GlossaryTermId::new("g-missing"),));
         })]);
         let refs = ir.dangling_references();
         assert_eq!(refs.len(), 1);
@@ -437,7 +532,7 @@ mod tests {
     #[test]
     fn property_with_missing_value_set_surfaces() {
         let ir = ontology_with_properties(vec![p_with("status", |p| {
-            p.value_set_id = Some(ValueSetId::new("vs-missing"));
+            p.bindings.push(crate::binding::PropertyBinding::value_set(ValueSetId::new("vs-missing"),));
         })]);
         let refs = ir.dangling_references();
         assert_eq!(refs.len(), 1);
@@ -451,6 +546,7 @@ mod tests {
             id: RuleId::new("r"),
             name: "enum_status".into(),
             description: LocalizedText::default(),
+            rationale: LocalizedText::default(),
             kind: RuleKind::PropertyShape {
                 target_node_type_id: NodeTypeId::new("nt"),
                 target_property_id: PropertyId::new("p-status"),
@@ -458,10 +554,13 @@ mod tests {
             severity: Severity::Violation,
             enforcement: EnforcementKind::Write,
             activation: RuleActivationKind::Always,
+            origin: RuleOrigin::Authored,
             constraints: vec![ShaclConstraint::InValueSet {
                 target: ConstraintTarget::Inherit,
                 value_set_id: ValueSetId::new("vs-missing"),
             }],
+            valid_from: None,
+            valid_to: None,
         })
         .expect("rule add");
         let refs = ir.dangling_references();
