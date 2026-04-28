@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Add01Icon, MagicWand01Icon, Refresh01Icon } from "@hugeicons/core-free-icons";
@@ -50,7 +51,20 @@ export function EnhanceActions({
   const guardPendingEdits = useGuardPendingEdits();
   const lastReconcileReport = useAppStore((s) => s.lastReconcileReport);
   const setLastReconcileReport = useAppStore((s) => s.setLastReconcileReport);
+  const extendRequestCount = useAppStore((s) => s.extendSourceRequestCount);
   const reanalyzeSourceType = project.source_config.source_type;
+
+  // Header / shortcut callers fire `requestExtendSource()` to auto-
+  // open the extend sub-form here without prop-drilling. Track the
+  // counter so a fresh request opens the form even when the user
+  // already collapsed it.
+  const lastSeenExtendRequest = useRef(extendRequestCount);
+  useEffect(() => {
+    if (extendRequestCount !== lastSeenExtendRequest.current) {
+      lastSeenExtendRequest.current = extendRequestCount;
+      extend.setShowExtend(true);
+    }
+  }, [extendRequestCount, extend]);
 
   async function handleExtend() {
     if (!(await guardPendingEdits(t("guardActions.extend")))) return;

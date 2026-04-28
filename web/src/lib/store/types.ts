@@ -222,6 +222,15 @@ export interface ChromeSlice {
   setSearchOpen: (open: boolean) => void;
   setCommandPaletteOpen: (open: boolean) => void;
   /**
+   * Monotonic counter that increments every time a header / shortcut
+   * / canvas action fires "extend with new source". The workflow
+   * actions panel watches this number and auto-opens the extend
+   * sub-form on change so the user lands directly in the form
+   * instead of having to navigate to it.
+   */
+  extendSourceRequestCount: number;
+  requestExtendSource: () => void;
+  /**
    * Snap-point preference for the bottom panel. `default` is the
    * comfortable in-context size; `tall` doubles the panel for
    * heavy review sessions; `fullscreen` hides the canvas/review

@@ -68,6 +68,10 @@ export const createChromeSlice: StateCreator<AppStore, [], [], ChromeSlice> = (s
   setSearchOpen: (open) => set({ isSearchOpen: open }),
   setCommandPaletteOpen: (open) => set({ isCommandPaletteOpen: open }),
 
+  extendSourceRequestCount: 0,
+  requestExtendSource: () =>
+    set((s) => ({ extendSourceRequestCount: s.extendSourceRequestCount + 1 })),
+
   bottomPanelMode: "default",
   setBottomPanelMode: (mode) => set({ bottomPanelMode: mode, isBottomPanelOpen: true }),
   cycleBottomPanelMode: () =>
