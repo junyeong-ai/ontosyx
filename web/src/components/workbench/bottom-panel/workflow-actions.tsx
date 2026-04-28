@@ -14,6 +14,11 @@ import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { FormInput } from "@/components/ui/form-input";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import {
+  DesignGateChecklist,
+  focusFirstUnmetGate,
+} from "@/components/workbench/design/design-gate-checklist";
+import { cn } from "@/lib/cn";
 import { useAppStore } from "@/lib/store";
 import {
   ApiError,
@@ -68,9 +73,8 @@ export function WorkflowActions({
   excludedColumns,
   clarifications,
   excludedTables,
-  allowPartialAnalysis,
-  unresolvedClarificationCount,
-  needsPartialAcknowledgement,
+  partialAnalysisAcknowledged,
+  largeSchemaAcknowledged,
 }: WorkflowActionsProps) {
   const t = useTranslations("workbench.bottomPanel.workflowActions");
   const tCommon = useTranslations("common");
@@ -85,16 +89,19 @@ export function WorkflowActions({
     project.title,
     project.source_config.schema_name,
   );
-  const hasLargeSchema = (report?.schema_stats?.table_count ?? 0) > 100;
-
   const isCompleted = project.status === "completed";
   const isDesigned = project.status === "designed";
 
-  const canDesign =
-    !loading &&
-    !isCompleted &&
-    unresolvedClarificationCount === 0 &&
-    !needsPartialAcknowledgement;
+  // Server is the single source of truth for design eligibility.
+  // `design_gates` is computed by `evaluate_design_gates` on every
+  // project response; we only check whether any blocking gate is
+  // unmet here. The DesignGateChecklist component renders the
+  // detailed status alongside the disabled button.
+  const designGates = project.design_gates ?? [];
+  const blockingUnmetCount = designGates.filter(
+    (g) => g.blocks_design && g.status === "unmet",
+  ).length;
+  const canDesign = !loading && !isCompleted && blockingUnmetCount === 0;
 
   function buildDesignOptions(): DesignOptions {
     if (!report) return {};
@@ -126,7 +133,8 @@ export function WorkflowActions({
           return { table: col.column.relation, column: col.column.column, hint };
         })
         .filter((e): e is NonNullable<typeof e> => e !== null),
-      allow_partial_source_analysis: allowPartialAnalysis,
+      partial_analysis_acknowledged: partialAnalysisAcknowledged,
+      large_schema_acknowledged: largeSchemaAcknowledged,
     };
   }
 
@@ -163,7 +171,6 @@ export function WorkflowActions({
       await designProjectStream(saved.id, {
         revision: saved.revision,
         context: form.design.designContext.trim() || undefined,
-        acknowledge_large_schema: hasLargeSchema ? true : undefined,
       }, {
         onPhase: (phase, detail) => {
           setProgressPhase(phase);
@@ -316,8 +323,11 @@ export function WorkflowActions({
         <SourceHistorySection entries={project.source_history} />
       )}
 
-      {loading && progressPhase && (
-        <ProgressIndicator phase={progressPhase} detail={progressDetail} />
+      {loading && (
+        <ProgressIndicator
+          phase={progressPhase ?? "starting"}
+          detail={progressDetail}
+        />
       )}
 
       {/* Analyzed: design is the primary action */}
@@ -334,34 +344,28 @@ export function WorkflowActions({
               onChange={(e) => form.design.setDesignContext(e.target.value)}
             />
           </div>
-          {hasLargeSchema && (
-            <label className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-400">
-              <input
-                type="checkbox"
-                checked={form.design.acknowledgeLargeSchema}
-                onChange={(e) => form.design.setAcknowledgeLargeSchema(e.target.checked)}
-                className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border-amber-300 text-amber-600"
-              />
-              <span>
-                {t.rich("largeSchemaWarning", {
-                  count: report?.schema_stats?.table_count ?? 0,
-                  bold: (chunks) => <span className="font-medium">{chunks}</span>,
-                })}
-              </span>
-            </label>
-          )}
+          <DesignGateChecklist gates={designGates} />
           <Button
             size="sm"
-            onClick={handleDesign}
-            disabled={!canDesign || (hasLargeSchema && !form.design.acknowledgeLargeSchema)}
+            onClick={() => {
+              if (canDesign) {
+                handleDesign();
+                return;
+              }
+              focusFirstUnmetGate(designGates);
+            }}
+            disabled={loading}
+            data-design-allowed={canDesign}
             title={
-              !canDesign && (unresolvedClarificationCount > 0 || needsPartialAcknowledgement)
-                ? t("tipDisabledResolve")
-                : hasLargeSchema && !form.design.acknowledgeLargeSchema
-                  ? t("tipDisabledLargeSchema")
-                  : undefined
+              canDesign
+                ? undefined
+                : t("tipDisabledResolve", { count: blockingUnmetCount })
             }
-            className="w-full text-xs"
+            className={cn(
+              "w-full text-xs",
+              !canDesign &&
+                "bg-zinc-200 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-muted-foreground dark:hover:bg-zinc-800",
+            )}
           >
             {loading ? (
               <Spinner size="xs" className="mr-1.5" />
@@ -446,7 +450,7 @@ export function WorkflowActions({
               {t("savedHeader")}
             </h4>
           </div>
-          <p className="text-[10px] text-emerald-700 dark:text-emerald-400">
+          <p className="text-xs text-emerald-700 dark:text-emerald-400">
             {project.ontology_id ? t("savedDescription") : t("completedDescription")}
           </p>
         </div>

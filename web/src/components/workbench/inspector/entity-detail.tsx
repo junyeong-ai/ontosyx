@@ -19,11 +19,13 @@ import type {
   ElementVerification,
 } from "@/types/api";
 import { defaultText } from "@/lib/locale/localize";
+import { DependentsBadge } from "./dependents-badge";
 import { InlineEdit } from "./inline-edit";
 import { useAiEdit, AiSuggestionList, AiAssistButton } from "./ai-suggestions";
 import { AddPropertyForm, PropertyRow } from "./property-editor";
 import { Section, formatConstraint } from "./shared";
 import { GapsList } from "./quality-gaps";
+import { SourceSampleMini } from "./source-sample-mini";
 import { arr } from "@/lib/ir-collections";
 
 // Re-export for external consumers
@@ -175,6 +177,10 @@ export function NodeDetail({
             onSave={handleRename}
             className="font-semibold text-zinc-800 dark:text-zinc-200"
           />
+          <DependentsBadge
+            ontologyId={ontology.id}
+            target={{ kind: "node_type", id: node.id }}
+          />
           <Tooltip content="Delete node">
             <button
               onClick={handleDeleteNode}
@@ -287,6 +293,17 @@ export function NodeDetail({
             </div>
           ))}
         </Section>
+      )}
+
+      {/* Live source sample — visible only when the node maps onto a
+          physical table the active project has profiled. Closes the
+          Design ↔ Live feedback gap so the operator can shape the
+          property against actual values without leaving the
+          inspector. */}
+      {node.source_lineage?.table && (
+        <div className="px-3 pb-2">
+          <SourceSampleMini tableName={node.source_lineage.table} />
+        </div>
       )}
 
       {/* Connected edges */}
@@ -407,6 +424,10 @@ export function EdgeDetail({
             value={edge.label}
             onSave={handleRename}
             className="font-semibold text-zinc-800 dark:text-zinc-200"
+          />
+          <DependentsBadge
+            ontologyId={ontology.id}
+            target={{ kind: "edge_type", id: edge.id }}
           />
           <Tooltip content="Delete edge">
             <button

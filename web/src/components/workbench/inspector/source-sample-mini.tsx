@@ -1,0 +1,150 @@
+"use client";
+
+// ---------------------------------------------------------------------------
+// SourceSampleMini — live-data preview inside the Design Inspector.
+//
+// When the selected node carries a `source_lineage.table` and the active
+// project has a `source_profile`, render a compact 5-row sample plus the
+// per-column distribution summary (distinct / null / min-max) that the
+// introspection kernel already collected.
+//
+// This is the Foundry-grade "Design ↔ Live" feedback loop the previous
+// architecture review flagged as missing: the operator sees the column
+// distribution alongside the property they're shaping, without leaving
+// Design mode.
+// ---------------------------------------------------------------------------
+
+import { useMemo } from "react";
+import { useTranslations } from "next-intl";
+
+import { useAppStore } from "@/lib/store";
+import type { ColumnStats, SourceProfile, TableProfile } from "@/types/api";
+
+interface Props {
+  /** Source-side table the node maps to. */
+  tableName: string;
+}
+
+const MAX_SAMPLE_ROWS = 5;
+
+/// Pick the table profile from the active project's introspection
+/// snapshot. The project may have no source_profile (Text origin,
+/// CodeRepository, BaseOntology) — return `null` so the caller hides
+/// the panel cleanly instead of rendering an empty shell.
+function resolveTableProfile(
+  profile: SourceProfile | null | undefined,
+  tableName: string,
+): TableProfile | null {
+  if (!profile?.table_profiles) return null;
+  return profile.table_profiles.find((t) => t.table_name === tableName) ?? null;
+}
+
+/// Project the column statistics into a row-major 5×N preview matrix.
+/// Sample arrays may be ragged (some columns sample fewer values than
+/// others); fill missing cells with `""` so the table renders aligned.
+function buildSampleRows(stats: ColumnStats[]): string[][] {
+  const rowCount = Math.min(
+    MAX_SAMPLE_ROWS,
+    Math.max(...stats.map((s) => s.sample_values.length), 0),
+  );
+  if (rowCount === 0) return [];
+  const rows: string[][] = [];
+  for (let r = 0; r < rowCount; r++) {
+    const row = stats.map((s) => s.sample_values[r] ?? "");
+    rows.push(row);
+  }
+  return rows;
+}
+
+export function SourceSampleMini({ tableName }: Props) {
+  const t = useTranslations("inspector.sourceSample");
+  const project = useAppStore((s) => s.activeProject);
+  const profile = (project?.source_profile ?? null) as SourceProfile | null;
+  const tableProfile = useMemo(
+    () => resolveTableProfile(profile, tableName),
+    [profile, tableName],
+  );
+
+  if (!tableProfile) {
+    return null;
+  }
+
+  const stats = tableProfile.column_stats;
+  const rows = buildSampleRows(stats);
+  const rowCount = tableProfile.row_count;
+
+  return (
+    <details
+      className="rounded border border-zinc-200 bg-white text-xs dark:border-zinc-800 dark:bg-zinc-950"
+      open
+    >
+      <summary className="cursor-pointer select-none border-b border-zinc-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground dark:border-zinc-800">
+        {t("title", {
+          table: tableName,
+          rowCount: rowCount.toLocaleString(),
+        })}
+      </summary>
+
+      {rows.length === 0 ? (
+        <p className="px-2 py-2 text-[10px] text-muted-foreground">
+          {t("noSamples")}
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-[10px]">
+            <thead className="bg-zinc-50 dark:bg-zinc-900">
+              <tr>
+                {stats.map((c) => (
+                  <th
+                    key={c.column_name}
+                    className="border-b border-zinc-200 px-2 py-1 text-left font-mono font-medium text-zinc-700 dark:border-zinc-800 dark:text-zinc-300"
+                  >
+                    {c.column_name}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => (
+                <tr key={i} className="even:bg-zinc-50 dark:even:bg-zinc-900/50">
+                  {row.map((cell, j) => (
+                    <td
+                      key={j}
+                      className="border-b border-zinc-100 px-2 py-1 font-mono text-zinc-600 dark:border-zinc-800/50 dark:text-zinc-400"
+                    >
+                      {cell || (
+                        <span className="text-zinc-400 italic">∅</span>
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Per-column distribution summary — distinct + null counts let
+          the operator spot a near-key column or a high-null one
+          without leaving the inspector. */}
+      <ul className="border-t border-zinc-100 px-2 py-1 dark:border-zinc-800">
+        {stats.map((c) => (
+          <li
+            key={c.column_name}
+            className="flex items-center justify-between gap-2 py-0.5 text-[10px]"
+          >
+            <span className="font-mono text-zinc-600 dark:text-zinc-400">
+              {c.column_name}
+            </span>
+            <span className="text-muted-foreground">
+              {t("distribution", {
+                distinct: c.distinct_count.toLocaleString(),
+                nulls: c.null_count.toLocaleString(),
+              })}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}

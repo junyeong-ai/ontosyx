@@ -6,6 +6,7 @@ import { Add01Icon, MagicWand01Icon, Refresh01Icon } from "@hugeicons/core-free-
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { toAnalyzeSelection } from "@/components/workbench/source-import-panel";
 import { useAppStore } from "@/lib/store";
 import { extendProject, reanalyzeProject } from "@/lib/api";
 import { isGitUrl } from "@/lib/git-url";
@@ -122,6 +123,10 @@ export function EnhanceActions({
       const resp = await extendProject(project.id, {
         revision: project.revision,
         source,
+        // The Design-mode "Import Tables" flow always lowers
+        // `subset` to `extend` so the existing project absorbs
+        // only the picked tables.
+        selection: toAnalyzeSelection(extend.importValue, "extend"),
       });
       setProject(resp.project);
       if (resp.project.ontology) {
@@ -178,6 +183,11 @@ export function EnhanceActions({
             ? { type: "git_url" as const, url: reanalyze.repoPath.trim() }
             : { type: "local" as const, path: reanalyze.repoPath.trim() }
           : undefined,
+        // Reanalyze defaults to a full sweep — narrowing requires
+        // a UI for selection, which lives only on the extend
+        // surface today. Sent explicitly so the wire is self-
+        // describing.
+        selection: { kind: "all" },
       });
       setProject(resp.project);
       reanalyze.setShowReanalyze(false);
@@ -234,6 +244,8 @@ export function EnhanceActions({
             setRepoUrl={extend.setRepoUrl}
             duckdbFilePath={extend.duckdbFilePath}
             setDuckdbFilePath={extend.setDuckdbFilePath}
+            importValue={extend.importValue}
+            setImportValue={extend.setImportValue}
             loading={loading}
             onSubmit={handleExtend}
           />

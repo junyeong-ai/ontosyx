@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useAppStore } from "@/lib/store";
+import { useCallback, useEffect, useRef } from "react";
+import { useAppStore, type BottomPanelMode } from "@/lib/store";
 import { OntologyCanvas } from "./canvas/ontology-canvas";
 import { ExplorerPanel } from "./explorer/explorer-panel";
 import { InspectorPanel } from "./inspector/inspector-panel";
 import { BottomPanel } from "./bottom-panel/bottom-panel";
+import { DesignPanel } from "./bottom-panel/design-panel";
 import { SearchDialog } from "./search-dialog";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PanelLeftIcon, PanelRightIcon, Search01Icon } from "@hugeicons/core-free-icons";
@@ -30,8 +31,9 @@ export function DesignLayout() {
   const isBottomPanelOpen = useAppStore((s) => s.isBottomPanelOpen);
   const bottomPanelRef = usePanelRef();
   const initialTabSetRef = useRef(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const closeSearch = useCallback(() => setSearchOpen(false), []);
+  const searchOpen = useAppStore((s) => s.isSearchOpen);
+  const setSearchOpen = useAppStore((s) => s.setSearchOpen);
+  const closeSearch = useCallback(() => setSearchOpen(false), [setSearchOpen]);
 
   // Sync react-resizable-panels collapse/expand with store state.
   // `bottomPanelRef` is a panel ref whose `.current` is assigned by the
@@ -60,12 +62,32 @@ export function DesignLayout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Cmd+K / Ctrl+K to open search
+  // Cmd+K / Ctrl+K to open search; Cmd+\ cycles bottom-panel snap;
+  // Cmd+Shift+\ jumps straight to fullscreen; Esc exits fullscreen.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      const meta = e.metaKey || e.ctrlKey;
+      if (meta && e.key === "k") {
         e.preventDefault();
-        setSearchOpen((v) => !v);
+        const store = useAppStore.getState();
+        store.setSearchOpen(!store.isSearchOpen);
+        return;
+      }
+      if (meta && e.key === "\\") {
+        e.preventDefault();
+        const store = useAppStore.getState();
+        if (e.shiftKey) {
+          store.setBottomPanelMode("fullscreen");
+        } else {
+          store.cycleBottomPanelMode();
+        }
+        return;
+      }
+      if (
+        e.key === "Escape" &&
+        useAppStore.getState().bottomPanelMode === "fullscreen"
+      ) {
+        useAppStore.getState().setBottomPanelMode("default");
       }
     };
     window.addEventListener("keydown", handler);
@@ -92,10 +114,32 @@ export function DesignLayout() {
 
   const gaps: QualityGap[] = activeProject?.quality_report?.gaps ?? [];
   const hasContent = !!ontology;
+  // Phase-aware top panel: when there is no ontology yet (analyse
+  // phase, or no project at all) the canvas placeholder is just dead
+  // space — the operator's actual work is the project-workflow review
+  // (PII, clarifications, gates). Promote the workflow into the
+  // primary pane and shrink the bottom panel to chat/quality only.
+  // Once the design completes (`ontology !== null`), the layout
+  // flips back: canvas is primary, the bottom panel surfaces the
+  // workflow tab again.
+  const showCanvas = hasContent;
+  const bottomPanelMode = useAppStore((s) => s.bottomPanelMode);
+  const setBottomPanelMode = useAppStore((s) => s.setBottomPanelMode);
+  const isFullscreen = bottomPanelMode === "fullscreen";
+
+  // Resolve the snap mode into concrete top/bottom percentages. Pure
+  // function of `(showCanvas, bottomPanelMode)` — keeps the layout
+  // stable across re-renders and easy to unit-test.
+  const { topSize, bottomSize } = resolvePanelSizes(
+    showCanvas,
+    bottomPanelMode,
+  );
 
   return (
     <Group orientation="vertical" className="h-full">
-      <Panel defaultSize={hasContent ? "60%" : "40%"}>
+      {!isFullscreen && (
+      <Panel defaultSize={topSize}>
+        {showCanvas ? (
         <Group orientation="horizontal" className="h-full">
           {explorerOpen && hasContent && (
             <>
@@ -182,17 +226,59 @@ export function DesignLayout() {
             </>
           )}
         </Group>
+        ) : (
+          <ErrorBoundary name="ProjectReview">
+            <DesignPanel />
+          </ErrorBoundary>
+        )}
       </Panel>
+      )}
 
-      <ResizeHandle orientation="vertical" />
+      {!isFullscreen && <ResizeHandle orientation="vertical" />}
 
-      <Panel panelRef={bottomPanelRef} defaultSize="40%" minSize="5%" maxSize="70%" collapsible>
+      <Panel
+        panelRef={bottomPanelRef}
+        defaultSize={bottomSize}
+        minSize="5%"
+        maxSize="100%"
+        collapsible
+      >
         <ErrorBoundary name="BottomPanel">
-          <BottomPanel />
+          <BottomPanel
+            mode={bottomPanelMode}
+            onCycleMode={() => useAppStore.getState().cycleBottomPanelMode()}
+            onExitFullscreen={() => setBottomPanelMode("default")}
+          />
         </ErrorBoundary>
       </Panel>
 
       <SearchDialog open={searchOpen} onClose={closeSearch} />
     </Group>
   );
+}
+
+/**
+ * Translate the snap-mode preference into concrete top/bottom panel
+ * sizes. The numbers are deliberately conservative: `default` keeps
+ * canvas as the primary read; `tall` flips the dominance to the
+ * bottom panel for heavy review sessions; `fullscreen` is handled
+ * outside this function (top panel unmounted).
+ *
+ * `showCanvas=false` (analyse phase) starts with a slightly larger
+ * top panel because the workflow review is the actual work in that
+ * phase — the bottom panel only carries chat/quality.
+ */
+function resolvePanelSizes(
+  showCanvas: boolean,
+  mode: BottomPanelMode,
+): { topSize: string; bottomSize: string } {
+  if (mode === "fullscreen") {
+    return { topSize: "0%", bottomSize: "100%" };
+  }
+  if (mode === "tall") {
+    return { topSize: "30%", bottomSize: "70%" };
+  }
+  return showCanvas
+    ? { topSize: "60%", bottomSize: "40%" }
+    : { topSize: "70%", bottomSize: "30%" };
 }

@@ -2,7 +2,12 @@
 
 import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { PencilEdit01Icon, DatabaseIcon, Upload04Icon } from "@hugeicons/core-free-icons";
+import {
+  Alert02Icon,
+  DatabaseIcon,
+  PencilEdit01Icon,
+  Upload04Icon,
+} from "@hugeicons/core-free-icons";
 
 import { useAppStore } from "@/lib/store";
 
@@ -81,6 +86,56 @@ export function CanvasEmptyState() {
           <span className="text-[10px] text-muted-foreground">{t("importOntologyHint")}</span>
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Canvas placeholder rendered when an ontology exists but contains
+ * zero node types — typically the result of every source table being
+ * excluded during analysis review or a sparse design pass that
+ * produced no node candidates.
+ *
+ * The CTA jumps the operator to the analysis review's exclusions
+ * section so the cause is one click away from being fixed.
+ */
+export function CanvasZeroNodesState() {
+  const t = useTranslations("workbench.canvas.zeroNodes");
+
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-4 p-8">
+      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-50 dark:bg-amber-950/30">
+        <HugeiconsIcon
+          icon={Alert02Icon}
+          className="h-6 w-6 text-amber-500"
+          size="100%"
+        />
+      </div>
+      <div className="text-center">
+        <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
+          {t("title")}
+        </h2>
+        <p className="mt-1.5 max-w-md text-sm text-zinc-600 dark:text-muted-foreground">
+          {t("description")}
+        </p>
+      </div>
+      <button
+        onClick={() => {
+          const s = useAppStore.getState();
+          s.setDesignBottomTab("workflow");
+          if (!s.isBottomPanelOpen) s.toggleBottomPanel();
+          // Wait for the panel to open before scrolling the anchor
+          // into view; the bottom panel's content lazy-mounts.
+          requestAnimationFrame(() => {
+            document
+              .getElementById("review-exclusions")
+              ?.scrollIntoView({ behavior: "smooth", block: "start" });
+          });
+        }}
+        className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-emerald-700"
+      >
+        {t("openReview")}
+      </button>
     </div>
   );
 }

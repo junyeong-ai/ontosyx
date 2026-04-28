@@ -6,6 +6,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { MagicWand01Icon, Tick01Icon, Alert01Icon } from "@hugeicons/core-free-icons";
 import type { QualityGap, QualityGapSeverity, QualityGapCategory } from "@/types/api";
 import { formatGapLocation } from "./design-panel-shared";
+import { localizeQualityGap } from "@/lib/quality-gap-text";
 import { getGapEntityId, navigateToGap } from "@/lib/quality-utils";
 
 // ---------------------------------------------------------------------------
@@ -104,10 +105,12 @@ export function QualityGapCard({
   onNavigateToClarification,
 }: QualityGapCardProps) {
   const t = useTranslations("workbench.bottomPanel.quality");
+  const tGap = useTranslations("qualityGap");
   const focusable = getGapEntityId(gap) !== null;
   const actionType = getGapActionType(gap.category);
   const hintKey = actionHintKey(actionType);
   const actionHint = hintKey ? t(hintKey as "actionAiFix" | "actionUserDecision" | "actionClarificationNeeded") : "";
+  const { issue, suggestion } = localizeQualityGap(gap, tGap);
 
   return (
     <div
@@ -216,10 +219,10 @@ export function QualityGapCard({
         </span>
       </div>
       <p className="mt-1 text-xs text-zinc-700 dark:text-zinc-200">
-        {gap.issue}
+        {issue}
       </p>
       <p className="mt-0.5 text-[10px] text-muted-foreground">
-        {gap.suggestion}
+        {suggestion}
       </p>
       {actionHint && (
         <p className={cn(

@@ -1,6 +1,7 @@
 "use client";
 
 import { memo, useCallback, useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowDown01Icon, ArrowRight01Icon, Search01Icon } from "@hugeicons/core-free-icons";
@@ -9,21 +10,28 @@ import { cn } from "@/lib/cn";
 import { Tooltip } from "@/components/ui/tooltip";
 import type { QualityGap, NodeTypeDef, EdgeTypeDef } from "@/types/api";
 import { arr } from "@/lib/ir-collections";
+import { localizeQualityGapIssue } from "@/lib/quality-gap-text";
 
 // ---------------------------------------------------------------------------
 // Explorer — node/edge list with search and quality indicators
 // ---------------------------------------------------------------------------
 
+type NodeLayerLabel = (
+  key: string,
+  vars?: Record<string, string | number | Date>,
+) => string;
+
 /** Determine the visual layer for a node (priority: problematic > suggested > asserted > inferred) */
 function nodeLayerTooltip(
+  t: NodeLayerLabel,
   sourceTable: string | undefined | null,
   highGapCount: number,
   isAdded: boolean,
 ): string {
-  if (highGapCount > 0) return `Problematic (${highGapCount} high-severity issue${highGapCount > 1 ? "s" : ""})`;
-  if (isAdded) return "Suggested (LLM proposed)";
-  if (sourceTable) return `Asserted (${sourceTable})`;
-  return "Inferred";
+  if (highGapCount > 0) return t("layerHighGap");
+  if (isAdded) return t("layerAdded");
+  if (sourceTable) return `${t("layerEnhanced")} (${sourceTable})`;
+  return t("layerLegacy");
 }
 
 function nodeLayerColor(
@@ -49,6 +57,8 @@ interface NodeItemProps {
   isAdded: boolean;
   isModified: boolean;
   onSelect: (id: string) => void;
+  /** Localised string lookup scoped to `workbench.explorer.node`. */
+  tNode: NodeLayerLabel;
 }
 
 const NodeItem = memo(function NodeItem({
@@ -59,8 +69,10 @@ const NodeItem = memo(function NodeItem({
   isAdded,
   isModified,
   onSelect,
+  tNode,
 }: NodeItemProps) {
   const handleClick = useCallback(() => onSelect(node.id), [onSelect, node.id]);
+  const propCount = arr(node.properties).length;
 
   return (
     <button
@@ -70,7 +82,7 @@ const NodeItem = memo(function NodeItem({
         selected && "bg-emerald-50 dark:bg-emerald-950/30",
       )}
     >
-      <Tooltip content={nodeLayerTooltip(node.source_lineage?.table, highGapCount, isAdded)}>
+      <Tooltip content={nodeLayerTooltip(tNode, node.source_lineage?.table, highGapCount, isAdded)}>
         <span className={cn(
           "inline-block h-2 w-2 rounded-full",
           nodeLayerColor(node.source_lineage?.table, highGapCount, isAdded),
@@ -79,19 +91,19 @@ const NodeItem = memo(function NodeItem({
       <span className="flex-1 truncate text-zinc-700 dark:text-zinc-300">
         {node.label}
       </span>
-      <Tooltip content={`${arr(node.properties).length} properties`}>
+      <Tooltip content={tNode("propertyCount", { count: propCount })}>
         <span className="text-[10px] text-muted-foreground">
-          {arr(node.properties).length} props
+          {tNode("propertyAbbrev", { count: propCount })}
         </span>
       </Tooltip>
       {isAdded && (
         <span className="rounded bg-emerald-100 px-1 text-[8px] font-bold uppercase text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">
-          new
+          {tNode("newBadge")}
         </span>
       )}
       {isModified && (
         <span className="rounded bg-amber-100 px-1 text-[8px] font-bold uppercase text-amber-700 dark:bg-amber-900 dark:text-amber-300">
-          mod
+          {tNode("modifiedBadge")}
         </span>
       )}
       {gapCount > 0 && (
@@ -166,6 +178,8 @@ const EdgeItem = memo(function EdgeItem({
 // ---------------------------------------------------------------------------
 
 export function ExplorerPanel({ gaps }: { gaps: QualityGap[] }) {
+  const tNode = useTranslations("workbench.explorer.node");
+  const tGap = useTranslations("qualityGap");
   const ontology = useAppStore((s) => s.ontology);
   const selectedNodeId = useAppStore(selectStateSelectedNodeId);
   const selectedEdgeId = useAppStore(selectStateSelectedEdgeId);
@@ -321,6 +335,7 @@ export function ExplorerPanel({ gaps }: { gaps: QualityGap[] }) {
         nodeLabelMap={nodeLabelMap}
         onSelectNode={handleSelectNode}
         onSelectEdge={handleSelectEdge}
+        tNode={tNode}
       />
 
       <div className="flex-shrink-0 text-xs">
@@ -347,7 +362,7 @@ export function ExplorerPanel({ gaps }: { gaps: QualityGap[] }) {
                         gap.severity === "high" ? "bg-red-500" : "bg-amber-400",
                       )}
                     />
-                    <span>{gap.issue}</span>
+                    <span>{localizeQualityGapIssue(gap, tGap)}</span>
                   </div>
                 ))}
                 <button
@@ -393,6 +408,8 @@ interface VirtualizedTreeProps {
   nodeLabelMap: Map<string, string>;
   onSelectNode: (id: string) => void;
   onSelectEdge: (id: string) => void;
+  /** Localised string lookup scoped to `workbench.explorer.node`. */
+  tNode: NodeLayerLabel;
 }
 
 function VirtualizedTree({
@@ -400,7 +417,7 @@ function VirtualizedTree({
   nodeCount, edgeCount, selectedNodeId, selectedEdgeId,
   nodeGapCounts, nodeHighGapCounts, edgeGapCounts,
   diffAddedIds, diffModifiedIds, nodeLabelMap,
-  onSelectNode, onSelectEdge,
+  onSelectNode, onSelectEdge, tNode,
 }: VirtualizedTreeProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -473,6 +490,7 @@ function VirtualizedTree({
                   isAdded={diffAddedIds.has(row.node.id)}
                   isModified={diffModifiedIds.has(row.node.id)}
                   onSelect={onSelectNode}
+                  tNode={tNode}
                 />
               ) : (
                 <EdgeItem

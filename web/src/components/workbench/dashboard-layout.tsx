@@ -26,6 +26,7 @@ import { dashboardsKeys, useDashboards } from "@/hooks/api/use-dashboards";
 import { widgetsKeys, useWidgets } from "@/hooks/api/use-widgets";
 import { DashboardAiDialog } from "./dashboard-ai-dialog";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { InsightListPanel } from "./insights/insight-list-panel";
 import { EmptyState } from "@/components/ui/empty-state";
 import { WidgetGrid } from "./dashboard/widget-grid";
 import { WidgetInspector } from "./dashboard/widget-inspector";
@@ -167,8 +168,17 @@ export function DashboardLayout() {
   return (
     <ErrorBoundary name="Dashboard">
     <Group orientation="horizontal" className="h-full">
+      {/* Left: Saved insights — author-curated re-runnable artefacts. */}
+      <Panel defaultSize="20%" minSize="14%" maxSize="32%">
+        <div className="h-full border-r border-zinc-200 dark:border-zinc-800">
+          <InsightListPanel />
+        </div>
+      </Panel>
+
+      <ResizeHandle />
+
       {/* Main: Action toolbar + Widget grid */}
-      <Panel minSize="50%">
+      <Panel minSize="40%">
         <div className="flex h-full flex-col">
           {/* Action toolbar (no selector -- that lives in the header) */}
           <div className="flex h-10 shrink-0 items-center gap-2 border-b border-zinc-200 px-4 dark:border-zinc-800">

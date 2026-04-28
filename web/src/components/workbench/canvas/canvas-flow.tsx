@@ -13,6 +13,7 @@ import { SchemaNode } from "./schema-node";
 import { SchemaEdge } from "./schema-edge";
 import { GroupNode } from "./node-group";
 import { GraphCanvas } from "./graph-canvas";
+import { EdgeKindMarkers } from "./edge-kind-markers";
 
 // ---------------------------------------------------------------------------
 // CanvasFlow — ontology-specific adapter over `GraphCanvas`
@@ -48,23 +49,26 @@ interface CanvasFlowProps {
  */
 export function CanvasFlow(props: CanvasFlowProps) {
   return (
-    <GraphCanvas
-      nodes={props.nodes}
-      edges={props.edges}
-      nodeTypes={nodeTypes}
-      edgeTypes={edgeTypes}
-      onNodesChange={props.onNodesChange}
-      onEdgesChange={props.onEdgesChange}
-      onNodeClick={props.onNodeClick}
-      onEdgeClick={props.onEdgeClick}
-      onNodeDragStop={props.onNodeDragStop}
-      onNodeDoubleClick={props.onNodeDoubleClick}
-      onNodeContextMenu={props.onNodeContextMenu}
-      onEdgeContextMenu={props.onEdgeContextMenu}
-      onPaneClick={props.onPaneClick}
-      className="bg-zinc-50 dark:bg-zinc-950"
-      minimap={{ nodeColor: ontologyMiniMapColor }}
-    />
+    <>
+      <EdgeKindMarkers />
+      <GraphCanvas
+        nodes={props.nodes}
+        edges={props.edges}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        onNodesChange={props.onNodesChange}
+        onEdgesChange={props.onEdgesChange}
+        onNodeClick={props.onNodeClick}
+        onEdgeClick={props.onEdgeClick}
+        onNodeDragStop={props.onNodeDragStop}
+        onNodeDoubleClick={props.onNodeDoubleClick}
+        onNodeContextMenu={props.onNodeContextMenu}
+        onEdgeContextMenu={props.onEdgeContextMenu}
+        onPaneClick={props.onPaneClick}
+        className="bg-zinc-50 dark:bg-zinc-950"
+        minimap={{ nodeColor: ontologyMiniMapColor }}
+      />
+    </>
   );
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useAppStore, type DesignBottomTab } from "@/lib/store";
+import { useAppStore, type BottomPanelMode, type DesignBottomTab } from "@/lib/store";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { DesignPanel } from "./design-panel";
 import { QualityReportPanel } from "./quality-report-panel";
@@ -16,6 +16,8 @@ import {
   CheckListIcon,
   ArrowDown01Icon,
   ArrowUp01Icon,
+  MaximizeScreenIcon,
+  MinimizeScreenIcon,
 } from "@hugeicons/core-free-icons";
 
 // ---------------------------------------------------------------------------
@@ -50,15 +52,46 @@ const panelMap: Record<DesignBottomTab, React.ComponentType> = {
   quality: QualityTab,
 };
 
-export function BottomPanel() {
+interface BottomPanelProps {
+  /** Current snap mode — `default | tall | fullscreen`. */
+  mode?: BottomPanelMode;
+  /** Cycles through snap modes (default → tall → fullscreen → …). */
+  onCycleMode?: () => void;
+  /** Drops out of fullscreen back to `default`. */
+  onExitFullscreen?: () => void;
+}
+
+export function BottomPanel({
+  mode = "default",
+  onCycleMode,
+  onExitFullscreen,
+}: BottomPanelProps = {}) {
   const t = useTranslations("workbench.bottomPanel.tabs");
   const designBottomTab = useAppStore((s) => s.designBottomTab);
   const setDesignBottomTab = useAppStore((s) => s.setDesignBottomTab);
   const isBottomPanelOpen = useAppStore((s) => s.isBottomPanelOpen);
   const toggleBottomPanel = useAppStore((s) => s.toggleBottomPanel);
+  const ontology = useAppStore((s) => s.ontology);
+  const isFullscreen = mode === "fullscreen";
+  // Phase-aware tab filter: while no ontology has been designed yet
+  // the workflow review owns the main pane (`DesignLayout` swaps the
+  // canvas region for `<DesignPanel />`). Showing the same content
+  // again behind a tab here would split the user's attention; hide
+  // the workflow tab in that phase. Once the ontology lands, the
+  // canvas takes the main pane and the workflow tab reappears.
+  const reviewIsMain = ontology === null;
+  const visibleTabs = reviewIsMain
+    ? TAB_DEFS.filter((tab) => tab.id !== "workflow")
+    : TAB_DEFS;
+
+  // The active tab can become invalid mid-render if the user just
+  // designed (workflow tab disappears). Snap to chat in that case so
+  // the panel is never blank.
+  const effectiveTab: DesignBottomTab =
+    reviewIsMain && designBottomTab === "workflow" ? "chat" : designBottomTab;
 
   const handleTabClick = (id: DesignBottomTab) => {
-    if (id === designBottomTab && isBottomPanelOpen) {
+    if (id === effectiveTab && isBottomPanelOpen) {
       // Active tab re-clicked → collapse (VS Code pattern)
       toggleBottomPanel();
     } else {
@@ -68,15 +101,15 @@ export function BottomPanel() {
     }
   };
 
-  const ActivePanel = panelMap[designBottomTab];
+  const ActivePanel = panelMap[effectiveTab];
 
   return (
     <div className="flex h-full flex-col border-t border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
       {/* Tab bar — manual click handling for active-tab-toggle */}
       <div className="flex h-8 shrink-0 items-center border-b border-zinc-200 dark:border-zinc-800">
         <div className="flex items-center" role="tablist">
-          {TAB_DEFS.map(({ id, icon }) => {
-            const isActive = isBottomPanelOpen && designBottomTab === id;
+          {visibleTabs.map(({ id, icon }) => {
+            const isActive = isBottomPanelOpen && effectiveTab === id;
             return (
               <button
                 key={id}
@@ -97,6 +130,35 @@ export function BottomPanel() {
           })}
         </div>
         <div className="flex-1" />
+        {onCycleMode && (
+          <Tooltip
+            content={
+              isFullscreen
+                ? t("exitFullscreen")
+                : mode === "tall"
+                  ? t("enterFullscreen")
+                  : t("enterTall")
+            }
+          >
+            <button
+              onClick={isFullscreen ? onExitFullscreen : onCycleMode}
+              aria-label={
+                isFullscreen
+                  ? t("exitFullscreen")
+                  : mode === "tall"
+                    ? t("enterFullscreen")
+                    : t("enterTall")
+              }
+              className="px-2 text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300"
+            >
+              <HugeiconsIcon
+                icon={isFullscreen ? MinimizeScreenIcon : MaximizeScreenIcon}
+                className="h-3.5 w-3.5"
+                size="100%"
+              />
+            </button>
+          </Tooltip>
+        )}
         <Tooltip content={isBottomPanelOpen ? t("collapsePanel") : t("expandPanel")}>
           <button
             onClick={toggleBottomPanel}

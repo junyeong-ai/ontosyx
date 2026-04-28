@@ -8,6 +8,10 @@ import { relationshipKey, columnKey } from "./design-panel-shared";
 // Decision state hook — shared between WorkflowActions and AnalysisReview.
 // Tracks per-column PII annotations + per-column exclusions alongside the
 // existing relationship / clarification / table-exclusion state.
+//
+// Names mirror the wire shape (`design_options.<field>`) in camelCase so
+// the local form state and the persisted server state stay aligned —
+// every field here lowers directly into the `DesignOptions` payload.
 // ---------------------------------------------------------------------------
 
 export interface PiiAnnotationEntry {
@@ -22,7 +26,8 @@ interface ResetState {
   excludedColumns: Record<string, { table: string; column: string }>;
   clarifications: Record<string, string>;
   excludedTables: Record<string, boolean>;
-  allowPartial: boolean;
+  partialAnalysisAcknowledged: boolean;
+  largeSchemaAcknowledged: boolean;
 }
 
 function deriveResetState(designOptions: DesignOptions): ResetState {
@@ -59,7 +64,8 @@ function deriveResetState(designOptions: DesignOptions): ResetState {
     excludedColumns,
     clarifications,
     excludedTables,
-    allowPartial: designOptions.allow_partial_source_analysis ?? false,
+    partialAnalysisAcknowledged: designOptions.partial_analysis_acknowledged ?? false,
+    largeSchemaAcknowledged: designOptions.large_schema_acknowledged ?? false,
   };
 }
 
@@ -78,15 +84,15 @@ export interface DesignDecisions {
   setClarifications: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   excludedTables: Record<string, boolean>;
   setExcludedTables: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
-  allowPartialAnalysis: boolean;
-  setAllowPartialAnalysis: React.Dispatch<React.SetStateAction<boolean>>;
+  partialAnalysisAcknowledged: boolean;
+  setPartialAnalysisAcknowledged: React.Dispatch<React.SetStateAction<boolean>>;
+  largeSchemaAcknowledged: boolean;
+  setLargeSchemaAcknowledged: React.Dispatch<React.SetStateAction<boolean>>;
   unresolvedClarificationCount: number;
-  needsPartialAcknowledgement: boolean;
 }
 
 export function useDesignDecisions(designOptions: DesignOptions, report: {
   ambiguous_columns: { column: { relation: string; column: string } }[];
-  analysis_completeness?: string;
 } | null): DesignDecisions {
   const [confirmedRelationships, setConfirmedRelationships] = useState<Record<string, boolean>>(
     () => deriveResetState(designOptions).confirmed,
@@ -103,8 +109,11 @@ export function useDesignDecisions(designOptions: DesignOptions, report: {
   const [excludedTables, setExcludedTables] = useState<Record<string, boolean>>(
     () => deriveResetState(designOptions).excludedTables,
   );
-  const [allowPartialAnalysis, setAllowPartialAnalysis] = useState(
-    () => deriveResetState(designOptions).allowPartial,
+  const [partialAnalysisAcknowledged, setPartialAnalysisAcknowledged] = useState(
+    () => deriveResetState(designOptions).partialAnalysisAcknowledged,
+  );
+  const [largeSchemaAcknowledged, setLargeSchemaAcknowledged] = useState(
+    () => deriveResetState(designOptions).largeSchemaAcknowledged,
   );
 
   const [prevDesignOptions, setPrevDesignOptions] = useState(designOptions);
@@ -116,7 +125,8 @@ export function useDesignDecisions(designOptions: DesignOptions, report: {
     setExcludedColumns(reset.excludedColumns);
     setClarifications(reset.clarifications);
     setExcludedTables(reset.excludedTables);
-    setAllowPartialAnalysis(reset.allowPartial);
+    setPartialAnalysisAcknowledged(reset.partialAnalysisAcknowledged);
+    setLargeSchemaAcknowledged(reset.largeSchemaAcknowledged);
   }
 
   const unresolvedClarificationCount = report
@@ -124,9 +134,6 @@ export function useDesignDecisions(designOptions: DesignOptions, report: {
         (c) => !clarifications[columnKey(c.column.relation, c.column.column)]?.trim(),
       ).length
     : 0;
-
-  const needsPartialAcknowledgement =
-    report?.analysis_completeness === "partial" && !allowPartialAnalysis;
 
   return {
     confirmedRelationships,
@@ -139,9 +146,10 @@ export function useDesignDecisions(designOptions: DesignOptions, report: {
     setClarifications,
     excludedTables,
     setExcludedTables,
-    allowPartialAnalysis,
-    setAllowPartialAnalysis,
+    partialAnalysisAcknowledged,
+    setPartialAnalysisAcknowledged,
+    largeSchemaAcknowledged,
+    setLargeSchemaAcknowledged,
     unresolvedClarificationCount,
-    needsPartialAcknowledgement,
   };
 }

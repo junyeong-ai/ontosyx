@@ -8,8 +8,9 @@ import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { FormInput } from "@/components/ui/form-input";
 import { FormTextarea } from "@/components/ui/form-textarea";
+import { SourceImportPanel } from "@/components/workbench/source-import-panel";
 import { cn } from "@/lib/cn";
-import type { DesignSource } from "@/types/api";
+import type { DesignSource, ProjectSource } from "@/types/api";
 
 // ---------------------------------------------------------------------------
 // Reanalyze form
@@ -139,6 +140,64 @@ function isExtendSourceType(s: DesignSource["type"]): s is ExtendSourceType {
   return (SOURCE_TYPE_OPTIONS as readonly string[]).includes(s);
 }
 
+interface ExtendFormSnapshot {
+  sourceType: DesignSource["type"];
+  connectionString: string;
+  schemaName: string;
+  database: string;
+  sampleData: string;
+  repoUrl: string;
+  duckdbFilePath?: string;
+}
+
+/**
+ * Translate the extend form's flat fields into the `ProjectSource`
+ * wire shape, or `null` when the inputs aren't yet sufficient to
+ * call the source-preview endpoint. Single source of truth for both
+ * the panel preview (workflow-forms) and the submit path
+ * (enhance-actions).
+ */
+export function extendSourceFromForm(
+  s: ExtendFormSnapshot,
+): ProjectSource | null {
+  const conn = s.connectionString.trim();
+  switch (s.sourceType) {
+    case "postgresql":
+      if (!conn) return null;
+      return {
+        type: "postgresql",
+        connection_string: conn,
+        schema: s.schemaName.trim() || "public",
+      };
+    case "mysql": {
+      const db = s.database.trim();
+      if (!conn || !db) return null;
+      return { type: "mysql", connection_string: conn, schema: db };
+    }
+    case "mongodb": {
+      const db = s.database.trim();
+      if (!conn || !db) return null;
+      return { type: "mongodb", connection_string: conn, database: db };
+    }
+    case "duckdb": {
+      const fp = (s.duckdbFilePath ?? "").trim();
+      if (!fp) return null;
+      return { type: "duckdb", file_path: fp };
+    }
+    case "csv":
+    case "json": {
+      const data = s.sampleData.trim();
+      if (!data) return null;
+      return { type: s.sourceType, data };
+    }
+    default:
+      // Text / CodeRepository / Snowflake / BigQuery — preview is
+      // either trivial (Text), unsupported, or needs structured
+      // input the form doesn't collect.
+      return null;
+  }
+}
+
 export function ExtendSourceForm({
   sourceType,
   setSourceType,
@@ -154,6 +213,8 @@ export function ExtendSourceForm({
   setRepoUrl,
   duckdbFilePath,
   setDuckdbFilePath,
+  importValue,
+  setImportValue,
   loading,
   onSubmit,
 }: {
@@ -171,6 +232,8 @@ export function ExtendSourceForm({
   setRepoUrl: (v: string) => void;
   duckdbFilePath?: string;
   setDuckdbFilePath?: (v: string) => void;
+  importValue: import("@/components/workbench/source-import-panel").SourceImportValue;
+  setImportValue: (v: import("@/components/workbench/source-import-panel").SourceImportValue) => void;
   loading: boolean;
   onSubmit: () => void;
 }) {
@@ -226,6 +289,19 @@ export function ExtendSourceForm({
               ? setSchemaName(e.target.value)
               : setDatabase(e.target.value)}
           />
+          <SourceImportPanel
+            source={extendSourceFromForm({
+              sourceType,
+              connectionString,
+              schemaName,
+              database,
+              sampleData,
+              repoUrl,
+              duckdbFilePath,
+            })}
+            value={importValue}
+            onChange={setImportValue}
+          />
         </>
       ) : sourceType === "mongodb" ? (
         <>
@@ -241,6 +317,19 @@ export function ExtendSourceForm({
             placeholder={t("dbNamePlaceholder")}
             value={database}
             onChange={(e) => setDatabase(e.target.value)}
+          />
+          <SourceImportPanel
+            source={extendSourceFromForm({
+              sourceType,
+              connectionString,
+              schemaName,
+              database,
+              sampleData,
+              repoUrl,
+              duckdbFilePath,
+            })}
+            value={importValue}
+            onChange={setImportValue}
           />
         </>
       ) : sourceType === "duckdb" ? (

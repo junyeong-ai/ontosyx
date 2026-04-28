@@ -7,11 +7,17 @@ function makeGap(overrides: Partial<QualityGap>): QualityGap {
     severity: "medium",
     category: "missing_description",
     location: { ref_type: "node", node_id: "n1", label: "Brand" },
-    issue: "test issue",
-    suggestion: "test suggestion",
+    params: {},
     ...overrides,
   } as QualityGap;
 }
+
+// Stub translator: echoes the key + JSON-stringified params so the
+// fallback path is observable without spinning up next-intl.
+const tStub = (key: string, values?: Record<string, string | number>) =>
+  values && Object.keys(values).length > 0
+    ? `${key}(${JSON.stringify(values)})`
+    : key;
 
 describe("gapToEditRequest", () => {
   it("missing_description on node", () => {
@@ -20,6 +26,7 @@ describe("gapToEditRequest", () => {
         category: "missing_description",
         location: { ref_type: "node", node_id: "n1", label: "Brand" },
       }),
+      tStub,
     );
     expect(result).toContain("Brand");
     expect(result.toLowerCase()).toContain("description");
@@ -37,6 +44,7 @@ describe("gapToEditRequest", () => {
           property_name: "country",
         },
       }),
+      tStub,
     );
     expect(result).toContain("country");
     expect(result).toContain("Brand");
@@ -54,6 +62,7 @@ describe("gapToEditRequest", () => {
           to_column: "id",
         },
       }),
+      tStub,
     );
     expect(result).toContain("orders");
     expect(result).toContain("brands");
@@ -69,6 +78,7 @@ describe("gapToEditRequest", () => {
           column: "weight",
         },
       }),
+      tStub,
     );
     expect(result).toContain("weight");
     expect(result).toContain("products");
@@ -80,18 +90,20 @@ describe("gapToEditRequest", () => {
         category: "orphan_node",
         location: { ref_type: "node", node_id: "n1", label: "Settings" },
       }),
+      tStub,
     );
     expect(result).toContain("Settings");
     expect(result.toLowerCase()).toContain("edge");
   });
 
-  it("fallback for unknown category", () => {
+  it("fallback for unknown category routes through the translator", () => {
     const result = gapToEditRequest(
       makeGap({
         category: "some_new_category" as QualityGap["category"],
-        issue: "Something is wrong with the data",
       }),
+      tStub,
     );
-    expect(result).toContain("Something is wrong with the data");
+    // tStub echoes the i18n key for unknown categories.
+    expect(result).toContain("some_new_category.issue");
   });
 });

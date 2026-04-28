@@ -13,8 +13,12 @@ import type { NodeGroup } from "@/lib/store";
 import type { SchemaNodeData, NodeLayer, DiffStatus } from "./schema-node";
 import type { SchemaEdgeData } from "./schema-edge";
 import type { GroupNodeData } from "./node-group";
-import type { OntologyIR, OntologyDiff, QualityGap, QualityGapRef, ReconcileReport, ResolvedQueryBindings, BindingKind } from "@/types/api";
+import type { EdgeKind, OntologyIR, OntologyDiff, QualityGap, QualityGapRef, ReconcileReport, ResolvedQueryBindings, BindingKind } from "@/types/api";
 import { arr } from "@/lib/ir-collections";
+import {
+  EDGE_MARKER_AGGREGATION,
+  EDGE_MARKER_COMPOSITION,
+} from "./edge-kind-markers";
 
 // ---------------------------------------------------------------------------
 // Highlight sets
@@ -261,7 +265,13 @@ export function buildFlowElements(
     source: e.source_node_id,
     target: e.target_node_id,
     type: "schema",
+    // Directed arrow at the target end always tells the operator
+    // which way the edge points. UML diamond markers (Composition /
+    // Aggregation) attach at the source end via `markerStart` —
+    // see `edgeKindMarkerStart`. Plain Association edges leave the
+    // source end unmarked.
     markerEnd: { type: "arrowclosed" as const, width: 16, height: 16 },
+    markerStart: edgeKindMarkerStart(e.kind),
     data: {
       edgeDef: e,
       selected: false,
@@ -434,5 +444,24 @@ export async function exportCanvasImage(
     toast.success(`Exported as ${format.toUpperCase()}`);
   } catch {
     toast.error("Export failed");
+  }
+}
+
+/**
+ * Map an [`EdgeKind`] to the `markerStart` URL React Flow renders at
+ * the source endpoint. UML convention: filled diamond for
+ * Composition, hollow diamond for Aggregation, no source marker for
+ * Association. The id strings come from `edge-kind-markers.tsx`,
+ * which mounts the `<defs>` registry once at the canvas root.
+ */
+function edgeKindMarkerStart(kind: EdgeKind | undefined): string | undefined {
+  switch (kind) {
+    case "composition":
+      return `url(#${EDGE_MARKER_COMPOSITION})`;
+    case "aggregation":
+      return `url(#${EDGE_MARKER_AGGREGATION})`;
+    case "association":
+    case undefined:
+      return undefined;
   }
 }

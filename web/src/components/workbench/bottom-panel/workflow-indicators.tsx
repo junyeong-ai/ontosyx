@@ -10,6 +10,7 @@ import type { SourceHistoryEntry } from "@/types/api";
 
 /** Known phase wire values — unknown variants fall through to the raw string. */
 const KNOWN_PHASES = [
+  "starting",
   "validating",
   "clustering",
   "designing",
@@ -45,7 +46,7 @@ export function ProgressIndicator({
           {label}
         </p>
         {detail && (
-          <p className="truncate text-[10px] text-emerald-600/70 dark:text-emerald-400/70">
+          <p className="truncate text-xs text-emerald-600/70 dark:text-emerald-400/70">
             {detail}
           </p>
         )}
@@ -76,9 +77,9 @@ export function SourceHistorySection({ entries }: { entries: SourceHistoryEntry[
   const hasMultiple = entries.length > 1;
   return (
     <details className="text-xs" open={hasMultiple}>
-      <summary className="cursor-pointer text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300">
+      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-zinc-600 dark:hover:text-zinc-300">
         {t("sourcesTitle")}
-        <span className="ml-1.5 text-[10px] font-normal normal-case">
+        <span className="ml-1.5 text-xs font-normal normal-case">
           {t("sourceCount", { count: entries.length })}
         </span>
       </summary>
@@ -88,7 +89,7 @@ export function SourceHistorySection({ entries }: { entries: SourceHistoryEntry[
             key={`${entry.source_type}-${entry.added_at}-${i}`}
             className="rounded border border-zinc-100 px-2 py-1.5 dark:border-zinc-800"
           >
-            <div className="flex items-center gap-2 text-[10px] text-zinc-600 dark:text-muted-foreground">
+            <div className="flex items-center gap-2 text-xs text-zinc-600 dark:text-muted-foreground">
               <span className="inline-flex shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 font-medium dark:bg-zinc-800">
                 {isKnownSourceType(entry.source_type)
                   ? t(`sourceTypes.${entry.source_type}`)

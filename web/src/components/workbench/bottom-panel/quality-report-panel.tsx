@@ -17,11 +17,16 @@ import type {
 import { formatGapLocation } from "./design-panel-shared";
 import { getGapEntityId } from "@/lib/quality-utils";
 import { gapToEditRequest } from "@/lib/gap-to-edit-request";
+import {
+  localizeQualityGapIssue,
+  localizeQualityGapSuggestion,
+} from "@/lib/quality-gap-text";
 import { updateDecisions, getProject } from "@/lib/api";
 import { useAppStore } from "@/lib/store";
 import { QualityGapCard, AI_FIXABLE_CATEGORIES } from "./quality-gap-card";
 
 type QualityTranslator = ReturnType<typeof useTranslations<"workbench.bottomPanel.quality">>;
+type QualityGapTranslator = ReturnType<typeof useTranslations<"qualityGap">>;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -89,19 +94,21 @@ function countBadgeClass(severity: QualityGapSeverity): string {
  * Accepts a translator so the hint matches the user's active locale — the
  * hint is persisted verbatim, so it should render in the UI language.
  */
-function buildAcknowledgmentHint(gap: QualityGap, t: QualityTranslator): string {
+function buildAcknowledgmentHint(
+  gap: QualityGap,
+  t: QualityTranslator,
+  tGap: QualityGapTranslator,
+): string {
   if (gap.category === "single_value_bias") {
-    // Extract value info from the issue text if possible
-    const match = gap.issue.match(/all (?:values|rows) (?:are|=) ['"]?([^'"]+)['"]?/i)
-      ?? gap.issue.match(/single value ['"]?([^'"]+)['"]?/i);
-    const value = match?.[1] ?? t("acknowledgmentHintSingleValueDefault");
+    const value = gap.params.observed_value ?? t("acknowledgmentHintSingleValueDefault");
     return t("acknowledgmentHintSingleValue", { value });
   }
   if (gap.category === "sparse_property") {
     return t("acknowledgmentHintSparse");
   }
-  // Fallback for any other gap categories the UI is asked to acknowledge.
-  return t("acknowledgmentHintGeneric", { issue: gap.issue });
+  // Fallback for any other gap categories the UI is asked to acknowledge —
+  // surface the localized issue so the persisted hint stays meaningful.
+  return t("acknowledgmentHintGeneric", { issue: localizeQualityGapIssue(gap, tGap) });
 }
 
 /**
@@ -137,6 +144,7 @@ interface QualityReportPanelProps {
 
 export function QualityReportPanel({ report }: QualityReportPanelProps) {
   const t = useTranslations("workbench.bottomPanel.quality");
+  const tGap = useTranslations("qualityGap");
   // Workflow heading used to locate the Analysis Review <details> element
   // when navigating from a gap to its clarification source.
   const analysisReviewHeading = useTranslations(
@@ -158,9 +166,9 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
 
   const fixGap = useCallback(
     (gap: QualityGap) => {
-      setCommandBarInput(gapToEditRequest(gap));
+      setCommandBarInput(gapToEditRequest(gap, tGap));
     },
-    [setCommandBarInput],
+    [setCommandBarInput, tGap],
   );
 
   const confirmDialog = useConfirm();
@@ -187,7 +195,7 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
 
       setAcknowledgingIndex(index);
       try {
-        const hint = buildAcknowledgmentHint(gap, t);
+        const hint = buildAcknowledgmentHint(gap, t, tGap);
         const existingClarifications = activeProject.design_options.column_clarifications ?? [];
 
         // Check if a clarification already exists for this column
@@ -239,7 +247,7 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
         setAcknowledgingIndex(null);
       }
     },
-    [activeProject, setActiveProject, confirmDialog, t],
+    [activeProject, setActiveProject, confirmDialog, t, tGap],
   );
 
   const navigateToClarification = useCallback(
@@ -281,10 +289,10 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
       return;
     }
     const combinedRequest = fixableGaps
-      .map((g) => gapToEditRequest(g))
+      .map((g) => gapToEditRequest(g, tGap))
       .join("\n");
     setCommandBarInput(combinedRequest);
-  }, [setCommandBarInput, report.gaps, t]);
+  }, [setCommandBarInput, report.gaps, t, tGap]);
 
   // Count by severity
   const counts = useMemo(() => {
@@ -301,12 +309,23 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
     [report.gaps],
   );
 
-  // Filter + sort by severity, then group by category
+  // Filter + sort by severity, then group by category. The text filter
+  // matches against the localized issue + suggestion (so the user types
+  // what they see) plus the location string for entity-name lookups.
   const grouped = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
     const filtered = report.gaps
       .filter((g) => enabledSeverities.has(g.severity))
-      .filter((g) => !query || g.issue.toLowerCase().includes(query) || g.suggestion.toLowerCase().includes(query) || formatGapLocation(g.location).toLowerCase().includes(query))
+      .filter((g) => {
+        if (!query) return true;
+        const issue = localizeQualityGapIssue(g, tGap).toLowerCase();
+        const suggestion = localizeQualityGapSuggestion(g, tGap).toLowerCase();
+        return (
+          issue.includes(query) ||
+          suggestion.includes(query) ||
+          formatGapLocation(g.location).toLowerCase().includes(query)
+        );
+      })
       .sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
 
     const map = new Map<QualityGapCategory, QualityGap[]>();
@@ -316,7 +335,7 @@ export function QualityReportPanel({ report }: QualityReportPanelProps) {
       else map.set(gap.category, [gap]);
     }
     return map;
-  }, [report.gaps, enabledSeverities, searchQuery]);
+  }, [report.gaps, enabledSeverities, searchQuery, tGap]);
 
   const toggleSeverity = (s: QualityGapSeverity) => {
     setEnabledSeverities((prev) => {

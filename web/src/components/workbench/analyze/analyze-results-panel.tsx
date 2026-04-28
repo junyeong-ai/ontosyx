@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useAppStore, type ToolCall } from "@/lib/store";
 import type { QueryDiagnostic, QueryResult, WidgetSpec } from "@/types/api";
 import { addWidget, normalizeQueryResult } from "@/lib/api";
@@ -11,6 +12,7 @@ import { CopyButton } from "@/components/ui/copy-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { WidgetRenderer } from "@/components/widgets/widget-renderer";
 import { ResponseBasis } from "@/components/widgets/response-basis";
+import { SaveInsightDialog } from "@/components/workbench/insights/save-insight-dialog";
 import { toast } from "sonner";
 import { STEP_TIMING_LABELS } from "@/lib/constants/tool-meta";
 
@@ -91,7 +93,8 @@ export function AnalyzeResultsPanel() {
 
 function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
   const parsed = tryParseQueryOutput(toolCall.output);
-  const { data: execution } = useExecution(parsed?.execution_id ?? null);
+  const executionQuery = useExecution(parsed?.execution_id ?? null);
+  const execution = executionQuery.data;
   const provenance = execution?.results?.metadata?.provenance ?? undefined;
   const [pinOpen, setPinOpen] = useState(false);
   const [selectedDashId, setSelectedDashId] = useState<string>("");
@@ -101,6 +104,32 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
       : toolCall.name,
   );
   const [isPinning, setIsPinning] = useState(false);
+  const [saveInsightOpen, setSaveInsightOpen] = useState(false);
+
+  // "Save as Insight" is meaningful for any query_graph result. We
+  // render the button on three distinct states so the user can tell
+  // why it is or isn't actionable:
+  //   - `ready`       — execution row resolved, click to save
+  //   - `loading`     — tool emitted execution_id, fetch still in
+  //                     flight (button disabled, tooltip honest)
+  //   - `unavailable` — no execution row will ever resolve. Either
+  //                     `query_graph` produced no execution_id (e.g.
+  //                     failed query) OR the fetch errored (404 from
+  //                     a GC'd row, network failure, auth expired).
+  //                     Both collapse to the same UX: there is
+  //                     nothing to save for this tool call.
+  // The canonical QueryIR is always read from the persisted row,
+  // never from the LLM-facing tool envelope.
+  const tSave = useTranslations("workbench.results.saveButton");
+  const isQueryResult = toolCall.name === "query_graph";
+  const hasExecutionId = Boolean(parsed?.execution_id);
+  const insightReady = Boolean(execution?.query_ir);
+  const saveState: "ready" | "loading" | "unavailable" =
+    !hasExecutionId || executionQuery.isError
+      ? "unavailable"
+      : insightReady
+        ? "ready"
+        : "loading";
 
   // Fetch dashboards only while the pin popover is open; Tanstack Query
   // caches the result between opens so repeated toggles don't re-fetch.
@@ -158,6 +187,16 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
               {toolCall.durationMs < 100 ? "<0.1s" : `${(toolCall.durationMs / 1000).toFixed(1)}s`}
             </span>
           )}
+          {isQueryResult && (
+            <button
+              onClick={() => setSaveInsightOpen(true)}
+              disabled={saveState !== "ready"}
+              className="cursor-pointer rounded px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-indigo-50 hover:text-indigo-600 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted-foreground dark:hover:bg-indigo-950 dark:hover:text-indigo-400"
+              title={tSave(`tooltip.${saveState}`)}
+            >
+              {tSave("label")}
+            </button>
+          )}
           <button
             onClick={() => setPinOpen(!pinOpen)}
             className="cursor-pointer rounded px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950 dark:hover:text-emerald-400"
@@ -167,6 +206,15 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
           </button>
         </div>
       </div>
+      {insightReady && execution && (
+        <SaveInsightDialog
+          open={saveInsightOpen}
+          onOpenChange={setSaveInsightOpen}
+          queryIr={execution.query_ir}
+          originalProvenance={provenance}
+          defaultQuestion={execution.question}
+        />
+      )}
       {/* Cypher query block — below header for query_graph results */}
       {toolCall.name === "query_graph" && parsed?.compiled_query && (
         <div className="px-3 pt-2">

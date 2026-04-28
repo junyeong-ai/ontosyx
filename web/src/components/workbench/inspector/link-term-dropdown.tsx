@@ -3,7 +3,7 @@
 // Phase 4.5 — inline "Link to glossary term" affordance used inside
 // the property row in the inspector. Clicking the button fetches the
 // top-N candidate terms; picking one fires a single
-// `bind_property_to_term` edit through `/api/ontologies/{id}/edits`.
+// `bind_property` edit through `/api/ontologies/{id}/edits`.
 //
 // The control intentionally owns its *suggestion cache* (mutation
 // data stays mounted) but not the binding state itself — the
@@ -87,12 +87,22 @@ export function LinkTermDropdown(props: LinkTermDropdownProps) {
   }, [open]);
 
   const commitBinding = (glossaryTermId: string | null, label?: string) => {
-    const op: BindingEditOp = {
-      op: "bind_property_to_term",
-      owner: { kind: ownerKind, type_id: ownerTypeId },
-      property_id: propertyId,
-      glossary_term_id: glossaryTermId,
-    };
+    const op: BindingEditOp = glossaryTermId
+      ? {
+          op: "bind_property",
+          owner: { kind: ownerKind, type_id: ownerTypeId },
+          property_id: propertyId,
+          binding: { kind: "glossary", id: glossaryTermId },
+        }
+      : {
+          op: "unbind_property",
+          owner: { kind: ownerKind, type_id: ownerTypeId },
+          property_id: propertyId,
+          // Unbind by `(kind, id)` selector. We always carry the
+          // previously bound term id on `boundTermId`, so use that
+          // to compose the exact handle the BE expects.
+          target: { kind: "glossary", id: boundTermId ?? "" },
+        };
     apply.mutate(
       {
         expected_version: expectedVersion,
@@ -156,7 +166,7 @@ export function LinkTermDropdown(props: LinkTermDropdownProps) {
         <div
           role="listbox"
           aria-label={t("suggestionsLabel")}
-          className="absolute right-0 top-full z-20 mt-1 w-56 rounded-md border border-zinc-200 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+          className="absolute right-0 top-full z-20 mt-1 w-64 rounded-md border border-zinc-200 bg-white p-2 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
         >
           {suggest.isPending && (
             <p className="px-2 py-1.5 text-[11px] text-muted-foreground">

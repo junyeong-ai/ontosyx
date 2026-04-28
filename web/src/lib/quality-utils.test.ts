@@ -13,8 +13,7 @@ function gap(location: QualityGapRef): QualityGap {
     severity: "medium",
     category: "missing_description",
     location,
-    issue: "fixture",
-    suggestion: "fixture",
+    params: {},
   };
 }
 

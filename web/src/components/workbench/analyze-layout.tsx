@@ -1,6 +1,7 @@
 "use client";
 
 import { z } from "zod";
+import { useTranslations } from "next-intl";
 import { useAppStore } from "@/lib/store";
 import type { AnalyzeRightTab } from "@/lib/store";
 import { useQueryState } from "@/hooks/use-query-state";
@@ -30,17 +31,28 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 type AnalyzeMode = "chat" | "builder";
 
-const ANALYZE_TABS: Array<{ id: AnalyzeRightTab; label: string; icon: import("@hugeicons/react").IconSvgElement }> = [
-  { id: "results", label: "Results", icon: Message01Icon },
-  { id: "query", label: "Query", icon: CommandLineIcon },
-  { id: "history", label: "History", icon: Clock01Icon },
-  { id: "insights", label: "Insights", icon: Analytics01Icon },
-  { id: "knowledge", label: "Knowledge", icon: BookOpen01Icon },
+// Tab id ↔ icon binding stays static; the human-readable label is
+// resolved through the translator at render time so a locale switch
+// updates the tab bar without rerunning module code.
+const ANALYZE_TAB_ICONS: Array<{
+  id: AnalyzeRightTab;
+  icon: import("@hugeicons/react").IconSvgElement;
+}> = [
+  { id: "results", icon: Message01Icon },
+  { id: "query", icon: CommandLineIcon },
+  { id: "history", icon: Clock01Icon },
+  { id: "insights", icon: Analytics01Icon },
+  { id: "knowledge", icon: BookOpen01Icon },
 ];
 
 export function AnalyzeLayout() {
+  const t = useTranslations("workbench.analyze");
   const rightTab = useAppStore((s) => s.analyzeRightTab);
   const setRightTab = useAppStore((s) => s.setAnalyzeRightTab);
+  const analyzeTabs = ANALYZE_TAB_ICONS.map((row) => ({
+    ...row,
+    label: t(`tab.${row.id}`),
+  }));
   // URL-backed so "Chat vs Query Builder" + a specific result pane survive
   // reloads and can be shared (`?analyze=builder`).
   const [analyzeMode, setAnalyzeMode] = useQueryState<AnalyzeMode>("analyze", {
@@ -62,7 +74,7 @@ export function AnalyzeLayout() {
                 : "text-zinc-500 hover:text-zinc-700 dark:text-muted-foreground dark:hover:text-zinc-300"
             }`}
           >
-            Chat
+            {t("mode.chat")}
           </button>
           <button
             onClick={() => setAnalyzeMode("builder")}
@@ -72,7 +84,7 @@ export function AnalyzeLayout() {
                 : "text-zinc-500 hover:text-zinc-700 dark:text-muted-foreground dark:hover:text-zinc-300"
             }`}
           >
-            Query Builder
+            {t("mode.builder")}
           </button>
         </div>
 
@@ -100,7 +112,7 @@ export function AnalyzeLayout() {
                   {/* Tab bar */}
                   <div className="flex h-8 shrink-0 items-center border-b border-zinc-200 px-1 dark:border-zinc-800">
                     <TabBar
-                      tabs={ANALYZE_TABS}
+                      tabs={analyzeTabs}
                       activeTab={rightTab}
                       onTabChange={(id) => setRightTab(id as AnalyzeRightTab)}
                     />

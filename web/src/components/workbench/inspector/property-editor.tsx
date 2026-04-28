@@ -233,7 +233,10 @@ export function PropertyRow({
               ownerKind={binding.ownerKind}
               ownerTypeId={binding.ownerTypeId}
               propertyId={prop.id}
-              boundTermId={prop.glossary_term_id ?? undefined}
+              boundTermId={
+                prop.bindings?.find((b) => b.kind === "glossary")?.id
+                ?? undefined
+              }
             />
           )}
         </div>

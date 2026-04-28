@@ -7,6 +7,9 @@ import { Alert01Icon, MagicWand01Icon } from "@hugeicons/core-free-icons";
 import { FormInput } from "@/components/ui/form-input";
 import { cn } from "@/lib/cn";
 import { toast } from "sonner";
+import { WarningGroupList } from "@/components/workbench/warnings/warning-group-card";
+import { ReviewTOC, type ReviewTOCEntry } from "./review-toc";
+import { useReviewKeyboardNav } from "./use-review-keyboard-nav";
 import type {
   AmbiguityContext,
   ImpliedRelationship,
@@ -136,6 +139,7 @@ function GroupedSection({
   renderItem: (entry: { key: string; item: unknown }) => React.ReactNode;
   renderBatchAction?: (tableName: string) => React.ReactNode;
 }) {
+  const t = useTranslations("workbench.bottomPanel.analysisReview");
   if (groups.size === 0) return null;
 
   const lowerSearch = searchFilter.toLowerCase();
@@ -144,11 +148,30 @@ function GroupedSection({
     .filter(([tableName]) => !unresolvedOnly || getUnresolvedCount(tableName) > 0)
     .sort(([a], [b]) => a.localeCompare(b));
 
-  if (filteredGroups.length === 0) return null;
+  // Every group has unresolved=0 (filtered out by `unresolvedOnly`),
+  // or no group matches the text filter. Render a compact "all
+  // resolved" placeholder so the section still has visible content
+  // when the TOC pill scrolls here. Without this the wrapper div
+  // exists but is empty, and the click-to-anchor ring highlight
+  // flashes against a blank box — confusing the operator into
+  // thinking the click did nothing.
+  if (filteredGroups.length === 0) {
+    const totalItems = Array.from(groups.values()).reduce((acc, list) => acc + list.length, 0);
+    return (
+      <div>
+        <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {title}
+        </h4>
+        <p className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-xs text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
+          {t("sectionAllResolved", { count: totalItems })}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div>
-      <h4 className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         {title}
       </h4>
       <div className="space-y-1">
@@ -156,7 +179,7 @@ function GroupedSection({
           const unresolved = getUnresolvedCount(tableName);
           return (
             <details key={tableName} open={unresolved > 0}>
-              <summary className="flex cursor-pointer select-none items-center gap-2 rounded border border-zinc-200 bg-zinc-100/60 px-2 py-1 text-[10px] font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300 dark:hover:bg-zinc-800/60">
+              <summary className="flex cursor-pointer select-none items-center gap-2 rounded border border-zinc-200 bg-zinc-100/60 px-2 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300 dark:hover:bg-zinc-800/60">
                 <span className="flex-1">{tableName}</span>
                 {renderBatchAction?.(tableName)}
                 {unresolved > 0 && (
@@ -194,10 +217,11 @@ export function AnalysisReviewSection({
   setClarifications,
   excludedTables,
   setExcludedTables,
-  allowPartialAnalysis,
-  setAllowPartialAnalysis,
+  partialAnalysisAcknowledged,
+  setPartialAnalysisAcknowledged,
+  largeSchemaAcknowledged,
+  setLargeSchemaAcknowledged,
   unresolvedClarificationCount,
-  needsPartialAcknowledgement,
 }: {
   report: SourceAnalysisReport;
   confirmedRelationships: Record<string, boolean>;
@@ -220,10 +244,11 @@ export function AnalysisReviewSection({
   setExcludedTables: React.Dispatch<
     React.SetStateAction<Record<string, boolean>>
   >;
-  allowPartialAnalysis: boolean;
-  setAllowPartialAnalysis: (v: boolean) => void;
+  partialAnalysisAcknowledged: boolean;
+  setPartialAnalysisAcknowledged: (v: boolean) => void;
+  largeSchemaAcknowledged: boolean;
+  setLargeSchemaAcknowledged: (v: boolean) => void;
   unresolvedClarificationCount: number;
-  needsPartialAcknowledgement: boolean;
 }) {
   const t = useTranslations("workbench.bottomPanel.analysisReview");
   const [searchFilter, setSearchFilter] = useState("");
@@ -265,6 +290,49 @@ export function AnalysisReviewSection({
     unresolvedExcludedCount;
   const totalResolved = totalItems - totalUnresolved;
   const progressPercent = totalItems > 0 ? Math.round((totalResolved / totalItems) * 100) : 100;
+
+  // Sticky-TOC backing data. Keep this declarative so adding a new
+  // review section is one entry here + one anchor id on the
+  // rendered <section>. Sections with zero items are filtered
+  // inside `<ReviewTOC>` and do not produce TOC pills.
+  const tocEntries: ReviewTOCEntry[] = [
+    {
+      anchor: "review-warnings",
+      labelKey: "warnings",
+      total: report.analysis_warnings.length,
+      unresolved: partialAnalysisAcknowledged ? 0 : report.analysis_warnings.length,
+    },
+    {
+      anchor: "review-relationships",
+      labelKey: "relationships",
+      total: report.implied_relationships.length,
+      unresolved: unresolvedRelCount,
+    },
+    {
+      anchor: "review-exclusions",
+      labelKey: "exclusions",
+      total: report.table_exclusion_suggestions.length,
+      unresolved: unresolvedExcludedCount,
+    },
+    {
+      anchor: "review-pii",
+      labelKey: "pii",
+      total: report.pii_suggestions.length,
+      unresolved: unresolvedPiiCount,
+    },
+    {
+      anchor: "review-clarifications",
+      labelKey: "clarifications",
+      total: report.ambiguous_columns.length,
+      unresolved: unresolvedClarificationCount,
+    },
+  ];
+
+  // J/K keyboard nav across the same anchors the TOC pills jump to.
+  // The hook filters out anchors whose underlying element is missing
+  // (section hidden because the data slice is empty), so the cursor
+  // never strands on a non-existent target.
+  useReviewKeyboardNav(tocEntries.map((entry) => entry.anchor));
 
   const relGroups = useMemo(() => {
     const grouped = groupByTable(
@@ -482,14 +550,13 @@ export function AnalysisReviewSection({
           <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
             {t("heading")}
           </p>
-          <p className="mt-0.5 text-[10px] text-muted-foreground">
+          <p className="mt-0.5 text-xs text-muted-foreground">
             {t("description", {
               tables: report.schema_stats.table_count,
               columns: report.schema_stats.column_count,
               fks: report.schema_stats.declared_fk_count,
               pii: unresolvedPiiCount,
               clarifications: unresolvedClarificationCount,
-              partial: needsPartialAcknowledgement ? t("partialAck") : "",
             })}
           </p>
         </div>
@@ -499,7 +566,7 @@ export function AnalysisReviewSection({
               type="button"
               onClick={autoFill}
               className={cn(
-                "flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-medium transition-colors",
+                "flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium transition-colors",
                 "border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100",
                 "dark:border-violet-700 dark:bg-violet-950 dark:text-violet-300 dark:hover:bg-violet-900",
               )}
@@ -525,7 +592,7 @@ export function AnalysisReviewSection({
 
       {totalItems > 0 && (
         <div>
-          <div className="mb-1 flex items-center justify-between text-[10px] text-muted-foreground">
+          <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
             <span>{t("progressResolved", { percent: progressPercent, resolved: totalResolved, total: totalItems })}</span>
             <span className="text-muted-foreground">{t("progressRemaining", { count: totalUnresolved })}</span>
           </div>
@@ -545,9 +612,11 @@ export function AnalysisReviewSection({
         </div>
       )}
 
+      <ReviewTOC entries={tocEntries} />
+
       {totalItems > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-zinc-200 bg-white px-2 py-1.5 dark:border-zinc-800 dark:bg-zinc-950/60">
-          <label className="flex items-center gap-1.5 text-[10px] text-zinc-600 dark:text-zinc-300">
+          <label className="flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-300">
             <input
               type="checkbox"
               checked={unresolvedOnly}
@@ -562,55 +631,97 @@ export function AnalysisReviewSection({
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
             placeholder={t("filterPlaceholder")}
-            className="flex-1 border-none bg-transparent text-[10px] text-zinc-700 outline-none placeholder:text-zinc-500 dark:text-zinc-200 dark:placeholder:text-zinc-500"
+            className="flex-1 border-none bg-transparent text-xs text-zinc-700 outline-none placeholder:text-zinc-500 dark:text-zinc-200 dark:placeholder:text-zinc-500"
           />
-          <span className="whitespace-nowrap text-[10px] font-medium text-muted-foreground">
+          <span className="whitespace-nowrap text-xs font-medium text-muted-foreground">
             {t("filterCount", { remaining: totalUnresolved, total: totalItems })}
           </span>
         </div>
       )}
 
       {report.analysis_warnings.length > 0 && (
-        <div className="rounded-md border border-amber-200 bg-amber-50 p-2 dark:border-amber-900 dark:bg-amber-950/40">
+        <div
+          id="review-warnings"
+          className="rounded-md border border-amber-200 bg-amber-50 p-2 dark:border-amber-900 dark:bg-amber-950/40"
+        >
           <div className="flex items-center gap-1.5">
             <HugeiconsIcon icon={Alert01Icon} className="h-3 w-3 text-amber-600" size="100%" />
             <span className="text-xs font-medium text-amber-900 dark:text-amber-100">
               {t("warningsTitle")}
             </span>
           </div>
-          <div className="mt-2 space-y-1">
-            {report.analysis_warnings.map((w) => (
-              <p key={`${w.kind}-${w.location}`} className="text-[10px] text-zinc-600 dark:text-zinc-300">
-                <span className="font-medium">{w.location}</span>: {w.message}
-              </p>
-            ))}
+          <div className="mt-2">
+            <WarningGroupList warnings={report.analysis_warnings} />
           </div>
-          <label className="mt-2 flex items-start gap-1.5 text-[10px] text-zinc-600 dark:text-zinc-300">
+          <label
+            id="review-partial-acknowledgement"
+            className="mt-2 flex items-start gap-1.5 text-xs text-zinc-700 dark:text-zinc-300"
+          >
             <input
               type="checkbox"
-              checked={allowPartialAnalysis}
-              onChange={(e) => setAllowPartialAnalysis(e.target.checked)}
+              checked={partialAnalysisAcknowledged}
+              onChange={(e) => setPartialAnalysisAcknowledged(e.target.checked)}
               className="mt-0.5"
             />
-            {t("acknowledgePartial")}
+            <span className="font-medium">{t("acknowledgePartial")}</span>
+          </label>
+        </div>
+      )}
+
+      {report.large_schema_warning && (
+        <div
+          id="review-large-schema"
+          className="rounded-md border border-amber-200 bg-amber-50 p-2 dark:border-amber-900 dark:bg-amber-950/40"
+        >
+          <div className="flex items-center gap-1.5">
+            <HugeiconsIcon icon={Alert01Icon} className="h-3 w-3 text-amber-600" size="100%" />
+            <span className="text-xs font-medium text-amber-900 dark:text-amber-100">
+              {t("largeSchemaTitle", {
+                tableCount: report.large_schema_warning.table_count,
+                recommendedMax: report.large_schema_warning.recommended_max,
+              })}
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">
+            {t("largeSchemaHint")}
+          </p>
+          <label
+            id="review-large-schema-acknowledgement"
+            className="mt-2 flex items-start gap-1.5 text-xs text-zinc-700 dark:text-zinc-300"
+          >
+            <input
+              type="checkbox"
+              checked={largeSchemaAcknowledged}
+              onChange={(e) => setLargeSchemaAcknowledged(e.target.checked)}
+              className="mt-0.5"
+            />
+            <span className="font-medium">{t("acknowledgeLargeSchema")}</span>
           </label>
         </div>
       )}
 
       {report.repo_summary && (
-        <div className="text-[10px] text-muted-foreground">
-          {t("repoSummary", {
-            status: report.repo_summary.status,
-            analyzed: report.repo_summary.files_analyzed,
-            requested: report.repo_summary.files_requested,
-          })}
-          {report.repo_summary.enums_found > 0 &&
-            t("repoEnums", { count: report.repo_summary.enums_found })}
+        <div className="space-y-1 text-xs text-muted-foreground">
+          <p>
+            {t("repoSummary", {
+              status: report.repo_summary.status,
+              analyzed: report.repo_summary.files_analyzed,
+              requested: report.repo_summary.files_requested,
+            })}
+            {report.repo_summary.enums_found > 0 &&
+              t("repoEnums", { count: report.repo_summary.enums_found })}
+          </p>
+          {report.repo_summary.failure_reason && (
+            <p className="text-amber-700 dark:text-amber-400">
+              {t(`repoFailure.${report.repo_summary.failure_reason}`)}
+            </p>
+          )}
         </div>
       )}
 
       {/* Relationships */}
       {report.implied_relationships.length > 0 && (
+        <div id="review-relationships">
         <GroupedSection
           title={t("confirmRelationships")}
           groups={relGroups as Map<string, { key: string; item: unknown }[]>}
@@ -635,7 +746,7 @@ export function AnalysisReviewSection({
           renderItem={(entry) => {
             const rel = entry.item as ImpliedRelationship;
             return (
-              <label className="flex items-center gap-1.5 rounded border border-zinc-200 bg-white px-2 py-1 text-[10px] dark:border-zinc-800 dark:bg-zinc-950/60">
+              <label className="flex items-center gap-1.5 rounded border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-800 dark:bg-zinc-950/60">
                 <input
                   type="checkbox"
                   checked={!!confirmedRelationships[entry.key]}
@@ -656,10 +767,12 @@ export function AnalysisReviewSection({
             );
           }}
         />
+        </div>
       )}
 
       {/* PII suggestions */}
       {report.pii_suggestions.length > 0 && (
+        <div id="review-pii">
         <GroupedSection
           title={t("piiDecisions")}
           groups={piiGroups as Map<string, { key: string; item: unknown }[]>}
@@ -688,14 +801,14 @@ export function AnalysisReviewSection({
             const selectedValue = annotation ? annotation.kind.kind : "";
             return (
               <div className="rounded border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950/60">
-                <p className="text-[10px] font-medium text-zinc-700 dark:text-zinc-200">
+                <p className="text-xs font-medium text-zinc-700 dark:text-zinc-200">
                   {t("piiRow", {
                     table: suggestion.table,
                     column: suggestion.column,
                     type: suggestion.kind.kind,
                   })}
                 </p>
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   {Math.round(suggestion.confidence * 100)}% — {suggestion.reason}
                 </p>
                 <div className="mt-1 flex items-center gap-2">
@@ -738,7 +851,7 @@ export function AnalysisReviewSection({
                       </option>
                     ))}
                   </select>
-                  <label className="flex items-center gap-1 text-[10px] text-zinc-600 dark:text-zinc-300">
+                  <label className="flex items-center gap-1 text-xs text-zinc-600 dark:text-zinc-300">
                     <input
                       type="checkbox"
                       checked={excluded}
@@ -773,10 +886,13 @@ export function AnalysisReviewSection({
             );
           }}
         />
+        </div>
       )}
 
+      {/* PII close + Clarifications open */}
       {/* Clarifications */}
       {report.ambiguous_columns.length > 0 && (
+        <div id="review-clarifications">
         <GroupedSection
           title={t("columnClarifications")}
           groups={clarGroups as Map<string, { key: string; item: unknown }[]>}
@@ -802,16 +918,16 @@ export function AnalysisReviewSection({
             const column = entry.item as AmbiguityContext;
             return (
               <div className="rounded border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950/60">
-                <p className="text-[10px] font-medium text-zinc-700 dark:text-zinc-200">
+                <p className="text-xs font-medium text-zinc-700 dark:text-zinc-200">
                   {t("clarificationRowHeader", {
                     table: column.column.relation,
                     column: column.column.column,
                   })}
                 </p>
-                <p className="text-[10px] text-muted-foreground">{column.clarification_prompt}</p>
+                <p className="text-xs text-muted-foreground">{column.clarification_prompt}</p>
                 {column.repo_hint && (
                   <div className="mt-0.5 flex items-center gap-1.5">
-                    <span className="text-[10px] text-emerald-600">{column.repo_hint.suggested_values}</span>
+                    <span className="text-xs text-emerald-600">{column.repo_hint.suggested_values}</span>
                     {!clarifications[entry.key]?.trim() && (
                       <button
                         onClick={() =>
@@ -840,10 +956,12 @@ export function AnalysisReviewSection({
             );
           }}
         />
+        </div>
       )}
 
       {/* Excluded tables */}
       {report.table_exclusion_suggestions.length > 0 && (
+        <div id="review-exclusions">
         <GroupedSection
           title={t("excludedTables")}
           groups={excludedGroups as Map<string, { key: string; item: unknown }[]>}
@@ -867,7 +985,7 @@ export function AnalysisReviewSection({
           renderItem={(entry) => {
             const s = entry.item as TableExclusionSuggestion;
             return (
-              <label className="flex items-center gap-1.5 rounded border border-zinc-200 bg-white px-2 py-1 text-[10px] dark:border-zinc-800 dark:bg-zinc-950/60">
+              <label className="flex items-center gap-1.5 rounded border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-800 dark:bg-zinc-950/60">
                 <input
                   type="checkbox"
                   checked={!!excludedTables[s.table_name]}
@@ -889,6 +1007,7 @@ export function AnalysisReviewSection({
             );
           }}
         />
+        </div>
       )}
     </div>
   );

@@ -9,6 +9,7 @@ import type { DesignProject, OntologyIR } from "@/types/api";
 import { AnalysisReviewSection } from "./analysis-review-section";
 import { useAppStore } from "@/lib/store";
 import { WorkflowActions } from "./workflow-actions";
+import { PhaseStepper } from "./phase-stepper";
 import { RevisionHistoryPanel } from "./revision-history-panel";
 import { useDesignDecisions } from "./use-design-decisions";
 
@@ -49,10 +50,40 @@ export function ProjectWorkflow({
       }
       return true;
     }
+    // Structured 422 from `enforce_design_gates`: backend ships the
+    // exact unmet gate ids — surface them inline instead of dumping
+    // the raw JSON into a toast. The freshly-fetched project carries
+    // the same `design_gates` vector the FE renders, so the
+    // checklist updates the moment we reload.
+    if (err instanceof ApiError && err.type === "design_gates_unmet") {
+      const unmet = extractUnmetIds(err.details);
+      toast.error(tActions("toast.designGatesUnmetTitle"), {
+        description: tActions("toast.designGatesUnmetDescription", {
+          count: unmet.length,
+        }),
+      });
+      try {
+        const fresh = await getProject(project.id);
+        setProject(fresh);
+      } catch {
+        /* ignore reload failure */
+      }
+      return true;
+    }
     toast.error(label, {
       description: err instanceof Error ? err.message : tActions("toast.unknownError"),
     });
     return false;
+  }
+
+  /** Pull `unmet: string[]` out of the backend's structured 422
+   *  `details` payload. Defensive against a missing field — older
+   *  servers in a rolling deploy may surface a different shape. */
+  function extractUnmetIds(details: unknown): string[] {
+    if (!details || typeof details !== "object") return [];
+    const unmet = (details as { unmet?: unknown }).unmet;
+    if (!Array.isArray(unmet)) return [];
+    return unmet.filter((v): v is string => typeof v === "string");
   }
 
   // Step indicator
@@ -66,49 +97,22 @@ export function ProjectWorkflow({
     <div className="flex gap-6 p-4">
       {/* Left: project info + actions — responsive width */}
       <div className="w-80 shrink-0 space-y-3 xl:w-96 2xl:w-[480px]">
-        {/* Step indicator */}
-        <div className="flex items-center justify-between px-2">
-          {STATUS_STEPS.map((step, i) => (
-            <div key={step} className="flex items-center">
-              <div className="flex flex-col items-center gap-1">
-                <div
-                  className={cn(
-                    "flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-bold",
-                    i <= currentStepIndex
-                      ? "bg-emerald-500 text-white"
-                      : "bg-zinc-200 text-muted-foreground dark:bg-zinc-700",
-                  )}
-                >
-                  {i + 1}
-                </div>
-                <span
-                  className={cn(
-                    "text-[9px] font-medium capitalize",
-                    i <= currentStepIndex
-                      ? "text-emerald-600 dark:text-emerald-400"
-                      : "text-muted-foreground",
-                  )}
-                >
-                  {step === "analyzed"
-                    ? t("stepAnalyze")
-                    : step === "designed"
-                      ? t("stepDesign")
-                      : t("stepComplete")}
-                </span>
-              </div>
-              {i < STATUS_STEPS.length - 1 && (
-                <div
-                  className={cn(
-                    "mx-2 h-px w-8",
-                    i < currentStepIndex
-                      ? "bg-emerald-400"
-                      : "bg-zinc-200 dark:bg-zinc-700",
-                  )}
-                />
-              )}
-            </div>
-          ))}
-        </div>
+        <PhaseStepper currentStepIndex={currentStepIndex} />
+
+        {/* Stale-report advisory: backend signalled the persisted
+            analysis_report can't deserialize against the current
+            schema. Design proceeds (gates skipped) but operator
+            should re-run analyse so gate enforcement comes back. */}
+        {project.analysis_report_status === "stale" && (
+          <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 dark:border-amber-700 dark:bg-amber-950/40">
+            <p className="text-xs font-medium text-amber-900 dark:text-amber-100">
+              {t("staleReportTitle")}
+            </p>
+            <p className="mt-0.5 text-[11px] text-amber-800 dark:text-amber-200">
+              {t("staleReportHint")}
+            </p>
+          </div>
+        )}
 
         {/* Contextual status guide */}
         {project.status === "analyzed" && (
@@ -183,15 +187,15 @@ export function ProjectWorkflow({
                 const low = gaps.filter((g) => g.severity === "low").length;
                 return (
                   <>
-                    {high > 0 && <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-950/60 dark:text-red-300">{t("highSeverity", { count: high })}</span>}
-                    {medium > 0 && <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">{t("mediumSeverity", { count: medium })}</span>}
-                    {low > 0 && <span className="rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground">{t("lowSeverity", { count: low })}</span>}
+                    {high > 0 && <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700 dark:bg-red-950/60 dark:text-red-300">{t("highSeverity", { count: high })}</span>}
+                    {medium > 0 && <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">{t("mediumSeverity", { count: medium })}</span>}
+                    {low > 0 && <span className="rounded-full bg-zinc-100 px-1.5 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-muted-foreground">{t("lowSeverity", { count: low })}</span>}
                   </>
                 );
               })()}
             </div>
             {/* Guidance */}
-            <p className="mt-2 text-[10px] text-muted-foreground">
+            <p className="mt-2 text-xs text-muted-foreground">
               {project.quality_report.confidence === "high" && t("guidanceHigh")}
               {project.quality_report.confidence === "medium" && t("guidanceMedium")}
               {project.quality_report.confidence === "low" && t("guidanceLow")}
@@ -199,7 +203,7 @@ export function ProjectWorkflow({
             {/* Link to Quality tab */}
             <button
               onClick={() => useAppStore.getState().setDesignBottomTab("quality")}
-              className="mt-1.5 text-[10px] font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
+              className="mt-1.5 text-xs font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
             >
               {t("viewFullReport")}
             </button>
@@ -223,7 +227,7 @@ export function ProjectWorkflow({
           <details ref={analysisRef} open={!isDesigned}>
             <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-zinc-700 dark:hover:text-zinc-300">
               {t("analysisReview")}
-              <span className="ml-2 text-[10px] font-normal normal-case text-muted-foreground">
+              <span className="ml-2 text-xs font-normal normal-case text-muted-foreground">
                 {decisions.unresolvedClarificationCount > 0
                   ? t("unresolved", {
                       count: decisions.unresolvedClarificationCount,
@@ -244,10 +248,11 @@ export function ProjectWorkflow({
                 setClarifications={decisions.setClarifications}
                 excludedTables={decisions.excludedTables}
                 setExcludedTables={decisions.setExcludedTables}
-                allowPartialAnalysis={decisions.allowPartialAnalysis}
-                setAllowPartialAnalysis={decisions.setAllowPartialAnalysis}
+                partialAnalysisAcknowledged={decisions.partialAnalysisAcknowledged}
+                setPartialAnalysisAcknowledged={decisions.setPartialAnalysisAcknowledged}
+                largeSchemaAcknowledged={decisions.largeSchemaAcknowledged}
+                setLargeSchemaAcknowledged={decisions.setLargeSchemaAcknowledged}
                 unresolvedClarificationCount={decisions.unresolvedClarificationCount}
-                needsPartialAcknowledgement={decisions.needsPartialAcknowledgement}
               />
             </div>
           </details>

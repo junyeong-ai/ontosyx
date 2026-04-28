@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { updateWidget } from "@/lib/api";
+import { useUpdateWidget } from "@/hooks/api/use-widgets";
 import { WIDGET_TYPES } from "@/components/widgets/widget-types";
 import type { DashboardWidget } from "@/types/api";
 
@@ -51,15 +51,22 @@ export function WidgetInspector({ widget, dashboardId, onUpdated }: WidgetInspec
     refreshSecs !== (widget.refresh_interval_secs ?? 0) ||
     thresholdsChanged;
 
+  const updateMutation = useUpdateWidget();
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await updateWidget(dashboardId, widget.id, {
-        title: title !== widget.title ? title : undefined,
-        widget_type: widgetType !== widget.widget_type ? widgetType : undefined,
-        query: query !== (widget.query ?? "") ? query : undefined,
-        refresh_interval_secs: refreshSecs !== (widget.refresh_interval_secs ?? 0) ? refreshSecs : undefined,
-        thresholds: thresholdsChanged ? thresholds : undefined,
+      await updateMutation.mutateAsync({
+        dashboardId,
+        widgetId: widget.id,
+        req: {
+          title: title !== widget.title ? title : undefined,
+          widget_type: widgetType !== widget.widget_type ? widgetType : undefined,
+          query: query !== (widget.query ?? "") ? query : undefined,
+          refresh_interval_secs:
+            refreshSecs !== (widget.refresh_interval_secs ?? 0) ? refreshSecs : undefined,
+          thresholds: thresholdsChanged ? thresholds : undefined,
+        },
       });
       toast.success(t("toast.updated"));
       onUpdated();

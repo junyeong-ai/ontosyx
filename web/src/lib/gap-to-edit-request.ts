@@ -1,10 +1,18 @@
 import type { QualityGap } from "@/types/api";
+import { localizeQualityGapIssue } from "./quality-gap-text";
+
+type GapTranslator = (key: string, values?: Record<string, string | number>) => string;
 
 /**
  * Convert a quality gap into a natural-language edit request
  * suitable for the `editProject` API endpoint.
+ *
+ * Most categories produce a hand-tuned English instruction directly from
+ * the structured fields (`gap.location` + `gap.category`), so the prompt
+ * stays terse regardless of locale. The fallback for unhandled categories
+ * uses the localized issue text via the i18n catalogue.
  */
-export function gapToEditRequest(gap: QualityGap): string {
+export function gapToEditRequest(gap: QualityGap, t: GapTranslator): string {
   const loc = gap.location;
 
   switch (gap.category) {
@@ -126,5 +134,5 @@ export function gapToEditRequest(gap: QualityGap): string {
     }
   }
 
-  return `Fix the following quality issue: ${gap.issue}`;
+  return `Fix the following quality issue: ${localizeQualityGapIssue(gap, t)}`;
 }

@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+
+import { emptyImportValue, type SourceImportValue } from "@/components/workbench/source-import-panel";
 import type { DesignSource, LoadPlan } from "@/types/api";
 
 export function useWorkflowFormState(projectId: string | undefined, projectTitle: string | null, sourceSchemaName: string | undefined) {
@@ -6,7 +8,6 @@ export function useWorkflowFormState(projectId: string | undefined, projectTitle
   // Design
   // ---------------------------------------------------------------------------
   const [designContext, setDesignContext] = useState("");
-  const [acknowledgeLargeSchema, setAcknowledgeLargeSchema] = useState(false);
 
   // ---------------------------------------------------------------------------
   // Complete
@@ -43,6 +44,12 @@ export function useWorkflowFormState(projectId: string | undefined, projectTitle
   const [extendRepoUrl, setExtendRepoUrl] = useState("");
   const [extendDatabase, setExtendDatabase] = useState("");
   const [extendDuckdbFilePath, setExtendDuckdbFilePath] = useState("");
+  // Subset/extend selection — `mode: "all"` lowers to a full sweep
+  // on the new source; `mode: "subset"` lowers to an Extend
+  // selection so the project absorbs only the picked tables.
+  const [extendImport, setExtendImport] = useState<SourceImportValue>(
+    emptyImportValue(),
+  );
 
   // ---------------------------------------------------------------------------
   // Reset transient state when switching projects
@@ -54,11 +61,12 @@ export function useWorkflowFormState(projectId: string | undefined, projectTitle
     setCompleteName(projectTitle ?? "");
     setShowReanalyze(false);
     setShowExtend(false);
+    setExtendImport(emptyImportValue());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   return {
-    design: { designContext, setDesignContext, acknowledgeLargeSchema, setAcknowledgeLargeSchema },
+    design: { designContext, setDesignContext },
     complete: { completeName, setCompleteName, deployOnComplete, setDeployOnComplete },
     deploy: { deployPreview, setDeployPreview, loadPlan, setLoadPlan },
     reanalyze: {
@@ -78,6 +86,7 @@ export function useWorkflowFormState(projectId: string | undefined, projectTitle
       sampleData: extendSampleData, setSampleData: setExtendSampleData,
       repoUrl: extendRepoUrl, setRepoUrl: setExtendRepoUrl,
       duckdbFilePath: extendDuckdbFilePath, setDuckdbFilePath: setExtendDuckdbFilePath,
+      importValue: extendImport, setImportValue: setExtendImport,
     },
   };
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/cn";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { MagicWand01Icon } from "@hugeicons/core-free-icons";
@@ -9,6 +10,7 @@ import { Spinner } from "@/components/ui/spinner";
 import type { QualityGap } from "@/types/api";
 import { getGapEntityId, navigateToGap } from "@/lib/quality-utils";
 import { gapToEditRequest } from "@/lib/gap-to-edit-request";
+import { localizeQualityGap } from "@/lib/quality-gap-text";
 import { useAiEdit, AiSuggestionList } from "./ai-suggestions";
 import { Section } from "./shared";
 
@@ -21,6 +23,7 @@ export function GapsList({
 }: {
   gaps: QualityGap[];
 }) {
+  const tGap = useTranslations("qualityGap");
   const { canEdit, loading, suggestions, requestEdit, dismiss } = useAiEdit();
   const [fixingIndex, setFixingIndex] = useState<number | null>(null);
 
@@ -28,7 +31,7 @@ export function GapsList({
 
   const handleFix = async (gap: QualityGap, index: number) => {
     setFixingIndex(index);
-    const request = gapToEditRequest(gap);
+    const request = gapToEditRequest(gap, tGap);
     await requestEdit(request);
     setFixingIndex(null);
   };
@@ -44,6 +47,7 @@ export function GapsList({
       )}
       {gaps.map((gap, i) => {
         const focusable = getGapEntityId(gap) !== null;
+        const { issue, suggestion } = localizeQualityGap(gap, tGap);
         return (
           <div
             key={i}
@@ -70,7 +74,7 @@ export function GapsList({
                 onClick={focusable ? () => navigateToGap(gap) : undefined}
                 className="min-w-0 flex-1 truncate text-zinc-600 dark:text-muted-foreground"
               >
-                {gap.issue}
+                {issue}
               </span>
               {canEdit && (
                 <Tooltip content="Fix with AI">
@@ -96,8 +100,8 @@ export function GapsList({
               onClick={focusable ? () => navigateToGap(gap) : undefined}
               className="mt-0.5 truncate pl-3 text-muted-foreground"
             >
-              <Tooltip content={gap.suggestion}>
-                <span className="cursor-default">{gap.suggestion}</span>
+              <Tooltip content={suggestion}>
+                <span className="cursor-default">{suggestion}</span>
               </Tooltip>
             </p>
           </div>

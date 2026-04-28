@@ -18,7 +18,8 @@ import { NeighborhoodToolbar } from "./neighborhood-toolbar";
 import { exportCanvasImage } from "./canvas-helpers";
 import { useCanvasLayout } from "./use-canvas-layout";
 import { CanvasSkeleton } from "./canvas-skeleton";
-import { CanvasEmptyState } from "./canvas-empty-state";
+import { CanvasEmptyState, CanvasZeroNodesState } from "./canvas-empty-state";
+import { arr } from "@/lib/ir-collections";
 import { CanvasToolbar } from "./canvas-toolbar";
 import { CanvasFlow } from "./canvas-flow";
 import { useCanvasState } from "./use-canvas-state";
@@ -119,6 +120,7 @@ function CanvasInner({ gaps }: { gaps: QualityGap[] }) {
   );
 
   if (!ontology) return <CanvasEmptyState />;
+  if (arr(ontology.node_types).length === 0) return <CanvasZeroNodesState />;
 
   return (
     <div className="relative h-full w-full">
