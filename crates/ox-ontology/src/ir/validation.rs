@@ -2,8 +2,8 @@ use ox_core::diagnostic::{diag, DiagnosticMessage};
 use ox_core::types::PropertyType;
 
 use super::{
-    AggregationRole, IndexDef, NodeConstraint, NodeTypeDef, NodeTypeId, OntologyIR, PropertyDef,
-    PropertyId,
+    AggregationRole, EdgeKind, IndexDef, NodeConstraint, NodeTypeDef, NodeTypeId, OntologyIR,
+    PropertyDef, PropertyId,
 };
 
 /// Sentinel label produced by [`NodeTypeDef::default`] /
@@ -488,6 +488,28 @@ impl OntologyIR {
 
             validate_property_defs("Edge", &edge.label, &edge.properties, &mut errors);
 
+            // EdgeKind::Composition implies UML strong ownership: each
+            // part belongs to exactly one whole, and the whole's
+            // deletion cascades. The cardinality must keep the source
+            // (whole) singular per relation instance — `OneToOne` or
+            // `OneToMany`. `ManyToOne` (multiple wholes per part) and
+            // `ManyToMany` break the ownership contract; reject them
+            // at validate so the runtime cascade-delete can rely on
+            // the invariant.
+            if edge.kind == EdgeKind::Composition && !edge.cardinality.source_is_singular() {
+                errors.push(
+                    diag("ontology.validate.edge.composition_requires_singular_source")
+                        .with("label", label)
+                        .with("cardinality", format!("{:?}", edge.cardinality))
+                        .message(format!(
+                            "Edge '{}' uses EdgeKind::Composition but cardinality \
+                             {:?} would let a part have multiple wholes; \
+                             composition requires OneToOne or OneToMany",
+                            edge.label, edge.cardinality
+                        )),
+                );
+            }
+
             if !seen_node_ids.contains::<str>(&edge.source_node_id) {
                 errors.push(
                     diag("ontology.validate.edge.unknown_source_node_id")
@@ -671,6 +693,42 @@ impl OntologyIR {
                             rule.name, action_id
                         )),
                 );
+            }
+
+            // A `DerivedFromBinding` rule names the (node, property)
+            // its constraint was synthesised from. If the source
+            // binding has been removed but the derived rule wasn't
+            // regenerated, the rule is an orphan that fires on stale
+            // semantics. Reject so the unbind path forces a
+            // companion rule cleanup, keeping derived state in
+            // lock-step with its source.
+            if let crate::rule::RuleOrigin::DerivedFromBinding {
+                node_type_id,
+                property_id,
+            } = &rule.origin
+            {
+                let source_exists = self
+                    .lookup
+                    .node_id_idx
+                    .get(node_type_id)
+                    .and_then(|&i| self.node_types.get(i))
+                    .and_then(|n| n.properties.iter().find(|p| p.id == *property_id))
+                    .map(|p| !p.bindings.is_empty())
+                    .unwrap_or(false);
+                if !source_exists {
+                    errors.push(
+                        diag("ontology.validate.rule.derived_origin_missing_binding")
+                            .with("rule_id", rule.id.as_str())
+                            .with("node_type_id", node_type_id.as_str())
+                            .with("property_id", property_id.as_str())
+                            .message(format!(
+                                "Rule '{}' has origin DerivedFromBinding({}, {}) but \
+                                 the source binding has been removed; regenerate \
+                                 derived rules or promote this rule to Authored",
+                                rule.id, node_type_id, property_id
+                            )),
+                    );
+                }
             }
 
             // Property-pair constraints (`LessThan` / `Equals`)
@@ -1312,6 +1370,80 @@ mod tests {
                 .iter()
                 .any(|e| e.code == "ontology.validate.property.mapping_without_binding"),
             "Identifier role must be implicit exemption: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn validate_rejects_composition_with_many_to_many_cardinality() {
+        let mut ontology = base_ontology();
+        // Promote first edge to Composition while leaving its
+        // cardinality at the default ManyToMany — should reject.
+        ontology.edge_types[0].kind = EdgeKind::Composition;
+        ontology.edge_types[0].cardinality = Cardinality::ManyToMany;
+
+        let errors = ontology.validate();
+
+        assert!(
+            errors.iter().any(|e| e.code
+                == "ontology.validate.edge.composition_requires_singular_source"),
+            "expected composition cardinality diagnostic: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn validate_accepts_composition_with_one_to_many_cardinality() {
+        let mut ontology = base_ontology();
+        ontology.edge_types[0].kind = EdgeKind::Composition;
+        ontology.edge_types[0].cardinality = Cardinality::OneToMany;
+
+        let errors = ontology.validate();
+
+        assert!(
+            !errors.iter().any(|e| e.code
+                == "ontology.validate.edge.composition_requires_singular_source"),
+            "OneToMany composition is the canonical case: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn validate_rejects_derived_rule_with_missing_source_binding() {
+        use crate::rule::{RuleDef, RuleKind, RuleOrigin};
+
+        let mut ontology = base_ontology();
+        // Strip every binding from the first property so the derived
+        // rule's pointer is dangling.
+        let target_node_id = ontology.node_types[0].id.clone();
+        let target_property_id = ontology.node_types[0].properties[0].id.clone();
+        ontology.node_types[0].properties[0].bindings.clear();
+
+        ontology.rules.push(RuleDef {
+            id: "rule-derived".into(),
+            name: LocalizedText::new("derived"),
+            description: LocalizedText::default(),
+            rationale: LocalizedText::default(),
+            kind: RuleKind::PropertyShape {
+                target_node_type_id: target_node_id.clone(),
+                target_property_id: target_property_id.clone(),
+            },
+            severity: Default::default(),
+            enforcement: Default::default(),
+            activation: Default::default(),
+            origin: RuleOrigin::DerivedFromBinding {
+                node_type_id: target_node_id,
+                property_id: target_property_id,
+            },
+            constraints: Vec::new(),
+            valid_from: None,
+            valid_to: None,
+        });
+        ontology.rebuild_indices().expect("rebuild");
+
+        let errors = ontology.validate();
+
+        assert!(
+            errors.iter().any(|e| e.code
+                == "ontology.validate.rule.derived_origin_missing_binding"),
+            "expected derived-rule orphan diagnostic: {errors:?}"
         );
     }
 
