@@ -25,7 +25,7 @@ import {
 } from "@/hooks/api/use-ontologies";
 import { useApplyOntologyEdits } from "@/hooks/api/use-ontology-edits";
 import type { GlossaryTermDef } from "@/lib/api/edit-ops";
-import { localizePresent } from "@/lib/locale/localize";
+import { localize, localizePresent } from "@/lib/locale/localize";
 import { useLocaleChain } from "@/lib/use-locale-chain";
 
 // ---------------------------------------------------------------------------
@@ -43,6 +43,7 @@ function freshGlossaryId(): string {
 
 export default function GlossaryAdminPage() {
   const t = useTranslations("settings.vocabulary.glossary");
+  const localeChain = useLocaleChain();
   const ontologiesQuery = useOntologies({ limit: 1 });
   const ontology = ontologiesQuery.data?.items?.[0];
   const detail = useOntologyDetail(ontology?.id);
@@ -65,6 +66,7 @@ export default function GlossaryAdminPage() {
 
   const handleCreate = (def: GlossaryTermDef) => {
     if (!ontology?.id) return;
+    const label = localize(def.term, localeChain);
     apply.mutate(
       {
         operations: [
@@ -74,11 +76,11 @@ export default function GlossaryAdminPage() {
           },
         ],
         expected_version: expectedVersion,
-        message: t("messages.created", { term: def.term }),
+        message: t("messages.created", { term: label }),
       },
       {
         onSuccess: () => {
-          toast.success(t("toast.created", { term: def.term }));
+          toast.success(t("toast.created", { term: label }));
           setCreateOpen(false);
         },
         onError: (err) => {
@@ -90,15 +92,16 @@ export default function GlossaryAdminPage() {
 
   const handleUpdate = (def: GlossaryTermDef) => {
     if (!ontology?.id || !def.id) return;
+    const label = localize(def.term, localeChain);
     apply.mutate(
       {
         operations: [{ op: "update_glossary_term", id: def.id, def }],
         expected_version: expectedVersion,
-        message: t("messages.updated", { term: def.term }),
+        message: t("messages.updated", { term: label }),
       },
       {
         onSuccess: () => {
-          toast.success(t("toast.updated", { term: def.term }));
+          toast.success(t("toast.updated", { term: label }));
           setEditing(null);
         },
         onError: (err) => {
@@ -110,9 +113,10 @@ export default function GlossaryAdminPage() {
 
   const handleDelete = async (term: GlossaryTermDef) => {
     if (!ontology?.id) return;
+    const label = localize(term.term, localeChain);
     const ok = await confirm({
       title: t("confirm.deleteTitle"),
-      description: t("confirm.deleteDescription", { term: term.term }),
+      description: t("confirm.deleteDescription", { term: label }),
       confirmLabel: t("confirm.deleteConfirm"),
       cancelLabel: t("confirm.cancel"),
       variant: "danger",
@@ -122,10 +126,10 @@ export default function GlossaryAdminPage() {
       {
         operations: [{ op: "delete_glossary_term", id: term.id }],
         expected_version: expectedVersion,
-        message: t("messages.deleted", { term: term.term }),
+        message: t("messages.deleted", { term: label }),
       },
       {
-        onSuccess: () => toast.success(t("toast.deleted", { term: term.term })),
+        onSuccess: () => toast.success(t("toast.deleted", { term: label })),
         onError: (err) =>
           toast.error(t("toast.deleteFailed", { error: err.message })),
       },
@@ -199,6 +203,7 @@ export default function GlossaryAdminPage() {
                 <GlossaryForm
                   key={term.id}
                   initial={term}
+                  availableTerms={glossary}
                   onSubmit={handleUpdate}
                   onCancel={() => setEditing(null)}
                   pending={apply.isPending}
@@ -228,6 +233,7 @@ export default function GlossaryAdminPage() {
             </Dialog.Description>
             <div className="mt-4">
               <GlossaryForm
+                availableTerms={glossary}
                 onSubmit={handleCreate}
                 onCancel={() => setCreateOpen(false)}
                 pending={apply.isPending}
@@ -258,22 +264,34 @@ function GlossaryRow({
 }) {
   const t = useTranslations("settings.vocabulary.glossary");
   const localeChain = useLocaleChain();
-  const aliases = term.aliases ?? [];
+  const termLabel = localize(term.term, localeChain);
   const displayName = term.display_name
     ? localizePresent(term.display_name, localeChain)
     : null;
   const description = term.description
     ? localizePresent(term.description, localeChain)
     : null;
+  const aliases = (term.aliases ?? [])
+    .map((alias) => localize(alias, localeChain))
+    .filter((s) => s.length > 0);
+  const examples = (term.examples ?? [])
+    .map((ex) => localize(ex, localeChain))
+    .filter((s) => s.length > 0);
+  const lifecycleState = term.lifecycle?.state ?? "active";
+  const isInactive = lifecycleState !== "active";
 
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-mono text-sm font-medium text-zinc-900 dark:text-zinc-100">
-            {term.term}
+          <span
+            className={`font-mono text-sm font-medium text-zinc-900 dark:text-zinc-100 ${
+              isInactive ? "line-through opacity-70" : ""
+            }`}
+          >
+            {termLabel}
           </span>
-          {displayName && displayName !== term.term && (
+          {displayName && displayName !== termLabel && (
             <span className="text-xs text-zinc-500 dark:text-zinc-400">
               · {displayName}
             </span>
@@ -281,6 +299,11 @@ function GlossaryRow({
           {term.category && (
             <span className="rounded bg-zinc-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
               {term.category}
+            </span>
+          )}
+          {isInactive && (
+            <span className="rounded bg-amber-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+              {t(`lifecycleBadge.${lifecycleState}`)}
             </span>
           )}
         </div>
@@ -292,6 +315,11 @@ function GlossaryRow({
         {aliases.length > 0 && (
           <p className="mt-1 text-[10px] text-zinc-500 dark:text-zinc-500">
             {t("aliasesLabel")}: {aliases.join(", ")}
+          </p>
+        )}
+        {examples.length > 0 && (
+          <p className="mt-1 text-[10px] text-zinc-500 dark:text-zinc-500">
+            {t("examplesLabel")}: {examples.join(" · ")}
           </p>
         )}
       </div>

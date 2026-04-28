@@ -4,7 +4,7 @@
 //
 // Given an ontology + a term (either existing or a draft), scores
 // every PropertyDef in the graph, surfaces the top N candidates in
-// a checkable table, and batch-commits `bind_property_to_term` ops
+// a checkable table, and batch-commits `bind_property` ops
 // through `/edits`. Used standalone on the /settings/glossary
 // bindings page, but structured as a self-contained component so a
 // future Glossary CRUD editor can embed it in a side panel.
@@ -101,13 +101,16 @@ export function GlossaryBindingPanel({
       .filter((c) => selected.has(candidateKey(c)))
       .map(
         (c): BindingEditOp => ({
-          op: "bind_property_to_term",
+          op: "bind_property",
           owner:
             c.owner_kind === "node"
               ? { kind: "node", type_id: c.owner_type_id }
               : { kind: "edge", type_id: c.owner_type_id },
           property_id: c.property_id,
-          glossary_term_id: termId.trim(),
+          binding: {
+            kind: "glossary",
+            id: termId.trim(),
+          },
         }),
       );
     apply.mutate({

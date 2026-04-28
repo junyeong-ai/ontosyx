@@ -24,12 +24,13 @@ import {
 } from "@/lib/api/ontology";
 import { createProject } from "@/lib/api/projects";
 import type {
+  AnalyzeSelection,
   CreateProjectRequest,
-  DesignSource,
   OntologyListItem,
 } from "@/types/api";
 
 import { useBootstrap } from "../bootstrap-state";
+import { bootstrapSourceToProjectSource } from "../source-mapping";
 import { StepShell } from "../step-shell";
 import {
   ExistingPilotDialog,
@@ -49,42 +50,42 @@ function glossaryDraftToCreateOp(draft: GlossaryTermDraft): OntologyEditOp {
     op: "create_glossary_term",
     def: {
       id: crypto.randomUUID(),
-      term: draft.term,
+      term: { default: draft.term, translations: {} },
       ...(description && description.length > 0
-        ? { description: { default: description } }
+        ? { description: { default: description, translations: {} } }
         : {}),
-      aliases: draft.aliases.filter((a) => a.length > 0),
+      aliases: draft.aliases
+        .filter((a) => a.length > 0)
+        .map((a) => ({ default: a, translations: {} })),
     },
   };
 }
 
 /**
- * Map a wizard source kind + connection string to a
- * `CreateProjectRequest`, or `null` when the pair can't be
- * materialised without extra user input (file upload, etc.).
+ * Map a wizard source kind + connection string + the step-2b table
+ * picker state to a `CreateProjectRequest`, or `null` when the pair
+ * can't be materialised without extra user input.
+ *
+ * `analyzeMode = "subset"` lowers to `selection: { kind: "subset",
+ * tables }`; `"all"` lowers to `selection: { kind: "all" }` (which
+ * is also the server default — sent explicitly so the wire payload
+ * is self-describing).
  */
 function buildCreateRequest(
   pilotName: string,
   sourceKind: string,
   sourceConnection: string,
+  analyzeMode: "all" | "subset",
+  selectedTables: string[],
 ): CreateProjectRequest | null {
   const title = pilotName.trim() || undefined;
-  const conn = sourceConnection.trim();
-  if (!conn) return null;
-  let source: DesignSource | null = null;
-  switch (sourceKind) {
-    case "postgresql":
-      source = { type: "postgresql", connection_string: conn };
-      break;
-    case "mysql":
-      // Mysql requires a schema — use `public` as the conservative
-      // default and let the admin retarget from the workbench.
-      source = { type: "mysql", connection_string: conn, schema: "public" };
-      break;
-    default:
-      return null;
-  }
-  return { title, origin_type: "source", source };
+  const source = bootstrapSourceToProjectSource(sourceKind, sourceConnection);
+  if (!source) return null;
+  const selection: AnalyzeSelection =
+    analyzeMode === "subset"
+      ? { kind: "subset", tables: selectedTables }
+      : { kind: "all" };
+  return { title, origin_type: "source", source, selection };
 }
 
 export default function ValidateStep() {
@@ -155,6 +156,8 @@ export default function ValidateStep() {
       state.pilotName,
       state.sourceKind,
       state.sourceConnection,
+      state.analyzeMode,
+      state.selectedTables,
     );
     if (!req) {
       toast.info(t("toast.skippedCreate"));
