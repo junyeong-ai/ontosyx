@@ -100,6 +100,14 @@ export interface DesignProject {
    *  completed into. `null` until completion. */
   ontology_id: string | null;
   source_history: SourceHistoryEntry[];
+  /**
+   * The `AnalyzeSelection` chosen at project creation. `null` for
+   * projects sourced from a base ontology or a code repository
+   * (where the operator didn't curate a table list). Surfaced in
+   * the active-project header so the operator can answer "which
+   * tables did I bring into this project?" without leaving design.
+   */
+  initial_selection: AnalyzeSelection | null;
   user_id: string;
   created_at: string;
   updated_at: string;

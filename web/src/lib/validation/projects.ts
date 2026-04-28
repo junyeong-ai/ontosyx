@@ -311,6 +311,12 @@ export const DesignGateSchema = z.object({
   params: z.record(z.string(), z.string()).optional(),
 });
 
+export const AnalyzeSelectionSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("all") }),
+  z.object({ kind: z.literal("subset"), tables: z.array(z.string()) }),
+  z.object({ kind: z.literal("extend"), tables: z.array(z.string()) }),
+]);
+
 export const DesignProjectSchema = z.object({
   id: z.string(),
   status: DesignProjectStatusSchema,
@@ -327,6 +333,7 @@ export const DesignProjectSchema = z.object({
   quality_report: OntologyQualityReportSchema.nullable(),
   ontology_id: z.string().nullable(),
   source_history: z.array(SourceHistoryEntrySchema),
+  initial_selection: AnalyzeSelectionSchema.nullable().default(null),
   user_id: z.string(),
   created_at: z.string(),
   updated_at: z.string(),

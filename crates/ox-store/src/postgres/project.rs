@@ -10,10 +10,10 @@ impl ProjectStore for PostgresStore {
             "INSERT INTO design_projects
              (id, user_id, status, revision, title, source_config, source_id,
               source_data, source_schema, source_profile, analysis_report,
-              design_options, ontology, quality_report,
+              design_options, initial_selection, ontology, quality_report,
               source_history, analyzed_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-                     $14, $15, $16)",
+                     $14, $15, $16, $17)",
         )
         .bind(project.id)
         .bind(&project.user_id)
@@ -27,6 +27,7 @@ impl ProjectStore for PostgresStore {
         .bind(&project.source_profile)
         .bind(&project.analysis_report)
         .bind(&project.design_options)
+        .bind(&project.initial_selection)
         .bind(&project.ontology)
         .bind(&project.quality_report)
         .bind(&project.source_history)

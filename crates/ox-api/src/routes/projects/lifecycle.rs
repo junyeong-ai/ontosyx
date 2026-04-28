@@ -122,6 +122,7 @@ pub(crate) async fn create_project(
                 source_profile: None,
                 analysis_report: None,
                 design_options: AppError::to_json(&DesignOptions::default())?,
+                initial_selection: None,
                 ontology: Some(ontology_json),
                 quality_report: None,
                 ontology_id: None,
@@ -164,7 +165,8 @@ pub(crate) async fn create_project(
                     source_profile: Some(AppError::to_json(&source_profile)?),
                     analysis_report: Some(AppError::to_json(&report)?),
                     design_options: AppError::to_json(&DesignOptions::default())?,
-                        ontology: None,
+                    initial_selection: None,
+                    ontology: None,
                     quality_report: None,
                     ontology_id: None,
                     source_history: AppError::to_json(&vec![history_entry])?,
@@ -207,7 +209,7 @@ pub(crate) async fn create_project(
                 return Ok((StatusCode::CREATED, ApiResponse::of(ProjectView::from_project(project))));
             }
 
-            let analyzed = analyze_source(source, &state.adapter_registry, selection, None).await?;
+            let analyzed = analyze_source(source, &state.adapter_registry, selection.clone(), None).await?;
             let analyzed_at = analyzed.schema.as_ref().map(|_| now);
             let source_config = analyzed.config;
             let source_data = analyzed.raw_data;
@@ -252,6 +254,7 @@ pub(crate) async fn create_project(
                 source_profile: source_profile.as_ref().map(AppError::to_json).transpose()?,
                 analysis_report: report.as_ref().map(AppError::to_json).transpose()?,
                 design_options: AppError::to_json(&DesignOptions::default())?,
+                initial_selection: Some(AppError::to_json(&selection)?),
                 ontology: None,
                 quality_report: None,
                 ontology_id: None,

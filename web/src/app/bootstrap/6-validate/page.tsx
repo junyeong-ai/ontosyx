@@ -174,6 +174,11 @@ export default function ValidateStep() {
     toast.success(
       t("toast.created", { name: state.pilotName || t("summary.unnamed") }),
     );
+    // Project ownership transferred to the server — the operator's
+    // wizard state has done its job. Drop the localStorage entry so
+    // returning to /bootstrap shows a clean slate instead of replaying
+    // the previous session's pilot configuration.
+    reset();
     router.push(`/design?project=${encodeURIComponent(project.id)}`);
   };
 

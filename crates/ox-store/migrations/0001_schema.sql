@@ -135,6 +135,12 @@ CREATE TABLE design_projects (
     source_history jsonb DEFAULT '[]' NOT NULL,
     analysis_report jsonb,
     design_options jsonb DEFAULT '{}' NOT NULL,
+    -- The `AnalyzeSelection` chosen at project creation. Captures the
+    -- exact subset of source tables the operator picked at the
+    -- bootstrap step ("all" / "subset(...)" / "extend(...)") so the
+    -- decision survives across sessions instead of living only in
+    -- the browser's `BOOTSTRAP_STORAGE_KEY` localStorage entry.
+    initial_selection jsonb,
     ontology jsonb,
     quality_report jsonb,
     ontology_id uuid,

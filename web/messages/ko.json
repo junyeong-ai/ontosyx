@@ -2737,6 +2737,19 @@
     }
   },
   "workbench": {
+    "design": {
+      "initialSelection": {
+        "kindSummary": {
+          "subset": "{count}개 테이블",
+          "extend": "확장: {count}개 테이블"
+        },
+        "tooltipTitle": {
+          "subset": "프로젝트 생성 시 선택한 {count}개 테이블",
+          "extend": "확장 시 추가된 {count}개 테이블"
+        },
+        "more": "+{n}개 더"
+      }
+    },
     "types": {
       "detail": {
         "backToCanvas": "캔버스로 돌아가기",

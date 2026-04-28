@@ -2751,6 +2751,19 @@
     }
   },
   "workbench": {
+    "design": {
+      "initialSelection": {
+        "kindSummary": {
+          "subset": "{count} tables",
+          "extend": "Extended: {count} tables"
+        },
+        "tooltipTitle": {
+          "subset": "Selected {count} tables at project creation",
+          "extend": "Added {count} tables on extend"
+        },
+        "more": "+{n} more"
+      }
+    },
     "types": {
       "detail": {
         "backToCanvas": "Back to canvas",

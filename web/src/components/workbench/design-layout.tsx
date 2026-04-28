@@ -19,6 +19,7 @@ import { Group, Panel, usePanelRef } from "react-resizable-panels";
 import { ResizeHandle } from "@/components/ui/resize-handle";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import type { QualityGap } from "@/types/api";
+import { InitialSelectionBadge } from "./design/initial-selection-badge";
 // ---------------------------------------------------------------------------
 // Design layout — Explorer | Canvas | Inspector / Bottom Panel
 // ---------------------------------------------------------------------------
@@ -190,20 +191,23 @@ export function DesignLayout() {
                 </button>
               )}
               {hasContent && activeProject && (
-                <button
-                  onClick={() => {
-                    const store = useAppStore.getState();
-                    store.setDesignBottomTab("workflow");
-                    if (!store.isBottomPanelOpen) store.toggleBottomPanel();
-                    store.requestExtendSource();
-                  }}
-                  className="absolute right-12 top-2 z-10 flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-700 shadow-sm hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60"
-                  aria-label="Extend with new source"
-                  title="Extend with new source"
-                >
-                  <HugeiconsIcon icon={Add01Icon} className="h-3 w-3" size="100%" />
-                  Extend source
-                </button>
+                <div className="absolute right-12 top-2 z-10 flex items-center gap-1.5">
+                  <InitialSelectionBadge />
+                  <button
+                    onClick={() => {
+                      const store = useAppStore.getState();
+                      store.setDesignBottomTab("workflow");
+                      if (!store.isBottomPanelOpen) store.toggleBottomPanel();
+                      store.requestExtendSource();
+                    }}
+                    className="flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-700 shadow-sm hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60"
+                    aria-label="Extend with new source"
+                    title="Extend with new source"
+                  >
+                    <HugeiconsIcon icon={Add01Icon} className="h-3 w-3" size="100%" />
+                    Extend source
+                  </button>
+                </div>
               )}
               {!inspectorOpen && hasContent && (
                 <button
