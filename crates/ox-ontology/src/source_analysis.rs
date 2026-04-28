@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------
@@ -50,7 +52,10 @@ pub struct SourceAnalysisReport {
     pub repo_summary: Option<RepoAnalysisSummary>,
     /// Whether the underlying source analysis was complete or partial
     pub analysis_completeness: AnalysisCompleteness,
-    /// Explicit warnings for skipped tables/columns or omitted stats during analysis
+    /// Explicit warnings for skipped tables/columns or omitted stats during analysis.
+    /// Each warning carries a stable `class` + `scope` so consumers can
+    /// group, filter, and surface actionable hints without parsing
+    /// free-text messages.
     #[serde(default)]
     pub analysis_warnings: Vec<AnalysisWarning>,
 }
@@ -94,15 +99,6 @@ pub enum WarningLevel {
     Error,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct AnalysisWarning {
-    pub level: WarningLevel,
-    pub phase: AnalysisPhase,
-    pub kind: AnalysisWarningKind,
-    pub location: String,
-    pub message: String,
-}
-
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum AnalysisPhase {
@@ -110,13 +106,191 @@ pub enum AnalysisPhase {
     DataProfiling,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+/// Stable warning classification. New backend-specific failure modes
+/// are added as new variants — the discriminant survives wire format,
+/// drives FE grouping, and binds to actionable hints.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
-pub enum AnalysisWarningKind {
+pub enum WarningClass {
+    // ── Generic kernel-level outcomes ─────────────────────────────
+    /// `describe_table` failed — table dropped from the analysis.
     TableSkipped,
-    ColumnSkipped,
+    /// `sample_column` failed for a single column — stats omitted but
+    /// the column itself is retained (type known, samples missing).
+    ColumnSampleSkipped,
+    /// `list_foreign_keys` failed — relationships fall back to
+    /// implied-FK heuristics only.
     ForeignKeysUnavailable,
+    /// Profile pass omitted distinct-value sampling for a table
+    /// (rare; cardinality budget exhaustion).
     SampleValuesOmitted,
+
+    // ── BigQuery-specific ─────────────────────────────────────────
+    /// Querying the table requires a `WHERE` filter on the partition
+    /// column. Hint surfaces the partition column name when known.
+    BigQueryPartitionFilterRequired,
+    /// Querying requires a clustering-column filter (rare; BigQuery
+    /// surfaces this as a planner advisory).
+    BigQueryClusteringFilterRequired,
+    /// `bigquery.jobs.create` is denied on the configured billing
+    /// project. Hint suggests setting `billing_project_id`.
+    BigQueryJobsCreateDenied,
+
+    // ── PostgreSQL-specific ───────────────────────────────────────
+    /// Connecting role lacks `SELECT` (or sometimes `USAGE`) on the
+    /// schema/table. Hint suggests granting the missing privilege.
+    PostgresPermissionDenied,
+
+    // ── Snowflake-specific ────────────────────────────────────────
+    /// Configured warehouse is suspended — Snowflake auto-resumes
+    /// on next query, but the introspection round-trip surfaces
+    /// the wait as a warning.
+    SnowflakeWarehouseSuspended,
+
+    // ── Catch-all ─────────────────────────────────────────────────
+    /// No specific class matched — the raw error is the hint.
+    Other,
+}
+
+impl WarningClass {
+    /// Stable, lowercase, hyphenated label for diagnostic logs and
+    /// FE class names. Matches the `serde(rename_all = "snake_case")`
+    /// representation but exposed without re-routing through serde.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::TableSkipped => "table_skipped",
+            Self::ColumnSampleSkipped => "column_sample_skipped",
+            Self::ForeignKeysUnavailable => "foreign_keys_unavailable",
+            Self::SampleValuesOmitted => "sample_values_omitted",
+            Self::BigQueryPartitionFilterRequired => "bigquery_partition_filter_required",
+            Self::BigQueryClusteringFilterRequired => "bigquery_clustering_filter_required",
+            Self::BigQueryJobsCreateDenied => "bigquery_jobs_create_denied",
+            Self::PostgresPermissionDenied => "postgres_permission_denied",
+            Self::SnowflakeWarehouseSuspended => "snowflake_warehouse_suspended",
+            Self::Other => "other",
+        }
+    }
+}
+
+/// Where in the source the warning originated. Structured so the FE
+/// can render scoped UI (per-table sections, per-column drilldowns)
+/// without parsing the free-text `location` strings the previous
+/// shape carried.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum WarningScope {
+    /// Affects the source as a whole (e.g., FK discovery unavailable).
+    Source,
+    /// Affects every column of a single table.
+    Table { name: String },
+    /// Affects one column of one table.
+    Column { table: String, column: String },
+}
+
+impl WarningScope {
+    /// Compact human label used as a fallback when no FE-side
+    /// localisation is in place yet.
+    pub fn label(&self) -> String {
+        match self {
+            Self::Source => "source".to_string(),
+            Self::Table { name } => name.clone(),
+            Self::Column { table, column } => format!("{table}.{column}"),
+        }
+    }
+
+    /// Owning table name, if the scope binds to one. `None` for
+    /// `Source` warnings.
+    pub fn table(&self) -> Option<&str> {
+        match self {
+            Self::Source => None,
+            Self::Table { name } => Some(name.as_str()),
+            Self::Column { table, .. } => Some(table.as_str()),
+        }
+    }
+}
+
+/// Single warning emitted by an adapter or the kernel during
+/// analysis.
+///
+/// The wire shape is **language-neutral**: backend never produces
+/// user-facing prose. The FE renders a localised summary and hint by
+/// looking up `class` in its i18n catalogue and interpolating
+/// `params` (e.g. `params.partition_column`).
+///
+/// `detail` carries the raw provider error for an expand-on-demand
+/// drilldown — operator/debug copy, not user copy. `group_key` is
+/// server-computed (`class:scope.table` or `class:source`) so the FE
+/// can collapse warnings sharing a fingerprint into a single card
+/// without re-implementing the grouping rule.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AnalysisWarning {
+    pub level: WarningLevel,
+    pub phase: AnalysisPhase,
+    pub class: WarningClass,
+    pub scope: WarningScope,
+    /// Interpolation arguments for the FE-side i18n message lookup
+    /// (e.g. `{"partition_column": "stdrd_ym"}`). Keys are stable
+    /// across FE locale switches; values are short identifiers, not
+    /// localised prose.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub params: BTreeMap<String, String>,
+    /// Raw provider error text, English. Surfaces in the
+    /// expand-on-demand drilldown for operators; never the primary
+    /// user-facing copy.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    pub group_key: String,
+}
+
+impl AnalysisWarning {
+    /// Deterministic group key used for FE-side fingerprinting —
+    /// same `class` + same owning table coalesce into a single card.
+    /// `Source`-scoped warnings share one key per class.
+    pub fn group_key_for(class: WarningClass, scope: &WarningScope) -> String {
+        let mut out = String::with_capacity(64);
+        out.push_str(class.as_str());
+        match scope.table() {
+            Some(table) => {
+                out.push(':');
+                out.push_str(table);
+            }
+            None => {
+                out.push_str(":source");
+            }
+        }
+        out
+    }
+
+    /// Convenience constructor that fills `group_key` from
+    /// `class` + `scope`. Use this on emit sites so adapters never
+    /// hand-roll the key.
+    pub fn new(
+        level: WarningLevel,
+        phase: AnalysisPhase,
+        class: WarningClass,
+        scope: WarningScope,
+    ) -> Self {
+        let group_key = Self::group_key_for(class, &scope);
+        Self {
+            level,
+            phase,
+            class,
+            scope,
+            params: BTreeMap::new(),
+            detail: None,
+            group_key,
+        }
+    }
+
+    pub fn with_detail(mut self, detail: impl Into<String>) -> Self {
+        self.detail = Some(detail.into());
+        self
+    }
+
+    pub fn with_param(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.params.insert(key.into(), value.into());
+        self
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -176,7 +350,6 @@ pub enum TableExclusionReason {
 pub struct LargeSchemaWarning {
     pub table_count: usize,
     pub recommended_max: usize,
-    pub suggestion: String,
 }
 
 // ---------------------------------------------------------------------------
@@ -208,13 +381,45 @@ pub enum RepoAnalysisStatus {
     Failed,
 }
 
+/// Structured cause of a repo-enrichment failure or skip. Replaces
+/// the previous free-form `status_reason: String` so the FE can
+/// render a localised "왜 실패했나" hint without parsing prose. The
+/// emit site additionally `tracing::warn!`s the underlying error
+/// for developer-facing observability.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RepoFailureKind {
+    /// Cloning a remote git URL failed (auth, network, branch missing).
+    GitCloneFailed,
+    /// Local repo path could not be opened.
+    LocalRepoUnreadable,
+    /// Repo source rejected by the workspace policy: path outside
+    /// `allowed_roots` or host outside `allowed_git_hosts`. Admins
+    /// resolve by extending the allow-list.
+    PolicyRejected,
+    /// File-tree generation produced an error (permissions, pathological symlinks).
+    FileTreeFailed,
+    /// LLM-driven file navigation failed (provider error, structured-output mismatch).
+    LlmNavigationFailed,
+    /// LLM-driven analysis call failed (provider error, schema reject).
+    LlmAnalysisFailed,
+    /// Provider call exceeded the configured timeout.
+    Timeout,
+    /// File-read pass surfaced no usable contents (binary-only, unreadable).
+    NoReadableFiles,
+    /// LLM-selected file list contained no relevant analysis targets.
+    NoRelevantFiles,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RepoAnalysisSummary {
-    /// Overall outcome of the repo enrichment attempt
+    /// Overall outcome of the repo enrichment attempt.
     pub status: RepoAnalysisStatus,
-    /// Human-readable reason when status is skipped or failed
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub status_reason: Option<String>,
+    /// Structured failure cause when `status` is `Skipped` or
+    /// `Failed`. Absent on `Complete` / `Partial`. Renders to a
+    /// localised hint via the FE i18n catalogue keyed by variant.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub failure_reason: Option<RepoFailureKind>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub framework: Option<String>,
     /// Files the LLM selected for analysis
@@ -268,10 +473,14 @@ pub struct DesignOptions {
     /// Free-text clarifications for ambiguous columns.
     #[serde(default)]
     pub column_clarifications: Vec<ColumnClarification>,
-    /// Operator explicitly accepts proceeding with incomplete
-    /// source analysis.
+    /// Operator explicitly acknowledges proceeding with an incomplete
+    /// source analysis (analyzer warnings present).
     #[serde(default)]
-    pub allow_partial_source_analysis: bool,
+    pub partial_analysis_acknowledged: bool,
+    /// Operator explicitly acknowledges designing against a schema
+    /// that exceeds [`LARGE_SCHEMA_GATE_THRESHOLD`].
+    #[serde(default)]
+    pub large_schema_acknowledged: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
