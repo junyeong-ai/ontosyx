@@ -423,19 +423,19 @@ pub(crate) fn format_property_enrichment(
 ) -> String {
     let mut out = String::new();
 
-    if let Some(vs_id) = &prop.value_set_id
+    if let Some(vs_id) = prop.value_set_id()
         && let Some(vs) = ontology.value_set_by_id(vs_id)
     {
         out.push_str(&format!(" [values: {}]", format_value_set_summary(ontology, vs)));
     }
 
-    if let Some(np_id) = &prop.notation_pattern_id
+    if let Some(np_id) = prop.notation_pattern_id()
         && let Some(np) = ontology.notation_pattern_by_id(np_id)
     {
         out.push_str(&format!(" [format: {}]", format_notation_summary(np)));
     }
 
-    if let Some(rs_id) = &prop.value_range_set_id
+    if let Some(rs_id) = prop.value_range_set_id()
         && let Some(rs) = ontology.value_range_set_by_id(rs_id)
     {
         out.push_str(&format!(" [bands: {}]", format_range_summary(rs)));
@@ -734,7 +734,7 @@ mod tests {
             property_type: PropertyType::String,
             description: LocalizedText::default(),
             nullable: false,
-            value_set_id: Some(ValueSetId::new("vs_status")),
+            bindings: vec![ox_ontology::PropertyBinding::value_set(ValueSetId::new("vs_status"),)],
             ..Default::default()
         };
 
@@ -777,7 +777,7 @@ mod tests {
             property_type: PropertyType::String,
             description: LocalizedText::default(),
             nullable: false,
-            notation_pattern_id: Some(NotationPatternId::new("np_spring")),
+            bindings: vec![ox_ontology::PropertyBinding::notation_pattern(NotationPatternId::new("np_spring"),)],
             ..Default::default()
         };
 
@@ -833,7 +833,7 @@ mod tests {
             property_type: PropertyType::Int,
             description: LocalizedText::default(),
             nullable: false,
-            value_range_set_id: Some(ValueRangeSetId::new("rs_bp")),
+            bindings: vec![ox_ontology::PropertyBinding::value_range(ValueRangeSetId::new("rs_bp"),)],
             ..Default::default()
         };
 

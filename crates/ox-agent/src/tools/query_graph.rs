@@ -623,32 +623,28 @@ fn first_shacl_failure_kind(
     diagnostics
         .iter()
         .find(|d| d.validator == "shacl" && d.level == DiagnosticLevel::Error)
-        .map(|d| {
-            let msg = d.message.to_ascii_lowercase();
-            // Fingerprint on the bits of message text the ShaclValidator
-            // emits today (see `crates/ox-runtime/src/cypher/shacl_validator.rs`).
-            // Matching is substring-based so wording tweaks don't
-            // invalidate the histogram until a validator rewrite
-            // renames the category outright.
-            if msg.contains("required by rule") || msg.contains("mincount") {
+        .map(|d| match d.message.code.as_str() {
+            // SHACL diagnostic codes are the stable contract — see
+            // `crates/ox-runtime/src/cypher/shacl_validator.rs` emit
+            // sites. Adding a new SHACL code requires a matching arm
+            // here so the failure-kind histogram stays partitioned.
+            "runtime.cypher.shacl.min_count_missing" => {
                 ShaclFailureKind::MandatoryPropertyMissing
-            } else if msg.contains("not defined")
-                || msg.contains("violates rule")
-                || msg.contains("not an enum")
-            {
-                ShaclFailureKind::UnknownCodedValue
-            } else if msg.contains("measure") && msg.contains("group by") {
-                ShaclFailureKind::MeasureGroupBy
-            } else if msg.contains("cardinality")
-                || msg.contains("many_to_many")
-                || msg.contains("distinct")
-            {
-                ShaclFailureKind::CardinalityViolation
-            } else if msg.contains("temporal") || msg.contains("grain") {
-                ShaclFailureKind::TemporalGrainMismatch
-            } else {
-                ShaclFailureKind::Other
             }
+            "runtime.cypher.shacl.value_not_in_set"
+            | "runtime.cypher.shacl.notation_pattern_mismatch" => {
+                ShaclFailureKind::UnknownCodedValue
+            }
+            "runtime.cypher.shacl.measure_group_by_violation" => {
+                ShaclFailureKind::MeasureGroupBy
+            }
+            "runtime.cypher.shacl.cardinality_violation" => {
+                ShaclFailureKind::CardinalityViolation
+            }
+            "runtime.cypher.shacl.temporal_grain_mismatch" => {
+                ShaclFailureKind::TemporalGrainMismatch
+            }
+            _ => ShaclFailureKind::Other,
         })
 }
 
@@ -737,7 +733,7 @@ fn collect_glossary_hits(
     let walk_properties =
         |hits: &mut BTreeSet<Uuid>, properties: &[ox_ontology::ir::PropertyDef]| {
             for prop in properties {
-                if let Some(gid) = &prop.glossary_term_id
+                if let Some(gid) = prop.glossary_term_id()
                     && let Ok(uuid) = Uuid::parse_str(gid.as_str())
                 {
                     hits.insert(uuid);
@@ -788,7 +784,7 @@ mod tests {
             id: PropertyId::new(id),
             name: PropertyKey::new(id).unwrap(),
             property_type: ox_core::types::PropertyType::String,
-            glossary_term_id: Some(GlossaryTermId::new(gid_uuid)),
+            bindings: vec![ox_ontology::PropertyBinding::glossary(GlossaryTermId::new(gid_uuid),)],
             ..Default::default()
         }
     }

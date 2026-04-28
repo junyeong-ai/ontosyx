@@ -15,9 +15,14 @@
 
 pub mod format;
 pub mod input;
+pub mod llm_output;
 
 pub use format::{
     render_ambiguity_section, render_code_systems_section, render_existing_ontology_section,
     render_glossary_section,
 };
 pub use input::DesignOntologyInput;
+pub use llm_output::{
+    LLM_OUTPUT_PROPERTY_BUDGET, LlmDesignOutput, LlmEdgeType, LlmNodeType, LlmProperty,
+    into_input_ontology, merge_llm_outputs,
+};

@@ -17,8 +17,18 @@ use ox_ontology::code_system::CodeSystemDef;
 use ox_ontology::glossary::GlossaryTermDef;
 
 /// Render the workspace's glossary as a domain-vocabulary section
-/// the LLM should prefer over inventing parallel labels. Empty
-/// glossary → empty string.
+/// the LLM should prefer over inventing parallel labels.
+///
+/// Multi-locale aware: every translation of a term's preferred label
+/// and aliases is included so a Korean alias (`고객`) surfaces
+/// alongside its English canonical (`Customer`). The LLM uses the
+/// alias surface to recognise user phrasing in any locale and route
+/// it to the correct term identity. Empty glossary → empty string.
+///
+/// Deprecated terms render with a `[deprecated]` marker plus an
+/// arrow to the successor's preferred label, so the LLM avoids
+/// proposing the old label in fresh designs while still recognising
+/// it on input.
 pub fn render_glossary_section(glossary: &[GlossaryTermDef]) -> String {
     if glossary.is_empty() {
         return String::new();
@@ -27,13 +37,16 @@ pub fn render_glossary_section(glossary: &[GlossaryTermDef]) -> String {
         "## Available Domain Terms\n\
          The workspace already defines these business terms. Prefer their canonical \
          labels (or the closest match) over inventing new node / edge / property \
-         names for the same concept.\n\n",
+         names for the same concept. Aliases below are recognised inputs for the \
+         same term — match against them when the operator phrases their query \
+         differently.\n\n",
     );
     for term in glossary {
-        let aliases = if term.aliases.is_empty() {
+        let aliases = collect_alias_surface(term);
+        let alias_part = if aliases.is_empty() {
             String::new()
         } else {
-            format!(" (aliases: {})", term.aliases.join(", "))
+            format!(" (aliases: {})", aliases.join(", "))
         };
         let desc = term.description.default.clone();
         let desc_part = if desc.is_empty() {
@@ -41,12 +54,63 @@ pub fn render_glossary_section(glossary: &[GlossaryTermDef]) -> String {
         } else {
             format!(" — {desc}")
         };
+        let lifecycle_part = match &term.lifecycle {
+            ox_ontology::glossary::TermLifecycle::Active => String::new(),
+            ox_ontology::glossary::TermLifecycle::Deprecated { replaced_by, .. } => {
+                let successor = replaced_by
+                    .as_ref()
+                    .and_then(|id| glossary.iter().find(|t| &t.id == id))
+                    .map(|t| t.term.default.as_str())
+                    .unwrap_or("");
+                if successor.is_empty() {
+                    " [deprecated]".to_string()
+                } else {
+                    format!(" [deprecated → `{successor}`]")
+                }
+            }
+            ox_ontology::glossary::TermLifecycle::Retired { .. } => " [retired]".to_string(),
+        };
         out.push_str(&format!(
-            "- `{}`{}{}\n",
-            term.term, aliases, desc_part,
+            "- `{}`{}{}{}\n",
+            term.term.default, alias_part, lifecycle_part, desc_part,
         ));
     }
     out
+}
+
+/// Collect every locale variant of `term.term`, `display_name`, and
+/// `aliases` into a deduplicated, stable-ordered list — minus the
+/// canonical `term.default` itself (which is rendered separately).
+/// The locale variants drive cross-language matching during
+/// NL-to-Cypher routing.
+fn collect_alias_surface(term: &GlossaryTermDef) -> Vec<String> {
+    let canonical = term.term.default.trim().to_string();
+    let mut surface: Vec<String> = Vec::new();
+    let mut push = |s: &str| {
+        let trimmed = s.trim();
+        if trimmed.is_empty() || trimmed == canonical {
+            return;
+        }
+        if !surface.iter().any(|existing| existing == trimmed) {
+            surface.push(trimmed.to_string());
+        }
+    };
+    for variant in std::iter::once(&term.term.default)
+        .chain(term.term.translations.values())
+    {
+        push(variant);
+    }
+    for variant in std::iter::once(&term.display_name.default)
+        .chain(term.display_name.translations.values())
+    {
+        push(variant);
+    }
+    for alias in &term.aliases {
+        for variant in std::iter::once(&alias.default).chain(alias.translations.values()) {
+            push(variant);
+        }
+    }
+    surface
 }
 
 /// Render the workspace's code-system registry as a reference list.
@@ -154,12 +218,20 @@ mod tests {
     fn term(name: &str, aliases: &[&str], desc: &str) -> GlossaryTermDef {
         GlossaryTermDef {
             id: format!("gt-{name}").into(),
-            term: name.to_string(),
+            term: LocalizedText::new(name),
             display_name: LocalizedText::default(),
-            aliases: aliases.iter().map(|s| s.to_uppercase()).collect(),
+            examples: Vec::new(),
+            aliases: aliases
+                .iter()
+                .map(|s| LocalizedText::new(s.to_uppercase()))
+                .collect(),
             description: LocalizedText::new(desc),
             category: None,
-            parent_term_id: None,
+            related_terms: Vec::new(),
+            governance: ox_ontology::glossary::TermGovernance::default(),
+            valid_from: None,
+            valid_to: None,
+            lifecycle: ox_ontology::glossary::TermLifecycle::default(),
         }
     }
 
@@ -181,6 +253,54 @@ mod tests {
         assert!(s.contains("End user of the platform"));
         assert!(s.contains("`order`"));
         assert!(s.contains("Purchase event"));
+    }
+
+    #[test]
+    fn glossary_section_surfaces_locale_translations_as_aliases() {
+        use ox_core::i18n::LanguageTag;
+
+        let mut t = term("customer", &["buyer"], "End user");
+        // Add Korean translations so the LLM sees them in the alias surface.
+        t.term = LocalizedText::new("customer")
+            .with_translation(LanguageTag::ko(), "고객");
+        t.aliases = vec![
+            LocalizedText::new("BUYER").with_translation(LanguageTag::ko(), "구매자"),
+        ];
+        let s = render_glossary_section(std::slice::from_ref(&t));
+        assert!(s.contains("`customer`"));
+        assert!(s.contains("고객"));
+        assert!(s.contains("BUYER"));
+        assert!(s.contains("구매자"));
+    }
+
+    #[test]
+    fn glossary_section_marks_deprecated_term_with_successor() {
+        use chrono::Utc;
+        use ox_ontology::glossary::TermLifecycle;
+
+        let mut old = term("client", &[], "Legacy synonym");
+        old.lifecycle = TermLifecycle::Deprecated {
+            replaced_by: Some(ox_ontology::glossary::GlossaryTermId::new("gt-customer")),
+            deprecated_at: Utc::now(),
+        };
+        let mut successor = term("customer", &[], "Active term");
+        successor.id = ox_ontology::glossary::GlossaryTermId::new("gt-customer");
+        let s = render_glossary_section(&[successor, old]);
+        assert!(
+            s.contains("[deprecated → `customer`]"),
+            "expected deprecation marker pointing at successor: {s}"
+        );
+    }
+
+    #[test]
+    fn glossary_section_omits_canonical_from_alias_surface() {
+        // The canonical term's `default` value renders separately as
+        // the row header — listing it again under "aliases" would be
+        // visually redundant and waste tokens.
+        let t = term("customer", &[], "");
+        let s = render_glossary_section(std::slice::from_ref(&t));
+        assert!(s.contains("`customer`"));
+        assert!(!s.contains("(aliases:"));
     }
 
     #[test]

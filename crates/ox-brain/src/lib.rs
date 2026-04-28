@@ -450,7 +450,7 @@ impl OntologyDesigner for DefaultBrain {
             "Designing ontology from sample data + domain context",
         );
 
-        let raw_input: ox_ontology::input::InputOntologyDef = self
+        let llm_output: design::LlmDesignOutput = self
             .call_structured(
                 "design_ontology",
                 Some("1.0.0"),
@@ -459,13 +459,14 @@ impl OntologyDesigner for DefaultBrain {
                 "Designing ontology from sample data",
             )
             .await?;
+        let raw_input = design::into_input_ontology(llm_output);
 
         let norm_result =
             ox_ontology::input::normalize(raw_input, input.source_id).map_err(|errors| {
                 OxError::Ontology {
                     message: format!(
                         "LLM-generated ontology normalization failed: {}",
-                        errors.join("; ")
+                        ox_core::join_messages(&errors, "; ")
                     ),
                 }
             })?;
@@ -478,7 +479,7 @@ impl OntologyDesigner for DefaultBrain {
             return Err(OxError::Ontology {
                 message: format!(
                     "LLM-generated ontology has validation errors: {}",
-                    errors.join("; ")
+                    ox_core::join_messages(&errors, "; ")
                 ),
             });
         }
@@ -515,7 +516,7 @@ impl OntologyDesigner for DefaultBrain {
             "Designing ontology batch (divide-and-conquer)"
         );
 
-        structured_completion(
+        let llm_output: design::LlmDesignOutput = structured_completion(
             client.as_ref(),
             &resolved.model_id,
             &system,
@@ -523,7 +524,8 @@ impl OntologyDesigner for DefaultBrain {
             resolved.max_tokens.unwrap_or(batch_tmpl.max_tokens),
             resolved.temperature.or(batch_tmpl.temperature),
         )
-        .await
+        .await?;
+        Ok(design::into_input_ontology(llm_output))
     }
 
     async fn resolve_cross_edges(
@@ -553,13 +555,16 @@ impl OntologyDesigner for DefaultBrain {
         refinement_context: &str,
         source_id: &SourceId,
     ) -> OxResult<OntologyIR> {
-        let ontology_json = serialize_pretty(ontology, "ontology")?;
+        let ontology_json = serialize_pretty(
+            &ontology.to_agent_view(ox_core::llm_locale_fallback_default_tags()),
+            "ontology",
+        )?;
 
         let mut vars = HashMap::new();
         vars.insert("ontology", ontology_json.as_str());
         vars.insert("refinement_context", refinement_context);
 
-        let input: ox_ontology::input::InputOntologyDef = self
+        let llm_output: design::LlmDesignOutput = self
             .call_structured(
                 "refine_ontology",
                 Some("1.0.0"),
@@ -568,12 +573,13 @@ impl OntologyDesigner for DefaultBrain {
                 "Refining ontology metadata",
             )
             .await?;
+        let input = design::into_input_ontology(llm_output);
 
         let norm_result = ox_ontology::input::normalize(input, source_id).map_err(|errors| {
             OxError::Ontology {
                 message: format!(
                     "Refined ontology normalization failed: {}",
-                    errors.join("; ")
+                    ox_core::join_messages(&errors, "; ")
                 ),
             }
         })?;
@@ -584,7 +590,7 @@ impl OntologyDesigner for DefaultBrain {
             return Err(OxError::Ontology {
                 message: format!(
                     "Refined ontology has validation errors: {}",
-                    errors.join("; ")
+                    ox_core::join_messages(&errors, "; ")
                 ),
             });
         }
@@ -610,7 +616,10 @@ impl OntologyEditor for DefaultBrain {
         ontology: &OntologyIR,
         user_request: &str,
     ) -> OxResult<EditCommandsOutput> {
-        let ontology_json = serialize_pretty(ontology, "ontology")?;
+        let ontology_json = serialize_pretty(
+            &ontology.to_agent_view(ox_core::llm_locale_fallback_default_tags()),
+            "ontology",
+        )?;
 
         let mut vars = HashMap::new();
         vars.insert("ontology", ontology_json.as_str());
@@ -853,7 +862,10 @@ impl QueryTranslator for DefaultBrain {
         ontology: &OntologyIR,
         source_description: &str,
     ) -> OxResult<LoadPlan> {
-        let ontology_json = serialize_pretty(ontology, "ontology")?;
+        let ontology_json = serialize_pretty(
+            &ontology.to_agent_view(ox_core::llm_locale_fallback_default_tags()),
+            "ontology",
+        )?;
 
         let mut vars = HashMap::new();
         vars.insert("source_description", source_description);
@@ -868,10 +880,14 @@ impl QueryTranslator for DefaultBrain {
         ontology: &OntologyIR,
         source_schema: &SourceSchema,
     ) -> OxResult<LoadPlan> {
-        // Mapping info lives on the ontology itself — serialize the
-        // ObjectMappingDef slice so the prompt sees exactly the same
-        // canonical shape the planner will consume at runtime.
-        let ontology_json = serialize_pretty(ontology, "ontology")?;
+        // The agent view carries the logical schema the load plan
+        // targets; the ObjectMappingDef slice is serialised
+        // separately so the prompt still sees the canonical wire
+        // shape the planner will consume at runtime.
+        let ontology_json = serialize_pretty(
+            &ontology.to_agent_view(ox_core::llm_locale_fallback_default_tags()),
+            "ontology",
+        )?;
         let mapping_json =
             serialize_pretty(&ontology.object_mappings(), "object_mappings")?;
         let schema_json = serialize_pretty(source_schema, "source_schema")?;

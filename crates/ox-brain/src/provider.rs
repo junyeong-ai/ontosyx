@@ -132,10 +132,19 @@ pub async fn structured_completion_with_thresholds<
         request = request.with_response_format(ResponseFormat::JsonSchema(spec));
         tracing::debug!(schema_name = %type_name, "Using structured output with JSON Schema");
     } else {
-        tracing::info!(
+        // Every LLM-output type in the workspace is engineered to fit
+        // structured-output limits comfortably (see e.g.
+        // `LlmDesignOutput` and the schema-budget unit tests). A
+        // miss here means a new output type was added without a
+        // matching budget assertion — surface it as a warning so it
+        // gets attention rather than silently degrading to free-form
+        // JSON.
+        tracing::warn!(
+            schema_name = %type_name,
             optional_count,
             total_props,
-            "Schema too complex for structured output, using JSON mode"
+            "JSON Schema exceeds structured-output limits — falling back to JSON mode. \
+             Add a budget test for this type or trim its schema."
         );
     }
 
