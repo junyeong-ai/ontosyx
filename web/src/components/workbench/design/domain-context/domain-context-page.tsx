@@ -13,6 +13,8 @@ import { selectStateOntology } from "@/lib/store/selectors";
 import { arr } from "@/lib/ir-collections";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { GlossaryAnchorPicker } from "@/components/ontology/glossary-anchor-picker";
+import { NodeConstraintBuilder } from "@/components/ontology/node-constraint-builder";
+import { SourceSampleMini } from "@/components/workbench/inspector/source-sample-mini";
 import {
   AddPropertyForm,
   PropertyRow,
@@ -20,6 +22,7 @@ import {
 import { InlineEdit } from "@/components/workbench/inspector/inline-edit";
 import { defaultText } from "@/lib/locale/localize";
 import type {
+  ConstraintDef,
   NodeTypeDef,
   OntologyCommand,
   OntologyIR,
@@ -147,7 +150,7 @@ function NodeView({
             title={t("sections.samples.title")}
             description={t("sections.samples.subtitle")}
           >
-            <Placeholder hint={t("sections.samples.placeholder")} />
+            <SamplesSection node={node} />
           </CollapsibleSection>
 
           <CollapsibleSection
@@ -160,7 +163,7 @@ function NodeView({
             }
             defaultOpen={false}
           >
-            <Placeholder hint={t("sections.constraints.placeholder")} />
+            <ConstraintsSection node={node} />
           </CollapsibleSection>
 
           <CollapsibleSection
@@ -331,6 +334,64 @@ function PropertiesSection({
         </ul>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Samples section
+// ---------------------------------------------------------------------------
+
+function SamplesSection({ node }: { node: NodeTypeDef }) {
+  const t = useTranslations("workbench.types.detail.samples");
+  const table = node.source_lineage?.table;
+  if (!table) {
+    return (
+      <p className="text-[11px] italic text-muted-foreground">
+        {t("noSourceLineage")}
+      </p>
+    );
+  }
+  return <SourceSampleMini tableName={table} />;
+}
+
+// ---------------------------------------------------------------------------
+// Constraints section
+// ---------------------------------------------------------------------------
+
+function ConstraintsSection({ node }: { node: NodeTypeDef }) {
+  const t = useTranslations("workbench.types.detail.constraints");
+  const applyCommand = useAppStore((s) => s.applyCommand);
+
+  const handleAdd = useCallback(
+    (constraint: ConstraintDef) => {
+      applyCommand({
+        op: "add_constraint",
+        node_id: node.id,
+        constraint,
+      });
+      toast.success(t("addedToast"));
+    },
+    [applyCommand, node.id, t],
+  );
+
+  const handleRemove = useCallback(
+    (constraintId: string) => {
+      applyCommand({
+        op: "remove_constraint",
+        node_id: node.id,
+        constraint_id: constraintId,
+      });
+      toast.success(t("removedToast"));
+    },
+    [applyCommand, node.id, t],
+  );
+
+  return (
+    <NodeConstraintBuilder
+      node={node}
+      onAdd={handleAdd}
+      onRemove={handleRemove}
+    />
   );
 }
 

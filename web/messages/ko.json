@@ -153,6 +153,32 @@
       "removeAria": "용어 연결 해제 ({id})",
       "missingTooltip": "용어 사전에 존재하지 않는 ID: {id}"
     },
+    "nodeConstraintBuilder": {
+      "emptyState": "이 노드 타입에는 아직 제약이 없습니다.",
+      "addAction": "+ 제약 추가",
+      "submitAction": "추가",
+      "cancelAction": "취소",
+      "removeAction": "제약 제거",
+      "removeAriaLabel": "제약 제거: {summary}",
+      "noProperties": "먼저 속성을 추가하면 제약을 만들 수 있습니다.",
+      "kinds": {
+        "unique": {
+          "label": "UNIQUE",
+          "hint": "이 속성 조합에 동일 값이 두 번 나타날 수 없습니다.",
+          "summary": "UNIQUE({properties})"
+        },
+        "exists": {
+          "label": "EXISTS",
+          "hint": "이 속성은 모든 인스턴스에서 반드시 값을 가져야 합니다.",
+          "summary": "EXISTS({property})"
+        },
+        "node_key": {
+          "label": "NODE KEY",
+          "hint": "이 속성 조합은 인스턴스 식별 키 역할을 합니다 (UNIQUE + EXISTS).",
+          "summary": "NODE KEY({properties})"
+        }
+      }
+    },
     "inlineObjectMappingEditor": {
       "relationLabel": "관계명",
       "relationPlaceholder": "예: public.customers",
@@ -2722,6 +2748,13 @@
           "addAction": "+ 속성 추가",
           "deletedToast": "속성 \"{name}\" 이(가) 삭제되었습니다",
           "emptyState": "이 노드 타입에는 아직 속성이 없습니다. \"속성 추가\" 로 시작하세요."
+        },
+        "samples": {
+          "noSourceLineage": "이 노드 타입은 물리 테이블과 매핑되어 있지 않아 샘플을 표시할 수 없습니다."
+        },
+        "constraints": {
+          "addedToast": "제약이 추가되었습니다",
+          "removedToast": "제약이 제거되었습니다"
         },
         "sections": {
           "definition": {

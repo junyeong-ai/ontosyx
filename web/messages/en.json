@@ -153,6 +153,32 @@
       "removeAria": "Remove anchor ({id})",
       "missingTooltip": "Term id not found in glossary: {id}"
     },
+    "nodeConstraintBuilder": {
+      "emptyState": "This node type has no constraints yet.",
+      "addAction": "+ Add constraint",
+      "submitAction": "Add",
+      "cancelAction": "Cancel",
+      "removeAction": "Remove constraint",
+      "removeAriaLabel": "Remove constraint: {summary}",
+      "noProperties": "Add a property first — constraints reference one or more properties on this node.",
+      "kinds": {
+        "unique": {
+          "label": "UNIQUE",
+          "hint": "No two instances may share this property combination.",
+          "summary": "UNIQUE({properties})"
+        },
+        "exists": {
+          "label": "EXISTS",
+          "hint": "This property must be populated on every instance.",
+          "summary": "EXISTS({property})"
+        },
+        "node_key": {
+          "label": "NODE KEY",
+          "hint": "Identifying key for this node type (UNIQUE + EXISTS).",
+          "summary": "NODE KEY({properties})"
+        }
+      }
+    },
     "inlineObjectMappingEditor": {
       "relationLabel": "Relation",
       "relationPlaceholder": "e.g. public.customers",
@@ -2736,6 +2762,13 @@
           "addAction": "+ Add property",
           "deletedToast": "Property \"{name}\" deleted",
           "emptyState": "This node type has no properties yet. Use \"Add property\" to start."
+        },
+        "samples": {
+          "noSourceLineage": "This node type is not bound to a physical table — no sample available."
+        },
+        "constraints": {
+          "addedToast": "Constraint added",
+          "removedToast": "Constraint removed"
         },
         "sections": {
           "definition": {
