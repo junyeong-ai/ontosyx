@@ -18,6 +18,7 @@ impl SourceMappingArtifactStore for PostgresStore {
         &self,
         artifact: SourceMappingArtifact,
     ) -> OxResult<SourceMappingArtifact> {
+        super::require_workspace_context()?;
         let body = serde_json::to_value(&artifact)?;
         let content_hash = artifact.content_hash();
 
@@ -119,6 +120,7 @@ impl SourceMappingArtifactStore for PostgresStore {
         &self,
         id: &SourceMappingArtifactId,
     ) -> OxResult<bool> {
+        super::require_workspace_context()?;
         let result =
             sqlx::query("DELETE FROM source_mapping_artifacts WHERE id = $1")
                 .bind(id.as_str())

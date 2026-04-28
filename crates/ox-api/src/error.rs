@@ -246,6 +246,9 @@ fn ox_error_status(err: &OxError) -> (StatusCode, &'static str) {
         OxError::Compilation { .. } => (StatusCode::UNPROCESSABLE_ENTITY, "compilation_error"),
         OxError::UnsupportedOperation { .. } => (StatusCode::NOT_IMPLEMENTED, "unsupported"),
         OxError::Serialization(_) => (StatusCode::BAD_REQUEST, "serialization_error"),
+        OxError::MissingContext { .. } => {
+            (StatusCode::INTERNAL_SERVER_ERROR, "missing_context")
+        }
         OxError::Runtime { .. } | OxError::Contextual { .. } => {
             (StatusCode::INTERNAL_SERVER_ERROR, "internal_error")
         }

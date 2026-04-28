@@ -27,7 +27,7 @@ pub use quality_signal::{
     WorkspaceQualityBaseline,
 };
 pub use postgres::PostgresStore;
-pub use postgres::{SYSTEM_BYPASS, WORKSPACE_ID};
+pub use postgres::{SYSTEM_BYPASS, WORKSPACE_ID, require_workspace_context};
 pub use store::{
     AclStore, AgentSessionStore, AmbiguityStore, AnalysisResultStore, AnalysisSnapshot,
     ApiKeyStore, ApprovalCommentStore, ApprovalStore, AuditRecord, AuditStore, AuditTrailFilter,

@@ -71,6 +71,38 @@ tokio::task_local! {
     pub static SYSTEM_BYPASS: bool;
 }
 
+/// Assert that the caller is inside a `WORKSPACE_ID.scope(...)` or a
+/// `SYSTEM_BYPASS.scope(true, ...)` block. Mutating store methods
+/// call this at the top so a programming error (forgot to wrap a
+/// background task in `with_workspace`) surfaces as a structured
+/// `MissingContext` error instead of a silent zero-rows-affected
+/// from RLS.
+///
+/// Read-only methods don't have to call this — RLS will simply
+/// return an empty result when no context is set, which is the
+/// safe deny-all default. Mutations need explicit-fail because a
+/// silently-skipped write looks like success to the caller.
+///
+/// `kind` should describe the missing axis (`"workspace"` for the
+/// canonical case). Future axes (`"project"`, `"user"`) reuse the
+/// same `OxError::MissingContext` shape.
+pub fn require_workspace_context() -> OxResult<()> {
+    if SYSTEM_BYPASS.try_with(|b| *b).unwrap_or(false) {
+        return Ok(());
+    }
+    if WORKSPACE_ID.try_with(|_| ()).is_ok() {
+        return Ok(());
+    }
+    Err(OxError::MissingContext {
+        kind: "workspace".to_string(),
+        message: "store mutation invoked outside any \
+                  WORKSPACE_ID.scope or SYSTEM_BYPASS.scope. \
+                  Wrap the call with PostgresStore::with_workspace \
+                  or PostgresStore::with_system_bypass."
+            .to_string(),
+    })
+}
+
 // ---------------------------------------------------------------------------
 // PostgresStore — Store implementation backed by PostgreSQL
 // ---------------------------------------------------------------------------
@@ -342,3 +374,33 @@ mod tool_approval;
 mod user;
 mod verification;
 mod workspace;
+
+
+#[cfg(test)]
+mod context_guard_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn require_workspace_context_passes_inside_workspace_scope() {
+        let result = WORKSPACE_ID
+            .scope(Uuid::nil(), async { require_workspace_context() })
+            .await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn require_workspace_context_passes_inside_system_bypass() {
+        let result =
+            SYSTEM_BYPASS.scope(true, async { require_workspace_context() }).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn require_workspace_context_rejects_when_no_scope() {
+        let err = require_workspace_context().expect_err("must reject");
+        match err {
+            OxError::MissingContext { kind, .. } => assert_eq!(kind, "workspace"),
+            other => panic!("expected MissingContext, got {other:?}"),
+        }
+    }
+}

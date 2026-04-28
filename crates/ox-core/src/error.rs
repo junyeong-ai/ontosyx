@@ -43,6 +43,17 @@ pub enum OxError {
     #[error("Conflict: {message}")]
     Conflict { message: String },
 
+    /// A required scope or context was not set on the calling
+    /// task. The canonical case is a store mutation invoked
+    /// outside any workspace scope: with neither `WORKSPACE_ID`
+    /// nor `SYSTEM_BYPASS` task-locals bound, RLS would silently
+    /// deny the row, leaving the caller to wonder why their write
+    /// "succeeded" with zero rows affected. The variant is
+    /// generic on `kind` so the same shape covers project,
+    /// user, or any future scope axis without a per-axis variant.
+    #[error("Missing {kind} context: {message}")]
+    MissingContext { kind: String, message: String },
+
     /// An error with additional diagnostic context.
     #[error("[{target}/{location}] {source}")]
     Contextual {
