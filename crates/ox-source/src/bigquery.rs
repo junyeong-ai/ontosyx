@@ -6,18 +6,41 @@
 //! metadata table for row counts) and maps the `ResultSet` into
 //! `ox_core::source_schema` types.
 //!
-//! Authentication precedence matches the plan:
+//! ## Project model
 //!
-//! 1. **Application Default Credentials** — when the URI carries no
-//!    `credentials_path`. Covers the two GCP-native deploy paths: a
-//!    `GOOGLE_APPLICATION_CREDENTIALS`-pointed service account on
-//!    developer machines, and workload identity (GCE / GKE metadata
-//!    server) in production.
-//! 2. **Explicit service-account JSON** — when `credentials_path=...`
-//!    is passed in the URI, we read the key file directly. Useful for
-//!    local dev against a specific account or CI with a secret-mounted
-//!    key file.
+//! BigQuery distinguishes the project where the *data* lives from the
+//! project that is *billed* for the query job. The two are usually the
+//! same, but enterprise deployments routinely split them — e.g.
+//! read-only access to a shared data project plus a separate "compute"
+//! project that holds the user's `bigquery.jobs.create` permission.
+//! VPC Service Controls perimeters can also force a particular billing
+//! project.
+//!
+//! The adapter therefore takes:
+//!
+//! - `project_id` — the data project, used in fully-qualified
+//!   identifiers (`{project_id}.{dataset}.INFORMATION_SCHEMA.X`).
+//! - `billing_project_id` — optional, defaults to `project_id`. Used as
+//!   the `projectId` argument when submitting jobs.
+//!
+//! ## Authentication
+//!
+//! ADC dispatch lives in [`ox_gcp::auth`]. The adapter consults
+//! [`ox_gcp::auth::detect_adc`] (with the optional
+//! `credentials_path` override) and routes the result to the matching
+//! `gcp-bigquery-client` constructor:
+//!
+//! | Credential kind        | Constructor                                     |
+//! | ---------------------- | ----------------------------------------------- |
+//! | Service-account JSON   | `Client::from_service_account_key_file`         |
+//! | Authorized-user secret | `Client::from_authorized_user_secret`           |
+//! | Metadata server        | `Client::from_application_default_credentials`  |
+//!
+//! This keeps `gcloud auth application-default login` (the standard
+//! developer-laptop flow) working without operators having to mint
+//! service-account keys.
 
+use std::path::Path;
 use std::sync::Arc;
 
 use arrow::array::{ArrayBuilder, RecordBatch};
@@ -28,6 +51,7 @@ use gcp_bigquery_client::model::query_response::ResultSet;
 use tracing::info;
 
 use ox_core::error::{OxError, OxResult};
+use ox_gcp::auth::AdcCredential;
 use ox_ontology::source_analysis::ENUM_CARDINALITY_THRESHOLD;
 
 use crate::normalize::describe_to_arrow_schema;
@@ -45,12 +69,9 @@ pub struct BigQueryAdapter {
     client: Arc<Client>,
     project_id: String,
     dataset: String,
-    /// Path to the service-account JSON used at construction time, or
-    /// `None` when authenticating via Application Default Credentials.
-    /// Kept for diagnostics only; ADC / explicit-path choice has
-    /// already been resolved.
-    #[allow(dead_code)]
-    credentials_path: Option<String>,
+    /// Project that pays for and runs the BQ jobs. Defaults to
+    /// `project_id` when the caller does not split billing from data.
+    billing_project_id: String,
 }
 
 impl std::fmt::Debug for BigQueryAdapter {
@@ -58,7 +79,7 @@ impl std::fmt::Debug for BigQueryAdapter {
         f.debug_struct("BigQueryAdapter")
             .field("project_id", &self.project_id)
             .field("dataset", &self.dataset)
-            .field("credentials_path", &self.credentials_path)
+            .field("billing_project_id", &self.billing_project_id)
             .finish_non_exhaustive()
     }
 }
@@ -68,60 +89,52 @@ impl BigQueryAdapter {
     /// adapter.
     ///
     /// Expected format:
-    /// `bigquery://PROJECT_ID/DATASET[?credentials_path=PATH]`
-    ///
-    /// Authentication:
-    /// - If `credentials_path` is present, the service-account JSON file
-    ///   at that path is used.
-    /// - Otherwise, Application Default Credentials are used
-    ///   (`GOOGLE_APPLICATION_CREDENTIALS` env var → workload identity).
+    /// `bigquery://PROJECT_ID/DATASET[?billing_project_id=BILLING][&credentials_path=PATH]`
     pub async fn connect(connection_string: &str) -> OxResult<Self> {
-        let (project_id, dataset, credentials_path) = parse_bigquery_uri(connection_string)?;
-        validate_project_or_dataset("project_id", &project_id)?;
-        validate_project_or_dataset("dataset", &dataset)?;
+        let parsed = parse_bigquery_uri(connection_string)?;
+        validate_project_or_dataset("project_id", &parsed.project_id)?;
+        validate_project_or_dataset("dataset", &parsed.dataset)?;
+        if let Some(b) = &parsed.billing_project_id {
+            validate_project_or_dataset("billing_project_id", b)?;
+        }
 
-        let client = match &credentials_path {
-            Some(path) => Client::from_service_account_key_file(path)
-                .await
-                .map_err(|e| OxError::Runtime {
-                    message: format!(
-                        "Failed to authenticate to BigQuery with service account \
-                         JSON `{path}`: {e}"
-                    ),
-                })?,
-            None => Client::from_application_default_credentials()
-                .await
-                .map_err(|e| OxError::Runtime {
-                    message: format!(
-                        "Failed to authenticate to BigQuery via Application Default \
-                         Credentials (set GOOGLE_APPLICATION_CREDENTIALS or run on a \
-                         workload-identity-enabled GCP resource): {e}"
-                    ),
-                })?,
-        };
+        let override_path = parsed.credentials_path.as_deref().map(Path::new);
+        let credential = ox_gcp::auth::detect_adc(override_path)
+            .await
+            .map_err(|e| OxError::Runtime {
+                message: format!("BigQuery ADC dispatch failed: {e}"),
+            })?;
+
+        let client = build_client(&credential).await?;
+
+        let billing_project_id = parsed
+            .billing_project_id
+            .clone()
+            .unwrap_or_else(|| parsed.project_id.clone());
 
         info!(
-            project_id = %project_id,
-            dataset = %dataset,
-            auth = credentials_path.as_deref().unwrap_or("(ADC)"),
+            project_id = %parsed.project_id,
+            dataset = %parsed.dataset,
+            billing_project_id = %billing_project_id,
+            credential = %credential_kind_label(&credential),
             "BigQuery adapter connected"
         );
 
         Ok(Self {
             client: Arc::new(client),
-            project_id,
-            dataset,
-            credentials_path,
+            project_id: parsed.project_id,
+            dataset: parsed.dataset,
+            billing_project_id,
         })
     }
 
     /// Execute a Standard SQL query and return the resulting rows.
-    /// Error text includes a truncated copy of the SQL to make
-    /// diagnostic breadcrumbs useful without flooding logs.
+    /// Jobs always run in the billing project — fully-qualified table
+    /// names already carry the data-project prefix.
     async fn run_query(&self, sql: &str) -> OxResult<ResultSet> {
         self.client
             .job()
-            .query(&self.project_id, QueryRequest::new(sql))
+            .query(&self.billing_project_id, QueryRequest::new(sql))
             .await
             .map_err(|e| OxError::Runtime {
                 message: format!(
@@ -129,6 +142,38 @@ impl BigQueryAdapter {
                     truncate_for_error(sql)
                 ),
             })
+    }
+}
+
+async fn build_client(credential: &AdcCredential) -> OxResult<Client> {
+    let result = match credential {
+        AdcCredential::ServiceAccountKey(path) => {
+            Client::from_service_account_key_file(path_as_str(path)?).await
+        }
+        AdcCredential::AuthorizedUser(path) => {
+            Client::from_authorized_user_secret(path_as_str(path)?).await
+        }
+        AdcCredential::Metadata => Client::from_application_default_credentials().await,
+    };
+    result.map_err(|e| OxError::Runtime {
+        message: format!(
+            "BigQuery client construction failed ({}): {e}",
+            credential_kind_label(credential)
+        ),
+    })
+}
+
+fn path_as_str(path: &Path) -> OxResult<&str> {
+    path.to_str().ok_or_else(|| OxError::Runtime {
+        message: format!("BigQuery credential path is not valid UTF-8: {}", path.display()),
+    })
+}
+
+fn credential_kind_label(credential: &AdcCredential) -> &'static str {
+    match credential {
+        AdcCredential::ServiceAccountKey(_) => "service_account",
+        AdcCredential::AuthorizedUser(_) => "authorized_user",
+        AdcCredential::Metadata => "metadata_server",
     }
 }
 
@@ -186,13 +231,48 @@ impl DataSourceAdapter for BigQueryAdapter {
         "bigquery"
     }
 
+    fn supports_scan(&self) -> bool {
+        true
+    }
+
+    /// BigQuery surfaces a small, recognisable set of failure modes
+    /// inside the otherwise-noisy `BQError::ResponseError` shape.
+    /// Promote them to specific [`WarningClass`] variants so the FE
+    /// can render a targeted summary + actionable hint instead of a
+    /// 500-character JSON dump.
+    fn classify_warning(
+        &self,
+        level: ox_ontology::source_analysis::WarningLevel,
+        phase: ox_ontology::source_analysis::AnalysisPhase,
+        default_class: ox_ontology::source_analysis::WarningClass,
+        scope: ox_ontology::source_analysis::WarningScope,
+        error: &OxError,
+    ) -> ox_ontology::source_analysis::AnalysisWarning {
+        use ox_ontology::source_analysis::AnalysisWarning;
+        let raw = error.to_string();
+        let (class, params) = classify_bigquery_error(&raw, default_class);
+        let mut warning = AnalysisWarning::new(level, phase, class, scope).with_detail(raw);
+        for (key, value) in params {
+            warning = warning.with_param(key, value);
+        }
+        warning
+    }
+
     async fn list_tables(&self) -> OxResult<Vec<String>> {
-        // BigQuery scopes INFORMATION_SCHEMA to a dataset by prefix:
-        // `project.dataset.INFORMATION_SCHEMA.TABLES` — the whole path
-        // must live inside one backtick pair.
+        // INFORMATION_SCHEMA.TABLES surfaces every queryable object in
+        // the dataset — base tables, views, materialized views,
+        // external tables, snapshots, clones. We expose them all
+        // because each is a legitimate analysis target: an ontology
+        // designed against a warehouse should see the same surface
+        // the warehouse exposes to its consumers, not just the
+        // managed-table subset.
+        //
+        // The fully-qualified path lives inside one backtick pair —
+        // BigQuery does not accept multi-segment dotted paths split
+        // across separate quoting.
         let sql = format!(
             "SELECT table_name FROM `{project}.{dataset}.INFORMATION_SCHEMA.TABLES` \
-             WHERE table_type = 'BASE TABLE' ORDER BY table_name",
+             ORDER BY table_name",
             project = self.project_id,
             dataset = self.dataset,
         );
@@ -207,11 +287,18 @@ impl DataSourceAdapter for BigQueryAdapter {
     }
 
     async fn list_tables_with_summary(&self) -> OxResult<Vec<TableSummary>> {
-        // `__TABLES__` carries per-table row count + last_modified_time
-        // (millis since epoch). Column count joins from
-        // INFORMATION_SCHEMA.COLUMNS via a correlated subquery — both
-        // tables are dataset-scoped, so the path stays within one
-        // backtick segment.
+        // `__TABLES__` is the dataset-scoped metadata view that carries
+        // both row_count and last_modified_time (millis since epoch),
+        // and includes every table kind the dataset exposes — base
+        // tables, views, clones, snapshots, external. The newer
+        // `INFORMATION_SCHEMA.TABLE_STORAGE` view is region-scoped
+        // (region-asia-northeast3.INFORMATION_SCHEMA…), introduces
+        // cross-region permission coupling, and excludes views — so it
+        // is the wrong primitive for a cheap dataset-level listing.
+        //
+        // Column count joins from INFORMATION_SCHEMA.COLUMNS via a
+        // correlated subquery; both views are dataset-scoped so the
+        // fully-qualified path stays inside a single backtick pair.
         let sql = format!(
             "SELECT t.table_id AS table_name, \
                     (SELECT COUNT(*) \
@@ -623,10 +710,18 @@ fn bq_row_err(e: gcp_bigquery_client::error::BQError) -> OxError {
 // URI parsing
 // ---------------------------------------------------------------------------
 
-/// Parse `bigquery://PROJECT_ID/DATASET[?credentials_path=PATH]` into
-/// `(project_id, dataset, credentials_path)`. Uses the `url` crate so
-/// percent-encoding and query-string parsing come for free.
-fn parse_bigquery_uri(uri: &str) -> OxResult<(String, String, Option<String>)> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct BigQueryUri {
+    project_id: String,
+    dataset: String,
+    billing_project_id: Option<String>,
+    credentials_path: Option<String>,
+}
+
+/// Parse `bigquery://PROJECT_ID/DATASET[?billing_project_id=BILLING][&credentials_path=PATH]`.
+/// Uses the `url` crate so percent-encoding and query-string parsing
+/// come for free.
+fn parse_bigquery_uri(uri: &str) -> OxResult<BigQueryUri> {
     let trimmed = uri.trim();
 
     if !trimmed.starts_with("bigquery://") {
@@ -661,12 +756,98 @@ fn parse_bigquery_uri(uri: &str) -> OxResult<(String, String, Option<String>)> {
         });
     }
 
-    let credentials_path = url
-        .query_pairs()
-        .find(|(k, _)| k == "credentials_path")
-        .map(|(_, v)| v.to_string());
+    let mut billing_project_id = None;
+    let mut credentials_path = None;
+    for (key, value) in url.query_pairs() {
+        match key.as_ref() {
+            "billing_project_id" => billing_project_id = Some(value.into_owned()),
+            "credentials_path" => credentials_path = Some(value.into_owned()),
+            other => {
+                return Err(OxError::Validation {
+                    field: "connection_string".to_string(),
+                    message: format!("Unknown BigQuery URI parameter: `{other}`"),
+                });
+            }
+        }
+    }
 
-    Ok((project_id, dataset, credentials_path))
+    Ok(BigQueryUri {
+        project_id,
+        dataset,
+        billing_project_id,
+        credentials_path,
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Error classification — promote known BigQuery failure modes
+// ---------------------------------------------------------------------------
+
+/// Inspect a BigQuery error string and promote recognised patterns
+/// into specific [`WarningClass`] variants. Falls back to `default`
+/// when nothing matches.
+///
+/// The match patterns track the stable substring BQ surfaces in each
+/// `errors[].message` payload — the API has not rotated these
+/// strings since v2 was introduced. Any bigger structural change
+/// would surface as a `default` reclassification, not a regression.
+fn classify_bigquery_error(
+    raw: &str,
+    default: ox_ontology::source_analysis::WarningClass,
+) -> (
+    ox_ontology::source_analysis::WarningClass,
+    Vec<(&'static str, String)>,
+) {
+    use ox_ontology::source_analysis::WarningClass;
+
+    if raw.contains("requires a partition filter")
+        || (raw.contains("without a filter over column")
+            && raw.contains("partition elimination"))
+    {
+        let column = extract_quoted_after(raw, "filter over column(s)")
+            .or_else(|| extract_quoted_after(raw, "filter over column"));
+        let mut params = Vec::new();
+        if let Some(col) = column {
+            params.push(("partition_column", col));
+        }
+        return (WarningClass::BigQueryPartitionFilterRequired, params);
+    }
+    if raw.contains("clustering filter") || raw.contains("filter over clustering column") {
+        let column = extract_quoted_after(raw, "clustering column");
+        let mut params = Vec::new();
+        if let Some(col) = column {
+            params.push(("clustering_column", col));
+        }
+        return (WarningClass::BigQueryClusteringFilterRequired, params);
+    }
+    if raw.contains("bigquery.jobs.create")
+        || raw.contains("does not have bigquery.jobs.create permission")
+    {
+        return (WarningClass::BigQueryJobsCreateDenied, Vec::new());
+    }
+    (default, Vec::new())
+}
+
+/// Extract the first backtick / single-quote / double-quote enclosed
+/// identifier following `marker`. Used to pull column names out of
+/// BQ's English error prose ("over column(s) `partition_col`").
+/// Returns `None` when the marker is missing or the trailing text
+/// has no quoted identifier within ~80 characters.
+fn extract_quoted_after(haystack: &str, marker: &str) -> Option<String> {
+    let after = haystack.split_once(marker).map(|(_, tail)| tail)?;
+    let scan = &after[..after.len().min(160)];
+    for (open, close) in [('\'', '\''), ('`', '`'), ('"', '"')] {
+        if let Some(start) = scan.find(open) {
+            let rest = &scan[start + open.len_utf8()..];
+            if let Some(end) = rest.find(close) {
+                let quoted = &rest[..end];
+                if !quoted.is_empty() {
+                    return Some(quoted.to_string());
+                }
+            }
+        }
+    }
+    None
 }
 
 // ---------------------------------------------------------------------------
@@ -682,21 +863,48 @@ mod tests {
 
     #[test]
     fn parse_basic_uri() {
-        let (project, dataset, creds) =
-            parse_bigquery_uri("bigquery://my-gcp-project/analytics_prod").unwrap();
-        assert_eq!(project, "my-gcp-project");
-        assert_eq!(dataset, "analytics_prod");
-        assert!(creds.is_none());
+        let parsed = parse_bigquery_uri("bigquery://my-gcp-project/analytics_prod").unwrap();
+        assert_eq!(parsed.project_id, "my-gcp-project");
+        assert_eq!(parsed.dataset, "analytics_prod");
+        assert!(parsed.billing_project_id.is_none());
+        assert!(parsed.credentials_path.is_none());
     }
 
     #[test]
     fn parse_uri_with_credentials() {
-        let (project, dataset, creds) =
+        let parsed =
             parse_bigquery_uri("bigquery://my-project/my_dataset?credentials_path=/etc/sa.json")
                 .unwrap();
-        assert_eq!(project, "my-project");
-        assert_eq!(dataset, "my_dataset");
-        assert_eq!(creds.as_deref(), Some("/etc/sa.json"));
+        assert_eq!(parsed.project_id, "my-project");
+        assert_eq!(parsed.dataset, "my_dataset");
+        assert_eq!(parsed.credentials_path.as_deref(), Some("/etc/sa.json"));
+    }
+
+    #[test]
+    fn parse_uri_with_billing_project() {
+        let parsed = parse_bigquery_uri(
+            "bigquery://oydp-public-dw/dim?billing_project_id=oy-dwusers",
+        )
+        .unwrap();
+        assert_eq!(parsed.project_id, "oydp-public-dw");
+        assert_eq!(parsed.dataset, "dim");
+        assert_eq!(parsed.billing_project_id.as_deref(), Some("oy-dwusers"));
+    }
+
+    #[test]
+    fn parse_uri_with_billing_project_and_credentials() {
+        let parsed = parse_bigquery_uri(
+            "bigquery://data-proj/ds?billing_project_id=billing-proj&credentials_path=/x.json",
+        )
+        .unwrap();
+        assert_eq!(parsed.billing_project_id.as_deref(), Some("billing-proj"));
+        assert_eq!(parsed.credentials_path.as_deref(), Some("/x.json"));
+    }
+
+    #[test]
+    fn parse_uri_rejects_unknown_param() {
+        let err = parse_bigquery_uri("bigquery://p/d?bogus=1").unwrap_err();
+        assert!(matches!(err, OxError::Validation { .. }));
     }
 
     #[test]
@@ -740,5 +948,38 @@ mod tests {
     fn quote_ident_doubles_backticks() {
         assert_eq!(quote_ident("plain"), "`plain`");
         assert_eq!(quote_ident("has`tick"), "`has``tick`");
+    }
+
+    #[test]
+    fn classify_partition_filter_required() {
+        use ox_ontology::source_analysis::WarningClass;
+        let raw = "BigQuery query failed: Cannot query over table \
+                   'oydp-public-dw.dim.dcs_mm_oy_mbr_h' without a filter over column(s) \
+                   'stdrd_ym' that can be used for partition elimination";
+        let (class, params) = classify_bigquery_error(raw, WarningClass::ColumnSampleSkipped);
+        assert!(matches!(class, WarningClass::BigQueryPartitionFilterRequired));
+        assert_eq!(
+            params,
+            vec![("partition_column", "stdrd_ym".to_string())]
+        );
+    }
+
+    #[test]
+    fn classify_jobs_create_denied() {
+        use ox_ontology::source_analysis::WarningClass;
+        let raw = "BigQuery query failed: Access Denied: User does not have \
+                   bigquery.jobs.create permission in project oydp-public-dw";
+        let (class, params) = classify_bigquery_error(raw, WarningClass::TableSkipped);
+        assert!(matches!(class, WarningClass::BigQueryJobsCreateDenied));
+        assert!(params.is_empty());
+    }
+
+    #[test]
+    fn classify_unknown_falls_back_to_default() {
+        use ox_ontology::source_analysis::WarningClass;
+        let raw = "Some unrecognised BigQuery payload";
+        let (class, params) = classify_bigquery_error(raw, WarningClass::TableSkipped);
+        assert!(matches!(class, WarningClass::TableSkipped));
+        assert!(params.is_empty());
     }
 }

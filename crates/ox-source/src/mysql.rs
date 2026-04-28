@@ -84,10 +84,18 @@ impl DataSourceAdapter for MysqlAdapter {
         "mysql"
     }
 
+    fn supports_scan(&self) -> bool {
+        true
+    }
+
     async fn list_tables(&self) -> OxResult<Vec<String>> {
+        // information_schema.TABLES surfaces base tables and views in
+        // the schema. SYSTEM VIEW rows belong to the server's own
+        // catalogue tables and are filtered out — they are not part
+        // of the user's data surface.
         sqlx::query_scalar(
             "SELECT TABLE_NAME FROM information_schema.TABLES \
-             WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE' \
+             WHERE TABLE_SCHEMA = ? AND TABLE_TYPE <> 'SYSTEM VIEW' \
              ORDER BY TABLE_NAME",
         )
         .bind(&self.schema_name)
@@ -100,10 +108,12 @@ impl DataSourceAdapter for MysqlAdapter {
 
     async fn list_tables_with_summary(&self) -> OxResult<Vec<TableSummary>> {
         // Single round-trip: TABLE_ROWS is InnoDB's autovacuum-equivalent
-        // estimate, UPDATE_TIME is set when the table file's last write
-        // landed (NULL for tables never written through the server).
-        // Column count comes from a correlated subquery against
-        // information_schema.COLUMNS.
+        // estimate (NULL for views), UPDATE_TIME is set when the table
+        // file's last write landed (NULL for tables never written
+        // through the server, and for views). Column count comes from
+        // a correlated subquery against information_schema.COLUMNS.
+        // SYSTEM VIEW rows are excluded — they are catalogue plumbing,
+        // not part of the user's data surface.
         #[derive(sqlx::FromRow)]
         struct Row {
             table_name: String,
@@ -121,7 +131,7 @@ impl DataSourceAdapter for MysqlAdapter {
                     t.UPDATE_TIME AS update_time \
              FROM information_schema.TABLES t \
              WHERE t.TABLE_SCHEMA = ? \
-               AND t.TABLE_TYPE = 'BASE TABLE' \
+               AND t.TABLE_TYPE <> 'SYSTEM VIEW' \
              ORDER BY t.TABLE_NAME",
         )
         .bind(&self.schema_name)

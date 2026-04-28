@@ -36,7 +36,9 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 use ox_core::error::{OxError, OxResult};
-use ox_ontology::source_analysis::AnalysisWarning;
+use ox_ontology::source_analysis::{
+    AnalysisPhase, AnalysisWarning, WarningClass, WarningLevel, WarningScope,
+};
 use ox_core::source_schema::{
     ColumnStats, ForeignKeyDef, SchemaFingerprint, SourceColumnDef, SourceProfile, SourceSchema,
     SourceTableDef, TableSummary,
@@ -80,6 +82,75 @@ impl TableSelection {
         match self {
             Self::All => true,
             Self::Subset(set) => set.contains(table),
+        }
+    }
+}
+
+/// User-facing intent for an analysis run.
+///
+/// Wire shape (the `kind` tag matches the [`IntrospectionKernel`]
+/// method that will service it):
+/// - `{ "kind": "all" }` — every table the source advertises.
+/// - `{ "kind": "subset", "tables": [...] }` — pick a subset, cache
+///   bypassed in both directions.
+/// - `{ "kind": "extend", "tables": [...] }` — grow an existing
+///   analysis with the named tables; baseline is supplied by the
+///   caller when invoking the kernel.
+///
+/// One enum unifies the three intents so every consumer (admin
+/// federation registry, project create / extend, future schedulers)
+/// speaks the same language. The variant has no default — every
+/// caller picks `All` deliberately or supplies a `Subset`/`Extend`
+/// list, so a missing field can never collapse into a silent
+/// full-warehouse sweep.
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, utoipa::ToSchema,
+)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum AnalyzeSelection {
+    /// Every table the source advertises.
+    All,
+    /// Only the named tables. No baseline involved — the result
+    /// stands on its own.
+    Subset {
+        tables: BTreeSet<String>,
+    },
+    /// Grow an existing baseline analysis with the named tables.
+    /// Tables already present in the baseline are dropped silently
+    /// — extension is "add what's new", not "rescan".
+    Extend {
+        tables: BTreeSet<String>,
+    },
+}
+
+impl AnalyzeSelection {
+    /// Lower to the kernel-facing [`TableSelection`] — used by
+    /// callers that route their own baseline merge (so `Extend` and
+    /// `Subset` collapse to the same `TableSelection::Subset`).
+    pub fn as_table_selection(&self) -> TableSelection {
+        match self {
+            Self::All => TableSelection::All,
+            Self::Subset { tables } | Self::Extend { tables } => {
+                TableSelection::Subset(tables.clone())
+            }
+        }
+    }
+
+    /// Reject empty `Subset`/`Extend` lists at the request boundary.
+    /// `All` is always valid; the named-list variants must carry at
+    /// least one table to express a meaningful intent.
+    pub fn validate(&self) -> OxResult<()> {
+        match self {
+            Self::All => Ok(()),
+            Self::Subset { tables } if tables.is_empty() => Err(OxError::Validation {
+                field: "selection.tables".to_string(),
+                message: "subset selection requires at least one table name".to_string(),
+            }),
+            Self::Extend { tables } if tables.is_empty() => Err(OxError::Validation {
+                field: "selection.tables".to_string(),
+                message: "extend selection requires at least one table name".to_string(),
+            }),
+            Self::Subset { .. } | Self::Extend { .. } => Ok(()),
         }
     }
 }
@@ -212,5 +283,108 @@ pub trait DataSourceAdapter: Send + Sync {
             target: self.source_type().to_string(),
             operation: format!("scan(table={table})"),
         })
+    }
+
+    /// Wrap a primitive failure into an [`AnalysisWarning`] the kernel
+    /// can attach to its analysis report. Backends inspect the raw
+    /// error and may refine `class` (e.g., recognise a BigQuery
+    /// partition-filter rejection and promote `TableSkipped` →
+    /// `BigQueryPartitionFilterRequired`), translate the user-facing
+    /// `summary` to Korean, and bind an actionable `hint`.
+    ///
+    /// The default impl is the safe fallback: it produces a generic
+    /// summary derived from the raw error and stores the full text
+    /// as `detail` for expand-on-demand display.
+    fn classify_warning(
+        &self,
+        level: WarningLevel,
+        phase: AnalysisPhase,
+        class: WarningClass,
+        scope: WarningScope,
+        error: &OxError,
+    ) -> AnalysisWarning {
+        AnalysisWarning::new(level, phase, class, scope).with_detail(error.to_string())
+    }
+
+    /// Cheap capability probe — `true` when the adapter implements a
+    /// real [`scan`](Self::scan) (data materialisation for the
+    /// federation planner), `false` when it only supports
+    /// introspection. Defaults to `false` so a new adapter that
+    /// forgets to override `scan` is also explicit about not
+    /// supporting federation queries.
+    ///
+    /// Mapping registration consults this so the failure surface is
+    /// "this adapter cannot back a federated link" at admin time
+    /// rather than "scan() returned UnsupportedOperation" deep in
+    /// the planner at query time.
+    fn supports_scan(&self) -> bool {
+        false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn names(items: &[&str]) -> BTreeSet<String> {
+        items.iter().map(|s| (*s).to_string()).collect()
+    }
+
+    #[test]
+    fn analyze_selection_all_is_always_valid() {
+        AnalyzeSelection::All.validate().unwrap();
+    }
+
+    #[test]
+    fn analyze_selection_subset_with_tables_is_valid() {
+        AnalyzeSelection::Subset {
+            tables: names(&["users", "orders"]),
+        }
+        .validate()
+        .unwrap();
+    }
+
+    #[test]
+    fn analyze_selection_extend_with_tables_is_valid() {
+        AnalyzeSelection::Extend {
+            tables: names(&["payments"]),
+        }
+        .validate()
+        .unwrap();
+    }
+
+    #[test]
+    fn analyze_selection_subset_empty_is_rejected() {
+        let err = AnalyzeSelection::Subset {
+            tables: BTreeSet::new(),
+        }
+        .validate()
+        .unwrap_err();
+        assert!(matches!(err, OxError::Validation { ref field, .. } if field == "selection.tables"));
+    }
+
+    #[test]
+    fn analyze_selection_extend_empty_is_rejected() {
+        let err = AnalyzeSelection::Extend {
+            tables: BTreeSet::new(),
+        }
+        .validate()
+        .unwrap_err();
+        assert!(matches!(err, OxError::Validation { ref field, .. } if field == "selection.tables"));
+    }
+
+    #[test]
+    fn analyze_selection_lowers_to_table_selection() {
+        assert!(matches!(
+            AnalyzeSelection::All.as_table_selection(),
+            TableSelection::All
+        ));
+        let subset = AnalyzeSelection::Subset {
+            tables: names(&["a", "b"]),
+        };
+        match subset.as_table_selection() {
+            TableSelection::Subset(s) => assert_eq!(s, names(&["a", "b"])),
+            TableSelection::All => panic!("subset should not lower to All"),
+        }
     }
 }

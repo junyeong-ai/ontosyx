@@ -16,14 +16,22 @@
 //!
 //! ```sh
 //! OXY_BIGQUERY_PROJECT=oydp-public-dw \
-//! OXY_BIGQUERY_DATASET=dataintelligence \
+//! OXY_BIGQUERY_DATASET=dim \
+//! OXY_BIGQUERY_BILLING_PROJECT=oy-dwusers \
 //!     cargo test -p ox-source --features bigquery-integration-tests \
 //!         --test bigquery_integration
 //! ```
 //!
-//! Authentication uses Application Default Credentials; either run
-//! `gcloud auth application-default login` or point
-//! `GOOGLE_APPLICATION_CREDENTIALS` at a service-account JSON key.
+//! `OXY_BIGQUERY_BILLING_PROJECT` is optional — set it when the runner
+//! has `bigquery.tables.list` on the data project but lacks
+//! `bigquery.jobs.create` there (typical for shared analytics
+//! datasets), or when a VPC Service Controls perimeter forces jobs to
+//! run from a particular project.
+//!
+//! Authentication uses Application Default Credentials. The adapter
+//! accepts the standard gcloud authorized-user file written by
+//! `gcloud auth application-default login`, or any service-account
+//! JSON pointed at by `GOOGLE_APPLICATION_CREDENTIALS`.
 //!
 //! ## CI escalation
 //!
@@ -51,6 +59,7 @@ use ox_source::bigquery::BigQueryAdapter;
 
 const PROJECT_ENV: &str = "OXY_BIGQUERY_PROJECT";
 const DATASET_ENV: &str = "OXY_BIGQUERY_DATASET";
+const BILLING_PROJECT_ENV: &str = "OXY_BIGQUERY_BILLING_PROJECT";
 const REQUIRE_ENV: &str = "OXY_REQUIRE_BIGQUERY_TESTS";
 
 /// Resolve project + dataset from env, or honour the CI escalation flag.
@@ -87,7 +96,13 @@ fn resolve_target() -> Option<(String, String)> {
 
 async fn connect() -> Option<BigQueryAdapter> {
     let (project, dataset) = resolve_target()?;
-    let uri = format!("bigquery://{project}/{dataset}");
+    let billing = std::env::var(BILLING_PROJECT_ENV)
+        .ok()
+        .filter(|s| !s.is_empty());
+    let uri = match billing {
+        Some(billing) => format!("bigquery://{project}/{dataset}?billing_project_id={billing}"),
+        None => format!("bigquery://{project}/{dataset}"),
+    };
     let adapter = BigQueryAdapter::connect(&uri)
         .await
         .expect("BigQuery ADC authentication");

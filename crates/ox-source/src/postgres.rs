@@ -110,11 +110,45 @@ impl DataSourceAdapter for PostgresAdapter {
         "postgresql"
     }
 
+    fn supports_scan(&self) -> bool {
+        true
+    }
+
+    /// Lift recognised PostgreSQL error classes (permission denied, …)
+    /// out of the raw libpq message and into a stable
+    /// [`WarningClass`]. The default fallback keeps the raw message
+    /// as `detail` for operator drilldown.
+    fn classify_warning(
+        &self,
+        level: ox_ontology::source_analysis::WarningLevel,
+        phase: ox_ontology::source_analysis::AnalysisPhase,
+        default_class: ox_ontology::source_analysis::WarningClass,
+        scope: ox_ontology::source_analysis::WarningScope,
+        error: &OxError,
+    ) -> ox_ontology::source_analysis::AnalysisWarning {
+        use ox_ontology::source_analysis::{AnalysisWarning, WarningClass};
+        let raw = error.to_string();
+        let class = if raw.contains("permission denied") || raw.contains("must be owner") {
+            WarningClass::PostgresPermissionDenied
+        } else {
+            default_class
+        };
+        AnalysisWarning::new(level, phase, class, scope).with_detail(raw)
+    }
+
     async fn list_tables(&self) -> OxResult<Vec<String>> {
+        // information_schema.tables surfaces every queryable relation
+        // in the schema — base tables, views, and foreign tables.
+        // Materialised views live in `pg_matviews` and are unioned in
+        // explicitly so callers see the full data surface (rather than
+        // only the managed-table subset historically returned here).
         sqlx::query_scalar(
             "SELECT table_name FROM information_schema.tables \
-             WHERE table_schema = $1 AND table_type = 'BASE TABLE' \
-             ORDER BY table_name",
+              WHERE table_schema = $1 \
+              UNION ALL \
+             SELECT matviewname AS table_name FROM pg_matviews \
+              WHERE schemaname = $1 \
+              ORDER BY table_name",
         )
         .bind(&self.schema_name)
         .fetch_all(&self.pool)
@@ -126,8 +160,11 @@ impl DataSourceAdapter for PostgresAdapter {
 
     async fn list_tables_with_summary(&self) -> OxResult<Vec<TableSummary>> {
         // Cheap fast path: information_schema for column count joined
-        // against pg_stat_user_tables for autovacuum-maintained row
-        // estimate + last analyze timestamp. No per-table round-trips.
+        // against pg_stat_user_tables (live row estimate + last analyze
+        // timestamp — only populated for base tables; views surface
+        // with NULL counters which the caller renders as "unknown").
+        // Materialised views are unioned in from `pg_matviews` so the
+        // listing covers every queryable relation in the schema.
         #[derive(sqlx::FromRow)]
         struct Row {
             table_name: String,
@@ -143,13 +180,25 @@ impl DataSourceAdapter for PostgresAdapter {
                         AND c.table_name = t.table_name) AS column_count, \
                     s.n_live_tup AS n_live_tup, \
                     GREATEST(s.last_autoanalyze, s.last_analyze) AS last_modified \
-             FROM information_schema.tables t \
-             LEFT JOIN pg_stat_user_tables s \
-               ON s.schemaname = t.table_schema \
-              AND s.relname = t.table_name \
-             WHERE t.table_schema = $1 \
-               AND t.table_type = 'BASE TABLE' \
-             ORDER BY t.table_name",
+               FROM information_schema.tables t \
+               LEFT JOIN pg_stat_user_tables s \
+                 ON s.schemaname = t.table_schema \
+                AND s.relname = t.table_name \
+              WHERE t.table_schema = $1 \
+              UNION ALL \
+             SELECT m.matviewname AS table_name, \
+                    (SELECT COUNT(*)::bigint \
+                       FROM information_schema.columns c \
+                      WHERE c.table_schema = m.schemaname \
+                        AND c.table_name = m.matviewname) AS column_count, \
+                    s.n_live_tup AS n_live_tup, \
+                    GREATEST(s.last_autoanalyze, s.last_analyze) AS last_modified \
+               FROM pg_matviews m \
+               LEFT JOIN pg_stat_user_tables s \
+                 ON s.schemaname = m.schemaname \
+                AND s.relname = m.matviewname \
+              WHERE m.schemaname = $1 \
+              ORDER BY table_name",
         )
         .bind(&self.schema_name)
         .fetch_all(&self.pool)

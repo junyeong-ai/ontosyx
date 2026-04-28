@@ -621,6 +621,10 @@ impl DataSourceAdapter for CsvAdapter {
     fn source_type(&self) -> &str {
         "csv"
     }
+
+    fn supports_scan(&self) -> bool {
+        true
+    }
     async fn list_tables(&self) -> OxResult<Vec<String>> {
         Ok(list_tables_from_schema(&self.schema))
     }
@@ -666,6 +670,10 @@ impl DataSourceAdapter for CsvAdapter {
 impl DataSourceAdapter for JsonAdapter {
     fn source_type(&self) -> &str {
         "json"
+    }
+
+    fn supports_scan(&self) -> bool {
+        true
     }
     async fn list_tables(&self) -> OxResult<Vec<String>> {
         Ok(list_tables_from_schema(&self.schema))

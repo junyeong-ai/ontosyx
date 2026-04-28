@@ -217,13 +217,37 @@ impl DataSourceAdapter for SnowflakeAdapter {
         "snowflake"
     }
 
+    /// Promote Snowflake-specific failure modes (warehouse suspended,
+    /// …) into stable [`WarningClass`] variants for the FE.
+    fn classify_warning(
+        &self,
+        level: ox_ontology::source_analysis::WarningLevel,
+        phase: ox_ontology::source_analysis::AnalysisPhase,
+        default_class: ox_ontology::source_analysis::WarningClass,
+        scope: ox_ontology::source_analysis::WarningScope,
+        error: &OxError,
+    ) -> ox_ontology::source_analysis::AnalysisWarning {
+        use ox_ontology::source_analysis::{AnalysisWarning, WarningClass};
+        let raw = error.to_string();
+        let class = if raw.contains("Warehouse") && raw.contains("suspended") {
+            WarningClass::SnowflakeWarehouseSuspended
+        } else {
+            default_class
+        };
+        AnalysisWarning::new(level, phase, class, scope).with_detail(raw)
+    }
+
     async fn list_tables(&self) -> OxResult<Vec<String>> {
         // Qualify INFORMATION_SCHEMA with the database so we can query
         // across databases if needed (Snowflake defaults to the session
         // database, but an explicit qualifier removes ambiguity).
+        // INFORMATION_SCHEMA.TABLES surfaces every queryable Snowflake
+        // object — base tables, transient tables, views, materialised
+        // views, external tables, dynamic tables. Temporary tables are
+        // session-local and do not appear here.
         let sql = format!(
             "SELECT TABLE_NAME FROM {db}.INFORMATION_SCHEMA.TABLES \
-             WHERE TABLE_SCHEMA = {schema} AND TABLE_TYPE = 'BASE TABLE' \
+             WHERE TABLE_SCHEMA = {schema} \
              ORDER BY TABLE_NAME",
             db = quote_ident(&self.database),
             schema = quote_literal(&self.schema),
@@ -237,10 +261,13 @@ impl DataSourceAdapter for SnowflakeAdapter {
     }
 
     async fn list_tables_with_summary(&self) -> OxResult<Vec<TableSummary>> {
-        // Single round-trip: ROW_COUNT is the maintained estimate,
-        // LAST_ALTERED is the DDL/DML high-water mark, COLUMN_COUNT
-        // joins via a correlated subquery against
-        // INFORMATION_SCHEMA.COLUMNS.
+        // Single round-trip: ROW_COUNT is the maintained estimate
+        // (NULL for views / external / dynamic tables that do not
+        // materialise rows directly), LAST_ALTERED is the DDL/DML
+        // high-water mark, COLUMN_COUNT joins via a correlated
+        // subquery against INFORMATION_SCHEMA.COLUMNS. Every Snowflake
+        // table kind in the schema is included — managed and view-like
+        // alike — so callers see the full data surface.
         let sql = format!(
             "SELECT t.TABLE_NAME, \
                     (SELECT COUNT(*) \
@@ -250,7 +277,7 @@ impl DataSourceAdapter for SnowflakeAdapter {
                     t.ROW_COUNT, \
                     TO_VARCHAR(t.LAST_ALTERED, 'YYYY-MM-DD\"T\"HH24:MI:SS.FF3\"Z\"') AS LAST_ALTERED \
              FROM {db}.INFORMATION_SCHEMA.TABLES t \
-             WHERE t.TABLE_SCHEMA = {schema} AND t.TABLE_TYPE = 'BASE TABLE' \
+             WHERE t.TABLE_SCHEMA = {schema} \
              ORDER BY t.TABLE_NAME",
             db = quote_ident(&self.database),
             schema = quote_literal(&self.schema),

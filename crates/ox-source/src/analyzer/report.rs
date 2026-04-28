@@ -48,11 +48,6 @@ pub fn build_analysis_report(
         Some(LargeSchemaWarning {
             table_count,
             recommended_max: LARGE_SCHEMA_WARNING_THRESHOLD,
-            suggestion: format!(
-                "Schema has {table_count} tables (recommended max: {LARGE_SCHEMA_WARNING_THRESHOLD}). \
-                 Consider using excluded_tables in DesignOptions to scope the ontology, \
-                 or split into domain-specific ontologies."
-            ),
         })
     } else {
         None
@@ -125,7 +120,7 @@ pub fn enrich_with_repo(report: &mut SourceAnalysisReport, insights: &RepoInsigh
 
     report.repo_summary = Some(RepoAnalysisSummary {
         status: RepoAnalysisStatus::Complete,
-        status_reason: None,
+        failure_reason: None,
         framework: insights.framework.clone(),
         files_requested: insights.analyzed_files.len(),
         files_analyzed: insights.analyzed_files.len(),
@@ -516,7 +511,8 @@ mod tests {
                 column: "email".to_string(),
                 kind: PiiKind::Email,
             }],
-            allow_partial_source_analysis: false,
+            partial_analysis_acknowledged: false,
+            large_schema_acknowledged: false,
         };
         let ctx = build_design_context("base hint", &options, None);
         assert!(ctx.contains("base hint"));

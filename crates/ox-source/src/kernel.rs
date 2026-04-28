@@ -40,11 +40,15 @@ use tracing::warn;
 
 use ox_core::error::{OxError, OxResult};
 use ox_ontology::source_analysis::{
-    AnalysisPhase, AnalysisWarning, AnalysisWarningKind, LARGE_SCHEMA_GATE_THRESHOLD, WarningLevel,
+    AnalysisPhase, AnalysisWarning, LARGE_SCHEMA_GATE_THRESHOLD, WarningClass, WarningLevel,
+    WarningScope,
 };
 use ox_core::source_schema::{SourceProfile, SourceSchema, TableProfile};
 
-use crate::{AnalysisResult, DEFAULT_INTROSPECTION_CONCURRENCY, DataSourceAdapter, TableSelection};
+use crate::{
+    AnalysisResult, AnalyzeSelection, DEFAULT_INTROSPECTION_CONCURRENCY, DataSourceAdapter,
+    TableSelection,
+};
 
 // ---------------------------------------------------------------------------
 // RetryPolicy
@@ -319,6 +323,25 @@ impl IntrospectionKernel {
         Ok(Arc::new(result))
     }
 
+    /// Single entry point that routes the user-facing
+    /// [`AnalyzeSelection`] enum to the matching primitive. `Extend`
+    /// requires a `baseline`; supplying `None` for `Extend` is a
+    /// programmer error and degrades to a plain subset analysis.
+    pub async fn analyze(
+        &self,
+        selection: AnalyzeSelection,
+        baseline: Option<&AnalysisResult>,
+    ) -> OxResult<Arc<AnalysisResult>> {
+        match selection {
+            AnalyzeSelection::All => self.analyze_all().await,
+            AnalyzeSelection::Subset { tables } => self.analyze_subset(tables).await,
+            AnalyzeSelection::Extend { tables } => match baseline {
+                Some(base) => self.analyze_extension(base, tables).await,
+                None => self.analyze_subset(tables).await,
+            },
+        }
+    }
+
     /// Grow an existing analysis by introspecting only the tables that
     /// were not part of `base`. The merged result preserves every
     /// `base` row and appends the freshly-analysed tables / FKs /
@@ -373,10 +396,29 @@ impl IntrospectionKernel {
         let advertised = self.adapter.list_tables().await?;
         let table_names: Vec<String> = match selection {
             TableSelection::All => advertised,
-            TableSelection::Subset(picks) => advertised
-                .into_iter()
-                .filter(|n| picks.contains(n))
-                .collect(),
+            TableSelection::Subset(picks) => {
+                let advertised_set: std::collections::BTreeSet<&str> =
+                    advertised.iter().map(String::as_str).collect();
+                let missing: Vec<String> = picks
+                    .iter()
+                    .filter(|name| !advertised_set.contains(name.as_str()))
+                    .cloned()
+                    .collect();
+                if !missing.is_empty() {
+                    return Err(OxError::Validation {
+                        field: "selection.tables".to_string(),
+                        message: format!(
+                            "table(s) not found in source: [{}] (advertised: {} table(s))",
+                            missing.join(", "),
+                            advertised.len()
+                        ),
+                    });
+                }
+                advertised
+                    .into_iter()
+                    .filter(|n| picks.contains(n))
+                    .collect()
+            }
         };
         if table_names.len() >= LARGE_SCHEMA_GATE_THRESHOLD {
             warn!(
@@ -407,13 +449,15 @@ impl IntrospectionKernel {
                 Ok(t) => tables.push(t),
                 Err(err) => {
                     warn!(table = %table_name, error = %err, "Skipping inaccessible table during schema introspection");
-                    warnings.push(AnalysisWarning {
-                        level: WarningLevel::Warning,
-                        phase: AnalysisPhase::SchemaIntrospection,
-                        kind: AnalysisWarningKind::TableSkipped,
-                        location: table_name,
-                        message: err.to_string(),
-                    });
+                    warnings.push(self.adapter.classify_warning(
+                        WarningLevel::Warning,
+                        AnalysisPhase::SchemaIntrospection,
+                        WarningClass::TableSkipped,
+                        WarningScope::Table {
+                            name: table_name.clone(),
+                        },
+                        &err,
+                    ));
                 }
             }
         }
@@ -433,13 +477,13 @@ impl IntrospectionKernel {
             Ok(fks) => fks,
             Err(err) => {
                 warn!(error = %err, "Foreign key discovery failed; continuing without declared foreign keys");
-                warnings.push(AnalysisWarning {
-                    level: WarningLevel::Warning,
-                    phase: AnalysisPhase::SchemaIntrospection,
-                    kind: AnalysisWarningKind::ForeignKeysUnavailable,
-                    location: self.adapter.source_type().to_string(),
-                    message: err.to_string(),
-                });
+                warnings.push(self.adapter.classify_warning(
+                    WarningLevel::Warning,
+                    AnalysisPhase::SchemaIntrospection,
+                    WarningClass::ForeignKeysUnavailable,
+                    WarningScope::Source,
+                    &err,
+                ));
                 Vec::new()
             }
         };
@@ -500,13 +544,15 @@ impl IntrospectionKernel {
                 }
                 Err(err) => {
                     warn!(table = %table_name, error = %err, "Skipping table during data profiling");
-                    warnings.push(AnalysisWarning {
-                        level: WarningLevel::Warning,
-                        phase: AnalysisPhase::DataProfiling,
-                        kind: AnalysisWarningKind::TableSkipped,
-                        location: table_name,
-                        message: err.to_string(),
-                    });
+                    warnings.push(self.adapter.classify_warning(
+                        WarningLevel::Warning,
+                        AnalysisPhase::DataProfiling,
+                        WarningClass::TableSkipped,
+                        WarningScope::Table {
+                            name: table_name.clone(),
+                        },
+                        &err,
+                    ));
                 }
             }
         }
@@ -657,13 +703,16 @@ async fn profile_table(
                     error = %err,
                     "Skipping column during data profiling"
                 );
-                warnings.push(AnalysisWarning {
-                    level: WarningLevel::Warning,
-                    phase: AnalysisPhase::DataProfiling,
-                    kind: AnalysisWarningKind::ColumnSkipped,
-                    location: format!("{table_name}.{}", col.name),
-                    message: err.to_string(),
-                });
+                warnings.push(adapter.classify_warning(
+                    WarningLevel::Warning,
+                    AnalysisPhase::DataProfiling,
+                    WarningClass::ColumnSampleSkipped,
+                    WarningScope::Column {
+                        table: table_name.to_string(),
+                        column: col.name.clone(),
+                    },
+                    &err,
+                ));
             }
         }
     }
@@ -1113,18 +1162,31 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn analyze_subset_drops_unknown_names_silently() {
+    async fn analyze_subset_rejects_unknown_table_names() {
         let adapter = Arc::new(MultiTableAdapter::new(&["users", "orders"]));
         let kernel = IntrospectionKernel::new(adapter.clone());
-        let result = kernel
+        let err = kernel
             .analyze_subset(BTreeSet::from([
                 "users".to_string(),
                 "no_such_table".to_string(),
             ]))
             .await
-            .expect("subset analyse");
-        assert_eq!(result.schema.tables.len(), 1);
-        assert_eq!(adapter.describe_count(), 1);
+            .expect_err("subset with unknown name should fail");
+        match err {
+            ox_core::error::OxError::Validation { field, message } => {
+                assert_eq!(field, "selection.tables");
+                assert!(
+                    message.contains("no_such_table"),
+                    "error message should name the missing table: {message}"
+                );
+            }
+            other => panic!("expected Validation error, got {other:?}"),
+        }
+        assert_eq!(
+            adapter.describe_count(),
+            0,
+            "rejection happens before any describe_table round-trip"
+        );
     }
 
     #[tokio::test]
@@ -1184,6 +1246,86 @@ mod tests {
             .expect("extension");
         assert_eq!(extended.schema.tables.len(), 1);
         assert_eq!(adapter.describe_count(), 1, "no second describe round-trip");
+    }
+
+    // ----- analyze() single entry point -----
+
+    #[tokio::test]
+    async fn analyze_routes_all_to_full_sweep() {
+        let adapter = Arc::new(MultiTableAdapter::new(&["a", "b", "c"]));
+        let kernel = IntrospectionKernel::new(adapter.clone());
+        let result = kernel
+            .analyze(AnalyzeSelection::All, None)
+            .await
+            .expect("analyze all");
+        assert_eq!(result.schema.tables.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn analyze_routes_subset_to_subset_primitive() {
+        let adapter = Arc::new(MultiTableAdapter::new(&["a", "b", "c"]));
+        let kernel = IntrospectionKernel::new(adapter.clone());
+        let result = kernel
+            .analyze(
+                AnalyzeSelection::Subset {
+                    tables: BTreeSet::from(["a".to_string()]),
+                },
+                None,
+            )
+            .await
+            .expect("analyze subset");
+        assert_eq!(result.schema.tables.len(), 1);
+        assert_eq!(result.schema.tables[0].name, "a");
+    }
+
+    #[tokio::test]
+    async fn analyze_routes_extend_with_baseline_to_extension() {
+        let adapter = Arc::new(MultiTableAdapter::new(&["a", "b", "c"]));
+        let kernel = IntrospectionKernel::new(adapter.clone());
+        let base = kernel
+            .analyze(
+                AnalyzeSelection::Subset {
+                    tables: BTreeSet::from(["a".to_string()]),
+                },
+                None,
+            )
+            .await
+            .expect("base");
+        let extended = kernel
+            .analyze(
+                AnalyzeSelection::Extend {
+                    tables: BTreeSet::from(["a".to_string(), "b".to_string()]),
+                },
+                Some(base.as_ref()),
+            )
+            .await
+            .expect("extend");
+        let names: BTreeSet<&str> = extended
+            .schema
+            .tables
+            .iter()
+            .map(|t| t.name.as_str())
+            .collect();
+        assert!(names.contains("a"));
+        assert!(names.contains("b"));
+        assert!(!names.contains("c"));
+    }
+
+    #[tokio::test]
+    async fn analyze_extend_without_baseline_falls_back_to_subset() {
+        let adapter = Arc::new(MultiTableAdapter::new(&["a", "b"]));
+        let kernel = IntrospectionKernel::new(adapter.clone());
+        let result = kernel
+            .analyze(
+                AnalyzeSelection::Extend {
+                    tables: BTreeSet::from(["a".to_string()]),
+                },
+                None,
+            )
+            .await
+            .expect("extend without baseline");
+        assert_eq!(result.schema.tables.len(), 1);
+        assert_eq!(result.schema.tables[0].name, "a");
     }
 
     #[test]
