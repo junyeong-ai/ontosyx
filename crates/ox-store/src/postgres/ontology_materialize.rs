@@ -341,17 +341,22 @@ pub(super) async fn materialize_level3(
             ox_ontology::storage::EntityKind::GlossaryTerm,
             &term.id,
         );
+        let related_json = serde_json::to_value(&term.related_terms).map_err(|e| {
+            ox_core::error::OxError::Runtime {
+                message: format!("serialise related_terms for glossary {}: {e}", term.id),
+            }
+        })?;
         sqlx::query(
             "INSERT INTO ontology_glossary_term_index \
-                (version_id, logical_id, entity_hash, term, category, parent_term_id) \
+                (version_id, logical_id, entity_hash, term, category, related_terms) \
              VALUES ($1, $2, $3, $4, $5, $6)",
         )
         .bind(version_id)
         .bind(term.id.as_str())
         .bind(&hash)
-        .bind(&term.term)
+        .bind(term.term.default.as_str())
         .bind(term.category.as_deref())
-        .bind(term.parent_term_id.as_ref().map(|id| id.as_str()))
+        .bind(&related_json)
         .execute(&mut **tx)
         .await
         .map_err(to_ox_error)?;
@@ -542,11 +547,10 @@ async fn insert_property_row(
         "INSERT INTO ontology_property_index \
             (version_id, owner_kind, owner_logical_id, logical_id, \
              entity_hash, key, property_type, nullable, is_localized, \
-             aggregation_role, value_set_id, notation_pattern_id, \
-             value_range_set_id, semantic_type, pii_kind, unit_id, \
-             glossary_term_id, deprecated_at) \
+             aggregation_role, semantic_type, pii_kind, unit_id, \
+             deprecated_at) \
          VALUES ($1, $2::ontology_entity_kind, $3, $4, $5, $6, $7, $8, $9, \
-                 $10, $11, $12, $13, $14, $15, $16, $17, $18)",
+                 $10, $11, $12, $13, $14)",
     )
     .bind(version_id)
     .bind(owner_kind)
@@ -558,18 +562,77 @@ async fn insert_property_row(
     .bind(prop.nullable)
     .bind(prop.is_localized)
     .bind(aggregation_role_tag)
-    .bind(prop.value_set_id.as_ref().map(|id| id.as_str()))
-    .bind(prop.notation_pattern_id.as_ref().map(|id| id.as_str()))
-    .bind(prop.value_range_set_id.as_ref().map(|id| id.as_str()))
     .bind(semantic_type_tag)
     .bind(pii_kind_tag)
     .bind(prop.unit_id.as_ref().map(|id| id.as_str()))
-    .bind(prop.glossary_term_id.as_ref().map(|id| id.as_str()))
     .bind(prop.deprecated_at)
     .execute(&mut **tx)
     .await
     .map_err(to_ox_error)?;
+
+    // Per-binding rows. Multi-binding properties produce multiple
+    // rows; single-binding (the common case) produces one. Strength
+    // and target kind serialise as snake_case for index-friendly
+    // string comparison on the SQL side.
+    for (ordinal, binding) in prop.bindings.iter().enumerate() {
+        let (target_kind, target_id) = binding_target_columns(binding);
+        let strength = binding_strength_str(binding.strength());
+        let (valid_from, valid_to) = binding.window();
+        sqlx::query(
+            "INSERT INTO ontology_property_binding \
+                (version_id, owner_kind, owner_logical_id, \
+                 property_logical_id, ordinal, target_kind, target_id, \
+                 strength, concept_map_id, valid_from, valid_to) \
+             VALUES ($1, $2::ontology_entity_kind, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+        )
+        .bind(version_id)
+        .bind(owner_kind)
+        .bind(owner_logical_id)
+        .bind(prop.id.as_str())
+        .bind(ordinal as i32)
+        .bind(target_kind)
+        .bind(target_id)
+        .bind(strength)
+        .bind(binding.concept_map_id().map(|id| id.as_str()))
+        .bind(valid_from)
+        .bind(valid_to)
+        .execute(&mut **tx)
+        .await
+        .map_err(to_ox_error)?;
+    }
     Ok(())
+}
+
+/// Lower a [`PropertyBinding`] variant to the `(target_kind, target_id)`
+/// SQL pair the binding table stores. `target_kind` is snake_case so
+/// a `WHERE target_kind = 'value_set'` lookup in the admin UI is
+/// index-friendly.
+fn binding_target_columns(
+    binding: &ox_ontology::PropertyBinding,
+) -> (&'static str, &str) {
+    use ox_ontology::PropertyBinding;
+    match binding {
+        PropertyBinding::ValueSet { id, .. } => ("value_set", id.as_str()),
+        PropertyBinding::CodeSystem { id, .. } => ("code_system", id.as_str()),
+        PropertyBinding::NotationPattern { id, .. } => {
+            ("notation_pattern", id.as_str())
+        }
+        PropertyBinding::ValueRange { id, .. } => ("value_range", id.as_str()),
+        PropertyBinding::Glossary { id, .. } => ("glossary", id.as_str()),
+    }
+}
+
+/// Lower [`BindingStrength`] to its snake_case wire token. Stored as
+/// TEXT (not an enum) so adding a new strength variant is a code-only
+/// change rather than a `CREATE TYPE … ADD VALUE` DDL pass.
+fn binding_strength_str(s: ox_ontology::BindingStrength) -> &'static str {
+    use ox_ontology::BindingStrength;
+    match s {
+        BindingStrength::Required => "required",
+        BindingStrength::Preferred => "preferred",
+        BindingStrength::Extensible => "extensible",
+        BindingStrength::Example => "example",
+    }
 }
 
 /// Harvest cross-entity references from the IR and emit 1-hop
@@ -604,19 +667,34 @@ async fn insert_neighbors_from_ir(
     };
 
     // `push` is an FnMut closure that borrows the vecs; we call
-    // it from the property walk below.
+    // it from the property walk below. One neighbour edge per
+    // binding entry — multi-binding properties surface every target
+    // so the cross-axis dashboard sees the whole semantic surface.
     let mut on_prop = |prop: &ox_ontology::ir::PropertyDef| {
-        if let Some(vs_id) = &prop.value_set_id {
-            push("property", prop.id.as_str(), "value_set", vs_id.as_str(), "references_value_set");
-        }
-        if let Some(np_id) = &prop.notation_pattern_id {
-            push("property", prop.id.as_str(), "notation_pattern", np_id.as_str(), "references_notation_pattern");
-        }
-        if let Some(rs_id) = &prop.value_range_set_id {
-            push("property", prop.id.as_str(), "value_range_set", rs_id.as_str(), "references_value_range_set");
-        }
-        if let Some(gt_id) = &prop.glossary_term_id {
-            push("property", prop.id.as_str(), "glossary_term", gt_id.as_str(), "references_glossary_term");
+        for binding in &prop.bindings {
+            use ox_ontology::PropertyBinding;
+            let (target_kind, target_id, relation) = match binding {
+                PropertyBinding::ValueSet { id, .. } => {
+                    ("value_set", id.as_str(), "references_value_set")
+                }
+                PropertyBinding::CodeSystem { id, .. } => {
+                    ("code_system", id.as_str(), "references_code_system")
+                }
+                PropertyBinding::NotationPattern { id, .. } => (
+                    "notation_pattern",
+                    id.as_str(),
+                    "references_notation_pattern",
+                ),
+                PropertyBinding::ValueRange { id, .. } => (
+                    "value_range_set",
+                    id.as_str(),
+                    "references_value_range_set",
+                ),
+                PropertyBinding::Glossary { id, .. } => {
+                    ("glossary_term", id.as_str(), "references_glossary_term")
+                }
+            };
+            push("property", prop.id.as_str(), target_kind, target_id, relation);
         }
         if let Some(unit_id) = &prop.unit_id {
             push("property", prop.id.as_str(), "coded_value", unit_id.as_str(), "uses_unit");
@@ -699,7 +777,7 @@ async fn insert_neighbors_from_ir(
 ///
 ///   code_system_broader      CodedValue.broader_id inside a
 ///                            hierarchical CodeSystem.
-///   glossary_term_parent     GlossaryTermDef.parent_term_id.
+///   glossary_term_broader    GlossaryTermDef.related_terms[Broader].
 ///   interface_implements     NodeType.implements → Interface.
 ///
 /// Closure is built in-memory via iterative fixpoint. Input
@@ -760,15 +838,21 @@ async fn insert_hierarchy_closure(
         }
     }
 
-    // 2) glossary_term_parent — walk GlossaryTermDef.parent_term_id.
+    // 2) glossary_term_broader — walk GlossaryTermDef.related_terms
+    //    for `Broader` edges (the SKOS hierarchy axis).
     let terms: Vec<_> = ir.glossary().iter().collect();
     let parent_map: std::collections::HashMap<&str, &str> = terms
         .iter()
-        .filter_map(|t| t.parent_term_id.as_ref().map(|p| (t.id.as_str(), p.as_str())))
+        .filter_map(|t| {
+            t.related_terms
+                .iter()
+                .find(|r| r.kind == ox_ontology::TermRelationKind::Broader)
+                .map(|r| (t.id.as_str(), r.target.as_str()))
+        })
         .collect();
     for term in &terms {
         rows.push((
-            "glossary_term_parent".into(),
+            "glossary_term_broader".into(),
             "glossary_term".into(),
             term.id.to_string(),
             "glossary_term".into(),
@@ -781,7 +865,7 @@ async fn insert_hierarchy_closure(
         let mut guard = 0;
         while let Some(parent) = parent_map.get(current) {
             rows.push((
-                "glossary_term_parent".into(),
+                "glossary_term_broader".into(),
                 "glossary_term".into(),
                 parent.to_string(),
                 "glossary_term".into(),
@@ -1000,13 +1084,18 @@ async fn insert_search_vectors(
         );
     }
     for term in ir.glossary() {
-        let aliases = term.aliases.join(" ");
+        let aliases: String = term
+            .aliases
+            .iter()
+            .map(localized_flat)
+            .collect::<Vec<_>>()
+            .join(" ");
         emit(
             "glossary_term",
             term.id.as_str(),
             format!(
                 "{} {} {} {}",
-                term.term,
+                localized_flat(&term.term),
                 localized_flat(&term.display_name),
                 aliases,
                 localized_flat(&term.description)

@@ -559,6 +559,53 @@ mod tests {
     }
 
     #[test]
+    fn plan_at_pins_resolver_to_temporal_window_filtering_expired_mappings() {
+        use chrono::{Duration, Utc};
+
+        let mut ont = OntologyIR::new(
+            "ont".into(),
+            "sample".into(),
+            LocalizedText::default(),
+            1,
+            vec![node("nt-user", "User", vec![])],
+            vec![],
+            vec![],
+        );
+
+        // Mapping live only until "an hour ago" — expired at the
+        // current pivot but legitimate at any earlier instant.
+        let mut expired = ObjectMappingDef::new("om-old", "nt-user", "pg", "users_v1");
+        expired.valid_to = Some(Utc::now() - Duration::hours(1));
+        ont.add_object_mapping(expired).unwrap();
+
+        // Resolver pinned to "now" must filter the expired mapping
+        // out → spec carries an unmapped scan.
+        let planner = MatchPlanner::at(&ont, Utc::now());
+        let spec = planner
+            .plan(&match_single_node("n", Some("User")))
+            .unwrap();
+        assert_eq!(spec.scans.len(), 1);
+        assert!(
+            spec.scans[0].mappings.is_empty(),
+            "as_of must drop expired mapping; got {:?}",
+            spec.scans[0].mappings,
+        );
+
+        // Resolver pinned to "two hours ago" sees the same mapping
+        // as live — proves the planner reads `at`, not "now".
+        let planner_past =
+            MatchPlanner::at(&ont, Utc::now() - Duration::hours(2));
+        let spec_past = planner_past
+            .plan(&match_single_node("n", Some("User")))
+            .unwrap();
+        assert_eq!(spec_past.scans[0].mappings.len(), 1);
+        assert_eq!(
+            spec_past.scans[0].mappings[0].mapping.relation,
+            "users_v1",
+        );
+    }
+
+    #[test]
     fn plan_rejects_non_match_ops() {
         let ont = OntologyIR::new(
             "ont".into(),

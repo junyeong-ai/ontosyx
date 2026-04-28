@@ -242,12 +242,24 @@ pub async fn build_match_op<R: AdapterResolver + ?Sized>(
 
 /// Primary entry point — lowers a whole `QueryIR` (including
 /// `order_by` / `limit` / `skip`) to a DataFusion `LogicalPlan`.
+///
+/// `query.as_of` (when set) pins the planner's `MappingResolver` to
+/// that instant, so a query with `as_of = 2025-01-01` resolves
+/// `ObjectMappingDef`s using their `valid_from`/`valid_to` window —
+/// the federation engine sees the mapping world as it was on that
+/// date. ADR 0007 calls this the "temporal pivot"; without the wire-
+/// through, the planner silently used "now" regardless of the IR
+/// field, defeating the whole bitemporal contract.
 pub async fn build_query_ir<R: AdapterResolver + ?Sized>(
     ontology: &ox_ontology::OntologyIR,
     query: &QueryIR,
     adapters: &R,
 ) -> FederationResult<LogicalPlan> {
-    let spec = crate::planner::match_planner::MatchPlanner::new(ontology).plan(&query.operation)?;
+    let planner = match query.as_of {
+        Some(t) => crate::planner::match_planner::MatchPlanner::at(ontology, t),
+        None => crate::planner::match_planner::MatchPlanner::new(ontology),
+    };
+    let spec = planner.plan(&query.operation)?;
     let (projections, filter, patterns) = match &query.operation {
         QueryOp::Match {
             projections,
@@ -297,7 +309,11 @@ pub async fn build_query_ir_scoped<R: AdapterResolver + ?Sized>(
     workspace_id: &str,
     adapters: &R,
 ) -> FederationResult<LogicalPlan> {
-    let spec = crate::planner::match_planner::MatchPlanner::new(ontology).plan(&query.operation)?;
+    let planner = match query.as_of {
+        Some(t) => crate::planner::match_planner::MatchPlanner::at(ontology, t),
+        None => crate::planner::match_planner::MatchPlanner::new(ontology),
+    };
+    let spec = planner.plan(&query.operation)?;
     let (projections, filter, patterns) = match &query.operation {
         QueryOp::Match {
             projections,
@@ -579,10 +595,17 @@ async fn apply_joins<R: AdapterResolver + ?Sized>(
                 bridge_relation,
                 source_join,
                 target_join,
+                bridge_workspace_scope,
             } => {
                 let bridge_alias = format!("__br{idx}");
-                let bridge_plan =
-                    build_bridge_scan(bridge_relation, &bridge_alias, adapters, scope).await?;
+                let bridge_plan = build_bridge_scan(
+                    bridge_relation,
+                    &bridge_alias,
+                    adapters,
+                    scope,
+                    bridge_workspace_scope.as_ref(),
+                )
+                .await?;
                 let source_predicate = build_bridge_endpoint_predicate(
                     &link.mapping.source_endpoint,
                     &hop.source_variable,
@@ -916,13 +939,20 @@ impl JoinAssembler {
                     bridge_relation,
                     source_join,
                     target_join,
+                    bridge_workspace_scope,
                 } => {
                     // Per-branch bridge scan — aliased so two mappings
                     // that happen to point at the same physical
                     // relation don't collide in the plan's schema.
                     let bridge_alias = format!("__br{hop_idx}_{branch_idx}");
-                    let bridge_plan =
-                        build_bridge_scan(bridge_relation, &bridge_alias, adapters, scope).await?;
+                    let bridge_plan = build_bridge_scan(
+                        bridge_relation,
+                        &bridge_alias,
+                        adapters,
+                        scope,
+                        bridge_workspace_scope.as_ref(),
+                    )
+                    .await?;
                     let source_pred = build_bridge_endpoint_predicate(
                         &entry.mapping.source_endpoint,
                         &hop.source_variable,
@@ -1083,10 +1113,17 @@ impl JoinAssembler {
                     bridge_relation,
                     source_join,
                     target_join,
+                    bridge_workspace_scope,
                 } => {
                     let bridge_alias = format!("__br{hop_idx}_{branch_idx}");
-                    let bridge_plan =
-                        build_bridge_scan(bridge_relation, &bridge_alias, adapters, scope).await?;
+                    let bridge_plan = build_bridge_scan(
+                        bridge_relation,
+                        &bridge_alias,
+                        adapters,
+                        scope,
+                        bridge_workspace_scope.as_ref(),
+                    )
+                    .await?;
                     let source_pred = build_bridge_endpoint_predicate(
                         &entry.mapping.source_endpoint,
                         &hop.source_variable,
@@ -1247,10 +1284,17 @@ impl JoinAssembler {
                     bridge_relation,
                     source_join,
                     target_join,
+                    bridge_workspace_scope,
                 } => {
                     let bridge_alias = format!("__br{hop_idx}_{branch_idx}");
-                    let bridge_plan =
-                        build_bridge_scan(bridge_relation, &bridge_alias, adapters, scope).await?;
+                    let bridge_plan = build_bridge_scan(
+                        bridge_relation,
+                        &bridge_alias,
+                        adapters,
+                        scope,
+                        bridge_workspace_scope.as_ref(),
+                    )
+                    .await?;
                     let source_pred = build_bridge_endpoint_predicate(
                         &entry.mapping.source_endpoint,
                         &hop.source_variable,
@@ -1526,27 +1570,46 @@ fn build_bridge_endpoint_predicate(
 
 /// Build a DataFusion scan for a bridge relation. The scan is
 /// aliased with a unique `__brN` identifier so it does not collide
-/// with any query-bound variable. Workspace scope is *not* injected
-/// automatically on bridges — a bridge relation may be shared
-/// across workspaces, and `LinkMappingDef` has no per-kind scope
-/// declaration today. Ontology authors who need workspace
-/// isolation on the bridge should model it as an intermediate
-/// NodeType instead.
+/// with any query-bound variable.
+///
+/// Workspace scope is injected per-bridge: when the
+/// `LinkMappingKind::Bridge` declares a `bridge_workspace_scope`
+/// column AND the caller supplies a `WorkspaceScope`, an extra
+/// equi-predicate against the workspace id is appended to the
+/// bridge scan. A `None` declaration keeps the legacy "shared
+/// bridge" behaviour — only safe when the bridge holds no
+/// workspace-private joins (the ontology author owns that
+/// declaration).
 async fn build_bridge_scan<R: AdapterResolver + ?Sized>(
     bridge_relation: &SourceRelationRef,
     bridge_alias: &str,
     adapters: &R,
-    _scope: Option<WorkspaceScope<'_>>,
+    scope: Option<WorkspaceScope<'_>>,
+    bridge_workspace_scope: Option<&ColumnRef>,
 ) -> FederationResult<LogicalPlan> {
     let adapter = adapters.resolve(&bridge_relation.source_id)?;
     let provider = Arc::new(
         SourceTableProvider::try_new(adapter, bridge_relation.relation.clone()).await?,
     );
     let source = provider_as_source(provider);
-    DfLogicalPlanBuilder::scan(bridge_alias, source, None)
+    let mut plan = DfLogicalPlanBuilder::scan(bridge_alias, source, None)
         .map_err(FederationError::from)?
         .build()
-        .map_err(FederationError::from)
+        .map_err(FederationError::from)?;
+
+    if let (Some(ws), Some(scope_col)) = (scope, bridge_workspace_scope) {
+        // Filter directly on the bridge alias: `__brN.<scope_col> = <ws_id>`.
+        // The bridge scan aliases its source as `bridge_alias`, so qualified
+        // column refs land on the right side of the join plan.
+        let predicate = col(format!("{}.{}", bridge_alias, scope_col.column))
+            .eq(datafusion::logical_expr::lit(ws.workspace_id.to_string()));
+        plan = DfLogicalPlanBuilder::from(plan)
+            .filter(predicate)
+            .map_err(FederationError::from)?
+            .build()
+            .map_err(FederationError::from)?;
+    }
+    Ok(plan)
 }
 
 /// Look up the single backing relation for a variable. Returns

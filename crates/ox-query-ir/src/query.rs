@@ -1415,9 +1415,11 @@ pub struct QueryMetadata {
 ///
 /// Frontends pattern-match on `validator` to route diagnostics to the
 /// right help link and on `level` to choose colour / iconography.
-/// Translations can key off `validator` + a stable message
-/// discriminator (messages are author-level English today; i18n is a
-/// separate layer).
+/// `message` is a structured [`ox_core::DiagnosticMessage`]
+/// (RFC 7807 / gRPC `Status` shape): the FE renders `code` + `params`
+/// through its i18n catalogue, the BE logs / fallbacks consume the
+/// English `message` rendering. Adding a UI language never requires
+/// touching emit sites.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct QueryDiagnostic {
     /// Which validator emitted the diagnostic. Matches
@@ -1426,9 +1428,8 @@ pub struct QueryDiagnostic {
     pub validator: String,
     /// Severity tier.
     pub level: DiagnosticLevel,
-    /// Author-level English message. Stable enough to log verbatim;
-    /// translation belongs to the UI layer.
-    pub message: String,
+    /// Structured diagnostic — `code` + English `message` + `params`.
+    pub message: ox_core::DiagnosticMessage,
 }
 
 /// Wire-stable severity for [`QueryDiagnostic`]. Lowercase-serialised
@@ -1490,6 +1491,43 @@ pub struct QueryProvenance {
     /// per-kind enum.
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub registry_versions: std::collections::BTreeMap<String, String>,
+    /// Per-output-column attribution back to the source column that
+    /// supplied the value. Populated by the federation planner once
+    /// a scan plus its projection is known; raw-Cypher and from-IR
+    /// paths leave this empty (their lineage is the query text
+    /// itself).
+    ///
+    /// Industry reference: Snowflake column lineage in `ACCOUNT_USAGE
+    /// .OBJECT_DEPENDENCIES`, BigQuery `INFORMATION_SCHEMA.COLUMN
+    /// _LINEAGE`, Palantir Foundry "data lineage" view. Carrying
+    /// the trail on the query response (not just on stored views)
+    /// makes "why is this cell what it is?" answerable from a single
+    /// payload.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub column_lineage: Vec<ColumnLineage>,
+}
+
+/// One output-column ↔ source-column attribution edge surfaced on
+/// [`QueryProvenance`]. Authors of the federation planner pin one
+/// of these per projected column whose origin can be statically
+/// resolved (a direct `SELECT col FROM t` projection) so the admin
+/// UI / downstream lineage tools never have to reverse-engineer the
+/// scan-to-projection mapping from the rendered Cypher / SQL.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct ColumnLineage {
+    /// The result-set column the consumer sees.
+    pub output_column: String,
+    /// `ObjectMappingDef.source_id` the value was sourced from.
+    pub source_id: String,
+    /// Physical column on the source side (table-qualified when
+    /// the source is multi-table; bare when the source is a single
+    /// inline payload like a CSV).
+    pub source_column: String,
+    /// Optional textual transform applied on the way out (e.g.
+    /// `"UPPER(col)"`, `"concept_map(cs-2024 → cs-2026)"`). `None`
+    /// when the value is the source column verbatim.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transform: Option<String>,
 }
 
 // ---------------------------------------------------------------------------

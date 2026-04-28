@@ -1132,6 +1132,7 @@ async fn match_bridge_link_mapping_joins_via_intermediate_relation() {
             },
             source_join: vec![ColumnRef::new("post_tags", "post_id")],
             target_join: vec![ColumnRef::new("post_tags", "tag_id")],
+            bridge_workspace_scope: None,
         },
         source_endpoint: EndpointRef {
             source_id: SourceId::new("csv-posts"),
@@ -2026,6 +2027,7 @@ async fn match_multi_mapping_seed_supports_bridge_alongside_fk() {
             },
             source_join: vec![ColumnRef::new("interactions", "user_id")],
             target_join: vec![ColumnRef::new("interactions", "other_id")],
+            bridge_workspace_scope: None,
         },
         source_endpoint: EndpointRef {
             source_id: SourceId::new("csv-users"),
@@ -2580,6 +2582,7 @@ async fn match_bridge_with_composite_keys_ands_predicates_per_side() {
                 ColumnRef::new("inventory", "region"),
                 ColumnRef::new("inventory", "code"),
             ],
+            bridge_workspace_scope: None,
         },
         source_endpoint: EndpointRef {
             source_id: SourceId::new("csv-products"),
