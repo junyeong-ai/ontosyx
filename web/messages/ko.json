@@ -144,6 +144,40 @@
           }
         }
       }
+    },
+    "glossaryAnchorPicker": {
+      "addAction": "용어 연결 추가",
+      "searchPlaceholder": "용어 검색…",
+      "noMatches": "일치하는 용어가 없습니다",
+      "emptyReadOnly": "연결된 용어가 없습니다",
+      "removeAria": "용어 연결 해제 ({id})",
+      "missingTooltip": "용어 사전에 존재하지 않는 ID: {id}"
+    },
+    "lineageTree": {
+      "emptyInbound": "이 엔티티를 참조하는 항목이 없습니다",
+      "emptyOutbound": "이 엔티티가 참조하는 항목이 없습니다",
+      "kinds": {
+        "property_of": "속성 소유",
+        "edge_source": "엣지 시작점",
+        "edge_target": "엣지 끝점",
+        "interface_implementation": "인터페이스 구현",
+        "property_binding_ref": "속성 바인딩",
+        "function_derivation": "함수 파생",
+        "unit_reference": "단위",
+        "rule_constraint": "규칙 제약",
+        "rule_activation": "규칙 활성화",
+        "rule_vocabulary": "규칙 어휘",
+        "metric_scope": "지표 범위",
+        "action_target": "액션 대상",
+        "action_rule": "액션 규칙",
+        "enrichment_target": "보강 대상",
+        "object_mapping_target": "객체 매핑",
+        "link_mapping_target": "링크 매핑",
+        "property_mapping_target": "속성 매핑",
+        "value_set_composition": "값 집합 구성",
+        "concept_map_endpoint": "개념 맵 끝점",
+        "data_quality_target": "데이터 품질"
+      }
     }
   },
   "source-import": {

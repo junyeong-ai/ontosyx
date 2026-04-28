@@ -85,6 +85,10 @@ export interface NodeTypeDef {
   properties: PropertyDef[];
   /** `Vec<ConstraintDef>` with skip — omitted when empty. */
   constraints?: ConstraintDef[];
+  /** Concept anchors — every id must resolve in
+   *  `OntologyIR.glossary`. `Vec<GlossaryTermId>` with skip on the
+   *  wire (omitted when empty). */
+  glossary_anchors?: string[];
 }
 
 export interface EdgeTypeDef {
@@ -100,6 +104,10 @@ export interface EdgeTypeDef {
    *  (filled diamond for `composition`, hollow for `aggregation`).
    *  Defaults to `"association"` when omitted. */
   kind?: EdgeKind;
+  /** Concept anchors — every id must resolve in
+   *  `OntologyIR.glossary`. `Vec<GlossaryTermId>` with skip on the
+   *  wire (omitted when empty). */
+  glossary_anchors?: string[];
 }
 
 /**

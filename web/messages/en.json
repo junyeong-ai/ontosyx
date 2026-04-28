@@ -144,6 +144,40 @@
           }
         }
       }
+    },
+    "glossaryAnchorPicker": {
+      "addAction": "Add anchor",
+      "searchPlaceholder": "Search terms…",
+      "noMatches": "No matching terms",
+      "emptyReadOnly": "No anchors set",
+      "removeAria": "Remove anchor ({id})",
+      "missingTooltip": "Term id not found in glossary: {id}"
+    },
+    "lineageTree": {
+      "emptyInbound": "Nothing depends on this entity",
+      "emptyOutbound": "This entity has no outbound references",
+      "kinds": {
+        "property_of": "Property of",
+        "edge_source": "Edge source",
+        "edge_target": "Edge target",
+        "interface_implementation": "Interface impl",
+        "property_binding_ref": "Property binding",
+        "function_derivation": "Function derivation",
+        "unit_reference": "Unit",
+        "rule_constraint": "Rule constraint",
+        "rule_activation": "Rule activation",
+        "rule_vocabulary": "Rule vocabulary",
+        "metric_scope": "Metric scope",
+        "action_target": "Action target",
+        "action_rule": "Action rule",
+        "enrichment_target": "Enrichment",
+        "object_mapping_target": "Object mapping",
+        "link_mapping_target": "Link mapping",
+        "property_mapping_target": "Property mapping",
+        "value_set_composition": "Value-set composition",
+        "concept_map_endpoint": "Concept-map endpoint",
+        "data_quality_target": "Data quality"
+      }
     }
   },
   "source-import": {
