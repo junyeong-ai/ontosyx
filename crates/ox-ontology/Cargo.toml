@@ -34,5 +34,8 @@ regex = { workspace = true }
 async-trait = { workspace = true }
 sha2 = { workspace = true }
 
+[dev-dependencies]
+ox-ontology = { path = ".", features = ["test-fixtures"] }
+
 [lints]
 workspace = true

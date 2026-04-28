@@ -5231,6 +5231,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "ox-core",
+ "ox-ontology",
  "regex",
  "schemars",
  "serde",
