@@ -1,8 +1,8 @@
 # Ontosyx
 
-Knowledge graph lifecycle platform. Rust backend (12 crates) + Next.js frontend.
+Knowledge graph lifecycle platform. Rust backend (13 crates) + Next.js frontend.
 
-Crates: `ox-core` (primitives), `ox-ontology` (OntologyIR + registries), `ox-query-ir` (QueryIR), `ox-compiler` (IR → Cypher / DataFusion lowering), `ox-runtime` (Cypher pipeline + validators), `ox-brain` (LLM routing + schema RAG), `ox-agent` (tool orchestration), `ox-memory` (temporal state), `ox-api` (HTTP gateway), `ox-store` (persistence + RLS), `ox-source` (DataSourceAdapter), `ox-federation` (DataFusion VOL path).
+Crates: `ox-core` (primitives), `ox-ontology` (OntologyIR + registries), `ox-query-ir` (QueryIR), `ox-compiler` (IR → Cypher / DataFusion lowering), `ox-runtime` (Cypher pipeline + validators), `ox-brain` (LLM routing + schema RAG), `ox-agent` (tool orchestration), `ox-memory` (temporal state), `ox-api` (HTTP gateway), `ox-store` (persistence + RLS), `ox-source` (DataSourceAdapter), `ox-federation` (DataFusion VOL path), `ox-gcp` (Application Default Credentials dispatch).
 
 ## Build & Test
 

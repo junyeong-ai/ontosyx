@@ -12,6 +12,7 @@ members = [
     "crates/ox-store",
     "crates/ox-source",
     "crates/ox-federation",
+    "crates/ox-gcp",
 ]
 resolver = "3"
 
@@ -67,6 +68,7 @@ ox-memory = { path = "crates/ox-memory" }
 ox-federation = { path = "crates/ox-federation" }
 ox-ontology = { path = "crates/ox-ontology" }
 ox-query-ir = { path = "crates/ox-query-ir" }
+ox-gcp = { path = "crates/ox-gcp" }
 
 # LLM runtime
 branchforge = { version = "0.9", default-features = false }
@@ -175,7 +177,7 @@ metrics-exporter-prometheus = "0.18"
 
 # Utilities
 chrono = { version = "0.4", features = ["serde"] }
-uuid = { version = "1", features = ["v4", "serde"] }
+uuid = { version = "1", features = ["v4", "v7", "serde"] }
 dashmap = "6"
 thiserror = "2"
 anyhow = "1"

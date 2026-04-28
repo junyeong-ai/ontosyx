@@ -5068,7 +5068,6 @@ dependencies = [
  "futures",
  "futures-core",
  "http-body-util",
- "hyper-util",
  "jsonwebtoken",
  "metrics",
  "metrics-exporter-prometheus",
@@ -5081,6 +5080,7 @@ dependencies = [
  "ox-compiler",
  "ox-core",
  "ox-federation",
+ "ox-gcp",
  "ox-memory",
  "ox-ontology",
  "ox-query-ir",
@@ -5107,7 +5107,6 @@ dependencies = [
  "utoipa",
  "utoipa-swagger-ui",
  "uuid",
- "yup-oauth2",
 ]
 
 [[package]]
@@ -5192,6 +5191,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ox-gcp"
+version = "0.1.0"
+dependencies = [
+ "hyper-util",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "yup-oauth2",
+]
+
+[[package]]
 name = "ox-memory"
 version = "0.1.0"
 dependencies = [
@@ -5244,6 +5255,8 @@ dependencies = [
  "sha2",
  "thiserror 2.0.18",
  "tracing",
+ "utoipa",
+ "uuid",
 ]
 
 [[package]]
@@ -5251,6 +5264,7 @@ name = "ox-runtime"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "chrono",
  "futures",
  "neo4rs",
  "ox-compiler",
@@ -5282,7 +5296,9 @@ dependencies = [
  "ignore",
  "mongodb",
  "ox-core",
+ "ox-gcp",
  "ox-ontology",
+ "schemars",
  "serde",
  "serde_json",
  "snowflake-api",
@@ -5291,6 +5307,7 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
+ "utoipa",
  "uuid",
 ]
 

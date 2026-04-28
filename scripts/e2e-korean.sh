@@ -193,6 +193,7 @@ body = {
     "title": "Korean E2E Fixture",
     "origin_type": "source",
     "source": {"type": "csv", "data": csv_data},
+    "selection": {"kind": "all"},
 }
 sys.stdout.write(json.dumps(body, ensure_ascii=False))
 ' "$CSV_JSON")
