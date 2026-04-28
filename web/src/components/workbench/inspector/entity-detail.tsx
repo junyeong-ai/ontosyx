@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useAppStore } from "@/lib/store";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -10,6 +11,10 @@ import {
 import { toast } from "sonner";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Tooltip } from "@/components/ui/tooltip";
+import { TabBar } from "@/components/ui/tab-bar";
+import { LineageTree } from "@/components/ontology/lineage-tree";
+import { useEntityDependencies } from "@/hooks/api/use-entity-dependencies";
+import type { SchemaEntityRef } from "@/lib/api/dependencies";
 import type {
   OntologyIR,
   NodeTypeDef,
@@ -32,6 +37,36 @@ import { arr } from "@/lib/ir-collections";
 export { InlineEdit } from "./inline-edit";
 export { Section } from "./shared";
 export { GapsList } from "./quality-gaps";
+
+// ---------------------------------------------------------------------------
+// Inspector tab identifiers — shared between NodeDetail and EdgeDetail so
+// the URL-state slice (if/when added) can persist a single key.
+// ---------------------------------------------------------------------------
+
+type InspectorTab = "definition" | "sample" | "lineage" | "dependents";
+
+function useEntityRef(
+  kind: "node_type" | "edge_type",
+  id: string,
+): SchemaEntityRef {
+  return useMemo<SchemaEntityRef>(() => ({ kind, id }), [kind, id]);
+}
+
+function useOntologyLabelResolver(ontology: OntologyIR) {
+  return useCallback(
+    (target: SchemaEntityRef): string | null => {
+      switch (target.kind) {
+        case "node_type":
+          return arr(ontology.node_types).find((n) => n.id === target.id)?.label ?? null;
+        case "edge_type":
+          return arr(ontology.edge_types).find((e) => e.id === target.id)?.label ?? null;
+        default:
+          return null;
+      }
+    },
+    [ontology],
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Verification badge
@@ -93,10 +128,15 @@ export function NodeDetail({
   const applyCommand = useAppStore((s) => s.applyCommand);
   const clearSelection = useAppStore((s) => s.clearSelection);
   const [addingProp, setAddingProp] = useState(false);
+  const [tab, setTab] = useState<InspectorTab>("definition");
   const confirm = useConfirm();
+  const t = useTranslations("inspector.tabs");
   const { canEdit, loading: propsLoading, suggestions, requestEdit, dismiss } = useAiEdit();
   const { loading: descLoading, suggestions: descSuggestions, requestEdit: requestDescEdit, dismiss: dismissDesc } = useAiEdit();
   const anyAiLoading = propsLoading || descLoading;
+  const ref = useEntityRef("node_type", node.id);
+  const { inbound, outbound } = useEntityDependencies(ontology.id, ref);
+  const labelOf = useOntologyLabelResolver(ontology);
 
   const connectedEdges = arr(ontology.edge_types).filter(
     (e) => e.source_node_id === node.id || e.target_node_id === node.id,
@@ -164,9 +204,30 @@ export function NodeDetail({
     );
   }, [requestDescEdit, node.label, node.description]);
 
+  const tabs = useMemo(() => {
+    return [
+      { id: "definition", label: t("definition") },
+      ...(node.source_lineage?.table
+        ? [{ id: "sample", label: t("sample") }]
+        : []),
+      {
+        id: "lineage",
+        label: t("lineage"),
+        badge: outbound.length || undefined,
+      },
+      {
+        id: "dependents",
+        label: t("dependents"),
+        badge: inbound.length || undefined,
+      },
+    ];
+  }, [t, node.source_lineage?.table, outbound.length, inbound.length]);
+
   return (
-    <div className="flex h-full flex-col overflow-auto text-xs">
-      {/* Header */}
+    <div className="flex h-full flex-col overflow-hidden text-xs">
+      {/* Header — outside the tabbed body so identity, rename, and
+          delete stay one click away regardless of which view is
+          active. */}
       <div className="border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
         <div className="flex items-center gap-2">
           <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-700 dark:bg-emerald-900 dark:text-emerald-400">
@@ -213,119 +274,134 @@ export function NodeDetail({
             onDismiss={dismissDesc}
           />
         )}
-        {node.source_lineage?.table && (
-          <p className="mt-0.5 text-muted-foreground">Source: {node.source_lineage?.table}</p>
-        )}
         <div className="mt-1.5">
           <VerificationBadge verifications={verifications} elementId={node.id} onVerify={onVerify} />
         </div>
       </div>
 
-      {/* Properties */}
-      <Section
-        title={`Properties (${arr(node.properties).length})`}
-        action={
+      <div className="border-b border-zinc-200 dark:border-zinc-800">
+        <TabBar
+          tabs={tabs}
+          activeTab={tab}
+          onTabChange={(id) => setTab(id as InspectorTab)}
+        />
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-auto">
+        {tab === "definition" && (
           <>
-            {canEdit && (
-              <AiAssistButton
-                tooltip="AI suggest properties"
-                loading={anyAiLoading}
-                onClick={handleAiSuggestProperties}
-              />
-            )}
-            <Tooltip content="Add property">
-              <button
-                onClick={() => setAddingProp(true)}
-                aria-label="Add property"
-                className="rounded p-0.5 text-muted-foreground hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
-              >
-                <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
-              </button>
-            </Tooltip>
-          </>
-        }
-      >
-        {suggestions && (
-          <AiSuggestionList
-            commands={suggestions.commands}
-            explanation={suggestions.explanation}
-            onDismiss={dismiss}
-          />
-        )}
-        {addingProp && (
-          <AddPropertyForm ownerId={node.id} onClose={() => setAddingProp(false)} />
-        )}
-        {arr(node.properties).map((prop) => (
-          <PropertyRow
-            key={prop.id}
-            prop={prop}
-            onDelete={() => handleDeleteProperty(prop.id, prop.name)}
-            onUpdate={(patch) => handleUpdateProperty(prop.id, patch)}
-            binding={
-              ontology.id
-                ? {
-                    ontologyId: ontology.id,
-                    expectedVersion: ontology.version,
-                    ownerKind: "node",
-                    ownerTypeId: node.id,
+            <Section
+              title={`Properties (${arr(node.properties).length})`}
+              action={
+                <>
+                  {canEdit && (
+                    <AiAssistButton
+                      tooltip="AI suggest properties"
+                      loading={anyAiLoading}
+                      onClick={handleAiSuggestProperties}
+                    />
+                  )}
+                  <Tooltip content="Add property">
+                    <button
+                      onClick={() => setAddingProp(true)}
+                      aria-label="Add property"
+                      className="rounded p-0.5 text-muted-foreground hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
+                    >
+                      <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
+                    </button>
+                  </Tooltip>
+                </>
+              }
+            >
+              {suggestions && (
+                <AiSuggestionList
+                  commands={suggestions.commands}
+                  explanation={suggestions.explanation}
+                  onDismiss={dismiss}
+                />
+              )}
+              {addingProp && (
+                <AddPropertyForm ownerId={node.id} onClose={() => setAddingProp(false)} />
+              )}
+              {arr(node.properties).map((prop) => (
+                <PropertyRow
+                  key={prop.id}
+                  prop={prop}
+                  onDelete={() => handleDeleteProperty(prop.id, prop.name)}
+                  onUpdate={(patch) => handleUpdateProperty(prop.id, patch)}
+                  binding={
+                    ontology.id
+                      ? {
+                          ontologyId: ontology.id,
+                          expectedVersion: ontology.version,
+                          ownerKind: "node",
+                          ownerTypeId: node.id,
+                        }
+                      : undefined
                   }
-                : undefined
-            }
-          />
-        ))}
-      </Section>
+                />
+              ))}
+            </Section>
 
-      {/* Constraints */}
-      {node.constraints && arr(node.constraints).length > 0 && (
-        <Section title={`Constraints (${arr(node.constraints).length})`}>
-          {arr(node.constraints).map((cd) => (
-            <div key={cd.id} className="group flex items-center justify-between px-3 py-1 text-zinc-600 dark:text-muted-foreground">
-              <span>{formatConstraint(cd, node)}</span>
-              <Tooltip content="Remove constraint">
-                <button
-                  onClick={() => handleRemoveConstraint(cd.id)}
-                  aria-label="Remove constraint"
-                  className="rounded p-0.5 text-zinc-300 opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100"
-                >
-                  <HugeiconsIcon icon={Delete01Icon} className="h-2.5 w-2.5" size="100%" />
-                </button>
-              </Tooltip>
-            </div>
-          ))}
-        </Section>
-      )}
+            {node.constraints && arr(node.constraints).length > 0 && (
+              <Section title={`Constraints (${arr(node.constraints).length})`}>
+                {arr(node.constraints).map((cd) => (
+                  <div key={cd.id} className="group flex items-center justify-between px-3 py-1 text-zinc-600 dark:text-muted-foreground">
+                    <span>{formatConstraint(cd, node)}</span>
+                    <Tooltip content="Remove constraint">
+                      <button
+                        onClick={() => handleRemoveConstraint(cd.id)}
+                        aria-label="Remove constraint"
+                        className="rounded p-0.5 text-zinc-300 opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100"
+                      >
+                        <HugeiconsIcon icon={Delete01Icon} className="h-2.5 w-2.5" size="100%" />
+                      </button>
+                    </Tooltip>
+                  </div>
+                ))}
+              </Section>
+            )}
 
-      {/* Live source sample — visible only when the node maps onto a
-          physical table the active project has profiled. Closes the
-          Design ↔ Live feedback gap so the operator can shape the
-          property against actual values without leaving the
-          inspector. */}
-      {node.source_lineage?.table && (
-        <div className="px-3 pb-2">
-          <SourceSampleMini tableName={node.source_lineage.table} />
-        </div>
-      )}
+            {connectedEdges.length > 0 && (
+              <Section title={`Relationships (${connectedEdges.length})`}>
+                {connectedEdges.map((edge) => {
+                  const src = arr(ontology.node_types).find((n) => n.id === edge.source_node_id)?.label ?? "?";
+                  const tgt = arr(ontology.node_types).find((n) => n.id === edge.target_node_id)?.label ?? "?";
+                  return (
+                    <div key={edge.id} className="px-3 py-1 text-zinc-600 dark:text-muted-foreground">
+                      {src} —[{edge.label}]→ {tgt}
+                    </div>
+                  );
+                })}
+              </Section>
+            )}
 
-      {/* Connected edges */}
-      {connectedEdges.length > 0 && (
-        <Section title={`Relationships (${connectedEdges.length})`}>
-          {connectedEdges.map((edge) => {
-            const src = arr(ontology.node_types).find((n) => n.id === edge.source_node_id)?.label ?? "?";
-            const tgt = arr(ontology.node_types).find((n) => n.id === edge.target_node_id)?.label ?? "?";
-            return (
-              <div key={edge.id} className="px-3 py-1 text-zinc-600 dark:text-muted-foreground">
-                {src} —[{edge.label}]→ {tgt}
-              </div>
-            );
-          })}
-        </Section>
-      )}
+            <GapsList gaps={gaps} />
 
-      <GapsList gaps={gaps} />
+            <p className="mt-3 px-3 pb-2 text-[10px] text-muted-foreground">
+              Tip: Press <kbd className="rounded bg-zinc-200 px-1 py-0.5 font-mono text-[9px] dark:bg-zinc-700">{"⌘"}K</kbd> to edit with AI
+            </p>
+          </>
+        )}
 
-      <p className="mt-3 px-3 pb-2 text-[10px] text-muted-foreground">
-        Tip: Press <kbd className="rounded bg-zinc-200 px-1 py-0.5 font-mono text-[9px] dark:bg-zinc-700">{"\u2318"}K</kbd> to edit with AI
-      </p>
+        {tab === "sample" && node.source_lineage?.table && (
+          <div className="px-3 py-3">
+            <SourceSampleMini tableName={node.source_lineage.table} />
+          </div>
+        )}
+
+        {tab === "lineage" && (
+          <div className="px-3 py-3">
+            <LineageTree edges={outbound} direction="outbound" labelOf={labelOf} />
+          </div>
+        )}
+
+        {tab === "dependents" && (
+          <div className="px-3 py-3">
+            <LineageTree edges={inbound} direction="inbound" labelOf={labelOf} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -350,10 +426,15 @@ export function EdgeDetail({
   const applyCommand = useAppStore((s) => s.applyCommand);
   const clearSelection = useAppStore((s) => s.clearSelection);
   const [addingProp, setAddingProp] = useState(false);
+  const [tab, setTab] = useState<InspectorTab>("definition");
   const confirm = useConfirm();
+  const t = useTranslations("inspector.tabs");
   const { canEdit, loading: propsLoading, suggestions, requestEdit, dismiss } = useAiEdit();
   const { loading: descLoading, suggestions: descSuggestions, requestEdit: requestDescEdit, dismiss: dismissDesc } = useAiEdit();
   const anyAiLoading = propsLoading || descLoading;
+  const ref = useEntityRef("edge_type", edge.id);
+  const { inbound, outbound } = useEntityDependencies(ontology.id, ref);
+  const labelOf = useOntologyLabelResolver(ontology);
 
   const src = arr(ontology.node_types).find((n) => n.id === edge.source_node_id)?.label ?? "?";
   const tgt = arr(ontology.node_types).find((n) => n.id === edge.target_node_id)?.label ?? "?";
@@ -412,9 +493,24 @@ export function EdgeDetail({
     );
   }, [requestDescEdit, edge.label, edge.description, src, tgt]);
 
+  const tabs = useMemo(() => {
+    return [
+      { id: "definition", label: t("definition") },
+      {
+        id: "lineage",
+        label: t("lineage"),
+        badge: outbound.length || undefined,
+      },
+      {
+        id: "dependents",
+        label: t("dependents"),
+        badge: inbound.length || undefined,
+      },
+    ];
+  }, [t, outbound.length, inbound.length]);
+
   return (
-    <div className="flex h-full flex-col overflow-auto text-xs">
-      {/* Header */}
+    <div className="flex h-full flex-col overflow-hidden text-xs">
       <div className="border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
         <div className="flex items-center gap-2">
           <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-blue-700 dark:bg-blue-900 dark:text-blue-400">
@@ -472,65 +568,90 @@ export function EdgeDetail({
         </div>
       </div>
 
-      {/* Properties */}
-      <Section
-        title={`Properties (${arr(edge.properties).length})`}
-        action={
+      <div className="border-b border-zinc-200 dark:border-zinc-800">
+        <TabBar
+          tabs={tabs}
+          activeTab={tab}
+          onTabChange={(id) => setTab(id as InspectorTab)}
+        />
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-auto">
+        {tab === "definition" && (
           <>
-            {canEdit && (
-              <AiAssistButton
-                tooltip="AI suggest properties"
-                loading={anyAiLoading}
-                onClick={handleAiSuggestProperties}
-              />
-            )}
-            <Tooltip content="Add property">
-              <button
-                onClick={() => setAddingProp(true)}
-                aria-label="Add property"
-                className="rounded p-0.5 text-muted-foreground hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
-              >
-                <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
-              </button>
-            </Tooltip>
-          </>
-        }
-      >
-        {suggestions && (
-          <AiSuggestionList
-            commands={suggestions.commands}
-            explanation={suggestions.explanation}
-            onDismiss={dismiss}
-          />
-        )}
-        {addingProp && (
-          <AddPropertyForm ownerId={edge.id} onClose={() => setAddingProp(false)} />
-        )}
-        {arr(edge.properties).map((prop) => (
-          <PropertyRow
-            key={prop.id}
-            prop={prop}
-            onDelete={() => handleDeleteProperty(prop.id, prop.name)}
-            onUpdate={(patch) => handleUpdateProperty(prop.id, patch)}
-            binding={
-              ontology.id
-                ? {
-                    ontologyId: ontology.id,
-                    expectedVersion: ontology.version,
-                    ownerKind: "edge",
-                    ownerTypeId: edge.id,
+            <Section
+              title={`Properties (${arr(edge.properties).length})`}
+              action={
+                <>
+                  {canEdit && (
+                    <AiAssistButton
+                      tooltip="AI suggest properties"
+                      loading={anyAiLoading}
+                      onClick={handleAiSuggestProperties}
+                    />
+                  )}
+                  <Tooltip content="Add property">
+                    <button
+                      onClick={() => setAddingProp(true)}
+                      aria-label="Add property"
+                      className="rounded p-0.5 text-muted-foreground hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
+                    >
+                      <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
+                    </button>
+                  </Tooltip>
+                </>
+              }
+            >
+              {suggestions && (
+                <AiSuggestionList
+                  commands={suggestions.commands}
+                  explanation={suggestions.explanation}
+                  onDismiss={dismiss}
+                />
+              )}
+              {addingProp && (
+                <AddPropertyForm ownerId={edge.id} onClose={() => setAddingProp(false)} />
+              )}
+              {arr(edge.properties).map((prop) => (
+                <PropertyRow
+                  key={prop.id}
+                  prop={prop}
+                  onDelete={() => handleDeleteProperty(prop.id, prop.name)}
+                  onUpdate={(patch) => handleUpdateProperty(prop.id, patch)}
+                  binding={
+                    ontology.id
+                      ? {
+                          ontologyId: ontology.id,
+                          expectedVersion: ontology.version,
+                          ownerKind: "edge",
+                          ownerTypeId: edge.id,
+                        }
+                      : undefined
                   }
-                : undefined
-            }
-          />
-        ))}
-      </Section>
+                />
+              ))}
+            </Section>
 
-      <GapsList gaps={gaps} />
+            <GapsList gaps={gaps} />
 
-      <p className="mt-3 px-3 pb-2 text-[10px] text-muted-foreground">
-        Tip: Press <kbd className="rounded bg-zinc-200 px-1 py-0.5 font-mono text-[9px] dark:bg-zinc-700">{"\u2318"}K</kbd> to edit with AI
-      </p>
+            <p className="mt-3 px-3 pb-2 text-[10px] text-muted-foreground">
+              Tip: Press <kbd className="rounded bg-zinc-200 px-1 py-0.5 font-mono text-[9px] dark:bg-zinc-700">{"⌘"}K</kbd> to edit with AI
+            </p>
+          </>
+        )}
+
+        {tab === "lineage" && (
+          <div className="px-3 py-3">
+            <LineageTree edges={outbound} direction="outbound" labelOf={labelOf} />
+          </div>
+        )}
+
+        {tab === "dependents" && (
+          <div className="px-3 py-3">
+            <LineageTree edges={inbound} direction="inbound" labelOf={labelOf} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

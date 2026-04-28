@@ -353,6 +353,12 @@
     }
   },
   "inspector": {
+    "tabs": {
+      "definition": "정의",
+      "sample": "샘플",
+      "lineage": "계보",
+      "dependents": "참조"
+    },
     "binding": {
       "linkTooltip": "용어 연결",
       "linkAria": "이 속성을 용어집 용어에 연결",
