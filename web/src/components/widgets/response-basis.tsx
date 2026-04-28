@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { useOntologyDetail } from "@/hooks/api/use-ontologies";
 import type {
+  ColumnLineage,
   EdgeTypeDef,
   NodeTypeDef,
   OntologyDetail,
@@ -12,6 +13,7 @@ import type {
   QueryProvenance,
 } from "@/types/api";
 import { arr } from "@/lib/ir-collections";
+import { useDiagnosticResolver } from "@/lib/diagnostic";
 import { localize } from "@/lib/locale/localize";
 import { useLocaleChain } from "@/lib/use-locale-chain";
 
@@ -63,6 +65,7 @@ export function ResponseBasis({
   className,
 }: ResponseBasisProps) {
   const t = useTranslations("widget.responseBasis");
+  const resolveDiagnostic = useDiagnosticResolver();
   const localeChain = useLocaleChain();
 
   // Hook hygiene — call useOntologyDetail unconditionally and gate
@@ -77,8 +80,17 @@ export function ResponseBasis({
     [provenance?.type_ids, ontologyDetail, localeChain],
   );
 
-  const activeWarnings =
-    warnings?.filter((w) => w && w.message.trim().length > 0) ?? [];
+  const activeWarnings = (warnings ?? [])
+    .filter((w) => w)
+    .map((w) => ({
+      ...w,
+      // `useDiagnosticResolver` walks the catalogue tree to detect
+      // presence, then either renders via ICU MessageFormat or falls
+      // back to the diagnostic's English `message`. Empty resolved
+      // strings collapse the row.
+      resolvedMessage: resolveDiagnostic(w.message),
+    }))
+    .filter((w) => w.resolvedMessage.trim().length > 0);
   const hasProvenance =
     !!provenance &&
     !!(
@@ -87,7 +99,8 @@ export function ResponseBasis({
       provenance.as_of ||
       (provenance.source_ids?.length ?? 0) > 0 ||
       resolvedTypes.length > 0 ||
-      provenance.filter_summary
+      provenance.filter_summary ||
+      (provenance.column_lineage?.length ?? 0) > 0
     );
 
   if (!hasProvenance && activeWarnings.length === 0) return null;
@@ -116,7 +129,7 @@ export function ResponseBasis({
               <span className="mr-1 font-semibold uppercase tracking-wide">
                 {w.validator} {w.level}:
               </span>
-              {w.message}
+              {w.resolvedMessage}
             </li>
           ))}
         </ul>
@@ -157,11 +170,97 @@ export function ResponseBasis({
             </code>
           </Row>
         )}
+        {provenance.column_lineage && provenance.column_lineage.length > 0 && (
+          <Row label={t("lineageLabel")}>
+            <ColumnLineageList rows={provenance.column_lineage} />
+          </Row>
+        )}
       </dl>
       )}
     </section>
   );
 }
+
+/**
+ * Render `column_lineage` grouped by `source_id`. Each output column
+ * gets one line: `out ← source.column [transform]`. Transforms
+ * (ConceptMap rewrites, SQL expressions, JSON paths) appear as a
+ * muted suffix so the human can spot non-identity mappings quickly.
+ *
+ * Density policy: when there are at most three lineage rows, render
+ * inline (the common case — single-source result with a few
+ * projected columns). Beyond that, collapse the list behind a native
+ * `<details>` so the panel doesn't dominate the response surface.
+ * The summary states the source count + total row count so the user
+ * can decide whether to expand.
+ */
+function ColumnLineageList({ rows }: { rows: ColumnLineage[] }) {
+  const grouped = new Map<string, ColumnLineage[]>();
+  for (const row of rows) {
+    const bucket = grouped.get(row.source_id);
+    if (bucket) bucket.push(row);
+    else grouped.set(row.source_id, [row]);
+  }
+  const body = (
+    <ul className="flex flex-col gap-1.5">
+      {Array.from(grouped.entries()).map(([sourceId, lines]) => (
+        <li key={sourceId} className="flex flex-col gap-0.5">
+          <span className="font-mono text-[10px] text-muted-foreground">
+            {sourceId}
+          </span>
+          <ul className="flex flex-col gap-0.5 pl-3">
+            {lines.map((row, idx) => (
+              <li
+                key={`${row.output_column}-${idx}`}
+                className="font-mono text-[10px] leading-snug"
+              >
+                <span className="text-zinc-700 dark:text-zinc-300">
+                  {row.output_column}
+                </span>
+                <span className="mx-1 text-muted-foreground">←</span>
+                <span className="text-zinc-600 dark:text-zinc-400">
+                  {row.source_column}
+                </span>
+                {row.transform && (
+                  <span className="ml-2 italic text-amber-700 dark:text-amber-400">
+                    [{row.transform}]
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </li>
+      ))}
+    </ul>
+  );
+
+  if (rows.length <= LINEAGE_INLINE_THRESHOLD) {
+    return body;
+  }
+
+  return (
+    <details className="group/lineage">
+      <summary className="cursor-pointer text-[10px] text-muted-foreground hover:text-zinc-700 dark:hover:text-zinc-300">
+        <span className="font-mono">
+          {grouped.size} source{grouped.size === 1 ? "" : "s"} · {rows.length} rows
+        </span>
+        <span className="ml-1 text-muted-foreground/60 group-open/lineage:hidden">
+          ▸
+        </span>
+        <span className="ml-1 text-muted-foreground/60 hidden group-open/lineage:inline">
+          ▾
+        </span>
+      </summary>
+      <div className="mt-1.5">{body}</div>
+    </details>
+  );
+}
+
+/** Inline up to this many rows; collapse beyond. Three covers the
+ *  single-source / few-columns case (the common Cypher response
+ *  shape) while preventing fan-out queries from dominating the
+ *  Provenance panel. */
+const LINEAGE_INLINE_THRESHOLD = 3;
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -290,3 +389,4 @@ function diagnosticLevelClass(level: QueryDiagnostic["level"]): string {
       return "text-sky-800 dark:text-sky-300";
   }
 }
+

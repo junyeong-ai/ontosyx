@@ -13,7 +13,7 @@ import { ChatInput } from "./chat-input";
 import { MessageBubble } from "./message-bubble";
 import { motion, AnimatePresence } from "motion/react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { AiNetworkIcon } from "@hugeicons/core-free-icons";
+import { ChatBotIcon } from "@hugeicons/core-free-icons";
 
 /** Upsert a step in the steps array (replace by step name, or append). */
 function upsertToolStep(steps: ToolStep[], update: ToolStep): ToolStep[] {
@@ -398,14 +398,18 @@ export function ChatPanel() {
   return (
     <ErrorBoundary name="Chat">
     <div className="flex h-full flex-col bg-zinc-50/50 dark:bg-zinc-950">
-      <div ref={scrollRef} role="log" aria-label={t("logAria")} aria-live="polite" className="flex-1 overflow-y-auto px-4 py-6">
+      <div ref={scrollRef} role="log" aria-label={t("logAria")} aria-live="polite" className="flex-1 overflow-y-auto px-4 py-4">
         <div className="mx-auto max-w-4xl space-y-5">
           {messages.length === 0 && (
-            <div className="flex flex-col items-center justify-center pt-16 text-center">
-              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-zinc-100 dark:bg-zinc-800">
-                <HugeiconsIcon icon={AiNetworkIcon} className="h-7 w-7 text-muted-foreground" size="100%" />
+            // Compact empty state — the chat lives in the bottom panel
+            // and may share the viewport with the workflow / canvas pane.
+            // Vertical padding stays tight so the title and the hint stay
+            // inside the visible area at the smallest snap height.
+            <div className="flex flex-col items-center justify-center text-center">
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-100 dark:bg-zinc-800">
+                <HugeiconsIcon icon={ChatBotIcon} className="h-5 w-5 text-muted-foreground" size="100%" />
               </div>
-              <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
+              <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
                 {t("appTitle")}
               </h2>
               {ontology && suggestions.length > 0 ? (
@@ -432,7 +436,13 @@ export function ChatPanel() {
                   </button>
                 </div>
               ) : (
-                <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">
+                // The hint sits in a centred column whose parent
+                // `max-w-4xl` already caps the line length. A second
+                // narrow cap (`max-w-sm`) forced the Korean copy onto
+                // two lines on every viewport ≥ ~600px wide; the
+                // outer cap alone gives ~896px which keeps the hint
+                // on a single line up to common laptop widths.
+                <p className="mt-1 text-xs text-muted-foreground">
                   {ontology
                     ? t("suggestionsHintWithOntology", { count: ontology.node_types.length })
                     : workspaceMode === "analyze"

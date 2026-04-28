@@ -238,6 +238,7 @@ test.describe("bootstrap wizard", () => {
       title: string;
       origin_type: string;
       source: { type: string; connection_string: string };
+      selection: { kind: string; tables?: string[] };
     };
     expect(projectBody.title).toBe("E2E Pilot");
     expect(projectBody.origin_type).toBe("source");
@@ -245,6 +246,11 @@ test.describe("bootstrap wizard", () => {
     expect(projectBody.source.connection_string).toBe(
       "postgresql://localhost:5432/pilot",
     );
+    // The wizard threads its analyze-mode selection through to the
+    // project create call — `kind` is required at the wire boundary
+    // so a missing field would be a regression.
+    expect(projectBody.selection).toBeDefined();
+    expect(projectBody.selection.kind).toMatch(/^(all|subset)$/);
 
     // Finally — the page redirects to /design with the new
     // project id on the query string.

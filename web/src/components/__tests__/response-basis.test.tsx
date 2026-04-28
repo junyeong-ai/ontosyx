@@ -183,12 +183,18 @@ describe("ResponseBasis", () => {
       {
         validator: "complexity",
         level: "warning",
-        message: "variable-length relationship has no upper bound",
+        message: {
+          code: "runtime.cypher.complexity.unbounded_var_length",
+          message: "variable-length relationship has no upper bound",
+        },
       },
       {
         validator: "semantic-guard",
         level: "error",
-        message: "destructive operation is gated only by a tautological WHERE",
+        message: {
+          code: "runtime.cypher.semantic_guard.tautological_where",
+          message: "destructive operation is gated only by a tautological WHERE",
+        },
       },
     ];
     renderWithIntl(
@@ -197,11 +203,16 @@ describe("ResponseBasis", () => {
         warnings={warnings}
       />,
     );
+    // Renderings come from the FE i18n catalogue keyed by `code`.
+    // The case-insensitive regexes assert the substantive phrase
+    // each catalogue entry surfaces, not the exact wording — so a
+    // catalogue-only edit (e.g. tightening copy) doesn't churn this
+    // test.
     expect(
-      screen.getByText(/variable-length relationship has no upper bound/),
+      screen.getByText(/variable-length relationship has no upper bound/i),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/destructive operation is gated only by a tautological WHERE/),
+      screen.getByText(/tautological WHERE predicate/i),
     ).toBeInTheDocument();
     // Structured access — the UI renders validator + level as a header
     expect(screen.getByText(/complexity warning:/)).toBeInTheDocument();
@@ -216,7 +227,13 @@ describe("ResponseBasis", () => {
           {
             validator: "complexity",
             level: "warning",
-            message: "ad-hoc-message-for-this-test",
+            // Code without a catalogue entry — `resolveDiagnostic`
+            // falls back to the structured English `message`. Tests
+            // the missing-key fallback path.
+            message: {
+              code: "test.no_catalogue_entry",
+              message: "ad-hoc-message-for-this-test",
+            },
           },
         ]}
       />,
@@ -231,8 +248,16 @@ describe("ResponseBasis", () => {
       <ResponseBasis
         provenance={null}
         warnings={[
-          { validator: "complexity", level: "warning", message: "" },
-          { validator: "complexity", level: "info", message: "   " },
+          {
+            validator: "complexity",
+            level: "warning",
+            message: { code: "test.empty", message: "" },
+          },
+          {
+            validator: "complexity",
+            level: "info",
+            message: { code: "test.whitespace", message: "   " },
+          },
         ]}
       />,
     );

@@ -23,7 +23,7 @@ import { useTranslations } from "next-intl";
 import type { OntologyEditOp } from "@/lib/api/edit-ops";
 
 interface EditOpPreviewProps {
-  /** The full approval payload (`OntologyEditRequest` shape). The
+  /** The full approval payload (`EditOntologyRequest` shape). The
    *  payload is `unknown` because the backend stores it as
    *  `serde_json::Value`; we narrow inside the component so a
    *  malformed row degrades to a "raw payload" fallback rather
@@ -38,7 +38,7 @@ interface ParsedPayload {
   dry_run?: boolean;
 }
 
-/** Best-effort parse of the JSON value into the OntologyEditRequest
+/** Best-effort parse of the JSON value into the EditOntologyRequest
  *  shape. Returns `null` when the payload doesn't carry an
  *  operations array — caller falls back to a raw JSON dump. */
 function parsePayload(payload: unknown): ParsedPayload | null {

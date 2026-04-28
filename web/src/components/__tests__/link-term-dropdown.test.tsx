@@ -108,7 +108,7 @@ describe("LinkTermDropdown", () => {
     });
   });
 
-  it("clicking a candidate fires bind_property_to_term with the ids", async () => {
+  it("clicking a candidate fires a bind_property edit with the glossary target", async () => {
     vi.spyOn(bindingApi, "suggestTermsForProperty").mockResolvedValue({
       ontology_id: "ont-1",
       candidates: [
@@ -141,15 +141,15 @@ describe("LinkTermDropdown", () => {
     expect(body?.expected_version).toBe(3);
     expect(body?.operations).toEqual([
       {
-        op: "bind_property_to_term",
+        op: "bind_property",
         owner: { kind: "node", type_id: "Customer" },
         property_id: "p-tier",
-        glossary_term_id: "vip",
+        binding: { kind: "glossary", id: "vip" },
       },
     ]);
   });
 
-  it("clicking the bound pill fires an unbind edit (glossary_term_id: null)", async () => {
+  it("clicking the bound pill fires an unbind_property edit", async () => {
     const apply = vi
       .spyOn(bindingApi, "applyOntologyEdits")
       .mockResolvedValue({
@@ -172,8 +172,8 @@ describe("LinkTermDropdown", () => {
     });
     const [, body] = apply.mock.calls[0] ?? [];
     expect(body?.operations[0]).toMatchObject({
-      op: "bind_property_to_term",
-      glossary_term_id: null,
+      op: "unbind_property",
+      target: { kind: "glossary", id: "vip-term" },
     });
   });
 });

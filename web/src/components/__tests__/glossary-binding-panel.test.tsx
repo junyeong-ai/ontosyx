@@ -86,7 +86,7 @@ describe("GlossaryBindingPanel", () => {
     expect(screen.getByText("tier")).toBeDefined();
   });
 
-  it("batch bind fires /edits with one bind_property_to_term per selected row", async () => {
+  it("batch bind fires /edits with one bind_property per selected row", async () => {
     vi.spyOn(bindingApi, "suggestGlossaryBindings").mockResolvedValue({
       ontology_id: "ont-1",
       candidates: [
@@ -142,16 +142,16 @@ describe("GlossaryBindingPanel", () => {
     expect(body?.expected_version).toBe(2);
     expect(body?.operations).toEqual([
       {
-        op: "bind_property_to_term",
+        op: "bind_property",
         owner: { kind: "node", type_id: "Customer" },
         property_id: "tier",
-        glossary_term_id: "g-vip",
+        binding: { kind: "glossary", id: "g-vip" },
       },
       {
-        op: "bind_property_to_term",
+        op: "bind_property",
         owner: { kind: "edge", type_id: "PLACED" },
         property_id: "channel",
-        glossary_term_id: "g-vip",
+        binding: { kind: "glossary", id: "g-vip" },
       },
     ]);
   });

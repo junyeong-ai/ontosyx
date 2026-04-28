@@ -236,7 +236,10 @@ export function mockQueryDiagnostic(
   return {
     validator: "complexity",
     level: "warning",
-    message: "unbounded variable-length pattern",
+    message: {
+      code: "runtime.cypher.complexity.unbounded_var_length",
+      message: "unbounded variable-length pattern",
+    },
     ...overrides,
   };
 }

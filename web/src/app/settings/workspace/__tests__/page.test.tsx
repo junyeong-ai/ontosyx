@@ -41,7 +41,8 @@ const WS: Workspace = {
   owner_id: "u-a",
   settings: {},
   primary_locale: "ko",
-  locale_fallback: ["ko", "en"],
+  admin_locale_fallback: ["ko", "en"],
+  llm_locale_fallback: ["en", "ko"],
   created_at: "2026-04-22T00:00:00Z",
 };
 
