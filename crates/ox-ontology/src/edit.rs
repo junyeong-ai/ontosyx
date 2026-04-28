@@ -217,34 +217,23 @@ pub enum OntologyEditOp {
     //
     // These variants write single-field pointers on PropertyDef
     // (`glossary_term_id`, `value_set_id`, `notation_pattern_id`).
-    // Passing `Some(id)` sets the binding, `None` clears it. Paired
-    // with the Phase 1 suggestion endpoints so the admin UI can
-    // "suggest → confirm → persist" in one pipeline.
-    /// Attach (or detach, via `None`) a [`GlossaryTermDef`] to the
-    /// named property. The term must already exist — the
-    /// OntologyIR-level `validate()` surfaces a dangling-ref if it
-    /// doesn't.
-    BindPropertyToTerm {
+    /// Append a [`PropertyBinding`] to the named property. If a
+    /// binding with the same target already exists it is replaced
+    /// (so the call is idempotent on `target` identity, not on the
+    /// strength / concept-map / window fields). The target's id
+    /// must resolve in its registry — the OntologyIR-level
+    /// `validate()` surfaces a dangling-ref if it doesn't.
+    BindProperty {
         owner: PropertyOwnerPath,
         property_id: PropertyId,
-        glossary_term_id: Option<GlossaryTermId>,
+        binding: crate::binding::PropertyBinding,
     },
-    /// Attach (or detach, via `None`) a [`ValueSetDef`] to the named
-    /// property. Runtime `ShaclValidator` uses the pointer to enforce
-    /// an `InValueSet` constraint at write time.
-    BindPropertyToValueSet {
+    /// Remove every binding on the named property whose
+    /// `(kind, id)` matches `target`. No-op if no binding matches.
+    UnbindProperty {
         owner: PropertyOwnerPath,
         property_id: PropertyId,
-        value_set_id: Option<ValueSetId>,
-    },
-    /// Attach (or detach, via `None`) a
-    /// [`NotationPatternDef`] to the named property. Runtime
-    /// `ShaclValidator` uses the pointer to enforce
-    /// `MatchesPattern`.
-    BindPropertyToNotationPattern {
-        owner: PropertyOwnerPath,
-        property_id: PropertyId,
-        notation_pattern_id: Option<NotationPatternId>,
+        target: crate::binding::PropertyBindingHandle,
     },
 }
 
@@ -297,9 +286,9 @@ impl OntologyEditOp {
             // data semantics are identical to adding / removing an
             // alias on a glossary term — the pointer is a reach
             // extension, not a structural edit.
-            Self::BindPropertyToTerm { .. }
-            | Self::BindPropertyToValueSet { .. }
-            | Self::BindPropertyToNotationPattern { .. } => ChangeType::GlossaryAliasAdd,
+            Self::BindProperty { .. } | Self::UnbindProperty { .. } => {
+                ChangeType::GlossaryAliasAdd
+            }
 
             // Type deprecation is the exact matrix row for
             // `StaleConceptDeprecate` — 95% auto, which fits because
@@ -585,26 +574,29 @@ impl OntologyEditOp {
                 .map(|_| ())
                 .map_err(|e| e.to_string()),
 
-            Self::BindPropertyToTerm {
+            Self::BindProperty {
                 owner,
                 property_id,
-                glossary_term_id,
+                binding,
             } => mutate_property(ir, &owner, &property_id, |p| {
-                p.glossary_term_id = glossary_term_id;
+                // Idempotent on `(kind, id)`: replace if present, push
+                // otherwise. Strength / window / concept-map fields
+                // ride along.
+                let handle = binding.handle();
+                if let Some(slot) =
+                    p.bindings.iter_mut().find(|b| b.handle() == handle)
+                {
+                    *slot = binding;
+                } else {
+                    p.bindings.push(binding);
+                }
             }),
-            Self::BindPropertyToValueSet {
+            Self::UnbindProperty {
                 owner,
                 property_id,
-                value_set_id,
+                target,
             } => mutate_property(ir, &owner, &property_id, |p| {
-                p.value_set_id = value_set_id;
-            }),
-            Self::BindPropertyToNotationPattern {
-                owner,
-                property_id,
-                notation_pattern_id,
-            } => mutate_property(ir, &owner, &property_id, |p| {
-                p.notation_pattern_id = notation_pattern_id;
+                p.bindings.retain(|b| b.handle() != target);
             }),
 
             Self::DeprecateNodeType { id, replaced_by_id } => {
@@ -683,7 +675,7 @@ fn mutate_property(
 /// Operations apply atomically: an error on any op rolls the whole
 /// batch back.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
-pub struct OntologyEditRequest {
+pub struct EditOntologyRequest {
     pub expected_version: u32,
     pub operations: Vec<OntologyEditOp>,
     /// Free-text commit message. Surfaces in audit log + lineage UI.
@@ -727,8 +719,10 @@ pub struct OntologyEditPreCheck {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub failure_message: Option<String>,
     /// Whole-IR validation errors (`OntologyIR::validate()`),
-    /// including dangling registry references (Phase 1.7).
-    pub validation_errors: Vec<String>,
+    /// including dangling registry references (Phase 1.7). Each
+    /// entry is a structured [`ox_core::DiagnosticMessage`] — the FE
+    /// renders `code` + `params` through its i18n catalogue.
+    pub validation_errors: Vec<ox_core::DiagnosticMessage>,
     /// Classified `ChangeType` per operation — same classification
     /// the approval-routing layer uses. Lets the UI highlight
     /// "breaking change" previews differently from "safe" ones.
@@ -781,12 +775,17 @@ mod tests {
     fn bare_glossary_term(id: &str, term: &str) -> GlossaryTermDef {
         GlossaryTermDef {
             id: GlossaryTermId::new(id),
-            term: term.to_string(),
+            term: LocalizedText::new(term),
             display_name: LocalizedText::default(),
             description: LocalizedText::default(),
-            aliases: vec![],
+            examples: Vec::new(),
+            aliases: Vec::new(),
+            related_terms: Vec::new(),
             category: None,
-            parent_term_id: None,
+            governance: crate::glossary::TermGovernance::default(),
+            valid_from: None,
+            valid_to: None,
+            lifecycle: crate::glossary::TermLifecycle::default(),
         }
     }
 
@@ -854,7 +853,7 @@ mod tests {
 
     #[test]
     fn request_roundtrips_through_json() {
-        let req = OntologyEditRequest {
+        let req = EditOntologyRequest {
             expected_version: 3,
             operations: vec![OntologyEditOp::CreateGlossaryTerm {
                 def: bare_glossary_term("g1", "매출"),
@@ -863,7 +862,7 @@ mod tests {
             dry_run: false,
         };
         let j = serde_json::to_value(&req).unwrap();
-        let back: OntologyEditRequest = serde_json::from_value(j).unwrap();
+        let back: EditOntologyRequest = serde_json::from_value(j).unwrap();
         assert_eq!(back.expected_version, 3);
         assert_eq!(back.operations.len(), 1);
     }
@@ -908,12 +907,12 @@ mod tests {
             ChangeType::GlossaryTermCreate
         );
         assert_eq!(
-            OntologyEditOp::BindPropertyToTerm {
+            OntologyEditOp::BindProperty {
                 owner: PropertyOwnerPath::Node {
                     type_id: NodeTypeId::new("Customer"),
                 },
                 property_id: PropertyId::new("tier"),
-                glossary_term_id: Some(GlossaryTermId::new("vip")),
+                binding: crate::binding::PropertyBinding::glossary(GlossaryTermId::new("vip"),),
             }
             .classify_change_type(),
             ChangeType::GlossaryAliasAdd
@@ -955,57 +954,61 @@ mod tests {
         ir
     }
 
+    fn glossary_binding(id: &str) -> crate::binding::PropertyBinding {
+        crate::binding::PropertyBinding::glossary(GlossaryTermId::new(id),)
+    }
+
     #[test]
-    fn bind_property_to_term_sets_pointer() {
+    fn bind_property_appends_to_bindings_list() {
         let mut ir = sample_ir_with_property();
-        OntologyEditOp::BindPropertyToTerm {
+        OntologyEditOp::BindProperty {
             owner: PropertyOwnerPath::Node {
                 type_id: NodeTypeId::new("Customer"),
             },
             property_id: PropertyId::new("p-tier"),
-            glossary_term_id: Some(GlossaryTermId::new("vip")),
+            binding: glossary_binding("vip"),
         }
         .apply_to(&mut ir)
         .unwrap();
         let prop = &ir.node_types()[0].properties[0];
-        assert_eq!(prop.glossary_term_id.as_ref().unwrap().as_str(), "vip");
+        assert_eq!(prop.glossary_term_id().unwrap().as_str(), "vip");
     }
 
     #[test]
-    fn bind_property_to_term_with_none_unbinds() {
+    fn unbind_property_removes_matching_target() {
         let mut ir = sample_ir_with_property();
-        // First bind.
-        OntologyEditOp::BindPropertyToTerm {
+        OntologyEditOp::BindProperty {
             owner: PropertyOwnerPath::Node {
                 type_id: NodeTypeId::new("Customer"),
             },
             property_id: PropertyId::new("p-tier"),
-            glossary_term_id: Some(GlossaryTermId::new("vip")),
+            binding: glossary_binding("vip"),
         }
         .apply_to(&mut ir)
         .unwrap();
-        // Then unbind via None.
-        OntologyEditOp::BindPropertyToTerm {
+        OntologyEditOp::UnbindProperty {
             owner: PropertyOwnerPath::Node {
                 type_id: NodeTypeId::new("Customer"),
             },
             property_id: PropertyId::new("p-tier"),
-            glossary_term_id: None,
+            target: crate::binding::PropertyBindingHandle::Glossary {
+                id: GlossaryTermId::new("vip"),
+            },
         }
         .apply_to(&mut ir)
         .unwrap();
-        assert!(ir.node_types()[0].properties[0].glossary_term_id.is_none());
+        assert!(ir.node_types()[0].properties[0].glossary_term_id().is_none());
     }
 
     #[test]
     fn bind_property_missing_property_surfaces_error() {
         let mut ir = sample_ir_with_property();
-        let err = OntologyEditOp::BindPropertyToTerm {
+        let err = OntologyEditOp::BindProperty {
             owner: PropertyOwnerPath::Node {
                 type_id: NodeTypeId::new("Customer"),
             },
             property_id: PropertyId::new("p-missing"),
-            glossary_term_id: Some(GlossaryTermId::new("vip")),
+            binding: glossary_binding("vip"),
         }
         .apply_to(&mut ir)
         .unwrap_err();
@@ -1097,18 +1100,22 @@ mod tests {
     // ------------------------------------------------------------------
 
     fn bare_rule(id: &str, name: &str) -> RuleDef {
-        use crate::rule::{RuleActivationKind, RuleKind};
+        use crate::rule::{RuleActivationKind, RuleKind, RuleOrigin};
         RuleDef {
             id: RuleId::new(id),
-            name: name.to_string(),
+            name: LocalizedText::new(name),
             description: LocalizedText::default(),
+            rationale: LocalizedText::default(),
             kind: RuleKind::CrossEntityShape {
                 predicate: "1 = 1".to_string(),
             },
             severity: Default::default(),
             enforcement: Default::default(),
             activation: RuleActivationKind::Always,
+            origin: RuleOrigin::Authored,
             constraints: Vec::new(),
+            valid_from: None,
+            valid_to: None,
         }
     }
 
@@ -1156,7 +1163,7 @@ mod tests {
         .apply_to(&mut ir)
         .unwrap();
         assert_eq!(ir.rules().len(), 1);
-        assert_eq!(ir.rules()[0].name, "second");
+        assert_eq!(ir.rules()[0].name.default, "second");
     }
 
     #[test]
@@ -1239,17 +1246,23 @@ mod tests {
     }
 
     #[test]
-    fn bind_property_to_term_wire_format_is_snake_case() {
-        let op = OntologyEditOp::BindPropertyToTerm {
+    fn bind_property_wire_format_is_snake_case() {
+        let op = OntologyEditOp::BindProperty {
             owner: PropertyOwnerPath::Node {
                 type_id: NodeTypeId::new("Customer"),
             },
             property_id: PropertyId::new("tier"),
-            glossary_term_id: Some(GlossaryTermId::new("vip")),
+            binding: glossary_binding("vip"),
         };
         let j = serde_json::to_string(&op).unwrap();
-        assert!(j.contains("\"op\":\"bind_property_to_term\""));
+        assert!(j.contains("\"op\":\"bind_property\""));
+        // owner discriminator
         assert!(j.contains("\"kind\":\"node\""));
         assert!(j.contains("\"type_id\":\"Customer\""));
+        // binding variant discriminator (PropertyBinding is a tagged
+        // enum on `kind`, with the binding kind under "binding"):
+        assert!(j.contains("\"binding\""));
+        assert!(j.contains("\"kind\":\"glossary\""));
+        assert!(j.contains("\"id\":\"vip\""));
     }
 }

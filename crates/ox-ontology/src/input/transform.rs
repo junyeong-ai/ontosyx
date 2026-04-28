@@ -90,7 +90,7 @@ fn levenshtein(a: &str, b: &str) -> usize {
 pub fn normalize(
     input: InputOntologyDef,
     source_id: &SourceId,
-) -> Result<NormalizeOutcome, Vec<String>> {
+) -> Result<NormalizeOutcome, Vec<ox_core::DiagnosticMessage>> {
     let warnings: RefCell<Vec<NormalizeWarning>> = RefCell::new(Vec::new());
 
     macro_rules! norm_warn {
@@ -157,6 +157,7 @@ pub fn normalize(
                         property_key: name.clone(),
                         location: PropertyLocation::Column(ColumnRef::new(table, col)),
                         transform: PropertyTransform::Identity,
+                        concept_map_id: None,
                     });
                 }
                 Some(PropertyDef {
@@ -311,8 +312,17 @@ pub fn normalize(
 
         node_prop_map.insert(input_node.label.clone(), prop_name_to_id);
 
-        let label = GraphLabel::new(input_node.label.clone())
-            .map_err(|e| vec![format!("Node label '{}' is invalid: {e}", input_node.label)])?;
+        let label = GraphLabel::new(input_node.label.clone()).map_err(|e| {
+            vec![
+                ox_core::diagnostic::diag("ontology.normalize.invalid_node_label")
+                    .with("label", input_node.label.clone())
+                    .with("error", e.to_string())
+                    .message(format!(
+                        "Node label '{}' is invalid: {e}",
+                        input_node.label
+                    )),
+            ]
+        })?;
 
         node_types.push(NodeTypeDef {
             id: node_id,
@@ -416,6 +426,7 @@ pub fn normalize(
                 target_node_id,
                 properties,
                 cardinality: e.cardinality,
+                kind: e.kind,
                 ..Default::default()
             })
         })
@@ -573,7 +584,11 @@ pub fn normalize(
     // it in the error list.
     for om in pending_mappings {
         if let Err(e) = ontology.add_object_mapping(om) {
-            return Err(vec![format!("add_object_mapping: {e}")]);
+            return Err(vec![
+                ox_core::diagnostic::diag("ontology.normalize.add_object_mapping_failed")
+                    .with("error", e.to_string())
+                    .message(format!("add_object_mapping: {e}")),
+            ]);
         }
     }
 
@@ -662,6 +677,7 @@ mod tests {
                 target_type: "Product".to_string(),
                 properties: vec![],
                 cardinality: Cardinality::ManyToMany,
+                kind: crate::ir::EdgeKind::Association,
             }],
             indexes: vec![InputIndexDef::Single {
                 id: None,
@@ -1028,9 +1044,9 @@ mod tests {
         };
 
         let err = normalize(input, &test_source_id()).expect_err("should fail validation");
-        assert!(err.iter().any(|e| e.contains("id must not be empty")));
-        assert!(err.iter().any(|e| e.contains("name must not be empty")));
-        assert!(err.iter().any(|e| e.contains("at least one collection")));
+        assert!(err.iter().any(|e| e.code == "ontology.validate.id.empty"));
+        assert!(err.iter().any(|e| e.code == "ontology.validate.name.empty"));
+        assert!(err.iter().any(|e| e.code == "ontology.validate.no_content"));
     }
 
     // -- node_key constraint resolution --------------------------------------

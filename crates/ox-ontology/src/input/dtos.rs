@@ -109,6 +109,12 @@ pub struct InputEdgeTypeDef {
     pub properties: Vec<InputPropertyDef>,
     #[serde(default = "default_cardinality")]
     pub cardinality: Cardinality,
+    /// UML / OMG relationship classification. Operators / LLM
+    /// authoring leave this absent (defaults to
+    /// [`crate::ir::EdgeKind::Association`]) and explicitly opt into
+    /// `composition` / `aggregation` for part-whole relationships.
+    #[serde(default)]
+    pub kind: crate::ir::EdgeKind,
 }
 
 // ---------------------------------------------------------------------------

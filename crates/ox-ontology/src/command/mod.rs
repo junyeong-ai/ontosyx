@@ -325,7 +325,7 @@ impl OntologyCommand {
         } else {
             Err(format!(
                 "command produced invalid ontology: {}",
-                errors.join("; ")
+                ox_core::join_messages(&errors, "; ")
             ))
         }
     }

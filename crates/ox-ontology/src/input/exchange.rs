@@ -162,6 +162,7 @@ pub fn to_exchange_format(ontology: &OntologyIR) -> InputOntologyDef {
                 })
                 .collect(),
             cardinality: e.cardinality,
+            kind: e.kind,
         })
         .collect();
 
