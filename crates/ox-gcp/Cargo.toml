@@ -1,0 +1,20 @@
+[package]
+name = "ox-gcp"
+description = "Ontosyx GCP integration utilities (Application Default Credentials dispatch)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+tokio = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+yup-oauth2 = { workspace = true }
+hyper-util = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true
