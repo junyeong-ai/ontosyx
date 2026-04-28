@@ -376,10 +376,41 @@ impl IntrospectionKernel {
         }
 
         let new_analysis = self
-            .run_analyze_with_retry(&TableSelection::Subset(new_tables))
+            .run_analyze_with_retry(&TableSelection::Subset(new_tables.clone()))
             .await?;
 
-        Ok(Arc::new(merge_analysis_results(base, &new_analysis)))
+        let mut merged = merge_analysis_results(base, &new_analysis);
+
+        // Cross-baseline FK detection. The subset introspection drops
+        // any FK whose endpoints aren't both in the new-table set —
+        // necessary while we have no visibility into baseline rows
+        // there, but also blind to relationships that *connect* the
+        // two sides. Re-fetch the source's full FK set and keep the
+        // cross-table edges (one endpoint baseline, one endpoint new),
+        // dedup'd against what we already have. Without this pass
+        // an "Order extends an existing Customer" extension would
+        // never recover the Order → Customer foreign key.
+        if let Ok(all_fks) = self.adapter.list_foreign_keys().await {
+            let baseline_set: std::collections::HashSet<&str> =
+                baseline_names.iter().map(String::as_str).collect();
+            let new_set: std::collections::HashSet<&str> =
+                new_tables.iter().map(String::as_str).collect();
+            let existing: std::collections::HashSet<&ox_core::source_schema::ForeignKeyDef> =
+                merged.schema.foreign_keys.iter().collect();
+            let cross_fks: Vec<_> = all_fks
+                .into_iter()
+                .filter(|fk| {
+                    let from = fk.from_table.as_str();
+                    let to = fk.to_table.as_str();
+                    (baseline_set.contains(from) && new_set.contains(to))
+                        || (new_set.contains(from) && baseline_set.contains(to))
+                })
+                .filter(|fk| !existing.contains(fk))
+                .collect();
+            merged.schema.foreign_keys.extend(cross_fks);
+        }
+
+        Ok(Arc::new(merged))
     }
 
     /// Discover the source's schema (tables + columns + PK + FKs)
@@ -1232,6 +1263,67 @@ mod tests {
         // Base described `users`; extension described `orders` only —
         // re-introspection of `users` must not happen.
         assert_eq!(adapter.describe_count(), 2);
+    }
+
+    #[tokio::test]
+    async fn analyze_extension_recovers_cross_baseline_foreign_keys() {
+        // FK-aware adapter: declares `orders.user_id → users.id`. The
+        // baseline analysis sees only `users` (no FKs in scope); the
+        // extension adds `orders` and must recover the cross-baseline
+        // FK that the subset introspection drops.
+        struct FkAdapter {
+            inner: MultiTableAdapter,
+        }
+        #[async_trait]
+        impl DataSourceAdapter for FkAdapter {
+            fn source_type(&self) -> &str { self.inner.source_type() }
+            fn supports_scan(&self) -> bool { self.inner.supports_scan() }
+            async fn list_tables(&self) -> OxResult<Vec<String>> { self.inner.list_tables().await }
+            async fn list_tables_with_summary(&self) -> OxResult<Vec<crate::TableSummary>> {
+                self.inner.list_tables_with_summary().await
+            }
+            async fn describe_table(&self, t: &str) -> OxResult<SourceTableDef> {
+                self.inner.describe_table(t).await
+            }
+            async fn count_rows(&self, t: &str) -> OxResult<u64> { self.inner.count_rows(t).await }
+            async fn sample_column(
+                &self,
+                t: &str,
+                c: &SourceColumnDef,
+            ) -> OxResult<ox_core::source_schema::ColumnStats> {
+                self.inner.sample_column(t, c).await
+            }
+            async fn list_foreign_keys(&self) -> OxResult<Vec<ForeignKeyDef>> {
+                Ok(vec![ForeignKeyDef {
+                    from_table: "orders".to_string(),
+                    from_column: "user_id".to_string(),
+                    to_table: "users".to_string(),
+                    to_column: "id".to_string(),
+                    inferred: false,
+                }])
+            }
+        }
+        let adapter = Arc::new(FkAdapter {
+            inner: MultiTableAdapter::new(&["users", "orders"]),
+        });
+        let kernel = IntrospectionKernel::new(adapter);
+        let base = kernel
+            .analyze_subset(BTreeSet::from(["users".to_string()]))
+            .await
+            .expect("baseline");
+        // Baseline-only analysis: the FK has both endpoints checked
+        // against the in-scope set, and `orders` is out of scope, so
+        // the FK is correctly dropped at this stage.
+        assert!(base.schema.foreign_keys.is_empty());
+        let extended = kernel
+            .analyze_extension(base.as_ref(), BTreeSet::from(["orders".to_string()]))
+            .await
+            .expect("extension");
+        // After extension: cross-table FK must be recovered.
+        assert_eq!(extended.schema.foreign_keys.len(), 1);
+        let fk = &extended.schema.foreign_keys[0];
+        assert_eq!(fk.from_table, "orders");
+        assert_eq!(fk.to_table, "users");
     }
 
     #[tokio::test]
