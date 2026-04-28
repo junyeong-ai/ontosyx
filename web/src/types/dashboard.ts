@@ -79,3 +79,20 @@ export interface WidgetCreateRequest {
     direction?: "above" | "below";
   };
 }
+
+/**
+ * PATCH-style widget update — every field is optional. Mirror of
+ * `WidgetCreateRequest` plus the omitted layout fields the inspector
+ * doesn't expose.
+ */
+export interface WidgetUpdateRequest {
+  title?: string;
+  widget_type?: string;
+  query?: string;
+  refresh_interval_secs?: number;
+  thresholds?: {
+    warning?: number;
+    critical?: number;
+    direction?: "above" | "below";
+  };
+}

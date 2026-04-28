@@ -167,7 +167,6 @@ export const TableExclusionSuggestionSchema = z.object({
 export const LargeSchemaWarningSchema = z.object({
   table_count: z.number(),
   recommended_max: z.number(),
-  suggestion: z.string(),
 });
 
 export const RepoColumnSuggestionSchema = z.object({
@@ -184,9 +183,21 @@ export const FieldHintSchema = z.object({
   source: z.string(),
 });
 
+export const RepoFailureKindSchema = z.enum([
+  "git_clone_failed",
+  "local_repo_unreadable",
+  "policy_rejected",
+  "file_tree_failed",
+  "llm_navigation_failed",
+  "llm_analysis_failed",
+  "timeout",
+  "no_readable_files",
+  "no_relevant_files",
+]);
+
 export const RepoAnalysisSummarySchema = z.object({
   status: z.enum(["complete", "partial", "skipped", "failed"]),
-  status_reason: z.string().optional(),
+  failure_reason: RepoFailureKindSchema.optional(),
   framework: z.string().optional(),
   files_requested: z.number(),
   files_analyzed: z.number(),
@@ -200,12 +211,37 @@ export const RepoAnalysisSummarySchema = z.object({
   domain_notes: z.array(z.string()).optional(),
 });
 
+export const WarningClassSchema = z.enum([
+  "table_skipped",
+  "column_sample_skipped",
+  "foreign_keys_unavailable",
+  "sample_values_omitted",
+  "bigquery_partition_filter_required",
+  "bigquery_clustering_filter_required",
+  "bigquery_jobs_create_denied",
+  "postgres_permission_denied",
+  "snowflake_warehouse_suspended",
+  "other",
+]);
+
+export const WarningScopeSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("source") }),
+  z.object({ kind: z.literal("table"), name: z.string() }),
+  z.object({
+    kind: z.literal("column"),
+    table: z.string(),
+    column: z.string(),
+  }),
+]);
+
 export const AnalysisWarningSchema = z.object({
   level: z.enum(["info", "warning", "error"]),
   phase: z.enum(["schema_introspection", "data_profiling"]),
-  kind: z.enum(["table_skipped", "column_skipped", "foreign_keys_unavailable", "sample_values_omitted"]),
-  location: z.string(),
-  message: z.string(),
+  class: WarningClassSchema,
+  scope: WarningScopeSchema,
+  params: z.record(z.string(), z.string()).optional(),
+  detail: z.string().nullable().optional(),
+  group_key: z.string(),
 });
 
 export const SourceAnalysisReportSchema = z.object({
@@ -256,7 +292,23 @@ export const DesignOptionsSchema = z.object({
   excluded_columns: z.array(ExcludedColumnSchema).optional(),
   excluded_tables: z.array(z.string()).optional(),
   column_clarifications: z.array(ColumnClarificationSchema).optional(),
-  allow_partial_source_analysis: z.boolean().optional(),
+  partial_analysis_acknowledged: z.boolean().optional(),
+});
+
+export const GateIdSchema = z.enum([
+  "column_clarifications_resolved",
+  "partial_analysis_acknowledged",
+  "large_schema_acknowledged",
+]);
+
+export const GateStatusSchema = z.enum(["met", "unmet"]);
+
+export const DesignGateSchema = z.object({
+  id: GateIdSchema,
+  status: GateStatusSchema,
+  blocks_design: z.boolean(),
+  anchor: z.string().nullable().optional(),
+  params: z.record(z.string(), z.string()).optional(),
 });
 
 export const DesignProjectSchema = z.object({
@@ -279,6 +331,10 @@ export const DesignProjectSchema = z.object({
   created_at: z.string(),
   updated_at: z.string(),
   analyzed_at: z.string().nullable(),
+  design_gates: z.array(DesignGateSchema).default([]),
+  analysis_report_status: z
+    .enum(["missing", "current", "stale"])
+    .default("missing"),
 });
 
 export const DesignProjectSummarySchema = z.object({

@@ -72,7 +72,7 @@ describe("localizeWithFallback", () => {
 });
 
 describe("DEFAULT_LOCALE_CHAIN", () => {
-  it("matches the workspaces.locale_fallback column default", () => {
+  it("matches the workspaces.admin_locale_fallback column default", () => {
     expect(DEFAULT_LOCALE_CHAIN).toEqual(["ko", "en"]);
   });
 });

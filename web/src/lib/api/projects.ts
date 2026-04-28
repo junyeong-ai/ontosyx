@@ -9,21 +9,21 @@ import type {
   DesignProjectRequest,
   DesignProjectSummary,
   ProjectDesignResponse,
-  ProjectEditRequest,
-  ProjectEditResponse,
+  EditProjectRequest,
+  EditProjectResponse,
   ProjectLoadCompileRequest,
   ProjectLoadCompileResponse,
-  ProjectExtendRequest,
-  ProjectExtendResponse,
+  ExtendProjectRequest,
+  ExtendProjectResponse,
   ProjectLoadPlanResponse,
   ProjectMigrateRequest,
   ProjectMigrateResponse,
   OntologyCommand,
   PendingReconcile,
-  ProjectReanalyzeRequest,
+  ReanalyzeProjectRequest,
   RefineProjectRequest,
   ProjectRefineResponse,
-  UpdateDecisionsRequest,
+  UpdateProjectDecisionsRequest,
 } from "@/types/api";
 import { getPrincipalId } from "@/lib/principal";
 import { getWorkspaceId } from "@/lib/workspace";
@@ -87,7 +87,7 @@ export async function deleteProject(id: string): Promise<void> {
 
 export async function updateDecisions(
   id: string,
-  req: UpdateDecisionsRequest,
+  req: UpdateProjectDecisionsRequest,
 ): Promise<DesignProject> {
   return request(`/projects/${encodeURIComponent(id)}/decisions`, {
     method: "PATCH",
@@ -97,7 +97,7 @@ export async function updateDecisions(
 
 export async function reanalyzeProject(
   id: string,
-  req: ProjectReanalyzeRequest,
+  req: ReanalyzeProjectRequest,
 ): Promise<{ project: DesignProject; invalidated_decisions?: string[] }> {
   return request(`/projects/${encodeURIComponent(id)}/reanalyze`, {
     method: "POST",
@@ -117,8 +117,8 @@ export async function refineProject(
 
 export async function editProject(
   projectId: string,
-  req: ProjectEditRequest,
-): Promise<ProjectEditResponse> {
+  req: EditProjectRequest,
+): Promise<EditProjectResponse> {
   return request(`/projects/${encodeURIComponent(projectId)}/edit`, {
     method: "POST",
     body: JSON.stringify(req),
@@ -137,8 +137,8 @@ export async function applyReconcile(
 
 export async function extendProject(
   id: string,
-  req: ProjectExtendRequest,
-): Promise<ProjectExtendResponse> {
+  req: ExtendProjectRequest,
+): Promise<ExtendProjectResponse> {
   return request(`/projects/${encodeURIComponent(id)}/extend`, {
     method: "POST",
     body: JSON.stringify(req),

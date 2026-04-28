@@ -1,4 +1,54 @@
 {
+  "errorBoundary": {
+    "title": "Something went wrong",
+    "description": "Refresh the page or retry. If the problem keeps happening, re-run analysis on the project or open another one.",
+    "retry": "Retry"
+  },
+  "commandPalette": {
+    "title": "Command palette",
+    "placeholder": "Run a command — type to filter…",
+    "closeAria": "Close palette",
+    "listAria": "Available commands",
+    "noResults": "No commands match \"{query}\".",
+    "runFailed": "Couldn't run \"{command}\"",
+    "footerNav": "↑↓ to navigate · ↵ to run · Esc to close",
+    "footerCount": "{count, plural, one {# command} other {# commands}}",
+    "groups": {
+      "navigate": "Navigate",
+      "view": "View",
+      "search": "Search",
+      "settings": "Settings"
+    },
+    "commands": {
+      "search-entities": { "label": "Search entities" },
+      "navigate-design": { "label": "Go to Design" },
+      "navigate-analyze": { "label": "Go to Analyze" },
+      "navigate-explore": { "label": "Go to Explore" },
+      "navigate-dashboard": { "label": "Go to Dashboard" },
+      "navigate-settings": { "label": "Go to Settings" },
+      "toggle-explorer": { "label": "Toggle Explorer panel" },
+      "toggle-inspector": { "label": "Toggle Inspector panel" },
+      "toggle-bottom-panel": { "label": "Toggle bottom panel" },
+      "cycle-bottom-panel-mode": { "label": "Cycle bottom-panel mode" },
+      "panel-mode-fullscreen": { "label": "Fullscreen the bottom panel" },
+      "panel-mode-default": { "label": "Restore default panel layout" }
+    }
+  },
+  "binding": {
+    "strength": {
+      "label": "Binding strength",
+      "option": {
+        "required": "Required — must use this vocabulary",
+        "extensible": "Extensible — prefer vocabulary, may extend if absent",
+        "preferred": "Preferred — recommended but not enforced",
+        "example": "Example — illustrative only"
+      },
+      "disabled": {
+        "valueRange": "Value-range bindings classify values only — strength does not apply",
+        "glossary": "Glossary bindings express semantic links only — strength does not apply"
+      }
+    }
+  },
   "ontology": {
     "map": {
       "title": "Complete Map",
@@ -96,6 +146,27 @@
       }
     }
   },
+  "source-import": {
+    "modeLabel": "Analyse",
+    "modes": {
+      "all": {
+        "label": "Every table",
+        "hint": "Full sweep — describes + profiles every table the source advertises."
+      },
+      "subset": {
+        "label": "Selected only",
+        "hint": "Incremental — only the tables you check below get analysed; the rest can be added later."
+      }
+    },
+    "selectionSummary": "{selected} of {total} tables selected",
+    "selectionLoading": "Listing tables…",
+    "selectAll": "Select all",
+    "clearSelection": "Clear",
+    "error": "Could not preview tables: {error}",
+    "emptyTables": "The source returned no tables — check the connection or the dataset path.",
+    "columnCount": "{count} cols",
+    "rowCount": "~{count, number} rows"
+  },
   "bootstrap": {
     "sidebar": {
       "title": "Pilot onboarding",
@@ -161,24 +232,7 @@
     },
     "step2b": {
       "title": "Pick tables to introspect",
-      "subtitle": "Select the subset the pilot needs, or run a full sweep. Selection is incremental — you can add more tables later from Design mode without redoing the analysis.",
-      "modeLabel": "Analyse",
-      "modes": {
-        "all": {
-          "label": "Every table",
-          "hint": "Full sweep — describes + profiles every table the source advertises."
-        },
-        "subset": {
-          "label": "Selected only",
-          "hint": "Incremental — only the tables you check below get analysed; you can add the rest from Design mode later."
-        }
-      },
-      "selectionSummary": "{selected} of {total} tables selected",
-      "selectionLoading": "Listing tables…",
-      "selectAll": "Select all",
-      "clearSelection": "Clear",
-      "error": "Could not preview tables: {error}",
-      "emptyTables": "The source returned no tables — check the connection or the dataset path."
+      "subtitle": "Select the subset the pilot needs, or run a full sweep. Selection is incremental — you can add more tables later from Design mode without redoing the analysis."
     },
     "step3": {
       "title": "Seed the glossary",
@@ -249,6 +303,11 @@
       "applyFailed": "Binding failed",
       "linkedToast": "Bound to {term}",
       "unlinkedToast": "Binding removed"
+    },
+    "sourceSample": {
+      "title": "{table} · ~{rowCount} rows",
+      "noSamples": "No samples collected from this table.",
+      "distribution": "{distinct} distinct / {nulls} null"
     }
   },
   "common": {
@@ -268,6 +327,86 @@
     "saving": "Saving…",
     "deleting": "Deleting…",
     "creating": "Creating…"
+  },
+  "qualityGap": {
+    "small_sample": {
+      "issue": "Table '{table}' has only {row_count} rows. Sample statistics may not represent production data distribution.",
+      "suggestion": "Verify that enum values and ranges in this table are complete and representative."
+    },
+    "opaque_enum_value": {
+      "issue": "Values [{sample_values}] include cryptic short code(s) [{short_cryptic}] whose meaning cannot be inferred from schema alone.",
+      "suggestion": "Provide the domain meaning for [{short_cryptic}] (e.g. 'N=24-hour specialty store'). It will be incorporated into the property description."
+    },
+    "numeric_enum_code": {
+      "issue": "All observed values [{sample_values}] are integers with {distinct_count} distinct values — likely a numeric code whose semantics are unknown.",
+      "suggestion": "Provide the meaning for each code value, e.g. '1=active, 2=inactive, 3=suspended'."
+    },
+    "sparse_property": {
+      "issue": "{null_pct}% of values are null ({null_count}/{row_count} rows). Property may be unused or conditionally populated.",
+      "suggestion": "Confirm whether '{column}' is actively used or can be excluded from the ontology."
+    },
+    "single_value_bias": {
+      "issue": "Only one value observed ('{observed_value}') across {row_count} rows. Production data may have additional values.",
+      "suggestion": "Confirm whether '{observed_value}' is the only possible value for '{column}', or provide the full expected set."
+    },
+    "unmapped_source_table": {
+      "issue": "Source table '{table}' is not represented by any ontology node type.",
+      "suggestion": "Add a node type for '{table}' or explicitly exclude this table if it is intentionally out of scope."
+    },
+    "unmapped_source_column": {
+      "issue": "Source column '{table}.{column}' has no corresponding property on node '{node_label}'.",
+      "suggestion": "Add a property for '{column}' on '{node_label}', or confirm it is intentionally excluded."
+    },
+    "missing_foreign_key_edge": {
+      "issue": "Declared foreign key '{from_table}.{from_column} → {to_table}.{to_column}' is not represented by any ontology edge ({fk_count} relationship(s) but only {edge_count} edge(s) found).",
+      "suggestion": "Add a distinct edge for '{from_table}.{from_column}' → '{to_table}', or confirm it should not become a graph relationship."
+    },
+    "missing_containment_edge": {
+      "issue": "Inferred containment relationship '{from_table}.{from_column} → {to_table}.{to_column}' is not represented by any ontology edge ({fk_count} relationship(s) but only {edge_count} edge(s) found).",
+      "suggestion": "Add a distinct edge for '{from_table}.{from_column}' → '{to_table}', or confirm it should not become a graph relationship."
+    },
+    "duplicate_edge": {
+      "issue": "{edge_count} edges between '{node_a}' and '{node_b}': [{edge_labels}]. Some may be semantically redundant.",
+      "suggestion": "Review edges [{edge_labels}] between '{node_a}' and '{node_b}'. Remove duplicates that represent the same relationship."
+    },
+    "missing_description": {
+      "node": {
+        "issue": "Node '{label}' has no description — the query translator lacks context for this entity type.",
+        "suggestion": "Add a description for '{label}' explaining what this entity represents and its role in the domain."
+      },
+      "node_property": {
+        "issue": "{label}.{property_name} has no description — the query translator cannot determine valid values or format.",
+        "suggestion": "Provide a description for {label}.{property_name}: enum values, numeric range, or format hint."
+      },
+      "edge": {
+        "issue": "[{label}] has no description — multi-hop traversal hints are missing.",
+        "suggestion": "Provide a description for [{label}] and add traversal hints for indirect queries."
+      },
+      "edge_property": {
+        "issue": "[{label}].{property_name} has no description — the query translator cannot determine valid values or format.",
+        "suggestion": "Provide a description for [{label}].{property_name}: enum values, numeric range, or format hint."
+      }
+    },
+    "orphan_node": {
+      "issue": "Node '{label}' has no incoming or outgoing edges — it is disconnected from the rest of the graph.",
+      "suggestion": "Add edges connecting '{label}' to other node types, or remove it if it is not needed."
+    },
+    "property_type_inconsistency": {
+      "issue": "Property '{property_name}' is defined with different types across node types: [{all_usages}].",
+      "suggestion": "Verify that '{property_name}' should have different types, or unify to a single type for consistency."
+    },
+    "hub_node": {
+      "issue": "Node '{label}' has {edge_count} edges (threshold: {threshold}). It may be a god-node that is doing too much.",
+      "suggestion": "Consider splitting '{label}' into more focused node types to reduce complexity."
+    },
+    "overloaded_property": {
+      "issue": "Property '{property_name}' appears on {node_count} node types: [{node_labels}]. It may deserve its own node type or enum.",
+      "suggestion": "Consider extracting '{property_name}' into a dedicated node if the values represent a reusable domain concept."
+    },
+    "self_referential_edge": {
+      "issue": "Edge [{label}] is self-referential: {node_label} → {node_label}. This creates a recursive/hierarchical relationship.",
+      "suggestion": "Verify that [{label}] is intentional. Self-referential edges are valid for hierarchies (e.g. MANAGES, REPORTS_TO) but may also indicate a modelling error."
+    }
   },
   "qualityBanner": {
     "title": {
@@ -388,6 +527,8 @@
     "modeActions": {
       "importTooltip": "Import Ontology (JSON, OWL/Turtle)",
       "importAria": "Import Ontology",
+      "searchTooltip": "Search entities ({shortcut})",
+      "searchAria": "Search entities",
       "auditTooltip": "Audit Graph",
       "auditAria": "Audit Graph",
       "exportAria": "Export Ontology",
@@ -409,6 +550,140 @@
       "exportPython": "Python Dataclasses",
       "toast": {
         "imported": "Ontology imported"
+      }
+    }
+  },
+  "diagnostics": {
+    "ontology": {
+      "validate": {
+        "id": {
+          "empty": "Ontology id must not be empty"
+        },
+        "name": {
+          "empty": "Ontology name must not be empty"
+        },
+        "no_content": "Ontology must populate at least one collection (node_types / edge_types / glossary / rules / code_systems / mappings)",
+        "node": {
+          "empty_id": "Node type id must not be empty",
+          "duplicate_id": "Duplicate node type id: `{id}`",
+          "duplicate_label": "Duplicate node type label: `{label}`",
+          "placeholder_label": "Node type `{id}` has the `Default::default()` placeholder label — struct-update callers must override `label` explicitly",
+          "unknown_interface_id": "Node `{node_label}` implements unknown interface id `{interface_id}`",
+          "unknown_action_id": "Node `{node_label}` references unknown action id `{action_id}`",
+          "unknown_metric_id": "Node `{node_label}` references unknown metric id `{metric_id}`",
+          "unknown_rule_id": "Node `{node_label}` references unknown rule id `{rule_id}`"
+        },
+        "edge": {
+          "empty_id": "Edge type id must not be empty",
+          "placeholder_label": "Edge type `{id}` has the `Default::default()` placeholder label — struct-update callers must override `label` explicitly",
+          "missing_endpoint": "Edge `{label}` must define both source_node_id and target_node_id",
+          "duplicate_signature": "Duplicate edge type definition: `{label} ({source_node_id} -> {target_node_id})`",
+          "unknown_source_node_id": "Edge `{label}` references unknown source node id `{source_node_id}`",
+          "unknown_target_node_id": "Edge `{label}` references unknown target node id `{target_node_id}`"
+        },
+        "property": {
+          "empty_id": "{owner_kind} `{owner_label}` has a property with an empty id",
+          "duplicate_id": "{owner_kind} `{owner_label}` has duplicate property id `{id}`",
+          "duplicate_name": "{owner_kind} `{owner_label}` has duplicate property `{name}`",
+          "placeholder_name": "{owner_kind} `{owner_label}` has a property with the `Default::default()` placeholder name — struct-update callers must override `name` explicitly",
+          "measure_non_numeric": "{owner_kind} `{owner_label}` property `{name}` has aggregation_role=Measure but a non-numeric property_type ({property_type}); Measure implies SUM/AVG/MAX semantics",
+          "unknown_function_id": "Property `{node_label}.{property}` is derived_from unknown function id `{function_id}`",
+          "derived_and_source_conflict": "Property `{node_label}.{property}` declares both `derived_from` and `source_column` — pick one",
+          "unknown_unit_id": "Property `{node_label}.{property}` references unknown unit (CodedValueId `{unit_id}`)"
+        },
+        "constraint": {
+          "empty_property_list": "Node `{node_label}` has an empty {constraint} constraint",
+          "empty_id": "Node `{node_label}` has a constraint with an empty id",
+          "empty_property_id": "Node `{node_label}` has a {constraint} constraint with an empty property id",
+          "duplicate_property_id": "Node `{node_label}` has duplicate property id `{property_id}` in a {constraint} constraint",
+          "requires_non_nullable": "Node `{node_label}` constraint `{constraint}` requires non-nullable property `{property}`",
+          "unknown_property_id": "Node `{node_label}` {constraint} constraint references unknown property id `{property_id}`"
+        },
+        "index": {
+          "unknown_node_id": "Index `{index}` references unknown node id `{node_id}`",
+          "empty_property_list": "Index `{index}` on node `{node_label}` must reference at least one property",
+          "empty_property_id": "Index `{index}` on node `{node_label}` contains an empty property id",
+          "duplicate_property_id": "Index `{index}` on node `{node_label}` contains duplicate property id `{property_id}`",
+          "unknown_property_id": "Index `{index}` references unknown property id `{property_id}` on node `{node_label}`",
+          "vector_zero_dimensions": "Vector index on node `{node_id}` property `{property_id}` must have dimensions > 0"
+        },
+        "binding": {
+          "unknown_target_id": "Property `{node_label}.{property}` binding references unknown {registry} id `{missing_id}`",
+          "required_value_set_empty": "Property `{node_label}.{property}` Required binding to value set `{value_set_id}` is empty — no write would be accepted",
+          "required_code_system_empty": "Property `{node_label}.{property}` Required binding to code system `{code_system_id}` has no codes — no write would be accepted",
+          "required_notation_pattern_empty": "Property `{node_label}.{property}` Required binding to notation pattern `{notation_pattern_id}` has no components — pattern accepts nothing"
+        },
+        "rule": {
+          "unknown_action_id": "Rule `{rule_id}` activates on unknown action id `{action_id}`"
+        },
+        "action": {
+          "unknown_rule_id": "Action `{action_id}` references unknown rule id `{rule_id}` in its pre/post conditions"
+        },
+        "object_mapping": {
+          "unknown_node_type_id": "Object mapping `{object_mapping_id}` targets unknown node type id `{node_type_id}`"
+        },
+        "link_mapping": {
+          "unknown_edge_type_id": "Link mapping `{link_mapping_id}` targets unknown edge type id `{edge_type_id}`",
+          "bridge_cardinality_mismatch": "Link mapping `{link_mapping_id}` uses Bridge kind but declares cardinality={cardinality}; Bridge typically implies ManyToMany — verify the override is intentional"
+        },
+        "integrity": {
+          "dangling_glossary_term": "Reference at {site_kind} site points to unknown glossary term `{missing_id}`",
+          "dangling_value_set": "Reference at {site_kind} site points to unknown value set `{missing_id}`",
+          "dangling_notation_pattern": "Reference at {site_kind} site points to unknown notation pattern `{missing_id}`",
+          "dangling_value_range_set": "Reference at {site_kind} site points to unknown value range set `{missing_id}`",
+          "dangling_code_system": "Reference at {site_kind} site points to unknown code system `{missing_id}`",
+          "dangling_coded_value": "Reference at {site_kind} site points to unknown coded value `{missing_id}`"
+        }
+      },
+      "advisory": {
+        "duplicate_required_constraint": "Property `{node_label}.{property_id}` is marked Required by both a NodeConstraint and rule `{rule_id}` (MinCount=1) — keep one source of truth",
+        "duplicate_unique_constraint": "Property `{node_label}.{property_id}` is marked Unique by both a NodeConstraint and rule `{rule_id}` (UniqueKey) — keep one source of truth"
+      },
+      "normalize": {
+        "invalid_node_label": "Node label `{label}` is invalid: {error}",
+        "add_object_mapping_failed": "add_object_mapping: {error}"
+      },
+      "invariant": {
+        "try_new": "{error}"
+      },
+      "rule_suggestion": {
+        "value_set_binding": "Property `{property}` is bound to value set `{value_set_name}`; enforce the bound codes at write time.",
+        "notation_pattern_binding": "Property `{property}` is bound to notation pattern `{notation_pattern_name}`; enforce the format at write time."
+      }
+    },
+    "runtime": {
+      "cypher": {
+        "safety": {
+          "delete_without_where": "DELETE without WHERE is not allowed — add a predicate bounding the deletion",
+          "detach_delete_without_where": "DETACH DELETE without WHERE is not allowed — add a predicate bounding the deletion",
+          "remove_without_where": "REMOVE without WHERE is not allowed — add a predicate bounding the affected nodes",
+          "drop_disallowed": "DROP is not allowed in runtime queries — schema changes go through the migration path",
+          "system_property_write": "`{property}` is a system-reserved property and cannot be written by a user query"
+        },
+        "ontology": {
+          "unknown_node_label": "Unknown node label `{label}` — not defined in the active ontology",
+          "unknown_property": "Property `{property}` is not defined on label `{labels}` in the active ontology",
+          "unknown_relationship_type": "Unknown relationship type `{relationship_type}` — not defined in the active ontology"
+        },
+        "semantic_guard": {
+          "tautological_where": "Destructive operation is gated only by a tautological WHERE predicate (e.g. `WHERE true`, `WHERE 1 = 1`) — add a real constraint before DELETE / DETACH DELETE / REMOVE"
+        },
+        "complexity": {
+          "cartesian_within_clause": "Comma-separated MATCH patterns share no variables — this is a cartesian product; break into separate MATCHes joined by WITH, or add a shared variable",
+          "unbounded_var_length": "Variable-length relationship has no upper bound — pin a max depth (e.g. `*1..5`) to avoid unbounded traversal",
+          "cross_clause_disconnection": "Multiple MATCH clauses do not share a variable — execution crosses a cartesian boundary. Add a `WITH` clause to carry shared state, or connect them by a common variable"
+        },
+        "shacl": {
+          "min_count_missing": "Property `{property}` is required by rule `{rule_name}` (minCount={min}) but missing from the write",
+          "value_not_in_set": "Property `{property}` = {value} violates rule `{rule_name}` — not allowed by value set `{value_set_name}`",
+          "notation_pattern_mismatch": "Property `{property}` = {value} does not match notation pattern `{notation_pattern_name}` required by rule `{rule_name}` ({error})",
+          "closed_shape_extra_property": "Property `{property}` is not permitted on `{label}` (closed shape rule `{rule_name}`)",
+          "disjoint_pair_present": "Properties `{property_a}` and `{property_b}` carry the same value but rule `{rule_name}` declares them disjoint",
+          "unique_key_unknown_property": "Unique-key rule `{rule_name}` references unknown property `{property}` on `{label}`",
+          "unique_lang_on_non_localized": "Rule `{rule_name}` enforces uniqueLang on `{property}`, but the property is not declared `is_localized`",
+          "unknown_value_set_skipped": "Rule `{rule_name}` references unknown value set `{value_set_id}` and was skipped for property `{property}`",
+          "unknown_notation_pattern_skipped": "Rule `{rule_name}` references unknown notation pattern `{notation_pattern_id}` and was skipped for property `{property}`"
+        }
       }
     }
   },
@@ -445,6 +720,7 @@
       "sourcesLabel": "Sources",
       "typesLabel": "Types",
       "filterLabel": "Filter",
+      "lineageLabel": "Column lineage",
       "warningsLabel": "Advisory warnings",
       "empty": "No provenance recorded for this response."
     },
@@ -671,84 +947,366 @@
       }
     },
     "vocabulary": {
+      "mappings": {
+        "pageTitle": "Mappings",
+        "pageSubtitle": "Physical-to-logical mapping layer — ObjectMapping binds a node type to one source relation; LinkMapping binds an edge type to a foreign-key, bridge, computed, or federated topology.",
+        "noOntology": "No committed ontology available — create one in Design mode before editing mappings.",
+        "createButton": "Add mapping",
+        "editButton": "Edit",
+        "deleteButton": "Delete",
+        "objectMapping": "Object mapping",
+        "linkMapping": "Link mapping",
+        "jsonLabel": "Mapping (JSON)",
+        "submitCreate": "Create mapping",
+        "submitUpdate": "Save changes",
+        "cancel": "Cancel",
+        "tab": {
+          "object": "Object mappings",
+          "link": "Link mappings"
+        },
+        "messages": {
+          "objectCreated": "Create object mapping '{id}'",
+          "objectUpdated": "Update object mapping '{id}'",
+          "objectDeleted": "Delete object mapping '{id}'",
+          "linkCreated": "Create link mapping '{id}'",
+          "linkUpdated": "Update link mapping '{id}'",
+          "linkDeleted": "Delete link mapping '{id}'"
+        },
+        "toast": {
+          "created": "Mapping created",
+          "createFailed": "Create failed: {error}",
+          "updated": "Mapping updated",
+          "updateFailed": "Update failed: {error}",
+          "deleted": "Mapping deleted",
+          "deleteFailed": "Delete failed: {error}"
+        },
+        "confirm": {
+          "deleteTitle": "Delete mapping?",
+          "deleteDescription": "Removing '{id}' breaks the binding between this entity type and its source. Queries that reach the affected slice will return empty until a new mapping replaces it."
+        },
+        "createDialog": {
+          "objectTitle": "New object mapping",
+          "objectDescription": "Bind a node type to one source relation. Carries the primary-key columns the planner uses for DISTINCT-on dedup across multi-mappings.",
+          "linkTitle": "New link mapping",
+          "linkDescription": "Bind an edge type to a physical topology — foreign key, bridge, computed predicate, or federated cross-source value match. Cardinality is correctness-critical for NL2SQL DISTINCT injection."
+        },
+        "empty": {
+          "object": {
+            "title": "No object mappings",
+            "description": "Bind your first node type to a source relation so queries can reach physical data."
+          },
+          "link": {
+            "title": "No link mappings",
+            "description": "Bind your first edge type to a foreign key, bridge, computed predicate, or federated topology."
+          }
+        },
+        "error": {
+          "empty": "Mapping JSON cannot be empty.",
+          "invalidJson": "Invalid JSON: {message}"
+        }
+      },
       "codeSystems": {
         "pageTitle": "Code systems",
         "pageSubtitle": "Registered terminology systems (national codes, units, internal taxonomies). Properties bind to ValueSets sliced from these systems.",
         "noOntology": "No committed ontology available — create one in Design mode before editing code systems.",
+        "createButton": "Add code system",
+        "editButton": "Edit",
         "deleteButton": "Delete",
+        "jsonLabel": "Code system (JSON)",
         "codeCount": "{count} coded value(s)",
         "empty": {
           "title": "No code systems registered",
           "description": "Register the first system the workspace's properties will reference."
         },
-        "messages": { "deleted": "Delete code system '{name}'" },
+        "messages": {
+          "created": "Create code system '{name}'",
+          "updated": "Update code system '{name}'",
+          "deleted": "Delete code system '{name}'"
+        },
         "toast": {
-          "deleted": "Code system '{name}' deleted",
+          "created": "Code system created",
+          "createFailed": "Create failed: {error}",
+          "updated": "Code system updated",
+          "updateFailed": "Update failed: {error}",
+          "deleted": "Code system deleted",
           "deleteFailed": "Delete failed: {error}"
         },
         "confirm": {
           "deleteTitle": "Delete code system?",
           "deleteDescription": "Removing '{name}' un-binds every value-set composition + concept-map referring to it. The IR validator surfaces any dangling reference."
+        },
+        "createDialog": {
+          "title": "New code system",
+          "description": "Register a terminology system. Codes can be added inline or via subsequent CodedValue ops."
+        },
+        "form": {
+          "submitCreate": "Create code system",
+          "submitUpdate": "Save changes",
+          "cancel": "Cancel"
+        },
+        "error": {
+          "empty": "Code system JSON cannot be empty.",
+          "invalidJson": "Invalid JSON: {message}"
+        }
+      },
+      "notationPatterns": {
+        "pageTitle": "Notation patterns",
+        "pageSubtitle": "Structured identifier formats (campaign codes, SKU patterns, sample IDs). Property bindings reference a pattern so SHACL `MatchesPattern` can validate inline values.",
+        "noOntology": "No committed ontology available — create one in Design mode before editing notation patterns.",
+        "createButton": "Add pattern",
+        "editButton": "Edit",
+        "deleteButton": "Delete",
+        "jsonLabel": "Notation pattern (JSON)",
+        "componentCount": "{count} component(s)",
+        "empty": {
+          "title": "No notation patterns defined",
+          "description": "Define the first identifier format properties should match against."
+        },
+        "messages": {
+          "created": "Create notation pattern '{name}'",
+          "updated": "Update notation pattern '{name}'",
+          "deleted": "Delete notation pattern '{name}'"
+        },
+        "toast": {
+          "created": "Notation pattern created",
+          "createFailed": "Create failed: {error}",
+          "updated": "Notation pattern updated",
+          "updateFailed": "Update failed: {error}",
+          "deleted": "Notation pattern deleted",
+          "deleteFailed": "Delete failed: {error}"
+        },
+        "confirm": {
+          "deleteTitle": "Delete notation pattern?",
+          "deleteDescription": "Removing '{name}' un-binds every property that referenced it. SHACL `MatchesPattern` rules pointing at it surface as warnings until a replacement lands."
+        },
+        "createDialog": {
+          "title": "New notation pattern",
+          "description": "Compose a structured identifier from named components — literals, year, sequence, code-from-set, etc."
+        },
+        "form": {
+          "submitCreate": "Create pattern",
+          "submitUpdate": "Save changes",
+          "cancel": "Cancel"
+        },
+        "error": {
+          "empty": "Notation pattern JSON cannot be empty.",
+          "invalidJson": "Invalid JSON: {message}"
         }
       },
       "valueSets": {
         "pageTitle": "Value sets",
         "pageSubtitle": "Bounded subsets of one or more code systems. Properties bind to a value set so write-time validation can enforce membership.",
         "noOntology": "No committed ontology available — create one in Design mode before editing value sets.",
+        "createButton": "Add value set",
+        "editButton": "Edit",
         "deleteButton": "Delete",
+        "jsonLabel": "Value set (JSON)",
         "includeCount": "{count} include rule(s)",
         "empty": {
           "title": "No value sets defined",
           "description": "Compose the first set from a registered code system."
         },
-        "messages": { "deleted": "Delete value set '{name}'" },
+        "messages": {
+          "created": "Create value set '{name}'",
+          "updated": "Update value set '{name}'",
+          "deleted": "Delete value set '{name}'"
+        },
         "toast": {
-          "deleted": "Value set '{name}' deleted",
+          "created": "Value set created",
+          "createFailed": "Create failed: {error}",
+          "updated": "Value set updated",
+          "updateFailed": "Update failed: {error}",
+          "deleted": "Value set deleted",
           "deleteFailed": "Delete failed: {error}"
         },
         "confirm": {
           "deleteTitle": "Delete value set?",
           "deleteDescription": "Removing '{name}' un-binds every property currently constrained to it. Runtime SHACL stops enforcing the membership rule."
+        },
+        "createDialog": {
+          "title": "New value set",
+          "description": "Compose codes from one or more registered systems. Each composition rule is include / exclude × all / explicit codes."
+        },
+        "form": {
+          "submitCreate": "Create value set",
+          "submitUpdate": "Save changes",
+          "cancel": "Cancel"
+        },
+        "error": {
+          "empty": "Value set JSON cannot be empty.",
+          "invalidJson": "Invalid JSON: {message}"
         }
       },
       "conceptMaps": {
         "pageTitle": "Concept maps",
         "pageSubtitle": "Translations between two code systems. The compiler rewrites literal codes through these maps before query execution (Φ3-E).",
         "noOntology": "No committed ontology available — create one in Design mode before editing concept maps.",
+        "createButton": "Add concept map",
+        "editButton": "Edit",
         "deleteButton": "Delete",
+        "jsonLabel": "Concept map (JSON)",
         "mappingSummary": "{source} → {target} · {count} mapping(s)",
         "empty": {
           "title": "No concept maps registered",
           "description": "Register a translation table when migrating between code system versions."
         },
-        "messages": { "deleted": "Delete concept map '{name}'" },
+        "messages": {
+          "created": "Create concept map '{name}'",
+          "updated": "Update concept map '{name}'",
+          "deleted": "Delete concept map '{name}'"
+        },
         "toast": {
-          "deleted": "Concept map '{name}' deleted",
+          "created": "Concept map created",
+          "createFailed": "Create failed: {error}",
+          "updated": "Concept map updated",
+          "updateFailed": "Update failed: {error}",
+          "deleted": "Concept map deleted",
           "deleteFailed": "Delete failed: {error}"
         },
         "confirm": {
           "deleteTitle": "Delete concept map?",
           "deleteDescription": "Removing '{name}' stops the compiler from rewriting literal values along this translation. Existing query plans remain valid against the original codes."
+        },
+        "createDialog": {
+          "title": "New concept map",
+          "description": "Define source-code → target-code translations between two registered systems with explicit equivalence."
+        },
+        "form": {
+          "submitCreate": "Create concept map",
+          "submitUpdate": "Save changes",
+          "cancel": "Cancel"
+        },
+        "error": {
+          "empty": "Concept map JSON cannot be empty.",
+          "invalidJson": "Invalid JSON: {message}"
         }
       },
       "rules": {
         "pageTitle": "Rules",
         "pageSubtitle": "SHACL-style validation shapes. The runtime enforces them at write / read / batch time depending on the rule's `enforcement` setting.",
         "noOntology": "No committed ontology available — create one in Design mode before editing rules.",
+        "createButton": "Add rule",
+        "editButton": "Edit",
+        "viewButton": "View",
         "deleteButton": "Delete",
+        "derivedBadge": "Derived",
         "constraintCount": "{count} constraint(s)",
         "empty": {
           "title": "No rules defined",
           "description": "Add the first SHACL shape that should guard the workspace's data."
         },
-        "messages": { "deleted": "Delete rule '{name}'" },
+        "messages": {
+          "created": "Create rule '{id}'",
+          "updated": "Update rule '{id}'",
+          "deleted": "Delete rule '{name}'"
+        },
         "toast": {
+          "created": "Rule '{id}' created",
+          "createFailed": "Create failed: {error}",
+          "updated": "Rule '{id}' updated",
+          "updateFailed": "Update failed: {error}",
           "deleted": "Rule '{name}' deleted",
           "deleteFailed": "Delete failed: {error}"
         },
         "confirm": {
           "deleteTitle": "Delete rule?",
           "deleteDescription": "Removing '{name}' drops the corresponding constraint from SHACL validation. Reviewers should understand the coverage loss before approving."
+        },
+        "createDialog": {
+          "title": "New rule",
+          "description": "Author a SHACL shape — pick the target kind, severity, enforcement window, and one or more constraint components."
+        },
+        "form": {
+          "id": "Rule id",
+          "name": "Name",
+          "description": "Description",
+          "rationale": "Rationale",
+          "rationalePlaceholder": "Why does this rule exist? Future reviewers will read this on every violation.",
+          "severity": "Severity",
+          "enforcement": "Enforcement",
+          "activation": "Activation",
+          "activationActionId": "Action id",
+          "activationCron": "Cron expression",
+          "kindFieldset": "Target",
+          "kind": "Rule kind",
+          "constraintsFieldset": "Constraints",
+          "submitCreate": "Create rule",
+          "submitUpdate": "Save changes",
+          "cancel": "Cancel",
+          "derivedNotice": "This rule is derived from a property binding — edit the source binding to change it."
+        },
+        "severity": {
+          "violation": "Violation",
+          "warning": "Warning",
+          "info": "Info"
+        },
+        "enforcement": {
+          "write": "Write",
+          "read": "Read",
+          "batch": "Batch"
+        },
+        "activation": {
+          "always": "Always",
+          "on_action": "On action",
+          "on_schedule": "On schedule"
+        },
+        "kinds": {
+          "node_shape": "Node shape",
+          "property_shape": "Property shape",
+          "edge_shape": "Edge shape",
+          "cross_entity_shape": "Cross-entity shape",
+          "state_machine": "State machine"
+        },
+        "kindFields": {
+          "targetNodeTypeId": "Target node type id",
+          "targetPropertyId": "Target property id",
+          "targetEdgeTypeId": "Target edge type id",
+          "predicate": "Predicate (source-dialect SQL)",
+          "statePropertyId": "State property id"
+        },
+        "constraints": {
+          "addPlaceholder": "Add constraint…",
+          "remove": "Remove",
+          "unknownKind": "Unsupported constraint kind: {kind}",
+          "kinds": {
+            "min_count": "Min count",
+            "max_count": "Max count",
+            "datatype": "Datatype",
+            "matches_pattern": "Matches notation pattern",
+            "in_value_set": "In value set",
+            "has_value": "Has value",
+            "min_inclusive": "Min inclusive",
+            "max_inclusive": "Max inclusive",
+            "min_length": "Min length",
+            "max_length": "Max length",
+            "unique_lang": "Unique lang",
+            "closed": "Closed shape",
+            "disjoint": "Disjoint",
+            "unique_key": "Unique key"
+          },
+          "fields": {
+            "target": "Target",
+            "min": "Min",
+            "max": "Max",
+            "minLength": "Min length",
+            "maxLength": "Max length",
+            "datatype": "Datatype",
+            "notationPattern": "Notation pattern id",
+            "valueSet": "Value set id",
+            "value": "Value",
+            "allowedProperties": "Allowed properties",
+            "disjointA": "Property A",
+            "disjointB": "Property B",
+            "nodeType": "Node type id",
+            "propertyKeys": "Property keys"
+          },
+          "targetKinds": {
+            "inherit": "Inherit (use rule's own target)",
+            "property": "Property",
+            "nodeType": "Node type",
+            "edgeLabel": "Edge label",
+            "propertyId": "Property id"
+          }
         }
       },
       "glossary": {
@@ -759,6 +1317,11 @@
         "editButton": "Edit",
         "deleteButton": "Delete",
         "aliasesLabel": "aliases",
+        "examplesLabel": "examples",
+        "lifecycleBadge": {
+          "deprecated": "Deprecated",
+          "retired": "Retired"
+        },
         "empty": {
           "title": "No glossary terms yet",
           "description": "Add the first business concept the LLM should reference (customer, order, region, …)."
@@ -774,13 +1337,65 @@
           "displayNamePlaceholder": "Customer",
           "description": "Description",
           "descriptionPlaceholder": "End user of the platform with a billing relationship.",
-          "aliases": "Aliases (comma-separated)",
-          "aliasesPlaceholder": "client, account_holder",
+          "aliases": "Aliases (one per line)",
+          "aliasesPlaceholder": "client\naccount_holder",
+          "examples": "Examples (one per line)",
+          "examplesPlaceholder": "Monthly paying customer\nFree-trial account",
           "category": "Category",
           "categoryPlaceholder": "business_concept",
           "cancel": "Cancel",
           "submitCreate": "Create term",
-          "submitUpdate": "Save changes"
+          "submitUpdate": "Save changes",
+          "lifecycle": {
+            "legend": "Lifecycle",
+            "active": "Active",
+            "deprecated": "Deprecated",
+            "retired": "Retired",
+            "replacedBy": "Replaced by",
+            "replacedByEmpty": "(none)",
+            "deprecatedAt": "Deprecated at",
+            "retiredAt": "Retired at"
+          },
+          "validity": {
+            "legend": "Validity window",
+            "validFrom": "Valid from",
+            "validTo": "Valid to"
+          },
+          "governance": {
+            "legend": "Governance (optional)",
+            "originLabel": "Origin",
+            "originManual": "Manually authored",
+            "originDerivedFromColumn": "Derived from a data column",
+            "originImportedFrom": "Imported from an external catalogue",
+            "originTable": "Table",
+            "originColumn": "Column",
+            "originCatalog": "Catalogue",
+            "originExternalId": "External id",
+            "scopeNotes": "Scope notes (one per line)",
+            "scopeNotesPlaceholder": "Only in retail context\nExcludes returns",
+            "editorialNotes": "Editorial notes (one per line)",
+            "editorialNotesPlaceholder": "Verify against legal vocabulary"
+          },
+          "relations": {
+            "title": "Related terms (SKOS)",
+            "hint": "Define semantic relationships to other terms — broader/narrower concepts, equivalences, etc.",
+            "inverseHint": "Inverse relations (broader ↔ narrower, etc.) are handled automatically — record only one direction.",
+            "empty": "No relations defined.",
+            "kindAria": "Relation kind",
+            "targetAria": "Relation target term",
+            "targetPlaceholder": "Pick a target term…",
+            "removeAria": "Remove this relation",
+            "remove": "Remove",
+            "add": "Add relation",
+            "kind": {
+              "broader": "Broader",
+              "narrower": "Narrower",
+              "related": "Related",
+              "see_also": "See also",
+              "exact_match": "Exact match",
+              "close_match": "Close match"
+            }
+          }
         },
         "messages": {
           "created": "Add glossary term '{term}'",
@@ -1536,10 +2151,13 @@
         "heading": "Locale",
         "save": "Save locale",
         "saving": "Saving...",
-        "description": "Primary locale drives the UI and LLM default language. The fallback chain is consulted in order when a requested locale is missing. Both must be BCP 47 tags (e.g., <k>ko</k>, <k>en-us</k>, <k>zh-hant</k>).",
+        "description": "Primary locale is the workspace's default authoring language. Two fallback chains drive translation resolution per surface: the admin chain for the operator UI, and the LLM chain for agent prompts and tool-result contexts. All three must be BCP 47 tags (e.g., <k>ko</k>, <k>en-us</k>, <k>zh-hant</k>).",
         "primary": "Primary locale",
         "primaryInvalid": "Invalid BCP 47 tag. Use lowercase letters / digits separated by hyphens (2–3 letter primary, optional 2–8 char subtags).",
-        "fallback": "Fallback chain (comma-separated)",
+        "adminFallback": "Admin fallback chain (comma-separated)",
+        "adminFallbackHint": "Walked when admin UI surfaces resolve translations. Default: ko,en.",
+        "llmFallback": "LLM fallback chain (comma-separated)",
+        "llmFallbackHint": "Walked when agent prompts and tool-result contexts resolve translations. Default: en,ko.",
         "fallbackInvalid": "Every entry must be a valid BCP 47 tag and the list must be non-empty.",
         "toast": {
           "updated": "Locale updated",
@@ -2061,6 +2679,64 @@
         "saveSegment": "Save {count} type(s) as segment"
       }
     },
+    "analyze": {
+      "mode": {
+        "chat": "Chat",
+        "builder": "Query Builder"
+      },
+      "tab": {
+        "results": "Results",
+        "query": "Query",
+        "history": "History",
+        "insights": "Insights",
+        "knowledge": "Knowledge"
+      }
+    },
+    "insights": {
+      "panelTitle": "Saved Insights",
+      "countSummary": "{count}",
+      "emptyState": "No saved insights yet — open an Analyze result and click \"Save as Insight\".",
+      "deleteTooltip": "Delete insight",
+      "deleteTitle": "Delete \"{question}\"",
+      "deleteDescription": "Permanently delete this insight. This cannot be undone.",
+      "deleteConfirm": "Delete",
+      "deleteSuccess": "Insight deleted",
+      "deleteFailed": "Insight delete failed",
+      "filterByConcept": "By concept:",
+      "filterClear": "Clear",
+      "conceptAnchorTooltip": "Glossary concept — click a chip above to find other insights tied to the same concept",
+      "save": {
+        "title": "Save as Insight",
+        "subtitle": "Persist the current query + response context as a re-runnable insight.",
+        "questionLabel": "Question",
+        "questionPlaceholder": "e.g. Quarterly VIP customer signup trend",
+        "questionRequired": "Question text is required",
+        "descriptionLabel": "Description (optional)",
+        "descriptionPlaceholder": "Business question this insight answers, usage context, etc.",
+        "tagsLabel": "Tags (optional, comma-separated)",
+        "tagsPlaceholder": "e.g. trend, customer, quarterly",
+        "conceptAnchorsLabel": "Concept anchors (optional, comma-separated)",
+        "conceptAnchorsPlaceholder": "e.g. gt-customer, gt-retention",
+        "conceptAnchorsHint": "Link GlossaryTerm IDs so the insight stays searchable by concept across teams.",
+        "cancel": "Cancel",
+        "save": "Save",
+        "saving": "Saving…",
+        "saveSuccess": "Insight saved",
+        "saveFailed": "Insight save failed"
+      }
+    },
+    "explorer": {
+      "node": {
+        "propertyCount": "{count} properties",
+        "propertyAbbrev": "{count} props",
+        "newBadge": "new",
+        "modifiedBadge": "mod",
+        "layerLegacy": "Legacy node (unchanged)",
+        "layerEnhanced": "User-enhanced node",
+        "layerAdded": "Newly added node",
+        "layerHighGap": "Many gaps (review)"
+      }
+    },
     "chat": {
       "input": {
         "messageAria": "Chat message",
@@ -2244,6 +2920,11 @@
         "importOntology": "Import Ontology",
         "importOntologyHint": "JSON, OWL, or Turtle file"
       },
+      "zeroNodes": {
+        "title": "No node types in this ontology",
+        "description": "Either every source table was excluded during analysis review, or the design pass produced no node candidates. Open the review and adjust exclusions, then redesign.",
+        "openReview": "Open Analysis Review"
+      },
       "toolbar": {
         "export": "Export",
         "imageSection": "Image",
@@ -2400,6 +3081,9 @@
         "quality": "Quality",
         "expandPanel": "Expand panel",
         "collapsePanel": "Collapse panel",
+        "enterTall": "Tall panel (⌘\\)",
+        "enterFullscreen": "Fullscreen panel (⌘⇧\\)",
+        "exitFullscreen": "Exit fullscreen (Esc)",
         "noQualityReport": "No quality report available",
         "designFirst": "Design a project first."
       },
@@ -2433,7 +3117,29 @@
         "confidenceMedium": "MEDIUM",
         "confidenceHigh": "HIGH"
       },
+      "recentProjects": {
+        "ariaLabel": "Recent projects",
+        "heading": "Recent projects",
+        "loading": "Loading recent projects…",
+        "untitled": "Untitled project",
+        "count": "{count, plural, one {# project} other {# projects}}",
+        "meta": "{source} · {updated}",
+        "relativeJustNow": "just now",
+        "relativeMinutes": "{count, plural, one {# minute ago} other {# minutes ago}}",
+        "relativeHours": "{count, plural, one {# hour ago} other {# hours ago}}",
+        "relativeDays": "{count, plural, one {# day ago} other {# days ago}}",
+        "status": {
+          "analyzed": "Analyzed",
+          "designed": "Designed",
+          "completed": "Completed"
+        }
+      },
       "createProject": {
+        "progress": {
+          "heading": "{count, plural, =0 {Creating project...} other {Creating — analysing {count} table(s) ({elapsed}s)}}",
+          "hintGeneric": "Schema analysis and column sampling are running on the backend. This usually completes within a few seconds.",
+          "hintUsageBilled": "BigQuery / Snowflake analysis runs INFORMATION_SCHEMA queries and per-column sampling. Expect 5–30s depending on dataset size."
+        },
         "heading": "New Design Project",
         "intro": "Create a project to analyze your data source and design an ontology. Fields marked with <asterisk>*</asterisk> are required.",
         "titleLabel": "Title",
@@ -2489,8 +3195,11 @@
         "bqDatasetRequired": "Dataset is required",
         "bqDatasetHint": "BigQuery dataset name",
         "bqDatasetPlaceholder": "analytics_prod",
+        "bqBillingProjectIdLabel": "Job-execution Project ID",
+        "bqBillingProjectIdHint": "Optional. Set when BigQuery jobs must run in a different project than the data project — typical for shared datasets where you have read access but not bigquery.jobs.create, or when a VPC Service Controls perimeter pins job execution to a specific project.",
+        "bqBillingProjectIdPlaceholder": "my-billing-project",
         "bqCredentialsLabel": "Credentials File Path",
-        "bqCredentialsHint": "Optional. Uses GOOGLE_APPLICATION_CREDENTIALS env var if empty.",
+        "bqCredentialsHint": "Optional. Accepts either a service-account JSON key or a gcloud authorized-user secret. Falls back to the ADC chain (GOOGLE_APPLICATION_CREDENTIALS → gcloud default file → metadata server) if empty.",
         "bqCredentialsPlaceholder": "/path/to/service-account.json",
         "duckdbFileLabel": "File Path",
         "duckdbFileRequired": "File path is required",
@@ -2522,6 +3231,16 @@
           "permission": "Access denied. Check user permissions.",
           "generic": "Connection failed."
         },
+        "previewTablesButton": "Preview tables",
+        "previewTablesDisabledHint": "Fill in the required fields above to enable preview.",
+        "createDisabledHint": "Fill in the required fields above to enable creation.",
+        "previewLoading": "Listing tables...",
+        "previewSucceeded": "{count} tables discovered",
+        "previewFailed": "Failed to preview tables",
+        "selectTablesHeading": "Select tables to analyze",
+        "selectTablesIntro": "Pick the tables to include in the analysis. On usage-billed backends (BigQuery, Snowflake) only the selected tables incur INFORMATION_SCHEMA and sampling queries.",
+        "noTablesSelected": "Pick at least one table",
+        "backToConnection": "← Back to connection",
         "createButton": "Create Project",
         "creating": "Creating...",
         "createSuccess": "Project created",
@@ -2529,6 +3248,72 @@
         "toast": {
           "createFailed": "Failed to create project",
           "unknownError": "Unknown error"
+        },
+        "tableSelector": {
+          "searchPlaceholder": "Search by name...",
+          "selectedCount": "{selected} of {total} selected",
+          "selectAll": "Select all {count}",
+          "selectAllFiltered": "Select {count} matching",
+          "clearAll": "Clear",
+          "emptyDataset": "This dataset has no tables.",
+          "noMatches": "No tables match the search.",
+          "rowCount": "{count, plural, =0 {empty} other {~# rows}}",
+          "rowsUnknown": "rows unknown",
+          "columnCount": "{count, plural, =0 {no columns} other {# columns}}",
+          "lastModifiedAt": "modified {timestamp}"
+        }
+      },
+      "review": {
+        "toc": {
+          "ariaLabel": "Analysis review sections",
+          "label": {
+            "warnings": "Warnings",
+            "relationships": "Relationships",
+            "exclusions": "Exclusions",
+            "pii": "PII",
+            "clarifications": "Clarifications"
+          }
+        }
+      },
+      "warningGroups": {
+        "affectedCount": "{count, plural, =1 {1 occurrence} other {# occurrences}}",
+        "class": {
+          "table_skipped": "Skipped table `{target}`",
+          "column_sample_skipped": "Sampling failed for `{target}`",
+          "foreign_keys_unavailable": "Foreign-key discovery unavailable",
+          "sample_values_omitted": "Sample values omitted for `{target}`",
+          "bigquery_partition_filter_required": "BigQuery partition filter required on `{target}`",
+          "bigquery_clustering_filter_required": "BigQuery clustering filter required on `{target}`",
+          "bigquery_jobs_create_denied": "BigQuery jobs.create permission denied",
+          "postgres_permission_denied": "PostgreSQL permission denied on `{target}`",
+          "snowflake_warehouse_suspended": "Snowflake warehouse suspended",
+          "other": "Analysis failed on `{target}`"
+        },
+        "hint": {
+          "table_skipped": "Verify role/grants or backend availability. The table is excluded from this analysis.",
+          "column_sample_skipped": "The column itself stays in the schema; only its sampled stats are missing.",
+          "foreign_keys_unavailable": "Inferred-FK heuristics (name patterns + ORM) keep relationships populated.",
+          "sample_values_omitted": "Some sample values were dropped to fit the cardinality budget.",
+          "bigquery_partition_filter_required": "Add a `WHERE {partition_column} = ...` clause or set `default_partition_filter` in the source config.",
+          "bigquery_clustering_filter_required": "A clustering-column filter ({clustering_column}) cuts query cost.",
+          "bigquery_jobs_create_denied": "Set `billing_project_id` to a project where you hold bigquery.jobs.create.",
+          "postgres_permission_denied": "Grant SELECT / USAGE to the connecting user.",
+          "snowflake_warehouse_suspended": "Snowflake auto-resumes on the next query — retry.",
+          "other": "Expand to inspect the raw provider error."
+        }
+      },
+      "designGates": {
+        "heading": "Design prerequisites",
+        "progress": "{met} of {total} met",
+        "label": {
+          "column_clarifications_resolved": "Column clarifications",
+          "partial_analysis_acknowledged": "Partial analysis acknowledged",
+          "large_schema_acknowledged": "Large schema acknowledged"
+        },
+        "hint": {
+          "column_clarifications_resolved": "{pending_count} of {total_count} unresolved. Click to address.",
+          "partial_analysis_acknowledged": "{warning_count} analyzer warning(s) — tick the acknowledgement box to proceed",
+          "large_schema_acknowledged": "{table_count} tables exceeds {threshold} — tick the acknowledgement box to proceed"
         }
       },
       "workflow": {
@@ -2536,6 +3321,8 @@
         "stepDesign": "Design",
         "stepComplete": "Complete",
         "analyzedGuidance": "Review the analysis results and resolve PII/Clarification decisions, then click Design Ontology.",
+        "staleReportTitle": "Analysis report is out of date",
+        "staleReportHint": "The stored analysis is incompatible with the current schema. Design will run without gate enforcement — re-run analyse to refresh decisions and re-enable gates.",
         "designedGuidance": "Review the ontology on the canvas. Use <kbd>⌘K</kbd> to edit, then Complete & Save when ready.",
         "completedGuidance": "Ontology saved. Use Analyze mode to query, or Fork to create a new version.",
         "qualityHeader": "Quality",
@@ -2555,6 +3342,8 @@
       },
       "workflowActions": {
         "untitledProject": "Untitled Project",
+        "designGatesUnmetTitle": "Design action is gated",
+        "designGatesUnmetDescription": "{count} prerequisite(s) not met — see the checklist on the right",
         "revMeta": "{source} · rev {revision}",
         "domainHintsLabel": "Domain Hints (optional)",
         "domainHintsPlaceholder": "e.g. HR system, social network...",
@@ -2626,8 +3415,7 @@
         "loadPlanFailed": "Load plan generation failed",
         "loadCompileFailed": "Load compilation failed",
         "loadCompiled": "Load plan compiled: {count} statements",
-        "tipDisabledResolve": "Resolve all PII decisions and column clarifications first",
-        "tipDisabledLargeSchema": "Acknowledge the large schema warning above",
+        "tipDisabledResolve": "{count, plural, =1 {1 item unmet — click to jump} other {# items unmet — click to jump}}",
         "graphSync": "Graph Sync",
         "graphSyncDescription": "Compare ontology labels against live Neo4j graph data.",
         "auditGraph": "Audit Graph",
@@ -2682,6 +3470,7 @@
       },
       "workflowIndicators": {
         "phases": {
+          "starting": "Preparing design...",
           "validating": "Validating input...",
           "clustering": "Analyzing table relationships...",
           "designing": "Designing ontology...",
@@ -2830,8 +3619,7 @@
       },
       "analysisReview": {
         "heading": "Analysis Review",
-        "description": "{tables} tables, {columns} columns, {fks} FKs · Remaining: {pii} PII, {clarifications} clarifications{partial}",
-        "partialAck": ", partial ack",
+        "description": "{tables} tables, {columns} columns, {fks} FKs · Remaining: {pii} PII, {clarifications} clarifications",
         "autoFill": "Auto-fill",
         "autoFillComplete": "All decisions are already filled",
         "autoFillSuccess": "Filled {pii} PII {piiLabel} and {clar} {clarLabel} with defaults",
@@ -2849,13 +3637,28 @@
         "completenessFull": "FULL",
         "warningsTitle": "Partial Analysis Warnings",
         "acknowledgePartial": "I understand the analysis is partial.",
+        "largeSchemaTitle": "Large schema ({tableCount} tables, recommended max {recommendedMax})",
+        "largeSchemaHint": "Large schemas drive up LLM token cost and may degrade result quality. Consider scoping with 'excluded_tables' or splitting into domain-specific ontologies.",
+        "acknowledgeLargeSchema": "I understand I am proceeding with a large schema.",
         "repoSummary": "Repo: {status} · {analyzed}/{requested} files",
         "repoEnums": " · {count} enums",
+        "repoFailure": {
+          "git_clone_failed": "Git clone failed — check the URL, branch, and credentials.",
+          "local_repo_unreadable": "Local repo path could not be opened — verify path and permissions.",
+          "policy_rejected": "Source rejected by workspace policy — ask an admin to extend allowed roots / hosts.",
+          "file_tree_failed": "Could not enumerate the repo tree — symlink loops or permission errors are typical causes.",
+          "llm_navigation_failed": "AI file selection failed — see server logs and retry.",
+          "llm_analysis_failed": "AI analysis failed — see server logs and retry.",
+          "timeout": "Repo analysis exceeded the configured timeout — consider scoping to fewer paths.",
+          "no_readable_files": "No usable source files found in the selected paths.",
+          "no_relevant_files": "No relevant analysis targets found — the AI did not pick any files."
+        },
         "confirmRelationships": "Confirm Relationships",
         "piiDecisions": "PII Decisions",
         "columnClarifications": "Column Clarifications",
         "excludedTables": "Excluded Tables",
         "acceptAll": "Accept all",
+        "sectionAllResolved": "{count, plural, one {All # decision resolved} other {All # decisions resolved}}",
         "relationshipRow": "{fromTable}.{fromColumn} → {toTable}.{toColumn} ({confidence}%)",
         "piiRow": "{table}.{column} ({type})",
         "piiOptionChoose": "Choose...",
@@ -2936,7 +3739,15 @@
         "noteBadge": "{count, plural, one {# note} other {# notes}}"
       },
       "results": {
-        "title": "Results ({count} rows)"
+        "title": "Results ({count} rows)",
+        "saveButton": {
+          "label": "Save",
+          "tooltip": {
+            "ready": "Save as Insight",
+            "loading": "Loading provenance…",
+            "unavailable": "Save unavailable — execution data is not accessible"
+          }
+        }
       },
       "config": {
         "tabFilter": "Filters",

@@ -49,8 +49,13 @@ export interface QualityGap {
   severity: QualityGapSeverity;
   category: QualityGapCategory;
   location: QualityGapRef;
-  issue: string;
-  suggestion: string;
+  /**
+   * Interpolation values for the FE i18n catalogue. The (category, location.ref_type)
+   * pair picks the message key; keys live under `qualityGap.<category>` (with `.node` /
+   * `.node_property` / `.edge` / `.edge_property` sub-paths for `missing_description`).
+   * Render via `localizeQualityGap()` from `@/lib/quality-gap-text`.
+   */
+  params: Record<string, string>;
 }
 
 export type QualityConfidence = "high" | "medium" | "low";
@@ -197,7 +202,7 @@ export type PropertyUsageHint =
 export interface ResolvedQueryBindings {
   node_bindings: NodeBinding[];
   edge_bindings: EdgeBinding[];
-  property_bindings: PropertyBinding[];
+  property_bindings: QueryPropertyBinding[];
 }
 
 export interface NodeBinding {
@@ -220,7 +225,10 @@ export interface EdgeBinding {
   scope_path: ScopeSegment[];
 }
 
-export interface PropertyBinding {
+/// Property binding diagnostic surfaced inside a query-quality
+/// report. Distinct from `ontology.ts::PropertyBinding`, which
+/// names the semantic binding on a `PropertyDef`.
+export interface QueryPropertyBinding {
   owner_variable?: string;
   property_name: string;
   property_id: string;

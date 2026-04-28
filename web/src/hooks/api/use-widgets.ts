@@ -6,10 +6,16 @@ import {
   useQueryClient,
   type UseQueryOptions,
 } from "@tanstack/react-query";
-import { addWidget, deleteWidget, listWidgets } from "@/lib/api/dashboards";
+import {
+  addWidget,
+  deleteWidget,
+  listWidgets,
+  updateWidget,
+} from "@/lib/api/dashboards";
 import type {
   DashboardWidget,
   WidgetCreateRequest,
+  WidgetUpdateRequest,
 } from "@/types/api";
 
 // ---------------------------------------------------------------------------
@@ -56,6 +62,29 @@ export function useAddWidget() {
       req: WidgetCreateRequest;
     }) => addWidget(dashboardId, req),
     onSuccess: (_data, { dashboardId }) => {
+      qc.invalidateQueries({ queryKey: widgetsKeys.list(dashboardId) });
+    },
+  });
+}
+
+export function useUpdateWidget() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      dashboardId,
+      widgetId,
+      req,
+    }: {
+      dashboardId: string;
+      widgetId: string;
+      req: WidgetUpdateRequest;
+    }) => updateWidget(dashboardId, widgetId, req),
+    onSuccess: (_data, { dashboardId }) => {
+      // Widget config changes (query, thresholds, refresh interval)
+      // shape downstream rendering — bust the list cache so every
+      // open dashboard re-reads. The per-widget data query keys on
+      // `widget.query` already, so a query change reruns the fetch
+      // automatically once the new widget object lands.
       qc.invalidateQueries({ queryKey: widgetsKeys.list(dashboardId) });
     },
   });

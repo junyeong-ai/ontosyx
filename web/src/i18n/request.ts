@@ -22,7 +22,12 @@
 import { cookies } from "next/headers";
 import { getRequestConfig } from "next-intl/server";
 
-import { SUPPORTED_LOCALES, DEFAULT_LOCALE, type Locale } from "./config";
+import {
+  SUPPORTED_LOCALES,
+  DEFAULT_LOCALE,
+  DEFAULT_TIME_ZONE,
+  type Locale,
+} from "./config";
 
 export default getRequestConfig(async () => {
   const store = await cookies();
@@ -34,6 +39,7 @@ export default getRequestConfig(async () => {
 
   return {
     locale,
+    timeZone: DEFAULT_TIME_ZONE,
     messages: (await import(`../../messages/${locale}.json`)).default,
   };
 });

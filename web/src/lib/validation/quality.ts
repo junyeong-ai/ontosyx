@@ -40,8 +40,7 @@ export const QualityGapSchema = z.object({
   severity: QualityGapSeveritySchema,
   category: QualityGapCategorySchema,
   location: QualityGapRefSchema,
-  issue: z.string(),
-  suggestion: z.string(),
+  params: z.record(z.string(), z.string()).default({}),
 });
 
 export const QualityConfidenceSchema = z.enum(["high", "medium", "low"]);

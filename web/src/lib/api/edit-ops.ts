@@ -10,30 +10,35 @@
 // Adding a new variant on the backend requires a parallel entry here
 // — there is no codegen step yet, the pair stays hand-mirrored.
 
-import type { LocalizedText } from "@/types/ontology";
+import type {
+  ConceptMapDef,
+  LocalizedText,
+  PropertyBinding,
+  PropertyBindingHandle,
+} from "@/types/ontology";
+import type { components } from "@/types/api.generated";
 import { request } from "./client";
 
 // ---------------------------------------------------------------------------
-// Domain types — minimal pass-through shapes the edit ops carry.
+// Domain types — most edit-op payloads pass through as open `Record`
+// shapes; the backend re-validates referential integrity through
+// `OntologyIR::validate()` after the batch, so a wrong shape comes
+// back as a structured 422 rather than silently committing.
 //
-// We intentionally leave most of these typed as the open `Record`
-// shape rather than re-declaring every IR Def in TypeScript. The
-// backend re-validates referential integrity through `OntologyIR
-// ::validate()` after applying the batch, so a wrong shape produces
-// a 422 with the structured error — typing each field on the
-// front-end would amount to maintaining a parallel schema (see
-// `tools/openapi-codegen` for the long-term direction).
+// Glossary edit ops use the canonical OpenAPI-generated types so
+// the admin form stays aligned with the wire shape end-to-end —
+// lifecycle / governance / examples / per-locale labels all flow
+// without a parallel hand-rolled schema.
 // ---------------------------------------------------------------------------
 
-export type GlossaryTermDef = {
-  id: string;
-  term: string;
-  display_name?: LocalizedText;
-  description?: LocalizedText;
-  category?: string | null;
-  aliases?: string[];
-  parent_term_id?: string | null;
-};
+export type TermRelationKind =
+  components["schemas"]["TermRelationKind"];
+export type TermRelation = components["schemas"]["TermRelation"];
+export type TermLifecycle = components["schemas"]["TermLifecycle"];
+export type TermGovernance = components["schemas"]["TermGovernance"];
+export type TermOrigin = components["schemas"]["TermOrigin"];
+export type TermChangeNote = components["schemas"]["TermChangeNote"];
+export type GlossaryTermDef = components["schemas"]["GlossaryTermDef"];
 
 export type CodeSystemKind = "international" | "standard" | "internal" | "custom";
 
@@ -79,27 +84,6 @@ export type ValueSetDef = {
   }>;
 };
 
-export type ConceptMapDef = {
-  id: string;
-  name: string;
-  display_name?: LocalizedText;
-  description?: LocalizedText;
-  version: string;
-  source_system_id: string;
-  target_system_id: string;
-  mappings: Array<{
-    source_code: string;
-    target_code: string;
-    equivalence:
-      | "equivalent"
-      | "narrower_than_target"
-      | "broader_than_target"
-      | "related"
-      | "not_related";
-    comment?: LocalizedText;
-  }>;
-};
-
 export type NotationPatternDef = {
   id: string;
   name: string;
@@ -111,15 +95,105 @@ export type NotationPatternDef = {
   examples?: string[];
 };
 
+// ---------------------------------------------------------------------------
+// Rule wire shapes — mirror the OpenAPI-generated `components["schemas"]`
+// projection of `ox_ontology::rule`. Hand-rolled here (rather than aliased
+// from `api.generated`) so the edit-ops surface stays self-contained for the
+// admin CRUD pages: every editor reads + writes the same `RuleDef` shape.
+// ---------------------------------------------------------------------------
+
+export type Severity = "violation" | "warning" | "info";
+export type EnforcementKind = "write" | "read" | "batch";
+
+export type RuleActivationKind =
+  | { kind: "always" }
+  | { kind: "on_action"; action_id: string }
+  | { kind: "on_schedule"; cron_expression: string };
+
+export type RuleKind =
+  | { kind: "node_shape"; target_node_type_id: string }
+  | {
+      kind: "property_shape";
+      target_node_type_id: string;
+      target_property_id: string;
+    }
+  | { kind: "edge_shape"; target_edge_type_id: string }
+  | { kind: "cross_entity_shape"; predicate: string }
+  | {
+      kind: "state_machine";
+      target_node_type_id: string;
+      state_property_id: string;
+      transitions: Array<{ from?: string | null; to: string }>;
+    };
+
+export type RuleOrigin =
+  | { kind: "authored" }
+  | {
+      kind: "derived_from_binding";
+      node_type_id: string;
+      property_id: string;
+    };
+
+export type ConstraintTarget =
+  | { kind: "inherit" }
+  | {
+      kind: "property";
+      node_type_id: string;
+      property_id: string;
+    }
+  | { kind: "node_type"; node_type_id: string }
+  | { kind: "edge_label"; edge_label: string };
+
+/**
+ * SHACL constraint variants — AND'd together inside a single
+ * [`RuleDef.constraints`] list. The editor forms one variant at a time
+ * via the constraint-kind-pluggable form registry.
+ */
+export type ShaclConstraint =
+  | { kind: "min_count"; target: ConstraintTarget; min: number }
+  | { kind: "max_count"; target: ConstraintTarget; max: number }
+  | { kind: "datatype"; target: ConstraintTarget; expected: string }
+  | {
+      kind: "matches_pattern";
+      target: ConstraintTarget;
+      notation_pattern_id: string;
+    }
+  | {
+      kind: "in_value_set";
+      target: ConstraintTarget;
+      value_set_id: string;
+    }
+  | { kind: "has_value"; target: ConstraintTarget; value: string }
+  | { kind: "min_inclusive"; target: ConstraintTarget; min: number }
+  | { kind: "max_inclusive"; target: ConstraintTarget; max: number }
+  | { kind: "min_length"; target: ConstraintTarget; min: number }
+  | { kind: "max_length"; target: ConstraintTarget; max: number }
+  | { kind: "unique_lang"; target: ConstraintTarget }
+  | {
+      kind: "closed";
+      target: ConstraintTarget;
+      allowed_properties: string[];
+    }
+  | { kind: "disjoint"; a: ConstraintTarget; b: ConstraintTarget }
+  | {
+      kind: "unique_key";
+      target_node_type_id: string;
+      property_keys: string[];
+    };
+
 export type RuleDef = {
   id: string;
-  name: string;
+  name: LocalizedText;
   description?: LocalizedText;
-  kind: Record<string, unknown>;
-  constraints?: Array<Record<string, unknown>>;
-  enforcement?: "write_time" | "read_time" | "batch";
-  severity?: "info" | "warn" | "fail";
-  active?: boolean;
+  rationale?: LocalizedText;
+  kind: RuleKind;
+  severity?: Severity;
+  enforcement?: EnforcementKind;
+  activation?: RuleActivationKind;
+  origin?: RuleOrigin;
+  constraints?: ShaclConstraint[];
+  valid_from?: string | null;
+  valid_to?: string | null;
 };
 
 export type ObjectMappingDef = Record<string, unknown>;
@@ -184,29 +258,23 @@ export type OntologyEditOp =
   | { op: "deprecate_edge_type"; id: string; replaced_by_id?: string | null }
   // Property → registry bindings
   | {
-      op: "bind_property_to_term";
+      op: "bind_property";
       owner: PropertyOwnerPath;
       property_id: string;
-      glossary_term_id: string | null;
+      binding: PropertyBinding;
     }
   | {
-      op: "bind_property_to_value_set";
+      op: "unbind_property";
       owner: PropertyOwnerPath;
       property_id: string;
-      value_set_id: string | null;
-    }
-  | {
-      op: "bind_property_to_notation_pattern";
-      owner: PropertyOwnerPath;
-      property_id: string;
-      notation_pattern_id: string | null;
+      target: PropertyBindingHandle;
     };
 
 // ---------------------------------------------------------------------------
 // Request / response wrappers.
 // ---------------------------------------------------------------------------
 
-export interface OntologyEditRequest {
+export interface EditOntologyRequest {
   expected_version: number;
   operations: OntologyEditOp[];
   message?: string;
@@ -229,7 +297,7 @@ export interface OntologyEditReceipt {
  *  the new committed version. */
 export async function submitOntologyEdits(
   ontologyId: string,
-  body: OntologyEditRequest,
+  body: EditOntologyRequest,
 ): Promise<OntologyEditReceipt> {
   return request(`/ontologies/${encodeURIComponent(ontologyId)}/edits`, {
     method: "POST",

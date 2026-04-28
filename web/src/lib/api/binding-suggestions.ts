@@ -118,24 +118,23 @@ export type PropertyOwnerPath =
   | { kind: "node"; type_id: string }
   | { kind: "edge"; type_id: string };
 
+import type {
+  PropertyBinding,
+  PropertyBindingHandle,
+} from "@/types/ontology";
+
 export type BindingEditOp =
   | {
-      op: "bind_property_to_term";
+      op: "bind_property";
       owner: PropertyOwnerPath;
       property_id: string;
-      glossary_term_id: string | null;
+      binding: PropertyBinding;
     }
   | {
-      op: "bind_property_to_value_set";
+      op: "unbind_property";
       owner: PropertyOwnerPath;
       property_id: string;
-      value_set_id: string | null;
-    }
-  | {
-      op: "bind_property_to_notation_pattern";
-      owner: PropertyOwnerPath;
-      property_id: string;
-      notation_pattern_id: string | null;
+      target: PropertyBindingHandle;
     }
   | {
       op: "deprecate_node_type";
@@ -148,7 +147,7 @@ export type BindingEditOp =
       replaced_by_id?: string | null;
     };
 
-export interface OntologyEditRequest {
+export interface EditOntologyRequest {
   expected_version: number;
   operations: BindingEditOp[];
   message?: string;
@@ -165,7 +164,7 @@ export interface OntologyEditReceipt {
 
 export async function applyOntologyEdits(
   ontologyId: string,
-  body: OntologyEditRequest,
+  body: EditOntologyRequest,
 ): Promise<OntologyEditReceipt> {
   return request(`/ontologies/${encodeURIComponent(ontologyId)}/edits`, {
     method: "POST",

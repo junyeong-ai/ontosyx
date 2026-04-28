@@ -12,6 +12,36 @@ import type {
   ReconcileReport,
 } from "./quality";
 
+// --- Design gates — server-evaluated checklist returned with every project
+
+/**
+ * Stable identifier for a single design-action prerequisite. New
+ * variants are added on the backend (`ox_ontology::design_gate::GateId`)
+ * and propagate here through the OpenAPI regeneration.
+ */
+export type GateId =
+  | "column_clarifications_resolved"
+  | "partial_analysis_acknowledged"
+  | "large_schema_acknowledged";
+
+export type GateStatus = "met" | "unmet";
+
+/**
+ * Single condition the operator must satisfy before designing.
+ *
+ * `params` carries interpolation values for the i18n catalogue
+ * (`warnings.gate.${id}`); the backend never produces user-facing
+ * prose itself. `anchor` is the DOM element id to scroll to when
+ * the operator clicks the gate row.
+ */
+export interface DesignGate {
+  id: GateId;
+  status: GateStatus;
+  blocks_design: boolean;
+  anchor?: string | null;
+  params?: Record<string, string>;
+}
+
 // --- Design Projects ---
 
 export type DesignSource =
@@ -22,7 +52,7 @@ export type DesignSource =
   | { type: "mysql"; connection_string: string; schema: string }
   | { type: "mongodb"; connection_string: string; database: string }
   | { type: "snowflake"; account: string; user: string; password: string; warehouse: string; database: string; schema: string }
-  | { type: "bigquery"; project_id: string; dataset: string; credentials_path?: string }
+  | { type: "bigquery"; project_id: string; dataset: string; billing_project_id?: string; credentials_path?: string }
   | { type: "duckdb"; file_path: string }
   | { type: "code_repository"; url: string };
 
@@ -74,7 +104,25 @@ export interface DesignProject {
   created_at: string;
   updated_at: string;
   analyzed_at: string | null;
+  /**
+   * Server-evaluated design-action gates. Empty until the project
+   * reaches the `analyzed` status; populated on every endpoint
+   * that returns a project (`ProjectView` wrapper). The FE renders
+   * the checklist directly — no client-side gate evaluation.
+   */
+  design_gates: DesignGate[];
+  /**
+   * Health of the persisted `analysis_report` blob:
+   * - `missing` — no report yet (BaseOntology origin / pre-analyse).
+   * - `current` — deserialises against the current wire shape;
+   *   gate enforcement is fully active.
+   * - `stale` — present but unparseable (older schema). Gates are
+   *   skipped; the workflow surfaces a re-analyse advisory.
+   */
+  analysis_report_status: AnalysisReportStatus;
 }
+
+export type AnalysisReportStatus = "missing" | "current" | "stale";
 
 export interface DesignProjectSummary {
   id: string;
@@ -91,6 +139,20 @@ export interface DesignProjectSummary {
 
 export type ProjectSource = DesignSource;
 
+/**
+ * Wire shape for the user's analysis intent on create / extend /
+ * reanalyze. Mirrors the Rust `ox_source::AnalyzeSelection` enum.
+ *
+ * - `all`     — full sweep of the source's tables.
+ * - `subset`  — analyse only the named tables.
+ * - `extend`  — grow the project's prior analysis with the named
+ *   tables; existing tables are left untouched.
+ */
+export type AnalyzeSelection =
+  | { kind: "all" }
+  | { kind: "subset"; tables: string[] }
+  | { kind: "extend"; tables: string[] };
+
 export type RepoSource =
   | { type: "local"; path: string }
   | { type: "git_url"; url: string; branch?: string };
@@ -101,6 +163,7 @@ export type CreateProjectRequest =
       origin_type: "source";
       source: ProjectSource;
       repo_source?: RepoSource;
+      selection: AnalyzeSelection;
     }
   | {
       title?: string;
@@ -108,7 +171,7 @@ export type CreateProjectRequest =
       base_ontology_id: string;
     };
 
-export interface UpdateDecisionsRequest {
+export interface UpdateProjectDecisionsRequest {
   design_options: DesignOptions;
   revision: number;
 }
@@ -119,10 +182,11 @@ export interface DesignProjectRequest {
   acknowledge_large_schema?: boolean;
 }
 
-export interface ProjectReanalyzeRequest {
+export interface ReanalyzeProjectRequest {
   source: ProjectSource;
   revision: number;
   repo_source?: RepoSource;
+  selection: AnalyzeSelection;
 }
 
 export interface RefineProjectRequest {
@@ -130,26 +194,45 @@ export interface RefineProjectRequest {
   additional_context?: string;
 }
 
-export interface ProjectEditRequest {
+export interface EditProjectRequest {
   revision: number;
   user_request: string;
   dry_run?: boolean;
 }
 
-export interface ProjectEditResponse {
+export interface EditProjectResponse {
   project: DesignProject | null;
   commands: OntologyCommand[];
   explanation: string;
 }
 
-export interface ProjectExtendRequest {
+export interface ExtendProjectRequest {
   revision: number;
   source: DesignSource;
+  selection: AnalyzeSelection;
 }
 
-export interface ProjectExtendResponse {
+export interface ExtendProjectResponse {
   project: DesignProject;
   reconcile_report: ReconcileReport;
+}
+
+// --- Source preview (cheap table listing) ---
+
+export interface PreviewSourceRequest {
+  source: ProjectSource;
+}
+
+export interface PreviewTableSummary {
+  name: string;
+  estimated_row_count: number | null;
+  column_count: number;
+  last_modified: string | null;
+}
+
+export interface PreviewSourceResponse {
+  source_type: string;
+  tables: PreviewTableSummary[];
 }
 
 export interface CompleteProjectRequest {
@@ -212,7 +295,8 @@ export interface DesignOptions {
   excluded_columns?: ExcludedColumn[];
   excluded_tables?: string[];
   column_clarifications?: ColumnClarification[];
-  allow_partial_source_analysis?: boolean;
+  partial_analysis_acknowledged?: boolean;
+  large_schema_acknowledged?: boolean;
 }
 
 export interface RepoColumnSuggestion {
@@ -233,20 +317,48 @@ export type AnalysisCompleteness = "complete" | "partial";
 
 export type AnalysisPhase = "schema_introspection" | "data_profiling";
 
-export type AnalysisWarningKind =
+/**
+ * Stable warning classification produced by the analyzer / each
+ * adapter. New variants are added on the backend
+ * (`ox_ontology::source_analysis::WarningClass`); the FE i18n
+ * catalogue keys warning copy by `class`. Keep in sync with the
+ * generated type in `api.generated.ts`.
+ */
+export type WarningClass =
   | "table_skipped"
-  | "column_skipped"
+  | "column_sample_skipped"
   | "foreign_keys_unavailable"
-  | "sample_values_omitted";
+  | "sample_values_omitted"
+  | "bigquery_partition_filter_required"
+  | "bigquery_clustering_filter_required"
+  | "bigquery_jobs_create_denied"
+  | "postgres_permission_denied"
+  | "snowflake_warehouse_suspended"
+  | "other";
 
 export type WarningLevel = "info" | "warning" | "error";
+
+/** Where in the source the warning originated. */
+export type WarningScope =
+  | { kind: "source" }
+  | { kind: "table"; name: string }
+  | { kind: "column"; table: string; column: string };
 
 export interface AnalysisWarning {
   level: WarningLevel;
   phase: AnalysisPhase;
-  kind: AnalysisWarningKind;
-  location: string;
-  message: string;
+  class: WarningClass;
+  scope: WarningScope;
+  /** Interpolation arguments for the FE i18n catalogue. */
+  params?: Record<string, string>;
+  /** Raw provider error text — operator drilldown only. */
+  detail?: string | null;
+  /**
+   * Deterministic fingerprint (`class:scope.table` or
+   * `class:source`) the FE uses to coalesce N warnings of the same
+   * class affecting the same table into a single grouped card.
+   */
+  group_key: string;
 }
 
 export type ImpliedFkPattern = "entity_id_suffix";
@@ -316,10 +428,25 @@ export interface TableExclusionSuggestion {
 export interface LargeSchemaWarning {
   table_count: number;
   recommended_max: number;
-  suggestion: string;
 }
 
 export type RepoAnalysisStatus = "complete" | "partial" | "skipped" | "failed";
+
+/**
+ * Structured cause of a repo-enrichment failure or skip. Mirrors the
+ * Rust `RepoFailureKind` enum; the FE renders a localised hint per
+ * variant via the `repoFailure.<kind>` i18n key.
+ */
+export type RepoFailureKind =
+  | "git_clone_failed"
+  | "local_repo_unreadable"
+  | "policy_rejected"
+  | "file_tree_failed"
+  | "llm_navigation_failed"
+  | "llm_analysis_failed"
+  | "timeout"
+  | "no_readable_files"
+  | "no_relevant_files";
 
 export interface FieldHint {
   model: string;
@@ -330,7 +457,7 @@ export interface FieldHint {
 
 export interface RepoAnalysisSummary {
   status: RepoAnalysisStatus;
-  status_reason?: string;
+  failure_reason?: RepoFailureKind;
   framework?: string;
   files_requested: number;
   files_analyzed: number;

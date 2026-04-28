@@ -22,7 +22,7 @@ import {
   suggestGlossaryBindings,
   suggestTermsForProperty,
   type OntologyEditReceipt,
-  type OntologyEditRequest,
+  type EditOntologyRequest,
   type SuggestBindingsRequest,
   type SuggestBindingsResponse,
   type SuggestTermsResponse,
@@ -84,11 +84,11 @@ export function useSuggestTerms(
 
 export function useApplyBindingEdits(
   ontologyId: string,
-  options?: UseMutationOptions<OntologyEditReceipt, Error, OntologyEditRequest>,
+  options?: UseMutationOptions<OntologyEditReceipt, Error, EditOntologyRequest>,
 ) {
   const queryClient = useQueryClient();
   const { onSuccess, ...rest } = options ?? {};
-  return useMutation<OntologyEditReceipt, Error, OntologyEditRequest>({
+  return useMutation<OntologyEditReceipt, Error, EditOntologyRequest>({
     ...rest,
     mutationFn: (body) => applyOntologyEdits(ontologyId, body),
     onSuccess: (...args) => {

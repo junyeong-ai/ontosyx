@@ -2,11 +2,11 @@ import type {
   CursorPage,
   ElementVerification,
   InsightSuggestion,
-  LocalizedText,
   OntologyDetail,
   OntologyIR,
   OntologyListItem,
 } from "@/types/api";
+import type { GlossaryTermDef } from "@/lib/api/edit-ops";
 import type { BindingEditOp } from "@/lib/api/binding-suggestions";
 import { request, requestText } from "./client";
 import {
@@ -77,17 +77,6 @@ export async function findOntologyByName(
 // flows don't grow a parallel governance surface.
 // ---------------------------------------------------------------------------
 
-/** `GlossaryTermDef` shape accepted by `CreateGlossaryTerm` ops. */
-export interface GlossaryTermDefInput {
-  id: string;
-  term: string;
-  display_name?: LocalizedText;
-  description?: LocalizedText;
-  category?: string | null;
-  aliases?: string[];
-  parent_term_id?: string | null;
-}
-
 /**
  * Frontend subset of the Rust `OntologyEditOp` enum — covers only
  * the variants the current UI can construct (property bindings,
@@ -101,10 +90,15 @@ export interface GlossaryTermDefInput {
  * the union is closed, so a typo like `{ op: "create_rule" }` will
  * fail TS checks at compile time rather than at the server's
  * serde layer.
+ *
+ * `GlossaryTermDef` re-exports the canonical OpenAPI-generated
+ * shape from `edit-ops.ts` so bootstrap and admin paths share one
+ * wire contract — the Rust `OntologyEditOp::CreateGlossaryTerm`
+ * deserialises the same `LocalizedText`-keyed payload either way.
  */
 export type OntologyEditOp =
   | BindingEditOp
-  | { op: "create_glossary_term"; def: GlossaryTermDefInput };
+  | { op: "create_glossary_term"; def: GlossaryTermDef };
 
 /** Request body for `POST /api/ontologies`. */
 export interface CreateOntologyRequest {

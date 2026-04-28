@@ -70,7 +70,7 @@ export interface OntologyIR {
   code_systems?: unknown[];
   value_sets?: unknown[];
   notation_patterns?: unknown[];
-  concept_maps?: unknown[];
+  concept_maps?: ConceptMapDef[];
   rules?: unknown[];
   provenance?: unknown[];
 }
@@ -96,7 +96,17 @@ export interface EdgeTypeDef {
   target_node_id: string;
   properties: PropertyDef[];
   cardinality?: Cardinality;
+  /** UML / OMG relationship classification — drives canvas markers
+   *  (filled diamond for `composition`, hollow for `aggregation`).
+   *  Defaults to `"association"` when omitted. */
+  kind?: EdgeKind;
 }
+
+/**
+ * UML-aligned edge classification. Mirrors the Rust `EdgeKind` enum.
+ * Source-side marker rendering on the canvas is driven by this field.
+ */
+export type EdgeKind = "association" | "composition" | "aggregation";
 
 /**
  * Backend `SourceLineage` — replaces the legacy `source_table: string`
@@ -121,6 +131,97 @@ export function formatPropertyType(pt: PropertyType): string {
   return pt.type;
 }
 
+/** FHIR-style strength for a property binding. */
+export type BindingStrength =
+  | "required"
+  | "preferred"
+  | "extensible"
+  | "example";
+
+/**
+ * Wire shape of `ox_ontology::PropertyBinding` — discriminated by
+ * the registry kind it points at. Each variant carries only the
+ * fields meaningful for that target: `strength` and
+ * `concept_map_id` apply where vocabulary enforcement /
+ * translation makes sense; `value_range` and `glossary` carry
+ * neither (ranges classify; glossary is a semantic anchor).
+ */
+export type PropertyBinding =
+  | {
+      kind: "value_set";
+      id: string;
+      strength?: BindingStrength;
+      concept_map_id?: string;
+      valid_from?: string;
+      valid_to?: string;
+    }
+  | {
+      kind: "code_system";
+      id: string;
+      strength?: BindingStrength;
+      concept_map_id?: string;
+      valid_from?: string;
+      valid_to?: string;
+    }
+  | {
+      kind: "notation_pattern";
+      id: string;
+      strength?: BindingStrength;
+      valid_from?: string;
+      valid_to?: string;
+    }
+  | {
+      kind: "value_range";
+      id: string;
+      valid_from?: string;
+      valid_to?: string;
+    }
+  | {
+      kind: "glossary";
+      id: string;
+      valid_from?: string;
+      valid_to?: string;
+    };
+
+/**
+ * Lightweight `(kind, id)` selector for a `PropertyBinding`. Used by
+ * the unbind edit op and dedup keys that don't care about the
+ * binding's strength / concept-map / temporal metadata.
+ */
+export type PropertyBindingHandle =
+  | { kind: "value_set"; id: string }
+  | { kind: "code_system"; id: string }
+  | { kind: "notation_pattern"; id: string }
+  | { kind: "value_range"; id: string }
+  | { kind: "glossary"; id: string };
+
+/** Wire shape of `ox_ontology::ConceptMapDef` — translation table
+ *  between two `CodeSystem`s. The IR carries these so a property
+ *  binding can declare both the bound vocabulary (`target`) and the
+ *  translation map used to reach it (`concept_map_id`). */
+export interface ConceptMapMapping {
+  source_code: string;
+  target_code: string;
+  equivalence:
+    | "equivalent"
+    | "narrower_than_target"
+    | "broader_than_target"
+    | "related"
+    | "not_related";
+  comment?: LocalizedText;
+}
+
+export interface ConceptMapDef {
+  id: string;
+  name: string;
+  display_name?: LocalizedText;
+  description?: LocalizedText;
+  version: string;
+  source_system_id: string;
+  target_system_id: string;
+  mappings: ConceptMapMapping[];
+}
+
 export interface PropertyDef {
   id: string;
   name: string;
@@ -132,9 +233,8 @@ export interface PropertyDef {
   description: LocalizedText;
   source_column?: string;
   classification?: DataClassification;
-  glossary_term_id?: string;
-  value_set_id?: string;
-  notation_pattern_id?: string;
+  /** Ordered semantic bindings (replaces the old per-target id fields). */
+  bindings?: PropertyBinding[];
 }
 
 export type ConstraintDef =
@@ -191,10 +291,46 @@ export interface QueryMetadata {
 
 export type DiagnosticLevel = "error" | "warning" | "info";
 
+/**
+ * Structured diagnostic — RFC 7807 / gRPC `google.rpc.Status` shape.
+ * Mirrors Rust `ox_core::DiagnosticMessage`.
+ *
+ * - `code` — stable dotted identifier (`<surface>.<phase>.<kind>`),
+ *   the catalogue key the FE renders translations against.
+ * - `message` — English fallback rendering; goes to logs / alerts
+ *   and to consumers without a catalogue entry for `code`.
+ * - `params` — placeholder values for the catalogue template
+ *   (ICU MessageFormat). Empty object when nothing parameterises.
+ *
+ * Render via `useTranslations()` `t(diag.code, diag.params)`; the
+ * English `message` is the safe fallback when a catalogue key is
+ * missing.
+ */
+export interface DiagnosticMessage {
+  code: string;
+  message: string;
+  params?: Record<string, unknown>;
+}
+
 export interface QueryDiagnostic {
   validator: string;
   level: DiagnosticLevel;
-  message: string;
+  /** Structured diagnostic — `code` + English `message` + `params`.
+   *  See {@link DiagnosticMessage}. */
+  message: DiagnosticMessage;
+}
+
+/**
+ * One output-column ↔ source-column attribution edge from
+ * `QueryProvenance.column_lineage`. Mirrors `ox_query_ir::ColumnLineage`.
+ */
+export interface ColumnLineage {
+  output_column: string;
+  source_id: string;
+  source_column: string;
+  /** Optional textual transform — present when the value is not the
+   *  source column verbatim (e.g. `"UPPER(col)"`, ConceptMap rewrite). */
+  transform?: string;
 }
 
 export interface QueryProvenance {
@@ -204,6 +340,12 @@ export interface QueryProvenance {
   source_ids?: string[];
   type_ids?: string[];
   filter_summary?: string;
+  /** Per-output-column attribution. Populated only on the federation
+   *  path; raw-Cypher and from-IR paths leave this empty. */
+  column_lineage?: ColumnLineage[];
+  /** Content-addressed registry hashes — re-run anchor for
+   *  reproducibility. Keyed by `code_systems`/`glossary`/etc. */
+  registry_versions?: Record<string, string>;
 }
 
 // ---------------------------------------------------------------------------

@@ -8,9 +8,11 @@
  * `default` is returned (which itself may be empty for optional
  * fields — callers wanting "present or null" use {@link localizePresent}).
  *
- * The chain is `workspaces.locale_fallback` (BCP 47 tags, e.g.
- * `["ko", "en"]`). Caller threads the workspace's chain through
- * from `useWorkspace()` or the request context.
+ * The chain is `workspaces.admin_locale_fallback` (BCP 47 tags,
+ * e.g. `["ko", "en"]`) for admin / operator UI surfaces, or
+ * `workspaces.llm_locale_fallback` (e.g. `["en", "ko"]`) for
+ * surfaces rendering LLM payloads. Caller threads the workspace's
+ * chain through from `useLocaleChain()`.
  *
  * @example
  *   const label = localize(node.display_name, ["ko", "en"]);
@@ -28,10 +30,11 @@ export function defaultText(text: LocalizedText | null | undefined): string {
 }
 
 /**
- * Static fallback when a workspace's `locale_fallback` chain isn't
- * available at the call-site. Mirrors the `workspaces.locale_fallback`
- * column default. Surfaces that gain a workspace context should
- * thread the actual chain in instead of importing this constant.
+ * Boot-fallback chain for surfaces that render before the workspace
+ * `/me` fetch resolves. Mirrors `ox_core::ADMIN_LOCALE_FALLBACK_DEFAULT`
+ * (and the `workspaces.admin_locale_fallback` column DEFAULT). Any
+ * surface with a workspace context should thread the live chain in
+ * via `useLocaleChain()` instead of importing this constant.
  */
 export const DEFAULT_LOCALE_CHAIN: readonly string[] = ["ko", "en"];
 

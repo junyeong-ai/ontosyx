@@ -82,16 +82,22 @@ export async function deleteWidget(
   );
 }
 
+export interface WidgetUpdateRequest {
+  title?: string;
+  widget_type?: string;
+  query?: string;
+  refresh_interval_secs?: number;
+  thresholds?: {
+    warning?: number;
+    critical?: number;
+    direction?: "above" | "below";
+  };
+}
+
 export async function updateWidget(
   dashboardId: string,
   widgetId: string,
-  req: {
-    title?: string;
-    widget_type?: string;
-    query?: string;
-    refresh_interval_secs?: number;
-    thresholds?: { warning?: number; critical?: number; direction?: "above" | "below" };
-  },
+  req: WidgetUpdateRequest,
 ): Promise<void> {
   await request(
     `/dashboards/${encodeURIComponent(dashboardId)}/widgets/${encodeURIComponent(widgetId)}`,
