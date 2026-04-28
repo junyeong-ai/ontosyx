@@ -17,9 +17,12 @@
 //! pushing either of those crates into a direct dependency with
 //! the other.
 
-use ox_ontology::ir::OntologyIR;
+use ox_ontology::ir::{NodeTypeDef, OntologyIR, PropertyDef};
+use ox_ontology::mapping::{
+    ObjectMappingDef, PropertyLocation, PropertyMappingDef, PropertyTransform,
+};
 use ox_query_ir::query::{
-    Expr, GraphPattern, QueryIR, QueryOp, QueryProvenance,
+    ColumnLineage, Expr, GraphPattern, Projection, QueryIR, QueryOp, QueryProvenance,
 };
 
 /// Inputs for assembling a [`QueryProvenance`] at the API route
@@ -74,6 +77,11 @@ pub fn build_provenance(query: &QueryIR, ctx: &ProvenanceContext<'_>) -> QueryPr
         .map(registry_version_hashes)
         .unwrap_or_default();
 
+    let column_lineage = ctx
+        .ontology
+        .map(|ont| derive_column_lineage(query, ont))
+        .unwrap_or_default();
+
     QueryProvenance {
         ontology_id: ctx.ontology_id.clone(),
         ontology_version: ctx.ontology_version.clone(),
@@ -82,6 +90,500 @@ pub fn build_provenance(query: &QueryIR, ctx: &ProvenanceContext<'_>) -> QueryPr
         type_ids,
         filter_summary,
         registry_versions,
+        column_lineage,
+    }
+}
+
+/// Walk every `QueryOp::Match` in the query tree and resolve each
+/// `Projection::Field` (or projected `AllProperties`) back to the
+/// physical source column it reads from, by way of the ontology's
+/// `ObjectMappingDef.property_mappings`. Returns one
+/// [`ColumnLineage`] per resolvable output column; projections that
+/// reference unknown labels / unmapped properties / non-`Column`
+/// locations (json-path, derived expressions) are silently skipped
+/// — lineage is best-effort attribution, never load-bearing.
+///
+/// Industry reference: dbt `column_level_lineage`, BigQuery
+/// `INFORMATION_SCHEMA.COLUMN_LINEAGE`, Snowflake `ACCESS_HISTORY
+/// .OBJECTS_MODIFIED.columns`, Palantir Foundry "data lineage" view.
+/// All resolve `(query column) → (source table.column)` at
+/// compile/response time so the consumer can answer "where did this
+/// cell come from?" without walking the planner's internals.
+pub fn derive_column_lineage(
+    query: &QueryIR,
+    ontology: &OntologyIR,
+) -> Vec<ColumnLineage> {
+    let mut out = Vec::new();
+    collect_column_lineage(&query.operation, ontology, &mut out);
+    out
+}
+
+/// Recursive walker — every `QueryOp::Match` projects, plus the
+/// composite operators (`Chain`, `Union`, `CallSubquery`,
+/// `Aggregate`) carry inner `QueryOp` nodes that may project too.
+fn collect_column_lineage(
+    op: &QueryOp,
+    ontology: &OntologyIR,
+    out: &mut Vec<ColumnLineage>,
+) {
+    match op {
+        QueryOp::Match {
+            patterns,
+            projections,
+            ..
+        } => {
+            // Variable → label index for the patterns in scope. A
+            // variable bound by `Node { variable, label }` is what
+            // gives a `Projection::Field { variable, field }` its
+            // grounding — without a label we cannot resolve the
+            // node type and therefore the physical mapping.
+            let mut variable_label: std::collections::HashMap<&str, &str> =
+                std::collections::HashMap::new();
+            for p in patterns {
+                if let GraphPattern::Node {
+                    variable,
+                    label: Some(label),
+                    ..
+                } = p
+                {
+                    variable_label.insert(variable.as_str(), label.as_str());
+                }
+            }
+
+            for projection in projections {
+                emit_projection_lineage(
+                    projection,
+                    &variable_label,
+                    ontology,
+                    None,
+                    out,
+                );
+            }
+        }
+        QueryOp::Chain { steps } => {
+            for s in steps {
+                collect_column_lineage(&s.operation, ontology, out);
+            }
+        }
+        QueryOp::Union { queries, .. } => {
+            for q in queries {
+                collect_column_lineage(&q.operation, ontology, out);
+            }
+        }
+        QueryOp::CallSubquery { inner, .. } => {
+            collect_column_lineage(&inner.operation, ontology, out);
+        }
+        QueryOp::Aggregate { source, .. } => {
+            collect_column_lineage(&source.operation, ontology, out);
+        }
+        // PathFind / Mutate / Analytics carry no projection
+        // surface this walker can attribute to a source column;
+        // future work adds them when their projection shape lands.
+        QueryOp::PathFind { .. }
+        | QueryOp::Mutate { .. }
+        | QueryOp::Analytics { .. } => {}
+    }
+}
+
+/// Emit lineage rows for one [`Projection`]. Recurses into
+/// `Aggregation::argument` so `count(c.id)` carries the inner field
+/// reference's lineage with an `count(...)` transform suffix.
+///
+/// `output_alias_override` lets the recursive aggregation case
+/// substitute the aggregation's own alias for the inner projection's
+/// output column.
+fn emit_projection_lineage(
+    projection: &Projection,
+    variable_label: &std::collections::HashMap<&str, &str>,
+    ontology: &OntologyIR,
+    output_alias_override: Option<String>,
+    out: &mut Vec<ColumnLineage>,
+) {
+    match projection {
+        Projection::Field {
+            variable,
+            field,
+            alias,
+        } => {
+            let Some(label) = variable_label.get(variable.as_str()) else {
+                return;
+            };
+            let Some(node) = ontology.node_by_label(label) else {
+                return;
+            };
+            let Some(prop) = node
+                .properties
+                .iter()
+                .find(|p| p.name.as_str() == field.as_str())
+            else {
+                return;
+            };
+            let output_column = output_alias_override.unwrap_or_else(|| {
+                alias.clone().unwrap_or_else(|| {
+                    format!("{}.{}", variable.as_str(), field.as_str())
+                })
+            });
+            for_each_property_mapping(node, prop, ontology, |om, pm| {
+                if let Some(row) = build_lineage_row(&output_column, om, pm) {
+                    out.push(row);
+                }
+            });
+        }
+        Projection::Variable { variable, alias } => {
+            emit_all_properties(
+                variable.as_str(),
+                alias.as_deref(),
+                variable_label,
+                ontology,
+                out,
+            );
+        }
+        Projection::AllProperties { variable } => {
+            emit_all_properties(
+                variable.as_str(),
+                None,
+                variable_label,
+                ontology,
+                out,
+            );
+        }
+        Projection::Expression { expr, alias } => {
+            // Walk the expression to collect every
+            // `Expr::Property { variable, field: Some(_) }` reference,
+            // attribute each to its source column, and tag the lineage
+            // with the expression text. Whole-variable references
+            // (`Expr::Property { field: None }`, e.g. `id(n)`) point
+            // at the node-identity surface — `ObjectMappingDef
+            // .primary_key_columns` may be composite, so there is no
+            // single column to attribute. Silent skip is the honest
+            // answer; emitting a fan-out across every property would
+            // be a heuristic lie.
+            let expr_repr = describe_expr(expr);
+            let mut refs = Vec::new();
+            collect_expr_property_refs(expr, &mut refs);
+            for (var, field_opt) in refs {
+                let Some(field) = field_opt else { continue };
+                let Some(label) = variable_label.get(var.as_str()) else {
+                    continue;
+                };
+                let Some(node) = ontology.node_by_label(label) else {
+                    continue;
+                };
+                let Some(prop) = node
+                    .properties
+                    .iter()
+                    .find(|p| p.name.as_str() == field.as_str())
+                else {
+                    continue;
+                };
+                for_each_property_mapping(node, prop, ontology, |om, pm| {
+                    if let Some(mut row) = build_lineage_row(alias, om, pm) {
+                        row.transform = Some(compose_transform(
+                            Some(&expr_repr),
+                            row.transform.as_deref(),
+                        ));
+                        out.push(row);
+                    }
+                });
+            }
+        }
+        Projection::Aggregation {
+            function,
+            argument,
+            alias,
+            distinct,
+        } => {
+            // Aggregations name the inner projection's source columns
+            // and wrap the lineage's transform in `<FN>(...)`. A
+            // wildcard aggregation (`count(*)`) has no inner argument
+            // — emit a synthetic row with no source so the consumer
+            // still sees the column attributed to "the whole row".
+            let fn_name = agg_function_name(function);
+            let Some(arg) = argument else {
+                // Whole-row aggregation (`count(*)`) — sentinel "*" on
+                // both sides marks "the entire scan", symmetric with
+                // `source_column = "*"`. Empty would be ambiguous with
+                // "ontology has no source declared".
+                out.push(ColumnLineage {
+                    output_column: alias.clone(),
+                    source_id: "*".to_string(),
+                    source_column: "*".to_string(),
+                    transform: Some(format!("{fn_name}(*)")),
+                });
+                return;
+            };
+            let mut inner = Vec::new();
+            emit_projection_lineage(arg, variable_label, ontology, None, &mut inner);
+            for mut row in inner {
+                row.output_column = alias.clone();
+                let prefix = if *distinct {
+                    format!("{fn_name}(DISTINCT ")
+                } else {
+                    format!("{fn_name}(")
+                };
+                let inner_repr = row
+                    .transform
+                    .clone()
+                    .unwrap_or_else(|| row.source_column.clone());
+                row.transform = Some(format!("{prefix}{inner_repr})"));
+                out.push(row);
+            }
+        }
+    }
+}
+
+/// Helper: walk every `(ObjectMappingDef, PropertyMappingDef)` pair
+/// for a `(node, property)` combo. Edges that don't carry per-property
+/// mappings in the IR fall outside the walker — this stays node-only.
+fn for_each_property_mapping<F>(
+    node: &NodeTypeDef,
+    prop: &PropertyDef,
+    ontology: &OntologyIR,
+    mut f: F,
+) where
+    F: FnMut(&ObjectMappingDef, &PropertyMappingDef),
+{
+    for om in ontology.object_mappings() {
+        if om.node_type_id != node.id {
+            continue;
+        }
+        for pm in &om.property_mappings {
+            if pm.property_id != prop.id {
+                continue;
+            }
+            f(om, pm);
+        }
+    }
+}
+
+/// Emit lineage rows for every declared property of the node type
+/// bound to `variable_name`. Used by `Projection::Variable` and
+/// `Projection::AllProperties` — both project "every property" of the
+/// node, differing only in alias semantics.
+///
+/// Two-tier emission preserves Progressive Disclosure: the default
+/// (everything reads from one column verbatim) collapses to a single
+/// row per source mapping; only properties that carry a non-trivial
+/// transform (`SqlExpr`, `Derived`, `JsonPath`, `concept_map_id`,
+/// or any property whose location is non-`Column`) get an individual
+/// row. The aggregate row uses the `*` sentinel on both sides (mirrors
+/// the `count(*)` aggregation row) so consumers can tell "scan-wide"
+/// from "individual column" by shape alone.
+///
+/// `alias_root` (when present) prefixes the per-property output column
+/// so multiple `Variable` projections on the same query don't collide
+/// on a bare `name`.
+fn emit_all_properties(
+    variable_name: &str,
+    alias_root: Option<&str>,
+    variable_label: &std::collections::HashMap<&str, &str>,
+    ontology: &OntologyIR,
+    out: &mut Vec<ColumnLineage>,
+) {
+    let Some(label) = variable_label.get(variable_name) else {
+        return;
+    };
+    let Some(node) = ontology.node_by_label(label) else {
+        return;
+    };
+
+    // Group property mappings by their owning ObjectMapping so the
+    // aggregate row is per-source-per-variable, not per-property.
+    type MappedProperties<'a> = (&'a ObjectMappingDef, Vec<(&'a PropertyDef, &'a PropertyMappingDef)>);
+    let mut per_mapping: std::collections::BTreeMap<&str, MappedProperties<'_>> =
+        std::collections::BTreeMap::new();
+    for om in ontology.object_mappings() {
+        if om.node_type_id != node.id {
+            continue;
+        }
+        for prop in &node.properties {
+            for pm in &om.property_mappings {
+                if pm.property_id == prop.id {
+                    per_mapping
+                        .entry(om.id.as_str())
+                        .or_insert_with(|| (om, Vec::new()))
+                        .1
+                        .push((prop, pm));
+                }
+            }
+        }
+    }
+
+    let var_alias = alias_root.unwrap_or(variable_name);
+
+    for (_, (om, prop_mappings)) in per_mapping {
+        // Aggregate row: `<var>.* ← <relation>.*`. Shape mirrors
+        // `count(*)` — sentinel `*` on both `output_column` and
+        // `source_column`. The relation portion of `source_column`
+        // names the mapped relation so multi-mapping nodes still
+        // separate one aggregate per scan.
+        out.push(ColumnLineage {
+            output_column: format!("{var_alias}.*"),
+            source_id: om.source_id.as_str().to_string(),
+            source_column: format!("{}.*", om.relation),
+            transform: None,
+        });
+
+        // Individuated rows for properties whose physical mapping
+        // applies a transform — the aggregate cannot honestly carry
+        // their `transform` strings, so surface them explicitly.
+        for (prop, pm) in prop_mappings {
+            if !mapping_is_trivial(pm) {
+                let output_column = format!("{var_alias}.{}", prop.name.as_str());
+                if let Some(row) = build_lineage_row(&output_column, om, pm) {
+                    out.push(row);
+                }
+            }
+        }
+    }
+}
+
+/// A property mapping is "trivial" when the upstream value reaches
+/// the property unchanged — `Column` location, `Identity` transform,
+/// no concept-map rewrite. Trivial mappings collapse into the
+/// `<var>.*` aggregate row; non-trivial ones earn an individual entry.
+fn mapping_is_trivial(pm: &PropertyMappingDef) -> bool {
+    matches!(pm.location, PropertyLocation::Column(_))
+        && matches!(pm.transform, PropertyTransform::Identity)
+        && pm.concept_map_id.is_none()
+}
+
+/// Compose a single lineage row from the ObjectMapping + PropertyMapping
+/// pair. Handles both `PropertyLocation` variants (`Column`, `JsonPath`)
+/// and merges the mapping's `transform` + `concept_map_id` into a
+/// single human-readable transform string.
+///
+/// Returns `None` only when the mapping carries no usable physical
+/// reference — currently never (both `Column` and `JsonPath` resolve
+/// to a stable address). The Option return shape keeps the call sites
+/// uniform with future variants that may legitimately decline.
+fn build_lineage_row(
+    output_column: &str,
+    om: &ObjectMappingDef,
+    pm: &PropertyMappingDef,
+) -> Option<ColumnLineage> {
+    let (source_column, location_transform) = match &pm.location {
+        PropertyLocation::Column(col_ref) => {
+            (format!("{}.{}", col_ref.relation, col_ref.column), None)
+        }
+        PropertyLocation::JsonPath { root_column, path } => (
+            format!("{}.{}", root_column, path),
+            Some(format!("json_path({}.{})", root_column, path)),
+        ),
+    };
+
+    let value_transform = match &pm.transform {
+        PropertyTransform::Identity => None,
+        PropertyTransform::SqlExpr { expression } => {
+            Some(format!("sql({})", expression))
+        }
+        PropertyTransform::Derived { function_id } => {
+            Some(format!("derived({})", function_id))
+        }
+    };
+
+    let concept_map_transform = pm
+        .concept_map_id
+        .as_ref()
+        .map(|cm| format!("concept_map({})", cm.as_str()));
+
+    // Compose in a stable order: location → value → concept_map.
+    // Layered so a JsonPath + ConceptMap binding reads
+    // `concept_map(cs-2024 → 2026) ∘ json_path(address.zip)`.
+    let parts: Vec<String> = [location_transform, value_transform, concept_map_transform]
+        .into_iter()
+        .flatten()
+        .collect();
+    let transform = if parts.is_empty() {
+        None
+    } else {
+        Some(parts.join(" ∘ "))
+    };
+
+    Some(ColumnLineage {
+        output_column: output_column.to_string(),
+        source_id: om.source_id.as_str().to_string(),
+        source_column,
+        transform,
+    })
+}
+
+/// Compose an outer transform with an inner transform, separating
+/// with the function-composition operator. `outer` wins when `inner`
+/// is empty — used by Expression projections that wrap the
+/// physical-side transform with the projection-side expression.
+fn compose_transform(outer: Option<&str>, inner: Option<&str>) -> String {
+    match (outer, inner) {
+        (Some(o), Some(i)) => format!("{} ∘ {}", o, i),
+        (Some(o), None) => o.to_string(),
+        (None, Some(i)) => i.to_string(),
+        (None, None) => String::new(),
+    }
+}
+
+/// Collect every `Expr::Property` reference in a tree of expressions.
+/// Used by `emit_projection_lineage` to attribute an expression
+/// projection's lineage to the source columns the expression reads.
+fn collect_expr_property_refs<'a>(
+    expr: &'a Expr,
+    out: &mut Vec<(&'a ox_core::VariableName, Option<&'a ox_core::property_key::PropertyKey>)>,
+) {
+    match expr {
+        Expr::Property { variable, field } => {
+            out.push((variable, field.as_ref()));
+        }
+        Expr::Comparison { left, right, .. }
+        | Expr::Logical { left, right, .. }
+        | Expr::StringOp { left, right, .. } => {
+            collect_expr_property_refs(left, out);
+            collect_expr_property_refs(right, out);
+        }
+        Expr::Not { inner } => collect_expr_property_refs(inner, out),
+        Expr::In { expr, .. } => collect_expr_property_refs(expr, out),
+        Expr::IsNull { expr, .. } => collect_expr_property_refs(expr, out),
+        Expr::FunctionCall { args, .. } => {
+            for arg in args {
+                collect_expr_property_refs(arg, out);
+            }
+        }
+        Expr::Case {
+            operand,
+            when_clauses,
+            else_result,
+        } => {
+            if let Some(o) = operand {
+                collect_expr_property_refs(o, out);
+            }
+            for clause in when_clauses {
+                collect_expr_property_refs(&clause.condition, out);
+                collect_expr_property_refs(&clause.result, out);
+            }
+            if let Some(d) = else_result {
+                collect_expr_property_refs(d, out);
+            }
+        }
+        Expr::Literal { .. }
+        | Expr::Param { .. }
+        | Expr::Exists { .. }
+        | Expr::Subquery { .. } => {}
+    }
+}
+
+/// Display-equivalent name of an `AggFunction`. The enum derives only
+/// `Debug`; matching here keeps the user-facing transform string in
+/// the canonical Cypher casing without forcing a wider Display impl.
+fn agg_function_name(f: &ox_query_ir::query::AggFunction) -> &'static str {
+    use ox_query_ir::query::AggFunction;
+    match f {
+        AggFunction::Count => "count",
+        AggFunction::Sum => "sum",
+        AggFunction::Avg => "avg",
+        AggFunction::Min => "min",
+        AggFunction::Max => "max",
+        AggFunction::Collect => "collect",
+        AggFunction::StdDev => "stdev",
+        AggFunction::Percentile => "percentile",
+        AggFunction::CollectList => "collect_list",
     }
 }
 
@@ -721,5 +1223,569 @@ mod tests {
         let summary = prov.filter_summary.expect("filter summary set");
         assert!(summary.contains("status"), "summary mentions property: {summary}");
         assert!(summary.contains("ACTIVE"), "summary mentions literal: {summary}");
+    }
+
+    // ----- column lineage -----
+
+    #[test]
+    fn derive_column_lineage_resolves_field_projection_through_object_mapping() {
+        use ox_ontology::ir::PropertyDef;
+        use ox_ontology::mapping::{
+            CacheHintKind, ObjectMappingDef, PropertyLocation, PropertyMappingDef,
+            PropertyTransform, SourceRelationKind,
+        };
+        use ox_ontology::mapping::refs::{ColumnRef, ObjectMappingId, SourceId};
+        use ox_query_ir::query::Projection;
+
+        let mut ir = OntologyIR::new(
+            "ont".into(),
+            "Lineage".into(),
+            LocalizedText::default(),
+            OntologyVersion {
+                number: 1,
+                ..Default::default()
+            },
+            vec![NodeTypeDef {
+                id: "nt-customer".into(),
+                label: gl("Customer"),
+                description: LocalizedText::default(),
+                properties: vec![PropertyDef {
+                    id: "p-name".into(),
+                    name: PropertyKey::new("name").unwrap(),
+                    property_type: ox_core::types::PropertyType::String,
+                    nullable: false,
+                    ..Default::default()
+                }],
+                constraints: vec![],
+                ..Default::default()
+            }],
+            vec![],
+            vec![],
+        );
+
+        ir.add_object_mapping(ObjectMappingDef {
+            id: ObjectMappingId::new("om-customer"),
+            node_type_id: "nt-customer".into(),
+            source_id: SourceId::new("pg-main"),
+            relation: "customers".into(),
+            relation_kind: SourceRelationKind::Table,
+            primary_key_columns: vec![ColumnRef::new("customers", "id")],
+            row_filter: None,
+            workspace_scope: None,
+            valid_from: None,
+            valid_to: None,
+            precedence: 100,
+            cache_hint: CacheHintKind::default(),
+            property_mappings: vec![PropertyMappingDef {
+                property_id: "p-name".into(),
+                property_key: PropertyKey::new("name").unwrap(),
+                location: PropertyLocation::Column(ColumnRef::new(
+                    "customers", "full_name",
+                )),
+                transform: PropertyTransform::Identity,
+                concept_map_id: None,
+            }],
+        })
+        .expect("seed object mapping");
+
+        let query = QueryIR {
+            schema_version: QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Match {
+                patterns: vec![GraphPattern::Node {
+                    variable: vn("c"),
+                    label: Some(gl("Customer")),
+                    property_filters: Vec::new(),
+                }],
+                filter: None,
+                projections: vec![Projection::Field {
+                    variable: vn("c"),
+                    field: PropertyKey::new("name").unwrap(),
+                    alias: Some("display_name".into()),
+                }],
+                optional: false,
+                group_by: Vec::new(),
+            },
+            limit: None,
+            skip: None,
+            order_by: Vec::new(),
+            as_of: None,
+        };
+
+        let lineage = derive_column_lineage(&query, &ir);
+        assert_eq!(lineage.len(), 1);
+        let edge = &lineage[0];
+        assert_eq!(edge.output_column, "display_name");
+        assert_eq!(edge.source_id, "pg-main");
+        assert_eq!(edge.source_column, "customers.full_name");
+        assert!(edge.transform.is_none(), "no concept_map → no transform");
+    }
+
+    #[test]
+    fn derive_column_lineage_skips_unlabeled_or_unmapped_projections() {
+        let ir = minimal_ontology_with_nodes(&["Customer"]);
+        // Variable without label binding → cannot ground to a node.
+        let query = QueryIR {
+            schema_version: QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Match {
+                patterns: vec![],
+                filter: None,
+                projections: vec![ox_query_ir::query::Projection::Field {
+                    variable: vn("anon"),
+                    field: PropertyKey::new("x").unwrap(),
+                    alias: None,
+                }],
+                optional: false,
+                group_by: Vec::new(),
+            },
+            limit: None,
+            skip: None,
+            order_by: Vec::new(),
+            as_of: None,
+        };
+        assert!(derive_column_lineage(&query, &ir).is_empty());
+    }
+
+    // ----- Wave 8.8 — variant coverage -----
+    //
+    // Helper that seeds an ontology with one Customer node, two
+    // properties, and an ObjectMappingDef declaring them as Column
+    // / JsonPath / SqlExpr variants. Tests below pull this fixture
+    // and project against it through every Projection variant.
+
+    fn lineage_fixture() -> OntologyIR {
+        use ox_ontology::ir::PropertyDef;
+        use ox_ontology::mapping::refs::{ColumnRef, ObjectMappingId, SourceId};
+        use ox_ontology::mapping::{
+            CacheHintKind, ObjectMappingDef, PropertyMappingDef, SourceRelationKind,
+        };
+
+        let mut ir = OntologyIR::new(
+            "ont".into(),
+            "VariantCoverage".into(),
+            LocalizedText::default(),
+            OntologyVersion {
+                number: 1,
+                ..Default::default()
+            },
+            vec![NodeTypeDef {
+                id: "nt-customer".into(),
+                label: gl("Customer"),
+                description: LocalizedText::default(),
+                properties: vec![
+                    PropertyDef {
+                        id: "p-name".into(),
+                        name: PropertyKey::new("name").unwrap(),
+                        property_type: ox_core::types::PropertyType::String,
+                        nullable: false,
+                        ..Default::default()
+                    },
+                    PropertyDef {
+                        id: "p-zip".into(),
+                        name: PropertyKey::new("zip").unwrap(),
+                        property_type: ox_core::types::PropertyType::String,
+                        nullable: true,
+                        ..Default::default()
+                    },
+                    PropertyDef {
+                        id: "p-tier".into(),
+                        name: PropertyKey::new("tier").unwrap(),
+                        property_type: ox_core::types::PropertyType::String,
+                        nullable: true,
+                        ..Default::default()
+                    },
+                ],
+                constraints: vec![],
+                ..Default::default()
+            }],
+            vec![],
+            vec![],
+        );
+
+        ir.add_object_mapping(ObjectMappingDef {
+            id: ObjectMappingId::new("om-customer"),
+            node_type_id: "nt-customer".into(),
+            source_id: SourceId::new("pg-main"),
+            relation: "customers".into(),
+            relation_kind: SourceRelationKind::Table,
+            primary_key_columns: vec![ColumnRef::new("customers", "id")],
+            row_filter: None,
+            workspace_scope: None,
+            valid_from: None,
+            valid_to: None,
+            precedence: 100,
+            cache_hint: CacheHintKind::default(),
+            property_mappings: vec![
+                PropertyMappingDef {
+                    property_id: "p-name".into(),
+                    property_key: PropertyKey::new("name").unwrap(),
+                    location: PropertyLocation::Column(ColumnRef::new(
+                        "customers",
+                        "full_name",
+                    )),
+                    transform: PropertyTransform::Identity,
+                    concept_map_id: None,
+                },
+                PropertyMappingDef {
+                    property_id: "p-zip".into(),
+                    property_key: PropertyKey::new("zip").unwrap(),
+                    location: PropertyLocation::JsonPath {
+                        root_column: "address".into(),
+                        path: "postal_code".into(),
+                    },
+                    transform: PropertyTransform::Identity,
+                    concept_map_id: None,
+                },
+                PropertyMappingDef {
+                    property_id: "p-tier".into(),
+                    property_key: PropertyKey::new("tier").unwrap(),
+                    location: PropertyLocation::Column(ColumnRef::new(
+                        "customers",
+                        "raw_tier",
+                    )),
+                    transform: PropertyTransform::SqlExpr {
+                        expression: "UPPER(raw_tier)".into(),
+                    },
+                    concept_map_id: None,
+                },
+            ],
+        })
+        .expect("seed object mapping");
+        ir
+    }
+
+    fn match_query_with_projections(
+        projections: Vec<Projection>,
+    ) -> QueryIR {
+        QueryIR {
+            schema_version: QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Match {
+                patterns: vec![GraphPattern::Node {
+                    variable: vn("c"),
+                    label: Some(gl("Customer")),
+                    property_filters: Vec::new(),
+                }],
+                filter: None,
+                projections,
+                optional: false,
+                group_by: Vec::new(),
+            },
+            limit: None,
+            skip: None,
+            order_by: Vec::new(),
+            as_of: None,
+        }
+    }
+
+    #[test]
+    fn variable_projection_emits_aggregate_plus_individuated_rows_only_for_non_trivial_transforms() {
+        // The fixture has three properties on Customer:
+        //   name -> Identity Column        (trivial)
+        //   zip  -> JsonPath               (non-trivial)
+        //   tier -> SqlExpr (UPPER(...))   (non-trivial)
+        //
+        // Two-tier emission collapses the trivial mapping into the
+        // single aggregate row and individuates the two non-trivial
+        // ones. `name` MUST NOT have an individual row — exposing it
+        // would defeat the Progressive-Disclosure design.
+        let ir = lineage_fixture();
+        let q = match_query_with_projections(vec![Projection::Variable {
+            variable: vn("c"),
+            alias: None,
+        }]);
+        let lineage = derive_column_lineage(&q, &ir);
+
+        let outputs: Vec<&str> =
+            lineage.iter().map(|l| l.output_column.as_str()).collect();
+        assert!(
+            outputs.contains(&"c.*"),
+            "aggregate row missing: {lineage:#?}"
+        );
+        assert!(
+            outputs.contains(&"c.zip"),
+            "JsonPath property must individuate: {lineage:#?}"
+        );
+        assert!(
+            outputs.contains(&"c.tier"),
+            "SqlExpr property must individuate: {lineage:#?}"
+        );
+        assert!(
+            !outputs.contains(&"c.name"),
+            "trivial Identity mapping must collapse into aggregate, not appear standalone: {lineage:#?}",
+        );
+        assert_eq!(lineage.len(), 3, "1 aggregate + 2 individuated; got {lineage:#?}");
+
+        let aggregate = lineage
+            .iter()
+            .find(|l| l.output_column == "c.*")
+            .expect("aggregate present");
+        assert_eq!(aggregate.source_column, "customers.*");
+        assert_eq!(aggregate.source_id, "pg-main");
+        assert!(aggregate.transform.is_none());
+    }
+
+    #[test]
+    fn all_properties_projection_matches_variable_semantics() {
+        let ir = lineage_fixture();
+        let q = match_query_with_projections(vec![Projection::AllProperties {
+            variable: vn("c"),
+        }]);
+        let lineage = derive_column_lineage(&q, &ir);
+        // Same shape contract as Projection::Variable — the difference
+        // is alias semantics, not row count.
+        assert_eq!(lineage.len(), 3, "{lineage:#?}");
+        assert!(
+            lineage.iter().any(|l| l.output_column == "c.*"),
+            "{lineage:#?}",
+        );
+    }
+
+    #[test]
+    fn variable_projection_with_only_trivial_mappings_emits_aggregate_only() {
+        // A node whose every property maps via Identity Column should
+        // collapse to one aggregate row per source — no individuated
+        // rows. Proves the Progressive-Disclosure default.
+        use ox_ontology::ir::PropertyDef;
+        use ox_ontology::mapping::refs::{ColumnRef, ObjectMappingId, SourceId};
+        use ox_ontology::mapping::{
+            CacheHintKind, ObjectMappingDef, PropertyMappingDef, SourceRelationKind,
+        };
+
+        let mut ir = OntologyIR::new(
+            "ont".into(),
+            "Trivial".into(),
+            LocalizedText::default(),
+            OntologyVersion {
+                number: 1,
+                ..Default::default()
+            },
+            vec![NodeTypeDef {
+                id: "nt-user".into(),
+                label: gl("User"),
+                description: LocalizedText::default(),
+                properties: vec![
+                    PropertyDef {
+                        id: "p-id".into(),
+                        name: PropertyKey::new("id").unwrap(),
+                        property_type: ox_core::types::PropertyType::Int,
+                        nullable: false,
+                        ..Default::default()
+                    },
+                    PropertyDef {
+                        id: "p-email".into(),
+                        name: PropertyKey::new("email").unwrap(),
+                        property_type: ox_core::types::PropertyType::String,
+                        nullable: false,
+                        ..Default::default()
+                    },
+                ],
+                constraints: vec![],
+                ..Default::default()
+            }],
+            vec![],
+            vec![],
+        );
+        ir.add_object_mapping(ObjectMappingDef {
+            id: ObjectMappingId::new("om-user"),
+            node_type_id: "nt-user".into(),
+            source_id: SourceId::new("pg-main"),
+            relation: "users".into(),
+            relation_kind: SourceRelationKind::Table,
+            primary_key_columns: vec![ColumnRef::new("users", "id")],
+            row_filter: None,
+            workspace_scope: None,
+            valid_from: None,
+            valid_to: None,
+            precedence: 100,
+            cache_hint: CacheHintKind::default(),
+            property_mappings: vec![
+                PropertyMappingDef {
+                    property_id: "p-id".into(),
+                    property_key: PropertyKey::new("id").unwrap(),
+                    location: PropertyLocation::Column(ColumnRef::new("users", "id")),
+                    transform: PropertyTransform::Identity,
+                    concept_map_id: None,
+                },
+                PropertyMappingDef {
+                    property_id: "p-email".into(),
+                    property_key: PropertyKey::new("email").unwrap(),
+                    location: PropertyLocation::Column(ColumnRef::new("users", "email_addr")),
+                    transform: PropertyTransform::Identity,
+                    concept_map_id: None,
+                },
+            ],
+        })
+        .expect("seed");
+
+        let q = QueryIR {
+            schema_version: QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Match {
+                patterns: vec![GraphPattern::Node {
+                    variable: vn("u"),
+                    label: Some(gl("User")),
+                    property_filters: Vec::new(),
+                }],
+                filter: None,
+                projections: vec![Projection::Variable {
+                    variable: vn("u"),
+                    alias: None,
+                }],
+                optional: false,
+                group_by: Vec::new(),
+            },
+            limit: None,
+            skip: None,
+            order_by: Vec::new(),
+            as_of: None,
+        };
+        let lineage = derive_column_lineage(&q, &ir);
+        assert_eq!(lineage.len(), 1, "all-trivial must collapse: {lineage:#?}");
+        assert_eq!(lineage[0].output_column, "u.*");
+        assert_eq!(lineage[0].source_column, "users.*");
+    }
+
+    #[test]
+    fn json_path_location_records_path_in_transform() {
+        let ir = lineage_fixture();
+        let q = match_query_with_projections(vec![Projection::Field {
+            variable: vn("c"),
+            field: PropertyKey::new("zip").unwrap(),
+            alias: Some("zip_code".into()),
+        }]);
+        let lineage = derive_column_lineage(&q, &ir);
+        assert_eq!(lineage.len(), 1);
+        let row = &lineage[0];
+        assert_eq!(row.output_column, "zip_code");
+        assert_eq!(row.source_column, "address.postal_code");
+        let t = row.transform.as_deref().unwrap_or_default();
+        assert!(
+            t.contains("json_path(address.postal_code)"),
+            "transform should mention json_path: {t}"
+        );
+    }
+
+    #[test]
+    fn sql_expr_transform_records_expression_text() {
+        let ir = lineage_fixture();
+        let q = match_query_with_projections(vec![Projection::Field {
+            variable: vn("c"),
+            field: PropertyKey::new("tier").unwrap(),
+            alias: None,
+        }]);
+        let lineage = derive_column_lineage(&q, &ir);
+        assert_eq!(lineage.len(), 1);
+        let t = lineage[0].transform.as_deref().unwrap_or_default();
+        assert!(
+            t.contains("sql(UPPER(raw_tier))"),
+            "transform should carry the SQL expression: {t}"
+        );
+    }
+
+    #[test]
+    fn aggregation_projection_wraps_inner_lineage() {
+        use ox_query_ir::query::AggFunction;
+
+        let ir = lineage_fixture();
+        let inner = Projection::Field {
+            variable: vn("c"),
+            field: PropertyKey::new("name").unwrap(),
+            alias: None,
+        };
+        let q = match_query_with_projections(vec![Projection::Aggregation {
+            function: AggFunction::Count,
+            argument: Some(Box::new(inner)),
+            alias: "name_count".into(),
+            distinct: true,
+        }]);
+        let lineage = derive_column_lineage(&q, &ir);
+        assert_eq!(lineage.len(), 1);
+        let row = &lineage[0];
+        assert_eq!(row.output_column, "name_count");
+        assert_eq!(row.source_column, "customers.full_name");
+        let t = row.transform.as_deref().unwrap_or_default();
+        assert!(
+            t.contains("count(DISTINCT")
+                && t.contains("customers.full_name"),
+            "transform should wrap the inner column: {t}"
+        );
+    }
+
+    #[test]
+    fn aggregation_wildcard_records_star_source() {
+        use ox_query_ir::query::AggFunction;
+
+        let ir = lineage_fixture();
+        let q = match_query_with_projections(vec![Projection::Aggregation {
+            function: AggFunction::Count,
+            argument: None,
+            alias: "row_count".into(),
+            distinct: false,
+        }]);
+        let lineage = derive_column_lineage(&q, &ir);
+        assert_eq!(lineage.len(), 1);
+        let row = &lineage[0];
+        assert_eq!(row.output_column, "row_count");
+        // Sentinel "*" on both source_id and source_column marks
+        // "scan-wide" — distinguishes a whole-row aggregation from a
+        // mapping-less projection (which yields no row at all).
+        assert_eq!(row.source_id, "*");
+        assert_eq!(row.source_column, "*");
+        assert_eq!(row.transform.as_deref(), Some("count(*)"));
+    }
+
+    #[test]
+    fn expression_projection_attributes_referenced_columns() {
+        use ox_query_ir::query::{ComparisonOp, Expr};
+
+        let ir = lineage_fixture();
+        // `c.name = c.tier` — references both columns. The `c.tier`
+        // path carries an SqlExpr transform; the walker preserves it
+        // alongside the projection's expression text via composition.
+        let expr = Expr::Comparison {
+            op: ComparisonOp::Eq,
+            left: Box::new(Expr::Property {
+                variable: vn("c"),
+                field: Some(PropertyKey::new("name").unwrap()),
+            }),
+            right: Box::new(Expr::Property {
+                variable: vn("c"),
+                field: Some(PropertyKey::new("tier").unwrap()),
+            }),
+        };
+        let q = match_query_with_projections(vec![Projection::Expression {
+            expr,
+            alias: "match_flag".into(),
+        }]);
+        let lineage = derive_column_lineage(&q, &ir);
+        let cols: Vec<&str> =
+            lineage.iter().map(|l| l.source_column.as_str()).collect();
+        assert!(cols.contains(&"customers.full_name"), "{lineage:#?}");
+        assert!(cols.contains(&"customers.raw_tier"), "{lineage:#?}");
+        assert!(lineage.iter().all(|l| l.output_column == "match_flag"));
+    }
+
+    #[test]
+    fn expression_projection_silently_skips_whole_variable_property_refs() {
+        // `Expr::Property { field: None }` is a whole-variable handle
+        // (e.g. `id(n)`) — there is no single source column to point
+        // at (PK may be composite). Emitting a fan-out across every
+        // declared property would be a heuristic lie. Honest answer:
+        // emit nothing for that arm, only individual `field: Some`
+        // refs land in the lineage.
+        use ox_query_ir::query::Expr;
+
+        let ir = lineage_fixture();
+        let expr = Expr::Property {
+            variable: vn("c"),
+            field: None,
+        };
+        let q = match_query_with_projections(vec![Projection::Expression {
+            expr,
+            alias: "node_handle".into(),
+        }]);
+        let lineage = derive_column_lineage(&q, &ir);
+        assert!(
+            lineage.is_empty(),
+            "field=None must not fan out across properties: {lineage:#?}",
+        );
     }
 }

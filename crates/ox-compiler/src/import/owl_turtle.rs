@@ -168,7 +168,14 @@ pub fn parse_owl_turtle(
 
     // Use normalize() to assign proper UUIDs and resolve references
     let result = normalize(input, source_id).map_err(|errors| OxError::Compilation {
-        message: format!("OWL import normalization failed: {}", errors.join("; ")),
+        message: format!(
+            "OWL import normalization failed: {}",
+            errors
+                .iter()
+                .map(|d| d.message.as_str())
+                .collect::<Vec<_>>()
+                .join("; ")
+        ),
     })?;
 
     Ok(result.ontology)
@@ -670,6 +677,10 @@ fn extract_ontology_input(triples: &[OwnedTriple]) -> OxResult<InputOntologyDef>
             target_type: target_label,
             properties: edge_props,
             cardinality,
+            // OWL imports treat every ObjectProperty as a plain
+            // semantic association; UML composition/aggregation has
+            // no canonical OWL representation.
+            kind: ox_ontology::ir::EdgeKind::Association,
         });
     }
 

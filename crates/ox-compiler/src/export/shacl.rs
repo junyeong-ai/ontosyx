@@ -116,6 +116,17 @@ pub fn generate_shacl(ontology: &OntologyIR) -> String {
                 lines.push("owl:deprecated true".into());
             }
 
+            // Semantic bindings → SHACL value-domain constraints.
+            // Only `Required`-strength bindings emit the constraint;
+            // weaker strengths are advisory and don't tighten the
+            // SHACL-validated domain.
+            for binding in &prop.bindings {
+                if binding.strength() != ox_ontology::BindingStrength::Required {
+                    continue;
+                }
+                emit_required_binding(ontology, binding, &mut lines);
+            }
+
             out.push_str("    sh:property [\n");
             emit_block(&mut out, &lines);
             out.push_str(&format!("    ]{terminator}\n"));
@@ -171,6 +182,90 @@ pub fn generate_shacl(ontology: &OntologyIR) -> String {
 /// whitespace, no terminator). The block writes them all indented by 8
 /// spaces, ending with `\n` after the final line so the closing bracket
 /// can sit on its own line.
+/// Emit SHACL constraint lines for a `Required`-strength binding.
+///
+/// - `ValueSet` → `sh:in (...)` over the expanded code list.
+/// - `CodeSystem` → `sh:in (...)` over every code in the system.
+/// - `NotationPattern` → `sh:pattern "..."` regex synthesised from
+///   the pattern's component template.
+/// - `ValueRange` and `Glossary` carry no value-domain constraint a
+///   SHACL validator can enforce; they're skipped here (the
+///   admin-side display still honours them).
+fn emit_required_binding(
+    ontology: &OntologyIR,
+    binding: &ox_ontology::PropertyBinding,
+    lines: &mut Vec<String>,
+) {
+    use ox_ontology::PropertyBinding;
+    match binding {
+        PropertyBinding::ValueSet { id, .. } => {
+            if let Some(vs) = ontology.value_set_by_id(id) {
+                let expanded = ox_ontology::value_set::expand_value_set(
+                    vs,
+                    ontology.code_systems(),
+                );
+                if expanded.codes.is_empty() {
+                    return;
+                }
+                let list = expanded
+                    .codes
+                    .iter()
+                    .map(|cv| turtle_literal(&cv.code))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                lines.push(format!("sh:in ( {list} )"));
+            }
+        }
+        PropertyBinding::CodeSystem { id, .. } => {
+            if let Some(cs) = ontology.code_system_by_id(id)
+                && !cs.codes.is_empty()
+            {
+                let list = cs
+                    .codes
+                    .iter()
+                    .map(|cv| turtle_literal(&cv.code))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                lines.push(format!("sh:in ( {list} )"));
+            }
+        }
+        PropertyBinding::NotationPattern { id, .. } => {
+            if let Some(np) = ontology.notation_pattern_by_id(id) {
+                // Conservative regex synthesis: the template literal
+                // wrapped in `^...$` with `{NAME}` placeholders
+                // replaced by `.+`. SHACL processors are lenient
+                // about regex flavour; this stays POSIX-safe.
+                let mut re = String::from("^");
+                let mut chars = np.template.chars().peekable();
+                while let Some(c) = chars.next() {
+                    if c == '{' {
+                        // skip until matching `}` and emit `.+`
+                        while let Some(&n) = chars.peek() {
+                            chars.next();
+                            if n == '}' {
+                                break;
+                            }
+                        }
+                        re.push_str(".+");
+                    } else {
+                        // escape regex metacharacters
+                        if "\\^$.|?*+()[]{}".contains(c) {
+                            re.push('\\');
+                        }
+                        re.push(c);
+                    }
+                }
+                re.push('$');
+                lines.push(format!("sh:pattern {}", turtle_literal(&re)));
+            }
+        }
+        // ValueRange / Glossary variants don't carry strength at all
+        // (their shape excludes the field) — they're never emitted as
+        // value-domain constraints.
+        PropertyBinding::ValueRange { .. } | PropertyBinding::Glossary { .. } => {}
+    }
+}
+
 fn emit_block(out: &mut String, lines: &[String]) {
     let last = lines.len().saturating_sub(1);
     for (i, line) in lines.iter().enumerate() {

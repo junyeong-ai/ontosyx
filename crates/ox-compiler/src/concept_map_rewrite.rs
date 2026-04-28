@@ -154,7 +154,41 @@ pub fn build_translation_table_for_query<'a>(
             return;
         };
         for prop in &node.properties {
-            let Some(value_set_id) = &prop.value_set_id else {
+            // Resolution order:
+            // 1. Explicit binding-level concept_map_id (semantic
+            //    normalisation declared by the property author).
+            // 2. Explicit mapping-level concept_map_id (physical
+            //    normalisation declared by the mapping author).
+            // 3. Inference from the property's value-set composition
+            //    (fallback when neither author was explicit).
+            let explicit = prop
+                .value_set_binding()
+                .and_then(|b| b.concept_map_id())
+                .or_else(|| {
+                    ontology
+                        .object_mappings()
+                        .iter()
+                        .filter(|om| om.node_type_id == node.id)
+                        .flat_map(|om| om.property_mappings.iter())
+                        .find(|pm| pm.property_id == prop.id)
+                        .and_then(|pm| pm.concept_map_id.as_ref())
+                });
+
+            if let Some(cm_id) = explicit {
+                if let Some(cm) =
+                    ontology.concept_maps().iter().find(|cm| cm.id == *cm_id)
+                {
+                    table.insert(
+                        (variable.clone(), prop.name.clone()),
+                        (cm, TranslationPolicy::default()),
+                    );
+                }
+                continue;
+            }
+
+            // Inferred path — only triggers when no explicit
+            // concept_map_id was declared on either surface.
+            let Some(value_set_id) = prop.value_set_id() else {
                 continue;
             };
             let Some(value_set) = ontology.value_set_by_id(value_set_id) else {
@@ -826,7 +860,7 @@ mod tests {
                     name: pk("status"),
                     property_type: PropertyType::String,
                     nullable: false,
-                    value_set_id: Some(ValueSetId::new("vs-stock-status")),
+                    bindings: vec![ox_ontology::PropertyBinding::value_set(ValueSetId::new("vs-stock-status"),)],
                     ..Default::default()
                 }],
                 constraints: vec![],
@@ -866,6 +900,91 @@ mod tests {
         let (_, report) = rewrite_concept_map_values(q, &table);
         assert_eq!(report.translations.len(), 1);
         assert_eq!(report.translations[0].to_codes, vec!["NEWA001"]);
+    }
+
+    /// When a `PropertyBinding` declares an explicit `concept_map_id`,
+    /// the explicit id wins over the value-set inference path even
+    /// when the inferred map matches the same source system.
+    #[test]
+    fn build_translation_table_honours_explicit_binding_concept_map_id() {
+        use ox_core::i18n::LocalizedText;
+        use ox_core::types::PropertyType;
+        use ox_ontology::OntologyIR;
+        use ox_ontology::code_system::{
+            CodeSystemDef, CodeSystemId as CsId, CodeSystemKind,
+        };
+        use ox_ontology::ir::{NodeTypeDef, PropertyDef};
+        use ox_ontology::value_set::{
+            IncludeMode, ValueSetDef, ValueSetId, ValueSetIncludeRule, ValueSetSelector,
+        };
+
+        let cs_id = CsId::new("cs-2024");
+        let cs_target = CsId::new("cs-2026");
+        let vs_id = ValueSetId::new("vs-stock-status");
+        let cm = concept_map();
+        let cm_id = cm.id.clone();
+
+        let mut ir = OntologyIR::new(
+            "ont".into(),
+            "Test".into(),
+            LocalizedText::default(),
+            1,
+            vec![NodeTypeDef {
+                id: "n-stock".into(),
+                label: GraphLabel::new("Stock").expect("label"),
+                description: LocalizedText::default(),
+                properties: vec![PropertyDef {
+                    id: "p-status".into(),
+                    name: pk("status"),
+                    property_type: PropertyType::String,
+                    nullable: false,
+                    bindings: vec![ox_ontology::PropertyBinding::value_set(vs_id.clone())
+                    .with_concept_map(cm_id.clone())],
+                    ..Default::default()
+                }],
+                constraints: vec![],
+                ..Default::default()
+            }],
+            vec![],
+            vec![],
+        );
+
+        let make_cs = |id: CsId, name: &str| CodeSystemDef {
+            id,
+            name: name.into(),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            version: "1".into(),
+            kind: CodeSystemKind::Internal,
+            uri: None,
+            hierarchical: false,
+            deprecated_at: None,
+            replaced_by_id: None,
+            codes: Vec::new(),
+        };
+        ir.add_code_system(make_cs(cs_id.clone(), "krx-2024")).unwrap();
+        ir.add_code_system(make_cs(cs_target, "krx-2026")).unwrap();
+        ir.add_value_set(ValueSetDef {
+            id: vs_id,
+            name: "stock_status".into(),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            version: "1".into(),
+            composition: vec![ValueSetIncludeRule {
+                mode: IncludeMode::Include,
+                system_id: cs_id,
+                selector: ValueSetSelector::All,
+            }],
+        })
+        .unwrap();
+        ir.add_concept_map(cm).unwrap();
+
+        let q = build_match_query("s", "A001");
+        let table = build_translation_table_for_query(&q, &ir);
+        let (entry, _) = table
+            .get(&(vn("s"), pk("status")))
+            .expect("explicit binding id resolves");
+        assert_eq!(entry.id, cm_id);
     }
 
     #[test]
