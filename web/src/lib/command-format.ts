@@ -83,6 +83,12 @@ export function formatCommand(
       return `Add index on ${resolveLabel(ontology, cmd.index.node_id, "node")}`;
     case "remove_index":
       return `Remove index: ${cmd.index_id.length > 12 ? `${cmd.index_id.slice(0, 8)}…` : cmd.index_id}`;
+    case "create_object_mapping":
+      return `Create mapping: ${cmd.mapping.relation}`;
+    case "update_object_mapping":
+      return `Update mapping: ${cmd.mapping.relation}`;
+    case "delete_object_mapping":
+      return `Delete mapping: ${cmd.id.length > 12 ? `${cmd.id.slice(0, 8)}…` : cmd.id}`;
     case "batch":
       return `Batch: ${cmd.commands.length} command${cmd.commands.length === 1 ? "" : "s"}`;
     default:

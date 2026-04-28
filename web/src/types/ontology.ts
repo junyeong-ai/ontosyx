@@ -73,6 +73,8 @@ export interface OntologyIR {
   concept_maps?: ConceptMapDef[];
   rules?: components["schemas"]["RuleDef"][];
   provenance?: components["schemas"]["ProvenanceDef"][];
+  object_mappings?: components["schemas"]["ObjectMappingDef"][];
+  link_mappings?: components["schemas"]["LinkMappingDef"][];
 }
 
 export interface NodeTypeDef {
@@ -433,6 +435,9 @@ export type OntologyCommand =
   | { op: "remove_constraint"; node_id: string; constraint_id: string }
   | { op: "add_index"; index: IndexDef }
   | { op: "remove_index"; index_id: string }
+  | { op: "create_object_mapping"; mapping: components["schemas"]["ObjectMappingDef"] }
+  | { op: "update_object_mapping"; id: string; mapping: components["schemas"]["ObjectMappingDef"] }
+  | { op: "delete_object_mapping"; id: string }
   | { op: "batch"; description: string; commands: OntologyCommand[] };
 
 /**

@@ -2770,6 +2770,21 @@
           "addedToast": "Constraint added",
           "removedToast": "Constraint removed"
         },
+        "mappings": {
+          "emptyState": "This node type is not bound to a physical relation yet.",
+          "createAction": "+ Create primary mapping",
+          "createBlockedNoSource": "Project has no source bound — can't create a mapping.",
+          "createdToast": "Mapping created",
+          "deletedToast": "Mapping removed",
+          "deleteTooltip": "Delete mapping",
+          "primaryLabel": "Primary mapping · {id}",
+          "multiMappingHint": "{count} additional mapping(s) exist. Manage multi-mapping setups under Settings → Mappings."
+        },
+        "lineage": {
+          "loading": "Loading lineage…",
+          "outboundHeader": "What this references",
+          "inboundHeader": "What depends on this"
+        },
         "sections": {
           "definition": {
             "title": "Definition",

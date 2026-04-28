@@ -2756,6 +2756,21 @@
           "addedToast": "제약이 추가되었습니다",
           "removedToast": "제약이 제거되었습니다"
         },
+        "mappings": {
+          "emptyState": "이 노드 타입은 아직 물리 관계와 매핑되지 않았습니다.",
+          "createAction": "+ 기본 매핑 생성",
+          "createBlockedNoSource": "프로젝트에 원천 소스가 연결되어 있지 않아 매핑을 만들 수 없습니다.",
+          "createdToast": "매핑이 생성되었습니다",
+          "deletedToast": "매핑이 제거되었습니다",
+          "deleteTooltip": "매핑 삭제",
+          "primaryLabel": "주 매핑 · {id}",
+          "multiMappingHint": "이 노드에는 추가 매핑 {count}개가 더 있습니다. 다중 매핑은 설정 → 매핑 페이지에서 관리하세요."
+        },
+        "lineage": {
+          "loading": "계보를 불러오는 중…",
+          "outboundHeader": "이 개념이 참조하는 항목",
+          "inboundHeader": "이 개념을 참조하는 항목"
+        },
         "sections": {
           "definition": {
             "title": "정의",

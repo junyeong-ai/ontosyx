@@ -640,6 +640,58 @@ impl OntologyCommand {
                 })
             }
 
+            // ----- CreateObjectMapping -----
+            OntologyCommand::CreateObjectMapping { mapping } => {
+                if ont.object_mappings.iter().any(|m| m.id == mapping.id) {
+                    return Err(format!(
+                        "object mapping '{}' already exists",
+                        mapping.id
+                    ));
+                }
+                let mapping_id = mapping.id.clone();
+                ont.object_mappings.push((**mapping).clone());
+                Ok(CommandResult {
+                    new_ontology: ont,
+                    inverse: OntologyCommand::DeleteObjectMapping { id: mapping_id },
+                })
+            }
+
+            // ----- UpdateObjectMapping -----
+            OntologyCommand::UpdateObjectMapping { id, mapping } => {
+                let idx = ont
+                    .object_mappings
+                    .iter()
+                    .position(|m| m.id == *id)
+                    .ok_or_else(|| format!("object mapping '{}' not found", id))?;
+                let old = std::mem::replace(
+                    &mut ont.object_mappings[idx],
+                    (**mapping).clone(),
+                );
+                Ok(CommandResult {
+                    new_ontology: ont,
+                    inverse: OntologyCommand::UpdateObjectMapping {
+                        id: id.clone(),
+                        mapping: Box::new(old),
+                    },
+                })
+            }
+
+            // ----- DeleteObjectMapping -----
+            OntologyCommand::DeleteObjectMapping { id } => {
+                let idx = ont
+                    .object_mappings
+                    .iter()
+                    .position(|m| m.id == *id)
+                    .ok_or_else(|| format!("object mapping '{}' not found", id))?;
+                let removed = ont.object_mappings.remove(idx);
+                Ok(CommandResult {
+                    new_ontology: ont,
+                    inverse: OntologyCommand::CreateObjectMapping {
+                        mapping: Box::new(removed),
+                    },
+                })
+            }
+
             // ----- Batch -----
             OntologyCommand::Batch {
                 description,

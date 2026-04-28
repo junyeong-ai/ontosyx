@@ -428,6 +428,54 @@ function applyCommandToOntology(
       };
     }
 
+    case "create_object_mapping": {
+      const existing = arr(ontology.object_mappings);
+      const newOntology: OntologyIR = {
+        ...ontology,
+        object_mappings: [...existing, cmd.mapping!],
+      };
+      return {
+        ontology: newOntology,
+        inverse: { op: "delete_object_mapping", id: cmd.mapping!.id },
+      };
+    }
+
+    case "update_object_mapping": {
+      const existing = arr(ontology.object_mappings);
+      const previous = existing.find((m) => m.id === cmd.id);
+      if (!previous)
+        return { ontology, inverse: { op: "batch", description: "noop", commands: [] } };
+      const newOntology: OntologyIR = {
+        ...ontology,
+        object_mappings: existing.map((m) =>
+          m.id === cmd.id ? cmd.mapping! : m,
+        ),
+      };
+      return {
+        ontology: newOntology,
+        inverse: {
+          op: "update_object_mapping",
+          id: cmd.id!,
+          mapping: previous,
+        },
+      };
+    }
+
+    case "delete_object_mapping": {
+      const existing = arr(ontology.object_mappings);
+      const removed = existing.find((m) => m.id === cmd.id);
+      if (!removed)
+        return { ontology, inverse: { op: "batch", description: "noop", commands: [] } };
+      const newOntology: OntologyIR = {
+        ...ontology,
+        object_mappings: existing.filter((m) => m.id !== cmd.id),
+      };
+      return {
+        ontology: newOntology,
+        inverse: { op: "create_object_mapping", mapping: removed },
+      };
+    }
+
     case "batch": {
       let current = ontology;
       const inverses: OntologyCommand[] = [];

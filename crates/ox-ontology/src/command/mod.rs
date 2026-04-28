@@ -114,6 +114,28 @@ pub enum OntologyCommand {
         index_id: String,
     },
 
+    /// Create an ObjectMapping. Bound to the project save pipeline so
+    /// operators editing the Domain Context page get the same
+    /// commandStack + undo / redo behaviour they get for every other
+    /// type-shape edit. The wire-format
+    /// [`crate::OntologyEditOp::CreateObjectMapping`] continues to
+    /// serve admin-table CRUD on `/edits` — the two paths are
+    /// deliberately distinct: project flow snapshots the whole IR,
+    /// admin flow lands one op atomically.
+    CreateObjectMapping {
+        // Boxed because `ObjectMappingDef` is the largest single
+        // payload in the command set (relation + property mappings +
+        // primary key columns + advanced fields).
+        mapping: Box<crate::mapping::ObjectMappingDef>,
+    },
+    UpdateObjectMapping {
+        id: crate::mapping::ObjectMappingId,
+        mapping: Box<crate::mapping::ObjectMappingDef>,
+    },
+    DeleteObjectMapping {
+        id: crate::mapping::ObjectMappingId,
+    },
+
     Batch {
         description: String,
         commands: Vec<OntologyCommand>,
@@ -147,6 +169,7 @@ impl JsonSchema for OntologyCommand {
                         "add_property", "delete_property", "update_property",
                         "add_constraint", "remove_constraint",
                         "add_index", "remove_index",
+                        "create_object_mapping", "update_object_mapping", "delete_object_mapping",
                         "batch"
                     ],
                     "description": "The operation type"
@@ -230,6 +253,11 @@ impl JsonSchema for OntologyCommand {
                     "type": "array",
                     "items": { "type": "string" },
                     "description": "Replacement list of GlossaryTermId values for the targeted node or edge type"
+                },
+                // ObjectMapping fields (CreateObjectMapping / UpdateObjectMapping / DeleteObjectMapping)
+                "mapping": {
+                    "type": "object",
+                    "description": "ObjectMappingDef payload — see ox_ontology::ObjectMappingDef for the full schema"
                 },
                 // Batch fields
                 "commands": {
@@ -321,6 +349,12 @@ impl OntologyCommand {
                 vec![node_id.0.clone()]
             }
             Self::AddIndex { .. } | Self::RemoveIndex { .. } => vec![],
+            Self::CreateObjectMapping { mapping } => {
+                vec![mapping.id.0.clone()]
+            }
+            Self::UpdateObjectMapping { id, .. } | Self::DeleteObjectMapping { id } => {
+                vec![id.0.clone()]
+            }
             Self::Batch { commands, .. } => commands
                 .iter()
                 .flat_map(|c| c.affected_element_ids())

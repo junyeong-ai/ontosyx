@@ -409,6 +409,79 @@ fn set_edge_glossary_anchors_replaces_list_atomically() {
 }
 
 #[test]
+fn object_mapping_create_update_delete_roundtrip() {
+    use crate::mapping::ObjectMappingDef;
+
+    let ontology = test_ontology();
+    let mapping = ObjectMappingDef::new("om-1", "n2", "pg-main", "public.companies");
+
+    // Create
+    let create = OntologyCommand::CreateObjectMapping {
+        mapping: Box::new(mapping.clone()),
+    };
+    let create_result = create.execute(&ontology).unwrap();
+    assert_eq!(create_result.new_ontology.object_mappings.len(), 1);
+    assert_eq!(
+        create_result.new_ontology.object_mappings[0].relation,
+        "public.companies",
+    );
+
+    // Update
+    let mut updated = mapping.clone();
+    updated.relation = "warehouse.companies".into();
+    let update = OntologyCommand::UpdateObjectMapping {
+        id: "om-1".into(),
+        mapping: Box::new(updated),
+    };
+    let update_result = update.execute(&create_result.new_ontology).unwrap();
+    assert_eq!(
+        update_result.new_ontology.object_mappings[0].relation,
+        "warehouse.companies",
+    );
+
+    // Inverse of update restores the previous mapping
+    let restored = update_result
+        .inverse
+        .execute(&update_result.new_ontology)
+        .unwrap();
+    assert_eq!(
+        restored.new_ontology.object_mappings[0].relation,
+        "public.companies",
+    );
+
+    // Delete
+    let delete = OntologyCommand::DeleteObjectMapping {
+        id: "om-1".into(),
+    };
+    let delete_result = delete.execute(&create_result.new_ontology).unwrap();
+    assert!(delete_result.new_ontology.object_mappings.is_empty());
+
+    // Inverse of delete restores the mapping
+    let resurrected = delete_result
+        .inverse
+        .execute(&delete_result.new_ontology)
+        .unwrap();
+    assert_eq!(resurrected.new_ontology.object_mappings.len(), 1);
+}
+
+#[test]
+fn create_object_mapping_rejects_duplicate_id() {
+    use crate::mapping::ObjectMappingDef;
+
+    let ontology = test_ontology();
+    let mapping = ObjectMappingDef::new("om-1", "n2", "pg-main", "public.companies");
+    let first = OntologyCommand::CreateObjectMapping {
+        mapping: Box::new(mapping.clone()),
+    };
+    let after_first = first.execute(&ontology).unwrap().new_ontology;
+
+    let duplicate = OntologyCommand::CreateObjectMapping {
+        mapping: Box::new(mapping),
+    };
+    assert!(duplicate.execute(&after_first).is_err());
+}
+
+#[test]
 fn delete_property_cascades_constraints_and_indexes() {
     let ontology = test_ontology();
 
