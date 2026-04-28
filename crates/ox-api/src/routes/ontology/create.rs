@@ -185,10 +185,12 @@ pub(crate) async fn create_ontology(
 
     let description_json = serde_json::to_value(&description_lt)
         .map_err(|e| AppError::internal(format!("serialize description: {e}")))?;
+    let display_name_json = serde_json::to_value(&ir.display_name)
+        .map_err(|e| AppError::internal(format!("serialize display_name: {e}")))?;
 
     let identity = state
         .store
-        .create_ontology(name, &description_json, Some(&lineage_seed))
+        .create_ontology(name, &display_name_json, &description_json, Some(&lineage_seed))
         .await
         .map_err(AppError::from)?;
 

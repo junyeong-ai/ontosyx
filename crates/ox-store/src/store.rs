@@ -142,10 +142,14 @@ pub trait QueryStore: Send + Sync {
 #[async_trait]
 pub trait OntologyVersionStore: Send + Sync {
     /// Create a new logical ontology. Assigns a fresh lineage_id
-    /// if `lineage_id` is `None`.
+    /// if `lineage_id` is `None`. `display_name` is the locale-aware
+    /// human label as a `LocalizedText` JSONB value; pass an empty
+    /// `{"default":"","translations":{}}` payload when the caller
+    /// has no display label and consumers should fall back to `name`.
     async fn create_ontology(
         &self,
         name: &str,
+        display_name: &serde_json::Value,
         description: &serde_json::Value,
         lineage_id: Option<&str>,
     ) -> OxResult<crate::models::OntologyRow>;

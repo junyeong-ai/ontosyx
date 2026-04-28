@@ -1784,10 +1784,17 @@ CREATE TABLE ontologies (
     lineage_id     TEXT NOT NULL,
     workspace_id   UUID NOT NULL DEFAULT (current_setting('app.workspace_id', true))::uuid
                         REFERENCES workspaces(id) ON DELETE CASCADE,
-    -- Canonical short name (`"E-commerce"`, `"Healthcare"`). Used
-    -- for listing / search; not required to be Cypher-safe because
-    -- the ontology itself is not a graph label.
+    -- Canonical short identifier (`"E-commerce"`, `"Healthcare"`).
+    -- Used as the URI fragment in OWL / SHACL exports, the lineage
+    -- handle external systems reference, and the workspace-scoped
+    -- uniqueness key. Not required to be Cypher-safe — the ontology
+    -- itself is not a graph label. Single language by design;
+    -- locale-aware label lives in `display_name`.
     name           TEXT NOT NULL,
+    -- Locale-aware human label. `LocalizedText` JSONB for the same
+    -- round-trip reasons as `description`. Empty default when the
+    -- caller doesn't supply one — consumers fall back to `name`.
+    display_name   JSONB NOT NULL DEFAULT '{"default":"","translations":{}}'::jsonb,
     -- LocalizedText — stored as JSONB so the admin UI can round-trip
     -- `{default: "...", translations: {...}}` without a second table.
     description    JSONB NOT NULL DEFAULT '{"default":"","translations":{}}'::jsonb,

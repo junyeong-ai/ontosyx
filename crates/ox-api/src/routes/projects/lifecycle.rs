@@ -518,6 +518,7 @@ pub(crate) async fn complete_project(
             };
             (identity, current.map(|v| v.id), next_tag, prev_ir)
         } else {
+            let display_name_json = AppError::to_json(&ontology.display_name)?;
             let description_json = AppError::to_json(&req.description)?;
             // Seed the new identity's lineage id from the ontology's own id —
             // external references (quality rules, saved queries) already point
@@ -530,7 +531,7 @@ pub(crate) async fn complete_project(
             };
             let identity = state
                 .store
-                .create_ontology(&req.name, &description_json, lineage_seed)
+                .create_ontology(&req.name, &display_name_json, &description_json, lineage_seed)
                 .await
                 .map_err(AppError::from)?;
             (identity, None, "1".to_string(), None)

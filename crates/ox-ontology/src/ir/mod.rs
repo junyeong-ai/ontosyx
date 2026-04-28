@@ -199,10 +199,21 @@ pub struct OntologyIR {
     pub schema_version: u32,
     /// Unique identifier for this ontology version.
     pub id: String,
-    /// Human-readable name (e.g. "E-commerce Ontology"). Single canonical
-    /// string; for localized display use the workspace's ontology catalog
-    /// layer rather than embedding locale variants into the identifier.
+    /// Canonical short identifier. Used as the URI fragment in OWL /
+    /// SHACL exports, as the workspace-scoped uniqueness key in the
+    /// store layer, and as the lineage-stable handle external systems
+    /// reference. Single language by design — the locale-aware human
+    /// label is `display_name`. Mirrors Foundry's `apiName` /
+    /// Stardog's database identifier.
     pub name: String,
+    /// Locale-aware human label. Empty by default; consumers fall
+    /// back to `name` when no display string is set in the active
+    /// chain. Routes the same `LocalizedText` shape every other
+    /// user-facing field uses, so admin UI and LLM prompt context
+    /// can render the workspace's `admin_locale_fallback` /
+    /// `llm_locale_fallback` chains uniformly.
+    #[serde(default)]
+    pub display_name: ox_core::i18n::LocalizedText,
     /// Localized human-readable description of the ontology.
     #[serde(default)]
     pub description: ox_core::i18n::LocalizedText,
@@ -441,6 +452,21 @@ impl OntologyIR {
         )
     }
 
+    /// Render the ontology's locale-aware label, falling back to
+    /// `name` when no `display_name` is set in the supplied chain.
+    /// Surfaces (admin UI, LLM context) thread the workspace chain
+    /// through `useLocaleChain()` / `LocaleChain::admin()` so the
+    /// same IR renders the workspace's preferred language without
+    /// embedding locale into the canonical identifier.
+    pub fn display_label(&self, chain: &[ox_core::i18n::LanguageTag]) -> String {
+        let resolved = self.display_name.resolve(chain);
+        if resolved.is_empty() {
+            self.name.clone()
+        } else {
+            resolved.to_string()
+        }
+    }
+
     /// Fallible constructor. Returns [`OntologyInvariantError`] if the input
     /// vectors contain duplicate node/edge/property ids or duplicate node
     /// labels.
@@ -460,6 +486,7 @@ impl OntologyIR {
             schema_version: ONTOLOGY_IR_SCHEMA_VERSION,
             id,
             name,
+            display_name: ox_core::i18n::LocalizedText::default(),
             description,
             version: version.into(),
             node_types,

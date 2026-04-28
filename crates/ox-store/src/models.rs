@@ -81,6 +81,11 @@ pub struct OntologyRow {
     pub lineage_id: String,
     pub workspace_id: Uuid,
     pub name: String,
+    /// Locale-aware human label. `LocalizedText` shape:
+    /// `{ default, translations? }`. Empty when the ontology was
+    /// created without a display label — consumers fall back to
+    /// `name`.
+    pub display_name: serde_json::Value,
     pub description: serde_json::Value,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

@@ -311,6 +311,7 @@ pub fn extract_entities(ir: &OntologyIR) -> OxResult<Vec<ExtractedEntity>> {
     struct Header<'a> {
         id: &'a str,
         name: &'a str,
+        display_name: &'a ox_core::i18n::LocalizedText,
         description: &'a ox_core::i18n::LocalizedText,
         version: &'a crate::ir::OntologyVersion,
         schema_version: u32,
@@ -318,6 +319,7 @@ pub fn extract_entities(ir: &OntologyIR) -> OxResult<Vec<ExtractedEntity>> {
     let (content, canonical, hash) = canonical_and_hash(&Header {
         id: &ir.id,
         name: &ir.name,
+        display_name: &ir.display_name,
         description: &ir.description,
         version: &ir.version,
         schema_version: ir.schema_version,

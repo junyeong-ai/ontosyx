@@ -1234,6 +1234,8 @@ pub(super) fn assemble_ir(
         id: String,
         name: String,
         #[serde(default)]
+        display_name: ox_core::i18n::LocalizedText,
+        #[serde(default)]
         description: ox_core::i18n::LocalizedText,
         version: ox_ontology::ir::OntologyVersion,
         #[serde(default)]
@@ -1254,6 +1256,7 @@ pub(super) fn assemble_ir(
     .map_err(|e| OxError::Runtime {
         message: format!("OntologyIR::try_new rejected rebuilt topology: {e:?}"),
     })?;
+    ir.display_name = h.display_name;
 
     for iface in interfaces {
         ir.add_interface(iface).map_err(|e| OxError::Runtime {

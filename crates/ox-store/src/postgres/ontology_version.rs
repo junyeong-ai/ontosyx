@@ -9,6 +9,7 @@ impl crate::store::OntologyVersionStore for PostgresStore {
     async fn create_ontology(
         &self,
         name: &str,
+        display_name: &serde_json::Value,
         description: &serde_json::Value,
         lineage_id: Option<&str>,
     ) -> OxResult<crate::models::OntologyRow> {
@@ -20,11 +21,12 @@ impl crate::store::OntologyVersionStore for PostgresStore {
             .map(String::from)
             .unwrap_or_else(|| Uuid::new_v4().to_string());
         sqlx::query_as::<_, crate::models::OntologyRow>(
-            "INSERT INTO ontologies (lineage_id, name, description) \
-             VALUES ($1, $2, $3) RETURNING *",
+            "INSERT INTO ontologies (lineage_id, name, display_name, description) \
+             VALUES ($1, $2, $3, $4) RETURNING *",
         )
         .bind(&lineage)
         .bind(name)
+        .bind(display_name)
         .bind(description)
         .fetch_one(&self.pool)
         .await

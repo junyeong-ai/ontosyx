@@ -179,10 +179,12 @@ pub(crate) async fn adopt_graph(
         // lineage string they would have seen under the legacy path.
         let description_json = serde_json::to_value(&ontology.description)
             .map_err(|e| AppError::internal(format!("Failed to serialize description: {e}")))?;
+        let display_name_json = serde_json::to_value(&ontology.display_name)
+            .map_err(|e| AppError::internal(format!("Failed to serialize display_name: {e}")))?;
         let lineage_seed = ontology.id.clone();
         let identity = state
             .store
-            .create_ontology(&name, &description_json, Some(&lineage_seed))
+            .create_ontology(&name, &display_name_json, &description_json, Some(&lineage_seed))
             .await
             .map_err(AppError::from)?;
         state
