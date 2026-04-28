@@ -15,6 +15,7 @@ neo4rs = { workspace = true }
 tokio = { workspace = true }
 uuid = { workspace = true }
 async-trait = { workspace = true }
+chrono = { workspace = true }
 futures = { workspace = true }
 regex = { workspace = true }
 serde = { workspace = true }

@@ -24,11 +24,51 @@
 //! consumers filter by `level` or `validator` without inventing a
 //! parse-the-string contract.
 
+use ox_core::error::{OxError, OxResult};
+use ox_query_ir::query::{DiagnosticLevel, QueryDiagnostic};
+
 use crate::cypher::{
     ComplexityValidator, CypherValidatorPipeline, IssueLevel, SemanticGuardValidator,
     ValidateContext, parse,
 };
-use ox_query_ir::query::{DiagnosticLevel, QueryDiagnostic};
+
+/// Pre-execute blocking gate built on the same advisory validators
+/// as [`strict_advisory_diagnostics`]. Returns
+/// `Err(OxError::Validation)` when any issue fires at `Error`
+/// level — the routes layer wires this into the query handlers so a
+/// Cartesian product or destructive-write smell never reaches the
+/// driver. Other levels (`Warning`, `Info`) flow through to the
+/// post-execute advisory channel without blocking.
+///
+/// Pure pre-execute pass: blank `cypher` is treated as "nothing to
+/// gate" and yields `Ok(())`.
+pub fn strict_blocking_gate(cypher: &str, workspace_id: &str) -> OxResult<()> {
+    if cypher.trim().is_empty() {
+        return Ok(());
+    }
+    let ast = parse(cypher);
+    let report = CypherValidatorPipeline::new()
+        .with(ComplexityValidator::new())
+        .with(SemanticGuardValidator::new())
+        .run_ast(&ast, &ValidateContext::new(workspace_id));
+    let blocking: Vec<_> = report
+        .issues
+        .into_iter()
+        .filter(|i| i.level == IssueLevel::Error)
+        .collect();
+    if blocking.is_empty() {
+        return Ok(());
+    }
+    let aggregated = blocking
+        .iter()
+        .map(|i| format!("[{}] {}", i.validator_name, i.message))
+        .collect::<Vec<_>>()
+        .join("\n");
+    Err(OxError::Validation {
+        field: "cypher_query".to_string(),
+        message: format!("Query rejected by complexity/safety gate:\n{aggregated}"),
+    })
+}
 
 /// Run the advisory validators (complexity + semantic-guard) against
 /// `cypher` in strict mode and return one [`QueryDiagnostic`] per
@@ -129,12 +169,50 @@ mod tests {
     fn level_serializes_as_lowercase_json() {
         // Wire-stable invariant — clients string-compare on
         // "warning" / "info" / "error", not Rust enum text.
-        let diag = QueryDiagnostic {
+        let qd = QueryDiagnostic {
             validator: "complexity".to_string(),
             level: DiagnosticLevel::Warning,
-            message: "test".to_string(),
+            message: ox_core::diagnostic::diag("test.fixture").message("test"),
         };
-        let json = serde_json::to_string(&diag).unwrap();
+        let json = serde_json::to_string(&qd).unwrap();
         assert!(json.contains("\"level\":\"warning\""), "{json}");
+    }
+
+    #[test]
+    fn blocking_gate_passes_benign_query() {
+        let result = strict_blocking_gate(
+            "MATCH (n:Person) WHERE n.id = 1 RETURN n LIMIT 10",
+            "ws-1",
+        );
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn blocking_gate_passes_empty_query() {
+        assert!(strict_blocking_gate("", "ws-1").is_ok());
+    }
+
+    #[test]
+    fn blocking_gate_rejects_when_validator_emits_error_level() {
+        // The semantic-guard validator emits Error level on a
+        // tautological-WHERE + DELETE combo (would delete every node).
+        let result = strict_blocking_gate(
+            "MATCH (n) WHERE n.id = n.id DELETE n",
+            "ws-1",
+        );
+        assert!(
+            result.is_err(),
+            "tautological delete should be blocked: {result:?}"
+        );
+        match result.unwrap_err() {
+            ox_core::error::OxError::Validation { field, message } => {
+                assert_eq!(field, "cypher_query");
+                assert!(
+                    message.contains("complexity") || message.contains("semantic-guard"),
+                    "rejection should name the validator: {message}"
+                );
+            }
+            other => panic!("expected Validation error, got {other:?}"),
+        }
     }
 }

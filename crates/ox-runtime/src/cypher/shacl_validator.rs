@@ -45,14 +45,18 @@
 //! SHACL rule, and the diagnostic validator names matter for UI
 //! filtering and telemetry.
 
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 
+use ox_core::diagnostic::{diag, DiagnosticMessage};
 use ox_core::graph_label::GraphLabel;
+use ox_core::i18n::display_name_with_fallback;
 use ox_ontology::ir::{NodeTypeDef, OntologyIR, PropertyDef, PropertyId};
 use ox_ontology::rule::{
     ConstraintTarget, EnforcementKind, RuleActivationKind, RuleDef, RuleKind, Severity,
     ShaclConstraint,
 };
+use ox_ontology::value_set::ValueSetId;
 
 use crate::cypher::ast::{ClauseKind, CypherAst, CypherPatternElement, NodePattern};
 use crate::cypher::validate::{
@@ -61,13 +65,58 @@ use crate::cypher::validate::{
 
 /// SHACL-rule enforcement against Cypher writes. See module docs for
 /// the MVP constraint coverage.
+///
+/// The validator merges authored `OntologyIR.rules()` with rules
+/// synthesised from `Required`-strength `PropertyBinding`s
+/// (`OntologyIR::derive_binding_rules`) so a binding's promise is
+/// enforced at write time without the author copy-pasting the
+/// constraint into a separate `RuleDef`.
+///
+/// **Dedup happens upstream**: `derive_binding_rules` suppresses any
+/// derivation whose `(node, property, signature)` is already covered
+/// by an authored rule. The validator therefore iterates the merged
+/// set without per-rule dedup logic — duplicate violations on the
+/// LLM / admin surface would be a regression of that contract, not a
+/// validator bug.
 pub struct ShaclValidator {
     ontology: OntologyIR,
+    /// Rules synthesised from `Required` bindings. Cached on
+    /// construction so the per-validate hot path doesn't re-walk the
+    /// IR's binding tree on every Cypher statement.
+    derived_rules: Vec<RuleDef>,
+    /// `ValueSetId` → expanded set of allowed code strings. Pre-built
+    /// at construction so `InValueSet` enforcement is O(1) per write
+    /// instead of re-running `expand_value_set` (which walks every
+    /// composition rule + code-system code) on every Cypher statement.
+    /// A query workload that touches `n` writes against a value set
+    /// of `m` codes pays `O(n)` here vs `O(n·m)` without the cache.
+    value_set_codes: HashMap<ValueSetId, HashSet<String>>,
 }
 
 impl ShaclValidator {
     pub fn new(ontology: OntologyIR) -> Self {
-        Self { ontology }
+        let derived_rules = ontology.derive_binding_rules();
+        let value_set_codes = ontology
+            .value_sets()
+            .iter()
+            .map(|vs| {
+                let expansion = ox_ontology::value_set::expand_value_set(
+                    vs,
+                    ontology.code_systems(),
+                );
+                let codes = expansion
+                    .codes
+                    .iter()
+                    .map(|cv| cv.code.clone())
+                    .collect();
+                (vs.id.clone(), codes)
+            })
+            .collect();
+        Self {
+            ontology,
+            derived_rules,
+            value_set_codes,
+        }
     }
 }
 
@@ -76,6 +125,8 @@ impl fmt::Debug for ShaclValidator {
         f.debug_struct("ShaclValidator")
             .field("ontology_id", &self.ontology.id)
             .field("active_rules", &self.active_rules().count())
+            .field("derived_rules", &self.derived_rules.len())
+            .field("value_sets_cached", &self.value_set_codes.len())
             .finish()
     }
 }
@@ -85,11 +136,20 @@ impl ShaclValidator {
     /// plus `Write` enforcement. `Read` rules fire in the result-shaping
     /// path (not implemented here); `Batch` rules fire in the
     /// data-quality scheduler.
+    ///
+    /// Authored rules and binding-derived rules are merged into the
+    /// same iterator — the validator treats them identically. Derived
+    /// rules are constructed with `Always`/`Write` so they always
+    /// pass this filter; the explicit check stays for symmetry.
     fn active_rules(&self) -> impl Iterator<Item = &RuleDef> {
-        self.ontology.rules().iter().filter(|r| {
-            matches!(r.enforcement, EnforcementKind::Write)
-                && matches!(r.activation, RuleActivationKind::Always)
-        })
+        self.ontology
+            .rules()
+            .iter()
+            .chain(self.derived_rules.iter())
+            .filter(|r| {
+                matches!(r.enforcement, EnforcementKind::Write)
+                    && matches!(r.activation, RuleActivationKind::Always)
+            })
     }
 }
 
@@ -213,13 +273,18 @@ impl ShaclValidator {
                     return;
                 }
                 if value.is_none() {
+                    let rn = rule_label(rule);
                     issues.push(build_issue(
                         rule,
-                        format!(
-                            "property `{key}` is required by rule `{rn}` \
-                             (minCount={min}) but missing from the write",
-                            rn = rule.name,
-                        ),
+                        diag("runtime.cypher.shacl.min_count_missing")
+                            .with("property", key)
+                            .with("rule_id", rule.id.as_str())
+                            .with("rule_name", &rule.name)
+                            .with("min", *min)
+                            .message(format!(
+                                "property `{key}` is required by rule `{rn}` \
+                                 (minCount={min}) but missing from the write"
+                            )),
                         Some(node.span),
                     ));
                 }
@@ -239,36 +304,54 @@ impl ShaclValidator {
                     // decide at AST time. Skipping is correct behaviour.
                     return;
                 };
-                // Resolve the referenced value set against the active
-                // ontology. A dangling id is a rule-authoring error;
-                // surface as Info and skip enforcement rather than
-                // blocking every caller.
-                let Some(vs) = self.ontology.value_set_by_id(value_set_id) else {
+                // Hit the pre-built cache (O(1)) instead of re-running
+                // `expand_value_set` for every literal. A dangling id
+                // is a rule-authoring error; surface as Info and skip
+                // enforcement rather than blocking every caller.
+                let Some(allowed) = self.value_set_codes.get(value_set_id) else {
+                    let rn = rule_label(rule);
                     issues.push(ValidationIssue::info(
                         "shacl",
-                        format!(
-                            "rule `{rn}` references unknown value set `{value_set_id}` \
-                             and was skipped for property `{key}`",
-                            rn = rule.name,
-                        ),
+                        diag("runtime.cypher.shacl.unknown_value_set_skipped")
+                            .with("rule_id", rule.id.as_str())
+                            .with("rule_name", &rule.name)
+                            .with("value_set_id", value_set_id.as_str())
+                            .with("property", key)
+                            .message(format!(
+                                "rule `{rn}` references unknown value set `{value_set_id}` \
+                                 and was skipped for property `{key}`"
+                            )),
                     ));
                     return;
                 };
-                let expansion = ox_ontology::value_set::expand_value_set(
-                    vs,
-                    self.ontology.code_systems(),
-                );
-                let allowed: Vec<&str> =
-                    expansion.codes.iter().map(|cv| cv.code.as_str()).collect();
-                if !allowed.iter().any(|a| **a == literal) {
+                if !allowed.contains(&literal) {
+                    let vs = self.ontology.value_set_by_id(value_set_id);
+                    let (vs_name_param, vs_name_en) = match vs {
+                        Some(v) => display_name_with_fallback(&v.display_name, v.name.as_str()),
+                        None => (
+                            serde_json::Value::String(value_set_id.as_str().to_string()),
+                            value_set_id.as_str(),
+                        ),
+                    };
+                    let mut sample: Vec<&str> =
+                        allowed.iter().take(8).map(String::as_str).collect();
+                    sample.sort_unstable();
+                    let ellipsis = if allowed.len() > sample.len() { ", …" } else { "" };
+                    let rn = rule_label(rule);
                     issues.push(build_issue(
                         rule,
-                        format!(
-                            "property `{key}` = {raw:?} violates rule `{rn}` \
-                             (value set `{vs_name}` allows: {allowed:?})",
-                            rn = rule.name,
-                            vs_name = vs.name,
-                        ),
+                        diag("runtime.cypher.shacl.value_not_in_set")
+                            .with("property", key)
+                            .with("value", raw)
+                            .with("rule_id", rule.id.as_str())
+                            .with("rule_name", &rule.name)
+                            .with("value_set_id", value_set_id.as_str())
+                            .with("value_set_name", vs_name_param)
+                            .with("sample", serde_json::Value::from(sample.clone()))
+                            .message(format!(
+                                "property `{key}` = {raw:?} violates rule `{rn}` \
+                                 (value set `{vs_name_en}` allows: {sample:?}{ellipsis})"
+                            )),
                         Some(node.span),
                     ));
                 }
@@ -287,13 +370,18 @@ impl ShaclValidator {
                     return;
                 };
                 let Some(np) = self.ontology.notation_pattern_by_id(notation_pattern_id) else {
+                    let rn = rule_label(rule);
                     issues.push(ValidationIssue::info(
                         "shacl",
-                        format!(
-                            "rule `{rn}` references unknown notation pattern \
-                             `{notation_pattern_id}` and was skipped for property `{key}`",
-                            rn = rule.name,
-                        ),
+                        diag("runtime.cypher.shacl.unknown_notation_pattern_skipped")
+                            .with("rule_id", rule.id.as_str())
+                            .with("rule_name", &rule.name)
+                            .with("notation_pattern_id", notation_pattern_id.as_str())
+                            .with("property", key)
+                            .message(format!(
+                                "rule `{rn}` references unknown notation pattern \
+                                 `{notation_pattern_id}` and was skipped for property `{key}`"
+                            )),
                     ));
                     return;
                 };
@@ -312,17 +400,50 @@ impl ShaclValidator {
                     expansion.codes.iter().any(|cv| cv.code == code)
                 };
                 if let Err(err) = np.validate(&literal, code_resolver) {
+                    let rn = rule_label(rule);
+                    let (np_name_param, np_name_en) =
+                        display_name_with_fallback(&np.display_name, np.name.as_str());
                     issues.push(build_issue(
                         rule,
-                        format!(
-                            "property `{key}` = {raw:?} does not match notation \
-                             pattern `{np_name}` required by rule `{rn}` ({err})",
-                            rn = rule.name,
-                            np_name = np.name,
-                        ),
+                        diag("runtime.cypher.shacl.notation_pattern_mismatch")
+                            .with("property", key)
+                            .with("value", raw)
+                            .with("rule_id", rule.id.as_str())
+                            .with("rule_name", &rule.name)
+                            .with("notation_pattern_id", notation_pattern_id.as_str())
+                            .with("notation_pattern_name", np_name_param)
+                            .with("error", err.to_string())
+                            .message(format!(
+                                "property `{key}` = {raw:?} does not match notation \
+                                 pattern `{np_name_en}` required by rule `{rn}` ({err})"
+                            )),
                         Some(node.span),
                     ));
                 }
+            }
+            ShaclConstraint::LessThan { target, other_property } => {
+                check_property_pair_predicate(
+                    rule,
+                    prop,
+                    node,
+                    target,
+                    other_property,
+                    PropertyPairOp::LessThan,
+                    &self.ontology,
+                    issues,
+                );
+            }
+            ShaclConstraint::Equals { target, other_property } => {
+                check_property_pair_predicate(
+                    rule,
+                    prop,
+                    node,
+                    target,
+                    other_property,
+                    PropertyPairOp::Equals,
+                    &self.ontology,
+                    issues,
+                );
             }
             // Constraint kinds handled at the node-shape level (see
             // check_node_level_constraint) or at a later phase.
@@ -369,14 +490,19 @@ impl ShaclValidator {
                 }
                 for (key, _value) in &node.properties {
                     if !allowed.contains(key.as_str()) {
+                        let rn = rule_label(rule);
+                        let label = node_type.label.as_str();
                         issues.push(build_issue(
                             rule,
-                            format!(
-                                "property `{key}` is not permitted on `{label}` \
-                                 (closed shape rule `{rn}`)",
-                                label = node_type.label.as_str(),
-                                rn = rule.name,
-                            ),
+                            diag("runtime.cypher.shacl.closed_shape_extra_property")
+                                .with("property", key.as_str())
+                                .with("label", label)
+                                .with("rule_id", rule.id.as_str())
+                                .with("rule_name", &rule.name)
+                                .message(format!(
+                                    "property `{key}` is not permitted on `{label}` \
+                                     (closed shape rule `{rn}`)"
+                                )),
                             Some(node.span),
                         ));
                     }
@@ -411,15 +537,21 @@ impl ShaclValidator {
                     return;
                 };
                 if a_literal == b_literal {
+                    let ak = a_prop.name.as_str();
+                    let bk = b_prop.name.as_str();
+                    let rn = rule_label(rule);
                     issues.push(build_issue(
                         rule,
-                        format!(
-                            "properties `{ak}` and `{bk}` carry the same value \
-                             {a_raw:?} but rule `{rn}` declares them disjoint",
-                            ak = a_prop.name.as_str(),
-                            bk = b_prop.name.as_str(),
-                            rn = rule.name,
-                        ),
+                        diag("runtime.cypher.shacl.disjoint_pair_present")
+                            .with("property_a", ak)
+                            .with("property_b", bk)
+                            .with("value", a_raw)
+                            .with("rule_id", rule.id.as_str())
+                            .with("rule_name", &rule.name)
+                            .message(format!(
+                                "properties `{ak}` and `{bk}` carry the same value \
+                                 {a_raw:?} but rule `{rn}` declares them disjoint"
+                            )),
                         Some(node.span),
                     ));
                 }
@@ -441,15 +573,20 @@ impl ShaclValidator {
                         .iter()
                         .any(|p| p.name.as_str() == key.as_str());
                     if !exists {
+                        let rn = rule_label(rule);
+                        let label = node_type.label.as_str();
+                        let key = key.as_str();
                         issues.push(build_issue(
                             rule,
-                            format!(
-                                "unique-key rule `{rn}` references unknown property `{key}` \
-                                 on `{label}`",
-                                rn = rule.name,
-                                label = node_type.label.as_str(),
-                                key = key.as_str(),
-                            ),
+                            diag("runtime.cypher.shacl.unique_key_unknown_property")
+                                .with("property", key)
+                                .with("label", label)
+                                .with("rule_id", rule.id.as_str())
+                                .with("rule_name", &rule.name)
+                                .message(format!(
+                                    "unique-key rule `{rn}` references unknown property `{key}` \
+                                     on `{label}`"
+                                )),
                             Some(node.span),
                         ));
                     }
@@ -471,14 +608,18 @@ impl ShaclValidator {
                     return;
                 };
                 if !prop.is_localized {
+                    let rn = rule_label(rule);
+                    let key = prop.name.as_str();
                     issues.push(ValidationIssue::info(
                         "shacl",
-                        format!(
-                            "rule `{rn}` enforces uniqueLang on `{key}`, but the \
-                             property is not declared `is_localized`",
-                            rn = rule.name,
-                            key = prop.name.as_str(),
-                        ),
+                        diag("runtime.cypher.shacl.unique_lang_on_non_localized")
+                            .with("property", key)
+                            .with("rule_id", rule.id.as_str())
+                            .with("rule_name", &rule.name)
+                            .message(format!(
+                                "rule `{rn}` enforces uniqueLang on `{key}`, but the \
+                                 property is not declared `is_localized`"
+                            )),
                     ));
                 }
             }
@@ -554,9 +695,131 @@ fn property_by_id<'a>(node_type: &'a NodeTypeDef, id: &PropertyId) -> Option<&'a
     node_type.properties.iter().find(|p| p.id == *id)
 }
 
+/// Property-pair operator for `sh:lessThan` / `sh:equals` validation.
+#[derive(Debug, Clone, Copy)]
+enum PropertyPairOp {
+    LessThan,
+    Equals,
+}
+
+impl PropertyPairOp {
+    fn diag_code(self) -> &'static str {
+        match self {
+            Self::LessThan => "runtime.cypher.shacl.less_than_violation",
+            Self::Equals => "runtime.cypher.shacl.equals_violation",
+        }
+    }
+}
+
+/// AST-level enforcement of the property-pair constraints (`sh:lessThan`,
+/// `sh:equals`). When the write pattern assigns both properties as
+/// literals on the same node, evaluate the predicate. Skip when either
+/// side is non-literal (parameter / function call) or when the constraint
+/// references an unknown sibling property — rule-authoring smells get
+/// surfaced as Info, real violations as the rule's severity.
+fn check_property_pair_predicate(
+    rule: &RuleDef,
+    target_prop: &PropertyDef,
+    node: &NodePattern,
+    target: &ConstraintTarget,
+    other_property: &PropertyId,
+    op: PropertyPairOp,
+    ontology: &ox_ontology::ir::OntologyIR,
+    issues: &mut Vec<ValidationIssue>,
+) {
+    if !target_matches_property(target, target_prop) {
+        return;
+    }
+    let Some(node_type) = ontology
+        .node_types()
+        .iter()
+        .find(|nt| nt.properties.iter().any(|p| p.id == target_prop.id))
+    else {
+        return;
+    };
+    let Some(other_prop) = property_by_id(node_type, other_property) else {
+        let rn = rule_label(rule);
+        let key = target_prop.name.as_str();
+        issues.push(ValidationIssue::info(
+            "shacl",
+            diag("runtime.cypher.shacl.property_pair_unknown_sibling")
+                .with("property", key)
+                .with("other_property_id", other_property.as_str())
+                .with("rule_id", rule.id.as_str())
+                .with("rule_name", &rule.name)
+                .message(format!(
+                    "rule `{rn}` references unknown sibling property `{}` for `{key}` and was skipped",
+                    other_property.as_str()
+                )),
+        ));
+        return;
+    };
+    let (Some(a_raw), Some(b_raw)) = (
+        lookup_property_value(node, target_prop.name.as_str()),
+        lookup_property_value(node, other_prop.name.as_str()),
+    ) else {
+        return;
+    };
+    let violated = compare_literals(a_raw, b_raw, op);
+    let Some(true) = violated else {
+        return;
+    };
+    let ak = target_prop.name.as_str();
+    let bk = other_prop.name.as_str();
+    let rn = rule_label(rule);
+    let op_label = match op {
+        PropertyPairOp::LessThan => "<",
+        PropertyPairOp::Equals => "=",
+    };
+    issues.push(build_issue(
+        rule,
+        diag(op.diag_code())
+            .with("property", ak)
+            .with("other_property", bk)
+            .with("value", a_raw)
+            .with("other_value", b_raw)
+            .with("rule_id", rule.id.as_str())
+            .with("rule_name", &rule.name)
+            .message(format!(
+                "rule `{rn}` requires `{ak}` {op_label} `{bk}` but got {a_raw:?} vs {b_raw:?}"
+            )),
+        Some(node.span),
+    ));
+}
+
+/// Compare two raw Cypher value tokens under the given operator.
+/// Returns `Some(true)` when the predicate is *violated* (i.e. the
+/// rule should produce a diagnostic), `Some(false)` when the predicate
+/// holds, and `None` when at least one side is not statically
+/// decidable (parameter, function call, opaque identifier).
+///
+/// Numeric literals are compared numerically; string literals
+/// lexicographically. Mixed-type comparisons return `None` to avoid
+/// false positives.
+fn compare_literals(a_raw: &str, b_raw: &str, op: PropertyPairOp) -> Option<bool> {
+    use std::cmp::Ordering;
+
+    if let (Ok(a_num), Ok(b_num)) = (a_raw.trim().parse::<f64>(), b_raw.trim().parse::<f64>()) {
+        // `partial_cmp` returns `None` for NaN — treat that as "cannot
+        // decide statically" and skip the diagnostic rather than producing
+        // a false positive.
+        return a_num.partial_cmp(&b_num).map(|ord| match op {
+            PropertyPairOp::LessThan => !matches!(ord, Ordering::Less),
+            PropertyPairOp::Equals => !matches!(ord, Ordering::Equal),
+        });
+    }
+    if let (Some(a), Some(b)) = (parse_string_literal(a_raw), parse_string_literal(b_raw)) {
+        return Some(match op {
+            PropertyPairOp::LessThan => a >= b,
+            PropertyPairOp::Equals => a != b,
+        });
+    }
+    None
+}
+
 fn build_issue(
     rule: &RuleDef,
-    message: String,
+    message: DiagnosticMessage,
     span: Option<crate::cypher::token::Span>,
 ) -> ValidationIssue {
     let issue = match rule.severity {
@@ -570,6 +833,21 @@ fn build_issue(
     }
 }
 
+/// Render a `RuleDef.name` for the English `message` rendering of a
+/// SHACL diagnostic. Picks the rule's English translation when one
+/// is authored (every derived rule is bilingual; authored rules may
+/// be Korean-only) and falls back to the rule id when neither side
+/// carries content. The structured `code` + `params` channel renders
+/// the user-localised form independently.
+fn rule_label(rule: &RuleDef) -> &str {
+    let s = rule.name.english_or_default();
+    if s.is_empty() {
+        rule.id.as_str()
+    } else {
+        s
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
@@ -579,6 +857,7 @@ mod tests {
     use ox_core::types::PropertyType;
     use ox_ontology::action::RuleId;
     use ox_ontology::ir::{NodeTypeDef, NodeTypeId, OntologyIR, PropertyDef};
+    use ox_ontology::rule::RuleOrigin;
 
     use crate::cypher::validate::IssueLevel;
 
@@ -709,6 +988,7 @@ mod tests {
             id: RuleId::new("r-email-required"),
             name: "email_is_required".into(),
             description: LocalizedText::default(),
+            rationale: LocalizedText::default(),
             kind: RuleKind::PropertyShape {
                 target_node_type_id: NodeTypeId::new("nt-user"),
                 target_property_id: PropertyId::new("prop-email"),
@@ -716,10 +996,13 @@ mod tests {
             severity: Severity::Violation,
             enforcement: EnforcementKind::Write,
             activation: RuleActivationKind::Always,
+            origin: RuleOrigin::Authored,
             constraints: vec![ShaclConstraint::MinCount {
                 target: ConstraintTarget::Inherit,
                 min: 1,
             }],
+                    valid_from: None,
+            valid_to: None,
         };
         (rule, prop)
     }
@@ -736,9 +1019,10 @@ mod tests {
         let onto = fixture_ontology_with_rule(rule, prop);
         let issues = run(onto, "CREATE (u:User {id: 1})");
         assert!(
-            issues
-                .iter()
-                .any(|i| i.level == IssueLevel::Error && i.message.contains("email")),
+            issues.iter().any(|i| i.level == IssueLevel::Error
+                && i.message.code == "runtime.cypher.shacl.min_count_missing"
+                && i.message.params.get("property")
+                    == Some(&serde_json::Value::from("email"))),
             "{issues:?}"
         );
     }
@@ -780,6 +1064,7 @@ mod tests {
             id: RuleId::new("r-status-enum"),
             name: "status_is_enumerated".into(),
             description: LocalizedText::default(),
+            rationale: LocalizedText::default(),
             kind: RuleKind::PropertyShape {
                 target_node_type_id: NodeTypeId::new("nt-user"),
                 target_property_id: PropertyId::new("prop-status"),
@@ -787,10 +1072,13 @@ mod tests {
             severity: Severity::Violation,
             enforcement: EnforcementKind::Write,
             activation: RuleActivationKind::Always,
+            origin: RuleOrigin::Authored,
             constraints: vec![ShaclConstraint::InValueSet {
                 target: ConstraintTarget::Inherit,
                 value_set_id: vs_id,
             }],
+            valid_from: None,
+            valid_to: None,
         }
     }
 
@@ -811,9 +1099,13 @@ mod tests {
         onto.add_rule(enum_rule(vs_id)).expect("rule add");
         let issues = run(onto, "CREATE (u:User {status: 'bogus'})");
         assert!(
-            issues
-                .iter()
-                .any(|i| i.level == IssueLevel::Error && i.message.contains("bogus")),
+            issues.iter().any(|i| i.level == IssueLevel::Error
+                && i.message.code == "runtime.cypher.shacl.value_not_in_set"
+                && i.message
+                    .params
+                    .get("value")
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|s| s.contains("bogus"))),
             "{issues:?}"
         );
     }
@@ -887,6 +1179,7 @@ mod tests {
             id: RuleId::new("r-code-pattern"),
             name: "code_format_is_valid".into(),
             description: LocalizedText::default(),
+            rationale: LocalizedText::default(),
             kind: RuleKind::PropertyShape {
                 target_node_type_id: NodeTypeId::new("nt-user"),
                 target_property_id: PropertyId::new("prop-email"),
@@ -894,18 +1187,20 @@ mod tests {
             severity: Severity::Violation,
             enforcement: EnforcementKind::Write,
             activation: RuleActivationKind::Always,
+            origin: RuleOrigin::Authored,
             constraints: vec![ShaclConstraint::MatchesPattern {
                 target: ConstraintTarget::Inherit,
                 notation_pattern_id: np_id,
             }],
+                    valid_from: None,
+            valid_to: None,
         };
         onto.add_rule(rule).expect("rule add");
         let issues = run(onto, "CREATE (u:User {email: 'not-an-email'})");
         assert!(
-            issues
-                .iter()
-                .any(|i| i.level == IssueLevel::Error && i.message.contains("notation")),
-            "{issues:?}"
+            issues.iter().any(|i| i.level == IssueLevel::Error
+                && i.message.code == "runtime.cypher.shacl.notation_pattern_mismatch"),
+            "expected a NotationPattern violation: {issues:?}",
         );
     }
 
@@ -916,9 +1211,10 @@ mod tests {
         let onto = fixture_ontology_with_rule(rule, prop);
         let issues = run(onto, "CREATE (u:User {id: 1})");
         assert!(
-            issues
-                .iter()
-                .any(|i| i.level == IssueLevel::Warning && i.message.contains("email")),
+            issues.iter().any(|i| i.level == IssueLevel::Warning
+                && i.message.code == "runtime.cypher.shacl.min_count_missing"
+                && i.message.params.get("property")
+                    == Some(&serde_json::Value::from("email"))),
             "{issues:?}"
         );
         assert!(
@@ -962,12 +1258,14 @@ mod tests {
             id: RuleId::new("r-user-closed"),
             name: "user_closed_shape".into(),
             description: LocalizedText::default(),
+            rationale: LocalizedText::default(),
             kind: RuleKind::NodeShape {
                 target_node_type_id: NodeTypeId::new("nt-user"),
             },
             severity: Severity::Violation,
             enforcement: EnforcementKind::Write,
             activation: RuleActivationKind::Always,
+            origin: RuleOrigin::Authored,
             constraints: vec![ShaclConstraint::Closed {
                 target: ConstraintTarget::Inherit,
                 // Only declared-on-shape keys beyond the node type's
@@ -975,6 +1273,8 @@ mod tests {
                 // (implicit), but `password` is not.
                 allowed_properties: Vec::new(),
             }],
+            valid_from: None,
+            valid_to: None,
         }
     }
 
@@ -994,9 +1294,10 @@ mod tests {
         onto.add_rule(closed_rule()).expect("rule add");
         let issues = run(onto, "CREATE (u:User {email: 'a@b', password: 'x'})");
         assert!(
-            issues
-                .iter()
-                .any(|i| i.level == IssueLevel::Error && i.message.contains("password")),
+            issues.iter().any(|i| i.level == IssueLevel::Error
+                && i.message.code == "runtime.cypher.shacl.closed_shape_extra_property"
+                && i.message.params.get("property")
+                    == Some(&serde_json::Value::from("password"))),
             "closed shape must block undeclared `password`: {issues:?}"
         );
     }
@@ -1048,12 +1349,14 @@ mod tests {
             id: RuleId::new("r-disjoint"),
             name: "email_vs_backup_disjoint".into(),
             description: LocalizedText::default(),
+            rationale: LocalizedText::default(),
             kind: RuleKind::NodeShape {
                 target_node_type_id: NodeTypeId::new("nt-user"),
             },
             severity: Severity::Violation,
             enforcement: EnforcementKind::Write,
             activation: RuleActivationKind::Always,
+            origin: RuleOrigin::Authored,
             constraints: vec![ShaclConstraint::Disjoint {
                 a: ConstraintTarget::Property {
                     node_type_id: NodeTypeId::new("nt-user"),
@@ -1064,6 +1367,8 @@ mod tests {
                     property_id: PropertyId::new("prop-email-backup"),
                 },
             }],
+                    valid_from: None,
+            valid_to: None,
         })
         .expect("rule add");
         let issues = run(
@@ -1071,9 +1376,8 @@ mod tests {
             "CREATE (u:User {email: 'a@b', email_backup: 'a@b'})",
         );
         assert!(
-            issues
-                .iter()
-                .any(|i| i.level == IssueLevel::Error && i.message.contains("disjoint")),
+            issues.iter().any(|i| i.level == IssueLevel::Error
+                && i.message.code == "runtime.cypher.shacl.disjoint_pair_present"),
             "disjoint violation not surfaced: {issues:?}"
         );
     }
@@ -1104,12 +1408,14 @@ mod tests {
             id: RuleId::new("r-disjoint"),
             name: "email_vs_backup_disjoint".into(),
             description: LocalizedText::default(),
+            rationale: LocalizedText::default(),
             kind: RuleKind::NodeShape {
                 target_node_type_id: NodeTypeId::new("nt-user"),
             },
             severity: Severity::Violation,
             enforcement: EnforcementKind::Write,
             activation: RuleActivationKind::Always,
+            origin: RuleOrigin::Authored,
             constraints: vec![ShaclConstraint::Disjoint {
                 a: ConstraintTarget::Property {
                     node_type_id: NodeTypeId::new("nt-user"),
@@ -1120,6 +1426,8 @@ mod tests {
                     property_id: PropertyId::new("prop-email-backup"),
                 },
             }],
+                    valid_from: None,
+            valid_to: None,
         })
         .expect("rule add");
         let issues = run(
@@ -1149,23 +1457,28 @@ mod tests {
             id: RuleId::new("r-unique"),
             name: "composite_unique".into(),
             description: LocalizedText::default(),
+            rationale: LocalizedText::default(),
             kind: RuleKind::NodeShape {
                 target_node_type_id: NodeTypeId::new("nt-user"),
             },
             severity: Severity::Violation,
             enforcement: EnforcementKind::Write,
             activation: RuleActivationKind::Always,
+            origin: RuleOrigin::Authored,
             constraints: vec![ShaclConstraint::UniqueKey {
                 target_node_type_id: NodeTypeId::new("nt-user"),
                 property_keys: vec![PropertyKey::new("email").unwrap(), PropertyKey::new("tenant").unwrap()],
             }],
+                    valid_from: None,
+            valid_to: None,
         })
         .expect("rule add");
         let issues = run(onto, "CREATE (u:User {email: 'a@b'})");
         assert!(
-            issues
-                .iter()
-                .any(|i| i.level == IssueLevel::Error && i.message.contains("tenant")),
+            issues.iter().any(|i| i.level == IssueLevel::Error
+                && i.message.code == "runtime.cypher.shacl.unique_key_unknown_property"
+                && i.message.params.get("property")
+                    == Some(&serde_json::Value::from("tenant"))),
             "unique-key rule referencing unknown `tenant` property must surface: {issues:?}"
         );
     }
@@ -1189,6 +1502,7 @@ mod tests {
             id: RuleId::new("r-ulang"),
             name: "email_unique_lang".into(),
             description: LocalizedText::default(),
+            rationale: LocalizedText::default(),
             kind: RuleKind::PropertyShape {
                 target_node_type_id: NodeTypeId::new("nt-user"),
                 target_property_id: PropertyId::new("prop-email"),
@@ -1196,20 +1510,108 @@ mod tests {
             severity: Severity::Warning,
             enforcement: EnforcementKind::Write,
             activation: RuleActivationKind::Always,
+            origin: RuleOrigin::Authored,
             constraints: vec![ShaclConstraint::UniqueLang {
                 target: ConstraintTarget::Property {
                     node_type_id: NodeTypeId::new("nt-user"),
                     property_id: PropertyId::new("prop-email"),
                 },
             }],
+                    valid_from: None,
+            valid_to: None,
         })
         .expect("rule add");
         let issues = run(onto, "CREATE (u:User {email: 'a@b'})");
         assert!(
-            issues
-                .iter()
-                .any(|i| i.level == IssueLevel::Info && i.message.contains("uniqueLang")),
+            issues.iter().any(|i| i.level == IssueLevel::Info
+                && i.message.code == "runtime.cypher.shacl.unique_lang_on_non_localized"),
             "non-localized UniqueLang must surface Info: {issues:?}"
+        );
+    }
+
+    // -------------------------------------------------------------
+    // Wave 8.7 — `Required` PropertyBinding becomes a SHACL rule
+    // automatically; the validator enforces without an authored rule.
+    // -------------------------------------------------------------
+
+    #[test]
+    fn required_value_set_binding_blocks_out_of_set_literal_without_authored_rule() {
+        use ox_ontology::binding::{BindingStrength, PropertyBinding};
+
+        let prop = status_prop();
+        let mut onto = OntologyIR::try_new(
+            "ont-test".into(),
+            "Test".into(),
+            LocalizedText::default(),
+            1u32,
+            vec![user_with(prop)],
+            vec![],
+            vec![],
+        )
+        .expect("valid seed ontology");
+        let vs_id = seed_value_set(&mut onto, "status", &["active", "suspended"]);
+
+        // Required binding — no authored rule. The derived rule must
+        // pick this up and reject the out-of-set literal.
+        onto.node_types_mut()
+            .iter_mut()
+            .next()
+            .unwrap()
+            .properties[0]
+            .bindings
+            .push(
+                PropertyBinding::value_set(vs_id)
+                    .with_strength(BindingStrength::Required),
+            );
+        onto.rebuild_indices().expect("rebuild");
+
+        let issues = run(onto, "CREATE (u:User {status: 'bogus'})");
+        assert!(
+            issues.iter().any(|i| i.level == IssueLevel::Error
+                && i.message.code == "runtime.cypher.shacl.value_not_in_set"
+                && i.message
+                    .params
+                    .get("value")
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|s| s.contains("bogus"))),
+            "Required ValueSet binding must reject out-of-set literal: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn preferred_binding_does_not_synthesise_blocking_rule() {
+        use ox_ontology::binding::{BindingStrength, PropertyBinding};
+
+        let prop = status_prop();
+        let mut onto = OntologyIR::try_new(
+            "ont-test".into(),
+            "Test".into(),
+            LocalizedText::default(),
+            1u32,
+            vec![user_with(prop)],
+            vec![],
+            vec![],
+        )
+        .expect("valid seed ontology");
+        let vs_id = seed_value_set(&mut onto, "status", &["active"]);
+
+        // Preferred — guidance only, no enforcement.
+        onto.node_types_mut()
+            .iter_mut()
+            .next()
+            .unwrap()
+            .properties[0]
+            .bindings
+            .push(
+                PropertyBinding::value_set(vs_id)
+                    .with_strength(BindingStrength::Preferred),
+            );
+        onto.rebuild_indices().expect("rebuild");
+
+        let issues = run(onto, "CREATE (u:User {status: 'bogus'})");
+        assert!(
+            issues.iter().all(|i| i.level != IssueLevel::Error),
+            "Preferred binding must not block writes: {issues:?}"
         );
     }
 }

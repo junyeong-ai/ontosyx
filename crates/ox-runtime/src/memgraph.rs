@@ -34,7 +34,10 @@ use crate::bolt::{
     run_pre_execute, truncate_query, validate_identifier, with_retry,
 };
 use crate::isolation::GraphIsolationStrategy;
-use crate::{GraphRuntime, LoadBatch, LoadResult, SandboxHandle, TransienceDetector};
+use crate::{
+    GraphRuntime, LoadBatch, LoadResult, SandboxHandle, TransienceDetector,
+    query_timeout_or_default,
+};
 
 const BACKEND_LABEL: &str = "Memgraph";
 
@@ -167,41 +170,57 @@ impl GraphRuntime for MemGraphRuntime {
         params: &HashMap<String, PropertyValue>,
     ) -> OxResult<QueryResult> {
         let start = std::time::Instant::now();
+        let timeout = query_timeout_or_default();
 
-        let mut result = with_retry(&self.retry, self.detector.as_ref(), BACKEND_LABEL, || {
-            let q = bind_params(query(cypher), params);
-            self.graph.execute(q)
-        })
-        .await
-        .map_err(|e| OxError::Runtime {
-            message: format!(
-                "Query execution failed: {e}\nQuery: {}",
-                truncate_query(cypher, 200)
-            ),
-        })?;
-
-        let mut columns: Vec<String> = Vec::new();
-        let mut rows: Vec<Vec<PropertyValue>> = Vec::new();
-
-        while let Some(row) = result.next().await.map_err(|e| OxError::Runtime {
-            message: format!("Failed to fetch row: {e}"),
-        })? {
-            let map: HashMap<String, serde_json::Value> =
-                row.to().map_err(|e| OxError::Runtime {
-                    message: format!("Failed to deserialize row: {e}"),
+        let outcome = tokio::time::timeout(timeout, async {
+            let mut result =
+                with_retry(&self.retry, self.detector.as_ref(), BACKEND_LABEL, || {
+                    let q = bind_params(query(cypher), params);
+                    self.graph.execute(q)
+                })
+                .await
+                .map_err(|e| OxError::Runtime {
+                    message: format!(
+                        "Query execution failed: {e}\nQuery: {}",
+                        truncate_query(cypher, 200)
+                    ),
                 })?;
 
-            if columns.is_empty() {
-                columns = map.keys().cloned().collect();
-                columns.sort();
+            let mut columns: Vec<String> = Vec::new();
+            let mut rows: Vec<Vec<PropertyValue>> = Vec::new();
+            while let Some(row) = result.next().await.map_err(|e| OxError::Runtime {
+                message: format!("Failed to fetch row: {e}"),
+            })? {
+                let map: HashMap<String, serde_json::Value> =
+                    row.to().map_err(|e| OxError::Runtime {
+                        message: format!("Failed to deserialize row: {e}"),
+                    })?;
+                if columns.is_empty() {
+                    columns = map.keys().cloned().collect();
+                    columns.sort();
+                }
+                let values: Vec<PropertyValue> = columns
+                    .iter()
+                    .map(|col| json_to_property_value(map.get(col)))
+                    .collect();
+                rows.push(values);
             }
+            Ok::<(Vec<String>, Vec<Vec<PropertyValue>>), OxError>((columns, rows))
+        })
+        .await;
 
-            let values: Vec<PropertyValue> = columns
-                .iter()
-                .map(|col| json_to_property_value(map.get(col)))
-                .collect();
-            rows.push(values);
-        }
+        let (columns, rows) = match outcome {
+            Ok(inner) => inner?,
+            Err(_) => {
+                return Err(OxError::Runtime {
+                    message: format!(
+                        "Query timed out after {}s\nQuery: {}",
+                        timeout.as_secs(),
+                        truncate_query(cypher, 200)
+                    ),
+                });
+            }
+        };
 
         let elapsed = start.elapsed();
         let row_count = rows.len();

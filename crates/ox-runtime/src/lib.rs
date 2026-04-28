@@ -48,6 +48,22 @@ tokio::task_local! {
     pub static GRAPH_SYSTEM_BYPASS: bool;
     /// Active ontology snapshot for the OntologyValidator pre-execute gate.
     pub static GRAPH_ONTOLOGY: Arc<OntologyIR>;
+    /// Optional bitemporal anchor — when set, the bolt pipeline
+    /// projects the active ontology through `OntologyIR::as_of(at)`
+    /// before validation. Rules / mappings / property bindings whose
+    /// effective window doesn't cover `at` are filtered out for the
+    /// duration of the request, so a "what would this query have
+    /// returned at 2024-01-01?" call resolves against the historical
+    /// shape rather than today's. Unset → today's IR is used as-is.
+    pub static GRAPH_ONTOLOGY_AS_OF: chrono::DateTime<chrono::Utc>;
+    /// Per-request statement timeout. Backends that honour this
+    /// (Neo4j, Memgraph) wrap `execute_query_raw` / `execute_load_raw`
+    /// in `tokio::time::timeout(_, …)` so a runaway query — accidental
+    /// Cartesian, unbounded var-length, missing index — surfaces as
+    /// `OxError::Runtime("query timed out after Xs")` rather than
+    /// holding a connection forever. Unset → backend default
+    /// ([`DEFAULT_QUERY_TIMEOUT`]).
+    pub static GRAPH_QUERY_TIMEOUT: std::time::Duration;
     /// Authenticated principal driving the current request. Drives the
     /// `AclRewriter` Deny / Mask passes plus future ABAC predicates.
     /// Absence skips the ACL pass entirely — system-task callers
@@ -60,6 +76,24 @@ tokio::task_local! {
     /// pass via `RewriteContext`.
     pub static GRAPH_ACL_SNAPSHOT: Arc<cypher::AclSnapshot>;
 }
+
+/// Backend-default query timeout when the caller has not bound
+/// [`GRAPH_QUERY_TIMEOUT`]. Long enough to clear most heuristic
+/// reports, short enough that a Cartesian-product slip-up doesn't
+/// burn the connection pool. Override via the task-local for
+/// long-running analytics — `tokio::time::timeout`'s overhead is
+/// constant and trivial relative to a graph traversal.
+pub const DEFAULT_QUERY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Helper: read the active query timeout, falling back to
+/// [`DEFAULT_QUERY_TIMEOUT`]. Backends call this once per
+/// `execute_*_raw` invocation.
+pub fn query_timeout_or_default() -> std::time::Duration {
+    GRAPH_QUERY_TIMEOUT
+        .try_with(|t| *t)
+        .unwrap_or(DEFAULT_QUERY_TIMEOUT)
+}
+
 use ox_ontology::graph_exploration::{GraphSchemaOverview, NodeExpansion, SearchResultNode};
 use ox_query_ir::query::QueryResult;
 use ox_core::types::PropertyValue;
@@ -373,5 +407,34 @@ mod load_batch_tests {
         assert_eq!(records.len(), 2);
         assert_eq!(records[0].get("x").unwrap(), 1);
         assert_eq!(records[1].get("y").unwrap(), 2);
+    }
+}
+
+#[cfg(test)]
+mod query_timeout_tests {
+    use super::*;
+
+    #[test]
+    fn unset_timeout_falls_back_to_default() {
+        // Outside any sync_scope — try_with returns Err, helper
+        // returns the constant.
+        assert_eq!(query_timeout_or_default(), DEFAULT_QUERY_TIMEOUT);
+    }
+
+    #[test]
+    fn bound_timeout_overrides_default() {
+        let custom = std::time::Duration::from_secs(5);
+        let read = GRAPH_QUERY_TIMEOUT.sync_scope(custom, query_timeout_or_default);
+        assert_eq!(read, custom);
+    }
+
+    #[test]
+    fn nested_scope_uses_innermost_value() {
+        let outer = std::time::Duration::from_secs(60);
+        let inner = std::time::Duration::from_secs(2);
+        let read = GRAPH_QUERY_TIMEOUT.sync_scope(outer, || {
+            GRAPH_QUERY_TIMEOUT.sync_scope(inner, query_timeout_or_default)
+        });
+        assert_eq!(read, inner);
     }
 }

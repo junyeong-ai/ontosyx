@@ -44,7 +44,7 @@ pub use ast::{
     ClauseKind, CypherAst, CypherClause, CypherPattern, CypherPatternElement, CypherStatement,
     NodePattern, RelDirection, RelationshipPattern, UnionKind,
 };
-pub use diagnostics::strict_advisory_diagnostics;
+pub use diagnostics::{strict_advisory_diagnostics, strict_blocking_gate};
 pub use parse::parse;
 pub use rewrite::{
     CypherRewriter, CypherRewriterPipeline, RewriteContext, RewriteError, RewritePhase,

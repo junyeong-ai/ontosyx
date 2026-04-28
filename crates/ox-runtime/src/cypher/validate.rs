@@ -42,6 +42,7 @@
 use std::collections::HashSet;
 use std::fmt;
 
+use ox_core::diagnostic::{diag, DiagnosticMessage};
 use ox_ontology::ir::OntologyIR;
 
 use crate::cypher::ast::{ClauseKind, CypherAst, CypherClause, CypherPatternElement};
@@ -103,37 +104,43 @@ impl fmt::Display for IssueLevel {
 /// diagnostics can surface an inline underline / caret in the UI.
 /// `validator_name` mirrors [`CypherValidator::name`] so aggregated
 /// reports can group issues by the pass that produced them.
+///
+/// `message` is a structured [`DiagnosticMessage`] (RFC 7807 / gRPC
+/// `Status` shape): a stable `code`, an English `message` rendering,
+/// and a `params` map. The FE resolves `code` + `params` through its
+/// i18n catalogue (`next-intl` ICU MessageFormat) so adding a UI
+/// language never touches the validator emit sites.
 #[derive(Debug, Clone)]
 pub struct ValidationIssue {
     pub level: IssueLevel,
-    pub message: String,
+    pub message: DiagnosticMessage,
     pub span: Option<Span>,
     pub validator_name: String,
 }
 
 impl ValidationIssue {
-    pub fn error(validator: impl Into<String>, message: impl Into<String>) -> Self {
+    pub fn error(validator: impl Into<String>, message: DiagnosticMessage) -> Self {
         Self {
             level: IssueLevel::Error,
-            message: message.into(),
+            message,
             span: None,
             validator_name: validator.into(),
         }
     }
 
-    pub fn warning(validator: impl Into<String>, message: impl Into<String>) -> Self {
+    pub fn warning(validator: impl Into<String>, message: DiagnosticMessage) -> Self {
         Self {
             level: IssueLevel::Warning,
-            message: message.into(),
+            message,
             span: None,
             validator_name: validator.into(),
         }
     }
 
-    pub fn info(validator: impl Into<String>, message: impl Into<String>) -> Self {
+    pub fn info(validator: impl Into<String>, message: DiagnosticMessage) -> Self {
         Self {
             level: IssueLevel::Info,
-            message: message.into(),
+            message,
             span: None,
             validator_name: validator.into(),
         }
@@ -353,22 +360,28 @@ impl CypherValidator for SafetyValidator {
                 .any(|c| c.kind == ClauseKind::Where);
 
             for clause in &statement.clauses {
-                let destructive_msg = match clause.kind {
-                    ClauseKind::Delete => Some(
+                let destructive = match clause.kind {
+                    ClauseKind::Delete => Some((
+                        "runtime.cypher.safety.delete_without_where",
                         "DELETE without WHERE is not allowed — add a predicate bounding the deletion",
-                    ),
-                    ClauseKind::DetachDelete => Some(
+                    )),
+                    ClauseKind::DetachDelete => Some((
+                        "runtime.cypher.safety.detach_delete_without_where",
                         "DETACH DELETE without WHERE is not allowed — add a predicate bounding the deletion",
-                    ),
-                    ClauseKind::Remove => Some(
+                    )),
+                    ClauseKind::Remove => Some((
+                        "runtime.cypher.safety.remove_without_where",
                         "REMOVE without WHERE is not allowed — add a predicate bounding the affected nodes",
-                    ),
+                    )),
                     _ => None,
                 };
-                if let Some(msg) = destructive_msg
+                if let Some((code, msg)) = destructive
                     && !has_where
                 {
-                    issues.push(ValidationIssue::error("safety", msg).with_span(clause.span));
+                    issues.push(
+                        ValidationIssue::error("safety", diag(code).message(msg))
+                            .with_span(clause.span),
+                    );
                 }
 
                 for tok in &clause.tokens {
@@ -376,7 +389,9 @@ impl CypherValidator for SafetyValidator {
                         issues.push(
                             ValidationIssue::error(
                                 "safety",
-                                "DROP is not allowed in runtime queries — schema changes go through the migration path",
+                                diag("runtime.cypher.safety.drop_disallowed").message(
+                                    "DROP is not allowed in runtime queries — schema changes go through the migration path",
+                                ),
                             )
                             .with_span(tok.span),
                         );
@@ -417,9 +432,11 @@ impl CypherValidator for SafetyValidator {
                             issues.push(
                                 ValidationIssue::error(
                                     "safety",
-                                    format!(
-                                        "`{prop_text}` is a system-reserved property and cannot be written by a user query"
-                                    ),
+                                    diag("runtime.cypher.safety.system_property_write")
+                                        .with("property", prop_text)
+                                        .message(format!(
+                                            "`{prop_text}` is a system-reserved property and cannot be written by a user query"
+                                        )),
                                 )
                                 .with_span(prop_token.span),
                             );
@@ -440,9 +457,11 @@ impl CypherValidator for SafetyValidator {
                                 if SYSTEM_PROPERTIES.contains(&key_clean) {
                                     issues.push(ValidationIssue::error(
                                         "safety",
-                                        format!(
-                                            "`{key_clean}` is a system-reserved property and cannot be written by a user query"
-                                        ),
+                                        diag("runtime.cypher.safety.system_property_write")
+                                            .with("property", key_clean)
+                                            .message(format!(
+                                                "`{key_clean}` is a system-reserved property and cannot be written by a user query"
+                                            )),
                                     ));
                                 }
                             }
@@ -534,9 +553,11 @@ impl CypherValidator for OntologyValidator {
                             issues.push(
                                 ValidationIssue::error(
                                     "ontology",
-                                    format!(
-                                        "unknown node label `{label}` — not defined in the active ontology"
-                                    ),
+                                    diag("runtime.cypher.ontology.unknown_node_label")
+                                        .with("label", label.clone())
+                                        .message(format!(
+                                            "unknown node label `{label}` — not defined in the active ontology"
+                                        )),
                                 )
                                 .with_span(node.span),
                             );
@@ -559,9 +580,12 @@ impl CypherValidator for OntologyValidator {
                             issues.push(
                                 ValidationIssue::error(
                                     "ontology",
-                                    format!(
-                                        "property `{key}` not defined on label `{label_list}` in the active ontology"
-                                    ),
+                                    diag("runtime.cypher.ontology.unknown_property")
+                                        .with("property", key.clone())
+                                        .with("labels", label_list.clone())
+                                        .message(format!(
+                                            "property `{key}` not defined on label `{label_list}` in the active ontology"
+                                        )),
                                 )
                                 .with_span(node.span),
                             );
@@ -577,9 +601,11 @@ impl CypherValidator for OntologyValidator {
                             issues.push(
                                 ValidationIssue::error(
                                     "ontology",
-                                    format!(
-                                        "unknown relationship type `{rel_type}` — not defined in the active ontology"
-                                    ),
+                                    diag("runtime.cypher.ontology.unknown_relationship_type")
+                                        .with("relationship_type", rel_type.clone())
+                                        .message(format!(
+                                            "unknown relationship type `{rel_type}` — not defined in the active ontology"
+                                        )),
                                 )
                                 .with_span(rel.span),
                             );
@@ -710,9 +736,11 @@ impl CypherValidator for SemanticGuardValidator {
                     .map(|c| c.span);
                 let mut issue = ValidationIssue::error(
                     "semantic-guard",
-                    "destructive operation is gated only by a tautological WHERE predicate \
-                     (e.g. `WHERE true`, `WHERE 1 = 1`) — add a real constraint (a property \
-                     filter on the matched variables) before DELETE / DETACH DELETE / REMOVE",
+                    diag("runtime.cypher.semantic_guard.tautological_where").message(
+                        "destructive operation is gated only by a tautological WHERE predicate \
+                         (e.g. `WHERE true`, `WHERE 1 = 1`) — add a real constraint (a property \
+                         filter on the matched variables) before DELETE / DETACH DELETE / REMOVE",
+                    ),
                 );
                 if let Some(span) = destructive_span {
                     issue = issue.with_span(span);
@@ -945,8 +973,10 @@ impl CypherValidator for ComplexityValidator {
                     issues.push(
                         ValidationIssue::error(
                             "complexity",
-                            "comma-separated MATCH patterns share no variables — this is a cartesian product; \
-                             break into separate MATCHes joined by WITH, or add a shared variable",
+                            diag("runtime.cypher.complexity.cartesian_within_clause").message(
+                                "comma-separated MATCH patterns share no variables — this is a cartesian product; \
+                                 break into separate MATCHes joined by WITH, or add a shared variable",
+                            ),
                         )
                         .with_span(clause.span),
                     );
@@ -973,12 +1003,14 @@ impl CypherValidator for ComplexityValidator {
                 if let CypherPatternElement::Relationship(rel) = element
                     && is_unbounded_var_length(&rel.var_length)
                 {
-                    let msg = "variable-length relationship has no upper bound — pin a max depth (e.g. `*1..5`) \
-                               to avoid unbounded traversal";
+                    let d = diag("runtime.cypher.complexity.unbounded_var_length").message(
+                        "variable-length relationship has no upper bound — pin a max depth \
+                         (e.g. `*1..5`) to avoid unbounded traversal",
+                    );
                     let issue = if self.reject_unbounded {
-                        ValidationIssue::error("complexity", msg)
+                        ValidationIssue::error("complexity", d)
                     } else {
-                        ValidationIssue::warning("complexity", msg)
+                        ValidationIssue::warning("complexity", d)
                     };
                     issues.push(issue.with_span(rel.span));
                 }
@@ -1099,9 +1131,11 @@ fn flag_cross_clause_disconnection(
         if !components_all_connected(segment) {
             return vec![ValidationIssue::warning(
                 "complexity",
-                "multiple MATCH clauses do not share a variable — execution crosses a cartesian boundary. \
-                 If intentional, add a `WITH` clause to carry shared state; if not, connect them by a \
-                 common variable.",
+                diag("runtime.cypher.complexity.cross_clause_disconnection").message(
+                    "multiple MATCH clauses do not share a variable — execution crosses a cartesian boundary. \
+                     If intentional, add a `WITH` clause to carry shared state; if not, connect them by a \
+                     common variable.",
+                ),
             )];
         }
     }
@@ -1225,7 +1259,7 @@ mod tests {
         let p = CypherValidatorPipeline::new().with(SafetyValidator::new());
         let r = run(&p, "MATCH (n:Person) DELETE n");
         assert!(r.has_errors(), "unrestricted DELETE must be blocked");
-        assert!(r.errors().any(|e| e.message.contains("DELETE")));
+        assert!(r.errors().any(|e| e.message.message.contains("DELETE")));
     }
 
     #[test]
@@ -1233,7 +1267,7 @@ mod tests {
         let p = CypherValidatorPipeline::new().with(SafetyValidator::new());
         let r = run(&p, "MATCH (n) DETACH DELETE n");
         assert!(r.has_errors());
-        assert!(r.errors().any(|e| e.message.contains("DETACH DELETE")));
+        assert!(r.errors().any(|e| e.message.message.contains("DETACH DELETE")));
     }
 
     #[test]
@@ -1241,7 +1275,7 @@ mod tests {
         let p = CypherValidatorPipeline::new().with(SafetyValidator::new());
         let r = run(&p, "MATCH (n:Person) REMOVE n.age");
         assert!(r.has_errors());
-        assert!(r.errors().any(|e| e.message.contains("REMOVE")));
+        assert!(r.errors().any(|e| e.message.message.contains("REMOVE")));
     }
 
     #[test]
@@ -1277,7 +1311,7 @@ mod tests {
             "MATCH (n:Person) WHERE n.id = $id SET n._workspace_id = 'other'",
         );
         assert!(r.has_errors());
-        assert!(r.errors().any(|e| e.message.contains("_workspace_id")));
+        assert!(r.errors().any(|e| e.message.message.contains("_workspace_id")));
     }
 
     #[test]
@@ -1288,7 +1322,7 @@ mod tests {
             "MATCH (n:Person) WHERE n.id = $id SET n._deleted_at = NULL",
         );
         assert!(r.has_errors());
-        assert!(r.errors().any(|e| e.message.contains("_deleted_at")));
+        assert!(r.errors().any(|e| e.message.message.contains("_deleted_at")));
     }
 
     #[test]
@@ -1296,7 +1330,7 @@ mod tests {
         let p = CypherValidatorPipeline::new().with(SafetyValidator::new());
         let r = run(&p, "CREATE (n:Person {_workspace_id: 'spoof'})");
         assert!(r.has_errors());
-        assert!(r.errors().any(|e| e.message.contains("_workspace_id")));
+        assert!(r.errors().any(|e| e.message.message.contains("_workspace_id")));
     }
 
     #[test]
@@ -1314,7 +1348,7 @@ mod tests {
         let p = CypherValidatorPipeline::new().with(SafetyValidator::new());
         let r = run(&p, "DROP CONSTRAINT person_name IF EXISTS");
         assert!(r.has_errors());
-        assert!(r.errors().any(|e| e.message.contains("DROP")));
+        assert!(r.errors().any(|e| e.message.message.contains("DROP")));
     }
 
     #[test]
@@ -1322,7 +1356,7 @@ mod tests {
         let p = CypherValidatorPipeline::new().with(SafetyValidator::new());
         let r = run(&p, "MATCH (n) WITH n CALL { DROP INDEX foo } RETURN n");
         assert!(r.has_errors());
-        assert!(r.errors().any(|e| e.message.contains("DROP")));
+        assert!(r.errors().any(|e| e.message.message.contains("DROP")));
     }
 
     #[test]
@@ -1355,11 +1389,11 @@ mod tests {
         let r = run(&p, "MATCH (n) REMOVE n.age DETACH DELETE n");
         assert!(
             r.errors()
-                .filter(|e| e.message.contains("DETACH DELETE"))
+                .filter(|e| e.message.message.contains("DETACH DELETE"))
                 .count()
                 >= 1
         );
-        assert!(r.errors().filter(|e| e.message.contains("REMOVE")).count() >= 1);
+        assert!(r.errors().filter(|e| e.message.message.contains("REMOVE")).count() >= 1);
     }
 
     // =====================================================================
@@ -1380,7 +1414,7 @@ mod tests {
             CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
         let r = run(&p, "MATCH (u:Userr) RETURN u");
         assert!(r.has_errors());
-        assert!(r.errors().any(|e| e.message.contains("Userr")));
+        assert!(r.errors().any(|e| e.message.message.contains("Userr")));
     }
 
     #[test]
@@ -1389,7 +1423,7 @@ mod tests {
             CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
         let r = run(&p, "MATCH (p:Person)-[:WORKS_FOR]->(c:Company) RETURN p");
         assert!(r.has_errors());
-        assert!(r.errors().any(|e| e.message.contains("WORKS_FOR")));
+        assert!(r.errors().any(|e| e.message.message.contains("WORKS_FOR")));
     }
 
     #[test]
@@ -1398,7 +1432,7 @@ mod tests {
             CypherValidatorPipeline::new().with(OntologyValidator::new(person_company_ontology()));
         let r = run(&p, "MATCH (p:Person {emial: 'x'}) RETURN p");
         assert!(r.has_errors());
-        assert!(r.errors().any(|e| e.message.contains("emial")));
+        assert!(r.errors().any(|e| e.message.message.contains("emial")));
     }
 
     #[test]
@@ -1520,7 +1554,7 @@ mod tests {
             &p,
             "MATCH (a:Userr) MATCH (b:Userr) MATCH (c:Userr) RETURN a, b, c",
         );
-        let count = r.errors().filter(|e| e.message.contains("Userr")).count();
+        let count = r.errors().filter(|e| e.message.message.contains("Userr")).count();
         assert_eq!(count, 1, "unknown label should report once: {:?}", r.issues);
     }
 
@@ -1594,10 +1628,10 @@ mod tests {
     #[test]
     fn report_classifies_by_level() {
         let issues = vec![
-            ValidationIssue::error("a", "e1"),
-            ValidationIssue::warning("b", "w1"),
-            ValidationIssue::info("c", "i1"),
-            ValidationIssue::error("d", "e2"),
+            ValidationIssue::error("a", diag("test.a").message("e1")),
+            ValidationIssue::warning("b", diag("test.b").message("w1")),
+            ValidationIssue::info("c", diag("test.c").message("i1")),
+            ValidationIssue::error("d", diag("test.d").message("e2")),
         ];
         let r = ValidationReport { issues };
         assert!(r.has_errors());
@@ -1616,7 +1650,8 @@ mod tests {
     #[test]
     fn issue_with_span_carries_span() {
         let span = Span::new(3, 7);
-        let issue = ValidationIssue::error("x", "msg").with_span(span);
+        let issue = ValidationIssue::error("x", diag("test.x").message("msg"))
+            .with_span(span);
         assert_eq!(issue.span, Some(span));
     }
 
@@ -1719,7 +1754,7 @@ mod tests {
         assert!(
             r.errors()
                 .any(|e| e.validator_name == "semantic-guard"
-                    && e.message.contains("tautological"))
+                    && e.message.message.contains("tautological"))
         );
     }
 
@@ -1866,7 +1901,7 @@ mod tests {
         let p = CypherValidatorPipeline::new().with(ComplexityValidator::new());
         let r = run(&p, "MATCH (a)-[*]->(b) RETURN a, b");
         assert!(r.has_errors(), "unbounded * must error: {:?}", r.issues);
-        assert!(r.errors().any(|e| e.message.contains("variable-length")));
+        assert!(r.errors().any(|e| e.message.message.contains("variable-length")));
     }
 
     /// `*1..` (no upper) also triggers — lack of upper bound is the
@@ -1893,7 +1928,7 @@ mod tests {
         let p = CypherValidatorPipeline::new().with(ComplexityValidator::permissive());
         let r = run(&p, "MATCH (a)-[*]->(b) RETURN a, b");
         assert!(!r.has_errors(), "permissive must not error: {:?}", r.issues);
-        assert!(r.warnings().any(|w| w.message.contains("variable-length")));
+        assert!(r.warnings().any(|w| w.message.message.contains("variable-length")));
     }
 
     /// Two patterns in the same MATCH with no shared variable — that's
@@ -1903,7 +1938,7 @@ mod tests {
         let p = CypherValidatorPipeline::new().with(ComplexityValidator::new());
         let r = run(&p, "MATCH (a:Person), (b:Company) RETURN a, b");
         assert!(r.has_errors(), "disconnected comma-patterns must error: {:?}", r.issues);
-        assert!(r.errors().any(|e| e.message.contains("cartesian")));
+        assert!(r.errors().any(|e| e.message.message.contains("cartesian")));
     }
 
     /// Same shape but now the two patterns share `a` — no cartesian.
@@ -1929,7 +1964,7 @@ mod tests {
         );
         assert!(!r.has_errors(), "cross-clause disconnect is a warning: {:?}", r.issues);
         assert!(
-            r.warnings().any(|w| w.message.contains("cartesian")),
+            r.warnings().any(|w| w.message.message.contains("cartesian")),
             "expected cross-clause warning: {:?}",
             r.issues
         );

@@ -57,8 +57,37 @@ use crate::cypher::{
 };
 use crate::isolation::{GraphIsolationStrategy, ScopedAst};
 use crate::{
-    GRAPH_ACL_SNAPSHOT, GRAPH_ONTOLOGY, GRAPH_PRINCIPAL, GRAPH_SYSTEM_BYPASS, GRAPH_WORKSPACE_ID,
+    GRAPH_ACL_SNAPSHOT, GRAPH_ONTOLOGY, GRAPH_ONTOLOGY_AS_OF, GRAPH_PRINCIPAL,
+    GRAPH_SYSTEM_BYPASS, GRAPH_WORKSPACE_ID,
 };
+
+/// Project the active ontology through `OntologyIR::as_of(at)` when
+/// the bitemporal anchor task-local is set; otherwise pass the
+/// caller's snapshot through untouched.
+///
+/// `as_of` filtering is best-effort: if the projection itself
+/// surfaces an invariant error (only possible when the source IR
+/// was malformed before filtering), we log the issue and fall back
+/// to the unfiltered snapshot so the request still runs against
+/// today's ontology rather than refusing outright. The validator
+/// pass that follows still catches any structural mismatch.
+fn project_ontology_as_of(ir: Arc<OntologyIR>) -> Arc<OntologyIR> {
+    let Ok(at) = GRAPH_ONTOLOGY_AS_OF.try_with(|t| *t) else {
+        return ir;
+    };
+    match ir.as_of(at) {
+        Ok(filtered) => Arc::new(filtered),
+        Err(err) => {
+            warn!(
+                ?err,
+                ontology_id = %ir.id,
+                as_of = %at,
+                "ontology as_of projection failed; falling back to unfiltered snapshot"
+            );
+            ir
+        }
+    }
+}
 
 /// Run the full pre-execute pipeline for a Cypher statement.
 ///
@@ -80,7 +109,10 @@ pub(crate) fn run_pre_execute(
 ) -> OxResult<(String, HashMap<String, PropertyValue>)> {
     let workspace_id = GRAPH_WORKSPACE_ID.try_with(|id| id.to_string()).ok();
     let system_bypass = GRAPH_SYSTEM_BYPASS.try_with(|b| *b).unwrap_or(false);
-    let ontology = GRAPH_ONTOLOGY.try_with(Arc::clone).ok();
+    let ontology = GRAPH_ONTOLOGY
+        .try_with(Arc::clone)
+        .ok()
+        .map(project_ontology_as_of);
 
     // Parse once; every pipeline pass below operates on the AST.
     let ast = parse(cypher);
@@ -306,7 +338,12 @@ fn ensure_no_errors(report: &ValidationReport) -> OxResult<()> {
         lines.push_str("\n  [");
         lines.push_str(&issue.validator_name);
         lines.push_str("] ");
-        lines.push_str(&issue.message);
+        // OxError carries a flat String; the FE re-localises via the
+        // structured `QueryDiagnostic` channel (`code` + `params`)
+        // that travels through `QueryMetadata.warnings`. The summary
+        // string here is the universal English rendering used for
+        // operator logs and the HTTP error body's text fallback.
+        lines.push_str(&issue.message.message);
     }
     Err(OxError::Validation {
         field: "cypher_query".to_string(),
@@ -547,11 +584,18 @@ mod tests {
     #[test]
     fn log_non_errors_does_not_block_execution() {
         use crate::cypher::{ValidationIssue, ValidationReport};
+        use ox_core::diagnostic::diag;
 
         let report = ValidationReport {
             issues: vec![
-                ValidationIssue::warning("hypothetical-advisory", "use LIMIT for big reads"),
-                ValidationIssue::info("hypothetical-hint", "consider indexing :Person(name)"),
+                ValidationIssue::warning(
+                    "hypothetical-advisory",
+                    diag("test.advisory").message("use LIMIT for big reads"),
+                ),
+                ValidationIssue::info(
+                    "hypothetical-hint",
+                    diag("test.hint").message("consider indexing :Person(name)"),
+                ),
             ],
         };
         log_non_errors(&report, "pre-rewrite", "ws-123");
@@ -738,5 +782,134 @@ mod tests {
             !rewritten.contains("_deleted_at"),
             "SoftDelete must not run under SYSTEM_BYPASS: {rewritten}"
         );
+    }
+}
+
+#[cfg(test)]
+mod as_of_tests {
+    use super::*;
+
+    use chrono::{Duration, Utc};
+    use ox_core::GraphLabel;
+    use ox_core::PropertyKey;
+    use ox_core::i18n::LocalizedText;
+    use ox_core::types::PropertyType;
+    use ox_ontology::ir::{NodeTypeDef, PropertyDef};
+    use ox_ontology::rule::{RuleOrigin, 
+        EnforcementKind, RuleActivationKind, RuleDef, RuleKind, Severity, ShaclConstraint,
+        ConstraintTarget,
+    };
+    use ox_ontology::action::RuleId;
+    use uuid::Uuid;
+
+    fn pk(s: &'static str) -> PropertyKey {
+        PropertyKey::new(s).expect("valid")
+    }
+    fn gl(s: &'static str) -> GraphLabel {
+        GraphLabel::new(s).expect("valid")
+    }
+
+    fn ontology_with_stale_rule(stale_until: chrono::DateTime<Utc>) -> OntologyIR {
+        let mut ir = OntologyIR::try_new(
+            "ont".into(),
+            "AsOfTest".into(),
+            LocalizedText::default(),
+            1u32,
+            vec![NodeTypeDef {
+                id: "nt-x".into(),
+                label: gl("X"),
+                description: LocalizedText::default(),
+                properties: vec![PropertyDef {
+                    id: "p-name".into(),
+                    name: pk("name"),
+                    property_type: PropertyType::String,
+                    nullable: false,
+                    ..Default::default()
+                }],
+                constraints: Vec::new(),
+                ..Default::default()
+            }],
+            Vec::new(),
+            Vec::new(),
+        )
+        .expect("ir");
+        ir.add_rule(RuleDef {
+            id: RuleId::new("r-stale"),
+            name: "stale".into(),
+            description: LocalizedText::default(),
+            rationale: LocalizedText::default(),
+            kind: RuleKind::PropertyShape {
+                target_node_type_id: "nt-x".into(),
+                target_property_id: "p-name".into(),
+            },
+            severity: Severity::Violation,
+            enforcement: EnforcementKind::Write,
+            activation: RuleActivationKind::Always,
+            origin: RuleOrigin::Authored,
+            constraints: vec![ShaclConstraint::MinCount {
+                target: ConstraintTarget::Inherit,
+                min: 1,
+            }],
+            valid_from: None,
+            valid_to: Some(stale_until),
+        })
+        .expect("add rule");
+        ir
+    }
+
+    #[test]
+    fn as_of_filters_stale_rules_when_anchor_is_after_window() {
+        let now = Utc::now();
+        let past_cutoff = now - Duration::hours(1);
+        let ir = ontology_with_stale_rule(past_cutoff);
+
+        // No anchor → projection passthrough preserves the stale rule.
+        let direct = GRAPH_ONTOLOGY.sync_scope(Arc::new(ir.clone()), || {
+            project_ontology_as_of(GRAPH_ONTOLOGY.with(Arc::clone))
+        });
+        assert_eq!(direct.rules().len(), 1);
+
+        // Anchor in the past (covers the rule's window) → kept.
+        let inside = GRAPH_ONTOLOGY.sync_scope(Arc::new(ir.clone()), || {
+            GRAPH_ONTOLOGY_AS_OF.sync_scope(past_cutoff - Duration::seconds(1), || {
+                project_ontology_as_of(GRAPH_ONTOLOGY.with(Arc::clone))
+            })
+        });
+        assert_eq!(inside.rules().len(), 1);
+
+        // Anchor in the future (after the rule's valid_to) → filtered.
+        let after = GRAPH_ONTOLOGY.sync_scope(Arc::new(ir), || {
+            GRAPH_ONTOLOGY_AS_OF.sync_scope(now, || {
+                project_ontology_as_of(GRAPH_ONTOLOGY.with(Arc::clone))
+            })
+        });
+        assert_eq!(after.rules().len(), 0, "stale rule must be filtered");
+    }
+
+    #[test]
+    fn as_of_unset_passes_ontology_through_unchanged() {
+        let now = Utc::now();
+        let ir = ontology_with_stale_rule(now + Duration::hours(1));
+        let projected = GRAPH_ONTOLOGY.sync_scope(Arc::new(ir.clone()), || {
+            project_ontology_as_of(GRAPH_ONTOLOGY.with(Arc::clone))
+        });
+        // Same Arc identity is not guaranteed (helper may project),
+        // but the rule count must match the input.
+        assert_eq!(projected.rules().len(), ir.rules().len());
+    }
+
+    // The helper is reachable with WORKSPACE_ID unbound — the unset
+    // branch is what `try_with` covers. Smoke-test that
+    // `run_pre_execute` doesn't panic when the bitemporal anchor is
+    // absent.
+    #[test]
+    fn pipeline_runs_without_as_of_anchor() {
+        let workspace = Uuid::nil();
+        let params: HashMap<String, PropertyValue> = HashMap::new();
+        let result = GRAPH_WORKSPACE_ID.sync_scope(workspace, || {
+            run_pre_execute(None, "MATCH (n) RETURN n LIMIT 1", &params)
+        });
+        let (out, _) = result.expect("pipeline succeeds");
+        assert!(out.contains("MATCH"));
     }
 }
