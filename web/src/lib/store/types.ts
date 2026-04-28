@@ -74,6 +74,13 @@ export type WorkspaceMode = "design" | "analyze" | "explore" | "dashboard";
 
 export type DesignBottomTab = "chat" | "workflow" | "quality";
 
+/**
+ * Snap presets for the bottom panel. `default` is ~30%; `tall` is
+ * ~70%; `fullscreen` covers the viewport. The exact percentages
+ * live in `chrome-slice` so tweaking them is one edit.
+ */
+export type BottomPanelMode = "default" | "tall" | "fullscreen";
+
 // ---------------------------------------------------------------------------
 // Analyze mode right panel tabs
 // ---------------------------------------------------------------------------
@@ -173,9 +180,37 @@ export interface ChromeSlice {
   isExplorerOpen: boolean;
   isInspectorOpen: boolean;
   isBottomPanelOpen: boolean;
+  /**
+   * Global search-dialog visibility. Lives on the chrome slice so
+   * any header / sidebar / palette button can drive it without the
+   * `DesignLayout` owning local state and forcing prop drilling.
+   * Cmd/Ctrl+K toggles, Esc closes — keybindings remain in
+   * `DesignLayout` since that's where the dialog mounts.
+   */
+  isSearchOpen: boolean;
+  /**
+   * Global command-palette visibility. Cmd/Ctrl+Shift+P toggles
+   * (mirrors VS Code's "Command Palette" binding); the palette
+   * lives in the workbench layout root so every mode shares the
+   * same instance.
+   */
+  isCommandPaletteOpen: boolean;
   toggleExplorer: () => void;
   toggleInspector: () => void;
   toggleBottomPanel: () => void;
+  setSearchOpen: (open: boolean) => void;
+  setCommandPaletteOpen: (open: boolean) => void;
+  /**
+   * Snap-point preference for the bottom panel. `default` is the
+   * comfortable in-context size; `tall` doubles the panel for
+   * heavy review sessions; `fullscreen` hides the canvas/review
+   * pane entirely so the panel covers the viewport. The store
+   * persists the preference; `DesignLayout` translates it into
+   * a `defaultSize` on the resizable panel.
+   */
+  bottomPanelMode: BottomPanelMode;
+  setBottomPanelMode: (mode: BottomPanelMode) => void;
+  cycleBottomPanelMode: () => void;
 
   // Analyze mode
   analyzeRightTab: AnalyzeRightTab;

@@ -1,5 +1,5 @@
 import type { StateCreator } from "zustand";
-import type { AppStore, ChromeSlice } from "./types";
+import type { AppStore, BottomPanelMode, ChromeSlice } from "./types";
 import {
   getWorkspaceId,
   getWorkspaceName,
@@ -60,9 +60,26 @@ export const createChromeSlice: StateCreator<AppStore, [], [], ChromeSlice> = (s
   isExplorerOpen: true,
   isInspectorOpen: true,
   isBottomPanelOpen: true,
+  isSearchOpen: false,
+  isCommandPaletteOpen: false,
   toggleExplorer: () => set((s) => ({ isExplorerOpen: !s.isExplorerOpen })),
   toggleInspector: () => set((s) => ({ isInspectorOpen: !s.isInspectorOpen })),
   toggleBottomPanel: () => set((s) => ({ isBottomPanelOpen: !s.isBottomPanelOpen })),
+  setSearchOpen: (open) => set({ isSearchOpen: open }),
+  setCommandPaletteOpen: (open) => set({ isCommandPaletteOpen: open }),
+
+  bottomPanelMode: "default",
+  setBottomPanelMode: (mode) => set({ bottomPanelMode: mode, isBottomPanelOpen: true }),
+  cycleBottomPanelMode: () =>
+    set((s) => {
+      const next: BottomPanelMode =
+        s.bottomPanelMode === "default"
+          ? "tall"
+          : s.bottomPanelMode === "tall"
+            ? "fullscreen"
+            : "default";
+      return { bottomPanelMode: next, isBottomPanelOpen: true };
+    }),
 
   analyzeRightTab: "results",
   setAnalyzeRightTab: (tab) => set({ analyzeRightTab: tab }),

@@ -9,7 +9,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Tooltip } from "@/components/ui/tooltip";
 import { Spinner } from "@/components/ui/spinner";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Upload04Icon, Download04Icon } from "@hugeicons/core-free-icons";
+import { Upload04Icon, Download04Icon, Search01Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 import { useGuardPendingEdits } from "@/lib/guard-pending-edits";
 import type { OntologyIR } from "@/types/api";
@@ -131,9 +131,24 @@ function DesignActions() {
     await handleSchemaExport(ontology, format);
   };
 
+  const setSearchOpen = useAppStore((s) => s.setSearchOpen);
+  const isMacLike =
+    typeof navigator !== "undefined" && /Mac/.test(navigator.userAgent);
+  const searchShortcut = `${isMacLike ? "⌘" : "Ctrl+"}K`;
+
   return (
     <>
       <input ref={fileRef} type="file" accept=".json,.ttl,.owl" className="hidden" onChange={handleFileImport} />
+      <Tooltip content={t("searchTooltip", { shortcut: searchShortcut })}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => setSearchOpen(true)}
+          aria-label={t("searchAria")}
+        >
+          <HugeiconsIcon icon={Search01Icon} className="h-3.5 w-3.5" size="100%" />
+        </Button>
+      </Tooltip>
       <Tooltip content={t("importTooltip")}>
         <Button variant="ghost" size="icon-sm" onClick={() => fileRef.current?.click()} disabled={importing} aria-label={t("importAria")}>
           {importing ? <Spinner size="xs" /> : <HugeiconsIcon icon={Upload04Icon} className="h-3.5 w-3.5" size="100%" />}
