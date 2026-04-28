@@ -159,6 +159,7 @@ mod tests {
                     sample_values: vec!["1".to_string(), "2".to_string(), "3".to_string()],
                     min_value: None,
                     max_value: None,
+                    pii_redacted: None,
                 }],
             }],
         };
@@ -185,6 +186,7 @@ mod tests {
                     sample_values: vec!["N".to_string(), "Regular".to_string(), "Town".to_string()],
                     min_value: None,
                     max_value: None,
+                    pii_redacted: None,
                 }],
             }],
         };
@@ -206,6 +208,7 @@ mod tests {
                     sample_values: vec!["Y".to_string(), "N".to_string()],
                     min_value: None,
                     max_value: None,
+                    pii_redacted: None,
                 }],
             }],
         };
@@ -232,6 +235,7 @@ mod tests {
                     sample_values: vec!["1".to_string(), "2".to_string(), "3".to_string()],
                     min_value: None,
                     max_value: None,
+                    pii_redacted: None,
                 }],
             }],
         };

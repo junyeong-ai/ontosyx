@@ -353,6 +353,7 @@ fn column_clarifications_suppress_data_observation_gaps() {
                     sample_values: vec!["1".to_string(), "2".to_string(), "3".to_string()],
                     min_value: Some("1".to_string()),
                     max_value: Some("3".to_string()),
+                    pii_redacted: None,
                 },
                 ColumnStats {
                     column_name: "status".to_string(),
@@ -361,6 +362,7 @@ fn column_clarifications_suppress_data_observation_gaps() {
                     sample_values: vec!["active".to_string()],
                     min_value: Some("active".to_string()),
                     max_value: Some("active".to_string()),
+                    pii_redacted: None,
                 },
             ],
         }],
@@ -1283,6 +1285,7 @@ fn quality_gap_params_match_wire_contract() {
                 sample_values: vec!["paid".to_string()],
                 min_value: None,
                 max_value: None,
+                pii_redacted: None,
             }],
         }],
     };

@@ -133,6 +133,7 @@ mod tests {
                     sample_values: vec![],
                     min_value: None,
                     max_value: None,
+                    pii_redacted: None,
                 }],
             }],
         };
@@ -183,6 +184,7 @@ mod tests {
                     sample_values: vec!["new".into(), "paid".into(), "shipped".into()],
                     min_value: None,
                     max_value: None,
+                    pii_redacted: None,
                 }],
             }],
         };
@@ -209,6 +211,7 @@ mod tests {
                             sample_values: vec![],
                             min_value: None,
                             max_value: None,
+                            pii_redacted: None,
                         },
                         ColumnStats {
                             column_name: "email".into(),
@@ -217,6 +220,7 @@ mod tests {
                             sample_values: vec![],
                             min_value: None,
                             max_value: None,
+                            pii_redacted: None,
                         },
                     ],
                 },
@@ -230,6 +234,7 @@ mod tests {
                         sample_values: vec!["new".into(), "paid".into()],
                         min_value: None,
                         max_value: None,
+                        pii_redacted: None,
                     }],
                 },
             ],

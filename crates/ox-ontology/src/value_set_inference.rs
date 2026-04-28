@@ -382,6 +382,7 @@ mod tests {
                     sample_values: samples.iter().map(|s| s.to_string()).collect(),
                     min_value: None,
                     max_value: None,
+                    pii_redacted: None,
                 }],
             }],
         };

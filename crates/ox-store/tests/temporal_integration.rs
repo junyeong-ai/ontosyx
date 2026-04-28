@@ -175,6 +175,7 @@ async fn seed_fixture(store: &PostgresStore) -> TemporalFixture {
             let identity = store
                 .create_ontology(
                     &format!("temporal-ontology-{short}"),
+                    &serde_json::json!({"default": "", "translations": {}}),
                     &serde_json::json!({"default": "Temporal Test", "translations": {}}),
                     Some(&lineage_id),
                 )
@@ -592,6 +593,7 @@ async fn temporal_rewrite_preserves_property_filters() {
             let identity = store
                 .create_ontology(
                     &format!("prop-ontology-{short}"),
+                    &serde_json::json!({"default": "", "translations": {}}),
                     &serde_json::json!({"default": "Prop test", "translations": {}}),
                     Some(&lineage_id),
                 )

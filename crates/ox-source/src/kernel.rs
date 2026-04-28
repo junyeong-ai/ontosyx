@@ -846,6 +846,7 @@ mod tests {
                 sample_values: Vec::new(),
                 min_value: None,
                 max_value: None,
+                pii_redacted: None,
             })
         }
         async fn list_foreign_keys(&self) -> OxResult<Vec<ForeignKeyDef>> {
@@ -1141,6 +1142,7 @@ mod tests {
                 sample_values: Vec::new(),
                 min_value: None,
                 max_value: None,
+                pii_redacted: None,
             })
         }
         async fn list_foreign_keys(&self) -> OxResult<Vec<ForeignKeyDef>> {

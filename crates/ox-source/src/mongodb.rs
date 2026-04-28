@@ -394,6 +394,7 @@ impl DataSourceAdapter for MongoAdapter {
             sample_values: Vec::new(),
             min_value: None,
             max_value: None,
+            pii_redacted: ox_core::source_schema::classify_pii_suspect_by_name(&column.name),
         })
     }
 
@@ -590,6 +591,13 @@ fn profile_field_over_docs(field_name: &str, documents: &[Document]) -> ColumnSt
         sample_values
     };
 
+    let pii_redacted = ox_core::source_schema::classify_pii_suspect_by_name(field_name);
+    let (final_samples, min_value, max_value) = if pii_redacted.is_some() {
+        (Vec::new(), None, None)
+    } else {
+        (final_samples, min_value, max_value)
+    };
+
     ColumnStats {
         column_name: field_name.to_string(),
         null_count,
@@ -597,6 +605,7 @@ fn profile_field_over_docs(field_name: &str, documents: &[Document]) -> ColumnSt
         sample_values: final_samples,
         min_value,
         max_value,
+        pii_redacted,
     }
 }
 

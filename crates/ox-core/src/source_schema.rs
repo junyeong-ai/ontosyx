@@ -138,10 +138,136 @@ pub struct ColumnStats {
     pub column_name: String,
     pub null_count: u64,
     pub distinct_count: u64,
-    /// Up to 30 distinct values. Empty if too many distinct values.
+    /// Up to 30 distinct values. Empty when distinct count is too
+    /// high *or* when the column is flagged PII-suspect — raw values
+    /// are dropped at collection time so they never enter the
+    /// `SourceProfile` payload that downstream consumers (admin UI,
+    /// LLM context, audit log) eventually surface.
     pub sample_values: Vec<String>,
+    /// Smallest observed value in the column. Suppressed when
+    /// `pii_redacted` is set so the bounds don't disclose
+    /// real-world ranges (date of birth, salary, etc.).
     pub min_value: Option<String>,
+    /// Largest observed value. Same redaction policy as `min_value`.
     pub max_value: Option<String>,
+    /// `Some(kind)` when a heuristic flagged the column name as
+    /// likely PII at collection time and the analyzer dropped raw
+    /// values to keep them out of `SourceProfile`. The user later
+    /// confirms or overrides through the admin UI's PII suggestion
+    /// flow; the confirmed `PiiKind` lives on `PropertyDef::pii_kind`,
+    /// independent of this collection-time hint.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pii_redacted: Option<PiiSuspectKind>,
+}
+
+/// Heuristic PII pattern detected by name at sample-collection time.
+///
+/// Mirrors the high-confidence subset of `ox_ontology::PiiKind` so
+/// the FE can render a "Redacted: <kind>" badge without round-
+/// tripping the user-confirmed annotation. Open extension via
+/// [`PiiSuspectKind::Other`] for catalogues that want to flag a
+/// custom pattern without adding a first-class variant.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, utoipa::ToSchema)]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+pub enum PiiSuspectKind {
+    Email,
+    Phone,
+    Name,
+    Address,
+    NationalId,
+    PaymentCard,
+    Password,
+    Token,
+    Other(String),
+}
+
+/// Heuristic PII detection by column name. Matches the high-frequency
+/// patterns warehouse columns use (`email`, `phone_number`,
+/// `customer_email_address`, `password_hash`, `ssn`, `credit_card`,
+/// etc.) so sample collection can drop raw values before they ever
+/// reach `SourceProfile`. Returns `None` for columns that don't match
+/// any heuristic — the analyzer keeps raw samples in that case so
+/// downstream value-set inference / clustering still works.
+///
+/// The match is intentionally conservative: false positives are
+/// cheap (FE shows a "Redacted" badge the user can override),
+/// false negatives are expensive (raw PII leaks into the analysis
+/// surface). When in doubt, redact.
+pub fn classify_pii_suspect_by_name(column_name: &str) -> Option<PiiSuspectKind> {
+    let n = column_name.to_ascii_lowercase();
+
+    // Auth secrets — always redact, no false-positive cost.
+    if n.contains("password") || n.contains("passwd") || n == "pwd" {
+        return Some(PiiSuspectKind::Password);
+    }
+    if n.contains("token") || n.contains("secret") || n.contains("api_key") {
+        return Some(PiiSuspectKind::Token);
+    }
+
+    // Identity fields.
+    if n.contains("email") || n == "e_mail" {
+        return Some(PiiSuspectKind::Email);
+    }
+    if n.contains("phone")
+        || n.contains("mobile")
+        || n.contains("tel_no")
+        || n.contains("telephone")
+    {
+        return Some(PiiSuspectKind::Phone);
+    }
+    if n.contains("ssn")
+        || n.contains("national_id")
+        || n.contains("rrn") // KR resident registration number
+        || n.contains("passport")
+        || n.contains("drivers_license")
+    {
+        return Some(PiiSuspectKind::NationalId);
+    }
+
+    // Financial.
+    if n.contains("credit_card")
+        || n.contains("card_number")
+        || n.contains("card_no")
+        || n.contains("iban")
+        || n.contains("bank_account")
+    {
+        return Some(PiiSuspectKind::PaymentCard);
+    }
+
+    // Addressing — match conservative patterns so we don't redact
+    // every column that happens to contain "addr" (`mac_address`,
+    // `ip_address` carry a different sensitivity profile).
+    if n == "address"
+        || n.ends_with("_address")
+        || n.contains("street")
+        || n.contains("postal_code")
+        || n == "zip"
+        || n.contains("zipcode")
+    {
+        // Skip MAC / IP addresses — those are technical identifiers,
+        // not personal addresses.
+        if n.contains("mac_") || n.contains("ip_") {
+            return None;
+        }
+        return Some(PiiSuspectKind::Address);
+    }
+
+    // Personal name fields. Match strictly so `username` /
+    // `display_name` (already-public handles) don't redact.
+    if n == "first_name"
+        || n == "last_name"
+        || n == "middle_name"
+        || n == "given_name"
+        || n == "family_name"
+        || n == "full_name"
+        || n == "real_name"
+        || n == "patient_name"
+        || n == "customer_name"
+    {
+        return Some(PiiSuspectKind::Name);
+    }
+
+    None
 }
 
 #[cfg(test)]
@@ -153,6 +279,75 @@ mod tests {
             name: name.to_string(),
             data_type: ty.to_string(),
             nullable,
+        }
+    }
+
+    #[test]
+    fn pii_classifier_flags_email_columns() {
+        for n in [
+            "email",
+            "email_address",
+            "customer_email",
+            "billing_email_address",
+        ] {
+            assert_eq!(
+                classify_pii_suspect_by_name(n),
+                Some(PiiSuspectKind::Email),
+                "{n} should classify as Email"
+            );
+        }
+    }
+
+    #[test]
+    fn pii_classifier_flags_password_token_unconditionally() {
+        assert_eq!(
+            classify_pii_suspect_by_name("user_password"),
+            Some(PiiSuspectKind::Password)
+        );
+        assert_eq!(
+            classify_pii_suspect_by_name("password_hash"),
+            Some(PiiSuspectKind::Password)
+        );
+        assert_eq!(
+            classify_pii_suspect_by_name("api_key"),
+            Some(PiiSuspectKind::Token)
+        );
+        assert_eq!(
+            classify_pii_suspect_by_name("refresh_token"),
+            Some(PiiSuspectKind::Token)
+        );
+    }
+
+    #[test]
+    fn pii_classifier_skips_technical_addresses() {
+        assert_eq!(classify_pii_suspect_by_name("ip_address"), None);
+        assert_eq!(classify_pii_suspect_by_name("mac_address"), None);
+    }
+
+    #[test]
+    fn pii_classifier_strict_match_for_personal_names() {
+        // Strict match — `username` / `display_name` must NOT
+        // trigger the heuristic (already-public handles).
+        assert_eq!(classify_pii_suspect_by_name("username"), None);
+        assert_eq!(classify_pii_suspect_by_name("display_name"), None);
+        assert_eq!(
+            classify_pii_suspect_by_name("first_name"),
+            Some(PiiSuspectKind::Name)
+        );
+        assert_eq!(
+            classify_pii_suspect_by_name("full_name"),
+            Some(PiiSuspectKind::Name)
+        );
+    }
+
+    #[test]
+    fn pii_classifier_returns_none_for_neutral_columns() {
+        for n in ["id", "created_at", "status", "amount", "quantity"] {
+            assert_eq!(
+                classify_pii_suspect_by_name(n),
+                None,
+                "{n} should not classify"
+            );
         }
     }
 

@@ -386,6 +386,8 @@ fn is_unique_non_null(column: &str, rows: &[Row]) -> bool {
 }
 
 fn build_column_stats(column: &str, values: &[Cell]) -> ColumnStats {
+    let pii_suspect = ox_core::source_schema::classify_pii_suspect_by_name(column);
+
     let mut distinct = HashSet::new();
     let mut sample_values = Vec::new();
     let mut sample_seen = HashSet::new();
@@ -396,10 +398,15 @@ fn build_column_stats(column: &str, values: &[Cell]) -> ColumnStats {
         match &cell.raw {
             Some(value) => {
                 distinct.insert(value.clone());
-                ordered_values.insert(value.clone());
-
-                if sample_seen.insert(value.clone()) && sample_values.len() < MAX_DISTINCT_VALUES {
-                    sample_values.push(value.clone());
+                // Skip min/max bookkeeping for PII-suspect columns —
+                // bounds disclose real-world ranges (DOB, salary).
+                if pii_suspect.is_none() {
+                    ordered_values.insert(value.clone());
+                    if sample_seen.insert(value.clone())
+                        && sample_values.len() < MAX_DISTINCT_VALUES
+                    {
+                        sample_values.push(value.clone());
+                    }
                 }
             }
             None => null_count += 1,
@@ -416,6 +423,7 @@ fn build_column_stats(column: &str, values: &[Cell]) -> ColumnStats {
         sample_values,
         min_value,
         max_value,
+        pii_redacted: pii_suspect,
     }
 }
 
@@ -1025,6 +1033,7 @@ fn empty_stats(column_name: &str) -> ColumnStats {
         sample_values: Vec::new(),
         min_value: None,
         max_value: None,
+        pii_redacted: ox_core::source_schema::classify_pii_suspect_by_name(column_name),
     }
 }
 

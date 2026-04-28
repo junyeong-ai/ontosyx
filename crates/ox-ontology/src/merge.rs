@@ -862,6 +862,7 @@ mod tests {
             sample_values: vec![],
             min_value: None,
             max_value: None,
+            pii_redacted: None,
         };
         let now = Utc::now();
         let entry = ColumnProfileDef {

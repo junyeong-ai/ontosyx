@@ -476,6 +476,7 @@ mod tests {
             ],
             min_value: Some("aaa@example.com".to_string()),
             max_value: Some("zzz@example.com".to_string()),
+            pii_redacted: None,
         };
         redact_column_stats(&mut stats, &PiiKind::Email);
         assert_eq!(stats.null_count, 7);

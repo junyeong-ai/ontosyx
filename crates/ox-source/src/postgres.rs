@@ -400,7 +400,8 @@ impl DataSourceAdapter for PostgresAdapter {
             sample_values,
             min_value,
             max_value,
-        })
+            pii_redacted: ox_core::source_schema::classify_pii_suspect_by_name(&column.name),
+                })
     }
 
     async fn list_foreign_keys(&self) -> OxResult<Vec<ForeignKeyDef>> {

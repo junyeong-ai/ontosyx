@@ -439,6 +439,7 @@ fn compact_profile_for_llm(
                                 .max_value
                                 .as_ref()
                                 .map(|v| truncate_str(v, max_value_chars)),
+                            pii_redacted: cs.pii_redacted.clone(),
                         }
                     })
                     .collect(),
@@ -830,6 +831,7 @@ mod tests {
                 sample_values: vec![],
                 min_value: None,
                 max_value: None,
+                pii_redacted: None,
             }],
         }
     }
