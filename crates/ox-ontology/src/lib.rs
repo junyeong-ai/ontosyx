@@ -61,6 +61,7 @@ pub mod merge;
 pub mod rule_suggestions;
 pub mod segment;
 pub mod source_analysis;
+pub mod source_mapping;
 pub mod storage;
 pub mod table_clustering;
 #[cfg(any(test, feature = "test-fixtures"))]

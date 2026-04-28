@@ -122,6 +122,28 @@ CREATE TABLE workspace_members (
 -- 2. Design
 -- ============================================================================
 
+-- ADR 0011 — declarative bridge between a source schema snapshot
+-- and the OntologyIR derived from it. Content-addressed via the
+-- artifact body's SHA-256 plus the snapshot hash, so a re-run of
+-- the design action against an unchanged schema collapses to the
+-- existing row instead of writing a duplicate.
+CREATE TABLE source_mapping_artifacts (
+    id text NOT NULL,
+    source_id text NOT NULL,
+    schema_snapshot_hash text NOT NULL,
+    content_hash text NOT NULL,
+    body jsonb NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+    created_by text NOT NULL,
+    workspace_id uuid DEFAULT (current_setting('app.workspace_id', true))::uuid NOT NULL,
+    CONSTRAINT source_mapping_artifacts_pkey PRIMARY KEY (id),
+    CONSTRAINT source_mapping_artifacts_content_addressed
+        UNIQUE (workspace_id, source_id, schema_snapshot_hash, content_hash)
+);
+ALTER TABLE source_mapping_artifacts FORCE ROW LEVEL SECURITY;
+CREATE INDEX idx_source_mapping_artifacts_source
+    ON source_mapping_artifacts (workspace_id, source_id, created_at DESC);
+
 CREATE TABLE design_projects (
     id uuid NOT NULL,
     user_id text NOT NULL,
@@ -1406,6 +1428,17 @@ CREATE POLICY ws_isolation ON design_projects
     USING (workspace_id = current_setting('app.workspace_id', true)::uuid)
     WITH CHECK (workspace_id = current_setting('app.workspace_id', true)::uuid);
 CREATE POLICY system_bypass ON design_projects
+    USING (current_setting('app.system_bypass', true) = 'true');
+
+-- ============================================================================
+-- source_mapping_artifacts
+-- ============================================================================
+ALTER TABLE source_mapping_artifacts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE source_mapping_artifacts FORCE ROW LEVEL SECURITY;
+CREATE POLICY ws_isolation ON source_mapping_artifacts
+    USING (workspace_id = current_setting('app.workspace_id', true)::uuid)
+    WITH CHECK (workspace_id = current_setting('app.workspace_id', true)::uuid);
+CREATE POLICY system_bypass ON source_mapping_artifacts
     USING (current_setting('app.system_bypass', true) = 'true');
 
 -- ============================================================================

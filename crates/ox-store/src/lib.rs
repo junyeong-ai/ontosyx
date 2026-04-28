@@ -37,6 +37,6 @@ pub use store::{
     NotificationStore, OntologyNavigationStore, OntologyVersionStore, PatternStore,
     PerspectiveStore, PinStore, ProjectStore, PromptTemplateStore, QualityBaselineStore,
     QualitySignalStore, QualityStore, QueryStore, RecipeStore, ReportStore, ScheduledTaskStore,
-    StaleConceptProposalStore, Store, ToolApprovalStore, UserStore, VerificationStore,
+    SourceMappingArtifactStore, StaleConceptProposalStore, Store, ToolApprovalStore, UserStore, VerificationStore,
     WorkspaceStore,
 };

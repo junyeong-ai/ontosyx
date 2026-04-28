@@ -56,7 +56,7 @@ use crate::store::{
     LineageStore, LoadCheckpointStore, MeteringStore, PatternStore, PerspectiveStore, PinStore,
     ProjectStore,
     PromptTemplateStore, QualitySignalStore, QualityStore, QueryStore, RecipeStore, ReportStore,
-    ScheduledTaskStore, StaleConceptProposalStore, ToolApprovalStore, UserStore,
+    ScheduledTaskStore, SourceMappingArtifactStore, StaleConceptProposalStore, ToolApprovalStore, UserStore,
     VerificationStore, WorkspaceStore,
 };
 
@@ -336,6 +336,7 @@ mod query;
 mod recipe;
 mod report;
 mod scheduled_task;
+mod source_mapping;
 mod stale_concept_proposal;
 mod tool_approval;
 mod user;
