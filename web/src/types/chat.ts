@@ -112,7 +112,7 @@ export interface QueryExecutionSummary {
 
 // --- Insight Suggestions ---
 
-export interface InsightSuggestion {
+export interface InsightHint {
   question: string;
   category: string;
   suggested_tool: string;

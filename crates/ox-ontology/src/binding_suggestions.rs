@@ -128,7 +128,7 @@ impl Default for BindingSuggestionPolicy {
 /// Score every unbound property in the ontology against `term` and
 /// return those whose combined score clears `policy.min_score`,
 /// sorted by descending score.
-pub fn suggest_property_bindings_for_term(
+pub fn suggest_property_bindings_by_term(
     ontology: &OntologyIR,
     term: &GlossaryTermDef,
     policy: BindingSuggestionPolicy,
@@ -160,7 +160,7 @@ pub fn suggest_property_bindings_for_term(
 /// glossary terms most likely to describe it. Useful when the
 /// operator is editing a property and wants a single-click "link to
 /// existing term" suggestion.
-pub fn suggest_terms_for_property(
+pub fn suggest_terms_by_property(
     ontology: &OntologyIR,
     prop_ref: &PropertyOwnerRef,
     property_id: &PropertyId,
@@ -561,7 +561,7 @@ mod tests {
             vec![],
         );
         let t = term("t1", "customer_grade", &[], "");
-        let out = suggest_property_bindings_for_term(&ir, &t, Default::default());
+        let out = suggest_property_bindings_by_term(&ir, &t, Default::default());
         assert_eq!(out.len(), 1);
         assert!(matches!(out[0].signals[0], BindingSignal::CanonicalNameMatch));
         assert!(out[0].score >= 0.99);
@@ -574,7 +574,7 @@ mod tests {
             vec![],
         );
         let t = term("t1", "VIP Grade", &["vip_tier"], "");
-        let out = suggest_property_bindings_for_term(&ir, &t, Default::default());
+        let out = suggest_property_bindings_by_term(&ir, &t, Default::default());
         assert_eq!(out.len(), 1);
         assert!(out[0]
             .signals
@@ -600,7 +600,7 @@ mod tests {
             &[],
             "Marketing segment used for campaign eligibility",
         );
-        let out = suggest_property_bindings_for_term(&ir, &t, Default::default());
+        let out = suggest_property_bindings_by_term(&ir, &t, Default::default());
         assert!(!out.is_empty(), "expected description overlap to fire");
         assert!(out[0]
             .signals
@@ -615,7 +615,7 @@ mod tests {
             vec![],
         );
         let t = term("t1", "weather", &[], "atmospheric conditions");
-        let out = suggest_property_bindings_for_term(&ir, &t, Default::default());
+        let out = suggest_property_bindings_by_term(&ir, &t, Default::default());
         assert!(out.is_empty());
     }
 
@@ -624,7 +624,7 @@ mod tests {
         let p = bound_property("customer_grade", "", "existing");
         let ir = ontology(vec![node("Customer", vec![p])], vec![]);
         let t = term("t1", "customer_grade", &[], "");
-        let out = suggest_property_bindings_for_term(&ir, &t, Default::default());
+        let out = suggest_property_bindings_by_term(&ir, &t, Default::default());
         assert!(out.is_empty());
     }
 
@@ -639,7 +639,7 @@ mod tests {
             weight_fuzzy_name: 1.0, // lift fuzzy so it clears min_score alone
             ..Default::default()
         };
-        let out = suggest_property_bindings_for_term(&ir, &t, policy);
+        let out = suggest_property_bindings_by_term(&ir, &t, policy);
         assert!(!out.is_empty());
         assert!(out[0]
             .signals
@@ -660,7 +660,7 @@ mod tests {
             label: ir.node_types()[0].label.to_string(),
         };
         let pid = ir.node_types()[0].properties[0].id.clone();
-        let out = suggest_terms_for_property(&ir, &node_ref, &pid, Default::default());
+        let out = suggest_terms_by_property(&ir, &node_ref, &pid, Default::default());
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].term.default, "customer_grade");
     }
@@ -676,7 +676,7 @@ mod tests {
             max_results: 5,
             ..Default::default()
         };
-        let out = suggest_property_bindings_for_term(&ir, &t, policy);
+        let out = suggest_property_bindings_by_term(&ir, &t, policy);
         assert!(out.len() <= 5);
     }
 

@@ -232,7 +232,7 @@ pub trait Explainer: Send + Sync {
         &self,
         ontology: &OntologyIR,
         graph_stats: Option<&serde_json::Value>,
-    ) -> OxResult<Vec<ox_ontology::InsightSuggestion>>;
+    ) -> OxResult<Vec<ox_ontology::InsightHint>>;
 }
 
 /// Repository analysis capabilities.
@@ -1032,7 +1032,7 @@ impl Explainer for DefaultBrain {
         &self,
         ontology: &OntologyIR,
         graph_stats: Option<&serde_json::Value>,
-    ) -> OxResult<Vec<ox_ontology::InsightSuggestion>> {
+    ) -> OxResult<Vec<ox_ontology::InsightHint>> {
         let nodes: Vec<String> = ontology
             .node_types()
             .iter()
@@ -1100,7 +1100,7 @@ impl Explainer for DefaultBrain {
             "Generating insight suggestions"
         );
 
-        match structured_completion::<Vec<ox_ontology::InsightSuggestion>>(
+        match structured_completion::<Vec<ox_ontology::InsightHint>>(
             client.as_ref(),
             &resolved.model_id,
             system,

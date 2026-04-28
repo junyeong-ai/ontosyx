@@ -117,7 +117,7 @@ pub use input::{
     InputEdgeTypeDef, InputIndexDef, InputNodeConstraint, InputNodeTypeDef, InputPropertyDef,
     NormalizeOutcome, NormalizeWarning, InputOntologyDef, normalize, to_exchange_format,
 };
-pub use insight::InsightSuggestion;
+pub use insight::InsightHint;
 pub use ir::{AggregationRole, DataClassification, OntologyIR};
 pub use load_plan::{LoadMode, LoadPlan};
 pub use mapping::{
@@ -186,7 +186,7 @@ pub use value_set_inference::{
 };
 pub use binding_suggestions::{
     BindingSignal, BindingSuggestionPolicy, PropertyBindingCandidate, PropertyOwnerRef,
-    TermBindingCandidate, suggest_property_bindings_for_term, suggest_terms_for_property,
+    TermBindingCandidate, suggest_property_bindings_by_term, suggest_terms_by_property,
 };
 pub use integrity::{
     DanglingKind, DanglingReference, RegistryReferenceCheck, RegistrySite,

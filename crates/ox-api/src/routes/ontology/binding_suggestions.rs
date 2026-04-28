@@ -13,8 +13,8 @@ use uuid::Uuid;
 use ox_core::i18n::LocalizedText;
 use ox_ontology::{
     BindingSignal, BindingSuggestionPolicy, GlossaryTermDef, GlossaryTermId, PropertyBindingCandidate,
-    PropertyOwnerRef, TermBindingCandidate, suggest_property_bindings_for_term,
-    suggest_terms_for_property,
+    PropertyOwnerRef, TermBindingCandidate, suggest_property_bindings_by_term,
+    suggest_terms_by_property,
 };
 
 use crate::error::AppError;
@@ -154,7 +154,7 @@ pub(crate) async fn suggest_glossary_bindings(
         lifecycle: ox_ontology::glossary::TermLifecycle::default(),
     };
 
-    let candidates = suggest_property_bindings_for_term(&ir, &term, policy);
+    let candidates = suggest_property_bindings_by_term(&ir, &term, policy);
     Ok(ApiResponse::of(SuggestBindingsResponse {
         ontology_id: id,
         candidates: candidates.into_iter().map(shape_candidate).collect(),
@@ -235,7 +235,7 @@ pub(crate) async fn suggest_glossary_terms_for_property(
     };
 
     let property_id_owned = property_id.into();
-    let candidates = suggest_terms_for_property(&ir, &owner, &property_id_owned, policy);
+    let candidates = suggest_terms_by_property(&ir, &owner, &property_id_owned, policy);
     Ok(ApiResponse::of(SuggestTermsResponse {
         ontology_id: id,
         candidates: candidates.into_iter().map(shape_term_candidate).collect(),

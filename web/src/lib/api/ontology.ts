@@ -1,7 +1,7 @@
 import type {
   CursorPage,
   ElementVerification,
-  InsightSuggestion,
+  InsightHint,
   OntologyDetail,
   OntologyIR,
   OntologyListItem,
@@ -237,7 +237,7 @@ export async function importOwl(content: string): Promise<OntologyIR> {
 
 export async function suggestInsights(
   ontology: OntologyIR,
-): Promise<InsightSuggestion[]> {
+): Promise<InsightHint[]> {
   return request("/ontologies/suggestions", {
     method: "POST",
     body: JSON.stringify(ontology),

@@ -5,7 +5,7 @@
 //! Sits in `ox-query-ir` because the load-bearing field is the
 //! [`QueryIR`] re-run anchor; pulling that into `ox-ontology` would
 //! invert the workspace dependency arrow. The transient
-//! `InsightSuggestion` (proactive hints generated from ontology
+//! `InsightHint` (proactive hints generated from ontology
 //! structure) stays in `ox-ontology::insight` — different audience,
 //! different lifecycle, different layering home.
 //!

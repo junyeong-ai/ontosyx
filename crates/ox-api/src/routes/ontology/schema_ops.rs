@@ -250,7 +250,7 @@ pub(crate) async fn suggest_insights(
     State(state): State<AppState>,
     _principal: Principal,
     Json(ontology): Json<OntologyIR>,
-) -> Result<Json<ApiResponse<Vec<ox_ontology::InsightSuggestion>>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<ox_ontology::InsightHint>>>, AppError> {
     let suggestions = state
         .brain
         .suggest_insights(&ontology, None)

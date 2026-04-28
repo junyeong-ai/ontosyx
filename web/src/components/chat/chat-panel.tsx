@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAppStore, type ChatMessage, type ToolStep } from "@/lib/store";
 import { useWorkspaceMode } from "@/lib/use-workspace-mode";
-import { chatStream, fetchSessionMessages, listAgentSessions, rawQuery, suggestInsights, type InsightSuggestion } from "@/lib/api";
+import { chatStream, fetchSessionMessages, listAgentSessions, rawQuery, suggestInsights, type InsightHint } from "@/lib/api";
 import type { AgentSession } from "@/types/api";
 import { errorMessage } from "@/lib/error-messages";
 import { toast } from "sonner";
@@ -45,7 +45,7 @@ export function ChatPanel() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const userScrolledUpRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
-  const [suggestions, setSuggestions] = useState<InsightSuggestion[]>([]);
+  const [suggestions, setSuggestions] = useState<InsightHint[]>([]);
   const [recentSessions, setRecentSessions] = useState<AgentSession[]>([]);
 
   // Cancel in-flight stream on unmount
