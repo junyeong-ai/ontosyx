@@ -2242,26 +2242,39 @@ export interface components {
             pattern_ir: Record<string, never>;
         };
         /**
-         * @description One entry in [`SchemaDependencyGraph::buckets`] — a target and
-         *     every inbound dependency. Tuple-shaped on the wire so the
-         *     graph round-trips through JSON cleanly (enum keys can't ride
-         *     in JSON object keys).
+         * @description One entry in either index of [`SchemaDependencyGraph`] — a target
+         *     (or source, depending on which index this bucket lives in) and
+         *     the edges that touch it. Tuple-shaped on the wire so the graph
+         *     round-trips through JSON cleanly (enum keys can't ride in JSON
+         *     object keys).
          */
         DependencyBucket: {
             edges: components["schemas"]["DependencyEdge"][];
             target: components["schemas"]["SchemaEntityRef"];
         };
         /**
-         * @description A single reverse-edge in the dependency graph: the
-         *     [`SchemaEntityRef`] target was referenced by `dependent` via a
-         *     [`DependencyKind`] relationship.
+         * @description A single half-edge of the dependency graph. Direction is implicit
+         *     in which index the bucket lives in:
+         *
+         *     - In an `inbound` bucket targeting *X*: `endpoint` is the entity
+         *       that depends on *X* via `kind`.
+         *     - In an `outbound` bucket sourced at *X*: `endpoint` is the
+         *       entity that *X* depends on via `kind`.
+         *
+         *     `kind` and `label` are identical between the two halves of a
+         *     single reference, so a consumer can correlate them by `(kind,
+         *     label)` if needed.
          */
         DependencyEdge: {
-            dependent: components["schemas"]["SchemaEntityRef"];
+            /**
+             * @description The other end of the reference — direction depends on which
+             *     index the enclosing bucket lives in.
+             */
+            endpoint: components["schemas"]["SchemaEntityRef"];
             kind: components["schemas"]["DependencyKind"];
             /**
-             * @description Short human-readable summary of *how* the dependent
-             *     references the target — surfaced as a tooltip in the FE
+             * @description Short human-readable summary of *how* the two ends are
+             *     related — surfaced as a tooltip in the FE
              *     (`"MinCount constraint"`, `"foreign-key bridge"`, etc.).
              */
             label: string;
@@ -4672,26 +4685,33 @@ export interface components {
             updated_at: string;
         };
         /**
-         * @description Inverted index of every schema-level reference in an
-         *     [`OntologyIR`]. Build once per snapshot; query many times via
-         *     [`SchemaDependencyGraph::dependents_of`].
+         * @description Bidirectional inverted index of every schema-level reference in
+         *     an [`OntologyIR`]. Build once per snapshot; query many times via
+         *     [`SchemaDependencyGraph::dependents_of`] (inbound) or
+         *     [`SchemaDependencyGraph::references_of`] (outbound).
          *
-         *     Stored as a sorted [`DependencyBucket`] vector so the wire
-         *     shape is a clean JSON array and `dependents_of` runs in
-         *     O(log n) via binary search. Both build and query paths are
-         *     deterministic.
+         *     Both indices are sorted [`DependencyBucket`] vectors so the wire
+         *     shape is a clean JSON array and lookup runs in O(log n) via
+         *     binary search. Both build and query paths are deterministic.
          */
         SchemaDependencyGraph: {
             /**
-             * @description Targets sorted by [`SchemaEntityRef`] ordering; each
-             *     bucket's edges sorted within.
+             * @description Inverted index: `target → who depends on it`. Each bucket's
+             *     `target` is the entity being depended on; each edge's
+             *     `endpoint` is the dependent.
              */
-            buckets: components["schemas"]["DependencyBucket"][];
+            inbound: components["schemas"]["DependencyBucket"][];
+            /**
+             * @description Forward index: `source → what it depends on`. Each bucket's
+             *     `target` is the entity holding the references; each edge's
+             *     `endpoint` is the entity referenced.
+             */
+            outbound: components["schemas"]["DependencyBucket"][];
         };
         /**
          * @description Stable handle that addresses any first-class entity in an
-         *     [`OntologyIR`]. Used as the key into
-         *     [`SchemaDependencyGraph`]'s inverted index.
+         *     [`OntologyIR`]. Used as the key into both indices of
+         *     [`SchemaDependencyGraph`].
          *
          *     Each variant carries plain `String` ids (not the typed
          *     `XxxId` newtypes) so the graph is self-contained — callers can

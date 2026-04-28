@@ -7323,7 +7323,7 @@
       },
       "DependencyBucket": {
         "type": "object",
-        "description": "One entry in [`SchemaDependencyGraph::buckets`] — a target and\nevery inbound dependency. Tuple-shaped on the wire so the\ngraph round-trips through JSON cleanly (enum keys can't ride\nin JSON object keys).",
+        "description": "One entry in either index of [`SchemaDependencyGraph`] — a target\n(or source, depending on which index this bucket lives in) and\nthe edges that touch it. Tuple-shaped on the wire so the graph\nround-trips through JSON cleanly (enum keys can't ride in JSON\nobject keys).",
         "required": [
           "target",
           "edges"
@@ -7342,22 +7342,23 @@
       },
       "DependencyEdge": {
         "type": "object",
-        "description": "A single reverse-edge in the dependency graph: the\n[`SchemaEntityRef`] target was referenced by `dependent` via a\n[`DependencyKind`] relationship.",
+        "description": "A single half-edge of the dependency graph. Direction is implicit\nin which index the bucket lives in:\n\n- In an `inbound` bucket targeting *X*: `endpoint` is the entity\n  that depends on *X* via `kind`.\n- In an `outbound` bucket sourced at *X*: `endpoint` is the\n  entity that *X* depends on via `kind`.\n\n`kind` and `label` are identical between the two halves of a\nsingle reference, so a consumer can correlate them by `(kind,\nlabel)` if needed.",
         "required": [
-          "dependent",
+          "endpoint",
           "kind",
           "label"
         ],
         "properties": {
-          "dependent": {
-            "$ref": "#/components/schemas/SchemaEntityRef"
+          "endpoint": {
+            "$ref": "#/components/schemas/SchemaEntityRef",
+            "description": "The other end of the reference — direction depends on which\nindex the enclosing bucket lives in."
           },
           "kind": {
             "$ref": "#/components/schemas/DependencyKind"
           },
           "label": {
             "type": "string",
-            "description": "Short human-readable summary of *how* the dependent\nreferences the target — surfaced as a tooltip in the FE\n(`\"MinCount constraint\"`, `\"foreign-key bridge\"`, etc.)."
+            "description": "Short human-readable summary of *how* the two ends are\nrelated — surfaced as a tooltip in the FE\n(`\"MinCount constraint\"`, `\"foreign-key bridge\"`, etc.)."
           }
         }
       },
@@ -13007,17 +13008,25 @@
       },
       "SchemaDependencyGraph": {
         "type": "object",
-        "description": "Inverted index of every schema-level reference in an\n[`OntologyIR`]. Build once per snapshot; query many times via\n[`SchemaDependencyGraph::dependents_of`].\n\nStored as a sorted [`DependencyBucket`] vector so the wire\nshape is a clean JSON array and `dependents_of` runs in\nO(log n) via binary search. Both build and query paths are\ndeterministic.",
+        "description": "Bidirectional inverted index of every schema-level reference in\nan [`OntologyIR`]. Build once per snapshot; query many times via\n[`SchemaDependencyGraph::dependents_of`] (inbound) or\n[`SchemaDependencyGraph::references_of`] (outbound).\n\nBoth indices are sorted [`DependencyBucket`] vectors so the wire\nshape is a clean JSON array and lookup runs in O(log n) via\nbinary search. Both build and query paths are deterministic.",
         "required": [
-          "buckets"
+          "inbound",
+          "outbound"
         ],
         "properties": {
-          "buckets": {
+          "inbound": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/DependencyBucket"
             },
-            "description": "Targets sorted by [`SchemaEntityRef`] ordering; each\nbucket's edges sorted within."
+            "description": "Inverted index: `target → who depends on it`. Each bucket's\n`target` is the entity being depended on; each edge's\n`endpoint` is the dependent."
+          },
+          "outbound": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DependencyBucket"
+            },
+            "description": "Forward index: `source → what it depends on`. Each bucket's\n`target` is the entity holding the references; each edge's\n`endpoint` is the entity referenced."
           }
         }
       },
@@ -13376,7 +13385,7 @@
             }
           }
         ],
-        "description": "Stable handle that addresses any first-class entity in an\n[`OntologyIR`]. Used as the key into\n[`SchemaDependencyGraph`]'s inverted index.\n\nEach variant carries plain `String` ids (not the typed\n`XxxId` newtypes) so the graph is self-contained — callers can\nserialise the whole shape over the wire without depending on\nthe per-id wrapper types."
+        "description": "Stable handle that addresses any first-class entity in an\n[`OntologyIR`]. Used as the key into both indices of\n[`SchemaDependencyGraph`].\n\nEach variant carries plain `String` ids (not the typed\n`XxxId` newtypes) so the graph is self-contained — callers can\nserialise the whole shape over the wire without depending on\nthe per-id wrapper types."
       },
       "ScopeKind": {
         "type": "string",

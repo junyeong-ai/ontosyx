@@ -1,10 +1,11 @@
 /**
  * Schema-level dependency graph client.
  *
- * Mirrors `ox_ontology::SchemaDependencyGraph` — the inverted
- * reference index used by the editor's Inspector and the
- * standalone impact-analysis view to answer "what breaks if I
- * change this entity?"
+ * Mirrors `ox_ontology::SchemaDependencyGraph` — a bidirectional
+ * inverted index of every reference in the committed IR snapshot.
+ * The FE pulls the whole graph once per ontology version and
+ * resolves per-entity views client-side via [`dependentsOf`]
+ * (inbound) and [`referencesOf`] (outbound).
  */
 
 import type { components } from "@/types/api.generated";
@@ -21,7 +22,7 @@ export type SchemaDependencyGraph =
  * Fetch the full dependency graph for an ontology's current
  * version. The graph is small enough (entity-count × ~5 edges) to
  * round-trip in one response; the FE caches it and resolves
- * client-side via [`dependentsOf`].
+ * client-side via [`dependentsOf`] / [`referencesOf`].
  */
 export async function getDependencyGraph(
   ontologyId: string,
@@ -33,22 +34,36 @@ export async function getDependencyGraph(
 }
 
 /**
- * Resolve the dependents of a target [`SchemaEntityRef`] from a
- * pre-fetched [`SchemaDependencyGraph`]. Returns an empty array
- * when no entity references the target.
- *
- * Uses structural equality on the serialised entity reference so
- * lookup stays correct independent of BE enum-variant ordering —
- * FE callers can add new entity kinds without breaking adjacent
- * look-ups. Linear in the bucket count which is bounded by the
- * entity count (typically a few hundred).
+ * Resolve the inbound dependents of `target` — entities that
+ * reference `target`. Returns an empty array when nothing depends
+ * on the target. Linear in the bucket count which is bounded by
+ * the entity count (typically a few hundred).
  */
 export function dependentsOf(
   graph: SchemaDependencyGraph,
   target: SchemaEntityRef,
 ): readonly DependencyEdge[] {
+  return lookup(graph.inbound, target);
+}
+
+/**
+ * Resolve the outbound references of `source` — entities that
+ * `source` references. Returns an empty array when the source
+ * holds no outbound references.
+ */
+export function referencesOf(
+  graph: SchemaDependencyGraph,
+  source: SchemaEntityRef,
+): readonly DependencyEdge[] {
+  return lookup(graph.outbound, source);
+}
+
+function lookup(
+  index: readonly DependencyBucket[],
+  target: SchemaEntityRef,
+): readonly DependencyEdge[] {
   const key = entityRefKey(target);
-  for (const bucket of graph.buckets) {
+  for (const bucket of index) {
     if (entityRefKey(bucket.target) === key) {
       return bucket.edges;
     }

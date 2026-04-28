@@ -7,23 +7,30 @@
 //! `PropertyDef`, which `ObjectMappingDef` targets which
 //! `NodeTypeDef`, etc.).
 //!
-//! Used to answer the impact-analysis question: *"if I change this
-//! entity, what else breaks?"* — surfaced in the editor's Inspector
-//! and the standalone `/dependencies` view.
+//! Used to answer the impact-analysis question — *"if I change this
+//! entity, what else breaks?"* — and the symmetric lineage question
+//! — *"what does this entity reference?"* — surfaced in the editor's
+//! Inspector and the Domain Context page.
 //!
 //! ## Construction
 //!
 //! [`SchemaDependencyGraph::build`] walks every reference in the IR
-//! exactly once, producing an inverted index (target →
-//! [`DependencyEdge`] list). The walk uses the IR's existing
-//! `lookup` indices for O(1) presence checks; the build cost is
-//! linear in the total reference count.
+//! exactly once, producing two parallel inverted indices:
+//!
+//! - `inbound`  — keyed by *target*, holds edges whose `endpoint`
+//!   is the entity that depends on the target.
+//! - `outbound` — keyed by *source*, holds edges whose `endpoint`
+//!   is the entity the source depends on.
+//!
+//! Each reference produces exactly one entry in each index; build
+//! cost is linear in total reference count.
 //!
 //! ## Query
 //!
-//! [`SchemaDependencyGraph::dependents_of`] returns the
-//! [`DependencyEdge`] slice for any [`SchemaEntityRef`]. The slice is
-//! sorted deterministically by `(kind, dependent)` so consecutive
+//! [`SchemaDependencyGraph::dependents_of`] (inbound) and
+//! [`SchemaDependencyGraph::references_of`] (outbound) both run in
+//! O(log n) via binary search on the sorted bucket vector. Slices
+//! are sorted deterministically by `(kind, endpoint)` so consecutive
 //! calls produce stable output for snapshot tests and FE diffs.
 
 use std::collections::BTreeMap;
@@ -40,10 +47,11 @@ use crate::rule::{ConstraintTarget, RuleActivationKind, RuleKind, ShaclConstrain
 // DependencyBucket — wire-friendly tuple
 // ---------------------------------------------------------------------------
 
-/// One entry in [`SchemaDependencyGraph::buckets`] — a target and
-/// every inbound dependency. Tuple-shaped on the wire so the
-/// graph round-trips through JSON cleanly (enum keys can't ride
-/// in JSON object keys).
+/// One entry in either index of [`SchemaDependencyGraph`] — a target
+/// (or source, depending on which index this bucket lives in) and
+/// the edges that touch it. Tuple-shaped on the wire so the graph
+/// round-trips through JSON cleanly (enum keys can't ride in JSON
+/// object keys).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct DependencyBucket {
     pub target: SchemaEntityRef,
@@ -55,8 +63,8 @@ pub struct DependencyBucket {
 // ---------------------------------------------------------------------------
 
 /// Stable handle that addresses any first-class entity in an
-/// [`OntologyIR`]. Used as the key into
-/// [`SchemaDependencyGraph`]'s inverted index.
+/// [`OntologyIR`]. Used as the key into both indices of
+/// [`SchemaDependencyGraph`].
 ///
 /// Each variant carries plain `String` ids (not the typed
 /// `XxxId` newtypes) so the graph is self-contained — callers can
@@ -96,21 +104,31 @@ pub enum SchemaEntityRef {
 }
 
 // ---------------------------------------------------------------------------
-// DependencyEdge — directional reference
+// DependencyEdge — one half of a directed reference
 // ---------------------------------------------------------------------------
 
-/// A single reverse-edge in the dependency graph: the
-/// [`SchemaEntityRef`] target was referenced by `dependent` via a
-/// [`DependencyKind`] relationship.
+/// A single half-edge of the dependency graph. Direction is implicit
+/// in which index the bucket lives in:
+///
+/// - In an `inbound` bucket targeting *X*: `endpoint` is the entity
+///   that depends on *X* via `kind`.
+/// - In an `outbound` bucket sourced at *X*: `endpoint` is the
+///   entity that *X* depends on via `kind`.
+///
+/// `kind` and `label` are identical between the two halves of a
+/// single reference, so a consumer can correlate them by `(kind,
+/// label)` if needed.
 #[derive(
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
     utoipa::ToSchema,
 )]
 pub struct DependencyEdge {
-    pub dependent: SchemaEntityRef,
+    /// The other end of the reference — direction depends on which
+    /// index the enclosing bucket lives in.
+    pub endpoint: SchemaEntityRef,
     pub kind: DependencyKind,
-    /// Short human-readable summary of *how* the dependent
-    /// references the target — surfaced as a tooltip in the FE
+    /// Short human-readable summary of *how* the two ends are
+    /// related — surfaced as a tooltip in the FE
     /// (`"MinCount constraint"`, `"foreign-key bridge"`, etc.).
     pub label: String,
 }
@@ -173,26 +191,32 @@ pub enum DependencyKind {
 // SchemaDependencyGraph
 // ---------------------------------------------------------------------------
 
-/// Inverted index of every schema-level reference in an
-/// [`OntologyIR`]. Build once per snapshot; query many times via
-/// [`SchemaDependencyGraph::dependents_of`].
+/// Bidirectional inverted index of every schema-level reference in
+/// an [`OntologyIR`]. Build once per snapshot; query many times via
+/// [`SchemaDependencyGraph::dependents_of`] (inbound) or
+/// [`SchemaDependencyGraph::references_of`] (outbound).
 ///
-/// Stored as a sorted [`DependencyBucket`] vector so the wire
-/// shape is a clean JSON array and `dependents_of` runs in
-/// O(log n) via binary search. Both build and query paths are
-/// deterministic.
+/// Both indices are sorted [`DependencyBucket`] vectors so the wire
+/// shape is a clean JSON array and lookup runs in O(log n) via
+/// binary search. Both build and query paths are deterministic.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct SchemaDependencyGraph {
-    /// Targets sorted by [`SchemaEntityRef`] ordering; each
-    /// bucket's edges sorted within.
-    pub buckets: Vec<DependencyBucket>,
+    /// Inverted index: `target → who depends on it`. Each bucket's
+    /// `target` is the entity being depended on; each edge's
+    /// `endpoint` is the dependent.
+    pub inbound: Vec<DependencyBucket>,
+    /// Forward index: `source → what it depends on`. Each bucket's
+    /// `target` is the entity holding the references; each edge's
+    /// `endpoint` is the entity referenced.
+    pub outbound: Vec<DependencyBucket>,
 }
 
 impl SchemaDependencyGraph {
-    /// Walk every reference in `ontology` and produce the inverted
-    /// index. Linear in total reference count.
+    /// Walk every reference in `ontology` and produce both indices.
+    /// Linear in total reference count.
     pub fn build(ontology: &OntologyIR) -> Self {
-        let mut edges: BTreeMap<SchemaEntityRef, Vec<DependencyEdge>> = BTreeMap::new();
+        let mut inbound: BTreeMap<SchemaEntityRef, Vec<DependencyEdge>> = BTreeMap::new();
+        let mut outbound: BTreeMap<SchemaEntityRef, Vec<DependencyEdge>> = BTreeMap::new();
 
         // ---- NodeTypes ------------------------------------------------
         for node in ontology.node_types() {
@@ -201,7 +225,8 @@ impl SchemaDependencyGraph {
             // Properties on a node depend on it via PropertyOf.
             for prop in &node.properties {
                 add_edge(
-                    &mut edges,
+                    &mut inbound,
+                    &mut outbound,
                     node_ref.clone(),
                     SchemaEntityRef::Property {
                         owner: node.id.as_str().to_string(),
@@ -210,13 +235,14 @@ impl SchemaDependencyGraph {
                     DependencyKind::PropertyOf,
                     format!("property `{}`", prop.name),
                 );
-                walk_property(&mut edges, &node.id, prop);
+                walk_property(&mut inbound, &mut outbound, &node.id, prop);
             }
 
             // Interface implementations.
             for if_id in &node.implements {
                 add_edge(
-                    &mut edges,
+                    &mut inbound,
+                    &mut outbound,
                     SchemaEntityRef::Interface { id: if_id.as_str().to_string() },
                     node_ref.clone(),
                     DependencyKind::InterfaceImplementation,
@@ -231,7 +257,8 @@ impl SchemaDependencyGraph {
             // edge and the property-shape edge.
             for rule_id in &node.rules {
                 add_edge(
-                    &mut edges,
+                    &mut inbound,
+                    &mut outbound,
                     SchemaEntityRef::Rule { id: rule_id.as_str().to_string() },
                     node_ref.clone(),
                     DependencyKind::RuleConstraint,
@@ -241,7 +268,8 @@ impl SchemaDependencyGraph {
 
             for action_id in &node.actions {
                 add_edge(
-                    &mut edges,
+                    &mut inbound,
+                    &mut outbound,
                     SchemaEntityRef::Action { id: action_id.as_str().to_string() },
                     node_ref.clone(),
                     DependencyKind::ActionTarget,
@@ -251,7 +279,8 @@ impl SchemaDependencyGraph {
 
             for metric_id in &node.metrics {
                 add_edge(
-                    &mut edges,
+                    &mut inbound,
+                    &mut outbound,
                     SchemaEntityRef::Metric { id: metric_id.as_str().to_string() },
                     node_ref.clone(),
                     DependencyKind::MetricScope,
@@ -265,14 +294,16 @@ impl SchemaDependencyGraph {
             let edge_ref = SchemaEntityRef::EdgeType { id: edge.id.as_str().to_string() };
 
             add_edge(
-                &mut edges,
+                &mut inbound,
+                &mut outbound,
                 SchemaEntityRef::NodeType { id: edge.source_node_id.as_str().to_string() },
                 edge_ref.clone(),
                 DependencyKind::EdgeSource,
                 format!("source of `{}`", edge.label),
             );
             add_edge(
-                &mut edges,
+                &mut inbound,
+                &mut outbound,
                 SchemaEntityRef::NodeType { id: edge.target_node_id.as_str().to_string() },
                 edge_ref.clone(),
                 DependencyKind::EdgeTarget,
@@ -281,7 +312,8 @@ impl SchemaDependencyGraph {
 
             for prop in &edge.properties {
                 add_edge(
-                    &mut edges,
+                    &mut inbound,
+                    &mut outbound,
                     edge_ref.clone(),
                     SchemaEntityRef::Property {
                         owner: edge.id.as_str().to_string(),
@@ -290,7 +322,7 @@ impl SchemaDependencyGraph {
                     DependencyKind::PropertyOf,
                     format!("property `{}`", prop.name),
                 );
-                walk_property(&mut edges, &edge.id, prop);
+                walk_property(&mut inbound, &mut outbound, &edge.id, prop);
             }
         }
 
@@ -302,7 +334,8 @@ impl SchemaDependencyGraph {
             match &rule.kind {
                 RuleKind::NodeShape { target_node_type_id } => {
                     add_edge(
-                        &mut edges,
+                        &mut inbound,
+                        &mut outbound,
                         SchemaEntityRef::NodeType { id: target_node_type_id.as_str().to_string() },
                         rule_ref.clone(),
                         DependencyKind::RuleConstraint,
@@ -314,7 +347,8 @@ impl SchemaDependencyGraph {
                     target_property_id,
                 } => {
                     add_edge(
-                        &mut edges,
+                        &mut inbound,
+                        &mut outbound,
                         SchemaEntityRef::Property {
                             owner: target_node_type_id.as_str().to_string(),
                             id: target_property_id.as_str().to_string(),
@@ -326,7 +360,8 @@ impl SchemaDependencyGraph {
                 }
                 RuleKind::EdgeShape { target_edge_type_id } => {
                     add_edge(
-                        &mut edges,
+                        &mut inbound,
+                        &mut outbound,
                         SchemaEntityRef::EdgeType { id: target_edge_type_id.as_str().to_string() },
                         rule_ref.clone(),
                         DependencyKind::RuleConstraint,
@@ -343,13 +378,14 @@ impl SchemaDependencyGraph {
 
             // Constraint vocabulary references.
             for constraint in &rule.constraints {
-                walk_constraint(&mut edges, &rule_ref, &rule.id, constraint);
+                walk_constraint(&mut inbound, &mut outbound, &rule_ref, &rule.id, constraint);
             }
 
             // OnAction activation.
             if let RuleActivationKind::OnAction { action_id } = &rule.activation {
                 add_edge(
-                    &mut edges,
+                    &mut inbound,
+                    &mut outbound,
                     SchemaEntityRef::Action { id: action_id.as_str().to_string() },
                     rule_ref.clone(),
                     DependencyKind::RuleActivation,
@@ -361,7 +397,8 @@ impl SchemaDependencyGraph {
         // ---- Mappings -------------------------------------------------
         for om in ontology.object_mappings() {
             add_edge(
-                &mut edges,
+                &mut inbound,
+                &mut outbound,
                 SchemaEntityRef::NodeType { id: om.node_type_id.as_str().to_string() },
                 SchemaEntityRef::ObjectMapping { id: om.id.as_str().to_string() },
                 DependencyKind::ObjectMappingTarget,
@@ -369,7 +406,8 @@ impl SchemaDependencyGraph {
             );
             for pm in &om.property_mappings {
                 add_edge(
-                    &mut edges,
+                    &mut inbound,
+                    &mut outbound,
                     SchemaEntityRef::Property {
                         owner: om.node_type_id.as_str().to_string(),
                         id: pm.property_id.as_str().to_string(),
@@ -382,7 +420,8 @@ impl SchemaDependencyGraph {
         }
         for lm in ontology.link_mappings() {
             add_edge(
-                &mut edges,
+                &mut inbound,
+                &mut outbound,
                 SchemaEntityRef::EdgeType { id: lm.edge_type_id.as_str().to_string() },
                 SchemaEntityRef::LinkMapping { id: lm.id.as_str().to_string() },
                 DependencyKind::LinkMappingTarget,
@@ -394,7 +433,8 @@ impl SchemaDependencyGraph {
         for vs in ontology.value_sets() {
             for (rule_index, rule) in vs.composition.iter().enumerate() {
                 add_edge(
-                    &mut edges,
+                    &mut inbound,
+                    &mut outbound,
                     SchemaEntityRef::CodeSystem {
                         id: rule.system_id.as_str().to_string(),
                     },
@@ -411,14 +451,16 @@ impl SchemaDependencyGraph {
         // ---- ConceptMap endpoints ------------------------------------
         for cm in ontology.concept_maps() {
             add_edge(
-                &mut edges,
+                &mut inbound,
+                &mut outbound,
                 SchemaEntityRef::CodeSystem { id: cm.source_system_id.as_str().to_string() },
                 SchemaEntityRef::ConceptMap { id: cm.id.as_str().to_string() },
                 DependencyKind::ConceptMapEndpoint,
                 format!("concept map `{}` source", cm.name),
             );
             add_edge(
-                &mut edges,
+                &mut inbound,
+                &mut outbound,
                 SchemaEntityRef::CodeSystem { id: cm.target_system_id.as_str().to_string() },
                 SchemaEntityRef::ConceptMap { id: cm.id.as_str().to_string() },
                 DependencyKind::ConceptMapEndpoint,
@@ -429,7 +471,8 @@ impl SchemaDependencyGraph {
         // ---- Enrichments ---------------------------------------------
         for enr in ontology.enrichments() {
             add_edge(
-                &mut edges,
+                &mut inbound,
+                &mut outbound,
                 SchemaEntityRef::NodeType { id: enr.target_node_type_id.as_str().to_string() },
                 SchemaEntityRef::Enrichment { id: enr.id.as_str().to_string() },
                 DependencyKind::EnrichmentTarget,
@@ -441,7 +484,8 @@ impl SchemaDependencyGraph {
         for action in ontology.actions() {
             for rule_id in action.preconditions.iter().chain(action.postconditions.iter()) {
                 add_edge(
-                    &mut edges,
+                    &mut inbound,
+                    &mut outbound,
                     SchemaEntityRef::Rule { id: rule_id.as_str().to_string() },
                     SchemaEntityRef::Action { id: action.id.as_str().to_string() },
                     DependencyKind::ActionRule,
@@ -454,7 +498,8 @@ impl SchemaDependencyGraph {
         for dq in ontology.data_quality() {
             for target_ref in data_quality_targets(dq) {
                 add_edge(
-                    &mut edges,
+                    &mut inbound,
+                    &mut outbound,
                     target_ref,
                     SchemaEntityRef::DataQuality { id: dq.id.as_str().to_string() },
                     DependencyKind::DataQualityTarget,
@@ -463,35 +508,33 @@ impl SchemaDependencyGraph {
             }
         }
 
-        // Sort each bucket for deterministic output, then collapse
-        // the BTreeMap into a sorted Vec for wire-stable shape.
-        for bucket in edges.values_mut() {
-            bucket.sort();
+        Self {
+            inbound: finalize_index(inbound),
+            outbound: finalize_index(outbound),
         }
-        let buckets = edges
-            .into_iter()
-            .map(|(target, edges)| DependencyBucket { target, edges })
-            .collect();
-
-        Self { buckets }
     }
 
-    /// Return the inbound [`DependencyEdge`]s for `target`. Empty
-    /// slice when no entity references the target. O(log n) via
-    /// binary search on the sorted bucket vector.
+    /// Return the inbound [`DependencyEdge`]s for `target` — the
+    /// set of entities that reference `target`. Empty slice when no
+    /// entity references the target. O(log n) via binary search on
+    /// the sorted bucket vector.
     pub fn dependents_of(&self, target: &SchemaEntityRef) -> &[DependencyEdge] {
-        match self
-            .buckets
-            .binary_search_by(|b| b.target.cmp(target))
-        {
-            Ok(idx) => &self.buckets[idx].edges,
-            Err(_) => &[],
-        }
+        lookup(&self.inbound, target)
     }
 
-    /// Total number of recorded edges across every target.
+    /// Return the outbound [`DependencyEdge`]s for `source` — the
+    /// set of entities that `source` references. Empty slice when
+    /// the source has no outbound references. O(log n).
+    pub fn references_of(&self, source: &SchemaEntityRef) -> &[DependencyEdge] {
+        lookup(&self.outbound, source)
+    }
+
+    /// Total number of inbound edges across every target. The
+    /// outbound index has the same total by construction (each
+    /// reference contributes one edge to each side); the inbound
+    /// count is the canonical "reference count" of the ontology.
     pub fn edge_count(&self) -> usize {
-        self.buckets.iter().map(|b| b.edges.len()).sum()
+        self.inbound.iter().map(|b| b.edges.len()).sum()
     }
 }
 
@@ -499,22 +542,61 @@ impl SchemaDependencyGraph {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/// Add one logical reference from `dependent` to `target`. The
+/// reference contributes a single edge to each index — `inbound`
+/// keyed by `target` (endpoint = dependent) and `outbound` keyed by
+/// `dependent` (endpoint = target). Same `kind` and `label` on both
+/// sides so consumers can correlate.
 fn add_edge(
-    edges: &mut BTreeMap<SchemaEntityRef, Vec<DependencyEdge>>,
+    inbound: &mut BTreeMap<SchemaEntityRef, Vec<DependencyEdge>>,
+    outbound: &mut BTreeMap<SchemaEntityRef, Vec<DependencyEdge>>,
     target: SchemaEntityRef,
     dependent: SchemaEntityRef,
     kind: DependencyKind,
     label: String,
 ) {
-    edges.entry(target).or_default().push(DependencyEdge {
-        dependent,
-        kind,
-        label,
-    });
+    inbound
+        .entry(target.clone())
+        .or_default()
+        .push(DependencyEdge {
+            endpoint: dependent.clone(),
+            kind,
+            label: label.clone(),
+        });
+    outbound
+        .entry(dependent)
+        .or_default()
+        .push(DependencyEdge {
+            endpoint: target,
+            kind,
+            label,
+        });
+}
+
+fn finalize_index(
+    map: BTreeMap<SchemaEntityRef, Vec<DependencyEdge>>,
+) -> Vec<DependencyBucket> {
+    map.into_iter()
+        .map(|(target, mut edges)| {
+            edges.sort();
+            DependencyBucket { target, edges }
+        })
+        .collect()
+}
+
+fn lookup<'a>(
+    index: &'a [DependencyBucket],
+    key: &SchemaEntityRef,
+) -> &'a [DependencyEdge] {
+    match index.binary_search_by(|b| b.target.cmp(key)) {
+        Ok(idx) => &index[idx].edges,
+        Err(_) => &[],
+    }
 }
 
 fn walk_property(
-    edges: &mut BTreeMap<SchemaEntityRef, Vec<DependencyEdge>>,
+    inbound: &mut BTreeMap<SchemaEntityRef, Vec<DependencyEdge>>,
+    outbound: &mut BTreeMap<SchemaEntityRef, Vec<DependencyEdge>>,
     owner_id: &impl AsRef<str>,
     prop: &crate::ir::PropertyDef,
 ) {
@@ -528,35 +610,40 @@ fn walk_property(
     for binding in &prop.bindings {
         match binding {
             PropertyBinding::ValueSet { id, .. } => add_edge(
-                edges,
+                inbound,
+                outbound,
                 SchemaEntityRef::ValueSet { id: id.as_str().to_string() },
                 prop_ref.clone(),
                 DependencyKind::PropertyBindingRef,
                 format!("property `{}` value-set binding", prop.name),
             ),
             PropertyBinding::CodeSystem { id, .. } => add_edge(
-                edges,
+                inbound,
+                outbound,
                 SchemaEntityRef::CodeSystem { id: id.as_str().to_string() },
                 prop_ref.clone(),
                 DependencyKind::PropertyBindingRef,
                 format!("property `{}` code-system binding", prop.name),
             ),
             PropertyBinding::NotationPattern { id, .. } => add_edge(
-                edges,
+                inbound,
+                outbound,
                 SchemaEntityRef::NotationPattern { id: id.as_str().to_string() },
                 prop_ref.clone(),
                 DependencyKind::PropertyBindingRef,
                 format!("property `{}` notation-pattern binding", prop.name),
             ),
             PropertyBinding::ValueRange { id, .. } => add_edge(
-                edges,
+                inbound,
+                outbound,
                 SchemaEntityRef::ValueRangeSet { id: id.as_str().to_string() },
                 prop_ref.clone(),
                 DependencyKind::PropertyBindingRef,
                 format!("property `{}` value-range binding", prop.name),
             ),
             PropertyBinding::Glossary { id, .. } => add_edge(
-                edges,
+                inbound,
+                outbound,
                 SchemaEntityRef::GlossaryTerm { id: id.as_str().to_string() },
                 prop_ref.clone(),
                 DependencyKind::PropertyBindingRef,
@@ -568,7 +655,8 @@ fn walk_property(
     // derived_from → Function.
     if let Some(fn_id) = &prop.derived_from {
         add_edge(
-            edges,
+            inbound,
+            outbound,
             SchemaEntityRef::Function { id: fn_id.as_str().to_string() },
             prop_ref.clone(),
             DependencyKind::FunctionDerivation,
@@ -582,7 +670,8 @@ fn walk_property(
     // ontology's `coded_value_loc` index).
     if let Some(unit_id) = &prop.unit_id {
         add_edge(
-            edges,
+            inbound,
+            outbound,
             SchemaEntityRef::CodedValue {
                 code_system: String::new(),
                 id: unit_id.as_str().to_string(),
@@ -595,7 +684,8 @@ fn walk_property(
 }
 
 fn walk_constraint(
-    edges: &mut BTreeMap<SchemaEntityRef, Vec<DependencyEdge>>,
+    inbound: &mut BTreeMap<SchemaEntityRef, Vec<DependencyEdge>>,
+    outbound: &mut BTreeMap<SchemaEntityRef, Vec<DependencyEdge>>,
     rule_ref: &SchemaEntityRef,
     rule_id: &impl std::fmt::Display,
     constraint: &ShaclConstraint,
@@ -608,7 +698,8 @@ fn walk_constraint(
         constraint_target(constraint)
     {
         add_edge(
-            edges,
+            inbound,
+            outbound,
             SchemaEntityRef::Property {
                 owner: node_type_id.as_str().to_string(),
                 id: property_id.as_str().to_string(),
@@ -627,14 +718,16 @@ fn walk_constraint(
     for cref in constraint.referenced_ids() {
         match cref {
             ConstraintRef::ValueSet(id) => add_edge(
-                edges,
+                inbound,
+                outbound,
                 SchemaEntityRef::ValueSet { id: id.as_str().to_string() },
                 rule_ref.clone(),
                 DependencyKind::RuleVocabulary,
                 format!("rule `{rule_id}` {}", constraint.label_kind()),
             ),
             ConstraintRef::NotationPattern(id) => add_edge(
-                edges,
+                inbound,
+                outbound,
                 SchemaEntityRef::NotationPattern { id: id.as_str().to_string() },
                 rule_ref.clone(),
                 DependencyKind::RuleVocabulary,
@@ -768,5 +861,45 @@ mod tests {
         let graph = SchemaDependencyGraph::build(&ontology);
         let unknown = SchemaEntityRef::NodeType { id: "ghost".into() };
         assert!(graph.dependents_of(&unknown).is_empty());
+        assert!(graph.references_of(&unknown).is_empty());
+    }
+
+    #[test]
+    fn references_of_returns_edge_endpoints() {
+        // For an EdgeType, references_of should expose the source
+        // and target NodeTypes the edge points at — symmetric to
+        // dependents_of returning EdgeSource/EdgeTarget on the
+        // NodeType side.
+        let ontology = sample_user_ontology();
+        let graph = SchemaDependencyGraph::build(&ontology);
+        let edge = ontology.edge_types()[0].clone();
+        let edge_ref = SchemaEntityRef::EdgeType {
+            id: edge.id.as_str().to_string(),
+        };
+        let outbound = graph.references_of(&edge_ref);
+        let kinds: std::collections::BTreeSet<_> =
+            outbound.iter().map(|e| e.kind).collect();
+        assert!(
+            kinds.contains(&DependencyKind::EdgeSource),
+            "edge should reference its source node: {outbound:#?}",
+        );
+        assert!(
+            kinds.contains(&DependencyKind::EdgeTarget),
+            "edge should reference its target node: {outbound:#?}",
+        );
+    }
+
+    #[test]
+    fn inbound_and_outbound_have_matching_edge_counts() {
+        // Each logical reference contributes one inbound + one
+        // outbound edge. Totals must match exactly.
+        let ontology = sample_user_ontology();
+        let graph = SchemaDependencyGraph::build(&ontology);
+        let inbound: usize = graph.inbound.iter().map(|b| b.edges.len()).sum();
+        let outbound: usize = graph.outbound.iter().map(|b| b.edges.len()).sum();
+        assert_eq!(
+            inbound, outbound,
+            "inbound and outbound indices must record the same edge count",
+        );
     }
 }
