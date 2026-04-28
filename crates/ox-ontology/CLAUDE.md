@@ -99,6 +99,45 @@ id newtype + struct + builder + validation entry-points.
   DTOs the ox-api routes return. These do not roll into `OntologyIR`;
   they describe projects / plans / explorations over it.
 
+## IR invariants enforced by `validate()`
+
+These are the platform-wide rules every persisted ontology must
+satisfy. The validator emits structured `DiagnosticMessage`s
+(stable code + params) the FE renders through next-intl; CI
+fails any test fixture or migration that violates them.
+
+- **Mapping carries meaning.** A `PropertyDef` with `source_column`
+  set must have ≥1 `PropertyBinding` *or* a `binding_exempt`
+  reason (`PrimaryKey`, `AuditTimestamp`, `OpaqueIdentifier`,
+  `Custom(_)`). `aggregation_role = Identifier` is an implicit
+  exemption. Diagnostic:
+  `ontology.validate.property.mapping_without_binding`.
+- **Composition keeps source singular.** `EdgeKind::Composition`
+  requires `cardinality.source_is_singular()` (`OneToOne` /
+  `OneToMany`). UML strong ownership = each part has exactly one
+  whole; `ManyToOne` / `ManyToMany` would break cascade-delete.
+- **Derived rules track their source.** A `RuleDef` with
+  `RuleOrigin::DerivedFromBinding { node, property }` must point at
+  a property that still carries ≥1 binding. Unbinding the source
+  forces the rule to be regenerated or promoted to `Authored`.
+- **Glossary anchors resolve.** Every `GlossaryTermId` referenced
+  from `NodeTypeDef.glossary_anchors` /
+  `EdgeTypeDef.glossary_anchors` /
+  `PropertyBinding::Glossary { id }` must exist in
+  `OntologyIR::glossary`.
+
+## Binding resolution is deterministic
+
+When several `PropertyBinding`s share a kind, the canonical pick
+is the highest `BindingStrength::priority`
+(`Required`(4) > `Preferred`(3) > `Extensible`(2) > `Example`(1)),
+ties broken by first-in-list. Insertion-order shuffles that don't
+change the strength distribution don't change the answer.
+`PropertyDef::value_set_binding()` /
+`notation_pattern_binding()` / `glossary_binding()` etc. all route
+through `canonical_binding()` so consumers cannot accidentally
+reach the lower-priority entry.
+
 ## Don't
 
 - Don't add an `extends` / `parent` / `super_type` field to

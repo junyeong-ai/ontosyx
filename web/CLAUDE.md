@@ -42,3 +42,16 @@ All settings tables use `py-3 pr-6` on `<th>` and `<td>` for consistent column s
 Wire shape: `{ default: string; translations?: Record<string, string> }` — the canonical type lives in `@/types/ontology` and mirrors the Rust `ox_core::i18n::LocalizedText`. **Don't** declare ad-hoc inline shapes (`{default?: string; locales?: ...}` etc.) — they drift from the wire format and silently drop translations.
 
 Read the displayable string through `localize()` / `localizePresent()` / `localizeWithFallback()` in `@/lib/locale/localize`. Direct `.default` access bypasses the locale chain. The static `DEFAULT_LOCALE_CHAIN = ["ko", "en"]` mirrors the `workspaces.locale_fallback` column default; surfaces with a workspace context should thread the actual chain in.
+
+## Ontology cache state has two atomic entry points, no setters
+
+`OntologySlice` no longer exposes `setOntology` / `loadOntology` / `resetOntology`. The two halves (`activeProject` + the local `ontology` cache) are kept in lockstep through:
+
+- **`applyProjectSnapshot(project | null)`** — atomic project + cache update. Same-project refetches replay the unsaved `commandStack` on the new server snapshot so in-flight edits survive cache invalidation; project switches discard the stack. Pass `null` to leave project mode.
+- **`loadStandaloneOntology(ir)`** — non-project mode (import / query-result viewer). Clears `activeProject` and replaces the cache atomically; the "project mode XOR standalone" invariant is enforced inside the action.
+
+Every server-response handler that returned a `DesignProject` (handleSave, refine, restore, extend, reanalyze, complete, fork, delete) now lands its result through `applyProjectSnapshot`. Drift between `activeProject.ontology` and the slice cache is structurally impossible.
+
+## Header actions: "Extend source" 1st-class
+
+The design canvas top-bar carries an emerald "Extend source" button next to the inspector toggle. Clicking it fires `requestExtendSource()` (a monotonic counter on `ChromeSlice`) which `EnhanceActions` watches and auto-opens the extend sub-form on change. New header / shortcut callers should drive the same store action rather than prop-drilling — keeps the extension flow a one-click discovery without coupling.

@@ -37,3 +37,15 @@ Adapter-specific filters:
 - `SourceSchema` — tables, columns (name + raw DB type + nullable), foreign keys.
 - `SourceProfile` — row counts, distinct counts, sample values, min/max per column.
 - Column `data_type` is stored as raw DB string (e.g., "varchar", "int4"). Use `PropertyType::infer_from_db_type()` in ox-core for mapping.
+
+## PII redaction at sample collection
+
+`build_column_stats` calls `ox_core::source_schema::classify_pii_suspect_by_name` on every column name and, when a heuristic match fires (email / phone / password / token / national_id / payment_card / address / personal_name), drops `sample_values` and `min_value` / `max_value` before the row enters `SourceProfile`. Aggregate counts (`null_count`, `distinct_count`) survive — those carry no PII risk.
+
+The defense is at the producer side rather than every consumer: analyzer reports, LLM prompt context, audit logs and the inspector sample preview all read the redacted profile by default. The user-confirmed `PropertyDef::pii_kind` annotation flow stays independent — `pii_redacted` on `ColumnStats` is the heuristic hint the FE renders as a "Redacted: <kind>" badge until the operator confirms or overrides.
+
+The heuristic matches conservatively: `username` / `display_name` / `ip_address` / `mac_address` are exempt because false negatives are expensive (raw PII leaks) but false positives are cheap (FE badge the user can override).
+
+## Extension flow recovers cross-baseline FKs
+
+`IntrospectionKernel::analyze_extension` runs the subset introspection of the new tables, then re-queries the source's full FK catalogue and appends only cross-table edges (one endpoint baseline, one endpoint new). Without this pass the subset filter would drop relationships that connect new tables back to baseline tables, leaving the merged result blind to the relationship that motivates the extension. Test pin: `analyze_extension_recovers_cross_baseline_foreign_keys`.
