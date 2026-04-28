@@ -26,6 +26,18 @@
 //! time. Consumers that filter by an `as_of` instant
 //! ([`OntologyIR::as_of`](crate::ir::OntologyIR::as_of)) see only
 //! the bindings whose window covers that instant.
+//!
+//! ### Canonical resolution when several bindings share a kind
+//!
+//! A property may carry several bindings of the same kind — e.g. a
+//! `Required` value-set as the canonical vocabulary plus an
+//! `Extensible` value-set for the long tail. Consumers that pick
+//! "the" binding of a kind (the [`PropertyDef`](crate::ir::PropertyDef)
+//! `value_set_binding()` / `notation_pattern_binding()` / etc.
+//! accessors) resolve deterministically by [`BindingStrength::priority`]:
+//! Required > Preferred > Extensible > Example, ties broken by
+//! first-in-list. Insertion order shuffles that don't change the
+//! strength distribution don't change the answer.
 
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
@@ -66,6 +78,23 @@ pub enum BindingStrength {
     /// Illustrative reference only. Editors may surface the domain
     /// for inspiration; nothing about writes is constrained.
     Example,
+}
+
+impl BindingStrength {
+    /// Numeric rank used by accessors that pick the canonical
+    /// binding when several share a kind. Higher wins:
+    /// Required(4) > Preferred(3) > Extensible(2) > Example(1).
+    /// Ties resolve to first-in-list, so callers get a stable
+    /// answer regardless of insertion order shuffles that don't
+    /// change the strength distribution.
+    pub fn priority(self) -> u8 {
+        match self {
+            Self::Required => 4,
+            Self::Preferred => 3,
+            Self::Extensible => 2,
+            Self::Example => 1,
+        }
+    }
 }
 
 /// One semantic constraint on a property — discriminated by the
@@ -575,6 +604,13 @@ mod tests {
             let back: PropertyBinding = serde_json::from_value(j).expect("deserialise");
             assert_eq!(back, b);
         }
+    }
+
+    #[test]
+    fn priority_ordering_is_required_preferred_extensible_example() {
+        assert!(BindingStrength::Required.priority() > BindingStrength::Preferred.priority());
+        assert!(BindingStrength::Preferred.priority() > BindingStrength::Extensible.priority());
+        assert!(BindingStrength::Extensible.priority() > BindingStrength::Example.priority());
     }
 
     #[test]

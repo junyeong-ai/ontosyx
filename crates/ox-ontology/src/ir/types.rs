@@ -642,77 +642,92 @@ pub enum AggregationRole {
 }
 
 impl PropertyDef {
-    /// First binding pointing at a value set, or `None`.
+    /// Pick the canonical binding of a given kind: highest
+    /// [`BindingStrength::priority`] wins, ties resolve to
+    /// first-in-list. The accessors below all delegate to this so
+    /// `value_set_binding()` / `notation_pattern_binding()` etc. are
+    /// deterministic regardless of insertion order shuffles.
+    fn canonical_binding<F>(&self, of_kind: F) -> Option<&crate::binding::PropertyBinding>
+    where
+        F: Fn(&crate::binding::PropertyBinding) -> bool,
+    {
+        self.bindings
+            .iter()
+            .filter(|b| of_kind(b))
+            .reduce(|best, current| {
+                if current.strength().priority() > best.strength().priority() {
+                    current
+                } else {
+                    best
+                }
+            })
+    }
+
+    /// Canonical binding pointing at a value set, or `None`.
+    /// Highest-strength match wins; see [`canonical_binding`].
     pub fn value_set_binding(&self) -> Option<&crate::binding::PropertyBinding> {
-        self.bindings
-            .iter()
-            .find(|b| matches!(b, crate::binding::PropertyBinding::ValueSet { .. }))
+        self.canonical_binding(|b| matches!(b, crate::binding::PropertyBinding::ValueSet { .. }))
     }
 
-    /// First binding pointing at a notation pattern, or `None`.
+    /// Canonical binding pointing at a notation pattern, or `None`.
     pub fn notation_pattern_binding(&self) -> Option<&crate::binding::PropertyBinding> {
-        self.bindings
-            .iter()
-            .find(|b| matches!(b, crate::binding::PropertyBinding::NotationPattern { .. }))
-    }
-
-    /// First binding pointing at a value-range set, or `None`.
-    pub fn value_range_binding(&self) -> Option<&crate::binding::PropertyBinding> {
-        self.bindings
-            .iter()
-            .find(|b| matches!(b, crate::binding::PropertyBinding::ValueRange { .. }))
-    }
-
-    /// First binding pointing at a glossary term, or `None`.
-    pub fn glossary_binding(&self) -> Option<&crate::binding::PropertyBinding> {
-        self.bindings
-            .iter()
-            .find(|b| matches!(b, crate::binding::PropertyBinding::Glossary { .. }))
-    }
-
-    /// First binding pointing at a code system, or `None`.
-    pub fn code_system_binding(&self) -> Option<&crate::binding::PropertyBinding> {
-        self.bindings
-            .iter()
-            .find(|b| matches!(b, crate::binding::PropertyBinding::CodeSystem { .. }))
-    }
-
-    /// Convenience id-only accessor: the value-set this property
-    /// binds to, if any.
-    pub fn value_set_id(&self) -> Option<&crate::value_set::ValueSetId> {
-        self.bindings.iter().find_map(|b| match b {
-            crate::binding::PropertyBinding::ValueSet { id, .. } => Some(id),
-            _ => None,
+        self.canonical_binding(|b| {
+            matches!(b, crate::binding::PropertyBinding::NotationPattern { .. })
         })
     }
 
-    /// Convenience id-only accessor: the notation pattern this
-    /// property binds to, if any.
+    /// Canonical binding pointing at a value-range set, or `None`.
+    pub fn value_range_binding(&self) -> Option<&crate::binding::PropertyBinding> {
+        self.canonical_binding(|b| {
+            matches!(b, crate::binding::PropertyBinding::ValueRange { .. })
+        })
+    }
+
+    /// Canonical binding pointing at a glossary term, or `None`.
+    pub fn glossary_binding(&self) -> Option<&crate::binding::PropertyBinding> {
+        self.canonical_binding(|b| matches!(b, crate::binding::PropertyBinding::Glossary { .. }))
+    }
+
+    /// Canonical binding pointing at a code system, or `None`.
+    pub fn code_system_binding(&self) -> Option<&crate::binding::PropertyBinding> {
+        self.canonical_binding(|b| {
+            matches!(b, crate::binding::PropertyBinding::CodeSystem { .. })
+        })
+    }
+
+    /// Id-only accessor: the canonical value-set this property
+    /// binds to, if any. Resolves through [`value_set_binding`].
+    pub fn value_set_id(&self) -> Option<&crate::value_set::ValueSetId> {
+        match self.value_set_binding()? {
+            crate::binding::PropertyBinding::ValueSet { id, .. } => Some(id),
+            _ => None,
+        }
+    }
+
+    /// Id-only accessor: the canonical notation pattern.
     pub fn notation_pattern_id(
         &self,
     ) -> Option<&crate::notation_pattern::NotationPatternId> {
-        self.bindings.iter().find_map(|b| match b {
+        match self.notation_pattern_binding()? {
             crate::binding::PropertyBinding::NotationPattern { id, .. } => Some(id),
             _ => None,
-        })
+        }
     }
 
-    /// Convenience id-only accessor: the value-range set this
-    /// property binds to, if any.
+    /// Id-only accessor: the canonical value-range set.
     pub fn value_range_set_id(&self) -> Option<&crate::value_range::ValueRangeSetId> {
-        self.bindings.iter().find_map(|b| match b {
+        match self.value_range_binding()? {
             crate::binding::PropertyBinding::ValueRange { id, .. } => Some(id),
             _ => None,
-        })
+        }
     }
 
-    /// Convenience id-only accessor: the glossary term this
-    /// property binds to, if any.
+    /// Id-only accessor: the canonical glossary term.
     pub fn glossary_term_id(&self) -> Option<&crate::glossary::GlossaryTermId> {
-        self.bindings.iter().find_map(|b| match b {
+        match self.glossary_binding()? {
             crate::binding::PropertyBinding::Glossary { id, .. } => Some(id),
             _ => None,
-        })
+        }
     }
 }
 
