@@ -277,7 +277,7 @@ fn test_validate_duplicate_edge_ids() {
 
     let errors2 = ontology2.validate();
     assert!(
-        errors2.iter().any(|e| e.contains("Duplicate edge type")),
+        errors2.iter().any(|e| e.message.contains("Duplicate edge type")),
         "should detect duplicate edge signatures: {:?}",
         errors2
     );
@@ -630,12 +630,17 @@ fn superstructure_add_methods_populate_the_public_accessors() {
 
     onto.add_glossary_term(crate::glossary::GlossaryTermDef {
         id: crate::glossary::GlossaryTermId::new("gt-customer"),
-        term: "Customer".into(),
+        term: LocalizedText::new("Customer"),
         display_name: LocalizedText::default(),
         description: LocalizedText::default(),
+        examples: Vec::new(),
         category: None,
-        aliases: vec!["Client".into()],
-        parent_term_id: None,
+        aliases: vec![LocalizedText::new("Client")],
+        related_terms: Vec::new(),
+        governance: crate::glossary::TermGovernance::default(),
+        valid_from: None,
+        valid_to: None,
+        lifecycle: crate::glossary::TermLifecycle::default(),
     }).unwrap();
 
     assert_eq!(onto.interfaces().len(), 1);
@@ -656,7 +661,7 @@ fn property_def_carries_phase_5b_semantic_links_through_json() {
         nullable: false,
         default_value: None,
         description: LocalizedText::default(),
-        glossary_term_id: Some(GlossaryTermId::new("gt-contact-email")),
+        bindings: vec![crate::binding::PropertyBinding::glossary(GlossaryTermId::new("gt-contact-email"),)],
         aliases: vec![LocalizedText::new("e-mail")],
         business_context: LocalizedText::new("contact address; source CRM v3"),
         derived_from: Some(FunctionId::new("fn-lowercase-email")),
@@ -664,7 +669,7 @@ fn property_def_carries_phase_5b_semantic_links_through_json() {
     };
     let j = serde_json::to_value(&p).unwrap();
     let back: PropertyDef = serde_json::from_value(j).unwrap();
-    assert_eq!(back.glossary_term_id, p.glossary_term_id);
+    assert_eq!(back.glossary_term_id(), p.glossary_term_id());
     assert_eq!(back.aliases.len(), 1);
     assert_eq!(back.derived_from, p.derived_from);
 }
@@ -729,7 +734,7 @@ fn validate_flags_node_implementing_unknown_interface() {
     );
     let errs = onto.validate();
     assert!(
-        errs.iter().any(|e| e.contains("if-ghost") && e.contains("unknown interface")),
+        errs.iter().any(|e| e.message.contains("if-ghost") && e.message.contains("unknown interface")),
         "validator must flag dangling implements: {errs:?}"
     );
 }
@@ -762,7 +767,7 @@ fn validate_flags_property_derived_from_unknown_function() {
     );
     let errs = onto.validate();
     assert!(
-        errs.iter().any(|e| e.contains("derived_from") && e.contains("fn-ghost")),
+        errs.iter().any(|e| e.message.contains("derived_from") && e.message.contains("fn-ghost")),
         "validator must flag dangling derived_from: {errs:?}"
     );
 }
@@ -811,7 +816,7 @@ fn validate_flags_property_with_both_derived_from_and_source_column() {
     let errs = onto.validate();
     assert!(
         errs.iter()
-            .any(|e| e.contains("both") && e.contains("derived_from") && e.contains("source_column")),
+            .any(|e| e.message.contains("both") && e.message.contains("derived_from") && e.message.contains("source_column")),
         "validator must flag derived_from + source_column collision: {errs:?}"
     );
 }
@@ -847,8 +852,8 @@ fn validate_flags_action_referencing_unknown_rule() {
     };
     let errs = onto.validate();
     assert!(
-        errs.iter().any(|e| e.contains("act-create") || e.contains("create_order"))
-            && errs.iter().any(|e| e.contains("r-ghost")),
+        errs.iter().any(|e| e.message.contains("act-create") || e.message.contains("create_order"))
+            && errs.iter().any(|e| e.message.contains("r-ghost")),
         "validator must flag unknown rule in action.preconditions: {errs:?}"
     );
 }
@@ -866,7 +871,7 @@ fn validate_passes_when_all_phase_5b_references_resolve() {
         name: pk("email"),
         property_type: PropertyType::String,
         nullable: false,
-        glossary_term_id: Some(GlossaryTermId::new("gt-email")),
+        bindings: vec![crate::binding::PropertyBinding::glossary(GlossaryTermId::new("gt-email"),)],
         derived_from: Some(FunctionId::new("fn-lower")),
         ..Default::default()
     };
@@ -911,6 +916,7 @@ fn validate_passes_when_all_phase_5b_references_resolve() {
         id: RuleId::new("r-email-required"),
         name: "email_required".into(),
         description: LocalizedText::default(),
+            rationale: LocalizedText::default(),
         kind: RuleKind::PropertyShape {
             target_node_type_id: "nt-user".into(),
             target_property_id: "p-email".into(),
@@ -918,10 +924,13 @@ fn validate_passes_when_all_phase_5b_references_resolve() {
         severity: Default::default(),
         enforcement: Default::default(),
         activation: Default::default(),
+        origin: Default::default(),
         constraints: vec![ShaclConstraint::MinCount {
             target: ConstraintTarget::Inherit,
             min: 1,
         }],
+        valid_from: None,
+        valid_to: None,
     }).unwrap();
     onto.add_function(FunctionDef {
         id: FunctionId::new("fn-lower"),
@@ -937,12 +946,17 @@ fn validate_passes_when_all_phase_5b_references_resolve() {
     }).unwrap();
     onto.add_glossary_term(GlossaryTermDef {
         id: GlossaryTermId::new("gt-email"),
-        term: "Contact Email".into(),
+        term: LocalizedText::new("Contact Email"),
         display_name: LocalizedText::default(),
         description: LocalizedText::default(),
+        examples: Vec::new(),
         category: Some("contact".into()),
-        aliases: vec!["E-mail".into()],
-        parent_term_id: None,
+        aliases: vec![LocalizedText::new("E-mail")],
+        related_terms: Vec::new(),
+        governance: crate::glossary::TermGovernance::default(),
+        valid_from: None,
+        valid_to: None,
+        lifecycle: crate::glossary::TermLifecycle::default(),
     }).unwrap();
 
     let errs = onto.validate();
@@ -1172,4 +1186,867 @@ fn add_code_system_rejects_duplicate_coded_value_id_across_systems() {
         }
         other => panic!("expected DuplicateCollectionId, got {other:?}"),
     }
+}
+
+#[test]
+fn as_of_drops_rules_outside_window() {
+    use chrono::{Duration, Utc};
+
+    let now = Utc::now();
+    let past = now - Duration::hours(2);
+    let future = now + Duration::hours(2);
+
+    let mut ontology = sample_user_ontology();
+
+    // Active rule (no window) + a rule that only kicked in last hour.
+    let always = crate::rule::RuleDef {
+        id: crate::action::RuleId::new("r-always"),
+        name: "always".into(),
+        description: LocalizedText::default(),
+        rationale: LocalizedText::default(),
+        kind: crate::rule::RuleKind::CrossEntityShape {
+            predicate: "1=1".into(),
+        },
+        severity: crate::rule::Severity::default(),
+        enforcement: crate::rule::EnforcementKind::default(),
+        activation: crate::rule::RuleActivationKind::default(),
+        origin: crate::rule::RuleOrigin::default(),
+        constraints: Vec::new(),
+        valid_from: None,
+        valid_to: None,
+    };
+    let recent = crate::rule::RuleDef {
+        id: crate::action::RuleId::new("r-recent"),
+        valid_from: Some(now - Duration::hours(1)),
+        valid_to: None,
+        ..always.clone()
+    };
+    let stale = crate::rule::RuleDef {
+        id: crate::action::RuleId::new("r-stale"),
+        valid_from: None,
+        valid_to: Some(past),
+        ..always.clone()
+    };
+    ontology.add_rule(always).unwrap();
+    ontology.add_rule(recent).unwrap();
+    ontology.add_rule(stale).unwrap();
+
+    let snapshot_now = ontology.as_of(now).unwrap();
+    let ids_now: std::collections::BTreeSet<&str> = snapshot_now
+        .rules()
+        .iter()
+        .map(|r| r.id.as_str())
+        .collect();
+    assert!(ids_now.contains("r-always"));
+    assert!(ids_now.contains("r-recent"));
+    assert!(!ids_now.contains("r-stale"), "stale rule must be filtered");
+
+    let snapshot_past = ontology.as_of(past - Duration::seconds(1)).unwrap();
+    let ids_past: std::collections::BTreeSet<&str> = snapshot_past
+        .rules()
+        .iter()
+        .map(|r| r.id.as_str())
+        .collect();
+    assert!(ids_past.contains("r-always"));
+    assert!(ids_past.contains("r-stale"));
+    assert!(
+        !ids_past.contains("r-recent"),
+        "recent rule must not appear before its valid_from"
+    );
+
+    let snapshot_future = ontology.as_of(future).unwrap();
+    let ids_future: std::collections::BTreeSet<&str> = snapshot_future
+        .rules()
+        .iter()
+        .map(|r| r.id.as_str())
+        .collect();
+    assert!(ids_future.contains("r-always"));
+    assert!(ids_future.contains("r-recent"));
+    assert!(!ids_future.contains("r-stale"));
+}
+
+#[test]
+fn as_of_drops_property_bindings_outside_window() {
+    use chrono::{Duration, Utc};
+
+    let now = Utc::now();
+    let past = now - Duration::hours(2);
+
+    let mut ontology = sample_user_ontology();
+    let vs_id = crate::value_set::ValueSetId::new("vs-x");
+    ontology
+        .add_value_set(crate::value_set::ValueSetDef {
+            id: vs_id.clone(),
+            name: "x".into(),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            version: "1".into(),
+            composition: Vec::new(),
+        })
+        .unwrap();
+
+    // Stamp a stale binding on the first property of the first node.
+    let stale = crate::binding::PropertyBinding::value_set(vs_id).with_valid_to(past);
+    ontology
+        .node_types_mut()
+        .iter_mut()
+        .next()
+        .expect("node")
+        .properties
+        .iter_mut()
+        .next()
+        .expect("property")
+        .bindings
+        .push(stale);
+    ontology.rebuild_indices().unwrap();
+
+    let snapshot = ontology.as_of(now).unwrap();
+    let prop = &snapshot.node_types()[0].properties[0];
+    assert!(
+        prop.value_set_binding().is_none(),
+        "stale binding must be filtered out at as_of(now)"
+    );
+}
+
+#[test]
+fn required_binding_to_empty_value_set_is_rejected() {
+    let mut ontology = sample_user_ontology();
+    let vs_id = crate::value_set::ValueSetId::new("vs-empty");
+    ontology
+        .add_value_set(crate::value_set::ValueSetDef {
+            id: vs_id.clone(),
+            name: "empty".into(),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            version: "1".into(),
+            // Empty composition → Required binding must reject.
+            composition: Vec::new(),
+        })
+        .unwrap();
+
+    let required = crate::binding::PropertyBinding::value_set(vs_id)
+        .with_strength(crate::binding::BindingStrength::Required);
+    ontology
+        .node_types_mut()
+        .iter_mut()
+        .next()
+        .expect("node")
+        .properties
+        .iter_mut()
+        .next()
+        .expect("property")
+        .bindings
+        .push(required);
+    ontology.rebuild_indices().unwrap();
+
+    let errors = ontology.validate();
+    assert!(
+        errors.iter().any(|e| e.message.contains("Required binding to value set")
+            && e.message.contains("is empty")),
+        "expected empty-value-set rejection, got {errors:?}"
+    );
+}
+
+#[test]
+fn preferred_binding_to_empty_value_set_is_accepted() {
+    let mut ontology = sample_user_ontology();
+    let vs_id = crate::value_set::ValueSetId::new("vs-empty");
+    ontology
+        .add_value_set(crate::value_set::ValueSetDef {
+            id: vs_id.clone(),
+            name: "empty".into(),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            version: "1".into(),
+            composition: Vec::new(),
+        })
+        .unwrap();
+
+    let preferred = crate::binding::PropertyBinding::value_set(vs_id);
+    ontology
+        .node_types_mut()
+        .iter_mut()
+        .next()
+        .expect("node")
+        .properties
+        .iter_mut()
+        .next()
+        .expect("property")
+        .bindings
+        .push(preferred);
+    ontology.rebuild_indices().unwrap();
+
+    let errors = ontology.validate();
+    assert!(
+        !errors.iter().any(|e| e.message.contains("Required binding")),
+        "Preferred binding should not surface Required-only diagnostic: {errors:?}"
+    );
+}
+
+#[test]
+fn cardinality_numeric_accessors_match_canonical_intent() {
+    use crate::ir::Cardinality;
+
+    // OneToOne — both sides singular.
+    assert_eq!(Cardinality::OneToOne.source_min(), 1);
+    assert_eq!(Cardinality::OneToOne.source_max(), 1);
+    assert_eq!(Cardinality::OneToOne.target_min(), 1);
+    assert_eq!(Cardinality::OneToOne.target_max(), 1);
+    assert!(Cardinality::OneToOne.source_is_singular());
+    assert!(Cardinality::OneToOne.target_is_singular());
+
+    // OneToMany — source singular, target many.
+    assert_eq!(Cardinality::OneToMany.source_max(), 1);
+    assert_eq!(Cardinality::OneToMany.target_max(), u32::MAX);
+    assert!(Cardinality::OneToMany.source_is_singular());
+    assert!(!Cardinality::OneToMany.target_is_singular());
+
+    // ManyToOne — source many, target singular.
+    assert_eq!(Cardinality::ManyToOne.source_max(), u32::MAX);
+    assert_eq!(Cardinality::ManyToOne.target_max(), 1);
+    assert!(!Cardinality::ManyToOne.source_is_singular());
+    assert!(Cardinality::ManyToOne.target_is_singular());
+
+    // ManyToMany — both sides many.
+    assert_eq!(Cardinality::ManyToMany.source_max(), u32::MAX);
+    assert_eq!(Cardinality::ManyToMany.target_max(), u32::MAX);
+    assert!(!Cardinality::ManyToMany.source_is_singular());
+    assert!(!Cardinality::ManyToMany.target_is_singular());
+}
+
+#[test]
+fn advisories_flag_required_dedup_between_node_constraint_and_rule() {
+    use crate::action::RuleId;
+    use crate::ir::{ConstraintDef, NodeConstraint, NodeTypeDef, PropertyDef};
+    use crate::rule::{
+        ConstraintTarget, EnforcementKind, RuleActivationKind, RuleDef, RuleKind, RuleOrigin,
+        Severity, ShaclConstraint,
+    };
+
+    let prop = PropertyDef {
+        id: "p-name".into(),
+        name: pk("name"),
+        property_type: PropertyType::String,
+        nullable: false,
+        ..Default::default()
+    };
+    let mut node = NodeTypeDef {
+        id: "nt-x".into(),
+        label: gl("X"),
+        description: LocalizedText::default(),
+        properties: vec![prop],
+        constraints: vec![ConstraintDef {
+            id: "c-1".into(),
+            constraint: NodeConstraint::Exists {
+                property_id: "p-name".into(),
+            },
+        }],
+        ..Default::default()
+    };
+    let rule_id = RuleId::new("r-also-required");
+    node.rules.push(rule_id.clone());
+
+    let mut ontology = OntologyIR::try_new(
+        "ont".into(),
+        "DedupAdvisory".into(),
+        LocalizedText::default(),
+        1u32,
+        vec![node],
+        Vec::new(),
+        Vec::new(),
+    )
+    .expect("ir");
+
+    ontology
+        .add_rule(RuleDef {
+            id: rule_id,
+            name: "also_required".into(),
+            description: LocalizedText::default(),
+            rationale: LocalizedText::default(),
+            kind: RuleKind::PropertyShape {
+                target_node_type_id: "nt-x".into(),
+                target_property_id: "p-name".into(),
+            },
+            severity: Severity::Violation,
+            enforcement: EnforcementKind::Write,
+            activation: RuleActivationKind::Always,
+            origin: RuleOrigin::Authored,
+            constraints: vec![ShaclConstraint::MinCount {
+                target: ConstraintTarget::Inherit,
+                min: 1,
+            }],
+            valid_from: None,
+            valid_to: None,
+        })
+        .expect("rule");
+
+    // Structurally sound — no `validate()` errors.
+    assert!(ontology.validate().is_empty(), "validation must pass");
+
+    // But the dedup advisory fires.
+    let advisories = ontology.advisories();
+    assert_eq!(
+        advisories.len(),
+        1,
+        "expected one dedup advisory, got {advisories:?}"
+    );
+    assert!(
+        advisories[0].message.contains("Required") && advisories[0].message.contains("source of truth"),
+        "advisory text shape: {}",
+        advisories[0]
+    );
+}
+
+#[test]
+fn advisories_silent_when_only_one_surface_carries_required() {
+    use crate::ir::{ConstraintDef, NodeConstraint, NodeTypeDef, PropertyDef};
+
+    let ontology = OntologyIR::try_new(
+        "ont".into(),
+        "NoDup".into(),
+        LocalizedText::default(),
+        1u32,
+        vec![NodeTypeDef {
+            id: "nt-x".into(),
+            label: gl("X"),
+            description: LocalizedText::default(),
+            properties: vec![PropertyDef {
+                id: "p-name".into(),
+                name: pk("name"),
+                property_type: PropertyType::String,
+                nullable: false,
+                ..Default::default()
+            }],
+            constraints: vec![ConstraintDef {
+                id: "c-1".into(),
+                constraint: NodeConstraint::Exists {
+                    property_id: "p-name".into(),
+                },
+            }],
+            ..Default::default()
+        }],
+        Vec::new(),
+        Vec::new(),
+    )
+    .expect("ir");
+
+    assert!(ontology.advisories().is_empty());
+}
+
+#[test]
+fn required_binding_synthesises_inflight_shacl_rule() {
+    use crate::derived_rules::DERIVED_BINDING_RULE_PREFIX;
+    use crate::ir::{NodeTypeDef, PropertyDef};
+    use crate::rule::{ConstraintTarget, RuleKind, ShaclConstraint};
+
+    let mut ontology = OntologyIR::try_new(
+        "ont".into(),
+        "RequiredBinding".into(),
+        LocalizedText::default(),
+        1u32,
+        vec![NodeTypeDef {
+            id: "nt-x".into(),
+            label: gl("X"),
+            description: LocalizedText::default(),
+            properties: vec![PropertyDef {
+                id: "p-status".into(),
+                name: pk("status"),
+                property_type: PropertyType::String,
+                nullable: false,
+                ..Default::default()
+            }],
+            constraints: Vec::new(),
+            ..Default::default()
+        }],
+        Vec::new(),
+        Vec::new(),
+    )
+    .expect("ir");
+
+    // Seed value-set so the binding's referential check passes.
+    let vs_id = crate::value_set::ValueSetId::new("vs-status");
+    ontology
+        .add_code_system(crate::code_system::CodeSystemDef {
+            id: crate::code_system::CodeSystemId::new("cs-status"),
+            name: "cs".into(),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            uri: None,
+            version: "1".into(),
+            kind: crate::code_system::CodeSystemKind::Internal,
+            hierarchical: false,
+            codes: vec![crate::code_system::CodedValue {
+                id: crate::code_system::CodedValueId::new("cv-1"),
+                code: "ACTIVE".into(),
+                display: LocalizedText::default(),
+                definition: LocalizedText::default(),
+                aliases: Vec::new(),
+                broader_id: None,
+                examples: Vec::new(),
+                scope_note: LocalizedText::default(),
+                valid_from: None,
+                valid_to: None,
+                deprecated_at: None,
+                replaced_by_id: None,
+            }],
+            deprecated_at: None,
+            replaced_by_id: None,
+        })
+        .unwrap();
+    ontology
+        .add_value_set(crate::value_set::ValueSetDef {
+            id: vs_id.clone(),
+            name: "status".into(),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            version: "1".into(),
+            composition: vec![crate::value_set::ValueSetIncludeRule {
+                mode: crate::value_set::IncludeMode::Include,
+                system_id: crate::code_system::CodeSystemId::new("cs-status"),
+                selector: crate::value_set::ValueSetSelector::All,
+            }],
+        })
+        .unwrap();
+
+    // Required binding — no authored rule.
+    ontology
+        .node_types_mut()
+        .iter_mut()
+        .next()
+        .unwrap()
+        .properties[0]
+        .bindings
+        .push(
+            crate::binding::PropertyBinding::value_set(vs_id.clone())
+                .with_strength(crate::binding::BindingStrength::Required),
+        );
+    ontology.rebuild_indices().unwrap();
+
+    // The advisory layer no longer flags this — the derived rule
+    // closes the gap.
+    assert!(ontology.advisories().is_empty());
+
+    // The IR synthesises a SHACL rule that mirrors the binding so the
+    // runtime SHACL validator enforces it without the author copying
+    // the constraint into a separate `RuleDef`.
+    let derived = ontology.derive_binding_rules();
+    assert_eq!(derived.len(), 1);
+    let rule = &derived[0];
+    assert!(
+        rule.id.as_str().starts_with(DERIVED_BINDING_RULE_PREFIX),
+        "expected derived prefix, got {}",
+        rule.id.as_str(),
+    );
+    assert!(matches!(
+        &rule.kind,
+        RuleKind::PropertyShape {
+            target_node_type_id,
+            target_property_id,
+        }
+        if target_node_type_id.as_str() == "nt-x"
+            && target_property_id.as_str() == "p-status"
+    ));
+    assert!(matches!(
+        rule.constraints.as_slice(),
+        [ShaclConstraint::InValueSet {
+            target: ConstraintTarget::Inherit,
+            value_set_id,
+        }] if value_set_id.as_str() == vs_id.as_str()
+    ));
+}
+
+#[test]
+fn add_glossary_term_rejects_self_replacement() {
+    use crate::glossary::{GlossaryTermDef, GlossaryTermId, TermLifecycle};
+    use chrono::Utc;
+
+    let mut onto = sample_user_ontology();
+    let id = GlossaryTermId::new("gt-self");
+    let term = GlossaryTermDef {
+        id: id.clone(),
+        term: LocalizedText::new("Self"),
+        display_name: LocalizedText::default(),
+        description: LocalizedText::default(),
+        examples: Vec::new(),
+        category: None,
+        aliases: Vec::new(),
+        related_terms: Vec::new(),
+        governance: crate::glossary::TermGovernance::default(),
+        valid_from: None,
+        valid_to: None,
+        lifecycle: TermLifecycle::Deprecated {
+            replaced_by: Some(id.clone()),
+            deprecated_at: Utc::now(),
+        },
+    };
+    let err = onto.add_glossary_term(term).unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "glossary_term.replaced_by",
+            ..
+        }
+    ));
+}
+
+#[test]
+fn add_glossary_term_rejects_replacement_pointing_to_missing_term() {
+    use crate::glossary::{GlossaryTermDef, GlossaryTermId, TermLifecycle};
+    use chrono::Utc;
+
+    let mut onto = sample_user_ontology();
+    let term = GlossaryTermDef {
+        id: GlossaryTermId::new("gt-old"),
+        term: LocalizedText::new("Old"),
+        display_name: LocalizedText::default(),
+        description: LocalizedText::default(),
+        examples: Vec::new(),
+        category: None,
+        aliases: Vec::new(),
+        related_terms: Vec::new(),
+        governance: crate::glossary::TermGovernance::default(),
+        valid_from: None,
+        valid_to: None,
+        lifecycle: TermLifecycle::Deprecated {
+            replaced_by: Some(GlossaryTermId::new("gt-phantom")),
+            deprecated_at: Utc::now(),
+        },
+    };
+    let err = onto.add_glossary_term(term).unwrap_err();
+    assert!(matches!(
+        err,
+        OntologyInvariantError::InvalidReference {
+            kind: "glossary_term.replaced_by",
+            ..
+        }
+    ));
+}
+
+#[test]
+fn add_glossary_term_accepts_replacement_pointing_to_existing_term() {
+    use crate::glossary::{GlossaryTermDef, GlossaryTermId, TermLifecycle};
+    use chrono::Utc;
+
+    fn empty_term(id: &str, label: &str) -> GlossaryTermDef {
+        GlossaryTermDef {
+            id: GlossaryTermId::new(id),
+            term: LocalizedText::new(label),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            examples: Vec::new(),
+            category: None,
+            aliases: Vec::new(),
+            related_terms: Vec::new(),
+            governance: crate::glossary::TermGovernance::default(),
+            valid_from: None,
+            valid_to: None,
+            lifecycle: TermLifecycle::Active,
+        }
+    }
+
+    let mut onto = sample_user_ontology();
+    onto.add_glossary_term(empty_term("gt-new", "New")).unwrap();
+    let mut deprecated = empty_term("gt-old", "Old");
+    deprecated.lifecycle = TermLifecycle::Deprecated {
+        replaced_by: Some(GlossaryTermId::new("gt-new")),
+        deprecated_at: Utc::now(),
+    };
+    onto.add_glossary_term(deprecated).expect("valid replacement reference");
+    assert_eq!(onto.glossary().len(), 2);
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2 — ShaclConstraint::LessThan / Equals (property-pair operators)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn property_pair_constraint_target_resolves_to_inherit() {
+    use crate::rule::{ConstraintTarget, ShaclConstraint};
+    use crate::ir::PropertyId;
+
+    let lt = ShaclConstraint::LessThan {
+        target: ConstraintTarget::Inherit,
+        other_property: PropertyId::new("p-other"),
+    };
+    let eq = ShaclConstraint::Equals {
+        target: ConstraintTarget::Inherit,
+        other_property: PropertyId::new("p-other"),
+    };
+    assert!(matches!(lt.target(), Some(ConstraintTarget::Inherit)));
+    assert!(matches!(eq.target(), Some(ConstraintTarget::Inherit)));
+    // No dedup signature — these are independent shape rules.
+    assert!(lt.signature().is_none());
+    assert!(eq.signature().is_none());
+}
+
+#[test]
+fn validate_rejects_property_pair_referencing_unknown_sibling() {
+    use crate::rule::{
+        ConstraintTarget, EnforcementKind, RuleActivationKind, RuleDef, RuleKind, Severity,
+        ShaclConstraint,
+    };
+
+    let mut onto = sample_user_ontology();
+    let node = &onto.node_types[0];
+    let target_property = node.properties[0].id.clone();
+    let target_node = node.id.clone();
+
+    let rule = RuleDef {
+        id: "r-bad-pair".into(),
+        name: LocalizedText::new("less-than against missing sibling"),
+        description: LocalizedText::default(),
+        rationale: LocalizedText::default(),
+        severity: Severity::Violation,
+        enforcement: EnforcementKind::Write,
+        activation: RuleActivationKind::Always,
+        origin: crate::rule::RuleOrigin::Authored,
+        kind: RuleKind::PropertyShape {
+            target_node_type_id: target_node,
+            target_property_id: target_property,
+        },
+        constraints: vec![ShaclConstraint::LessThan {
+            target: ConstraintTarget::Inherit,
+            other_property: crate::ir::PropertyId::new("p-phantom"),
+        }],
+        valid_from: None,
+        valid_to: None,
+    };
+    onto.add_rule(rule).unwrap();
+    let errors = onto.validate();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.code == "ontology.validate.rule.property_pair_unknown_sibling"),
+        "expected property_pair_unknown_sibling diagnostic, got: {errors:?}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3 — EdgeKind classification
+// ---------------------------------------------------------------------------
+
+#[test]
+fn edge_type_def_default_kind_is_association() {
+    let edge = crate::ir::EdgeTypeDef::default();
+    assert_eq!(edge.kind, crate::ir::EdgeKind::Association);
+}
+
+#[test]
+fn edge_kind_serialises_to_snake_case() {
+    use crate::ir::EdgeKind;
+
+    let cases = [
+        (EdgeKind::Association, "\"association\""),
+        (EdgeKind::Composition, "\"composition\""),
+        (EdgeKind::Aggregation, "\"aggregation\""),
+    ];
+    for (kind, expected) in cases {
+        let json = serde_json::to_string(&kind).unwrap();
+        assert_eq!(json, expected);
+        let back: EdgeKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, kind);
+    }
+}
+
+#[test]
+fn edge_type_def_kind_roundtrips_through_json() {
+    let edge = crate::ir::EdgeTypeDef {
+        id: "e-owns".into(),
+        label: gl("OWNS"),
+        source_node_id: "nt-a".into(),
+        target_node_id: "nt-b".into(),
+        kind: crate::ir::EdgeKind::Composition,
+        ..Default::default()
+    };
+    let json = serde_json::to_value(&edge).unwrap();
+    let back: crate::ir::EdgeTypeDef = serde_json::from_value(json).unwrap();
+    assert_eq!(back.kind, crate::ir::EdgeKind::Composition);
+}
+
+// ---------------------------------------------------------------------------
+// Phase 7 — locale-aware glossary alias resolver
+// ---------------------------------------------------------------------------
+
+#[test]
+fn phrase_resolver_finds_term_via_default_label() {
+    use crate::glossary::{GlossaryTermDef, GlossaryTermId, TermLifecycle};
+
+    let mut onto = sample_user_ontology();
+    let id = GlossaryTermId::new("gt-customer");
+    onto.add_glossary_term(GlossaryTermDef {
+        id: id.clone(),
+        term: LocalizedText::new("Customer"),
+        display_name: LocalizedText::default(),
+        description: LocalizedText::default(),
+        examples: Vec::new(),
+        category: None,
+        aliases: Vec::new(),
+        related_terms: Vec::new(),
+        governance: crate::glossary::TermGovernance::default(),
+        valid_from: None,
+        valid_to: None,
+        lifecycle: TermLifecycle::Active,
+    })
+    .unwrap();
+
+    let resolved = onto.glossary_term_by_phrase("CUSTOMER").unwrap();
+    assert_eq!(resolved.id, id);
+    assert!(onto.glossary_term_by_phrase("vendor").is_none());
+    assert!(onto.glossary_term_by_phrase("").is_none());
+}
+
+#[test]
+fn phrase_resolver_finds_term_via_korean_alias() {
+    use crate::glossary::{GlossaryTermDef, GlossaryTermId, TermLifecycle};
+    use ox_core::i18n::LanguageTag;
+
+    let mut onto = sample_user_ontology();
+    let id = GlossaryTermId::new("gt-customer");
+    onto.add_glossary_term(GlossaryTermDef {
+        id: id.clone(),
+        term: LocalizedText::new("Customer")
+            .with_translation(LanguageTag::ko(), "고객"),
+        display_name: LocalizedText::default(),
+        description: LocalizedText::default(),
+        examples: Vec::new(),
+        category: None,
+        aliases: vec![
+            LocalizedText::new("Buyer").with_translation(LanguageTag::ko(), "구매자"),
+        ],
+        related_terms: Vec::new(),
+        governance: crate::glossary::TermGovernance::default(),
+        valid_from: None,
+        valid_to: None,
+        lifecycle: TermLifecycle::Active,
+    })
+    .unwrap();
+
+    // Match by Korean translation of the canonical term.
+    let by_ko_term = onto.glossary_term_by_phrase("고객").unwrap();
+    assert_eq!(by_ko_term.id, id);
+    // Match by Korean translation of an alias.
+    let by_ko_alias = onto.glossary_term_by_phrase("구매자").unwrap();
+    assert_eq!(by_ko_alias.id, id);
+    // English alias (default) still works.
+    let by_en_alias = onto.glossary_term_by_phrase("buyer").unwrap();
+    assert_eq!(by_en_alias.id, id);
+}
+
+#[test]
+fn phrase_resolver_follows_deprecated_replacement_chain() {
+    use crate::glossary::{GlossaryTermDef, GlossaryTermId, TermLifecycle};
+    use chrono::Utc;
+
+    fn empty_term(id: &str, label: &str, lifecycle: TermLifecycle) -> GlossaryTermDef {
+        GlossaryTermDef {
+            id: GlossaryTermId::new(id),
+            term: LocalizedText::new(label),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            examples: Vec::new(),
+            category: None,
+            aliases: Vec::new(),
+            related_terms: Vec::new(),
+            governance: crate::glossary::TermGovernance::default(),
+            valid_from: None,
+            valid_to: None,
+            lifecycle,
+        }
+    }
+
+    let mut onto = sample_user_ontology();
+    onto.add_glossary_term(empty_term("gt-current", "Customer", TermLifecycle::Active))
+        .unwrap();
+    onto.add_glossary_term(empty_term(
+        "gt-old",
+        "Client",
+        TermLifecycle::Deprecated {
+            replaced_by: Some(GlossaryTermId::new("gt-current")),
+            deprecated_at: Utc::now(),
+        },
+    ))
+    .unwrap();
+
+    // Looking up the deprecated label should land on the successor.
+    let resolved = onto.glossary_term_by_phrase("Client").unwrap();
+    assert_eq!(resolved.id.as_str(), "gt-current");
+}
+
+#[test]
+fn phrase_resolver_prefers_active_term_over_deprecated_with_same_alias() {
+    use crate::glossary::{GlossaryTermDef, GlossaryTermId, TermLifecycle};
+    use chrono::Utc;
+
+    fn build(id: &str, label: &str, alias: &str, lifecycle: TermLifecycle) -> GlossaryTermDef {
+        GlossaryTermDef {
+            id: GlossaryTermId::new(id),
+            term: LocalizedText::new(label),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            examples: Vec::new(),
+            category: None,
+            aliases: vec![LocalizedText::new(alias)],
+            related_terms: Vec::new(),
+            governance: crate::glossary::TermGovernance::default(),
+            valid_from: None,
+            valid_to: None,
+            lifecycle,
+        }
+    }
+
+    let mut onto = sample_user_ontology();
+    // Insert deprecated first so glossary order would otherwise return it.
+    onto.add_glossary_term(build(
+        "gt-old",
+        "OldCustomer",
+        "shopper",
+        TermLifecycle::Retired { retired_at: Utc::now() },
+    ))
+    .unwrap();
+    onto.add_glossary_term(build(
+        "gt-new",
+        "Customer",
+        "shopper",
+        TermLifecycle::Active,
+    ))
+    .unwrap();
+
+    // Both terms have alias "shopper". Resolver must prefer the
+    // active one regardless of insertion order.
+    let resolved = onto.glossary_term_by_phrase("shopper").unwrap();
+    assert_eq!(resolved.id.as_str(), "gt-new");
+}
+
+#[test]
+fn phrase_resolver_prefers_canonical_term_over_alias() {
+    use crate::glossary::{GlossaryTermDef, GlossaryTermId, TermLifecycle};
+
+    fn build(id: &str, label: &str, alias: &str) -> GlossaryTermDef {
+        GlossaryTermDef {
+            id: GlossaryTermId::new(id),
+            term: LocalizedText::new(label),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            examples: Vec::new(),
+            category: None,
+            aliases: vec![LocalizedText::new(alias)],
+            related_terms: Vec::new(),
+            governance: crate::glossary::TermGovernance::default(),
+            valid_from: None,
+            valid_to: None,
+            lifecycle: TermLifecycle::Active,
+        }
+    }
+
+    let mut onto = sample_user_ontology();
+    // Term A's canonical label is "Buyer". Term B has "Buyer" as an
+    // alias of canonical "Customer". A query for "Buyer" must
+    // resolve to A (canonical match outranks alias match).
+    onto.add_glossary_term(build("gt-customer", "Customer", "Buyer"))
+        .unwrap();
+    onto.add_glossary_term(build("gt-buyer", "Buyer", "Purchaser"))
+        .unwrap();
+
+    let resolved = onto.glossary_term_by_phrase("Buyer").unwrap();
+    assert_eq!(resolved.id.as_str(), "gt-buyer");
 }

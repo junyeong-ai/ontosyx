@@ -63,6 +63,17 @@ pub enum OntologyInvariantError {
     /// removed by a concurrent operator.
     #[error("{kind} not found: {id}")]
     CollectionEntryNotFound { kind: &'static str, id: String },
+
+    /// A field on a definition references another id that either
+    /// does not exist in the IR or points back at the owner itself.
+    /// `kind` names the field path (e.g. `"glossary_term.replaced_by"`),
+    /// `id` is the owning record, and `target` is the offending value.
+    #[error("invalid reference {kind}: {id} → {target}")]
+    InvalidReference {
+        kind: &'static str,
+        id: String,
+        target: String,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -480,10 +491,61 @@ impl OntologyIR {
         Ok(ont)
     }
 
+    /// Project this IR to its state at the given instant.
+    ///
+    /// Filters every collection whose entries carry a temporal
+    /// window — `RuleDef`, `ObjectMappingDef`, `PropertyBinding`
+    /// — keeping only entries whose `[valid_from, valid_to)` window
+    /// covers `at`. Untemporal collections (node types, edge types,
+    /// glossary terms, code systems, etc.) pass through unchanged.
+    ///
+    /// The returned IR's lookup indices are rebuilt so every `*_by_id`
+    /// accessor reflects the filtered slice. Returns an error iff the
+    /// rebuild surfaces an invariant violation (which can only happen
+    /// if the source IR was malformed before filtering).
+    pub fn as_of(
+        &self,
+        at: chrono::DateTime<chrono::Utc>,
+    ) -> Result<Self, OntologyInvariantError> {
+        let mut out = self.clone();
+
+        // Object mappings: drop any whose own window doesn't cover
+        // `at`. ObjectMappingDef carries its window directly.
+        out.object_mappings.retain(|om| {
+            let starts_ok = om.valid_from.map(|f| at >= f).unwrap_or(true);
+            let ends_ok = om.valid_to.map(|t| at < t).unwrap_or(true);
+            starts_ok && ends_ok
+        });
+
+        // Rules: same window contract.
+        out.rules.retain(|r| r.covers(at));
+
+        // Property bindings: per-property filter — drop bindings
+        // whose own window doesn't cover `at`, leaving the host
+        // property in place.
+        for node in &mut out.node_types {
+            for prop in &mut node.properties {
+                prop.bindings.retain(|b| b.covers(at));
+            }
+        }
+        for edge in &mut out.edge_types {
+            for prop in &mut edge.properties {
+                prop.bindings.retain(|b| b.covers(at));
+            }
+        }
+
+        out.rebuild_indices()?;
+        Ok(out)
+    }
+
     /// Construct a new OntologyIR, validate it, and return the validated instance.
     ///
-    /// Structural invariant violations (duplicate ids/labels) and semantic
-    /// validation errors are both returned as strings in the `Err` vec.
+    /// Structural invariant violations (duplicate ids/labels) surface as
+    /// `ontology.invariant.*` codes; semantic validation issues use the
+    /// `ontology.validate.*` family from
+    /// [`OntologyIR::validate`]. Either way the `Err` carries
+    /// structured [`DiagnosticMessage`]s the FE renders through its
+    /// i18n catalogue.
     pub fn new_validated(
         id: String,
         name: String,
@@ -492,7 +554,7 @@ impl OntologyIR {
         node_types: Vec<NodeTypeDef>,
         edge_types: Vec<EdgeTypeDef>,
         indexes: Vec<IndexDef>,
-    ) -> Result<Self, Vec<String>> {
+    ) -> Result<Self, Vec<ox_core::DiagnosticMessage>> {
         let ont = Self::try_new(
             id,
             name,
@@ -502,7 +564,13 @@ impl OntologyIR {
             edge_types,
             indexes,
         )
-        .map_err(|e| vec![e.to_string()])?;
+        .map_err(|e| {
+            vec![
+                ox_core::diagnostic::diag("ontology.invariant.try_new")
+                    .with("error", e.to_string())
+                    .message(e.to_string()),
+            ]
+        })?;
         let errors = ont.validate();
         if errors.is_empty() {
             Ok(ont)
@@ -1006,11 +1074,37 @@ impl OntologyIR {
         &mut self,
         def: crate::glossary::GlossaryTermDef,
     ) -> Result<(), OntologyInvariantError> {
+        use crate::glossary::TermLifecycle;
+
         if self.lookup.glossary_term_id_idx.contains_key(&def.id) {
             return Err(OntologyInvariantError::DuplicateCollectionId {
                 kind: "glossary_term",
                 id: def.id.to_string(),
             });
+        }
+        // A deprecated term's `replaced_by` must point at a term that
+        // already exists in the IR — otherwise NL-to-Cypher will route
+        // user queries to a phantom successor. Self-replacement is
+        // also rejected: it always produces an infinite redirect loop.
+        if let TermLifecycle::Deprecated {
+            replaced_by: Some(target),
+            ..
+        } = &def.lifecycle
+        {
+            if target == &def.id {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "glossary_term.replaced_by",
+                    id: def.id.to_string(),
+                    target: target.to_string(),
+                });
+            }
+            if !self.lookup.glossary_term_id_idx.contains_key(target) {
+                return Err(OntologyInvariantError::InvalidReference {
+                    kind: "glossary_term.replaced_by",
+                    id: def.id.to_string(),
+                    target: target.to_string(),
+                });
+            }
         }
         self.glossary.push(def);
         self.rebuild_indices()
@@ -1440,6 +1534,89 @@ impl OntologyIR {
         id: &crate::glossary::GlossaryTermId,
     ) -> Option<&crate::glossary::GlossaryTermDef> {
         self.lookup.glossary_term_id_idx.get(id).map(|&i| &self.glossary[i])
+    }
+
+    /// Resolve a free-form phrase to the glossary term that matches
+    /// it across any locale. Walks `term`, `display_name`, and
+    /// `aliases` (their `default` plus every translation) for a
+    /// case-insensitive trim-equal match, then follows
+    /// [`crate::glossary::TermLifecycle::Deprecated::replaced_by`]
+    /// chains so the caller always lands on a currently-active
+    /// successor.
+    ///
+    /// Used by NL→Cypher / schema-RAG routing: a Korean operator
+    /// querying with `"고객"` resolves to the same term identity as
+    /// an English operator querying with `"Customer"`, and a query
+    /// against a deprecated label silently routes through to the
+    /// successor without surfacing the deprecation cycle.
+    ///
+    /// **Match priority** (deterministic across glossary order):
+    /// 1. Active term whose canonical `term` equals the phrase.
+    /// 2. Active term whose `display_name` equals the phrase.
+    /// 3. Active term whose `aliases` contains the phrase.
+    /// 4. Deprecated term — same hierarchy. The resolver still
+    ///    returns the *successor* via the replacement chain, but
+    ///    matches strictly through the active surface first so a
+    ///    coincidental alias collision between an active and a
+    ///    retired concept resolves to the active one.
+    ///
+    /// Cycle protection: redirect chains stop after
+    /// `MAX_REPLACEMENT_HOPS` so a malformed cycle in stored data
+    /// can never hang the resolver.
+    pub fn glossary_term_by_phrase(
+        &self,
+        phrase: &str,
+    ) -> Option<&crate::glossary::GlossaryTermDef> {
+        let needle = phrase.trim().to_lowercase();
+        if needle.is_empty() {
+            return None;
+        }
+        // Visit active terms first, then deprecated. Within each
+        // bucket the canonical `term` outranks `display_name`, which
+        // outranks `aliases`. The first match wins; downstream
+        // replacement-chain walking turns a deprecated hit into its
+        // active successor automatically.
+        let buckets: [bool; 2] = [true, false];
+        for prefer_active in buckets {
+            for slot in [
+                GlossarySlot::Term,
+                GlossarySlot::DisplayName,
+                GlossarySlot::Alias,
+            ] {
+                if let Some(found) = self.glossary.iter().find(|t| {
+                    t.is_active() == prefer_active
+                        && slot_matches(t, slot, &needle)
+                }) {
+                    return Some(self.follow_replacement_chain(found));
+                }
+            }
+        }
+        None
+    }
+
+    /// Walk through `Deprecated::replaced_by` until reaching a term
+    /// whose lifecycle is *not* a redirect, or hitting the cycle
+    /// guard. Always returns an existing term — the integrity layer
+    /// rejects unknown / self-referencing replacements at insert.
+    fn follow_replacement_chain<'a>(
+        &'a self,
+        start: &'a crate::glossary::GlossaryTermDef,
+    ) -> &'a crate::glossary::GlossaryTermDef {
+        const MAX_REPLACEMENT_HOPS: usize = 8;
+        let mut current = start;
+        for _ in 0..MAX_REPLACEMENT_HOPS {
+            let Some(next_id) = current.replaced_by() else {
+                return current;
+            };
+            let Some(next) = self.glossary_term_by_id(next_id) else {
+                return current;
+            };
+            if next.id == current.id {
+                return current;
+            }
+            current = next;
+        }
+        current
     }
 
     pub fn data_quality_by_id(
@@ -1891,6 +2068,48 @@ impl OntologyIR {
 }
 
 /// Build a bracketed hint suffix carrying Phase A semantic flags for a
+/// Labelled slot on a `GlossaryTermDef` that the phrase resolver
+/// inspects. The order in
+/// [`OntologyIR::glossary_term_by_phrase`]'s match cascade —
+/// `Term → DisplayName → Alias` — is the canonical SKOS preference
+/// order: a phrase that hits the canonical preferred label outranks
+/// a phrase that hits the same term only through an alias.
+#[derive(Debug, Clone, Copy)]
+enum GlossarySlot {
+    Term,
+    DisplayName,
+    Alias,
+}
+
+fn slot_matches(
+    term: &crate::glossary::GlossaryTermDef,
+    slot: GlossarySlot,
+    needle_lower: &str,
+) -> bool {
+    match slot {
+        GlossarySlot::Term => localized_text_contains_ci(&term.term, needle_lower),
+        GlossarySlot::DisplayName => {
+            localized_text_contains_ci(&term.display_name, needle_lower)
+        }
+        GlossarySlot::Alias => term
+            .aliases
+            .iter()
+            .any(|alias| localized_text_contains_ci(alias, needle_lower)),
+    }
+}
+
+fn localized_text_contains_ci(
+    text: &ox_core::i18n::LocalizedText,
+    needle_lower: &str,
+) -> bool {
+    if text.default.to_lowercase() == needle_lower {
+        return true;
+    }
+    text.translations
+        .values()
+        .any(|v| v.to_lowercase() == needle_lower)
+}
+
 /// property: `", localized"`, `", deprecated"`, `", min N"`, `", max N"`.
 /// Empty string when the property has no special flags. Kept on one line
 /// so it slots into `compact_schema` without bloating the per-property
