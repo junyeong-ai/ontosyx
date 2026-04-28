@@ -4639,6 +4639,7 @@ export interface components {
              */
             rationale?: components["schemas"]["LocalizedText"];
             severity?: components["schemas"]["Severity"];
+            sh_message?: null | components["schemas"]["LocalizedText"];
             /**
              * Format: date-time
              * @description Inclusive lower bound on the rule's effective window.

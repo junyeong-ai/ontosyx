@@ -285,6 +285,7 @@ fn derive_rule(
         constraints: vec![constraint],
         valid_from,
         valid_to,
+            sh_message: None,
     })
 }
 
@@ -515,6 +516,7 @@ mod tests {
                 constraints: vec![constraint],
                 valid_from: None,
                 valid_to: None,
+                            sh_message: None,
             })
             .expect("authored rule add");
     }
@@ -712,6 +714,7 @@ mod tests {
                 constraints: vec![constraint],
                 valid_from: None,
                 valid_to: None,
+                            sh_message: None,
             })
             .expect("authored rule add");
     }
@@ -741,6 +744,7 @@ mod tests {
                 constraints: vec![constraint],
                 valid_from: None,
                 valid_to: None,
+                            sh_message: None,
             })
             .expect("authored node-shape rule add");
     }

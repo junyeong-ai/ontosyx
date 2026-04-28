@@ -1116,6 +1116,7 @@ mod tests {
             constraints: Vec::new(),
             valid_from: None,
             valid_to: None,
+                    sh_message: None,
         }
     }
 

@@ -12853,6 +12853,17 @@
           "severity": {
             "$ref": "#/components/schemas/Severity"
           },
+          "sh_message": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/LocalizedText",
+                "description": "Author-supplied violation message (SHACL `sh:message`).\nWhen set, validators emit this as the diagnostic body\ninstead of falling back to the i18n catalogue keyed by\nconstraint kind. Rule-level (not per-constraint) by design:\na rule with multiple constraints reads as a single\nactionable unit at the operator's grain, and the surface\nstays bounded as new `ShaclConstraint` variants land.\nLocalised so a bilingual deployment can ship one rule per\nconcept instead of inventing parallel translations."
+              }
+            ]
+          },
           "valid_from": {
             "type": [
               "string",

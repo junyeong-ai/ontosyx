@@ -561,6 +561,7 @@ mod tests {
             }],
             valid_from: None,
             valid_to: None,
+                    sh_message: None,
         })
         .expect("rule add");
         let refs = ir.dangling_references();

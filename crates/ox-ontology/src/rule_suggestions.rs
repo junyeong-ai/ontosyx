@@ -157,6 +157,7 @@ fn suggest_for_value_set(ontology: &OntologyIR, vs_id: &ValueSetId) -> Vec<RuleP
             }],
             valid_from: None,
             valid_to: None,
+                    sh_message: None,
         };
         out.push(RuleProposal {
             rule,
@@ -249,6 +250,7 @@ fn suggest_for_notation_pattern(
             }],
             valid_from: None,
             valid_to: None,
+                    sh_message: None,
         };
         out.push(RuleProposal {
             rule,
@@ -491,6 +493,7 @@ mod tests {
             }],
             valid_from: None,
             valid_to: None,
+                    sh_message: None,
         })
         .expect("add rule");
         let proposals = suggest_rules_for_change(

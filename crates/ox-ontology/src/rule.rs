@@ -134,6 +134,18 @@ pub struct RuleDef {
     /// means "indefinitely". Same filter contract as `valid_from`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub valid_to: Option<chrono::DateTime<chrono::Utc>>,
+
+    /// Author-supplied violation message (SHACL `sh:message`).
+    /// When set, validators emit this as the diagnostic body
+    /// instead of falling back to the i18n catalogue keyed by
+    /// constraint kind. Rule-level (not per-constraint) by design:
+    /// a rule with multiple constraints reads as a single
+    /// actionable unit at the operator's grain, and the surface
+    /// stays bounded as new `ShaclConstraint` variants land.
+    /// Localised so a bilingual deployment can ship one rule per
+    /// concept instead of inventing parallel translations.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sh_message: Option<LocalizedText>,
 }
 
 impl RuleDef {
@@ -695,6 +707,7 @@ mod tests {
             ],
             valid_from: None,
             valid_to: None,
+                    sh_message: None,
         };
         let j = serde_json::to_value(&r).unwrap();
         let back: RuleDef = serde_json::from_value(j).unwrap();
@@ -733,6 +746,7 @@ mod tests {
             constraints: vec![],
             valid_from: None,
             valid_to: None,
+                    sh_message: None,
         };
         let j = serde_json::to_value(&r).unwrap();
         let back: RuleDef = serde_json::from_value(j).unwrap();

@@ -852,6 +852,7 @@ mod as_of_tests {
             }],
             valid_from: None,
             valid_to: Some(stale_until),
+                    sh_message: None,
         })
         .expect("add rule");
         ir

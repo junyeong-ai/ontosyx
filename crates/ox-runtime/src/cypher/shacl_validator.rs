@@ -822,10 +822,30 @@ fn build_issue(
     message: DiagnosticMessage,
     span: Option<crate::cypher::token::Span>,
 ) -> ValidationIssue {
+    // Author-supplied `sh_message` rides alongside the catalogue
+    // template — the FE / alerting pipeline reads `sh_message_default`
+    // when present and falls back to the kind-keyed catalogue
+    // otherwise. Wire shape stays additive so consumers without the
+    // new field keep rendering the catalogue text unchanged.
+    let mut final_message = message;
+    if let Some(authored) = rule.sh_message.as_ref() {
+        if !authored.is_empty() {
+            final_message.params.insert(
+                "sh_message_default".to_string(),
+                serde_json::Value::String(authored.default.clone()),
+            );
+            for (lang, text) in &authored.translations {
+                final_message.params.insert(
+                    format!("sh_message_{}", lang.as_str()),
+                    serde_json::Value::String(text.clone()),
+                );
+            }
+        }
+    }
     let issue = match rule.severity {
-        Severity::Violation => ValidationIssue::error("shacl", message),
-        Severity::Warning => ValidationIssue::warning("shacl", message),
-        Severity::Info => ValidationIssue::info("shacl", message),
+        Severity::Violation => ValidationIssue::error("shacl", final_message),
+        Severity::Warning => ValidationIssue::warning("shacl", final_message),
+        Severity::Info => ValidationIssue::info("shacl", final_message),
     };
     match span {
         Some(s) => issue.with_span(s),
@@ -1003,6 +1023,7 @@ mod tests {
             }],
                     valid_from: None,
             valid_to: None,
+                    sh_message: None,
         };
         (rule, prop)
     }
@@ -1079,6 +1100,7 @@ mod tests {
             }],
             valid_from: None,
             valid_to: None,
+                    sh_message: None,
         }
     }
 
@@ -1194,6 +1216,7 @@ mod tests {
             }],
                     valid_from: None,
             valid_to: None,
+                    sh_message: None,
         };
         onto.add_rule(rule).expect("rule add");
         let issues = run(onto, "CREATE (u:User {email: 'not-an-email'})");
@@ -1275,6 +1298,7 @@ mod tests {
             }],
             valid_from: None,
             valid_to: None,
+                    sh_message: None,
         }
     }
 
@@ -1369,6 +1393,7 @@ mod tests {
             }],
                     valid_from: None,
             valid_to: None,
+                    sh_message: None,
         })
         .expect("rule add");
         let issues = run(
@@ -1428,6 +1453,7 @@ mod tests {
             }],
                     valid_from: None,
             valid_to: None,
+                    sh_message: None,
         })
         .expect("rule add");
         let issues = run(
@@ -1471,6 +1497,7 @@ mod tests {
             }],
                     valid_from: None,
             valid_to: None,
+                    sh_message: None,
         })
         .expect("rule add");
         let issues = run(onto, "CREATE (u:User {email: 'a@b'})");
@@ -1519,6 +1546,7 @@ mod tests {
             }],
                     valid_from: None,
             valid_to: None,
+                    sh_message: None,
         })
         .expect("rule add");
         let issues = run(onto, "CREATE (u:User {email: 'a@b'})");

@@ -70,6 +70,17 @@ export function useDiagnosticResolver(
 
   return useCallback<DiagnosticResolver>(
     (diagnostic) => {
+      // SHACL diagnostics carry the rule's author-supplied
+      // `sh_message` as `sh_message_<lang>` params (e.g.
+      // `sh_message_default`, `sh_message_ko`). When present, that
+      // copy outranks the catalogue template — it's the operator's
+      // own explanation for the violation. Localised pick walks the
+      // workspace's locale chain first, falls back to
+      // `sh_message_default`.
+      const authored = pickShMessage(diagnostic.params, localeChain);
+      if (authored !== null) {
+        return authored;
+      }
       if (
         !catalogueHasKey(messages, [
           DIAGNOSTICS_NAMESPACE,
@@ -92,6 +103,26 @@ export function useDiagnosticResolver(
     },
     [t, messages, localeChain],
   );
+}
+
+/**
+ * If the diagnostic carries author-supplied `sh_message_<lang>`
+ * params (rule-level `sh_message: LocalizedText`), pick the best
+ * match against `chain`. Returns `null` when no `sh_message_*`
+ * params are present so the caller can fall back to the catalogue
+ * lookup.
+ */
+function pickShMessage(
+  params: Record<string, unknown> | undefined,
+  chain: readonly string[],
+): string | null {
+  if (!params) return null;
+  for (const tag of chain) {
+    const value = params[`sh_message_${tag}`];
+    if (typeof value === "string" && value.length > 0) return value;
+  }
+  const fallback = params["sh_message_default"];
+  return typeof fallback === "string" && fallback.length > 0 ? fallback : null;
 }
 
 /**

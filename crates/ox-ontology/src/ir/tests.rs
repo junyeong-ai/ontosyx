@@ -931,6 +931,7 @@ fn validate_passes_when_all_phase_5b_references_resolve() {
         }],
         valid_from: None,
         valid_to: None,
+            sh_message: None,
     }).unwrap();
     onto.add_function(FunctionDef {
         id: FunctionId::new("fn-lower"),
@@ -1214,6 +1215,7 @@ fn as_of_drops_rules_outside_window() {
         constraints: Vec::new(),
         valid_from: None,
         valid_to: None,
+            sh_message: None,
     };
     let recent = crate::rule::RuleDef {
         id: crate::action::RuleId::new("r-recent"),
@@ -1477,6 +1479,7 @@ fn advisories_flag_required_dedup_between_node_constraint_and_rule() {
             }],
             valid_from: None,
             valid_to: None,
+                    sh_message: None,
         })
         .expect("rule");
 
@@ -1810,6 +1813,7 @@ fn validate_rejects_property_pair_referencing_unknown_sibling() {
         }],
         valid_from: None,
         valid_to: None,
+            sh_message: None,
     };
     onto.add_rule(rule).unwrap();
     let errors = onto.validate();
