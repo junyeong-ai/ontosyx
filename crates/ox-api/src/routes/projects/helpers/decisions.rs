@@ -120,10 +120,19 @@ pub(crate) fn validate_decisions(
 /// it received with the project payload, so the rejection lists
 /// exactly the items the operator has to address — no client-side
 /// reverse-engineering of "why did this 422".
+///
+/// Before evaluating gates the function validates the structural
+/// integrity of [`DesignOptions::column_clarifications`]: every entry
+/// must reference an actually-ambiguous column from the report, and
+/// duplicate `(table, column)` pairs are rejected. This prevents
+/// silent skips for clarifications targeting columns the report
+/// doesn't list as ambiguous (a stale FE submission, or a clarif
+/// re-submit after the report was re-run with different ambiguities).
 pub(crate) fn enforce_design_gates(
     report: &SourceAnalysisReport,
     options: &DesignOptions,
 ) -> Result<Vec<DesignGate>, AppError> {
+    validate_clarifications(report, options)?;
     let gates = evaluate_design_gates(report, options);
     let unmet = unmet_blocking_gates(&gates);
     if unmet.is_empty() {
@@ -144,6 +153,46 @@ pub(crate) fn enforce_design_gates(
             "report": report,
         }),
     ))
+}
+
+/// Structural validation of `column_clarifications` — referenced
+/// columns must appear in `report.ambiguous_columns`, and the same
+/// `(table, column)` may not be clarified twice. Returns the first
+/// violation as an `AppError::Validation`.
+fn validate_clarifications(
+    report: &SourceAnalysisReport,
+    options: &DesignOptions,
+) -> Result<(), AppError> {
+    let ambiguous: HashSet<(&str, &str)> = report
+        .ambiguous_columns
+        .iter()
+        .map(|a| (a.column.relation.as_str(), a.column.column.as_str()))
+        .collect();
+    let mut seen: HashSet<(&str, &str)> = HashSet::new();
+    for c in &options.column_clarifications {
+        let key = (c.table.as_str(), c.column.as_str());
+        if !ambiguous.contains(&key) {
+            return Err(AppError::validation(
+                "column_clarifications",
+                &format!(
+                    "{}.{} is not in the current report's ambiguous_columns \
+                     set — re-run analyse or drop the stale clarification",
+                    c.table, c.column
+                ),
+            ));
+        }
+        if !seen.insert(key) {
+            return Err(AppError::validation(
+                "column_clarifications",
+                &format!(
+                    "duplicate entry for {}.{} — keep one clarification \
+                     per column",
+                    c.table, c.column
+                ),
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Prune decisions invalidated by a new source snapshot.
