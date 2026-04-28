@@ -260,6 +260,20 @@ impl OntologyCommand {
                 })
             }
 
+            // ----- SetNodeGlossaryAnchors -----
+            OntologyCommand::SetNodeGlossaryAnchors { node_id, anchors } => {
+                let idx = node_index(&ont, node_id)?;
+                let old_anchors = ont.node_types[idx].glossary_anchors.clone();
+                ont.node_types[idx].glossary_anchors = anchors.clone();
+                Ok(CommandResult {
+                    new_ontology: ont,
+                    inverse: OntologyCommand::SetNodeGlossaryAnchors {
+                        node_id: node_id.clone(),
+                        anchors: old_anchors,
+                    },
+                })
+            }
+
             // ----- AddEdge -----
             OntologyCommand::AddEdge {
                 id,
@@ -406,6 +420,20 @@ impl OntologyCommand {
                     inverse: OntologyCommand::UpdateEdgeDescription {
                         edge_id: edge_id.clone(),
                         description: old_desc,
+                    },
+                })
+            }
+
+            // ----- SetEdgeGlossaryAnchors -----
+            OntologyCommand::SetEdgeGlossaryAnchors { edge_id, anchors } => {
+                let idx = edge_index(&ont, edge_id)?;
+                let old_anchors = ont.edge_types[idx].glossary_anchors.clone();
+                ont.edge_types[idx].glossary_anchors = anchors.clone();
+                Ok(CommandResult {
+                    new_ontology: ont,
+                    inverse: OntologyCommand::SetEdgeGlossaryAnchors {
+                        edge_id: edge_id.clone(),
+                        anchors: old_anchors,
                     },
                 })
             }

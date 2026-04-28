@@ -55,6 +55,8 @@ export function formatCommand(
       return `Rename node: ${resolveLabel(ontology, cmd.node_id, "node")} → ${cmd.new_label}`;
     case "update_node_description":
       return `Update description: ${resolveLabel(ontology, cmd.node_id, "node")}`;
+    case "set_node_glossary_anchors":
+      return `Set glossary anchors on ${resolveLabel(ontology, cmd.node_id, "node")} (${cmd.anchors.length})`;
     case "add_edge":
       return `Add edge: ${cmd.label} (${resolveLabel(ontology, cmd.source_node_id, "node")} → ${resolveLabel(ontology, cmd.target_node_id, "node")})`;
     case "delete_edge":
@@ -65,6 +67,8 @@ export function formatCommand(
       return `Update cardinality: ${resolveLabel(ontology, cmd.edge_id, "edge")} → ${cmd.cardinality}`;
     case "update_edge_description":
       return `Update description: ${resolveLabel(ontology, cmd.edge_id, "edge")}`;
+    case "set_edge_glossary_anchors":
+      return `Set glossary anchors on ${resolveLabel(ontology, cmd.edge_id, "edge")} (${cmd.anchors.length})`;
     case "add_property":
       return `Add property: ${cmd.property.name} to ${resolveLabel(ontology, cmd.owner_id, "any")}`;
     case "delete_property":

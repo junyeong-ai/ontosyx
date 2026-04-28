@@ -2711,16 +2711,26 @@
         "validateCompleteness": "완전성 검증",
         "noOntology": "활성 온톨로지가 없습니다. 디자인 모드로 들어가 프로젝트를 선택하세요.",
         "nodeNotFound": "ID `{id}` 에 해당하는 노드 타입을 찾을 수 없습니다.",
+        "definition": {
+          "descriptionLabel": "설명",
+          "descriptionPlaceholder": "이 개념을 한 문장으로 설명하세요…",
+          "anchorsLabel": "용어 사전 연결",
+          "anchorsHint": "이 노드 타입이 표현하는 비즈니스 개념을 용어 사전에서 선택합니다.",
+          "sourceLineageLabel": "원천 테이블"
+        },
+        "properties": {
+          "addAction": "+ 속성 추가",
+          "deletedToast": "속성 \"{name}\" 이(가) 삭제되었습니다",
+          "emptyState": "이 노드 타입에는 아직 속성이 없습니다. \"속성 추가\" 로 시작하세요."
+        },
         "sections": {
           "definition": {
             "title": "정의",
-            "subtitle": "이 개념의 식별자, 설명, 용어 사전 연결",
-            "placeholder": "후속 커밋에서 GlossaryAnchorPicker + 인라인 라벨/설명 편집기를 연결합니다."
+            "subtitle": "이 개념의 식별자, 설명, 용어 사전 연결"
           },
           "properties": {
             "title": "속성",
-            "subtitle": "이 노드 타입이 보유하는 속성 목록",
-            "placeholder": "후속 커밋에서 인스펙터의 PropertyRow + AddPropertyForm 을 재사용해 채웁니다."
+            "subtitle": "이 노드 타입이 보유하는 속성 목록"
           },
           "samples": {
             "title": "샘플 행",

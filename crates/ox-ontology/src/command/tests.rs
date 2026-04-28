@@ -1,10 +1,28 @@
 use super::*;
 use ox_core::graph_label::GraphLabel;
 use ox_core::property_key::PropertyKey;
+use crate::glossary::{GlossaryTermDef, TermGovernance, TermLifecycle};
 use crate::test_fixtures::{ontologies_equal, test_ontology};
 use ox_core::types::PropertyType;
 
 use ox_core::i18n::LocalizedText;
+
+fn glossary_term(id: &str, label: &str) -> GlossaryTermDef {
+    GlossaryTermDef {
+        id: id.into(),
+        term: LocalizedText::new(label),
+        display_name: LocalizedText::default(),
+        description: LocalizedText::default(),
+        examples: Vec::new(),
+        category: None,
+        aliases: Vec::new(),
+        related_terms: Vec::new(),
+        governance: TermGovernance::default(),
+        valid_from: None,
+        valid_to: None,
+        lifecycle: TermLifecycle::default(),
+    }
+}
 
 fn gl(s: &'static str) -> GraphLabel {
     GraphLabel::new(s).expect("test label literal must be valid")
@@ -318,6 +336,76 @@ fn error_on_invalid_references() {
         description: LocalizedText::default(),
     };
     assert!(cmd.execute(&ontology).is_err());
+}
+
+#[test]
+fn set_node_glossary_anchors_replaces_list_atomically() {
+    let mut ontology = test_ontology();
+    // Validation requires every anchor id to resolve in the glossary.
+    ontology
+        .add_glossary_term(glossary_term("gt-customer", "Customer"))
+        .expect("seed glossary term");
+    ontology
+        .add_glossary_term(glossary_term("gt-loyalty", "Loyalty"))
+        .expect("seed glossary term");
+
+    let cmd = OntologyCommand::SetNodeGlossaryAnchors {
+        node_id: "n1".into(),
+        anchors: vec!["gt-customer".into(), "gt-loyalty".into()],
+    };
+    let result = cmd.execute(&ontology).unwrap();
+
+    let node = result.new_ontology.node_by_id("n1").unwrap();
+    assert_eq!(node.glossary_anchors.len(), 2);
+    assert_eq!(node.glossary_anchors[0].as_str(), "gt-customer");
+    assert_eq!(node.glossary_anchors[1].as_str(), "gt-loyalty");
+
+    // Inverse restores the empty list
+    let restored = result.inverse.execute(&result.new_ontology).unwrap();
+    assert!(
+        restored
+            .new_ontology
+            .node_by_id("n1")
+            .unwrap()
+            .glossary_anchors
+            .is_empty(),
+    );
+}
+
+#[test]
+fn set_node_glossary_anchors_rejects_unknown_id() {
+    let ontology = test_ontology();
+    let cmd = OntologyCommand::SetNodeGlossaryAnchors {
+        node_id: "n1".into(),
+        anchors: vec!["gt-orphan".into()],
+    };
+    assert!(cmd.execute(&ontology).is_err());
+}
+
+#[test]
+fn set_edge_glossary_anchors_replaces_list_atomically() {
+    let mut ontology = test_ontology();
+    ontology
+        .add_glossary_term(glossary_term("gt-employment", "Employment"))
+        .expect("seed glossary term");
+
+    let cmd = OntologyCommand::SetEdgeGlossaryAnchors {
+        edge_id: "e1".into(),
+        anchors: vec!["gt-employment".into()],
+    };
+    let result = cmd.execute(&ontology).unwrap();
+    let edge = result.new_ontology.edge_by_id("e1").unwrap();
+    assert_eq!(edge.glossary_anchors.len(), 1);
+
+    let restored = result.inverse.execute(&result.new_ontology).unwrap();
+    assert!(
+        restored
+            .new_ontology
+            .edge_by_id("e1")
+            .unwrap()
+            .glossary_anchors
+            .is_empty(),
+    );
 }
 
 #[test]

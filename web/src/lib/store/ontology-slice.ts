@@ -172,6 +172,26 @@ function applyCommandToOntology(
       };
     }
 
+    case "set_node_glossary_anchors": {
+      const node = arr(ontology.node_types).find((n) => n.id === cmd.node_id);
+      if (!node) return { ontology, inverse: { op: "batch", description: "noop", commands: [] } };
+      const oldAnchors = node.glossary_anchors ?? [];
+      const newOntology: OntologyIR = {
+        ...ontology,
+        node_types: arr(ontology.node_types).map((n) =>
+          n.id === cmd.node_id ? { ...n, glossary_anchors: [...cmd.anchors!] } : n,
+        ),
+      };
+      return {
+        ontology: newOntology,
+        inverse: {
+          op: "set_node_glossary_anchors",
+          node_id: cmd.node_id!,
+          anchors: [...oldAnchors],
+        },
+      };
+    }
+
     case "add_edge": {
       const newOntology: OntologyIR = {
         ...ontology,
@@ -272,6 +292,26 @@ function applyCommandToOntology(
       return {
         ontology: newOntology,
         inverse: { op: "update_edge_description", edge_id: cmd.edge_id!, description: oldDesc ?? undefined },
+      };
+    }
+
+    case "set_edge_glossary_anchors": {
+      const edge = arr(ontology.edge_types).find((e) => e.id === cmd.edge_id);
+      if (!edge) return { ontology, inverse: { op: "batch", description: "noop", commands: [] } };
+      const oldAnchors = edge.glossary_anchors ?? [];
+      const newOntology: OntologyIR = {
+        ...ontology,
+        edge_types: arr(ontology.edge_types).map((e) =>
+          e.id === cmd.edge_id ? { ...e, glossary_anchors: [...cmd.anchors!] } : e,
+        ),
+      };
+      return {
+        ontology: newOntology,
+        inverse: {
+          op: "set_edge_glossary_anchors",
+          edge_id: cmd.edge_id!,
+          anchors: [...oldAnchors],
+        },
       };
     }
 

@@ -1,16 +1,32 @@
 "use client";
 
+import { useCallback } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowLeft01Icon, Tick02Icon } from "@hugeicons/core-free-icons";
+import { ArrowLeft01Icon, PlusSignIcon, Tick02Icon } from "@hugeicons/core-free-icons";
+import { useState } from "react";
+import { toast } from "sonner";
 
 import { useAppStore } from "@/lib/store";
 import { selectStateOntology } from "@/lib/store/selectors";
 import { arr } from "@/lib/ir-collections";
-import { localizePresent } from "@/lib/locale/localize";
-import { useLocaleChain } from "@/lib/use-locale-chain";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
+import { GlossaryAnchorPicker } from "@/components/ontology/glossary-anchor-picker";
+import {
+  AddPropertyForm,
+  PropertyRow,
+} from "@/components/workbench/inspector/property-editor";
+import { InlineEdit } from "@/components/workbench/inspector/inline-edit";
+import { defaultText } from "@/lib/locale/localize";
+import type {
+  NodeTypeDef,
+  OntologyCommand,
+  OntologyIR,
+  PropertyPatch,
+} from "@/types/api";
+import type { GlossaryTermDef } from "@/lib/api/edit-ops";
+import { Tooltip } from "@/components/ui/tooltip";
 
 /**
  * Domain Context page for one NodeType. Seven canonical sections
@@ -18,16 +34,19 @@ import { CollapsibleSection } from "@/components/ui/collapsible-section";
  * Lineage, Change Log — surface every facet a modeller might shape
  * for a single business concept on one screen.
  *
- * This commit ships the scaffold: header + 7 collapsible sections
- * with placeholder bodies. Subsequent commits replace each
- * placeholder with its live primitive (GlossaryAnchorPicker,
- * PropertyRow, SourceSampleMini, constraint-form,
- * InlineObjectMappingEditor, LineageTree, audit timeline).
+ * This commit wires Definition + Properties:
+ * - Definition: inline label + description editing, GlossaryAnchorPicker
+ *   bound to `set_node_glossary_anchors` command (atomic list replace).
+ * - Properties: reuses the inspector's PropertyRow + AddPropertyForm,
+ *   so every property edit flows through the same applyCommand →
+ *   commandStack → save pipeline as the canvas inspector.
+ *
+ * Subsequent commits replace each remaining placeholder
+ * (samples, constraints, mappings, lineage, changelog).
  */
 export function DomainContextPage({ nodeId }: { nodeId: string }) {
   const t = useTranslations("workbench.types.detail");
   const ontology = useAppStore(selectStateOntology);
-  const localeChain = useLocaleChain();
 
   if (!ontology) {
     return <EmptyShell message={t("noOntology")} />;
@@ -38,27 +57,82 @@ export function DomainContextPage({ nodeId }: { nodeId: string }) {
     return <EmptyShell message={t("nodeNotFound", { id: nodeId })} />;
   }
 
-  const description = localizePresent(node.description, localeChain) ?? "";
+  return <NodeView ontology={ontology} node={node} />;
+}
+
+// ---------------------------------------------------------------------------
+// NodeView — owns the per-node hooks once we know the node resolved
+// ---------------------------------------------------------------------------
+
+function NodeView({
+  ontology,
+  node,
+}: {
+  ontology: OntologyIR;
+  node: NodeTypeDef;
+}) {
+  const t = useTranslations("workbench.types.detail");
+  const applyCommand = useAppStore((s) => s.applyCommand);
+
   const propertyCount = arr(node.properties).length;
   const constraintCount = arr(node.constraints).length;
-  const anchorCount = arr(node.glossary_anchors).length;
+  const anchors = arr(node.glossary_anchors);
+  const glossary: readonly GlossaryTermDef[] = arr(ontology.glossary);
+
+  const handleRename = useCallback(
+    (newLabel: string) => {
+      applyCommand({
+        op: "rename_node",
+        node_id: node.id,
+        new_label: newLabel,
+      });
+    },
+    [applyCommand, node.id],
+  );
+
+  const handleUpdateDescription = useCallback(
+    (desc: string) => {
+      applyCommand({
+        op: "update_node_description",
+        node_id: node.id,
+        description: desc ? { default: desc } : undefined,
+      });
+    },
+    [applyCommand, node.id],
+  );
+
+  const handleAnchorsChange = useCallback(
+    (next: string[]) => {
+      applyCommand({
+        op: "set_node_glossary_anchors",
+        node_id: node.id,
+        anchors: next,
+      });
+    },
+    [applyCommand, node.id],
+  );
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <PageHeader
         label={node.label}
-        description={description}
         backLabel={t("backToCanvas")}
         validateLabel={t("validateCompleteness")}
+        onRename={handleRename}
       />
       <div className="flex-1 overflow-auto">
         <div className="mx-auto max-w-5xl space-y-3 px-6 py-6">
           <CollapsibleSection
             title={t("sections.definition.title")}
             description={t("sections.definition.subtitle")}
-            badge={anchorCount > 0 ? <CountBadge count={anchorCount} /> : undefined}
+            badge={anchors.length > 0 ? <CountBadge count={anchors.length} /> : undefined}
           >
-            <Placeholder hint={t("sections.definition.placeholder")} />
+            <DefinitionSection
+              node={node}
+              glossary={glossary}
+              onUpdateDescription={handleUpdateDescription}
+              onAnchorsChange={handleAnchorsChange}
+            />
           </CollapsibleSection>
 
           <CollapsibleSection
@@ -66,7 +140,7 @@ export function DomainContextPage({ nodeId }: { nodeId: string }) {
             description={t("sections.properties.subtitle")}
             badge={<CountBadge count={propertyCount} />}
           >
-            <Placeholder hint={t("sections.properties.placeholder")} />
+            <PropertiesSection node={node} ontology={ontology} />
           </CollapsibleSection>
 
           <CollapsibleSection
@@ -118,16 +192,162 @@ export function DomainContextPage({ nodeId }: { nodeId: string }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Definition section
+// ---------------------------------------------------------------------------
+
+function DefinitionSection({
+  node,
+  glossary,
+  onUpdateDescription,
+  onAnchorsChange,
+}: {
+  node: NodeTypeDef;
+  glossary: readonly GlossaryTermDef[];
+  onUpdateDescription: (desc: string) => void;
+  onAnchorsChange: (next: string[]) => void;
+}) {
+  const t = useTranslations("workbench.types.detail.definition");
+  const description = defaultText(node.description);
+
+  return (
+    <div className="space-y-4">
+      <FieldGroup label={t("descriptionLabel")}>
+        <InlineEdit
+          value={description}
+          placeholder={t("descriptionPlaceholder")}
+          onSave={onUpdateDescription}
+          className="text-zinc-700 dark:text-zinc-200"
+        />
+      </FieldGroup>
+
+      <FieldGroup
+        label={t("anchorsLabel")}
+        hint={t("anchorsHint")}
+      >
+        <GlossaryAnchorPicker
+          value={arr(node.glossary_anchors)}
+          glossary={glossary}
+          onChange={onAnchorsChange}
+        />
+      </FieldGroup>
+
+      {node.source_lineage?.table && (
+        <FieldGroup label={t("sourceLineageLabel")}>
+          <p className="font-mono text-[11px] text-muted-foreground">
+            {node.source_lineage.table}
+          </p>
+        </FieldGroup>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Properties section
+// ---------------------------------------------------------------------------
+
+function PropertiesSection({
+  node,
+  ontology,
+}: {
+  node: NodeTypeDef;
+  ontology: OntologyIR;
+}) {
+  const t = useTranslations("workbench.types.detail.properties");
+  const applyCommand = useAppStore((s) => s.applyCommand);
+  const [adding, setAdding] = useState(false);
+
+  const handleDelete = useCallback(
+    (propId: string, propName: string) => {
+      applyCommand({
+        op: "delete_property",
+        owner_id: node.id,
+        property_id: propId,
+      });
+      toast.success(t("deletedToast", { name: propName }));
+    },
+    [applyCommand, node.id, t],
+  );
+
+  const handleUpdate = useCallback(
+    (propId: string, patch: PropertyPatch) => {
+      applyCommand({
+        op: "update_property",
+        owner_id: node.id,
+        property_id: propId,
+        patch,
+      });
+    },
+    [applyCommand, node.id],
+  );
+
+  const properties = arr(node.properties);
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-end">
+        {!adding && (
+          <Tooltip content={t("addAction")}>
+            <button
+              type="button"
+              onClick={() => setAdding(true)}
+              className="inline-flex items-center gap-1 rounded border border-dashed border-zinc-300 px-2 py-1 text-[11px] text-muted-foreground hover:border-emerald-300 hover:text-emerald-600 dark:border-zinc-700 dark:hover:border-emerald-700 dark:hover:text-emerald-400"
+            >
+              <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
+              {t("addAction")}
+            </button>
+          </Tooltip>
+        )}
+      </div>
+      {adding && (
+        <AddPropertyForm ownerId={node.id} onClose={() => setAdding(false)} />
+      )}
+      {properties.length === 0 && !adding ? (
+        <p className="text-[11px] italic text-muted-foreground">
+          {t("emptyState")}
+        </p>
+      ) : (
+        <ul className="divide-y divide-zinc-100 rounded border border-zinc-100 dark:divide-zinc-800/60 dark:border-zinc-800/60">
+          {properties.map((prop) => (
+            <li key={prop.id}>
+              <PropertyRow
+                prop={prop}
+                onDelete={() => handleDelete(prop.id, prop.name)}
+                onUpdate={(patch) => handleUpdate(prop.id, patch)}
+                binding={
+                  ontology.id
+                    ? {
+                        ontologyId: ontology.id,
+                        expectedVersion: ontology.version,
+                        ownerKind: "node",
+                        ownerTypeId: node.id,
+                      }
+                    : undefined
+                }
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Page chrome
+// ---------------------------------------------------------------------------
+
 function PageHeader({
   label,
-  description,
   backLabel,
   validateLabel,
+  onRename,
 }: {
   label: string;
-  description: string;
   backLabel: string;
   validateLabel: string;
+  onRename: (next: string) => void;
 }) {
   return (
     <header className="flex shrink-0 items-center gap-3 border-b border-zinc-200 bg-white px-6 py-3 dark:border-zinc-800 dark:bg-zinc-950">
@@ -142,12 +362,11 @@ function PageHeader({
         Node
       </span>
       <div className="flex flex-1 flex-col">
-        <h1 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-          {label}
-        </h1>
-        {description && (
-          <p className="text-[11px] text-muted-foreground">{description}</p>
-        )}
+        <InlineEdit
+          value={label}
+          onSave={onRename}
+          className="text-sm font-semibold text-zinc-900 dark:text-zinc-100"
+        />
       </div>
       <button
         type="button"
@@ -159,6 +378,30 @@ function PageHeader({
         {validateLabel}
       </button>
     </header>
+  );
+}
+
+function FieldGroup({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1">
+      <div className="flex items-baseline gap-2">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {label}
+        </span>
+        {hint && (
+          <span className="text-[10px] text-muted-foreground">{hint}</span>
+        )}
+      </div>
+      {children}
+    </div>
   );
 }
 
@@ -185,3 +428,9 @@ function Placeholder({ hint }: { hint: string }) {
     </div>
   );
 }
+
+// `applyCommand` is read inline at every call site via `useAppStore`.
+// This re-export keeps a stable handle for sub-components that may
+// want to compose multiple commands in a single user action without
+// re-querying the store on every render.
+export type { OntologyCommand };

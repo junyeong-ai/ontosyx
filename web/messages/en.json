@@ -2725,16 +2725,26 @@
         "validateCompleteness": "Validate completeness",
         "noOntology": "No active ontology. Enter design mode and pick a project first.",
         "nodeNotFound": "No node type matched id `{id}`.",
+        "definition": {
+          "descriptionLabel": "Description",
+          "descriptionPlaceholder": "Describe this concept in one sentence…",
+          "anchorsLabel": "Glossary anchors",
+          "anchorsHint": "Pick the business concepts this node type represents.",
+          "sourceLineageLabel": "Source table"
+        },
+        "properties": {
+          "addAction": "+ Add property",
+          "deletedToast": "Property \"{name}\" deleted",
+          "emptyState": "This node type has no properties yet. Use \"Add property\" to start."
+        },
         "sections": {
           "definition": {
             "title": "Definition",
-            "subtitle": "Identifier, description, and glossary anchors for this concept",
-            "placeholder": "Subsequent commits wire GlossaryAnchorPicker + inline label/description editors here."
+            "subtitle": "Identifier, description, and glossary anchors for this concept"
           },
           "properties": {
             "title": "Properties",
-            "subtitle": "Properties this node type carries",
-            "placeholder": "Subsequent commits reuse the inspector's PropertyRow + AddPropertyForm here."
+            "subtitle": "Properties this node type carries"
           },
           "samples": {
             "title": "Sample rows",

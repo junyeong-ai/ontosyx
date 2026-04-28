@@ -66,13 +66,13 @@ export interface OntologyIR {
   /** Backend `Vec<IndexDef>` with `skip_serializing_if =
    *  "Vec::is_empty"` — omitted when empty. */
   indexes?: IndexDef[];
-  glossary?: unknown[];
-  code_systems?: unknown[];
-  value_sets?: unknown[];
-  notation_patterns?: unknown[];
+  glossary?: components["schemas"]["GlossaryTermDef"][];
+  code_systems?: components["schemas"]["CodeSystemDef"][];
+  value_sets?: components["schemas"]["ValueSetDef"][];
+  notation_patterns?: components["schemas"]["NotationPatternDef"][];
   concept_maps?: ConceptMapDef[];
-  rules?: unknown[];
-  provenance?: unknown[];
+  rules?: components["schemas"]["RuleDef"][];
+  provenance?: components["schemas"]["ProvenanceDef"][];
 }
 
 export interface NodeTypeDef {
@@ -419,11 +419,13 @@ export type OntologyCommand =
   | { op: "delete_node"; node_id: string }
   | { op: "rename_node"; node_id: string; new_label: string }
   | { op: "update_node_description"; node_id: string; description?: LocalizedText }
+  | { op: "set_node_glossary_anchors"; node_id: string; anchors: string[] }
   | { op: "add_edge"; id: string; label: string; source_node_id: string; target_node_id: string; cardinality: Cardinality }
   | { op: "delete_edge"; edge_id: string }
   | { op: "rename_edge"; edge_id: string; new_label: string }
   | { op: "update_edge_cardinality"; edge_id: string; cardinality: Cardinality }
   | { op: "update_edge_description"; edge_id: string; description?: LocalizedText }
+  | { op: "set_edge_glossary_anchors"; edge_id: string; anchors: string[] }
   | { op: "add_property"; owner_id: string; property: PropertyDef }
   | { op: "delete_property"; owner_id: string; property_id: string }
   | { op: "update_property"; owner_id: string; property_id: string; patch: PropertyPatch }

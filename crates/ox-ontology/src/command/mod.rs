@@ -42,6 +42,14 @@ pub enum OntologyCommand {
         #[serde(default)]
         description: LocalizedText,
     },
+    /// Replace the full glossary-anchor list on a node type. Atomic
+    /// — picker UX is "set the list", not "add one + remove one", so
+    /// the audit-log entry records the diff in one row instead of N.
+    SetNodeGlossaryAnchors {
+        node_id: NodeTypeId,
+        #[serde(default)]
+        anchors: Vec<crate::glossary::GlossaryTermId>,
+    },
 
     AddEdge {
         id: EdgeTypeId,
@@ -65,6 +73,12 @@ pub enum OntologyCommand {
         edge_id: EdgeTypeId,
         #[serde(default)]
         description: LocalizedText,
+    },
+    /// Symmetric to [`SetNodeGlossaryAnchors`] for edge types.
+    SetEdgeGlossaryAnchors {
+        edge_id: EdgeTypeId,
+        #[serde(default)]
+        anchors: Vec<crate::glossary::GlossaryTermId>,
     },
 
     AddProperty {
@@ -128,8 +142,8 @@ impl JsonSchema for OntologyCommand {
                 "op": {
                     "type": "string",
                     "enum": [
-                        "add_node", "delete_node", "rename_node", "update_node_description",
-                        "add_edge", "delete_edge", "rename_edge", "update_edge_cardinality", "update_edge_description",
+                        "add_node", "delete_node", "rename_node", "update_node_description", "set_node_glossary_anchors",
+                        "add_edge", "delete_edge", "rename_edge", "update_edge_cardinality", "update_edge_description", "set_edge_glossary_anchors",
                         "add_property", "delete_property", "update_property",
                         "add_constraint", "remove_constraint",
                         "add_index", "remove_index",
@@ -211,6 +225,12 @@ impl JsonSchema for OntologyCommand {
                     "required": ["id", "type", "node_id"]
                 },
                 "index_id": { "type": "string", "description": "Index ID to remove" },
+                // Glossary-anchor fields (SetNodeGlossaryAnchors / SetEdgeGlossaryAnchors)
+                "anchors": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "Replacement list of GlossaryTermId values for the targeted node or edge type"
+                },
                 // Batch fields
                 "commands": {
                     "type": "array",
@@ -280,14 +300,16 @@ impl OntologyCommand {
             Self::AddNode { id, .. }
             | Self::DeleteNode { node_id: id, .. }
             | Self::RenameNode { node_id: id, .. }
-            | Self::UpdateNodeDescription { node_id: id, .. } => {
+            | Self::UpdateNodeDescription { node_id: id, .. }
+            | Self::SetNodeGlossaryAnchors { node_id: id, .. } => {
                 vec![id.0.clone()]
             }
             Self::AddEdge { id, .. }
             | Self::DeleteEdge { edge_id: id, .. }
             | Self::RenameEdge { edge_id: id, .. }
             | Self::UpdateEdgeCardinality { edge_id: id, .. }
-            | Self::UpdateEdgeDescription { edge_id: id, .. } => {
+            | Self::UpdateEdgeDescription { edge_id: id, .. }
+            | Self::SetEdgeGlossaryAnchors { edge_id: id, .. } => {
                 vec![id.0.clone()]
             }
             Self::AddProperty { owner, .. }
