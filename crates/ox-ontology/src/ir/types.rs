@@ -567,6 +567,47 @@ pub struct PropertyDef {
     /// four-way split matches the industry consensus for NL2SQL.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub aggregation_role: Option<AggregationRole>,
+
+    /// Why this property does not need a semantic binding even
+    /// though it carries a physical mapping (`source_column` set or
+    /// referenced from a `PropertyMappingDef`). When `None`, the IR
+    /// validator emits a diagnostic for any source-mapped property
+    /// with an empty `bindings` list — the platform's contract is
+    /// that materialised values must travel with their meaning.
+    /// Set this to a [`BindingExemptReason`] to opt out for the
+    /// narrow legitimate cases (primary keys, audit timestamps,
+    /// raw identifiers, etc.).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub binding_exempt: Option<BindingExemptReason>,
+}
+
+/// Reason a property opts out of the "physical mapping must carry a
+/// semantic binding" rule. Treating this as an enum (rather than a
+/// boolean flag) forces authors to name the case so a future audit
+/// can ask "is this exemption still valid?" without reading commit
+/// history.
+///
+/// Most properties do not need an exemption — values that travel
+/// without semantic meaning are the bug the binding rule is meant
+/// to catch. The variants below cover the legitimate cases the
+/// platform has identified; `Custom` is the open-ended escape for
+/// schemes the catalogue has not yet promoted to a first-class
+/// reason.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+pub enum BindingExemptReason {
+    /// Primary or composite key column. Identity is its meaning;
+    /// no value-set / glossary anchor adds information.
+    PrimaryKey,
+    /// `created_at` / `updated_at` / `deleted_at` and similar
+    /// audit timestamps. The timestamp itself is the meaning.
+    AuditTimestamp,
+    /// Free-form identifier whose value space is open by design
+    /// (UUIDs, opaque external ids, surrogate refs).
+    OpaqueIdentifier,
+    /// Operator-supplied reason for cases not covered above.
+    /// Surfaces verbatim in admin tooling — keep it short.
+    Custom(String),
 }
 
 /// Π-1: Analytical role of a property in a NL2SQL query — drives
@@ -707,6 +748,7 @@ impl Default for PropertyDef {
             derived_from: None,
             bindings: Vec::new(),
             aggregation_role: None,
+            binding_exempt: None,
         }
     }
 }

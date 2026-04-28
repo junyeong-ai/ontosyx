@@ -103,6 +103,38 @@ fn validate_property_defs(
                     )),
             );
         }
+
+        // Mapping-binding coverage: a property that materialises from
+        // a physical source (`source_column`) must travel with its
+        // meaning. An empty `bindings` list flags a value that
+        // arrives without a value-set / code-system / notation /
+        // glossary anchor — the kind of silent semantic drop the IR
+        // is meant to prevent. `binding_exempt` is the explicit
+        // opt-out for legitimate cases (PK / audit timestamp /
+        // opaque id) so an audit can find every exemption by name
+        // instead of reading commit history. `Identifier`-role
+        // properties get an implicit exemption: they're identity by
+        // design and the IR already names that role separately.
+        let is_identifier =
+            matches!(property.aggregation_role, Some(AggregationRole::Identifier));
+        if property.source_column.is_some()
+            && property.bindings.is_empty()
+            && property.binding_exempt.is_none()
+            && !is_identifier
+        {
+            errors.push(
+                diag("ontology.validate.property.mapping_without_binding")
+                    .with("owner_kind", owner_kind)
+                    .with("owner_label", owner_label)
+                    .with("name", name)
+                    .message(format!(
+                        "{owner_kind} '{owner_label}' property '{name}' has a \
+                         physical mapping (`source_column`) but no semantic \
+                         binding — declare a PropertyBinding or set \
+                         `binding_exempt` with the reason"
+                    )),
+            );
+        }
     }
 }
 
@@ -1222,6 +1254,64 @@ mod tests {
                 .iter()
                 .any(|e| e.code == "ontology.validate.property.measure_non_numeric"),
             "expected Measure/non-numeric warning, got: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn validate_rejects_source_mapped_property_without_binding() {
+        let mut ontology = base_ontology();
+        // Pick the first property that has a source_column set in
+        // the fixture and clear its bindings so we hit the new rule.
+        let prop = &mut ontology.node_types[0].properties[0];
+        prop.source_column = Some("name_col".to_string());
+        prop.bindings.clear();
+        prop.binding_exempt = None;
+        prop.aggregation_role = None;
+
+        let errors = ontology.validate();
+
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.property.mapping_without_binding"),
+            "expected mapping_without_binding diagnostic, got: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn validate_accepts_source_mapped_property_with_explicit_exemption() {
+        let mut ontology = base_ontology();
+        let prop = &mut ontology.node_types[0].properties[0];
+        prop.source_column = Some("id_col".to_string());
+        prop.bindings.clear();
+        prop.binding_exempt = Some(super::super::BindingExemptReason::PrimaryKey);
+
+        let errors = ontology.validate();
+
+        assert!(
+            !errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.property.mapping_without_binding"),
+            "explicit exemption must suppress diagnostic: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn validate_accepts_identifier_role_as_implicit_exemption() {
+        let mut ontology = base_ontology();
+        let prop = &mut ontology.node_types[0].properties[0];
+        prop.source_column = Some("id_col".to_string());
+        prop.bindings.clear();
+        prop.binding_exempt = None;
+        prop.aggregation_role = Some(AggregationRole::Identifier);
+
+        let errors = ontology.validate();
+
+        assert!(
+            !errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.property.mapping_without_binding"),
+            "Identifier role must be implicit exemption: {errors:?}"
         );
     }
 
