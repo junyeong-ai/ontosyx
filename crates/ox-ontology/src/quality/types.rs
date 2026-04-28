@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------
@@ -48,16 +50,22 @@ pub enum QualityConfidence {
     Low,
 }
 
+/// One quality finding produced by [`super::assessment::assess_quality`].
+///
+/// `category` + `location.ref_type` together pick the FE i18n key
+/// (`qualityGap.<category>.<ref_type>.issue` /
+/// `qualityGap.<category>.<ref_type>.suggestion`); `params` carries the
+/// interpolation values. The backend never produces user-facing prose
+/// itself — every locale lives in the FE catalogue.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QualityGap {
     pub severity: QualityGapSeverity,
     pub category: QualityGapCategory,
     /// Structured reference to the entity where the gap is located.
     pub location: QualityGapRef,
-    /// What is unclear or potentially wrong
-    pub issue: String,
-    /// What additional information would resolve this gap
-    pub suggestion: String,
+    /// Interpolation values for the FE i18n catalogue.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub params: BTreeMap<String, String>,
 }
 
 /// Structured reference to the entity affected by a quality gap.

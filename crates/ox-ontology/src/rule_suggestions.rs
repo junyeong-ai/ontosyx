@@ -29,11 +29,12 @@ use crate::action::RuleId;
 use crate::ir::{OntologyIR, PropertyDef};
 use crate::notation_pattern::NotationPatternId;
 use crate::rule::{
-    ConstraintTarget, EnforcementKind, RuleActivationKind, RuleDef, RuleKind, Severity,
-    ShaclConstraint,
+    ConstraintSignature, ConstraintTarget, EnforcementKind, RuleActivationKind, RuleDef,
+    RuleKind, RuleOrigin, Severity, ShaclConstraint,
 };
 use crate::value_set::ValueSetId;
-use ox_core::i18n::LocalizedText;
+use ox_core::diagnostic::{diag, DiagnosticMessage};
+use ox_core::i18n::{display_name_with_fallback, LocalizedText};
 
 /// Trigger that prompts a suggestion pass. Kept as a tagged enum so
 /// the same engine can serve every registry-change flow with a
@@ -59,7 +60,10 @@ pub enum RegistryChange {
 pub struct RuleProposal {
     pub rule: RuleDef,
     pub trigger: RuleProposalTrigger,
-    pub rationale: String,
+    /// Structured "why did we suggest this?" diagnostic — `code` +
+    /// English `message` + `params`. The FE renders the localised
+    /// tooltip from its i18n catalogue keyed off `rationale.code`.
+    pub rationale: DiagnosticMessage,
 }
 
 /// Concise provenance for one proposal — surfaces in the UI's
@@ -111,13 +115,34 @@ fn suggest_for_value_set(ontology: &OntologyIR, vs_id: &ValueSetId) -> Vec<RuleP
         let rule_id = RuleId::new(format!("auto-vs-{}-{}", vs_id.as_str(), prop.id.as_str()));
         let rule = RuleDef {
             id: rule_id,
-            name: format!("enforce_{vs_name}_on_{prop_name}",
-                vs_name = vs.name,
-                prop_name = prop.name.as_str()),
+            name: LocalizedText::bilingual(
+                format!(
+                    "{vs_name} 바인딩 강제 — {prop_name}",
+                    vs_name = vs.name,
+                    prop_name = prop.name.as_str()
+                ),
+                format!(
+                    "Enforce {vs_name} binding — {prop_name}",
+                    vs_name = vs.name,
+                    prop_name = prop.name.as_str()
+                ),
+            ),
             description: LocalizedText::new(format!(
                 "Auto-generated from value-set binding on `{prop}`.",
                 prop = prop.name.as_str()
             )),
+            rationale: LocalizedText::bilingual(
+                format!(
+                    "값 집합 `{}` 에 바인딩된 속성 `{}` 의 쓰기 검증을 자동 강제합니다.",
+                    vs.name,
+                    prop.name.as_str()
+                ),
+                format!(
+                    "Auto-enforces the write-time check for property `{}` bound to value set `{}`.",
+                    prop.name.as_str(),
+                    vs.name
+                ),
+            ),
             kind: RuleKind::PropertyShape {
                 target_node_type_id: node_id.clone(),
                 target_property_id: prop.id.clone(),
@@ -125,10 +150,13 @@ fn suggest_for_value_set(ontology: &OntologyIR, vs_id: &ValueSetId) -> Vec<RuleP
             severity: Severity::Violation,
             enforcement: EnforcementKind::Write,
             activation: RuleActivationKind::Always,
+            origin: RuleOrigin::Authored,
             constraints: vec![ShaclConstraint::InValueSet {
                 target: ConstraintTarget::Inherit,
                 value_set_id: vs_id.clone(),
             }],
+            valid_from: None,
+            valid_to: None,
         };
         out.push(RuleProposal {
             rule,
@@ -136,12 +164,21 @@ fn suggest_for_value_set(ontology: &OntologyIR, vs_id: &ValueSetId) -> Vec<RuleP
                 value_set_id: vs_id.clone(),
                 property_id: prop.id.to_string(),
             },
-            rationale: format!(
-                "Property `{prop}` is bound to value set `{vs}`; enforce the \
-                 bound codes at write time.",
-                prop = prop.name.as_str(),
-                vs = vs.name,
-            ),
+            rationale: {
+                let prop_name = prop.name.as_str();
+                let (vs_name_param, vs_name_en) = display_name_with_fallback(
+                    &vs.display_name,
+                    vs.name.as_str(),
+                );
+                diag("ontology.rule_suggestion.value_set_binding")
+                    .with("property", prop_name)
+                    .with("value_set_id", vs_id.as_str())
+                    .with("value_set_name", vs_name_param)
+                    .message(format!(
+                        "Property `{prop_name}` is bound to value set `{vs_name_en}`; \
+                         enforce the bound codes at write time."
+                    ))
+            },
         });
     }
 
@@ -170,15 +207,34 @@ fn suggest_for_notation_pattern(
         ));
         let rule = RuleDef {
             id: rule_id,
-            name: format!(
-                "enforce_{np_name}_on_{prop_name}",
-                np_name = np.name,
-                prop_name = prop.name.as_str()
+            name: LocalizedText::bilingual(
+                format!(
+                    "{np_name} 패턴 강제 — {prop_name}",
+                    np_name = np.name,
+                    prop_name = prop.name.as_str()
+                ),
+                format!(
+                    "Enforce {np_name} pattern — {prop_name}",
+                    np_name = np.name,
+                    prop_name = prop.name.as_str()
+                ),
             ),
             description: LocalizedText::new(format!(
                 "Auto-generated from notation-pattern binding on `{prop}`.",
                 prop = prop.name.as_str()
             )),
+            rationale: LocalizedText::bilingual(
+                format!(
+                    "표기 패턴 `{}` 에 바인딩된 속성 `{}` 의 형식을 쓰기 시점에 자동 강제합니다.",
+                    np.name,
+                    prop.name.as_str()
+                ),
+                format!(
+                    "Auto-enforces the format of property `{}` against notation pattern `{}` at write time.",
+                    prop.name.as_str(),
+                    np.name
+                ),
+            ),
             kind: RuleKind::PropertyShape {
                 target_node_type_id: node_id.clone(),
                 target_property_id: prop.id.clone(),
@@ -186,10 +242,13 @@ fn suggest_for_notation_pattern(
             severity: Severity::Violation,
             enforcement: EnforcementKind::Write,
             activation: RuleActivationKind::Always,
+            origin: RuleOrigin::Authored,
             constraints: vec![ShaclConstraint::MatchesPattern {
                 target: ConstraintTarget::Inherit,
                 notation_pattern_id: np_id.clone(),
             }],
+            valid_from: None,
+            valid_to: None,
         };
         out.push(RuleProposal {
             rule,
@@ -197,12 +256,21 @@ fn suggest_for_notation_pattern(
                 notation_pattern_id: np_id.clone(),
                 property_id: prop.id.to_string(),
             },
-            rationale: format!(
-                "Property `{prop}` is bound to notation pattern `{np}`; enforce \
-                 the format at write time.",
-                prop = prop.name.as_str(),
-                np = np.name,
-            ),
+            rationale: {
+                let prop_name = prop.name.as_str();
+                let (np_name_param, np_name_en) = display_name_with_fallback(
+                    &np.display_name,
+                    np.name.as_str(),
+                );
+                diag("ontology.rule_suggestion.notation_pattern_binding")
+                    .with("property", prop_name)
+                    .with("notation_pattern_id", np_id.as_str())
+                    .with("notation_pattern_name", np_name_param)
+                    .message(format!(
+                        "Property `{prop_name}` is bound to notation pattern `{np_name_en}`; \
+                         enforce the format at write time."
+                    ))
+            },
         });
     }
 
@@ -216,7 +284,7 @@ fn properties_bound_to_value_set<'a>(
     let mut out = Vec::new();
     for node in ontology.node_types() {
         for prop in &node.properties {
-            if prop.value_set_id.as_ref() == Some(vs_id) {
+            if prop.value_set_id() == Some(vs_id) {
                 out.push((node.id.clone(), prop));
             }
         }
@@ -231,7 +299,7 @@ fn properties_bound_to_pattern<'a>(
     let mut out = Vec::new();
     for node in ontology.node_types() {
         for prop in &node.properties {
-            if prop.notation_pattern_id.as_ref() == Some(np_id) {
+            if prop.notation_pattern_id() == Some(np_id) {
                 out.push((node.id.clone(), prop));
             }
         }
@@ -239,50 +307,43 @@ fn properties_bound_to_pattern<'a>(
     out
 }
 
+/// Properties whose `InValueSet(vs_id)` enforcement is already in
+/// place — either via an authored rule or via the safety-net
+/// derivation pipeline. Suggestions for these properties would be
+/// duplicate noise on the admin surface.
 fn existing_value_set_rules(
     ontology: &OntologyIR,
     vs_id: &ValueSetId,
 ) -> std::collections::HashSet<String> {
+    let target_signature = ConstraintSignature::InValueSet(vs_id.clone());
     let mut out = std::collections::HashSet::new();
-    for rule in ontology.rules() {
-        let RuleKind::PropertyShape {
-            target_property_id, ..
-        } = &rule.kind
-        else {
-            continue;
-        };
-        for c in &rule.constraints {
-            if let ShaclConstraint::InValueSet { value_set_id, .. } = c
-                && value_set_id == vs_id
-            {
-                out.insert(target_property_id.to_string());
-            }
+    let merged = ontology
+        .authored_constraint_signatures()
+        .into_iter()
+        .chain(ontology.derived_constraint_signatures());
+    for (_, property_id, signature) in merged {
+        if signature == target_signature {
+            out.insert(property_id.to_string());
         }
     }
     out
 }
 
+/// Properties whose `MatchesPattern(np_id)` enforcement is already
+/// in place — see [`existing_value_set_rules`] for the rationale.
 fn existing_pattern_rules(
     ontology: &OntologyIR,
     np_id: &NotationPatternId,
 ) -> std::collections::HashSet<String> {
+    let target_signature = ConstraintSignature::MatchesPattern(np_id.clone());
     let mut out = std::collections::HashSet::new();
-    for rule in ontology.rules() {
-        let RuleKind::PropertyShape {
-            target_property_id, ..
-        } = &rule.kind
-        else {
-            continue;
-        };
-        for c in &rule.constraints {
-            if let ShaclConstraint::MatchesPattern {
-                notation_pattern_id,
-                ..
-            } = c
-                && notation_pattern_id == np_id
-            {
-                out.insert(target_property_id.to_string());
-            }
+    let merged = ontology
+        .authored_constraint_signatures()
+        .into_iter()
+        .chain(ontology.derived_constraint_signatures());
+    for (_, property_id, signature) in merged {
+        if signature == target_signature {
+            out.insert(property_id.to_string());
         }
     }
     out
@@ -306,7 +367,7 @@ mod tests {
             id: PropertyId::new("p-status"),
             name: PropertyKey::new("status").unwrap(),
             property_type: PropertyType::String,
-            value_set_id: Some(vs_id),
+            bindings: vec![crate::binding::PropertyBinding::value_set(vs_id)],
             ..Default::default()
         }
     }
@@ -316,7 +377,7 @@ mod tests {
             id: PropertyId::new("p-code"),
             name: PropertyKey::new("code").unwrap(),
             property_type: PropertyType::String,
-            notation_pattern_id: Some(np_id),
+            bindings: vec![crate::binding::PropertyBinding::notation_pattern(np_id)],
             ..Default::default()
         }
     }
@@ -397,7 +458,13 @@ mod tests {
             ShaclConstraint::InValueSet { .. }
         ));
         assert!(matches!(p.trigger, RuleProposalTrigger::ValueSetBinding { .. }));
-        assert!(p.rationale.contains("value set"));
+        // Rationale is structured: stable code + English message +
+        // params. The FE catalogue keys off `code` to render the
+        // localised tooltip.
+        assert_eq!(p.rationale.code, "ontology.rule_suggestion.value_set_binding");
+        assert!(p.rationale.message.contains("value set"));
+        assert!(p.rationale.params.contains_key("value_set_id"));
+        assert!(p.rationale.params.contains_key("property"));
     }
 
     #[test]
@@ -409,6 +476,7 @@ mod tests {
             id: RuleId::new("r-existing"),
             name: "existing".into(),
             description: LocalizedText::default(),
+            rationale: LocalizedText::default(),
             kind: RuleKind::PropertyShape {
                 target_node_type_id: NodeTypeId::new("nt-user"),
                 target_property_id: PropertyId::new("p-status"),
@@ -416,10 +484,13 @@ mod tests {
             severity: Severity::Violation,
             enforcement: EnforcementKind::Write,
             activation: RuleActivationKind::Always,
+            origin: RuleOrigin::Authored,
             constraints: vec![ShaclConstraint::InValueSet {
                 target: ConstraintTarget::Inherit,
                 value_set_id: vs_id.clone(),
             }],
+            valid_from: None,
+            valid_to: None,
         })
         .expect("add rule");
         let proposals = suggest_rules_for_change(
@@ -540,5 +611,38 @@ mod tests {
             proposals[0].rule.constraints[0],
             ShaclConstraint::MatchesPattern { .. }
         ));
+    }
+
+    #[test]
+    fn value_set_suggestion_skipped_when_required_binding_already_derives() {
+        // A Required ValueSet binding produces a derived rule via
+        // the Wave 8.7 pipeline. Re-suggesting an authored rule with
+        // the same `InValueSet` constraint would surface duplicate
+        // noise on the admin surface — this test pins the contract
+        // that suggestions defer to the derivation.
+        let vs_id = ValueSetId::new("vs-status");
+        let prop = PropertyDef {
+            id: PropertyId::new("p-status"),
+            name: PropertyKey::new("status").unwrap(),
+            property_type: PropertyType::String,
+            bindings: vec![
+                crate::binding::PropertyBinding::value_set(vs_id.clone())
+                .with_strength(crate::binding::BindingStrength::Required),
+            ],
+            ..Default::default()
+        };
+        let ir = ontology_with_vs(vs_id.clone(), prop);
+
+        let proposals = suggest_rules_for_change(
+            &ir,
+            RegistryChange::ValueSetAttached {
+                value_set_id: vs_id,
+            },
+        );
+        assert!(
+            proposals.is_empty(),
+            "Required binding's derived rule already enforces; \
+             suggestion must defer: {proposals:?}",
+        );
     }
 }

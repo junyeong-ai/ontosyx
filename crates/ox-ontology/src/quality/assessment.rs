@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use crate::ir::OntologyIR;
 use crate::mapping::{ObjectMappingDef, PropertyLocation};
@@ -9,6 +9,19 @@ use super::types::{
     OntologyQualityReport, QualityConfidence, QualityConfig, QualityGap, QualityGapCategory,
     QualityGapRef, QualityGapSeverity, is_cryptic_short, is_excluded,
 };
+
+/// Builder for the i18n params bag so emit sites stay tight.
+fn params<I, K, V>(entries: I) -> BTreeMap<String, String>
+where
+    I: IntoIterator<Item = (K, V)>,
+    K: Into<String>,
+    V: Into<String>,
+{
+    entries
+        .into_iter()
+        .map(|(k, v)| (k.into(), v.into()))
+        .collect()
+}
 
 // ---------------------------------------------------------------------------
 // Quality assessment (pure function — no LLM, no I/O)
@@ -63,11 +76,10 @@ pub fn assess_quality(
                 severity: QualityGapSeverity::Low,
                 category: QualityGapCategory::SmallSample,
                 location: QualityGapRef::SourceTable { table: tp.table_name.clone() },
-                issue: format!(
-                    "Table has only {} rows. Sample statistics may not represent production data distribution.",
-                    tp.row_count
-                ),
-                suggestion: "Verify that enum values and ranges in this table are complete and representative.".to_string(),
+                params: params([
+                    ("table", tp.table_name.clone()),
+                    ("row_count", tp.row_count.to_string()),
+                ]),
             });
         }
 
@@ -92,15 +104,10 @@ pub fn assess_quality(
                         severity: QualityGapSeverity::High,
                         category: QualityGapCategory::OpaqueEnumValue,
                         location: QualityGapRef::SourceColumn { table: tp.table_name.clone(), column: cs.column_name.clone() },
-                        issue: format!(
-                            "Values [{}] contain cryptic short code(s) [{}] whose meaning cannot be inferred from schema alone.",
-                            cs.sample_values.join(", "),
-                            short_cryptic.join(", ")
-                        ),
-                        suggestion: format!(
-                            "Provide the domain meaning for [{}], e.g., \"N=24시간 특화 매장\". This will be incorporated into the property description.",
-                            short_cryptic.join(", ")
-                        ),
+                        params: params([
+                            ("sample_values", cs.sample_values.join(", ")),
+                            ("short_cryptic", short_cryptic.join(", ")),
+                        ]),
                     });
                 }
             }
@@ -117,14 +124,10 @@ pub fn assess_quality(
                     severity: QualityGapSeverity::High,
                     category: QualityGapCategory::NumericEnumCode,
                     location: QualityGapRef::SourceColumn { table: tp.table_name.clone(), column: cs.column_name.clone() },
-                    issue: format!(
-                        "All observed values [{}] are integers with {} distinct values. Likely a numeric code whose semantics are unknown.",
-                        cs.sample_values.join(", "),
-                        cs.distinct_count
-                    ),
-                    suggestion:
-                        "Provide the meaning for each code value, e.g., \"1=active, 2=inactive, 3=suspended\"."
-                            .to_string(),
+                    params: params([
+                        ("sample_values", cs.sample_values.join(", ")),
+                        ("distinct_count", cs.distinct_count.to_string()),
+                    ]),
                 });
             }
 
@@ -136,16 +139,12 @@ pub fn assess_quality(
                         severity: QualityGapSeverity::Low,
                         category: QualityGapCategory::SparseProperty,
                         location: QualityGapRef::SourceColumn { table: tp.table_name.clone(), column: cs.column_name.clone() },
-                        issue: format!(
-                            "{:.0}% of values are null ({} / {} rows). Property may be unused or conditionally populated.",
-                            null_rate * 100.0,
-                            cs.null_count,
-                            tp.row_count
-                        ),
-                        suggestion: format!(
-                            "Confirm whether `{}` is actively used or can be excluded from the ontology.",
-                            cs.column_name
-                        ),
+                        params: params([
+                            ("column", cs.column_name.clone()),
+                            ("null_pct", format!("{:.0}", null_rate * 100.0)),
+                            ("null_count", cs.null_count.to_string()),
+                            ("row_count", tp.row_count.to_string()),
+                        ]),
                     });
                 }
             }
@@ -157,14 +156,11 @@ pub fn assess_quality(
                     severity: QualityGapSeverity::Medium,
                     category: QualityGapCategory::SingleValueBias,
                     location: QualityGapRef::SourceColumn { table: tp.table_name.clone(), column: cs.column_name.clone() },
-                    issue: format!(
-                        "Only one value observed (\"{observed}\") across {} rows. Production data may have additional values.",
-                        tp.row_count
-                    ),
-                    suggestion: format!(
-                        "Confirm whether \"{observed}\" is the only possible value for `{}`, or provide the full expected set.",
-                        cs.column_name
-                    ),
+                    params: params([
+                        ("column", cs.column_name.clone()),
+                        ("observed_value", observed.to_string()),
+                        ("row_count", tp.row_count.to_string()),
+                    ]),
                 });
             }
         }
@@ -258,14 +254,7 @@ pub fn assess_quality(
                     severity: QualityGapSeverity::High,
                     category: QualityGapCategory::UnmappedSourceTable,
                     location: QualityGapRef::SourceTable { table: table.name.clone() },
-                    issue: format!(
-                        "Source table '{}' does not appear to be represented by any ontology node type.",
-                        table.name
-                    ),
-                    suggestion: format!(
-                        "Add a node type for '{}' or explicitly exclude this table if it is intentionally out of scope.",
-                        table.name
-                    ),
+                    params: params([("table", table.name.clone())]),
                 });
             }
         }
@@ -312,17 +301,15 @@ pub fn assess_quality(
                 }
 
                 for fk in fks.iter().skip(edge_count) {
-                    let (severity, category, kind_label) = if fk.inferred {
+                    let (severity, category) = if fk.inferred {
                         (
                             QualityGapSeverity::Medium,
                             QualityGapCategory::MissingContainmentEdge,
-                            "Inferred containment relationship",
                         )
                     } else {
                         (
                             QualityGapSeverity::High,
                             QualityGapCategory::MissingForeignKeyEdge,
-                            "Declared foreign key",
                         )
                     };
                     gaps.push(QualityGap {
@@ -334,16 +321,14 @@ pub fn assess_quality(
                             to_table: fk.to_table.clone(),
                             to_column: fk.to_column.clone(),
                         },
-                        issue: format!(
-                            "{kind_label} '{}.{} -> {}.{}' is not represented by any ontology edge. \
-                             ({} relationship(s) from '{}' to '{}' but only {} edge(s) found.)",
-                            fk.from_table, fk.from_column, fk.to_table, fk.to_column,
-                            fks.len(), fk.from_table, fk.to_table, edge_count
-                        ),
-                        suggestion: format!(
-                            "Add a distinct edge for '{}.{}' → '{}' or confirm it should not become a graph relationship.",
-                            fk.from_table, fk.from_column, fk.to_table
-                        ),
+                        params: params([
+                            ("from_table", fk.from_table.clone()),
+                            ("from_column", fk.from_column.clone()),
+                            ("to_table", fk.to_table.clone()),
+                            ("to_column", fk.to_column.clone()),
+                            ("fk_count", fks.len().to_string()),
+                            ("edge_count", edge_count.to_string()),
+                        ]),
                     });
                 }
             }
@@ -409,14 +394,11 @@ pub fn assess_quality(
                         severity: QualityGapSeverity::Medium,
                         category: QualityGapCategory::UnmappedSourceColumn,
                         location: QualityGapRef::SourceColumn { table: table.name.clone(), column: col.name.clone() },
-                        issue: format!(
-                            "Source column '{}.{}' has no corresponding property on node '{}'.",
-                            table.name, col.name, node.label
-                        ),
-                        suggestion: format!(
-                            "Add a property for '{}' on '{}', or confirm it is intentionally excluded.",
-                            col.name, node.label
-                        ),
+                        params: params([
+                            ("table", table.name.clone()),
+                            ("column", col.name.clone()),
+                            ("node_label", node.label.to_string()),
+                        ]),
                     });
                 }
             }
@@ -464,14 +446,12 @@ pub fn assess_quality(
                             node_id: node_a.clone(),
                             label: a_label.to_string(),
                         },
-                        issue: format!(
-                            "{} edges between '{}' and '{}': [{}]. Some may be semantically redundant.",
-                            labels.len(), a_label, b_label, labels.join(", ")
-                        ),
-                        suggestion: format!(
-                            "Review edges [{}] between '{}' and '{}'. Remove duplicates that represent the same relationship.",
-                            labels.join(", "), a_label, b_label
-                        ),
+                        params: params([
+                            ("node_a", a_label.to_string()),
+                            ("node_b", b_label.to_string()),
+                            ("edge_count", labels.len().to_string()),
+                            ("edge_labels", labels.join(", ")),
+                        ]),
                     });
                 }
             }
@@ -488,14 +468,7 @@ pub fn assess_quality(
                     node_id: node.id.to_string(),
                     label: node.label.to_string(),
                 },
-                issue: format!(
-                    "Node '{}' has no description — the query translator lacks context for this entity type.",
-                    node.label
-                ),
-                suggestion: format!(
-                    "Add a description for '{}' explaining what this entity represents and its role in the domain.",
-                    node.label
-                ),
+                params: params([("label", node.label.to_string())]),
             });
         }
 
@@ -511,14 +484,10 @@ pub fn assess_quality(
                         label: node.label.to_string(),
                         property_name: prop.name.to_string(),
                     },
-                    issue: format!(
-                        "{}.{} has no description — the query translator cannot determine valid values or format.",
-                        node.label, prop.name
-                    ),
-                    suggestion: format!(
-                        "Provide a description for {}.{}: enum values, numeric range, or format hint.",
-                        node.label, prop.name
-                    ),
+                    params: params([
+                        ("label", node.label.to_string()),
+                        ("property_name", prop.name.to_string()),
+                    ]),
                 });
             }
         }
@@ -534,14 +503,7 @@ pub fn assess_quality(
                     edge_id: edge.id.to_string(),
                     label: edge.label.to_string(),
                 },
-                issue: format!(
-                    "[{}] has no description — multi-hop traversal hints are missing.",
-                    edge.label
-                ),
-                suggestion: format!(
-                    "Provide a description for [{}] and add traversal hints for indirect queries.",
-                    edge.label
-                ),
+                params: params([("label", edge.label.to_string())]),
             });
         }
 
@@ -557,14 +519,10 @@ pub fn assess_quality(
                         label: edge.label.to_string(),
                         property_name: prop.name.to_string(),
                     },
-                    issue: format!(
-                        "[{}].{} has no description — the query translator cannot determine valid values or format.",
-                        edge.label, prop.name
-                    ),
-                    suggestion: format!(
-                        "Provide a description for [{}].{}: enum values, numeric range, or format hint.",
-                        edge.label, prop.name
-                    ),
+                    params: params([
+                        ("label", edge.label.to_string()),
+                        ("property_name", prop.name.to_string()),
+                    ]),
                 });
             }
         }
@@ -628,14 +586,7 @@ fn detect_orphan_nodes(ontology: &OntologyIR, gaps: &mut Vec<QualityGap>) {
                     node_id: node.id.to_string(),
                     label: node.label.to_string(),
                 },
-                issue: format!(
-                    "Node '{}' has no incoming or outgoing edges — it is disconnected from the rest of the graph.",
-                    node.label
-                ),
-                suggestion: format!(
-                    "Add edges connecting '{}' to other node types, or remove it if it is not needed.",
-                    node.label
-                ),
+                params: params([("label", node.label.to_string())]),
             });
         }
     }
@@ -680,15 +631,10 @@ fn detect_property_type_inconsistency(ontology: &OntologyIR, gaps: &mut Vec<Qual
                     node_id: usages[0].0.clone(),
                     label: prop_name.clone(),
                 },
-                issue: format!(
-                    "Property '{}' is defined with different types across node types: [{}].",
-                    prop_name,
-                    all_usages.join(", ")
-                ),
-                suggestion: format!(
-                    "Verify that '{}' should have different types, or unify to a single type for consistency.",
-                    prop_name
-                ),
+                params: params([
+                    ("property_name", prop_name.clone()),
+                    ("all_usages", all_usages.join(", ")),
+                ]),
             });
         }
     }
@@ -715,14 +661,11 @@ fn detect_hub_nodes(ontology: &OntologyIR, gaps: &mut Vec<QualityGap>) {
                     node_id: node.id.to_string(),
                     label: node.label.to_string(),
                 },
-                issue: format!(
-                    "Node '{}' has {} edges (threshold: {}). It may be a god-node that is doing too much.",
-                    node.label, edge_count, HUB_NODE_EDGE_THRESHOLD
-                ),
-                suggestion: format!(
-                    "Consider splitting '{}' into more focused node types to reduce complexity.",
-                    node.label
-                ),
+                params: params([
+                    ("label", node.label.to_string()),
+                    ("edge_count", edge_count.to_string()),
+                    ("threshold", HUB_NODE_EDGE_THRESHOLD.to_string()),
+                ]),
             });
         }
     }
@@ -756,16 +699,11 @@ fn detect_overloaded_properties(ontology: &OntologyIR, gaps: &mut Vec<QualityGap
                     node_id: node_labels[0].clone(),
                     label: prop_name.clone(),
                 },
-                issue: format!(
-                    "Property '{}' appears on {} node types: [{}]. It may deserve its own node type or enum.",
-                    prop_name,
-                    node_labels.len(),
-                    node_labels.join(", ")
-                ),
-                suggestion: format!(
-                    "Consider extracting '{}' into a dedicated node if the values represent a reusable domain concept.",
-                    prop_name
-                ),
+                params: params([
+                    ("property_name", prop_name.clone()),
+                    ("node_count", node_labels.len().to_string()),
+                    ("node_labels", node_labels.join(", ")),
+                ]),
             });
         }
     }
@@ -785,14 +723,10 @@ fn detect_self_referential_edges(ontology: &OntologyIR, gaps: &mut Vec<QualityGa
                     edge_id: edge.id.to_string(),
                     label: edge.label.to_string(),
                 },
-                issue: format!(
-                    "Edge [{}] is self-referential: {} -> {}. This creates a recursive/hierarchical relationship.",
-                    edge.label, node_label, node_label
-                ),
-                suggestion: format!(
-                    "Verify that [{}] is intentional. Self-referential edges are valid for hierarchies (e.g., MANAGES, REPORTS_TO) but may also indicate a modeling error.",
-                    edge.label
-                ),
+                params: params([
+                    ("label", edge.label.to_string()),
+                    ("node_label", node_label.to_string()),
+                ]),
             });
         }
     }

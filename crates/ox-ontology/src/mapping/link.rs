@@ -158,10 +158,21 @@ pub enum LinkMappingKind {
     /// endpoint's `key_columns`. A single-column PK therefore uses a
     /// one-element vec; a composite `(region, warehouse)` PK uses a
     /// two-element vec pairing bridge columns in the matching order.
+    ///
+    /// `bridge_workspace_scope` makes the bridge relation
+    /// workspace-isolated when populated. The federation planner
+    /// emits an extra equi-predicate on this column against the
+    /// caller's `WorkspaceScope`, so a multi-tenant bridge table
+    /// (one row set per workspace) doesn't leak rows across the
+    /// scope boundary. `None` keeps the legacy "shared bridge"
+    /// behaviour — only safe when the bridge holds no
+    /// workspace-private joins.
     Bridge {
         bridge_relation: SourceRelationRef,
         source_join: Vec<ColumnRef>,
         target_join: Vec<ColumnRef>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        bridge_workspace_scope: Option<ColumnRef>,
     },
     /// Edge produced by a SQL predicate over one or both endpoint
     /// relations. The predicate is evaluated in the source's dialect;
@@ -266,6 +277,7 @@ mod tests {
                 },
                 source_join: vec![ColumnRef::new("post_tags", "post_id")],
                 target_join: vec![ColumnRef::new("post_tags", "tag_id")],
+                bridge_workspace_scope: None,
             },
             source_endpoint: ep("pg-main", "posts", "id"),
             target_endpoint: ep("pg-main", "tags", "id"),

@@ -191,7 +191,7 @@ pub fn suggest_terms_for_property(
 #[derive(Debug, Clone, PartialEq)]
 pub struct TermBindingCandidate {
     pub term_id: crate::glossary::GlossaryTermId,
-    pub term: String,
+    pub term: ox_core::i18n::LocalizedText,
     pub score: f32,
     pub signals: Vec<BindingSignal>,
 }
@@ -209,8 +209,17 @@ struct TermSignals<'a> {
 
 impl<'a> TermSignals<'a> {
     fn from_term(term: &'a GlossaryTermDef) -> Self {
-        let canonical = normalise(&term.term);
-        let mut aliases: Vec<String> = term.aliases.iter().map(|a| normalise(a)).collect();
+        // Canonical key uses the term's `default` locale: stable across
+        // translation churn so a property scored against the term in
+        // ko vs en gets the same canonical anchor. Per-locale variants
+        // of `term` and `display_name` enrich the alias surface.
+        let canonical = normalise(&term.term.default);
+        let mut aliases: Vec<String> = term
+            .aliases
+            .iter()
+            .flat_map(|alias| localized_values(alias).map(|v| normalise(&v)))
+            .collect();
+        aliases.extend(localized_values(&term.term).map(|v| normalise(&v)));
         aliases.extend(localized_values(&term.display_name).map(|v| normalise(&v)));
         aliases.retain(|a: &String| !a.is_empty() && *a != canonical);
         aliases.sort();
@@ -272,7 +281,7 @@ fn collect_candidates<'a, F, I>(
     I: IntoIterator<Item = &'a PropertyDef>,
 {
     for prop in properties {
-        if policy.skip_already_bound && prop.glossary_term_id.is_some() {
+        if policy.skip_already_bound && prop.glossary_term_id().is_some() {
             continue;
         }
         let property = PropertySignals::from_property(prop);
@@ -497,7 +506,7 @@ mod tests {
 
     fn bound_property(name: &str, description: &str, bound_to: &str) -> PropertyDef {
         let mut p = property(name, description);
-        p.glossary_term_id = Some(GlossaryTermId::new(bound_to));
+        p.bindings.push(crate::binding::PropertyBinding::glossary(GlossaryTermId::new(bound_to),));
         p
     }
 
@@ -531,12 +540,17 @@ mod tests {
     fn term(id: &str, name: &str, aliases: &[&str], description: &str) -> GlossaryTermDef {
         GlossaryTermDef {
             id: GlossaryTermId::new(id),
-            term: name.into(),
+            term: LocalizedText::new(name),
             display_name: LocalizedText::default(),
             description: LocalizedText::new(description),
+            examples: Vec::new(),
             category: None,
-            aliases: aliases.iter().map(|s| s.to_string()).collect(),
-            parent_term_id: None,
+            aliases: aliases.iter().map(|s| LocalizedText::new(*s)).collect(),
+            related_terms: Vec::new(),
+            governance: crate::glossary::TermGovernance::default(),
+            valid_from: None,
+            valid_to: None,
+            lifecycle: crate::glossary::TermLifecycle::default(),
         }
     }
 
@@ -648,7 +662,7 @@ mod tests {
         let pid = ir.node_types()[0].properties[0].id.clone();
         let out = suggest_terms_for_property(&ir, &node_ref, &pid, Default::default());
         assert_eq!(out.len(), 1);
-        assert_eq!(out[0].term, "customer_grade");
+        assert_eq!(out[0].term.default, "customer_grade");
     }
 
     #[test]

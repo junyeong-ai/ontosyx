@@ -2,8 +2,11 @@
 //! structure, surfaced by the brain / agent stack as a conversational
 //! starting point.
 //!
-//! Phase 3-B: moved out of `ox-core`'s `lib.rs` alongside the rest of
-//! the domain model.
+//! Persisted insight artefacts (saved by the user, re-runnable
+//! against future ontology versions) live in
+//! `ox_query_ir::insight::InsightDef` — they reach into `QueryIR` +
+//! `QueryProvenance`, which sit in `ox-query-ir`, and would otherwise
+//! force a layering inversion if they lived here.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

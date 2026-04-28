@@ -113,6 +113,14 @@ pub fn detect_locale_gaps(
 
     for term in ontology.glossary() {
         check(
+            &term.term,
+            LocaleSubject::GlossaryTerm,
+            term.id.to_string(),
+            "term",
+            required_locales,
+            &mut out,
+        );
+        check(
             &term.display_name,
             LocaleSubject::GlossaryTerm,
             term.id.to_string(),
@@ -324,17 +332,22 @@ mod tests {
         .expect("valid seed ontology");
         ir.add_glossary_term(GlossaryTermDef {
             id: GlossaryTermId::new("g1"),
-            term: "customer_grade".into(),
+            term: LocalizedText::new("customer_grade"),
             display_name: LocalizedText::new("고객 등급"),
             description: LocalizedText::new("고객 등급 분류"),
+            examples: Vec::new(),
             category: None,
-            aliases: vec![],
-            parent_term_id: None,
+            aliases: Vec::new(),
+            related_terms: Vec::new(),
+            governance: crate::glossary::TermGovernance::default(),
+            valid_from: None,
+            valid_to: None,
+            lifecycle: crate::glossary::TermLifecycle::default(),
         })
         .unwrap();
         let gaps = detect_locale_gaps(&ir, &[LanguageTag::parse("en").unwrap()]);
-        // display_name + description each miss `en` → 2 gaps.
-        assert_eq!(gaps.len(), 2);
+        // term + display_name + description each miss `en` → 3 gaps.
+        assert_eq!(gaps.len(), 3);
         for g in &gaps {
             assert!(matches!(g.subject, LocaleSubject::GlossaryTerm));
         }

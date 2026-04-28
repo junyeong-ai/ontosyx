@@ -47,6 +47,16 @@ pub struct PropertyMappingDef {
     /// by pattern-matching on `Identity`.
     #[serde(default)]
     pub transform: PropertyTransform,
+
+    /// Optional [`ConceptMapDef`](crate::concept_map::ConceptMapDef)
+    /// applied at query-compile time so the upstream source's codes
+    /// land on the property's canonical vocabulary without authors
+    /// repeating the mapping at every callsite. The compiler's
+    /// `concept_map_rewrite` walker reads this id when assembling
+    /// its `(variable, property) → ConceptMapDef` translation
+    /// table.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub concept_map_id: Option<crate::concept_map::ConceptMapId>,
 }
 
 /// Physical-side location of a property value.
@@ -105,6 +115,7 @@ mod tests {
             property_key: PropertyKey::new("email").expect("valid"),
             location: PropertyLocation::Column(ColumnRef::new("customers", "email_addr")),
             transform: PropertyTransform::Identity,
+            concept_map_id: None,
         };
         let j = serde_json::to_value(&m).unwrap();
         let back: PropertyMappingDef = serde_json::from_value(j).unwrap();
@@ -121,6 +132,7 @@ mod tests {
                 path: "postal_code".into(),
             },
             transform: PropertyTransform::Identity,
+            concept_map_id: None,
         };
         let j = serde_json::to_value(&m).unwrap();
         let back: PropertyMappingDef = serde_json::from_value(j).unwrap();
@@ -136,6 +148,7 @@ mod tests {
             transform: PropertyTransform::SqlExpr {
                 expression: "qty * unit_price".into(),
             },
+            concept_map_id: None,
         };
         let j = serde_json::to_string(&m).unwrap();
         assert!(j.contains("\"qty * unit_price\""));

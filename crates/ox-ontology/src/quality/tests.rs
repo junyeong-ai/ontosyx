@@ -1194,7 +1194,146 @@ fn well_designed_ontology_has_no_structural_gaps() {
         "Well-designed ontology should produce no structural gaps, got: {:?}",
         structural_gaps
             .iter()
-            .map(|g| format!("{:?}: {}", g.category, g.issue))
+            .map(|g| format!("{:?}: {:?}", g.category, g.params))
             .collect::<Vec<_>>()
     );
+}
+
+// ---------------------------------------------------------------------------
+// Wire contract: every QualityGap emit site populates the exact param keys
+// the FE i18n catalogue interpolates. Drift would silently render
+// `{placeholder}` literals to the operator. The check is: for each
+// representative gap, the params bag contains the keys this category's
+// i18n entry references — and nothing more (extra keys are pure wire
+// bloat).
+// ---------------------------------------------------------------------------
+#[test]
+fn quality_gap_params_match_wire_contract() {
+    use std::collections::BTreeSet;
+
+    let onto = OntologyIR::new(
+        "onto".to_string(),
+        "Test".to_string(),
+        LocalizedText::default(),
+        1,
+        vec![
+            NodeTypeDef {
+                id: "node-orders".into(),
+                label: gl("Order"),
+                description: LocalizedText::default(),
+                properties: vec![property("id")],
+                constraints: vec![],
+                ..Default::default()
+            },
+            NodeTypeDef {
+                id: "node-customers".into(),
+                label: gl("Customer"),
+                description: LocalizedText::default(),
+                properties: vec![property("id")],
+                constraints: vec![],
+                ..Default::default()
+            },
+        ],
+        vec![],
+        vec![],
+    );
+    let mappings = mapping_with_tables(&[
+        ("node-orders", "orders"),
+        ("node-customers", "customers"),
+    ]);
+
+    let schema = SourceSchema {
+        source_type: "postgres".to_string(),
+        tables: vec![
+            SourceTableDef {
+                name: "orders".to_string(),
+                columns: vec![SourceColumnDef {
+                    name: "status".to_string(),
+                    data_type: "text".to_string(),
+                    nullable: false,
+                }],
+                primary_key: vec!["id".to_string()],
+            },
+            SourceTableDef {
+                name: "customers".to_string(),
+                columns: vec![SourceColumnDef {
+                    name: "id".to_string(),
+                    data_type: "int".to_string(),
+                    nullable: false,
+                }],
+                primary_key: vec!["id".to_string()],
+            },
+        ],
+        foreign_keys: vec![ForeignKeyDef {
+            from_table: "orders".to_string(),
+            from_column: "customer_id".to_string(),
+            to_table: "customers".to_string(),
+            to_column: "id".to_string(),
+            inferred: false,
+        }],
+    };
+    let profile = SourceProfile {
+        table_profiles: vec![TableProfile {
+            table_name: "orders".to_string(),
+            row_count: 100,
+            column_stats: vec![ox_core::source_schema::ColumnStats {
+                column_name: "status".to_string(),
+                null_count: 0,
+                distinct_count: 1,
+                sample_values: vec!["paid".to_string()],
+                min_value: None,
+                max_value: None,
+            }],
+        }],
+    };
+
+    let report = assess_quality(
+        &onto,
+        Some(&schema),
+        Some(&profile),
+        &mappings,
+        &[],
+        &[],
+        &QualityConfig::default(),
+    );
+
+    // Per category, the keys the FE i18n catalogue interpolates. Mirrors
+    // `web/messages/{en,ko}.json :: qualityGap.<category>.{issue,suggestion}`.
+    // Add a row when introducing a new category — the test will then prove
+    // the emit site supplies exactly the keys the renderer expects.
+    let expected: &[(QualityGapCategory, &[&str])] = &[
+        (
+            QualityGapCategory::SingleValueBias,
+            &["column", "observed_value", "row_count"],
+        ),
+        (
+            QualityGapCategory::MissingForeignKeyEdge,
+            &[
+                "from_table",
+                "from_column",
+                "to_table",
+                "to_column",
+                "fk_count",
+                "edge_count",
+            ],
+        ),
+        (
+            QualityGapCategory::MissingDescription,
+            &["label"],
+        ),
+    ];
+
+    for (category, keys) in expected {
+        let gap = report
+            .gaps
+            .iter()
+            .find(|g| std::mem::discriminant(&g.category) == std::mem::discriminant(category))
+            .unwrap_or_else(|| panic!("expected a {category:?} gap, got {:?}", report.gaps));
+        let actual: BTreeSet<&str> = gap.params.keys().map(String::as_str).collect();
+        let want: BTreeSet<&str> = keys.iter().copied().collect();
+        assert_eq!(
+            actual, want,
+            "params for {category:?} drift from i18n contract",
+        );
+    }
 }
