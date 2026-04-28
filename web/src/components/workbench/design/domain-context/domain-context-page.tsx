@@ -42,6 +42,8 @@ import type {
 import { useEntityDependencies } from "@/hooks/api/use-entity-dependencies";
 import type { SchemaEntityRef } from "@/lib/api/dependencies";
 import { Tooltip } from "@/components/ui/tooltip";
+import { useAuditTrail } from "@/hooks/api/use-audit-trail";
+import type { AuditRecord, ProvenanceDef } from "@/types/audit";
 
 /**
  * Domain Context page for one NodeType. Seven canonical sections
@@ -127,12 +129,17 @@ function NodeView({
     [applyCommand, node.id],
   );
 
+  const readiness = evaluateReadiness(node, ontology);
+  const readinessPassed = readiness.filter((r) => r.passed).length;
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <PageHeader
         label={node.label}
         backLabel={t("backToCanvas")}
         validateLabel={t("validateCompleteness")}
+        readiness={readiness}
+        readinessPassed={readinessPassed}
         onRename={handleRename}
       />
       <div className="flex-1 overflow-auto">
@@ -199,7 +206,7 @@ function NodeView({
             description={t("sections.changelog.subtitle")}
             defaultOpen={false}
           >
-            <Placeholder hint={t("sections.changelog.placeholder")} />
+            <ChangeLogSection node={node} ontology={ontology} />
           </CollapsibleSection>
         </div>
       </div>
@@ -578,6 +585,194 @@ function LineageSection({
 }
 
 // ---------------------------------------------------------------------------
+// Change log section
+// ---------------------------------------------------------------------------
+
+interface ChangeRow {
+  at_time: string;
+  agent: string;
+  summary: string;
+}
+
+function ChangeLogSection({
+  node,
+  ontology,
+}: {
+  node: NodeTypeDef;
+  ontology: OntologyIR;
+}) {
+  const t = useTranslations("workbench.types.detail.changelog");
+  const audit = useAuditTrail({ ontology_id: ontology.id }, 50);
+
+  const records: ChangeRow[] = (audit.data?.pages ?? [])
+    .flatMap((page) => page.items as AuditRecord[])
+    .map((record) => projectRecordForNode(record, node))
+    .filter((row): row is ChangeRow => row !== null);
+
+  if (audit.isLoading && records.length === 0) {
+    return <p className="text-[11px] italic text-muted-foreground">{t("loading")}</p>;
+  }
+  if (audit.isError) {
+    return (
+      <p className="text-[11px] text-rose-600 dark:text-rose-400">
+        {t("loadError")}
+      </p>
+    );
+  }
+  if (records.length === 0) {
+    return (
+      <p className="text-[11px] italic text-muted-foreground">
+        {t("emptyState")}
+      </p>
+    );
+  }
+
+  return (
+    <ol className="space-y-2">
+      {records.map((row, idx) => (
+        <li
+          key={`${row.at_time}-${idx}`}
+          className="flex items-start gap-3 rounded border border-zinc-100 bg-zinc-50/40 px-3 py-2 dark:border-zinc-800/60 dark:bg-zinc-900/40"
+        >
+          <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+            {formatRelative(row.at_time)}
+          </span>
+          <span className="flex flex-1 flex-col gap-0.5">
+            <span className="text-[11px] text-zinc-700 dark:text-zinc-200">
+              {row.summary}
+            </span>
+            <span className="text-[10px] text-muted-foreground">
+              {row.agent}
+            </span>
+          </span>
+        </li>
+      ))}
+      {audit.hasNextPage && (
+        <li>
+          <button
+            type="button"
+            onClick={() => audit.fetchNextPage()}
+            disabled={audit.isFetchingNextPage}
+            className="text-[11px] text-violet-600 hover:underline disabled:opacity-50 dark:text-violet-400"
+          >
+            {audit.isFetchingNextPage ? t("loadingMore") : t("loadMore")}
+          </button>
+        </li>
+      )}
+    </ol>
+  );
+}
+
+function projectRecordForNode(
+  record: AuditRecord,
+  node: NodeTypeDef,
+): ChangeRow | null {
+  const prov = record.provenance as ProvenanceDef | undefined;
+  if (!prov) return null;
+  const subjectMatchesNode = subjectTouchesNode(prov, node);
+  const activityMentionsNode =
+    prov.activity.kind === "ontology_edit" &&
+    prov.activity.command_summary.includes(node.id);
+  if (!subjectMatchesNode && !activityMentionsNode) return null;
+  return {
+    at_time: record.at_time,
+    agent: formatAgent(prov),
+    summary: formatActivity(prov),
+  };
+}
+
+function subjectTouchesNode(
+  prov: ProvenanceDef,
+  node: NodeTypeDef,
+): boolean {
+  switch (prov.subject.kind) {
+    case "node_instance":
+      return prov.subject.node_type_id === node.id;
+    case "property_value":
+      return prov.subject.node_type_id === node.id;
+    case "edge_instance":
+    case "arbitrary":
+      return false;
+  }
+}
+
+function formatActivity(prov: ProvenanceDef): string {
+  switch (prov.activity.kind) {
+    case "ontology_edit":
+      return prov.activity.command_summary;
+    case "rule_validate":
+      return `Rule validate (${prov.activity.outcome})`;
+    case "source_scan":
+      return `Source scan: ${prov.activity.mapping_id}`;
+    case "function_eval":
+      return `Function eval: ${prov.activity.function_id}`;
+    case "action_execute":
+      return `Action execute: ${prov.activity.action_id}`;
+    case "draft_proposal":
+      return `LLM draft (${prov.activity.model_id})`;
+    case "cache_refresh":
+      return `Cache refresh: ${prov.activity.mapping_id}`;
+    case "enrichment":
+      return `Enrichment: ${prov.activity.enrichment_id}`;
+    case "import":
+      return `Import (${prov.activity.format})`;
+    case "export":
+      return `Export (${prov.activity.format})`;
+  }
+}
+
+function formatAgent(prov: ProvenanceDef): string {
+  switch (prov.agent.kind) {
+    case "user":
+      return prov.agent.user_id;
+    case "service":
+      return `service:${prov.agent.service_id}`;
+    case "llm_model":
+      return `llm:${prov.agent.model_id}`;
+    case "system":
+      return "system";
+  }
+}
+
+function formatRelative(iso: string): string {
+  // Minimalist HH:mm · MM-DD output. The audit list orders newest
+  // first, so the relative axis the operator cares about is "today
+  // vs older" — keep it readable without a full i18n date library.
+  try {
+    const d = new Date(iso);
+    return `${d.toISOString().slice(0, 10)} ${d.toISOString().slice(11, 16)}`;
+  } catch {
+    return iso;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Readiness signal — surfaces in the page header
+// ---------------------------------------------------------------------------
+
+interface ReadinessCheck {
+  id: string;
+  passed: boolean;
+}
+
+function evaluateReadiness(
+  node: NodeTypeDef,
+  ontology: OntologyIR,
+): ReadinessCheck[] {
+  const description = defaultText(node.description).trim();
+  const hasMapping = arr(ontology.object_mappings).some(
+    (m) => m.node_type_id === node.id,
+  );
+  return [
+    { id: "description", passed: description.length > 0 },
+    { id: "anchors", passed: arr(node.glossary_anchors).length > 0 },
+    { id: "properties", passed: arr(node.properties).length > 0 },
+    { id: "mapping", passed: hasMapping },
+    { id: "sourceLineage", passed: !!node.source_lineage?.table },
+  ];
+}
+
+// ---------------------------------------------------------------------------
 // Page chrome
 // ---------------------------------------------------------------------------
 
@@ -585,13 +780,20 @@ function PageHeader({
   label,
   backLabel,
   validateLabel,
+  readiness,
+  readinessPassed,
   onRename,
 }: {
   label: string;
   backLabel: string;
   validateLabel: string;
+  readiness: readonly ReadinessCheck[];
+  readinessPassed: number;
   onRename: (next: string) => void;
 }) {
+  const t = useTranslations("workbench.types.detail.readiness");
+  const total = readiness.length;
+  const allPassed = readinessPassed === total;
   return (
     <header className="flex shrink-0 items-center gap-3 border-b border-zinc-200 bg-white px-6 py-3 dark:border-zinc-800 dark:bg-zinc-950">
       <Link
@@ -611,15 +813,39 @@ function PageHeader({
           className="text-sm font-semibold text-zinc-900 dark:text-zinc-100"
         />
       </div>
-      <button
-        type="button"
-        disabled
-        className="inline-flex items-center gap-1.5 rounded border border-zinc-200 px-3 py-1.5 text-xs text-muted-foreground opacity-60 dark:border-zinc-800"
-        title={validateLabel}
+      <Tooltip
+        content={
+          <ul className="space-y-0.5 text-[11px]">
+            {readiness.map((r) => (
+              <li key={r.id} className="flex items-center gap-2">
+                <span
+                  className={
+                    r.passed
+                      ? "text-emerald-400"
+                      : "text-rose-400"
+                  }
+                >
+                  {r.passed ? "✓" : "✗"}
+                </span>
+                <span>{t(`checks.${r.id}`)}</span>
+              </li>
+            ))}
+          </ul>
+        }
       >
-        <HugeiconsIcon icon={Tick02Icon} className="h-3 w-3" size="100%" />
-        {validateLabel}
-      </button>
+        <span
+          className={
+            "inline-flex items-center gap-1.5 rounded border px-3 py-1.5 text-xs " +
+            (allPassed
+              ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"
+              : "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300")
+          }
+          aria-label={validateLabel}
+        >
+          <HugeiconsIcon icon={Tick02Icon} className="h-3 w-3" size="100%" />
+          {t("summary", { passed: readinessPassed, total })}
+        </span>
+      </Tooltip>
     </header>
   );
 }
@@ -664,16 +890,4 @@ function CountBadge({ count }: { count: number }) {
   );
 }
 
-function Placeholder({ hint }: { hint: string }) {
-  return (
-    <div className="rounded border border-dashed border-zinc-200 px-3 py-4 text-[11px] text-muted-foreground dark:border-zinc-800">
-      {hint}
-    </div>
-  );
-}
-
-// `applyCommand` is read inline at every call site via `useAppStore`.
-// This re-export keeps a stable handle for sub-components that may
-// want to compose multiple commands in a single user action without
-// re-querying the store on every render.
 export type { OntologyCommand };

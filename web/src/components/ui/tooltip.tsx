@@ -7,7 +7,7 @@ import { Tooltip as BaseTooltip } from "@base-ui/react/tooltip";
 // ---------------------------------------------------------------------------
 
 interface TooltipProps {
-  content: string;
+  content: React.ReactNode;
   children: React.ReactElement;
   side?: "top" | "bottom" | "left" | "right";
   sideOffset?: number;

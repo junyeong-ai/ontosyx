@@ -2771,6 +2771,23 @@
           "outboundHeader": "이 개념이 참조하는 항목",
           "inboundHeader": "이 개념을 참조하는 항목"
         },
+        "changelog": {
+          "loading": "변경 이력을 불러오는 중…",
+          "loadError": "변경 이력을 불러오지 못했습니다.",
+          "emptyState": "이 개념에 대한 기록된 변경이 아직 없습니다.",
+          "loadMore": "더 보기",
+          "loadingMore": "불러오는 중…"
+        },
+        "readiness": {
+          "summary": "준비도 {passed}/{total}",
+          "checks": {
+            "description": "설명이 작성되었습니다",
+            "anchors": "용어 사전 연결이 있습니다",
+            "properties": "속성이 정의되었습니다",
+            "mapping": "물리 매핑이 있습니다",
+            "sourceLineage": "원천 테이블이 연결되었습니다"
+          }
+        },
         "sections": {
           "definition": {
             "title": "정의",
@@ -2782,28 +2799,23 @@
           },
           "samples": {
             "title": "샘플 행",
-            "subtitle": "원천 테이블에서 수집한 미리보기 (Design ↔ Live 피드백)",
-            "placeholder": "후속 커밋에서 SourceSampleMini 를 임베드합니다."
+            "subtitle": "원천 테이블에서 수집한 미리보기 (Design ↔ Live 피드백)"
           },
           "constraints": {
             "title": "제약",
-            "subtitle": "유니크 / 존재 / 노드 키 등 구조적 제약",
-            "placeholder": "후속 커밋에서 settings/vocabulary 의 constraint-form 을 재사용합니다."
+            "subtitle": "유니크 / 존재 / 노드 키 등 구조적 제약"
           },
           "mappings": {
             "title": "매핑",
-            "subtitle": "물리 관계로의 1:1 또는 다중 매핑",
-            "placeholder": "후속 커밋에서 InlineObjectMappingEditor 를 임베드합니다."
+            "subtitle": "물리 관계로의 1:1 또는 다중 매핑"
           },
           "lineage": {
             "title": "계보",
-            "subtitle": "이 개념이 참조하는/참조받는 다른 엔티티",
-            "placeholder": "후속 커밋에서 LineageTree + useEntityDependencies 를 연결합니다."
+            "subtitle": "이 개념이 참조하는/참조받는 다른 엔티티"
           },
           "changelog": {
             "title": "변경 이력",
-            "subtitle": "감사 추적 — 누가, 언제, 무엇을 바꿨는지",
-            "placeholder": "후속 커밋에서 useAuditTrail + 타임라인 렌더러를 연결합니다."
+            "subtitle": "감사 추적 — 누가, 언제, 무엇을 바꿨는지"
           }
         }
       }

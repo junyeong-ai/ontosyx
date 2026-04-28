@@ -2785,6 +2785,23 @@
           "outboundHeader": "What this references",
           "inboundHeader": "What depends on this"
         },
+        "changelog": {
+          "loading": "Loading change log…",
+          "loadError": "Failed to load change log.",
+          "emptyState": "No recorded changes for this concept yet.",
+          "loadMore": "Load more",
+          "loadingMore": "Loading…"
+        },
+        "readiness": {
+          "summary": "Readiness {passed}/{total}",
+          "checks": {
+            "description": "Description is filled in",
+            "anchors": "Has glossary anchors",
+            "properties": "Has properties",
+            "mapping": "Has a physical mapping",
+            "sourceLineage": "Source table is bound"
+          }
+        },
         "sections": {
           "definition": {
             "title": "Definition",
@@ -2796,28 +2813,23 @@
           },
           "samples": {
             "title": "Sample rows",
-            "subtitle": "Live preview from the source table (Design ↔ Live feedback)",
-            "placeholder": "Subsequent commits embed SourceSampleMini here."
+            "subtitle": "Live preview from the source table (Design ↔ Live feedback)"
           },
           "constraints": {
             "title": "Constraints",
-            "subtitle": "Unique / Exists / NodeKey structural constraints",
-            "placeholder": "Subsequent commits reuse the constraint-form from settings/vocabulary here."
+            "subtitle": "Unique / Exists / NodeKey structural constraints"
           },
           "mappings": {
             "title": "Mappings",
-            "subtitle": "1:1 or multi-mapping to physical relations",
-            "placeholder": "Subsequent commits embed InlineObjectMappingEditor here."
+            "subtitle": "1:1 or multi-mapping to physical relations"
           },
           "lineage": {
             "title": "Lineage",
-            "subtitle": "What this concept references / what depends on it",
-            "placeholder": "Subsequent commits wire LineageTree + useEntityDependencies here."
+            "subtitle": "What this concept references / what depends on it"
           },
           "changelog": {
             "title": "Change log",
-            "subtitle": "Audit trail — who changed what, when",
-            "placeholder": "Subsequent commits wire useAuditTrail + a timeline renderer here."
+            "subtitle": "Audit trail — who changed what, when"
           }
         }
       }
