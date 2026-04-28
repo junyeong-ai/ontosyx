@@ -24,6 +24,7 @@ import {
 } from "@/hooks/api/use-ontologies";
 import { useApplyOntologyEdits } from "@/hooks/api/use-ontology-edits";
 import type { OntologyEditOp } from "@/lib/api/edit-ops";
+import type { OntologyIR } from "@/types/ontology";
 
 interface VocabularyListPageProps<T> {
   /** Page title rendered in the heading. */
@@ -49,7 +50,7 @@ interface VocabularyListPageProps<T> {
   /** Edit-log message; receives `{name}`. */
   deleteMessage: (name: string) => string;
   /** Resolve the collection slice from the ontology IR. */
-  selectItems: (ir: Record<string, unknown>) => T[];
+  selectItems: (ir: OntologyIR) => T[];
   /** Stable id for an item, used as the row key + delete op target. */
   itemId: (item: T) => string;
   /** Human-readable name for confirm dialogs / toasts. */
@@ -85,12 +86,9 @@ export function VocabularyListPage<T>({
   const apply = useApplyOntologyEdits(ontology?.id);
   const confirm = useConfirm();
 
-  const items = (() => {
-    const ir = detail.data?.ontology_ir as
-      | Record<string, unknown>
-      | undefined;
-    return ir ? selectItems(ir) : [];
-  })();
+  const items = detail.data?.ontology_ir
+    ? selectItems(detail.data.ontology_ir)
+    : [];
 
   const expectedVersion =
     Number(detail.data?.current_version?.version ?? "0") || 0;

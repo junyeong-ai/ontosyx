@@ -38,8 +38,9 @@ export default function WorkspaceSettingsPage() {
   const [savingLocale, setSavingLocale] = useState(false);
   const [editName, setEditName] = useState("");
   const [editPrimaryLocale, setEditPrimaryLocale] = useState("ko");
-  // Fallback is edited as a single comma-separated string; parsed at save time.
-  const [editFallback, setEditFallback] = useState("ko,en");
+  // Both chains are edited as comma-separated strings; parsed at save time.
+  const [editAdminFallback, setEditAdminFallback] = useState("ko,en");
+  const [editLlmFallback, setEditLlmFallback] = useState("en,ko");
 
   const load = useCallback(async () => {
     if (!wsId) return;
@@ -51,7 +52,8 @@ export default function WorkspaceSettingsPage() {
       setWorkspace(ws);
       setEditName(ws.name);
       setEditPrimaryLocale(ws.primary_locale ?? "ko");
-      setEditFallback((ws.locale_fallback ?? ["ko", "en"]).join(","));
+      setEditAdminFallback((ws.admin_locale_fallback ?? ["ko", "en"]).join(","));
+      setEditLlmFallback((ws.llm_locale_fallback ?? ["en", "ko"]).join(","));
       setMembers(mems);
     } catch {
       toast.error(t("toast.loadFailed"));
@@ -80,30 +82,41 @@ export default function WorkspaceSettingsPage() {
     }
   };
 
-  const parsedFallback = editFallback
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
+  const parseChain = (raw: string): string[] =>
+    raw
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+  const parsedAdminFallback = parseChain(editAdminFallback);
+  const parsedLlmFallback = parseChain(editLlmFallback);
   const primaryValid = BCP47_RE.test(editPrimaryLocale.trim().toLowerCase());
-  const fallbackValid =
-    parsedFallback.length > 0 && parsedFallback.every((t) => BCP47_RE.test(t));
+  const adminFallbackValid =
+    parsedAdminFallback.length > 0 &&
+    parsedAdminFallback.every((tag) => BCP47_RE.test(tag));
+  const llmFallbackValid =
+    parsedLlmFallback.length > 0 &&
+    parsedLlmFallback.every((tag) => BCP47_RE.test(tag));
   const hasLocaleChanges =
     workspace !== null &&
     (editPrimaryLocale.trim().toLowerCase() !== workspace.primary_locale ||
-      parsedFallback.join(",") !==
-        (workspace.locale_fallback ?? []).join(","));
+      parsedAdminFallback.join(",") !==
+        (workspace.admin_locale_fallback ?? []).join(",") ||
+      parsedLlmFallback.join(",") !==
+        (workspace.llm_locale_fallback ?? []).join(","));
 
   const handleSaveLocale = async () => {
-    if (!wsId || !primaryValid || !fallbackValid) return;
+    if (!wsId || !primaryValid || !adminFallbackValid || !llmFallbackValid) return;
     setSavingLocale(true);
     try {
       const updated = await updateWorkspaceLocale(wsId, {
         primary_locale: editPrimaryLocale.trim().toLowerCase(),
-        locale_fallback: parsedFallback,
+        admin_locale_fallback: parsedAdminFallback,
+        llm_locale_fallback: parsedLlmFallback,
       });
       setWorkspace(updated);
       setEditPrimaryLocale(updated.primary_locale);
-      setEditFallback((updated.locale_fallback ?? []).join(","));
+      setEditAdminFallback((updated.admin_locale_fallback ?? []).join(","));
+      setEditLlmFallback((updated.llm_locale_fallback ?? []).join(","));
       qc.invalidateQueries({ queryKey: localeChainKeys.all });
       qc.invalidateQueries({ queryKey: workspacesKeys.all });
       toast.success(t("locale.toast.updated"));
@@ -190,7 +203,11 @@ export default function WorkspaceSettingsPage() {
             size="sm"
             onClick={handleSaveLocale}
             disabled={
-              !hasLocaleChanges || !primaryValid || !fallbackValid || savingLocale
+              !hasLocaleChanges ||
+              !primaryValid ||
+              !adminFallbackValid ||
+              !llmFallbackValid ||
+              savingLocale
             }
           >
             {savingLocale ? t("locale.saving") : t("locale.save")}
@@ -219,18 +236,39 @@ export default function WorkspaceSettingsPage() {
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-muted-foreground">
-              {t("locale.fallback")}
+              {t("locale.adminFallback")}
             </label>
             <FormInput
-              value={editFallback}
-              onChange={(e) => setEditFallback(e.target.value)}
+              value={editAdminFallback}
+              onChange={(e) => setEditAdminFallback(e.target.value)}
               placeholder="ko,en"
             />
-            {!fallbackValid && (
+            {!adminFallbackValid && (
               <p className="mt-1 text-xs text-red-600">
                 {t("locale.fallbackInvalid")}
               </p>
             )}
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t("locale.adminFallbackHint")}
+            </p>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-muted-foreground">
+              {t("locale.llmFallback")}
+            </label>
+            <FormInput
+              value={editLlmFallback}
+              onChange={(e) => setEditLlmFallback(e.target.value)}
+              placeholder="en,ko"
+            />
+            {!llmFallbackValid && (
+              <p className="mt-1 text-xs text-red-600">
+                {t("locale.fallbackInvalid")}
+              </p>
+            )}
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t("locale.llmFallbackHint")}
+            </p>
           </div>
         </div>
       </section>

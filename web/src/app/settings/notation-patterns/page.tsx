@@ -3,44 +3,54 @@
 import { useTranslations } from "next-intl";
 
 import { JsonEntityCrudPage } from "@/components/settings/vocabulary/json-entity-crud-page";
-import type { CodeSystemDef } from "@/lib/api/edit-ops";
+import type { NotationPatternDef } from "@/lib/api/edit-ops";
 
-const CODE_SYSTEM_HINT = `{
-  "id": "cs-order-status",
-  "name": "OrderStatus",
-  "version": "1.0.0",
-  "kind": "internal",
-  "codes": [
-    { "id": "cv-pending", "code": "PENDING" },
-    { "id": "cv-paid",    "code": "PAID" },
-    { "id": "cv-shipped", "code": "SHIPPED" }
+const NOTATION_PATTERN_HINT = `{
+  "id": "np-campaign-code",
+  "name": "CampaignCode",
+  "template": "{{campaign}}_{{year}}_{{seq}}",
+  "separator": "_",
+  "components": [
+    { "name": "campaign", "kind": { "kind": "literal", "values": ["SPRING", "SUMMER"] } },
+    { "name": "year",     "kind": { "kind": "year" } },
+    { "name": "seq",      "kind": { "kind": "sequence", "width": 3 } }
   ]
 }`;
 
-export default function CodeSystemsAdminPage() {
-  const t = useTranslations("settings.vocabulary.codeSystems");
+export default function NotationPatternsAdminPage() {
+  const t = useTranslations("settings.vocabulary.notationPatterns");
   return (
-    <JsonEntityCrudPage<CodeSystemDef>
-      schemaHint={CODE_SYSTEM_HINT}
+    <JsonEntityCrudPage<NotationPatternDef>
+      schemaHint={NOTATION_PATTERN_HINT}
       selectItems={(ir) =>
-        ((ir as unknown as { code_systems?: CodeSystemDef[] }).code_systems ?? [])
+        ((ir as unknown as { notation_patterns?: NotationPatternDef[] })
+          .notation_patterns ?? [])
       }
-      itemId={(cs) => cs.id}
-      buildCreateOp={(def) => ({ op: "create_code_system", def })}
-      buildUpdateOp={(id, def) => ({ op: "update_code_system", id, def })}
-      buildDeleteOp={(id) => ({ op: "delete_code_system", id })}
-      renderRow={(cs) => (
+      itemId={(np) => np.id}
+      buildCreateOp={(def) => ({ op: "create_notation_pattern", def })}
+      buildUpdateOp={(id, def) => ({
+        op: "update_notation_pattern",
+        id,
+        def,
+      })}
+      buildDeleteOp={(id) => ({ op: "delete_notation_pattern", id })}
+      renderRow={(np) => (
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-mono text-sm font-medium text-zinc-900 dark:text-zinc-100">
-              {cs.id}
+              {np.id}
             </span>
             <span className="text-xs text-zinc-500 dark:text-zinc-400">
-              · {cs.name} · v{cs.version} · {cs.kind}
+              · {np.name}
             </span>
+            {np.template && (
+              <span className="rounded bg-zinc-100 px-2 py-0.5 font-mono text-[10px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                {np.template}
+              </span>
+            )}
           </div>
           <p className="mt-1 text-[10px] text-zinc-500 dark:text-zinc-500">
-            {t("codeCount", { count: cs.codes?.length ?? 0 })}
+            {t("componentCount", { count: np.components?.length ?? 0 })}
           </p>
         </div>
       )}

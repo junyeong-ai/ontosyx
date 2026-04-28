@@ -2,29 +2,33 @@
 
 import { useTranslations } from "next-intl";
 
-import { VocabularyListPage } from "@/components/settings/vocabulary/vocabulary-list-page";
-import type { ConceptMapDef } from "@/lib/api/edit-ops";
+import { JsonEntityCrudPage } from "@/components/settings/vocabulary/json-entity-crud-page";
+import type { ConceptMapDef } from "@/types/ontology";
+
+const CONCEPT_MAP_HINT = `{
+  "id": "cm-status-iso",
+  "name": "OrderStatus → ISO",
+  "version": "1.0.0",
+  "source_system_id": "cs-order-status",
+  "target_system_id": "cs-iso-status",
+  "mappings": [
+    {
+      "source_code": "PENDING",
+      "target_code": "OPEN",
+      "equivalence": "equivalent"
+    }
+  ]
+}`;
 
 export default function ConceptMapsAdminPage() {
   const t = useTranslations("settings.vocabulary.conceptMaps");
   return (
-    <VocabularyListPage<ConceptMapDef>
-      title={t("pageTitle")}
-      subtitle={t("pageSubtitle")}
-      emptyTitle={t("empty.title")}
-      emptyDescription={t("empty.description")}
-      noOntologyMessage={t("noOntology")}
-      confirmDeleteTitle={t("confirm.deleteTitle")}
-      confirmDeleteDescription={(name) =>
-        t("confirm.deleteDescription", { name })
-      }
-      deleteLabel={t("deleteButton")}
-      deletedToast={(name) => t("toast.deleted", { name })}
-      deleteFailedToast={(error) => t("toast.deleteFailed", { error })}
-      deleteMessage={(name) => t("messages.deleted", { name })}
-      selectItems={(ir) => (ir.concept_maps as ConceptMapDef[]) ?? []}
+    <JsonEntityCrudPage<ConceptMapDef>
+      schemaHint={CONCEPT_MAP_HINT}
+      selectItems={(ir) => ir.concept_maps ?? []}
       itemId={(cm) => cm.id}
-      itemName={(cm) => cm.name}
+      buildCreateOp={(def) => ({ op: "create_concept_map", def })}
+      buildUpdateOp={(id, def) => ({ op: "update_concept_map", id, def })}
       buildDeleteOp={(id) => ({ op: "delete_concept_map", id })}
       renderRow={(cm) => (
         <div>
@@ -45,6 +49,37 @@ export default function ConceptMapsAdminPage() {
           </p>
         </div>
       )}
+      labels={{
+        title: t("pageTitle"),
+        subtitle: t("pageSubtitle"),
+        noOntology: t("noOntology"),
+        createButton: t("createButton"),
+        editButton: t("editButton"),
+        deleteButton: t("deleteButton"),
+        emptyTitle: t("empty.title"),
+        emptyDescription: t("empty.description"),
+        confirmDeleteTitle: t("confirm.deleteTitle"),
+        confirmDeleteDescription: (name) =>
+          t("confirm.deleteDescription", { name }),
+        createdToast: t("toast.created"),
+        createFailedToast: (error) => t("toast.createFailed", { error }),
+        updatedToast: t("toast.updated"),
+        updateFailedToast: (error) => t("toast.updateFailed", { error }),
+        deletedToast: t("toast.deleted"),
+        deleteFailedToast: (error) => t("toast.deleteFailed", { error }),
+        createdMessage: (name) => t("messages.created", { name }),
+        updatedMessage: (name) => t("messages.updated", { name }),
+        deletedMessage: (name) => t("messages.deleted", { name }),
+        createDialogTitle: t("createDialog.title"),
+        createDialogDescription: t("createDialog.description"),
+        jsonLabel: t("jsonLabel"),
+        submitCreate: t("form.submitCreate"),
+        submitUpdate: t("form.submitUpdate"),
+        cancel: t("form.cancel"),
+        errorEmpty: t("error.empty"),
+        errorInvalidJsonTemplate: (message) =>
+          t("error.invalidJson", { message }),
+      }}
     />
   );
 }
