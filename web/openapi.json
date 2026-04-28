@@ -2502,6 +2502,49 @@
         ]
       }
     },
+    "/api/ontologies/{id}/validate": {
+      "get": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "get_ontology_validate",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Ontology identity id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Structural validation diagnostics for the current IR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DiagnosticMessage"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ontology not found or has no committed version"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/api/ontologies/{id}/value-sets/propose": {
       "post": {
         "tags": [
@@ -7584,6 +7627,32 @@
           },
           "user_id": {
             "type": "string"
+          }
+        }
+      },
+      "DiagnosticMessage": {
+        "type": "object",
+        "description": "Structured diagnostic — `code` + English `message` + `params`.\n\nSee module docs for design rationale and wire shape.",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Stable dotted identifier (`<surface>.<phase>.<kind>`). Treat\nthe catalogue key set as a public API — renaming a code is\na breaking change for any consumer that has localised it."
+          },
+          "message": {
+            "type": "string",
+            "description": "English human-readable rendering. Always present; serves as\nthe universal fallback for logs, alerts, and consumers\nwithout a catalogue entry for `code`."
+          },
+          "params": {
+            "type": "object",
+            "description": "Placeholder values for the catalogue template\n(ICU MessageFormat). Keys match the ICU placeholders in the\nlocalised template. `BTreeMap` for stable serialisation\norder (deterministic logs, deterministic snapshot tests).",
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
           }
         }
       },

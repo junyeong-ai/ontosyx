@@ -153,6 +153,10 @@
       "removeAria": "Remove anchor ({id})",
       "missingTooltip": "Term id not found in glossary: {id}"
     },
+    "integrityIssues": {
+      "heading": "Referential integrity warnings ({count})",
+      "more": "+{n} more"
+    },
     "nodeConstraintBuilder": {
       "emptyState": "This node type has no constraints yet.",
       "addAction": "+ Add constraint",

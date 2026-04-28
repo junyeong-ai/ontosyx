@@ -33,6 +33,11 @@ import type {
   ObjectMappingDef,
   OntologyEditOp,
 } from "@/lib/api/edit-ops";
+import { IntegrityIssuesBanner } from "@/components/ontology/integrity-issues-banner";
+import {
+  diagnosticHasParam,
+  useOntologyValidation,
+} from "@/hooks/api/use-ontology-validation";
 
 const OBJECT_MAPPING_HINT = `{
   "id": "om-customer",
@@ -293,10 +298,9 @@ export default function MappingsAdminPage() {
                   className="rounded border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"
                 >
                   {editingObject?.id === (m as { id: string }).id ? (
-                    <JsonEntityEditor
-                      key={(m as { id: string }).id}
-                      initial={m}
-                      schemaHint={OBJECT_MAPPING_HINT}
+                    <ObjectMappingEditor
+                      mapping={m}
+                      ontologyId={ontology?.id}
                       labels={mappingLabels(t, "object")}
                       onSubmit={handleUpdateObject}
                       onCancel={() => setEditingObject(null)}
@@ -318,10 +322,9 @@ export default function MappingsAdminPage() {
                   className="rounded border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"
                 >
                   {editingLink?.id === (m as { id: string }).id ? (
-                    <JsonEntityEditor
-                      key={(m as { id: string }).id}
-                      initial={m}
-                      schemaHint={LINK_MAPPING_HINT}
+                    <LinkMappingEditor
+                      mapping={m}
+                      ontologyId={ontology?.id}
                       labels={mappingLabels(t, "link")}
                       onSubmit={handleUpdateLink}
                       onCancel={() => setEditingLink(null)}
@@ -503,6 +506,76 @@ function LinkMappingRow({
           {t("deleteButton")}
         </Button>
       </div>
+    </div>
+  );
+}
+
+function ObjectMappingEditor({
+  mapping,
+  ontologyId,
+  labels,
+  onSubmit,
+  onCancel,
+  pending,
+}: {
+  mapping: ObjectMappingDef;
+  ontologyId: string | null | undefined;
+  labels: JsonEntityEditorLabels;
+  onSubmit: (def: ObjectMappingDef) => Promise<void> | void;
+  onCancel: () => void;
+  pending: boolean;
+}) {
+  const validation = useOntologyValidation(ontologyId);
+  const issues = (validation.data ?? []).filter((d) =>
+    diagnosticHasParam(d, "mapping_id", mapping.id),
+  );
+  return (
+    <div className="space-y-2">
+      <IntegrityIssuesBanner issues={issues} />
+      <JsonEntityEditor
+        key={mapping.id}
+        initial={mapping}
+        schemaHint={OBJECT_MAPPING_HINT}
+        labels={labels}
+        onSubmit={onSubmit}
+        onCancel={onCancel}
+        pending={pending}
+      />
+    </div>
+  );
+}
+
+function LinkMappingEditor({
+  mapping,
+  ontologyId,
+  labels,
+  onSubmit,
+  onCancel,
+  pending,
+}: {
+  mapping: LinkMappingDef;
+  ontologyId: string | null | undefined;
+  labels: JsonEntityEditorLabels;
+  onSubmit: (def: LinkMappingDef) => Promise<void> | void;
+  onCancel: () => void;
+  pending: boolean;
+}) {
+  const validation = useOntologyValidation(ontologyId);
+  const issues = (validation.data ?? []).filter((d) =>
+    diagnosticHasParam(d, "mapping_id", mapping.id),
+  );
+  return (
+    <div className="space-y-2">
+      <IntegrityIssuesBanner issues={issues} />
+      <JsonEntityEditor
+        key={mapping.id}
+        initial={mapping}
+        schemaHint={LINK_MAPPING_HINT}
+        labels={labels}
+        onSubmit={onSubmit}
+        onCancel={onCancel}
+        pending={pending}
+      />
     </div>
   );
 }

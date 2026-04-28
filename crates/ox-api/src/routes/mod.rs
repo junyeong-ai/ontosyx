@@ -153,6 +153,10 @@ pub fn router(state: AppState) -> Router {
             "/ontologies/{id}/dependencies",
             get(ontology::get_ontology_dependencies),
         )
+        .route(
+            "/ontologies/{id}/validate",
+            get(ontology::get_ontology_validate),
+        )
         .route("/ontologies/{id}/enrich", post(ontology::enrich_ontology))
         .route(
             "/ontologies/{id}/value-sets/propose",

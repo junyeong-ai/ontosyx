@@ -19,6 +19,7 @@ mod map_summary;
 mod routing;
 mod schema_ops;
 mod type_candidates;
+mod validate;
 mod value_sets;
 mod verifications;
 
@@ -29,6 +30,7 @@ pub(crate) use axis_items::list_axis_items;
 pub(crate) use create::create_ontology;
 pub(crate) use cross_refs::list_cross_refs;
 pub(crate) use dependencies::get_ontology_dependencies;
+pub(crate) use validate::get_ontology_validate;
 pub(crate) use map_summary::map_summary;
 pub(crate) use edits::apply_ontology_edits;
 pub(crate) use type_candidates::list_type_candidates;
@@ -56,6 +58,7 @@ pub use crud::{
 };
 pub use create::__path_create_ontology;
 pub use dependencies::__path_get_ontology_dependencies;
+pub use validate::__path_get_ontology_validate;
 pub use edits::__path_apply_ontology_edits;
 pub use value_sets::__path_propose_ontology_value_sets;
 pub use binding_suggestions::{

@@ -16,6 +16,11 @@ import type {
   ShaclConstraint,
   Severity,
 } from "@/lib/api/edit-ops";
+import { IntegrityIssuesBanner } from "@/components/ontology/integrity-issues-banner";
+import {
+  diagnosticHasParam,
+  useOntologyValidation,
+} from "@/hooks/api/use-ontology-validation";
 
 import { AddConstraintMenu, ConstraintForm } from "./constraint-form";
 
@@ -38,6 +43,11 @@ interface RuleFormProps {
   /** Initial rule when editing; `undefined` produces a blank
    *  create form. */
   initial?: RuleDef;
+  /** Ontology the rule belongs to. When provided, the form fetches
+   *  the IR's referential-integrity diagnostics and surfaces any
+   *  that mention this rule above the action row. Omit on create
+   *  flows where the rule does not yet exist in the persisted IR. */
+  ontologyId?: string | null;
   onSubmit: (def: RuleDef) => void;
   onCancel: () => void;
   pending?: boolean;
@@ -57,12 +67,17 @@ interface RuleFormProps {
  */
 export function RuleForm({
   initial,
+  ontologyId,
   onSubmit,
   onCancel,
   pending = false,
 }: RuleFormProps) {
   const t = useTranslations("settings.vocabulary.rules.form");
   const isDerived = initial?.origin?.kind === "derived_from_binding";
+  const validation = useOntologyValidation(initial ? ontologyId : null);
+  const ruleIssues = (validation.data ?? []).filter((d) =>
+    initial ? diagnosticHasParam(d, "rule_id", initial.id) : false,
+  );
 
   const [id, setId] = useState(initial?.id ?? "");
   const [nameDefault, setNameDefault] = useState(initial?.name?.default ?? "");
@@ -294,6 +309,8 @@ export function RuleForm({
           )}
         </div>
       </fieldset>
+
+      <IntegrityIssuesBanner issues={ruleIssues} />
 
       <div className="mt-1 flex items-center justify-end gap-2">
         <Button

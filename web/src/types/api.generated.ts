@@ -596,6 +596,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ontologies/{id}/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_ontology_validate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ontologies/{id}/value-sets/propose": {
         parameters: {
             query?: never;
@@ -2368,6 +2384,34 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
             user_id: string;
+        };
+        /**
+         * @description Structured diagnostic — `code` + English `message` + `params`.
+         *
+         *     See module docs for design rationale and wire shape.
+         */
+        DiagnosticMessage: {
+            /**
+             * @description Stable dotted identifier (`<surface>.<phase>.<kind>`). Treat
+             *     the catalogue key set as a public API — renaming a code is
+             *     a breaking change for any consumer that has localised it.
+             */
+            code: string;
+            /**
+             * @description English human-readable rendering. Always present; serves as
+             *     the universal fallback for logs, alerts, and consumers
+             *     without a catalogue entry for `code`.
+             */
+            message: string;
+            /**
+             * @description Placeholder values for the catalogue template
+             *     (ICU MessageFormat). Keys match the ICU placeholders in the
+             *     localised template. `BTreeMap` for stable serialisation
+             *     order (deterministic logs, deterministic snapshot tests).
+             */
+            params?: {
+                [key: string]: unknown;
+            };
         };
         /**
          * @description UML / OMG-aligned edge classification.
@@ -7124,6 +7168,36 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SuggestTermsResponse"];
                 };
+            };
+        };
+    };
+    get_ontology_validate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ontology identity id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Structural validation diagnostics for the current IR */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiagnosticMessage"][];
+                };
+            };
+            /** @description Ontology not found or has no committed version */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

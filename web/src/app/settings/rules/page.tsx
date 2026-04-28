@@ -164,6 +164,7 @@ export default function RulesAdminPage() {
               {editing?.id === rule.id ? (
                 <RuleForm
                   initial={rule}
+                  ontologyId={ontology?.id}
                   onSubmit={handleUpdate}
                   onCancel={() => setEditing(null)}
                   pending={apply.isPending}

@@ -155,6 +155,7 @@ impl Modify for SecurityAddon {
         ontology::suggest_glossary_bindings,
         ontology::suggest_glossary_terms_for_property,
         ontology::get_ontology_dependencies,
+        ontology::get_ontology_validate,
         // Pins
         pins::create_pin,
         pins::list_pins,

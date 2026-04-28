@@ -153,6 +153,10 @@
       "removeAria": "용어 연결 해제 ({id})",
       "missingTooltip": "용어 사전에 존재하지 않는 ID: {id}"
     },
+    "integrityIssues": {
+      "heading": "참조 정합성 경고 ({count})",
+      "more": "+{n}개 더"
+    },
     "nodeConstraintBuilder": {
       "emptyState": "이 노드 타입에는 아직 제약이 없습니다.",
       "addAction": "+ 제약 추가",
