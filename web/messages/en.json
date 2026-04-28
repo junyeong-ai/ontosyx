@@ -153,6 +153,27 @@
       "removeAria": "Remove anchor ({id})",
       "missingTooltip": "Term id not found in glossary: {id}"
     },
+    "inlineObjectMappingEditor": {
+      "relationLabel": "Relation",
+      "relationPlaceholder": "e.g. public.customers",
+      "relationKindLabel": "Kind",
+      "relationKind": {
+        "table": "Table",
+        "view": "View",
+        "collection": "Collection",
+        "file": "File"
+      },
+      "primaryKeyLabel": "Primary key columns",
+      "primaryKeyAdd": "+ column",
+      "primaryKeyRemoveAria": "Remove {column} from primary key",
+      "propertiesHeader": "Property mappings",
+      "columnPlaceholder": "Column name (empty = unmapped)",
+      "noProperties": "This node type has no properties to map",
+      "advancedToggle": "Advanced",
+      "rowFilterLabel": "Row filter (source-dialect SQL)",
+      "rowFilterPlaceholder": "e.g. deleted_at IS NULL",
+      "precedenceLabel": "Precedence"
+    },
     "lineageTree": {
       "emptyInbound": "Nothing depends on this entity",
       "emptyOutbound": "This entity has no outbound references",

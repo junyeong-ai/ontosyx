@@ -153,6 +153,27 @@
       "removeAria": "용어 연결 해제 ({id})",
       "missingTooltip": "용어 사전에 존재하지 않는 ID: {id}"
     },
+    "inlineObjectMappingEditor": {
+      "relationLabel": "관계명",
+      "relationPlaceholder": "예: public.customers",
+      "relationKindLabel": "관계 종류",
+      "relationKind": {
+        "table": "테이블",
+        "view": "뷰",
+        "collection": "컬렉션",
+        "file": "파일"
+      },
+      "primaryKeyLabel": "기본 키 컬럼",
+      "primaryKeyAdd": "+ 컬럼",
+      "primaryKeyRemoveAria": "기본 키에서 {column} 제거",
+      "propertiesHeader": "속성 매핑",
+      "columnPlaceholder": "컬럼명 (비워두면 미매핑)",
+      "noProperties": "이 노드 타입에는 매핑할 속성이 없습니다",
+      "advancedToggle": "고급 옵션",
+      "rowFilterLabel": "행 필터 (소스 방언 SQL)",
+      "rowFilterPlaceholder": "예: deleted_at IS NULL",
+      "precedenceLabel": "우선순위"
+    },
     "lineageTree": {
       "emptyInbound": "이 엔티티를 참조하는 항목이 없습니다",
       "emptyOutbound": "이 엔티티가 참조하는 항목이 없습니다",

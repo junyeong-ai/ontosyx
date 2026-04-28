@@ -1,0 +1,468 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  Cancel01Icon,
+  PlusSignIcon,
+} from "@hugeicons/core-free-icons";
+
+import type {
+  ObjectMappingDef,
+  PropertyMappingDef,
+  PropertyLocation,
+  ColumnRef,
+  SourceRelationKind,
+} from "@/lib/api/edit-ops";
+import type { PropertyDef } from "@/types/ontology";
+import { cn } from "@/lib/cn";
+
+export interface InlineObjectMappingEditorProps {
+  /** Current state of the mapping. Pass a skeleton (empty `relation`,
+   *  empty `property_mappings`) to render the create flow. The
+   *  editor is fully controlled — every keystroke fires `onChange`
+   *  with the next snapshot. */
+  value: ObjectMappingDef;
+  /** Properties exposed by the parent NodeType. Drives the
+   *  property-mapping table — one row per property. */
+  properties: readonly PropertyDef[];
+  /** Optional column catalogue from the source profile. When
+   *  supplied, column inputs render as datalist-backed
+   *  autocomplete; otherwise they're free-form text fields. */
+  availableColumns?: readonly string[];
+  onChange: (next: ObjectMappingDef) => void;
+  readOnly?: boolean;
+}
+
+const RELATION_KINDS: readonly SourceRelationKind[] = [
+  "table",
+  "view",
+  "collection",
+  "file",
+];
+
+/**
+ * Form-based editor for one [`ObjectMappingDef`].
+ *
+ * The Domain Context page's Mappings section embeds this for
+ * single-mapping editing — the common case where one NodeType
+ * binds to one physical relation. Multi-mapping flows stay on
+ * `/settings/mappings` where the JSON dual-mode editor handles
+ * the long tail.
+ *
+ * Stays purely controlled — caller owns the persistence boundary
+ * and the id minting on first save.
+ */
+export function InlineObjectMappingEditor({
+  value,
+  properties,
+  availableColumns,
+  onChange,
+  readOnly = false,
+}: InlineObjectMappingEditorProps) {
+  const t = useTranslations("ontology.inlineObjectMappingEditor");
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  const propertyMappings = useMemo(
+    () => indexByPropertyId(value.property_mappings ?? []),
+    [value.property_mappings],
+  );
+
+  const update = (patch: Partial<ObjectMappingDef>) => {
+    onChange({ ...value, ...patch });
+  };
+
+  const updatePropertyMapping = (
+    property: PropertyDef,
+    next: PropertyMappingDef | null,
+  ) => {
+    const existing = value.property_mappings ?? [];
+    const filtered = existing.filter((m) => m.property_id !== property.id);
+    const nextList = next ? [...filtered, next] : filtered;
+    update({ property_mappings: nextList });
+  };
+
+  return (
+    <div className="space-y-3">
+      <FormGrid>
+        <Field label={t("relationLabel")} required>
+          <input
+            type="text"
+            value={value.relation ?? ""}
+            onChange={(e) => update({ relation: e.target.value })}
+            disabled={readOnly}
+            placeholder={t("relationPlaceholder")}
+            className={inputClass}
+          />
+        </Field>
+        <Field label={t("relationKindLabel")}>
+          <select
+            value={value.relation_kind ?? "table"}
+            onChange={(e) =>
+              update({
+                relation_kind: e.target.value as SourceRelationKind,
+              })
+            }
+            disabled={readOnly}
+            className={inputClass}
+          >
+            {RELATION_KINDS.map((kind) => (
+              <option key={kind} value={kind}>
+                {t(`relationKind.${kind}`)}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </FormGrid>
+
+      <Field label={t("primaryKeyLabel")}>
+        <ColumnChipInput
+          value={(value.primary_key_columns ?? []).map((c) => c.column)}
+          availableColumns={availableColumns}
+          readOnly={readOnly}
+          onChange={(columns) =>
+            update({
+              primary_key_columns: columns.map<ColumnRef>((column) => ({
+                column,
+                relation: value.relation ?? "",
+              })),
+            })
+          }
+          addLabel={t("primaryKeyAdd")}
+          removeAriaTemplate={(c) => t("primaryKeyRemoveAria", { column: c })}
+        />
+      </Field>
+
+      <PropertyMappingTable
+        properties={properties}
+        propertyMappings={propertyMappings}
+        availableColumns={availableColumns}
+        readOnly={readOnly}
+        relation={value.relation ?? ""}
+        onChange={updatePropertyMapping}
+      />
+
+      <details
+        className="rounded border border-zinc-100 dark:border-zinc-800/60"
+        open={advancedOpen}
+        onToggle={(e) => setAdvancedOpen((e.target as HTMLDetailsElement).open)}
+      >
+        <summary className="cursor-pointer px-2 py-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          {t("advancedToggle")}
+        </summary>
+        <div className="space-y-2 px-2 py-2">
+          <Field label={t("rowFilterLabel")}>
+            <input
+              type="text"
+              value={value.row_filter ?? ""}
+              onChange={(e) =>
+                update({ row_filter: e.target.value || null })
+              }
+              disabled={readOnly}
+              placeholder={t("rowFilterPlaceholder")}
+              className={inputClass}
+            />
+          </Field>
+          <FormGrid>
+            <Field label={t("precedenceLabel")}>
+              <input
+                type="number"
+                value={value.precedence ?? 0}
+                onChange={(e) =>
+                  update({
+                    precedence: Number.isFinite(e.target.valueAsNumber)
+                      ? e.target.valueAsNumber
+                      : 0,
+                  })
+                }
+                disabled={readOnly}
+                className={inputClass}
+              />
+            </Field>
+          </FormGrid>
+        </div>
+      </details>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Property mapping table
+// ---------------------------------------------------------------------------
+
+function PropertyMappingTable({
+  properties,
+  propertyMappings,
+  availableColumns,
+  readOnly,
+  relation,
+  onChange,
+}: {
+  properties: readonly PropertyDef[];
+  propertyMappings: Map<string, PropertyMappingDef>;
+  availableColumns: readonly string[] | undefined;
+  readOnly: boolean;
+  relation: string;
+  onChange: (property: PropertyDef, next: PropertyMappingDef | null) => void;
+}) {
+  const t = useTranslations("ontology.inlineObjectMappingEditor");
+
+  if (properties.length === 0) {
+    return (
+      <p className="text-[11px] italic text-muted-foreground">
+        {t("noProperties")}
+      </p>
+    );
+  }
+
+  return (
+    <div>
+      <h3 className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {t("propertiesHeader")}
+      </h3>
+      <ul className="divide-y divide-zinc-100 rounded border border-zinc-100 dark:divide-zinc-800/60 dark:border-zinc-800/60">
+        {properties.map((property) => (
+          <PropertyMappingRow
+            key={property.id}
+            property={property}
+            mapping={propertyMappings.get(property.id) ?? null}
+            availableColumns={availableColumns}
+            readOnly={readOnly}
+            relation={relation}
+            onChange={(next) => onChange(property, next)}
+          />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function PropertyMappingRow({
+  property,
+  mapping,
+  availableColumns,
+  readOnly,
+  relation,
+  onChange,
+}: {
+  property: PropertyDef;
+  mapping: PropertyMappingDef | null;
+  availableColumns: readonly string[] | undefined;
+  readOnly: boolean;
+  relation: string;
+  onChange: (next: PropertyMappingDef | null) => void;
+}) {
+  const t = useTranslations("ontology.inlineObjectMappingEditor");
+  const column = mapping ? extractColumn(mapping.location) : "";
+  const isJsonPath = mapping?.location.kind === "json_path";
+
+  const handleColumnChange = (nextColumn: string) => {
+    if (nextColumn === "") {
+      onChange(null);
+      return;
+    }
+    const location: PropertyLocation = isJsonPath
+      ? {
+          kind: "json_path",
+          root_column:
+            mapping?.location.kind === "json_path"
+              ? mapping.location.root_column
+              : nextColumn,
+          path: nextColumn,
+        }
+      : { kind: "column", column: nextColumn, relation };
+    onChange({
+      property_id: property.id,
+      property_key: property.name,
+      location,
+      transform: mapping?.transform ?? { kind: "identity" },
+      concept_map_id: mapping?.concept_map_id ?? null,
+    });
+  };
+
+  const datalistId = `oxd-cols-${property.id}`;
+
+  return (
+    <li className="flex items-center gap-3 px-2 py-1.5">
+      <span className="flex w-32 shrink-0 flex-col">
+        <span className="truncate text-[11px] font-medium text-zinc-800 dark:text-zinc-200">
+          {property.name}
+        </span>
+        <span className="truncate text-[9px] font-mono text-muted-foreground">
+          {property.id}
+        </span>
+      </span>
+      <input
+        type="text"
+        value={column}
+        onChange={(e) => handleColumnChange(e.target.value)}
+        disabled={readOnly}
+        placeholder={t("columnPlaceholder")}
+        list={availableColumns ? datalistId : undefined}
+        className={cn(inputClass, "flex-1")}
+      />
+      {availableColumns && (
+        <datalist id={datalistId}>
+          {availableColumns.map((col) => (
+            <option key={col} value={col} />
+          ))}
+        </datalist>
+      )}
+    </li>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Column chip input — used for primary_key_columns
+// ---------------------------------------------------------------------------
+
+function ColumnChipInput({
+  value,
+  availableColumns,
+  readOnly,
+  onChange,
+  addLabel,
+  removeAriaTemplate,
+}: {
+  value: readonly string[];
+  availableColumns: readonly string[] | undefined;
+  readOnly: boolean;
+  onChange: (next: string[]) => void;
+  addLabel: string;
+  removeAriaTemplate: (column: string) => string;
+}) {
+  const [draft, setDraft] = useState("");
+  const datalistId = `oxd-pk-cols`;
+
+  const commit = (column: string) => {
+    const trimmed = column.trim();
+    if (!trimmed) return;
+    if (value.includes(trimmed)) {
+      setDraft("");
+      return;
+    }
+    onChange([...value, trimmed]);
+    setDraft("");
+  };
+
+  const remove = (column: string) => {
+    onChange(value.filter((c) => c !== column));
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {value.map((column) => (
+        <span
+          key={column}
+          className="inline-flex items-center gap-1 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-mono text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+        >
+          {column}
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={() => remove(column)}
+              aria-label={removeAriaTemplate(column)}
+              className="rounded p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+            >
+              <HugeiconsIcon
+                icon={Cancel01Icon}
+                className="h-2 w-2"
+                size="100%"
+              />
+            </button>
+          )}
+        </span>
+      ))}
+      {!readOnly && (
+        <span className="inline-flex items-center gap-1">
+          <input
+            type="text"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commit(draft);
+              }
+            }}
+            placeholder={addLabel}
+            list={availableColumns ? datalistId : undefined}
+            className="w-24 rounded border border-dashed border-zinc-300 bg-transparent px-1.5 py-0.5 text-[10px] outline-none focus:border-violet-300 dark:border-zinc-700"
+          />
+          {availableColumns && (
+            <datalist id={datalistId}>
+              {availableColumns.map((col) => (
+                <option key={col} value={col} />
+              ))}
+            </datalist>
+          )}
+          <button
+            type="button"
+            onClick={() => commit(draft)}
+            disabled={!draft.trim()}
+            className="rounded p-0.5 text-muted-foreground hover:bg-zinc-100 hover:text-violet-600 disabled:opacity-50 dark:hover:bg-zinc-800"
+          >
+            <HugeiconsIcon
+              icon={PlusSignIcon}
+              className="h-2.5 w-2.5"
+              size="100%"
+            />
+          </button>
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Layout helpers
+// ---------------------------------------------------------------------------
+
+const inputClass =
+  "rounded border border-zinc-200 bg-transparent px-2 py-1 text-[11px] outline-none focus:border-violet-300 disabled:opacity-60 dark:border-zinc-700";
+
+function Field({
+  label,
+  required,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {label}
+        {required && <span className="ml-0.5 text-rose-500">*</span>}
+      </span>
+      {children}
+    </label>
+  );
+}
+
+function FormGrid({ children }: { children: React.ReactNode }) {
+  return <div className="grid grid-cols-2 gap-3">{children}</div>;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function indexByPropertyId(
+  mappings: readonly PropertyMappingDef[],
+): Map<string, PropertyMappingDef> {
+  const map = new Map<string, PropertyMappingDef>();
+  for (const m of mappings) map.set(m.property_id, m);
+  return map;
+}
+
+function extractColumn(location: PropertyLocation): string {
+  switch (location.kind) {
+    case "column":
+      return location.column;
+    case "json_path":
+      return location.path;
+  }
+}

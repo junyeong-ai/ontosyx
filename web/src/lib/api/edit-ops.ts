@@ -196,8 +196,14 @@ export type RuleDef = {
   valid_to?: string | null;
 };
 
-export type ObjectMappingDef = Record<string, unknown>;
-export type LinkMappingDef = Record<string, unknown>;
+export type ObjectMappingDef = components["schemas"]["ObjectMappingDef"];
+export type LinkMappingDef = components["schemas"]["LinkMappingDef"];
+export type PropertyMappingDef = components["schemas"]["PropertyMappingDef"];
+export type PropertyLocation = components["schemas"]["PropertyLocation"];
+export type PropertyTransform = components["schemas"]["PropertyTransform"];
+export type ColumnRef = components["schemas"]["ColumnRef"];
+export type SourceRelationKind = components["schemas"]["SourceRelationKind"];
+export type CacheHintKind = components["schemas"]["CacheHintKind"];
 
 export type PropertyOwnerPath =
   | { kind: "node"; type_id: string }
