@@ -17,6 +17,7 @@ use ox_ontology::source_analysis::DesignOptions;
 use ox_runtime::profiler;
 use ox_source::analyzer::build_design_context;
 
+use super::helpers::artifact::persist_design_artifact;
 use super::helpers::{
     LlmInputContext, assess_quality_from_project, assess_quality_from_project_with_mapping,
     build_llm_input, build_refinement_context, build_source_schema_summary, enforce_design_gates,
@@ -100,7 +101,7 @@ pub(crate) async fn design_project(
     // written before Phase 0 ran (older rows surface via migration
     // backfill but the format stays identical).
     let source_id = ox_ontology::mapping::SourceId::new(project.source_id.clone());
-    let ontology = tokio::time::timeout(
+    let design_output = tokio::time::timeout(
         timeout,
         state.brain.design_ontology(&ox_brain::DesignOntologyInput::bare(
             &sample_data,
@@ -123,12 +124,32 @@ pub(crate) async fn design_project(
     })?
     .map_err(AppError::from)?;
 
+    let ox_brain::DesignOntologyOutput { ontology, attribution } = design_output;
+
     let design_duration_ms = design_started.elapsed().as_millis() as i64;
     info!(
         project_id = %id,
         design_ms = design_duration_ms,
         "LLM design completed"
     );
+
+    // Author the source-to-IR mapping artifact when the project has a
+    // structured source schema. Text-only sources skip artifact
+    // creation — there's no schema snapshot to anchor the hash.
+    if let Some(schema_value) = project.source_schema.as_ref()
+        && let Ok(schema) =
+            serde_json::from_value::<ox_core::source_schema::SourceSchema>(schema_value.clone())
+    {
+        persist_design_artifact(
+            std::sync::Arc::clone(&state.store),
+            &ontology,
+            &source_id,
+            &schema,
+            attribution,
+            principal.id.clone(),
+        )
+        .await;
+    }
 
     // Record metering (fire-and-forget)
     {

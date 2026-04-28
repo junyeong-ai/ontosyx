@@ -21,7 +21,7 @@ pub mod schema_rag;
 #[cfg(any(test, feature = "test-helpers"))]
 pub mod test_support;
 
-pub use design::DesignOntologyInput;
+pub use design::{DesignAttribution, DesignOntologyInput, DesignOntologyOutput};
 
 use async_trait::async_trait;
 use std::collections::HashMap;
@@ -145,10 +145,17 @@ pub trait OntologyDesigner: Send + Sync {
     /// the returned IR with the canonical source identity so
     /// federation plans, provenance, and plan-cache keys stay
     /// consistent with the DesignProject the caller is operating on.
+    ///
+    /// Returns the produced [`OntologyIR`] paired with a
+    /// [`DesignAttribution`] capturing the prompt id + version and
+    /// resolved model id used. The caller threads attribution into
+    /// the [`SourceMappingArtifact`](ox_ontology::source_mapping::SourceMappingArtifact)
+    /// it persists for this design action — atomic provenance, no
+    /// post-hoc lookup race.
     async fn design_ontology(
         &self,
         input: &DesignOntologyInput<'_>,
-    ) -> OxResult<OntologyIR>;
+    ) -> OxResult<DesignOntologyOutput>;
 
     /// Design a partial ontology for a batch of tables (divide-and-conquer pipeline).
     /// Returns raw `InputOntologyDef` (not normalized) for later merging —
@@ -162,6 +169,23 @@ pub trait OntologyDesigner: Send + Sync {
         existing_nodes: &str,
         cross_fks: &str,
     ) -> OxResult<ox_ontology::input::InputOntologyDef>;
+
+    /// Resolve the [`DesignAttribution`] that *would* be used for a
+    /// fresh call to a named prompt + operation right now. Used by
+    /// the divide-and-conquer batch path: every cluster shares the
+    /// same prompt + model resolution, so the API layer captures
+    /// attribution once at the top of the loop and uses it for every
+    /// per-batch artifact.
+    ///
+    /// `prompt_name` is the prompt-template name (e.g.
+    /// `design_ontology_batch`). `operation` is the routing key the
+    /// model resolver consults — typically the same as `prompt_name`
+    /// but kept separate to mirror the underlying call shape.
+    async fn design_attribution_for_operation(
+        &self,
+        prompt_name: &str,
+        operation: &str,
+    ) -> OxResult<DesignAttribution>;
 
     /// Generate missing cross-domain edges for uncovered FK relationships.
     /// Returns edge definitions to be appended to the merged InputIR.
@@ -421,7 +445,7 @@ impl OntologyDesigner for DefaultBrain {
     async fn design_ontology(
         &self,
         input: &DesignOntologyInput<'_>,
-    ) -> OxResult<OntologyIR> {
+    ) -> OxResult<DesignOntologyOutput> {
         // Render every domain-context slice into a compact prompt
         // section. Empty slices produce empty strings so the prompt
         // collapses without conditional template syntax — no
@@ -450,6 +474,15 @@ impl OntologyDesigner for DefaultBrain {
             "Designing ontology from sample data + domain context",
         );
 
+        // Capture attribution from the registry + resolver alongside
+        // the LLM call so the two are atomic — no post-hoc lookup
+        // can drift behind a model-config change that lands between
+        // the design call and the artifact author step.
+        let prompt_version = self
+            .prompts
+            .checked_for("design_ontology", "1.0.0")?
+            .version
+            .clone();
         let llm_output: design::LlmDesignOutput = self
             .call_structured(
                 "design_ontology",
@@ -459,6 +492,13 @@ impl OntologyDesigner for DefaultBrain {
                 "Designing ontology from sample data",
             )
             .await?;
+        let resolved = self.model_resolver.resolve("design_ontology").await?;
+        let attribution = DesignAttribution::new(
+            "design_ontology",
+            prompt_version,
+            resolved.model_id,
+        );
+
         let raw_input = design::into_input_ontology(llm_output);
 
         let norm_result =
@@ -484,7 +524,21 @@ impl OntologyDesigner for DefaultBrain {
             });
         }
 
-        Ok(ontology)
+        Ok(DesignOntologyOutput { ontology, attribution })
+    }
+
+    async fn design_attribution_for_operation(
+        &self,
+        prompt_name: &str,
+        operation: &str,
+    ) -> OxResult<DesignAttribution> {
+        let prompt_version = self.prompts.get(prompt_name)?.version.clone();
+        let resolved = self.model_resolver.resolve(operation).await?;
+        Ok(DesignAttribution::new(
+            prompt_name,
+            prompt_version,
+            resolved.model_id,
+        ))
     }
 
     async fn design_ontology_batch(

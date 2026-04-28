@@ -15,12 +15,14 @@ use crate::error::AppError;
 use crate::principal::Principal;
 use crate::state::AppState;
 use crate::validation::validate_ontology_input;
+use ox_brain::{DesignAttribution, DesignOntologyOutput};
 use ox_ontology::design_project::{DesignProjectStatus, SourceConfig};
 use ox_ontology::ir::OntologyIR;
 use ox_ontology::source_analysis::DesignOptions;
 use ox_runtime::profiler;
 use ox_source::analyzer::build_design_context;
 
+use super::helpers::artifact::persist_design_artifact;
 use super::helpers::{
     LlmInputContext, assess_quality_from_project, assess_quality_from_project_with_mapping,
     build_batch_llm_input, build_llm_input, build_refinement_context, build_source_schema_summary,
@@ -165,7 +167,7 @@ pub(crate) async fn design_project_stream(
         // produced by normalization so the IR alone is a complete mapping.
         let source_id = ox_ontology::mapping::SourceId::new(project.source_id.clone());
 
-        let design_result: Result<OntologyIR, ox_core::OxError> = if !use_batch {
+        let design_result: Result<DesignOntologyOutput, ox_core::OxError> = if !use_batch {
             // === Text source path (no schema to cluster) ===
             let sample_data = {
                 let ctx = LlmInputContext::from_project(&project);
@@ -218,6 +220,33 @@ pub(crate) async fn design_project_stream(
             }
         } else if let Some((raw_schema, raw_profile)) = schema_and_profile.as_ref() {
             // === Divide-and-conquer path (structured sources) ===
+            //
+            // Capture attribution once at the top of the batch loop:
+            // every cluster shares the same prompt + model resolution
+            // (the routing rule is keyed on the operation name, not
+            // the cluster), so a single lookup covers every emission.
+            // The batch path runs `design_ontology_batch` instructions
+            // — record that as the prompt id even though the model
+            // routing key is `design_ontology` (rules cascade by
+            // operation, not by template).
+            let batch_attribution: DesignAttribution = match state
+                .brain
+                .design_attribution_for_operation(
+                    "design_ontology_batch",
+                    "design_ontology",
+                )
+                .await
+            {
+                Ok(a) => a,
+                Err(e) => {
+                    yield Ok(Event::default().event("error").data(
+                        sse_error("design_error", &format!(
+                            "Failed to resolve design attribution: {e}"
+                        ))
+                    ));
+                    return;
+                }
+            };
 
             let mut schema = raw_schema.clone();
             let mut profile = raw_profile.clone();
@@ -517,7 +546,10 @@ pub(crate) async fn design_project_stream(
                             ),
                         })
                     } else {
-                        Ok(nr.ontology)
+                        Ok(DesignOntologyOutput {
+                            ontology: nr.ontology,
+                            attribution: batch_attribution.clone(),
+                        })
                     }
                 }
                 Err(errors) => Err(ox_core::OxError::Ontology {
@@ -536,7 +568,7 @@ pub(crate) async fn design_project_stream(
             })
         };
 
-        let mut ontology = match design_result {
+        let DesignOntologyOutput { mut ontology, attribution } = match design_result {
             Ok(result) => result,
             Err(e) => {
                 yield Ok(Event::default().event("error").data(
@@ -566,6 +598,27 @@ pub(crate) async fn design_project_stream(
                     "Applied PII annotations to ontology properties"
                 );
             }
+        }
+
+        // Author the source-to-IR mapping artifact for this design run.
+        // Hash pivots on the schema we just designed against — the post-
+        // exclusion schema, which is what the LLM actually saw. A future
+        // re-run with the same operator decisions hashes to the same
+        // value and the store collapses to a single row.
+        //
+        // Text sources skip artifact creation: no SourceSchema = no
+        // structural mapping decisions to record. The provenance for
+        // text designs lives in audit + ontology metadata instead.
+        if let Some(schema_for_artifact) = schema_and_profile.as_ref().map(|(s, _)| s.clone()) {
+            persist_design_artifact(
+                std::sync::Arc::clone(&state.store),
+                &ontology,
+                &source_id,
+                &schema_for_artifact,
+                attribution,
+                principal.id.clone(),
+            )
+            .await;
         }
 
         yield Ok(Event::default().event("phase").data(

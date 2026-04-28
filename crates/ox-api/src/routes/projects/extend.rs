@@ -11,6 +11,8 @@ use ox_ontology::mapping::SourceId;
 use ox_core::source_schema::{SourceProfile, SourceSchema};
 use ox_source::analyzer::build_design_context;
 
+use super::helpers::artifact::persist_design_artifact;
+
 use crate::error::AppError;
 use crate::principal::Principal;
 use crate::response::ApiResponse;
@@ -182,7 +184,7 @@ pub(crate) async fn extend_project(
         ambiguity_hints: &[],
         existing_ontology: Some(&existing_ontology),
     };
-    let new_ontology = tokio::time::timeout(
+    let design_output = tokio::time::timeout(
         timeout,
         state.brain.design_ontology(&design_input),
     )
@@ -201,6 +203,8 @@ pub(crate) async fn extend_project(
     })?
     .map_err(AppError::from)?;
 
+    let ox_brain::DesignOntologyOutput { ontology: new_ontology, attribution } = design_output;
+
     info!(
         project_id = %id,
         design_ms = design_started.elapsed().as_millis() as u64,
@@ -208,6 +212,21 @@ pub(crate) async fn extend_project(
         new_edges = new_ontology.edge_types().len(),
         "LLM extension design completed"
     );
+
+    // Author the source-to-IR mapping artifact for the new source.
+    // Captures the LLM's per-property and per-edge decisions against
+    // the schema hash so a future replay can short-circuit re-prompt.
+    if let Some(schema) = new_source_schema.as_ref() {
+        persist_design_artifact(
+            std::sync::Arc::clone(&state.store),
+            &new_ontology,
+            &new_source_id,
+            schema,
+            attribution,
+            principal.id.clone(),
+        )
+        .await;
+    }
 
     // 5. Reconcile: merge new ontology with existing (preserves existing IDs).
     //    ObjectMappingDef entries on both sides carry distinct

@@ -1,3 +1,4 @@
+pub(crate) mod artifact;
 mod decisions;
 mod fingerprint;
 mod llm;

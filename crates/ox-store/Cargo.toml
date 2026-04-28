@@ -24,6 +24,7 @@ rand = "0.8"
 
 [dev-dependencies]
 ox-compiler = { workspace = true }
+ox-ontology = { workspace = true, features = ["test-fixtures"] }
 
 [lints]
 workspace = true

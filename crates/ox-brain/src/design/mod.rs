@@ -13,10 +13,12 @@
 //! string. Empty slices produce empty strings so the prompt template
 //! collapses naturally without conditional template syntax.
 
+pub mod attribution;
 pub mod format;
 pub mod input;
 pub mod llm_output;
 
+pub use attribution::{DesignAttribution, DesignOntologyOutput};
 pub use format::{
     render_ambiguity_section, render_code_systems_section, render_existing_ontology_section,
     render_glossary_section,

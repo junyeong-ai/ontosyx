@@ -12,6 +12,77 @@ pub struct SourceSchema {
     pub foreign_keys: Vec<ForeignKeyDef>,
 }
 
+impl SourceSchema {
+    /// Stable SHA-256 hash of the schema's structural shape — table /
+    /// column / FK identity. Independent of declaration order: tables
+    /// are sorted by name, columns by name, FKs by their canonical
+    /// tuple before hashing, so two introspection runs against the
+    /// same physical source yield the same hash even if the adapter
+    /// returned the rows in a different order.
+    ///
+    /// The hash explicitly does **not** cover sample values or row
+    /// counts — those vary across re-runs without being a schema
+    /// change. This is what `SourceMappingArtifact.schema_snapshot_hash`
+    /// pivots on: same hash ⇒ design action can replay the previous
+    /// artifact instead of re-prompting the LLM.
+    pub fn canonical_hash(&self) -> String {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(self.source_type.as_bytes());
+        hasher.update(b"\x1f");
+
+        let mut tables: Vec<&SourceTableDef> = self.tables.iter().collect();
+        tables.sort_by(|a, b| a.name.cmp(&b.name));
+        for table in tables {
+            hasher.update(table.name.as_bytes());
+            hasher.update(b"\x1e");
+
+            let mut cols: Vec<&SourceColumnDef> = table.columns.iter().collect();
+            cols.sort_by(|a, b| a.name.cmp(&b.name));
+            for col in cols {
+                hasher.update(col.name.as_bytes());
+                hasher.update(b"\x1d");
+                hasher.update(col.data_type.as_bytes());
+                hasher.update(b"\x1d");
+                hasher.update([col.nullable as u8]);
+                hasher.update(b"\x1d");
+            }
+            hasher.update(b"\x1e");
+
+            let mut pks: Vec<&String> = table.primary_key.iter().collect();
+            pks.sort();
+            for pk in pks {
+                hasher.update(pk.as_bytes());
+                hasher.update(b"\x1d");
+            }
+            hasher.update(b"\x1f");
+        }
+
+        let mut fks: Vec<&ForeignKeyDef> = self.foreign_keys.iter().collect();
+        fks.sort_by(|a, b| {
+            a.from_table
+                .cmp(&b.from_table)
+                .then_with(|| a.from_column.cmp(&b.from_column))
+                .then_with(|| a.to_table.cmp(&b.to_table))
+                .then_with(|| a.to_column.cmp(&b.to_column))
+        });
+        for fk in fks {
+            hasher.update(fk.from_table.as_bytes());
+            hasher.update(b"\x1d");
+            hasher.update(fk.from_column.as_bytes());
+            hasher.update(b"\x1d");
+            hasher.update(fk.to_table.as_bytes());
+            hasher.update(b"\x1d");
+            hasher.update(fk.to_column.as_bytes());
+            hasher.update(b"\x1d");
+            hasher.update([fk.inferred as u8]);
+            hasher.update(b"\x1e");
+        }
+
+        format!("{:x}", hasher.finalize())
+    }
+}
+
 /// Lightweight metadata for one table — meant for **selection UIs**
 /// where the user picks which subset of a source to introspect. Adapters
 /// produce this from cheap backend statistics so listing 1000 tables
@@ -425,5 +496,141 @@ mod tests {
             SchemaFingerprint::from_table(&no_pk).hash,
             SchemaFingerprint::from_table(&with_pk).hash,
         );
+    }
+
+    fn schema(tables: Vec<SourceTableDef>, fks: Vec<ForeignKeyDef>) -> SourceSchema {
+        SourceSchema {
+            source_type: "postgresql".into(),
+            tables,
+            foreign_keys: fks,
+        }
+    }
+
+    #[test]
+    fn canonical_hash_is_stable_across_recomputation() {
+        let s = schema(
+            vec![table("users", vec![col("id", "uuid", false)], vec!["id"])],
+            vec![],
+        );
+        assert_eq!(s.canonical_hash(), s.canonical_hash());
+        assert_eq!(s.canonical_hash().len(), 64);
+    }
+
+    #[test]
+    fn canonical_hash_ignores_table_declaration_order() {
+        let a = schema(
+            vec![
+                table("orders", vec![col("id", "uuid", false)], vec!["id"]),
+                table("customers", vec![col("id", "uuid", false)], vec!["id"]),
+            ],
+            vec![],
+        );
+        let b = schema(
+            vec![
+                table("customers", vec![col("id", "uuid", false)], vec!["id"]),
+                table("orders", vec![col("id", "uuid", false)], vec!["id"]),
+            ],
+            vec![],
+        );
+        assert_eq!(a.canonical_hash(), b.canonical_hash());
+    }
+
+    #[test]
+    fn canonical_hash_ignores_column_declaration_order() {
+        let a = schema(
+            vec![table(
+                "users",
+                vec![col("a", "int", false), col("b", "text", false)],
+                vec![],
+            )],
+            vec![],
+        );
+        let b = schema(
+            vec![table(
+                "users",
+                vec![col("b", "text", false), col("a", "int", false)],
+                vec![],
+            )],
+            vec![],
+        );
+        assert_eq!(a.canonical_hash(), b.canonical_hash());
+    }
+
+    #[test]
+    fn canonical_hash_changes_when_column_added() {
+        let a = schema(
+            vec![table("users", vec![col("id", "uuid", false)], vec!["id"])],
+            vec![],
+        );
+        let b = schema(
+            vec![table(
+                "users",
+                vec![col("id", "uuid", false), col("email", "text", true)],
+                vec!["id"],
+            )],
+            vec![],
+        );
+        assert_ne!(a.canonical_hash(), b.canonical_hash());
+    }
+
+    #[test]
+    fn canonical_hash_changes_when_data_type_changes() {
+        let a = schema(
+            vec![table("users", vec![col("id", "uuid", false)], vec!["id"])],
+            vec![],
+        );
+        let b = schema(
+            vec![table("users", vec![col("id", "bigint", false)], vec!["id"])],
+            vec![],
+        );
+        assert_ne!(a.canonical_hash(), b.canonical_hash());
+    }
+
+    #[test]
+    fn canonical_hash_changes_when_fk_added() {
+        let bare = schema(
+            vec![
+                table("orders", vec![col("customer_id", "uuid", false)], vec![]),
+                table("customers", vec![col("id", "uuid", false)], vec!["id"]),
+            ],
+            vec![],
+        );
+        let with_fk = schema(
+            bare.tables.clone(),
+            vec![ForeignKeyDef {
+                from_table: "orders".into(),
+                from_column: "customer_id".into(),
+                to_table: "customers".into(),
+                to_column: "id".into(),
+                inferred: false,
+            }],
+        );
+        assert_ne!(bare.canonical_hash(), with_fk.canonical_hash());
+    }
+
+    #[test]
+    fn canonical_hash_ignores_fk_declaration_order() {
+        let tables = vec![
+            table("a", vec![col("id", "uuid", false)], vec!["id"]),
+            table("b", vec![col("id", "uuid", false)], vec!["id"]),
+            table("c", vec![col("id", "uuid", false)], vec!["id"]),
+        ];
+        let fk1 = ForeignKeyDef {
+            from_table: "a".into(),
+            from_column: "id".into(),
+            to_table: "b".into(),
+            to_column: "id".into(),
+            inferred: false,
+        };
+        let fk2 = ForeignKeyDef {
+            from_table: "b".into(),
+            from_column: "id".into(),
+            to_table: "c".into(),
+            to_column: "id".into(),
+            inferred: false,
+        };
+        let one = schema(tables.clone(), vec![fk1.clone(), fk2.clone()]);
+        let two = schema(tables.clone(), vec![fk2, fk1]);
+        assert_eq!(one.canonical_hash(), two.canonical_hash());
     }
 }
