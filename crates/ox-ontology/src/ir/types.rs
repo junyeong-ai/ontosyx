@@ -161,6 +161,19 @@ pub struct NodeTypeDef {
     /// query time.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub rules: Vec<crate::action::RuleId>,
+
+    /// Glossary terms this node type realises. Direct
+    /// `Concept ↔ Class` semantic anchor — the SKOS-style equivalent
+    /// of `PropertyBinding::Glossary` lifted to the type level. When
+    /// the SKOS exporter walks the IR, every anchor here emits a
+    /// `skos:exactMatch` between the type's URI and the glossary
+    /// concept; admin UI renders the bound terms as a "realises"
+    /// chip on the node detail surface. Multiple anchors are
+    /// allowed (one term may concretise into several types — and
+    /// vice versa). The IR validator rejects anchors that don't
+    /// resolve in `OntologyIR::glossary`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub glossary_anchors: Vec<crate::glossary::GlossaryTermId>,
 }
 
 /// Type-safe reference to the owner of a property — node or edge.
@@ -280,6 +293,7 @@ impl Default for NodeTypeDef {
             actions: Vec::new(),
             metrics: Vec::new(),
             rules: Vec::new(),
+            glossary_anchors: Vec::new(),
         }
     }
 }
@@ -343,6 +357,14 @@ pub struct EdgeTypeDef {
     /// [`EdgeKind::Association`] for plain semantic links.
     #[serde(default)]
     pub kind: EdgeKind,
+
+    /// Glossary terms this edge type realises. Same semantic anchor
+    /// surface as [`NodeTypeDef::glossary_anchors`] — `Concept ↔
+    /// Relationship` SKOS link emitted as `skos:exactMatch` by the
+    /// glossary exporter and rendered as a "realises" chip in the
+    /// inspector. Validator rejects unresolved ids.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub glossary_anchors: Vec<crate::glossary::GlossaryTermId>,
 }
 
 /// UML / OMG-aligned edge classification.
@@ -404,6 +426,7 @@ impl Default for EdgeTypeDef {
             deprecated_at: None,
             replaced_by_id: None,
             kind: EdgeKind::Association,
+            glossary_anchors: Vec::new(),
         }
     }
 }

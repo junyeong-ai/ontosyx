@@ -143,6 +143,62 @@ pub fn generate_glossary_skos(ontology: &OntologyIR) -> String {
         out.push('\n');
     }
 
+    // ---- Type-level realisations --------------------------------
+    // NodeType / EdgeType `glossary_anchors` lift the `Concept ↔
+    // Class/Property` SKOS link to the type tier so a downstream
+    // catalogue can navigate from a business concept directly to
+    // every concrete type that realises it. Emit each anchor as a
+    // `skos:exactMatch` between the type's URI and the concept,
+    // which is what TopBraid EDG / Stardog Designer consume when
+    // they overlay glossary onto class diagrams.
+    let type_ns = format!(
+        "http://ontosyx.io/ontology/{}",
+        uri_encode(&ontology.name),
+    );
+    let mut wrote_any_realisation = false;
+    for node in ontology.node_types() {
+        if node.glossary_anchors.is_empty() {
+            continue;
+        }
+        if !wrote_any_realisation {
+            out.push_str("# ---- Type realisations ----\n");
+            wrote_any_realisation = true;
+        }
+        out.push_str(&format!(
+            "<{type_ns}/node/{}>\n",
+            uri_encode(node.label.as_str()),
+        ));
+        for term_id in &node.glossary_anchors {
+            out.push_str(&format!(
+                "    skos:exactMatch :{} ;\n",
+                local_name(term_id.as_str()),
+            ));
+        }
+        finalise_block(&mut out);
+        out.push('\n');
+    }
+    for edge in ontology.edge_types() {
+        if edge.glossary_anchors.is_empty() {
+            continue;
+        }
+        if !wrote_any_realisation {
+            out.push_str("# ---- Type realisations ----\n");
+            wrote_any_realisation = true;
+        }
+        out.push_str(&format!(
+            "<{type_ns}/edge/{}>\n",
+            uri_encode(edge.label.as_str()),
+        ));
+        for term_id in &edge.glossary_anchors {
+            out.push_str(&format!(
+                "    skos:exactMatch :{} ;\n",
+                local_name(term_id.as_str()),
+            ));
+        }
+        finalise_block(&mut out);
+        out.push('\n');
+    }
+
     out
 }
 

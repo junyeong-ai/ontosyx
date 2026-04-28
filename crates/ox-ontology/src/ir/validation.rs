@@ -510,6 +510,20 @@ impl OntologyIR {
                 );
             }
 
+            for term_id in &edge.glossary_anchors {
+                if !self.lookup.glossary_term_id_idx.contains_key(term_id) {
+                    errors.push(
+                        diag("ontology.validate.edge.unknown_glossary_anchor")
+                            .with("label", label)
+                            .with("glossary_term_id", term_id.as_str())
+                            .message(format!(
+                                "Edge '{}' anchors unknown glossary term id '{}'",
+                                edge.label, term_id
+                            )),
+                    );
+                }
+            }
+
             if !seen_node_ids.contains::<str>(&edge.source_node_id) {
                 errors.push(
                     diag("ontology.validate.edge.unknown_source_node_id")
@@ -593,6 +607,19 @@ impl OntologyIR {
                             .message(format!(
                                 "Node '{}' references unknown rule id '{}'",
                                 node.label, rule_id
+                            )),
+                    );
+                }
+            }
+            for term_id in &node.glossary_anchors {
+                if !self.lookup.glossary_term_id_idx.contains_key(term_id) {
+                    errors.push(
+                        diag("ontology.validate.node.unknown_glossary_anchor")
+                            .with("node_label", node.label.as_str())
+                            .with("glossary_term_id", term_id.as_str())
+                            .message(format!(
+                                "Node '{}' anchors unknown glossary term id '{}'",
+                                node.label, term_id
                             )),
                     );
                 }
@@ -1370,6 +1397,23 @@ mod tests {
                 .iter()
                 .any(|e| e.code == "ontology.validate.property.mapping_without_binding"),
             "Identifier role must be implicit exemption: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn validate_rejects_unknown_glossary_anchor_on_node() {
+        let mut ontology = base_ontology();
+        ontology.node_types[0]
+            .glossary_anchors
+            .push(crate::glossary::GlossaryTermId::new("gt-nonexistent"));
+
+        let errors = ontology.validate();
+
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.node.unknown_glossary_anchor"),
+            "expected unknown_glossary_anchor diagnostic: {errors:?}"
         );
     }
 
