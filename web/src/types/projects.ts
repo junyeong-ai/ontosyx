@@ -520,7 +520,24 @@ export interface ColumnStats {
   sample_values: string[];
   min_value?: string;
   max_value?: string;
+  /**
+   * Set when sample collection flagged this column as likely PII by
+   * name heuristic and dropped raw values. The FE renders a
+   * "Redacted: <kind>" badge in place of the distribution detail.
+   */
+  pii_redacted?: PiiSuspectKind | null;
 }
+
+export type PiiSuspectKind =
+  | { kind: "email" }
+  | { kind: "phone" }
+  | { kind: "name" }
+  | { kind: "address" }
+  | { kind: "national_id" }
+  | { kind: "payment_card" }
+  | { kind: "password" }
+  | { kind: "token" }
+  | { kind: "other"; value: string };
 
 export interface TableProfile {
   table_name: string;

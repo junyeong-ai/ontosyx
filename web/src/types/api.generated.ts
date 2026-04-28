@@ -1489,6 +1489,38 @@ export interface components {
             items: components["schemas"]["AuditRecord"][];
             next_cursor?: string | null;
         };
+        /**
+         * @description Reason a property opts out of the "physical mapping must carry a
+         *     semantic binding" rule. Treating this as an enum (rather than a
+         *     boolean flag) forces authors to name the case so a future audit
+         *     can ask "is this exemption still valid?" without reading commit
+         *     history.
+         *
+         *     Most properties do not need an exemption — values that travel
+         *     without semantic meaning are the bug the binding rule is meant
+         *     to catch. The variants below cover the legitimate cases the
+         *     platform has identified; `Custom` is the open-ended escape for
+         *     schemes the catalogue has not yet promoted to a first-class
+         *     reason.
+         */
+        BindingExemptReason: {
+            /** @enum {string} */
+            kind: "primary_key";
+        } | {
+            /** @enum {string} */
+            kind: "audit_timestamp";
+        } | {
+            /** @enum {string} */
+            kind: "opaque_identifier";
+        } | {
+            /** @enum {string} */
+            kind: "custom";
+            /**
+             * @description Operator-supplied reason for cases not covered above.
+             *     Surfaces verbatim in admin tooling — keep it short.
+             */
+            value: string;
+        };
         BindingPolicyBody: {
             /** Format: float */
             fuzzy_min_ratio?: number | null;
@@ -1799,11 +1831,24 @@ export interface components {
             column_name: string;
             /** Format: int64 */
             distinct_count: number;
+            /** @description Largest observed value. Same redaction policy as `min_value`. */
             max_value?: string | null;
+            /**
+             * @description Smallest observed value in the column. Suppressed when
+             *     `pii_redacted` is set so the bounds don't disclose
+             *     real-world ranges (date of birth, salary, etc.).
+             */
             min_value?: string | null;
             /** Format: int64 */
             null_count: number;
-            /** @description Up to 30 distinct values. Empty if too many distinct values. */
+            pii_redacted?: null | components["schemas"]["PiiSuspectKind"];
+            /**
+             * @description Up to 30 distinct values. Empty when distinct count is too
+             *     high *or* when the column is flagged PII-suspect — raw values
+             *     are dropped at collection time so they never enter the
+             *     `SourceProfile` payload that downstream consumers (admin UI,
+             *     LLM context, audit log) eventually surface.
+             */
             sample_values: string[];
         };
         CompilePatternRequest: {
@@ -2347,6 +2392,14 @@ export interface components {
             description?: components["schemas"]["LocalizedText"];
             /** @description Localized display name shown in the UI. */
             display_name?: components["schemas"]["LocalizedText"];
+            /**
+             * @description Glossary terms this edge type realises. Same semantic anchor
+             *     surface as [`NodeTypeDef::glossary_anchors`] — `Concept ↔
+             *     Relationship` SKOS link emitted as `skos:exactMatch` by the
+             *     glossary exporter and rendered as a "realises" chip in the
+             *     inspector. Validator rejects unresolved ids.
+             */
+            glossary_anchors?: components["schemas"]["GlossaryTermId"][];
             /** @description Stable UUID for this edge type. */
             id: components["schemas"]["EdgeTypeId"];
             inverse_of?: null | components["schemas"]["EdgeTypeId"];
@@ -3157,6 +3210,19 @@ export interface components {
              *     typically fall back to `label` when the display name is empty.
              */
             display_name?: components["schemas"]["LocalizedText"];
+            /**
+             * @description Glossary terms this node type realises. Direct
+             *     `Concept ↔ Class` semantic anchor — the SKOS-style equivalent
+             *     of `PropertyBinding::Glossary` lifted to the type level. When
+             *     the SKOS exporter walks the IR, every anchor here emits a
+             *     `skos:exactMatch` between the type's URI and the glossary
+             *     concept; admin UI renders the bound terms as a "realises"
+             *     chip on the node detail surface. Multiple anchors are
+             *     allowed (one term may concretise into several types — and
+             *     vice versa). The IR validator rejects anchors that don't
+             *     resolve in `OntologyIR::glossary`.
+             */
+            glossary_anchors?: components["schemas"]["GlossaryTermId"][];
             governance?: null | components["schemas"]["Governance"];
             /** @description Stable UUID for this node type. */
             id: components["schemas"]["NodeTypeId"];
@@ -3403,6 +3469,15 @@ export interface components {
             /** @description Localized human-readable description of the ontology. */
             description?: components["schemas"]["LocalizedText"];
             /**
+             * @description Locale-aware human label. Empty by default; consumers fall
+             *     back to `name` when no display string is set in the active
+             *     chain. Routes the same `LocalizedText` shape every other
+             *     user-facing field uses, so admin UI and LLM prompt context
+             *     can render the workspace's `admin_locale_fallback` /
+             *     `llm_locale_fallback` chains uniformly.
+             */
+            display_name?: components["schemas"]["LocalizedText"];
+            /**
              * @description All edge types (relationships) in this ontology. See
              *     [`OntologyIR::edge_types`] / [`OntologyIR::add_edge_type`].
              */
@@ -3426,9 +3501,12 @@ export interface components {
             link_mappings?: components["schemas"]["LinkMappingDef"][];
             metrics?: components["schemas"]["MetricDef"][];
             /**
-             * @description Human-readable name (e.g. "E-commerce Ontology"). Single canonical
-             *     string; for localized display use the workspace's ontology catalog
-             *     layer rather than embedding locale variants into the identifier.
+             * @description Canonical short identifier. Used as the URI fragment in OWL /
+             *     SHACL exports, as the workspace-scoped uniqueness key in the
+             *     store layer, and as the lineage-stable handle external systems
+             *     reference. Single language by design — the locale-aware human
+             *     label is `display_name`. Mirrors Foundry's `apiName` /
+             *     Stardog's database identifier.
              */
             name: string;
             /**
@@ -3632,6 +3710,44 @@ export interface components {
              * @description Caller-supplied PII scheme name for anything the platform has not
              *     predefined. Still treated as PII for audit and masking purposes.
              */
+            value: string;
+        };
+        /**
+         * @description Heuristic PII pattern detected by name at sample-collection time.
+         *
+         *     Mirrors the high-confidence subset of `ox_ontology::PiiKind` so
+         *     the FE can render a "Redacted: <kind>" badge without round-
+         *     tripping the user-confirmed annotation. Open extension via
+         *     [`PiiSuspectKind::Other`] for catalogues that want to flag a
+         *     custom pattern without adding a first-class variant.
+         */
+        PiiSuspectKind: {
+            /** @enum {string} */
+            kind: "email";
+        } | {
+            /** @enum {string} */
+            kind: "phone";
+        } | {
+            /** @enum {string} */
+            kind: "name";
+        } | {
+            /** @enum {string} */
+            kind: "address";
+        } | {
+            /** @enum {string} */
+            kind: "national_id";
+        } | {
+            /** @enum {string} */
+            kind: "payment_card";
+        } | {
+            /** @enum {string} */
+            kind: "password";
+        } | {
+            /** @enum {string} */
+            kind: "token";
+        } | {
+            /** @enum {string} */
+            kind: "other";
             value: string;
         };
         /** @description Pinboard item — a saved query result. */
@@ -3924,6 +4040,7 @@ export interface components {
              *     property key is still the compile target.
              */
             aliases?: components["schemas"]["LocalizedText"][];
+            binding_exempt?: null | components["schemas"]["BindingExemptReason"];
             bindings?: components["schemas"]["PropertyBinding"][];
             /**
              * @description Free-form business-context note (e.g. "extracted from legacy

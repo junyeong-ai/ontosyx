@@ -289,7 +289,9 @@
     "sourceSample": {
       "title": "{table} · 약 {rowCount}행",
       "noSamples": "이 테이블에서 수집된 샘플이 없습니다.",
-      "distribution": "고유값 {distinct} / NULL {nulls}"
+      "distribution": "고유값 {distinct} / NULL {nulls}",
+      "piiRedactedBadge": "마스킹: {kind}",
+      "piiRedactedTooltip": "컬럼명이 PII 휴리스틱과 일치 — 샘플 수집 단계에서 원본 값이 제거되었습니다."
     }
   },
   "common": {

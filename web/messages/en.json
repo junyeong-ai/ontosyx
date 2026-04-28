@@ -307,7 +307,9 @@
     "sourceSample": {
       "title": "{table} · ~{rowCount} rows",
       "noSamples": "No samples collected from this table.",
-      "distribution": "{distinct} distinct / {nulls} null"
+      "distribution": "{distinct} distinct / {nulls} null",
+      "piiRedactedBadge": "Redacted: {kind}",
+      "piiRedactedTooltip": "Column name matched a PII heuristic — raw values were dropped at sample-collection time."
     }
   },
   "common": {

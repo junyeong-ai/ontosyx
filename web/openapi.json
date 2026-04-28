@@ -5836,6 +5836,76 @@
           }
         }
       },
+      "BindingExemptReason": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Primary or composite key column. Identity is its meaning;\nno value-set / glossary anchor adds information.",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "primary_key"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "`created_at` / `updated_at` / `deleted_at` and similar\naudit timestamps. The timestamp itself is the meaning.",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "audit_timestamp"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Free-form identifier whose value space is open by design\n(UUIDs, opaque external ids, surrogate refs).",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "opaque_identifier"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Operator-supplied reason for cases not covered above.\nSurfaces verbatim in admin tooling — keep it short.",
+            "required": [
+              "value",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "custom"
+                ]
+              },
+              "value": {
+                "type": "string",
+                "description": "Operator-supplied reason for cases not covered above.\nSurfaces verbatim in admin tooling — keep it short."
+              }
+            }
+          }
+        ],
+        "description": "Reason a property opts out of the \"physical mapping must carry a\nsemantic binding\" rule. Treating this as an enum (rather than a\nboolean flag) forces authors to name the case so a future audit\ncan ask \"is this exemption still valid?\" without reading commit\nhistory.\n\nMost properties do not need an exemption — values that travel\nwithout semantic meaning are the bug the binding rule is meant\nto catch. The variants below cover the legitimate cases the\nplatform has identified; `Custom` is the open-ended escape for\nschemes the catalogue has not yet promoted to a first-class\nreason."
+      },
       "BindingPolicyBody": {
         "type": "object",
         "properties": {
@@ -6357,25 +6427,38 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Largest observed value. Same redaction policy as `min_value`."
           },
           "min_value": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Smallest observed value in the column. Suppressed when\n`pii_redacted` is set so the bounds don't disclose\nreal-world ranges (date of birth, salary, etc.)."
           },
           "null_count": {
             "type": "integer",
             "format": "int64",
             "minimum": 0
           },
+          "pii_redacted": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PiiSuspectKind",
+                "description": "`Some(kind)` when a heuristic flagged the column name as\nlikely PII at collection time and the analyzer dropped raw\nvalues to keep them out of `SourceProfile`. The user later\nconfirms or overrides through the admin UI's PII suggestion\nflow; the confirmed `PiiKind` lives on `PropertyDef::pii_kind`,\nindependent of this collection-time hint."
+              }
+            ]
+          },
           "sample_values": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "Up to 30 distinct values. Empty if too many distinct values."
+            "description": "Up to 30 distinct values. Empty when distinct count is too\nhigh *or* when the column is flagged PII-suspect — raw values\nare dropped at collection time so they never enter the\n`SourceProfile` payload that downstream consumers (admin UI,\nLLM context, audit log) eventually surface."
           }
         }
       },
@@ -7540,6 +7623,13 @@
           "display_name": {
             "$ref": "#/components/schemas/LocalizedText",
             "description": "Localized display name shown in the UI."
+          },
+          "glossary_anchors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GlossaryTermId"
+            },
+            "description": "Glossary terms this edge type realises. Same semantic anchor\nsurface as [`NodeTypeDef::glossary_anchors`] — `Concept ↔\nRelationship` SKOS link emitted as `skos:exactMatch` by the\nglossary exporter and rendered as a \"realises\" chip in the\ninspector. Validator rejects unresolved ids."
           },
           "id": {
             "$ref": "#/components/schemas/EdgeTypeId",
@@ -9267,6 +9357,13 @@
             "$ref": "#/components/schemas/LocalizedText",
             "description": "Localized display name shown in the UI. Defaults to empty; consumers\ntypically fall back to `label` when the display name is empty."
           },
+          "glossary_anchors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GlossaryTermId"
+            },
+            "description": "Glossary terms this node type realises. Direct\n`Concept ↔ Class` semantic anchor — the SKOS-style equivalent\nof `PropertyBinding::Glossary` lifted to the type level. When\nthe SKOS exporter walks the IR, every anchor here emits a\n`skos:exactMatch` between the type's URI and the glossary\nconcept; admin UI renders the bound terms as a \"realises\"\nchip on the node detail surface. Multiple anchors are\nallowed (one term may concretise into several types — and\nvice versa). The IR validator rejects anchors that don't\nresolve in `OntologyIR::glossary`."
+          },
           "governance": {
             "oneOf": [
               {
@@ -9714,6 +9811,10 @@
             "$ref": "#/components/schemas/LocalizedText",
             "description": "Localized human-readable description of the ontology."
           },
+          "display_name": {
+            "$ref": "#/components/schemas/LocalizedText",
+            "description": "Locale-aware human label. Empty by default; consumers fall\nback to `name` when no display string is set in the active\nchain. Routes the same `LocalizedText` shape every other\nuser-facing field uses, so admin UI and LLM prompt context\ncan render the workspace's `admin_locale_fallback` /\n`llm_locale_fallback` chains uniformly."
+          },
           "edge_types": {
             "type": "array",
             "items": {
@@ -9771,7 +9872,7 @@
           },
           "name": {
             "type": "string",
-            "description": "Human-readable name (e.g. \"E-commerce Ontology\"). Single canonical\nstring; for localized display use the workspace's ontology catalog\nlayer rather than embedding locale variants into the identifier."
+            "description": "Canonical short identifier. Used as the URI fragment in OWL /\nSHACL exports, as the workspace-scoped uniqueness key in the\nstore layer, and as the lineage-stable handle external systems\nreference. Single language by design — the locale-aware human\nlabel is `display_name`. Mirrors Foundry's `apiName` /\nStardog's database identifier."
           },
           "node_types": {
             "type": "array",
@@ -10328,6 +10429,141 @@
           }
         ],
         "description": "PII (Personally Identifiable Information) classification.\nSet explicitly by the user via UI confirmation, never auto-assigned.\n\nCovers the union of GDPR Article 4(1), HIPAA Safe Harbor identifiers,\nPCI DSS cardholder data, and ICAO / national-identity schemes. `NationalId`\nis parameterised by ISO 3166-1 alpha-2 country code so country-specific\nschemes (KR RRN, US SSN, JP My Number, etc.) stay distinguishable in\ndownstream masking rules. `Custom` is the escape hatch for schemes the\nplatform has not anticipated — still tracked as PII for audit purposes."
+      },
+      "PiiSuspectKind": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "email"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "phone"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "name"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "address"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "national_id"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "payment_card"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "password"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "token"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "value",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "other"
+                ]
+              },
+              "value": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "description": "Heuristic PII pattern detected by name at sample-collection time.\n\nMirrors the high-confidence subset of `ox_ontology::PiiKind` so\nthe FE can render a \"Redacted: <kind>\" badge without round-\ntripping the user-confirmed annotation. Open extension via\n[`PiiSuspectKind::Other`] for catalogues that want to flag a\ncustom pattern without adding a first-class variant."
       },
       "PinboardItem": {
         "type": "object",
@@ -11138,6 +11374,17 @@
               "$ref": "#/components/schemas/LocalizedText"
             },
             "description": "Localized alternate names used for synonym-aware UI search\nand for LLM prompts that normalise arbitrary user phrasing\nonto the property. Not required to be Cypher-safe — the\nproperty key is still the compile target."
+          },
+          "binding_exempt": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BindingExemptReason",
+                "description": "Why this property does not need a semantic binding even\nthough it carries a physical mapping (`source_column` set or\nreferenced from a `PropertyMappingDef`). When `None`, the IR\nvalidator emits a diagnostic for any source-mapped property\nwith an empty `bindings` list — the platform's contract is\nthat materialised values must travel with their meaning.\nSet this to a [`BindingExemptReason`] to opt out for the\nnarrow legitimate cases (primary keys, audit timestamps,\nraw identifiers, etc.)."
+              }
+            ]
           },
           "bindings": {
             "type": "array",

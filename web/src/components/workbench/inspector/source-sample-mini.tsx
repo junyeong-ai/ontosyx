@@ -126,7 +126,10 @@ export function SourceSampleMini({ tableName }: Props) {
 
       {/* Per-column distribution summary — distinct + null counts let
           the operator spot a near-key column or a high-null one
-          without leaving the inspector. */}
+          without leaving the inspector. PII-suspect columns surface
+          a "Redacted" badge in place of the distribution detail so
+          the operator sees both that the column was flagged and
+          that no raw values entered the profile. */}
       <ul className="border-t border-zinc-100 px-2 py-1 dark:border-zinc-800">
         {stats.map((c) => (
           <li
@@ -136,12 +139,23 @@ export function SourceSampleMini({ tableName }: Props) {
             <span className="font-mono text-zinc-600 dark:text-zinc-400">
               {c.column_name}
             </span>
-            <span className="text-muted-foreground">
-              {t("distribution", {
-                distinct: c.distinct_count.toLocaleString(),
-                nulls: c.null_count.toLocaleString(),
-              })}
-            </span>
+            {c.pii_redacted ? (
+              <span
+                className="rounded bg-rose-50 px-1.5 py-0.5 font-medium text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
+                title={t("piiRedactedTooltip")}
+              >
+                {t("piiRedactedBadge", {
+                  kind: c.pii_redacted.kind,
+                })}
+              </span>
+            ) : (
+              <span className="text-muted-foreground">
+                {t("distribution", {
+                  distinct: c.distinct_count.toLocaleString(),
+                  nulls: c.null_count.toLocaleString(),
+                })}
+              </span>
+            )}
           </li>
         ))}
       </ul>
