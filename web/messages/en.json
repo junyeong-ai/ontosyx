@@ -2719,6 +2719,51 @@
     }
   },
   "workbench": {
+    "types": {
+      "detail": {
+        "backToCanvas": "Back to canvas",
+        "validateCompleteness": "Validate completeness",
+        "noOntology": "No active ontology. Enter design mode and pick a project first.",
+        "nodeNotFound": "No node type matched id `{id}`.",
+        "sections": {
+          "definition": {
+            "title": "Definition",
+            "subtitle": "Identifier, description, and glossary anchors for this concept",
+            "placeholder": "Subsequent commits wire GlossaryAnchorPicker + inline label/description editors here."
+          },
+          "properties": {
+            "title": "Properties",
+            "subtitle": "Properties this node type carries",
+            "placeholder": "Subsequent commits reuse the inspector's PropertyRow + AddPropertyForm here."
+          },
+          "samples": {
+            "title": "Sample rows",
+            "subtitle": "Live preview from the source table (Design ↔ Live feedback)",
+            "placeholder": "Subsequent commits embed SourceSampleMini here."
+          },
+          "constraints": {
+            "title": "Constraints",
+            "subtitle": "Unique / Exists / NodeKey structural constraints",
+            "placeholder": "Subsequent commits reuse the constraint-form from settings/vocabulary here."
+          },
+          "mappings": {
+            "title": "Mappings",
+            "subtitle": "1:1 or multi-mapping to physical relations",
+            "placeholder": "Subsequent commits embed InlineObjectMappingEditor here."
+          },
+          "lineage": {
+            "title": "Lineage",
+            "subtitle": "What this concept references / what depends on it",
+            "placeholder": "Subsequent commits wire LineageTree + useEntityDependencies here."
+          },
+          "changelog": {
+            "title": "Change log",
+            "subtitle": "Audit trail — who changed what, when",
+            "placeholder": "Subsequent commits wire useAuditTrail + a timeline renderer here."
+          }
+        }
+      }
+    },
     "explore": {
       "facet": {
         "title": "Explore facets",
