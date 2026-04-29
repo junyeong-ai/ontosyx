@@ -255,6 +255,28 @@ fn ox_error_status(err: &OxError) -> (StatusCode, &'static str) {
     }
 }
 
+/// Stable redacted message returned to clients on 5xx errors. ADR-0045:
+/// internal driver / wrapper text (sqlx SQLSTATE prose, neo4rs frame
+/// dumps, file path prefixes from `OxError::Contextual`) must never
+/// reach response bodies. The full text is kept on the server side
+/// via `tracing::error!`; clients correlate via the `x-request-id`
+/// response header set by the request-id middleware.
+fn redacted_5xx_message(error_type: &'static str) -> &'static str {
+    match error_type {
+        "missing_context" => {
+            "Server configuration error. Contact support with the \
+             request id from the x-request-id response header."
+        }
+        "unsupported" => {
+            "This operation is not supported by the configured backend."
+        }
+        _ => {
+            "Internal server error. Contact support with the request \
+             id from the x-request-id response header."
+        }
+    }
+}
+
 impl From<OxError> for AppError {
     fn from(err: OxError) -> Self {
         // Contextual wraps another OxError; delegate to inner source for status mapping
@@ -263,10 +285,27 @@ impl From<OxError> for AppError {
             OxError::Contextual { source, .. } => ox_error_status(source),
             other => ox_error_status(other),
         };
+
+        let message = if status.is_server_error() {
+            // ADR-0045: Log the verbose form server-side at `error`
+            // level — operators get the full driver text + Contextual
+            // chain for diagnosis. The wire response carries only a
+            // stable string; correlation is via x-request-id.
+            tracing::error!(
+                error_type,
+                status = status.as_u16(),
+                error = %err,
+                "5xx response"
+            );
+            redacted_5xx_message(error_type).to_string()
+        } else {
+            err.to_string()
+        };
+
         Self {
             status,
             error_type,
-            message: err.to_string(),
+            message,
             details: None,
             headers: None,
         }
@@ -289,5 +328,88 @@ impl IntoResponse for AppError {
             response.headers_mut().extend(*headers);
         }
         response
+    }
+}
+
+#[cfg(test)]
+mod redaction_tests {
+    use super::*;
+
+    /// 5xx bodies must never carry driver text or Contextual prefixes.
+    /// Tripping this assertion means a future change re-leaked internal
+    /// detail through the response body — see ADR-0045.
+    #[test]
+    fn runtime_5xx_redacts_driver_text_from_message() {
+        let leaky = OxError::Runtime {
+            message: "PostgreSQL error [42P01]: relation \"foo\" does not exist \
+                      at /Users/dev/.cargo/registry/src/sqlx-core-0.8.0/src/error.rs:42"
+                .to_string(),
+        };
+        let app_err: AppError = leaky.into();
+        assert_eq!(app_err.status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert!(
+            !app_err.message.contains("PostgreSQL"),
+            "redacted message must drop driver name"
+        );
+        assert!(
+            !app_err.message.contains("/Users/"),
+            "redacted message must drop filesystem paths"
+        );
+        assert!(
+            !app_err.message.contains("42P01"),
+            "redacted message must drop SQLSTATE codes"
+        );
+        assert!(
+            app_err.message.contains("x-request-id"),
+            "redacted message must point clients at the correlation header"
+        );
+    }
+
+    #[test]
+    fn missing_context_5xx_uses_distinct_redacted_message() {
+        let err = OxError::MissingContext {
+            kind: "workspace".to_string(),
+            message: "internal: forgot to wrap with WORKSPACE_ID.scope".to_string(),
+        };
+        let app_err: AppError = err.into();
+        assert_eq!(app_err.status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(app_err.error_type, "missing_context");
+        assert!(
+            !app_err.message.contains("WORKSPACE_ID"),
+            "redacted message must drop internal symbol names"
+        );
+        assert!(app_err.message.contains("Server configuration error"));
+    }
+
+    #[test]
+    fn validation_4xx_keeps_full_message() {
+        let err = OxError::Validation {
+            field: "email".to_string(),
+            message: "must contain '@'".to_string(),
+        };
+        let app_err: AppError = err.into();
+        assert_eq!(app_err.status, StatusCode::BAD_REQUEST);
+        // 4xx is the user's fault — keep the precise message so the
+        // client can fix the request without spelunking server logs.
+        assert!(app_err.message.contains("email"));
+        assert!(app_err.message.contains("@"));
+    }
+
+    #[test]
+    fn contextual_wrapping_a_runtime_still_redacts_at_5xx() {
+        let inner = OxError::Runtime {
+            message: "neo4rs: bolt frame oversized at handshake".to_string(),
+        };
+        let wrapped = inner.with_context("graph:neo4j", "graph_runtime::execute");
+        let app_err: AppError = wrapped.into();
+        assert_eq!(app_err.status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert!(
+            !app_err.message.contains("neo4rs"),
+            "Contextual must not bypass the redaction wrapper"
+        );
+        assert!(
+            !app_err.message.contains("graph_runtime"),
+            "Contextual prefix must not reach the body"
+        );
     }
 }
