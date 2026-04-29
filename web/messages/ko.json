@@ -3040,6 +3040,7 @@
         "failedBadge": "실패",
         "reviewBadge": "검토 필요",
         "viewInResults": "결과 패널에서 보기",
+        "compiledCypherLabel": "실행된 Cypher",
         "hitl": {
           "description": "이 도구는 실행 전 승인이 필요합니다.",
           "approve": "승인",

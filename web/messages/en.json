@@ -3054,6 +3054,7 @@
         "failedBadge": "failed",
         "reviewBadge": "review required",
         "viewInResults": "View in Results panel",
+        "compiledCypherLabel": "Cypher executed",
         "hitl": {
           "description": "This tool requires your approval before execution.",
           "approve": "Approve",

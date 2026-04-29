@@ -132,6 +132,23 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
         )}
       </div>
 
+      {/* ADR-0056 — Inline cypher attribution. Surfaces the
+          compiled query the runtime actually executed so operators
+          read "what ran?" without expanding the technical-details
+          dropdown. Available to every authenticated user (admin
+          gating only protected the noisy execution metadata). */}
+      {parsedResult?.compiledCypher && (
+        <div className="border-t border-emerald-200/30 px-3 py-2 dark:border-emerald-800/20">
+          <div className="mb-1 flex items-center gap-1.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+            <span>{t("compiledCypherLabel")}</span>
+            <CopyButton text={parsedResult.compiledCypher} variant="inline" />
+          </div>
+          <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded bg-zinc-50 p-2 font-mono text-[10px] leading-relaxed text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+            {parsedResult.compiledCypher}
+          </pre>
+        </div>
+      )}
+
       {/* Sub-step progress: expanded during execution, collapsed after completion */}
       {isRunning && toolCall.steps && toolCall.steps.length > 0 && (
         <div className="border-t border-emerald-200/30 px-3 py-2 space-y-1 dark:border-emerald-800/20">
@@ -283,6 +300,12 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
 interface ParsedToolResult {
   summary: string;
   widget?: { spec: WidgetSpec; data: QueryResult };
+  /** ADR-0056 — compiled Cypher the runtime executed for this
+   *  tool call. Surfaces inline so operators see "what query was
+   *  actually run?" without expanding the technical-details
+   *  details dropdown (which is admin-only and intentionally
+   *  noisy with execution metadata). */
+  compiledCypher?: string;
 }
 
 type ToolCallTranslator = ReturnType<typeof useTranslations<"workbench.chat.toolCall">>;
@@ -303,10 +326,19 @@ function tryParseToolResult(
       const data: QueryResult = normalizeQueryResult(parsed) ?? { columns, rows: [] };
       const specColumns = columns.map((c: string) => ({ key: c, label: c }));
       const spec: WidgetSpec = { columns: specColumns, widget_type: "auto" };
+      // ADR-0056 — surface the compiled Cypher so the chat
+      // bubble can render "Cypher executed:" inline. The agent
+      // emits it on every successful query_graph tool result;
+      // older tools that didn't may pass `undefined`.
+      const compiledCypher =
+        typeof parsed.compiled_query === "string" && parsed.compiled_query.length > 0
+          ? (parsed.compiled_query as string)
+          : undefined;
 
       return {
         summary: t("summary.queryRowsColumns", { rows: rowCount, columns: columns.length }),
         widget: rowCount > 0 ? { spec, data } : undefined,
+        compiledCypher,
       };
     }
 
