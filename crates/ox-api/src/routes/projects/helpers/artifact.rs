@@ -1,33 +1,19 @@
-//! Helpers that translate brain-side
-//! [`DesignAttribution`](ox_brain::DesignAttribution) into a
-//! persisted [`SourceMappingArtifact`](ox_ontology::source_mapping::SourceMappingArtifact).
+//! Single writer for [`SourceMappingArtifact`] persistence at the
+//! tail of every LLM-driven design action.
 //!
-//! Every LLM-driven design action ends here: the route handler runs
-//! the LLM, takes the resulting `(ontology, attribution)` pair, and
-//! calls [`persist_design_artifact`] to durably record the
-//! source-to-IR mapping that the call produced. The artifact store is
+//! Route handlers run the LLM, get back the produced
+//! [`OntologyIR`] paired with the call's
+//! [`ArtifactProvenance`], and call [`persist_design_artifact`] to
+//! durably record the source-to-IR mapping. The artifact store is
 //! content-addressed — a re-run of the same design call against an
 //! unchanged schema collapses to a single row instead of duplicating.
 
-use ox_brain::DesignAttribution;
 use ox_core::source_schema::SourceSchema;
 use ox_ontology::ir::OntologyIR;
 use ox_ontology::mapping::SourceId;
 use ox_ontology::source_mapping::{ArtifactProvenance, SourceMappingArtifact};
 use ox_store::SourceMappingArtifactStore;
 use tracing::{info, warn};
-
-/// Translate a brain-side attribution into the artifact-side
-/// provenance envelope. Same fields, different home crate — kept as
-/// distinct types so `ox-ontology` does not depend on `ox-brain`.
-fn provenance_from_attribution(attribution: DesignAttribution) -> ArtifactProvenance {
-    ArtifactProvenance {
-        prompt_id: attribution.prompt_id,
-        prompt_version: attribution.prompt_version,
-        model_id: attribution.model_id,
-        params: attribution.params,
-    }
-}
 
 /// Author and persist a [`SourceMappingArtifact`] for a freshly-
 /// designed ontology. Idempotent on a repeat call with identical
@@ -49,7 +35,7 @@ pub(crate) async fn persist_design_artifact<S>(
     ontology: &OntologyIR,
     source_id: &SourceId,
     schema: &SourceSchema,
-    attribution: DesignAttribution,
+    provenance: ArtifactProvenance,
     created_by: impl Into<String>,
 ) where
     S: SourceMappingArtifactStore + ?Sized,
@@ -58,7 +44,7 @@ pub(crate) async fn persist_design_artifact<S>(
         ontology,
         source_id,
         schema,
-        provenance_from_attribution(attribution),
+        provenance,
         created_by,
     );
     let artifact_id = artifact.id.clone();

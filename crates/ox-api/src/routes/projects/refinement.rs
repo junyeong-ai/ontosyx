@@ -124,7 +124,7 @@ pub(crate) async fn design_project(
     })?
     .map_err(AppError::from)?;
 
-    let ox_brain::DesignOntologyOutput { ontology, attribution } = design_output;
+    let ox_brain::DesignOntologyOutput { ontology, provenance } = design_output;
 
     let design_duration_ms = design_started.elapsed().as_millis() as i64;
     info!(
@@ -145,7 +145,7 @@ pub(crate) async fn design_project(
             &ontology,
             &source_id,
             &schema,
-            attribution,
+            provenance,
             principal.id.clone(),
         )
         .await;

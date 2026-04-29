@@ -364,6 +364,32 @@ mod tests {
     }
 
     #[test]
+    fn content_hash_is_pinned_against_fixture() {
+        // Pinned hash protects against silent drift: any change to
+        // `ContentBody`'s field order, serde rename, or to a nested
+        // type's `Serialize` impl shifts this value and the test
+        // fails loudly. When that happens, intentionally update the
+        // expected hash AND publish a migration note for any
+        // dependent stores that compared against persisted rows.
+        //
+        // Computed once against the canonical `fixture()` body
+        // (1 property mapping, no edges, no open questions, fixed
+        // provenance, fixed created_at). When an intentional change
+        // to `ContentBody` or one of its nested types' `Serialize`
+        // impl lands, this assertion fails — recompute the expected
+        // value and publish a migration note for any dependent
+        // stores that compared against persisted rows.
+        const PINNED_HASH: &str =
+            "759cd9203503dd46e490f2040cbd1f712087c56f6b17cecf805aba6cfd963937";
+        assert_eq!(
+            fixture().content_hash(),
+            PINNED_HASH,
+            "content_hash drift detected — investigate ContentBody field \
+             order, serde renames, or nested-type Serialize changes"
+        );
+    }
+
+    #[test]
     fn content_hash_changes_when_property_mappings_change() {
         let a = fixture();
         let mut b = a.clone();

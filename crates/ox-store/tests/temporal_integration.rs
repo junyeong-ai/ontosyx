@@ -59,9 +59,15 @@ fn resolve_test_db_url() -> Option<String> {
 }
 
 async fn connect_store() -> Option<PostgresStore> {
+    // env-var unset is the only legitimate "skip" condition. Any
+    // other failure (connect / migrate) is a real defect — surface
+    // it via .expect() instead of silent-skipping into a vacuous
+    // "ok" report. See `feedback_test_silent_skip_pattern.md`.
     let url = resolve_test_db_url()?;
-    let store = PostgresStore::connect(&url, 4).await.ok()?;
-    store.migrate().await.ok()?;
+    let store = PostgresStore::connect(&url, 4)
+        .await
+        .expect("connect to test DB");
+    store.migrate().await.expect("apply migrations");
     Some(store)
 }
 

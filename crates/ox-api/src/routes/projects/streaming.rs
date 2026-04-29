@@ -15,7 +15,8 @@ use crate::error::AppError;
 use crate::principal::Principal;
 use crate::state::AppState;
 use crate::validation::validate_ontology_input;
-use ox_brain::{DesignAttribution, DesignOntologyOutput};
+use ox_brain::DesignOntologyOutput;
+use ox_ontology::source_mapping::ArtifactProvenance;
 use ox_ontology::design_project::{DesignProjectStatus, SourceConfig};
 use ox_ontology::ir::OntologyIR;
 use ox_ontology::source_analysis::DesignOptions;
@@ -230,7 +231,7 @@ pub(crate) async fn design_project_stream(
         } else if let Some((raw_schema, raw_profile)) = schema_and_profile.as_ref() {
             // === Divide-and-conquer path (structured sources) ===
             //
-            // Capture attribution once at the top of the batch loop:
+            // Capture provenance once at the top of the batch loop:
             // every cluster shares the same prompt + model resolution
             // (the routing rule is keyed on the operation name, not
             // the cluster), so a single lookup covers every emission.
@@ -238,9 +239,9 @@ pub(crate) async fn design_project_stream(
             // — record that as the prompt id even though the model
             // routing key is `design_ontology` (rules cascade by
             // operation, not by template).
-            let batch_attribution: DesignAttribution = match state
+            let batch_provenance: ArtifactProvenance = match state
                 .brain
-                .design_attribution_for_operation(
+                .resolve_design_provenance(
                     "design_ontology_batch",
                     "design_ontology",
                 )
@@ -250,7 +251,7 @@ pub(crate) async fn design_project_stream(
                 Err(e) => {
                     yield Ok(Event::default().event("error").data(
                         sse_error("design_error", &format!(
-                            "Failed to resolve design attribution: {e}"
+                            "Failed to resolve design provenance: {e}"
                         ))
                     ));
                     return;
@@ -557,7 +558,7 @@ pub(crate) async fn design_project_stream(
                     } else {
                         Ok(DesignOntologyOutput {
                             ontology: nr.ontology,
-                            attribution: batch_attribution.clone(),
+                            provenance: batch_provenance.clone(),
                         })
                     }
                 }
@@ -577,7 +578,7 @@ pub(crate) async fn design_project_stream(
             })
         };
 
-        let DesignOntologyOutput { mut ontology, attribution } = match design_result {
+        let DesignOntologyOutput { mut ontology, provenance } = match design_result {
             Ok(result) => result,
             Err(e) => {
                 yield Ok(Event::default().event("error").data(
@@ -624,7 +625,7 @@ pub(crate) async fn design_project_stream(
                 &ontology,
                 &source_id,
                 &schema_for_artifact,
-                attribution,
+                provenance,
                 principal.id.clone(),
             )
             .await;

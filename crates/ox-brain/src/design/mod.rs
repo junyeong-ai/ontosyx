@@ -18,7 +18,7 @@ pub mod format;
 pub mod input;
 pub mod llm_output;
 
-pub use attribution::{DesignAttribution, DesignOntologyOutput};
+pub use attribution::DesignOntologyOutput;
 pub use format::{
     render_ambiguity_section, render_code_systems_section, render_existing_ontology_section,
     render_glossary_section,

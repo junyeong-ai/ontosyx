@@ -203,7 +203,7 @@ pub(crate) async fn extend_project(
     })?
     .map_err(AppError::from)?;
 
-    let ox_brain::DesignOntologyOutput { ontology: new_ontology, attribution } = design_output;
+    let ox_brain::DesignOntologyOutput { ontology: new_ontology, provenance } = design_output;
 
     info!(
         project_id = %id,
@@ -222,7 +222,7 @@ pub(crate) async fn extend_project(
             &new_ontology,
             &new_source_id,
             schema,
-            attribution,
+            provenance,
             principal.id.clone(),
         )
         .await;

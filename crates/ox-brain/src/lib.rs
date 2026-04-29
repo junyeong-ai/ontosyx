@@ -21,7 +21,7 @@ pub mod schema_rag;
 #[cfg(any(test, feature = "test-helpers"))]
 pub mod test_support;
 
-pub use design::{DesignAttribution, DesignOntologyInput, DesignOntologyOutput};
+pub use design::{DesignOntologyInput, DesignOntologyOutput};
 
 use async_trait::async_trait;
 use std::collections::HashMap;
@@ -146,12 +146,14 @@ pub trait OntologyDesigner: Send + Sync {
     /// federation plans, provenance, and plan-cache keys stay
     /// consistent with the DesignProject the caller is operating on.
     ///
-    /// Returns the produced [`OntologyIR`] paired with a
-    /// [`DesignAttribution`] capturing the prompt id + version and
-    /// resolved model id used. The caller threads attribution into
-    /// the [`SourceMappingArtifact`](ox_ontology::source_mapping::SourceMappingArtifact)
-    /// it persists for this design action — atomic provenance, no
-    /// post-hoc lookup race.
+    /// Returns the produced [`OntologyIR`] paired with the
+    /// [`ArtifactProvenance`](ox_ontology::source_mapping::ArtifactProvenance)
+    /// envelope (prompt id + version + resolved model id + replay
+    /// params) that authored it. The caller threads the provenance
+    /// straight into the
+    /// [`SourceMappingArtifact`](ox_ontology::source_mapping::SourceMappingArtifact)
+    /// it persists for this design action — atomic, no post-hoc
+    /// lookup race against a concurrent model-config update.
     async fn design_ontology(
         &self,
         input: &DesignOntologyInput<'_>,
@@ -170,22 +172,19 @@ pub trait OntologyDesigner: Send + Sync {
         cross_fks: &str,
     ) -> OxResult<ox_ontology::input::InputOntologyDef>;
 
-    /// Resolve the [`DesignAttribution`] that *would* be used for a
-    /// fresh call to a named prompt + operation right now. Used by
-    /// the divide-and-conquer batch path: every cluster shares the
-    /// same prompt + model resolution, so the API layer captures
-    /// attribution once at the top of the loop and uses it for every
-    /// per-batch artifact.
-    ///
-    /// `prompt_name` is the prompt-template name (e.g.
-    /// `design_ontology_batch`). `operation` is the routing key the
-    /// model resolver consults — typically the same as `prompt_name`
-    /// but kept separate to mirror the underlying call shape.
-    async fn design_attribution_for_operation(
+    /// Resolve the
+    /// [`ArtifactProvenance`](ox_ontology::source_mapping::ArtifactProvenance)
+    /// that *would* be authored against a named prompt + operation
+    /// right now. The divide-and-conquer batch path captures
+    /// provenance once at the top of the loop (every cluster shares
+    /// one prompt + model resolution) and reuses it for the merged-
+    /// IR artifact. Naming mirrors `resolve_cross_edges` — both are
+    /// derive-from-current-state, no LLM call.
+    async fn resolve_design_provenance(
         &self,
         prompt_name: &str,
         operation: &str,
-    ) -> OxResult<DesignAttribution>;
+    ) -> OxResult<ox_ontology::source_mapping::ArtifactProvenance>;
 
     /// Generate missing cross-domain edges for uncovered FK relationships.
     /// Returns edge definitions to be appended to the merged InputIR.
@@ -398,8 +397,9 @@ impl DefaultBrain {
         Ok((client, resolved))
     }
 
-    /// Core LLM call: resolve model via operation name, load prompt template,
-    /// render variables, call structured_completion with prompt caching.
+    /// Core LLM call: resolve model via operation name, load prompt
+    /// template, render variables, call `structured_completion` with
+    /// prompt caching.
     async fn call_structured<T: serde::de::DeserializeOwned + schemars::JsonSchema>(
         &self,
         prompt_name: &str,
@@ -408,6 +408,29 @@ impl DefaultBrain {
         vars: &HashMap<&str, &str>,
         log_message: &str,
     ) -> OxResult<T> {
+        let (parsed, _) = self
+            .call_structured_traced(prompt_name, min_version, operation, vars, log_message)
+            .await?;
+        Ok(parsed)
+    }
+
+    /// Same as [`Self::call_structured`] but additionally returns a
+    /// [`CallProvenance`] capturing the exact prompt + model the
+    /// call ran against. Callers that need provenance for downstream
+    /// artifact authoring (e.g., `design_ontology` → `ArtifactProvenance`)
+    /// use this method directly — single registry / resolver round-trip,
+    /// no post-hoc lookup that could drift behind a concurrent
+    /// model-config update.
+    async fn call_structured_traced<
+        T: serde::de::DeserializeOwned + schemars::JsonSchema,
+    >(
+        &self,
+        prompt_name: &str,
+        min_version: Option<&str>,
+        operation: &str,
+        vars: &HashMap<&str, &str>,
+        log_message: &str,
+    ) -> OxResult<(T, CallProvenance)> {
         let tmpl = match min_version {
             Some(v) => self.prompts.checked_for(prompt_name, v)?,
             None => self.prompts.get(prompt_name)?,
@@ -415,6 +438,9 @@ impl DefaultBrain {
         let user_prompt = tmpl.render_user(vars);
 
         let (client, resolved) = self.resolve_for_operation(operation).await?;
+        let effective_max_tokens = resolved.max_tokens.unwrap_or(tmpl.max_tokens);
+        let effective_temperature = resolved.temperature.or(tmpl.temperature);
+
         info!(
             model = %resolved.model_id,
             operation,
@@ -422,15 +448,60 @@ impl DefaultBrain {
             "{log_message}"
         );
 
-        structured_completion(
+        let parsed = structured_completion(
             client.as_ref(),
             &resolved.model_id,
             &tmpl.system,
             &user_prompt,
-            resolved.max_tokens.unwrap_or(tmpl.max_tokens),
-            resolved.temperature.or(tmpl.temperature),
+            effective_max_tokens,
+            effective_temperature,
         )
-        .await
+        .await?;
+
+        Ok((
+            parsed,
+            CallProvenance {
+                prompt_id: prompt_name.to_string(),
+                prompt_version: tmpl.version.clone(),
+                model_id: resolved.model_id,
+                max_tokens: effective_max_tokens,
+                temperature: effective_temperature,
+            },
+        ))
+    }
+}
+
+/// Concrete record of one `structured_completion` invocation —
+/// everything a downstream consumer needs to attribute the call,
+/// replay it, or diff it against another. Folds into
+/// [`ox_ontology::source_mapping::ArtifactProvenance`] via
+/// [`CallProvenance::into_artifact_provenance`].
+#[derive(Debug, Clone)]
+pub struct CallProvenance {
+    pub prompt_id: String,
+    pub prompt_version: String,
+    pub model_id: String,
+    pub max_tokens: u32,
+    pub temperature: Option<f32>,
+}
+
+impl CallProvenance {
+    /// Project into the artifact-side envelope. Numeric knobs land
+    /// in `params` so a future replay can reconstruct the call
+    /// shape without a parallel mapping table.
+    pub fn into_artifact_provenance(self) -> ox_ontology::source_mapping::ArtifactProvenance {
+        let mut params: std::collections::BTreeMap<String, serde_json::Value> =
+            std::collections::BTreeMap::new();
+        params.insert("max_tokens".into(), serde_json::Value::from(self.max_tokens));
+        if let Some(t) = self.temperature {
+            params.insert("temperature".into(), serde_json::Value::from(t));
+        }
+        ox_ontology::source_mapping::ArtifactProvenance {
+            prompt_id: self.prompt_id,
+            prompt_version: self.prompt_version,
+            model_id: self.model_id,
+            params,
+        }
     }
 }
 
@@ -474,17 +545,13 @@ impl OntologyDesigner for DefaultBrain {
             "Designing ontology from sample data + domain context",
         );
 
-        // Capture attribution from the registry + resolver alongside
-        // the LLM call so the two are atomic — no post-hoc lookup
-        // can drift behind a model-config change that lands between
-        // the design call and the artifact author step.
-        let prompt_version = self
-            .prompts
-            .checked_for("design_ontology", "1.0.0")?
-            .version
-            .clone();
-        let llm_output: design::LlmDesignOutput = self
-            .call_structured(
+        // `call_structured_traced` returns the parsed output plus
+        // the call's `CallProvenance` — single registry + resolver
+        // round-trip, no post-hoc lookup that could drift behind a
+        // concurrent admin update. The provenance folds straight
+        // into the artifact-side envelope.
+        let (llm_output, call): (design::LlmDesignOutput, _) = self
+            .call_structured_traced(
                 "design_ontology",
                 Some("1.0.0"),
                 "design_ontology",
@@ -492,12 +559,7 @@ impl OntologyDesigner for DefaultBrain {
                 "Designing ontology from sample data",
             )
             .await?;
-        let resolved = self.model_resolver.resolve("design_ontology").await?;
-        let attribution = DesignAttribution::new(
-            "design_ontology",
-            prompt_version,
-            resolved.model_id,
-        );
+        let provenance = call.into_artifact_provenance();
 
         let raw_input = design::into_input_ontology(llm_output);
 
@@ -524,21 +586,26 @@ impl OntologyDesigner for DefaultBrain {
             });
         }
 
-        Ok(DesignOntologyOutput { ontology, attribution })
+        Ok(DesignOntologyOutput { ontology, provenance })
     }
 
-    async fn design_attribution_for_operation(
+    async fn resolve_design_provenance(
         &self,
         prompt_name: &str,
         operation: &str,
-    ) -> OxResult<DesignAttribution> {
-        let prompt_version = self.prompts.get(prompt_name)?.version.clone();
+    ) -> OxResult<ox_ontology::source_mapping::ArtifactProvenance> {
+        let tmpl = self.prompts.get(prompt_name)?;
         let resolved = self.model_resolver.resolve(operation).await?;
-        Ok(DesignAttribution::new(
-            prompt_name,
-            prompt_version,
-            resolved.model_id,
-        ))
+        let max_tokens = resolved.max_tokens.unwrap_or(tmpl.max_tokens);
+        let temperature = resolved.temperature.or(tmpl.temperature);
+        Ok(CallProvenance {
+            prompt_id: prompt_name.to_string(),
+            prompt_version: tmpl.version.clone(),
+            model_id: resolved.model_id,
+            max_tokens,
+            temperature,
+        }
+        .into_artifact_provenance())
     }
 
     async fn design_ontology_batch(
