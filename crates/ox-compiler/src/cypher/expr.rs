@@ -178,7 +178,7 @@ pub(super) fn compile_projection(proj: &Projection, pc: &mut ParamCollector) -> 
                 Some(arg) => compile_projection(arg, pc)?,
                 None => "*".to_string(),
             };
-            let func_str = compile_agg_function(function, &target, *distinct);
+            let func_str = compile_agg_function(function, &target, *distinct, pc.dialect())?;
             format!("{func_str} AS {alias}")
         }
         Projection::AllProperties { variable } => format!("{variable} {{.*}}"),
@@ -219,7 +219,28 @@ pub(super) fn compile_order_by(
     Ok(format!("ORDER BY {}", items.join(", ")))
 }
 
-pub(super) fn compile_agg_function(function: &AggFunction, target: &str, distinct: bool) -> String {
+pub(super) fn compile_agg_function(
+    function: &AggFunction,
+    target: &str,
+    distinct: bool,
+    dialect: super::CypherDialect,
+) -> OxResult<String> {
+    // ADR-0036: `percentileCont` is Neo4j-specific. Memgraph 4.x has
+    // no native percentile aggregator; emitting it produces an
+    // opaque "unknown function" at execution. Refuse at compile time
+    // so the caller knows to swap backends or compute the percentile
+    // client-side.
+    if matches!(function, AggFunction::Percentile)
+        && dialect == super::CypherDialect::Memgraph
+    {
+        return Err(OxError::Compilation {
+            message: "AggFunction::Percentile lowers to `percentileCont`, \
+                      which Memgraph does not implement. Run this query \
+                      against a Neo4j backend or aggregate the percentile \
+                      client-side from a `collect()` result."
+                .to_string(),
+        });
+    }
     let func_name = match function {
         AggFunction::Count => "count",
         AggFunction::Sum => "sum",
@@ -232,5 +253,5 @@ pub(super) fn compile_agg_function(function: &AggFunction, target: &str, distinc
         AggFunction::CollectList => "collect",
     };
     let dist = if distinct { "DISTINCT " } else { "" };
-    format!("{func_name}({dist}{target})")
+    Ok(format!("{func_name}({dist}{target})"))
 }

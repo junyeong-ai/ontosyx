@@ -1,4 +1,4 @@
-use ox_core::error::OxResult;
+use ox_core::error::{OxError, OxResult};
 use ox_query_ir::query::{AnalyticsSource, GraphAlgorithm, PathAlgorithm, QueryOp};
 
 use super::expr::{compile_agg_function, compile_expr, compile_order_by, compile_projection};
@@ -127,7 +127,8 @@ pub(super) fn compile_op(
                 } else {
                     agg.field.variable.to_string()
                 };
-                let func = compile_agg_function(&agg.function, &field, agg.distinct);
+                let func =
+                    compile_agg_function(&agg.function, &field, agg.distinct, pc.dialect())?;
                 projections.push(format!("{func} AS {}", agg.alias));
                 projected_names.push(agg.alias.clone());
             }
@@ -218,6 +219,26 @@ pub(super) fn compile_op(
             params,
             projections,
         } => {
+            // ADR-0036: GDS procedures (`gds.*`) are Neo4j Enterprise
+            // surface area. Memgraph ships its own analytics (MAGE
+            // module: `mg.pagerank.get`, etc.) with different return
+            // shapes; emitting `gds.pageRank.stream` against a
+            // Memgraph driver fails opaquely at execution as an
+            // "unknown procedure". Refuse at compile time and name
+            // the alternative path so the caller swaps backend or
+            // rewrites the query, rather than discovering the gap
+            // through a runtime error.
+            if pc.dialect() == super::CypherDialect::Memgraph {
+                return Err(OxError::Compilation {
+                    message: format!(
+                        "Graph analytics ({algorithm:?}) lower to Neo4j GDS \
+                         procedures (`gds.*`) which Memgraph does not \
+                         expose. Run this query against a Neo4j backend, \
+                         or rewrite as an explicit MATCH for the small \
+                         subset Memgraph's MAGE module covers."
+                    ),
+                });
+            }
             let procedure = match algorithm {
                 GraphAlgorithm::PageRank => "gds.pageRank.stream",
                 GraphAlgorithm::CommunityDetection => "gds.louvain.stream",

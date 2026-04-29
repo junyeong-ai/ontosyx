@@ -1986,3 +1986,163 @@ fn named_param_rejects_injection_shaped_name() {
         "compile error should mention validator: {msg}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// ADR-0036 — backend capability gates
+// ---------------------------------------------------------------------------
+
+#[test]
+fn memgraph_refuses_graph_analytics_at_compile_time() {
+    let compiler = CypherCompiler::memgraph();
+    let query = QueryIR {
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
+        operation: QueryOp::Analytics {
+            algorithm: GraphAlgorithm::PageRank,
+            source: AnalyticsSource::WholeGraph,
+            params: Default::default(),
+            projections: vec![],
+        },
+        limit: None,
+        skip: None,
+        order_by: vec![],
+        as_of: None,
+    };
+
+    let err = compiler
+        .compile_query(&query)
+        .expect_err("memgraph must not lower GDS procedures");
+    let msg = format!("{err}");
+    assert!(
+        msg.contains("Memgraph") && msg.contains("MAGE"),
+        "remediation must name Memgraph + alternative path, got: {msg}"
+    );
+}
+
+#[test]
+fn neo4j_still_lowers_graph_analytics_unchanged() {
+    let compiler = CypherCompiler::neo4j();
+    let query = QueryIR {
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
+        operation: QueryOp::Analytics {
+            algorithm: GraphAlgorithm::PageRank,
+            source: AnalyticsSource::WholeGraph,
+            params: Default::default(),
+            projections: vec![],
+        },
+        limit: None,
+        skip: None,
+        order_by: vec![],
+        as_of: None,
+    };
+
+    let compiled = compiler
+        .compile_query(&query)
+        .expect("neo4j retains GDS lowering");
+    assert!(compiled.statement.contains("gds.pageRank.stream"));
+}
+
+#[test]
+fn memgraph_refuses_percentile_aggregation_at_compile_time() {
+    let compiler = CypherCompiler::memgraph();
+    let query = QueryIR {
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
+        operation: QueryOp::Aggregate {
+            source: Box::new(QueryIR {
+                schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
+                operation: QueryOp::Match {
+                    patterns: vec![GraphPattern::Node {
+                        variable: vn("n"),
+                        label: Some(gl("Order")),
+                        property_filters: vec![],
+                    }],
+                    filter: None,
+                    projections: vec![Projection::Variable {
+                        variable: vn("n"),
+                        alias: None,
+                    }],
+                    optional: false,
+                    group_by: vec![],
+                },
+                limit: None,
+                skip: None,
+                order_by: vec![],
+                as_of: None,
+            }),
+            group_by: vec![],
+            aggregations: vec![AggregationExpr {
+                function: AggFunction::Percentile,
+                field: FieldRef {
+                    variable: vn("n"),
+                    field: Some(pk("amount")),
+                },
+                alias: "p95".to_string(),
+                distinct: false,
+            }],
+            having: None,
+        },
+        limit: None,
+        skip: None,
+        order_by: vec![],
+        as_of: None,
+    };
+
+    let err = compiler
+        .compile_query(&query)
+        .expect_err("memgraph must not lower percentileCont");
+    let msg = format!("{err}");
+    assert!(
+        msg.contains("Memgraph") && msg.contains("percentileCont"),
+        "remediation must name function + backend, got: {msg}"
+    );
+}
+
+#[test]
+fn neo4j_lowers_percentile_aggregation_unchanged() {
+    let compiler = CypherCompiler::neo4j();
+    let query = QueryIR {
+        schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
+        operation: QueryOp::Aggregate {
+            source: Box::new(QueryIR {
+                schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
+                operation: QueryOp::Match {
+                    patterns: vec![GraphPattern::Node {
+                        variable: vn("n"),
+                        label: Some(gl("Order")),
+                        property_filters: vec![],
+                    }],
+                    filter: None,
+                    projections: vec![Projection::Variable {
+                        variable: vn("n"),
+                        alias: None,
+                    }],
+                    optional: false,
+                    group_by: vec![],
+                },
+                limit: None,
+                skip: None,
+                order_by: vec![],
+                as_of: None,
+            }),
+            group_by: vec![],
+            aggregations: vec![AggregationExpr {
+                function: AggFunction::Percentile,
+                field: FieldRef {
+                    variable: vn("n"),
+                    field: Some(pk("amount")),
+                },
+                alias: "p95".to_string(),
+                distinct: false,
+            }],
+            having: None,
+        },
+        limit: None,
+        skip: None,
+        order_by: vec![],
+        as_of: None,
+    };
+
+    let compiled = compiler
+        .compile_query(&query)
+        .expect("neo4j retains percentile lowering");
+    assert!(compiled.statement.contains("percentileCont"));
+}

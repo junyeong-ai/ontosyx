@@ -130,7 +130,7 @@ impl GraphCompiler for CypherCompiler {
         }
 
         let mut parts = Vec::new();
-        let mut collector = ParamCollector::new();
+        let mut collector = ParamCollector::new(self.dialect);
 
         compile_op(&query.operation, &mut parts, &mut collector)?;
 
