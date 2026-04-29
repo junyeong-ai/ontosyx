@@ -207,9 +207,24 @@ impl PostgresStore {
                         .execute(&mut *conn)
                         .await;
                     } else if let Ok(ws_id) = WORKSPACE_ID.try_with(|id| *id) {
-                        // Normal request: scope to workspace via RLS
+                        // Normal request: scope to workspace via RLS.
                         sqlx::query("SELECT set_config('app.workspace_id', $1, false)")
                             .bind(ws_id.to_string())
+                            .execute(&mut *conn)
+                            .await?;
+                        // ADR-0041: Bound the worst-case query and
+                        // idle-in-transaction durations. RESET ALL
+                        // clears these on release so we re-apply per
+                        // acquire. Bypass paths (migrations / cron
+                        // sweeps) intentionally skip — those are
+                        // bounded by their outer scheduler and may
+                        // legitimately run long. No-context paths
+                        // (init / health-check) also skip; they don't
+                        // execute user queries.
+                        sqlx::query("SET statement_timeout = 30000")
+                            .execute(&mut *conn)
+                            .await?;
+                        sqlx::query("SET idle_in_transaction_session_timeout = 5000")
                             .execute(&mut *conn)
                             .await?;
                     }
