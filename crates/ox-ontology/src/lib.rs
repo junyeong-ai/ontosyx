@@ -66,6 +66,7 @@ pub mod source_analysis;
 pub mod source_mapping;
 pub mod storage;
 pub mod table_clustering;
+pub mod table_inventory;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub mod test_fixtures;
 pub mod value_range;
@@ -117,6 +118,7 @@ pub use heuristic::{
     ConfidenceBps, HeuristicDetectorKind, HeuristicProposal, HeuristicProposalId,
     HeuristicProposalState, HeuristicProvenance, HeuristicProvenanceId,
 };
+pub use table_inventory::{TableInventoryEntry, TableInventoryStatus};
 pub use interface::{InterfaceDef, InterfaceEdge, InterfaceId, InterfaceProperty};
 pub use diff::{
     DiffSummary, EdgeChange, EdgeDiff, NodeChange, NodeDiff, OntologyDiff, PropertyChange,

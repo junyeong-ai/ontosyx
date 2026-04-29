@@ -954,6 +954,55 @@ impl OntologyIR {
         }
 
         // -------------------------------------------------------------
+        // ADR-0024 — table-inventory referential integrity.
+        //
+        // Every `contributed_node_ids` entry must resolve to a
+        // declared NodeType, and every `contributed_edge_ids` entry
+        // to a declared EdgeType. Drift here would surface as
+        // dangling links in the Source Inspector; the validator
+        // catches it before the project is allowed to commit.
+        let known_node_ids: std::collections::HashSet<&str> = self
+            .node_types
+            .iter()
+            .map(|n| n.id.as_str())
+            .collect();
+        let known_edge_ids: std::collections::HashSet<&str> = self
+            .edge_types
+            .iter()
+            .map(|e| e.id.as_str())
+            .collect();
+        for entry in &self.table_inventory {
+            for nid in &entry.contributed_node_ids {
+                if !known_node_ids.contains(nid.as_str()) {
+                    errors.push(
+                        diag("ontology.validate.table_inventory.unknown_node_type")
+                            .with("source_id", entry.source_id.as_str())
+                            .with("table_name", entry.table_name.as_str())
+                            .with("node_type_id", nid.as_str())
+                            .message(format!(
+                                "Table inventory entry '{}/{}' references node type '{}' which is not declared",
+                                entry.source_id, entry.table_name, nid
+                            )),
+                    );
+                }
+            }
+            for eid in &entry.contributed_edge_ids {
+                if !known_edge_ids.contains(eid.as_str()) {
+                    errors.push(
+                        diag("ontology.validate.table_inventory.unknown_edge_type")
+                            .with("source_id", entry.source_id.as_str())
+                            .with("table_name", entry.table_name.as_str())
+                            .with("edge_type_id", eid.as_str())
+                            .message(format!(
+                                "Table inventory entry '{}/{}' references edge type '{}' which is not declared",
+                                entry.source_id, entry.table_name, eid
+                            )),
+                    );
+                }
+            }
+        }
+
+        // -------------------------------------------------------------
         // ADR-0014 — concept referential integrity.
         //
         // Each `ConceptDef` anchors 1:1 to a glossary term (homonym
@@ -1767,6 +1816,113 @@ mod tests {
             }
             other => panic!("expected DuplicateCollectionId, got {other:?}"),
         }
+    }
+
+    // ADR-0024 — table-inventory referential integrity.
+
+    #[test]
+    fn validate_accepts_inventory_pointing_at_declared_node() {
+        let mut ontology = base_ontology();
+        let target_node_id = ontology.node_types[0].id.clone();
+        ontology
+            .upsert_table_inventory_entry(
+                crate::table_inventory::TableInventoryEntry::imported(
+                    crate::mapping::SourceId::new("pg-main"),
+                    "users",
+                    "fp-1",
+                    vec![target_node_id],
+                ),
+            )
+            .expect("upsert");
+        let errors = ontology.validate();
+        assert!(
+            !errors
+                .iter()
+                .any(|e| e.code.starts_with("ontology.validate.table_inventory.")),
+            "well-formed inventory must validate: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn validate_rejects_inventory_pointing_at_unknown_node() {
+        let mut ontology = base_ontology();
+        ontology
+            .upsert_table_inventory_entry(
+                crate::table_inventory::TableInventoryEntry::imported(
+                    crate::mapping::SourceId::new("pg-main"),
+                    "users",
+                    "fp-1",
+                    vec![NodeTypeId::new("nt-not-declared")],
+                ),
+            )
+            .expect("upsert");
+        let errors = ontology.validate();
+        assert!(
+            errors.iter().any(|e| e.code
+                == "ontology.validate.table_inventory.unknown_node_type"),
+            "expected unknown_node_type diagnostic: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn upsert_table_inventory_entry_replaces_on_natural_key() {
+        let mut ontology = base_ontology();
+        let nid = ontology.node_types[0].id.clone();
+        ontology
+            .upsert_table_inventory_entry(
+                crate::table_inventory::TableInventoryEntry::imported(
+                    crate::mapping::SourceId::new("pg-main"),
+                    "users",
+                    "fp-1",
+                    vec![nid.clone()],
+                ),
+            )
+            .expect("first upsert");
+        ontology
+            .upsert_table_inventory_entry(
+                crate::table_inventory::TableInventoryEntry::imported(
+                    crate::mapping::SourceId::new("pg-main"),
+                    "users",
+                    "fp-2",
+                    vec![nid.clone()],
+                ),
+            )
+            .expect("second upsert");
+        assert_eq!(
+            ontology.table_inventory().len(),
+            1,
+            "natural-key collision must replace, not append"
+        );
+        assert_eq!(ontology.table_inventory()[0].schema_fingerprint, "fp-2");
+    }
+
+    #[test]
+    fn find_table_inventory_entry_resolves_in_constant_time() {
+        let mut ontology = base_ontology();
+        let nid = ontology.node_types[0].id.clone();
+        ontology
+            .upsert_table_inventory_entry(
+                crate::table_inventory::TableInventoryEntry::imported(
+                    crate::mapping::SourceId::new("pg-main"),
+                    "users",
+                    "fp-1",
+                    vec![nid],
+                ),
+            )
+            .expect("upsert");
+        let resolved = ontology.find_table_inventory_entry(
+            &crate::mapping::SourceId::new("pg-main"),
+            "users",
+        );
+        assert!(resolved.is_some());
+        assert!(
+            ontology
+                .find_table_inventory_entry(
+                    &crate::mapping::SourceId::new("pg-main"),
+                    "missing",
+                )
+                .is_none()
+        );
     }
 
     // ADR-0014 — concept referential integrity.

@@ -163,6 +163,10 @@ struct OntologyLookup {
     segment_id_idx: HashMap<crate::segment::SegmentId, usize>,
     // ADR-0014: workspace-canonical concepts.
     concept_id_idx: HashMap<crate::concept::ConceptId, usize>,
+    // ADR-0024: `(source_id, table_name)` → row index. Composite
+    // natural key — `add_table_inventory_entry` upserts on it so
+    // re-introspection is idempotent.
+    table_inventory_idx: HashMap<(crate::mapping::SourceId, String), usize>,
     /// Reverse index — concept → every NodeType that flags it as
     /// `concept_id`. Empty Vec when no NodeType realises the
     /// concept (legal — the concept stays as identity-only until
@@ -349,6 +353,16 @@ pub struct OntologyIR {
     /// living on the same IR.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) concepts: Vec<crate::concept::ConceptDef>,
+
+    /// Source-table inventory (ADR-0024). One row per
+    /// `(source_id, table_name)` the project has touched, carrying
+    /// the import status, schema fingerprint, and the NodeType /
+    /// EdgeType ids that table contributed. Lets the FE answer
+    /// "which tables did this project bring in?" / "where did this
+    /// NodeType come from?" / "what's available but not yet
+    /// imported?" without re-introspecting.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(crate) table_inventory: Vec<crate::table_inventory::TableInventoryEntry>,
 
     /// Precomputed lookup indices — not serialized, rebuilt on deserialize.
     #[serde(skip)]
@@ -557,6 +571,7 @@ impl OntologyIR {
             column_profiles: Vec::new(),
             segments: Vec::new(),
             concepts: Vec::new(),
+            table_inventory: Vec::new(),
             lookup: OntologyLookup::default(),
         };
         ont.rebuild_indices()?;
@@ -756,6 +771,24 @@ impl OntologyIR {
         index_collection!(column_profiles, column_profile_id_idx, "column_profile");
         index_collection!(segments, segment_id_idx, "segment");
         index_collection!(concepts, concept_id_idx, "concept");
+
+        // ADR-0024 — table-inventory composite key. Duplicate
+        // `(source_id, table_name)` rows are an invariant violation
+        // — `add_table_inventory_entry` upserts on the key, so a
+        // duplicate at deserialise time signals a corrupt payload.
+        for (i, entry) in self.table_inventory.iter().enumerate() {
+            let key = (entry.source_id.clone(), entry.table_name.clone());
+            if lookup
+                .table_inventory_idx
+                .insert(key, i)
+                .is_some()
+            {
+                return Err(OntologyInvariantError::DuplicateCollectionId {
+                    kind: "table_inventory",
+                    id: format!("{}/{}", entry.source_id, entry.table_name),
+                });
+            }
+        }
 
         // ADR-0014 — reverse index: concept → implementers. Built
         // from the forward `concept_id` pointers on every NodeType
@@ -1086,6 +1119,26 @@ impl OntologyIR {
         &self.concepts
     }
 
+    /// ADR-0024 — every source-table inventory row the IR carries.
+    pub fn table_inventory(&self) -> &[crate::table_inventory::TableInventoryEntry] {
+        &self.table_inventory
+    }
+
+    /// O(1) lookup of an inventory row by its natural key. The FE's
+    /// Source Inspector reaches for this on every table-detail
+    /// render; the index makes the call free.
+    pub fn find_table_inventory_entry(
+        &self,
+        source_id: &crate::mapping::SourceId,
+        table_name: &str,
+    ) -> Option<&crate::table_inventory::TableInventoryEntry> {
+        let key = (source_id.clone(), table_name.to_string());
+        self.lookup
+            .table_inventory_idx
+            .get(&key)
+            .map(|&i| &self.table_inventory[i])
+    }
+
     /// O(1) lookup: every NodeType that flags itself as realising
     /// the named concept. Reads the reverse index built in
     /// [`rebuild_indices`]. Empty slice when the concept has no
@@ -1289,6 +1342,29 @@ impl OntologyIR {
             });
         }
         self.segments.push(def);
+        self.rebuild_indices()
+    }
+
+    /// ADR-0024 — record (or refresh) one source-table inventory
+    /// row. Idempotent on the natural key
+    /// `(source_id, table_name)`: re-introspection of the same
+    /// table replaces the prior row in place rather than appending.
+    /// Callers that want delete semantics flip the `status` to
+    /// `Retracted` so the audit trail keeps the historical
+    /// `contributed_*` ids reachable.
+    pub fn upsert_table_inventory_entry(
+        &mut self,
+        entry: crate::table_inventory::TableInventoryEntry,
+    ) -> Result<(), OntologyInvariantError> {
+        let key = (entry.source_id.clone(), entry.table_name.clone());
+        match self.lookup.table_inventory_idx.get(&key) {
+            Some(&idx) => {
+                self.table_inventory[idx] = entry;
+            }
+            None => {
+                self.table_inventory.push(entry);
+            }
+        }
         self.rebuild_indices()
     }
 
