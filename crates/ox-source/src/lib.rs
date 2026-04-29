@@ -96,13 +96,30 @@ impl TableSelection {
 /// - `{ "kind": "extend", "tables": [...] }` — grow an existing
 ///   analysis with the named tables; baseline is supplied by the
 ///   caller when invoking the kernel.
+/// - `{ "kind": "reduce", "tables": [...] }` — drop the named
+///   tables (and the FKs that reference them) from a baseline; the
+///   kernel never calls the adapter for this variant, it operates
+///   on the supplied baseline only.
 ///
-/// One enum unifies the three intents so every consumer (admin
-/// federation registry, project create / extend, future schedulers)
-/// speaks the same language. The variant has no default — every
-/// caller picks `All` deliberately or supplies a `Subset`/`Extend`
-/// list, so a missing field can never collapse into a silent
-/// full-warehouse sweep.
+/// One enum unifies the four intents so every consumer (admin
+/// federation registry, project create / extend / reduce, future
+/// schedulers) speaks the same language. The variant has no
+/// default — every caller picks `All` deliberately or supplies a
+/// `Subset` / `Extend` / `Reduce` list, so a missing field can
+/// never collapse into a silent full-warehouse sweep.
+///
+/// ADR-0067 (rejected): an audit recommended a per-adapter contract
+/// test asserting every adapter implements `AnalyzeSelection`'s
+/// four variants identically. Architecture review showed the
+/// contract is enforced by construction — `DataSourceAdapter`
+/// exposes only atomic primitives (`list_tables`, `describe_table`,
+/// `count_rows`, `sample_column`, `list_foreign_keys`); selection
+/// semantics live entirely in [`IntrospectionKernel::analyze`],
+/// which composes those primitives. An adapter has no surface
+/// through which it could re-interpret `AnalyzeSelection`. Adding
+/// the test would verify the kernel against itself, not the
+/// adapter contract; the existing two-adapter unit suite in
+/// `kernel.rs::tests` already covers the kernel's dispatch.
 #[derive(
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, utoipa::ToSchema,
 )]
