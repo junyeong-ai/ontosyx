@@ -132,9 +132,39 @@ impl<'a> MatchPlanner<'a> {
     /// Plan the given `Match` op. Non-`Match` ops are rejected —
     /// the planner is intentionally single-purpose so the caller
     /// routes each op to its specialised planner.
+    ///
+    /// ADR-0037: refuse the two semantic divergences from the Cypher
+    /// runtime that previously slipped through silently:
+    ///
+    /// - `optional: true` (OPTIONAL MATCH on Cypher) lowers to an
+    ///   INNER JOIN on federation — the left side disappears for
+    ///   unmatched rows. Cypher's OPTIONAL MATCH preserves them.
+    /// - `Direction::Both` emits `(a)-[r]-(b)` on Cypher, returning
+    ///   each unordered pair twice (once per direction). Federation
+    ///   has no symmetric-edge surface and would have produced one
+    ///   row per pair. Same QueryIR, different result counts.
+    ///
+    /// Refusal is the conservative move until federation grows a
+    /// `QueryDiagnostic` egress channel; "fail loudly with the
+    /// remediation named" beats "succeed and disagree with the
+    /// other backend".
     pub fn plan(&self, op: &QueryOp) -> FederationResult<MatchPlanSpec<'a>> {
         let patterns = match op {
-            QueryOp::Match { patterns, .. } => patterns,
+            QueryOp::Match {
+                patterns, optional, ..
+            } => {
+                if *optional {
+                    return Err(FederationError::unsupported(
+                        "MatchPlanner: OPTIONAL MATCH is not supported by the \
+                         federation engine — federation lowers joins as INNER \
+                         JOIN, dropping the left side for unmatched rows. \
+                         Run this query against the Cypher backend (Neo4j / \
+                         Memgraph) which preserves OPTIONAL MATCH semantics, \
+                         or rewrite the pattern as a non-optional join.",
+                    ));
+                }
+                patterns
+            }
             _ => {
                 return Err(FederationError::unsupported(
                     "MatchPlanner: only QueryOp::Match is accepted",
@@ -182,6 +212,24 @@ impl<'a> MatchPlanner<'a> {
                         return Err(FederationError::unsupported(
                             "MatchPlanner: variable-length relationship patterns are \
                              not yet supported (Phase 6-C slice 2)",
+                        ));
+                    }
+                    // ADR-0037: federation has no symmetric-edge
+                    // surface. Cypher's `(a)-[r]-(b)` returns each
+                    // pair twice (once per direction); federation
+                    // would have produced one row per pair. Refuse
+                    // until the planner grows a duplicate-direction
+                    // expansion pass — same QueryIR producing different
+                    // row counts across backends is the worst flavour
+                    // of silent divergence.
+                    if matches!(direction, ox_core::types::Direction::Both) {
+                        return Err(FederationError::unsupported(
+                            "MatchPlanner: direction-agnostic edge patterns \
+                             (`(a)-[r]-(b)`) are not supported by the \
+                             federation engine. Cypher emits the pair twice \
+                             (one per direction); federation would emit \
+                             once. Pin the direction (`->` or `<-`) or run \
+                             this query against the Cypher backend.",
                         ));
                     }
                     let link_mappings = match label {
@@ -531,6 +579,90 @@ mod tests {
             planner.plan(&op),
             Err(FederationError::Unsupported(_))
         ));
+    }
+
+    #[test]
+    fn plan_rejects_optional_match_with_remediation_message() {
+        let ont = OntologyIR::new(
+            "ont".into(),
+            "sample".into(),
+            LocalizedText::default(),
+            1,
+            vec![node("nt-u", "User", vec![])],
+            vec![],
+            vec![],
+        );
+        let op = QueryOp::Match {
+            patterns: vec![GraphPattern::Node {
+                variable: vn("u"),
+                label: Some(gl("User")),
+                property_filters: vec![],
+            }],
+            filter: None,
+            projections: vec![],
+            optional: true,
+            group_by: vec![],
+        };
+        let planner = MatchPlanner::new(&ont);
+        let err = planner.plan(&op).expect_err("optional must be refused");
+        let FederationError::Unsupported(msg) = err else {
+            panic!("expected Unsupported, got: {err:?}");
+        };
+        assert!(
+            msg.contains("OPTIONAL MATCH") && msg.contains("INNER JOIN"),
+            "remediation must explain the divergence, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn plan_rejects_direction_both_with_remediation_message() {
+        let mut ont = OntologyIR::new(
+            "ont".into(),
+            "sample".into(),
+            LocalizedText::default(),
+            1,
+            vec![node("nt-u", "User", vec![])],
+            vec![],
+            vec![],
+        );
+        ont.add_object_mapping(ObjectMappingDef::new("om-1", "nt-u", "pg", "users"))
+            .unwrap();
+        let op = QueryOp::Match {
+            patterns: vec![
+                GraphPattern::Node {
+                    variable: vn("a"),
+                    label: Some(gl("User")),
+                    property_filters: vec![],
+                },
+                GraphPattern::Relationship {
+                    variable: None,
+                    label: None,
+                    source: vn("a"),
+                    target: vn("b"),
+                    direction: Direction::Both,
+                    property_filters: vec![],
+                    var_length: None,
+                },
+                GraphPattern::Node {
+                    variable: vn("b"),
+                    label: Some(gl("User")),
+                    property_filters: vec![],
+                },
+            ],
+            filter: None,
+            projections: vec![],
+            optional: false,
+            group_by: vec![],
+        };
+        let planner = MatchPlanner::new(&ont);
+        let err = planner.plan(&op).expect_err("Both must be refused");
+        let FederationError::Unsupported(msg) = err else {
+            panic!("expected Unsupported, got: {err:?}");
+        };
+        assert!(
+            msg.contains("direction-agnostic") && msg.contains("pair twice"),
+            "remediation must name the symmetry divergence, got: {msg}"
+        );
     }
 
     #[test]
