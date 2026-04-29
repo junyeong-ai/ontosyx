@@ -264,6 +264,9 @@ pub(crate) async fn chat_stream(
     // its permit when the stream terminates (cancel, complete, or drop),
     // which is exactly the lifetime we want to bound.
     let _stream_slot = stream_slot;
+    // Clone the captured ws_scope for the outer wrapper before the
+    // stream body moves it via `spawn_with_ws`.
+    let outer_ws_scope = ws_scope.clone();
     let stream = async_stream::stream! {
         // Keep the permit alive for the stream's lifetime — capturing it
         // by move into the generator means the `Drop` fires when the SSE
@@ -478,7 +481,11 @@ pub(crate) async fn chat_stream(
         }
     };
 
-    Ok(Sse::new(stream))
+    // Wrap the stream so per-poll store reads inside the body
+    // re-enter `WORKSPACE_ID` / `SYSTEM_BYPASS` task-locals (axum
+    // drives the Stream after the request middleware's scope has
+    // already exited).
+    Ok(Sse::new(crate::spawn_scoped::scope_stream(outer_ws_scope, stream)))
 }
 
 // ---------------------------------------------------------------------------

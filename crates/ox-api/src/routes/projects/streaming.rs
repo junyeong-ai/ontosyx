@@ -22,6 +22,7 @@ use ox_ontology::source_analysis::DesignOptions;
 use ox_runtime::profiler;
 use ox_source::analyzer::build_design_context;
 
+use crate::spawn_scoped::{WsScope, scope_stream};
 use super::helpers::artifact::persist_design_artifact;
 use super::helpers::{
     LlmInputContext, assess_quality_from_project, assess_quality_from_project_with_mapping,
@@ -154,6 +155,14 @@ pub(crate) async fn design_project_stream(
         .unwrap_or_default();
 
     let revision = req.revision;
+
+    // Capture workspace scope synchronously — the SSE stream is driven
+    // by axum *after* the workspace_context middleware's
+    // `WORKSPACE_ID.scope` exits, so every store/runtime call inside
+    // the body below would otherwise see no task-locals (and post-B6,
+    // would return `MissingContext`). `scope_stream` re-enters the
+    // captured scope on every poll.
+    let ws_scope = WsScope::capture();
 
     let stream = async_stream::stream! {
         yield Ok(Event::default().event("phase").data(sse_phase("validating", None)));
@@ -691,7 +700,8 @@ pub(crate) async fn design_project_stream(
         ));
     };
 
-    Ok(Sse::new(stream).keep_alive(KeepAlive::new().interval(std::time::Duration::from_secs(30))))
+    Ok(Sse::new(scope_stream(ws_scope, stream))
+        .keep_alive(KeepAlive::new().interval(std::time::Duration::from_secs(30))))
 }
 
 // ---------------------------------------------------------------------------
@@ -771,6 +781,11 @@ pub(crate) async fn refine_project_stream(
     let profiling_timeout = std::time::Duration::from_secs(dynamic_timeout_secs);
     // Clone source_schema before entering stream for schema fallback
     let source_schema_val = project.source_schema.clone();
+
+    // See `design_project_stream` — capture workspace scope before
+    // returning the Sse so per-poll store/runtime calls re-enter
+    // task-locals.
+    let ws_scope = WsScope::capture();
 
     let stream = async_stream::stream! {
         yield Ok(Event::default().event("phase").data(sse_phase("validating", None)));
@@ -1037,5 +1052,6 @@ pub(crate) async fn refine_project_stream(
         ));
     };
 
-    Ok(Sse::new(stream).keep_alive(KeepAlive::new().interval(std::time::Duration::from_secs(30))))
+    Ok(Sse::new(scope_stream(ws_scope, stream))
+        .keep_alive(KeepAlive::new().interval(std::time::Duration::from_secs(30))))
 }
