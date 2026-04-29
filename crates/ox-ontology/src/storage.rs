@@ -67,9 +67,18 @@ use ox_core::error::{OxError, OxResult};
 
 use crate::ir::OntologyIR;
 
-/// The 22 kinds the content-addressed store holds. Mirrors the
-/// `ontology_entity_kind` Postgres enum in migration 0017; the
-/// wire string is the `snake_case` rendering of each variant.
+/// The kinds the materialised denormalised graph distinguishes.
+/// Mirrors the `ontology_entity_kind` Postgres enum in
+/// `0001_schema.sql`; the wire string is the `snake_case` rendering
+/// of each variant.
+///
+/// Note: `Property` is enum-addressable (referenced from the
+/// materialised neighbour graph + search index) but is **not**
+/// emitted as a top-level `ExtractedEntity` by `extract_entities`
+/// — properties live inside their parent `NodeType` / `EdgeType`
+/// payloads in the content-addressed store. The variant exists so
+/// every `entity_kind` cast in the materialised SQL views stays
+/// safe regardless of which surface emits it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EntityKind {
     /// Ontology metadata (name, description, version). Singleton
@@ -80,6 +89,9 @@ pub enum EntityKind {
     EdgeType,
     IndexDef,
     Interface,
+    /// A property defined on a node_type or edge_type. Stable id;
+    /// neighbour edges in the denormalised graph anchor here.
+    Property,
     // Mapping
     ObjectMapping,
     LinkMapping,
@@ -97,6 +109,11 @@ pub enum EntityKind {
     GlossaryTerm,
     Taxonomy,
     CodeSystem,
+    /// Individual `CodedValue` row nested inside a `CodeSystem`.
+    /// Same nesting policy as `Property` — addressable in the
+    /// materialised denormalised graph (hierarchy walks anchor here)
+    /// but not extracted as a standalone content-addressed entity.
+    CodedValue,
     ValueSet,
     NotationPattern,
     ConceptMap,
@@ -116,6 +133,7 @@ impl EntityKind {
             EntityKind::EdgeType => "edge_type",
             EntityKind::IndexDef => "index_def",
             EntityKind::Interface => "interface",
+            EntityKind::Property => "property",
             EntityKind::ObjectMapping => "object_mapping",
             EntityKind::LinkMapping => "link_mapping",
             EntityKind::PropertyMapping => "property_mapping",
@@ -129,6 +147,7 @@ impl EntityKind {
             EntityKind::GlossaryTerm => "glossary_term",
             EntityKind::Taxonomy => "taxonomy",
             EntityKind::CodeSystem => "code_system",
+            EntityKind::CodedValue => "coded_value",
             EntityKind::ValueSet => "value_set",
             EntityKind::NotationPattern => "notation_pattern",
             EntityKind::ConceptMap => "concept_map",
@@ -148,6 +167,7 @@ impl EntityKind {
             "edge_type" => EntityKind::EdgeType,
             "index_def" => EntityKind::IndexDef,
             "interface" => EntityKind::Interface,
+            "property" => EntityKind::Property,
             "object_mapping" => EntityKind::ObjectMapping,
             "link_mapping" => EntityKind::LinkMapping,
             "property_mapping" => EntityKind::PropertyMapping,
@@ -161,6 +181,7 @@ impl EntityKind {
             "glossary_term" => EntityKind::GlossaryTerm,
             "taxonomy" => EntityKind::Taxonomy,
             "code_system" => EntityKind::CodeSystem,
+            "coded_value" => EntityKind::CodedValue,
             "value_set" => EntityKind::ValueSet,
             "notation_pattern" => EntityKind::NotationPattern,
             "concept_map" => EntityKind::ConceptMap,

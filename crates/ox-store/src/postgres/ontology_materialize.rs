@@ -670,37 +670,70 @@ async fn insert_neighbors_from_ir(
     // it from the property walk below. One neighbour edge per
     // binding entry — multi-binding properties surface every target
     // so the cross-axis dashboard sees the whole semantic surface.
+    //
+    // Every `kind` argument is sourced from `EntityKind::*::as_str()`
+    // (or a `code_system::CodedValueId`-backed `code_system` parent
+    // for unit refs) so the SQL `::ontology_entity_kind` cast can
+    // never see a string the enum doesn't list. Adding a new
+    // PropertyBinding variant forces the match below to grow,
+    // surfacing the required enum addition at compile time rather
+    // than as a 22P02 runtime error in production.
     let mut on_prop = |prop: &ox_ontology::ir::PropertyDef| {
+        use ox_ontology::PropertyBinding;
+        use ox_ontology::storage::EntityKind;
+        let property_kind = EntityKind::Property.as_str();
+
         for binding in &prop.bindings {
-            use ox_ontology::PropertyBinding;
             let (target_kind, target_id, relation) = match binding {
-                PropertyBinding::ValueSet { id, .. } => {
-                    ("value_set", id.as_str(), "references_value_set")
-                }
-                PropertyBinding::CodeSystem { id, .. } => {
-                    ("code_system", id.as_str(), "references_code_system")
-                }
+                PropertyBinding::ValueSet { id, .. } => (
+                    EntityKind::ValueSet.as_str(),
+                    id.as_str(),
+                    "references_value_set",
+                ),
+                PropertyBinding::CodeSystem { id, .. } => (
+                    EntityKind::CodeSystem.as_str(),
+                    id.as_str(),
+                    "references_code_system",
+                ),
                 PropertyBinding::NotationPattern { id, .. } => (
-                    "notation_pattern",
+                    EntityKind::NotationPattern.as_str(),
                     id.as_str(),
                     "references_notation_pattern",
                 ),
                 PropertyBinding::ValueRange { id, .. } => (
-                    "value_range_set",
+                    EntityKind::ValueRangeSet.as_str(),
                     id.as_str(),
                     "references_value_range_set",
                 ),
-                PropertyBinding::Glossary { id, .. } => {
-                    ("glossary_term", id.as_str(), "references_glossary_term")
-                }
+                PropertyBinding::Glossary { id, .. } => (
+                    EntityKind::GlossaryTerm.as_str(),
+                    id.as_str(),
+                    "references_glossary_term",
+                ),
             };
-            push("property", prop.id.as_str(), target_kind, target_id, relation);
+            push(property_kind, prop.id.as_str(), target_kind, target_id, relation);
         }
+        // Units are individual `CodedValue` rows nested under a
+        // `code_system`. The enum carries `coded_value` as a
+        // first-class kind so the neighbour edge lands at the exact
+        // unit row, not the parent system.
         if let Some(unit_id) = &prop.unit_id {
-            push("property", prop.id.as_str(), "coded_value", unit_id.as_str(), "uses_unit");
+            push(
+                property_kind,
+                prop.id.as_str(),
+                EntityKind::CodedValue.as_str(),
+                unit_id.as_str(),
+                "uses_unit",
+            );
         }
         if let Some(fn_id) = &prop.derived_from {
-            push("property", prop.id.as_str(), "function", fn_id.as_str(), "derived_from");
+            push(
+                property_kind,
+                prop.id.as_str(),
+                EntityKind::Function.as_str(),
+                fn_id.as_str(),
+                "derived_from",
+            );
         }
     };
     for nt in ir.node_types() {
@@ -710,20 +743,28 @@ async fn insert_neighbors_from_ir(
         walk_properties(&et.properties, &mut on_prop);
     }
 
+    use ox_ontology::storage::EntityKind;
+    let object_mapping_kind = EntityKind::ObjectMapping.as_str();
+    let link_mapping_kind = EntityKind::LinkMapping.as_str();
+    let node_type_kind = EntityKind::NodeType.as_str();
+    let edge_type_kind = EntityKind::EdgeType.as_str();
+    let concept_map_kind = EntityKind::ConceptMap.as_str();
+    let code_system_kind = EntityKind::CodeSystem.as_str();
+
     // ObjectMapping → NodeType
     for om in ir.object_mappings() {
-        push("object_mapping", om.id.as_str(), "node_type", om.node_type_id.as_str(), "maps_node_type");
+        push(object_mapping_kind, om.id.as_str(), node_type_kind, om.node_type_id.as_str(), "maps_node_type");
     }
 
     // LinkMapping → EdgeType
     for lm in ir.link_mappings() {
-        push("link_mapping", lm.id.as_str(), "edge_type", lm.edge_type_id.as_str(), "maps_edge_type");
+        push(link_mapping_kind, lm.id.as_str(), edge_type_kind, lm.edge_type_id.as_str(), "maps_edge_type");
     }
 
     // ConceptMap → source_system / target_system
     for cm in ir.concept_maps() {
-        push("concept_map", cm.id.as_str(), "code_system", cm.source_system_id.as_str(), "concept_map_source");
-        push("concept_map", cm.id.as_str(), "code_system", cm.target_system_id.as_str(), "concept_map_target");
+        push(concept_map_kind, cm.id.as_str(), code_system_kind, cm.source_system_id.as_str(), "concept_map_source");
+        push(concept_map_kind, cm.id.as_str(), code_system_kind, cm.target_system_id.as_str(), "concept_map_target");
     }
 
     // ValueSet → CodeSystem (composition rules)
@@ -808,9 +849,9 @@ async fn insert_hierarchy_closure(
             // self — depth 0
             rows.push((
                 "code_system_broader".into(),
-                "coded_value".into(),
+                ox_ontology::storage::EntityKind::CodedValue.as_str().into(),
                 cv.id.to_string(),
-                "coded_value".into(),
+                ox_ontology::storage::EntityKind::CodedValue.as_str().into(),
                 cv.id.to_string(),
                 0,
             ));
@@ -822,9 +863,9 @@ async fn insert_hierarchy_closure(
             while let Some(parent) = parent_of.get(current) {
                 rows.push((
                     "code_system_broader".into(),
-                    "coded_value".into(),
+                    ox_ontology::storage::EntityKind::CodedValue.as_str().into(),
                     parent.to_string(),
-                    "coded_value".into(),
+                    ox_ontology::storage::EntityKind::CodedValue.as_str().into(),
                     cv.id.to_string(),
                     depth,
                 ));
@@ -853,9 +894,9 @@ async fn insert_hierarchy_closure(
     for term in &terms {
         rows.push((
             "glossary_term_broader".into(),
-            "glossary_term".into(),
+            ox_ontology::storage::EntityKind::GlossaryTerm.as_str().into(),
             term.id.to_string(),
-            "glossary_term".into(),
+            ox_ontology::storage::EntityKind::GlossaryTerm.as_str().into(),
             term.id.to_string(),
             0,
         ));
@@ -866,9 +907,9 @@ async fn insert_hierarchy_closure(
         while let Some(parent) = parent_map.get(current) {
             rows.push((
                 "glossary_term_broader".into(),
-                "glossary_term".into(),
+                ox_ontology::storage::EntityKind::GlossaryTerm.as_str().into(),
                 parent.to_string(),
-                "glossary_term".into(),
+                ox_ontology::storage::EntityKind::GlossaryTerm.as_str().into(),
                 term.id.to_string(),
                 depth,
             ));
@@ -888,9 +929,9 @@ async fn insert_hierarchy_closure(
         for iface_id in &nt.implements {
             rows.push((
                 "interface_implements".into(),
-                "node_type".into(),
+                ox_ontology::storage::EntityKind::NodeType.as_str().into(),
                 nt.id.to_string(),
-                "interface".into(),
+                ox_ontology::storage::EntityKind::Interface.as_str().into(),
                 iface_id.to_string(),
                 1,
             ));
@@ -959,12 +1000,18 @@ async fn insert_search_vectors(
 ) -> OxResult<()> {
     // Per-entity docs. The ontology_header row covers the
     // ontology-level searchable text (name + description).
+    //
+    // `kind` is typed as `EntityKind` rather than a `&str` literal
+    // so the SQL `::ontology_entity_kind` cast can never see a
+    // string the enum doesn't list — adding a new search-indexable
+    // entity forces an enum addition at compile time.
+    use ox_ontology::storage::EntityKind;
     let mut kinds: Vec<String> = Vec::new();
     let mut lids: Vec<String> = Vec::new();
     let mut docs: Vec<String> = Vec::new();
 
-    let mut emit = |kind: &'static str, lid: &str, doc: String| {
-        kinds.push(kind.to_string());
+    let mut emit = |kind: EntityKind, lid: &str, doc: String| {
+        kinds.push(kind.as_str().to_string());
         lids.push(lid.to_string());
         docs.push(doc);
     };
@@ -986,14 +1033,14 @@ async fn insert_search_vectors(
     };
 
     emit(
-        "ontology_header",
+        EntityKind::OntologyHeader,
         &ir.id,
         format!("{} {}", ir.name, localized_flat(&ir.description)),
     );
 
     for nt in ir.node_types() {
         emit(
-            "node_type",
+            EntityKind::NodeType,
             nt.id.as_str(),
             format!(
                 "{} {}",
@@ -1009,7 +1056,7 @@ async fn insert_search_vectors(
                 .collect::<Vec<_>>()
                 .join(" ");
             emit(
-                "property",
+                EntityKind::Property,
                 prop.id.as_str(),
                 format!(
                     "{} {} {} {}",
@@ -1023,7 +1070,7 @@ async fn insert_search_vectors(
     }
     for et in ir.edge_types() {
         emit(
-            "edge_type",
+            EntityKind::EdgeType,
             et.id.as_str(),
             format!(
                 "{} {}",
@@ -1034,7 +1081,7 @@ async fn insert_search_vectors(
     }
     for cs in ir.code_systems() {
         emit(
-            "code_system",
+            EntityKind::CodeSystem,
             cs.id.as_str(),
             format!(
                 "{} {} {}",
@@ -1046,7 +1093,7 @@ async fn insert_search_vectors(
         for cv in &cs.codes {
             let alias = cv.aliases.join(" ");
             emit(
-                "coded_value",
+                EntityKind::CodedValue,
                 cv.id.as_str(),
                 format!(
                     "{} {} {} {} {}",
@@ -1061,7 +1108,7 @@ async fn insert_search_vectors(
     }
     for vs in ir.value_sets() {
         emit(
-            "value_set",
+            EntityKind::ValueSet,
             vs.id.as_str(),
             format!(
                 "{} {} {}",
@@ -1073,7 +1120,7 @@ async fn insert_search_vectors(
     }
     for np in ir.notation_patterns() {
         emit(
-            "notation_pattern",
+            EntityKind::NotationPattern,
             np.id.as_str(),
             format!(
                 "{} {} {}",
@@ -1091,7 +1138,7 @@ async fn insert_search_vectors(
             .collect::<Vec<_>>()
             .join(" ");
         emit(
-            "glossary_term",
+            EntityKind::GlossaryTerm,
             term.id.as_str(),
             format!(
                 "{} {} {} {}",
@@ -1219,6 +1266,23 @@ pub(super) fn assemble_ir(
             }
             EntityKind::ColumnProfile => {
                 column_profiles.push(serde_json::from_value(row.content.clone())?)
+            }
+            // Property + CodedValue are nested-only entity kinds —
+            // they appear in the materialised navigation / search
+            // tables but `extract_entities` never emits them as
+            // top-level rows (they live inside their parent's
+            // payload). Hitting them in `assemble_ir` would mean the
+            // content-addressed store grew a row at this granularity,
+            // which is a contract violation. Surface loudly.
+            EntityKind::Property | EntityKind::CodedValue => {
+                return Err(OxError::Runtime {
+                    message: format!(
+                        "ontology_entity_versions row has nested-only entity_kind \
+                         '{}' — these live inside their parent type's payload and \
+                         must never be persisted as standalone entities",
+                        row.entity_kind,
+                    ),
+                });
             }
         }
     }

@@ -1980,6 +1980,16 @@ CREATE TYPE ontology_entity_kind AS ENUM (
     'edge_type',
     'index_def',
     'interface',
+    -- A property defined on a node_type or edge_type. Properties carry
+    -- their own stable id and are referenced standalone from the
+    -- materialised neighbour graph (`ontology_entity_neighbors`) and
+    -- from search-index rows — registering them here keeps every
+    -- `entity_kind` cast safe regardless of which surface emits it.
+    -- The content-addressed store does NOT extract properties as
+    -- separate `ExtractedEntity`s (they live inside the parent type's
+    -- payload); this enum exists for the materialised denormalised
+    -- views that DO need to anchor edges at property granularity.
+    'property',
     -- Mapping
     'object_mapping',
     'link_mapping',
@@ -1997,6 +2007,15 @@ CREATE TYPE ontology_entity_kind AS ENUM (
     'glossary_term',
     'taxonomy',
     'code_system',
+    -- Individual `CodedValue` rows nested inside a `code_system`.
+    -- Carries its own stable id; the materialised hierarchy table
+    -- (`ontology_entity_hierarchy`) anchors the SKOS-style
+    -- `code_system_broader` walk at this granularity so consumers
+    -- can ask "which codes are below CODE_X?" without joining
+    -- through the parent system. Like `property` above, not emitted
+    -- as a top-level `ExtractedEntity` — lives inside the parent
+    -- `CodeSystemDef`'s payload in the content-addressed store.
+    'coded_value',
     'value_set',
     'notation_pattern',
     'concept_map',
