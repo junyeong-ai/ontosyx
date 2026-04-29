@@ -7,7 +7,7 @@ import {
   getBezierPath,
   type EdgeProps,
 } from "@xyflow/react";
-import type { Cardinality, EdgeTypeDef } from "@/types/api";
+import type { Cardinality, EdgeTypeDef, QualityGap } from "@/types/api";
 import { cn } from "@/lib/cn";
 import { localize } from "@/lib/locale/localize";
 import { useLocaleChain } from "@/lib/use-locale-chain";
@@ -23,6 +23,12 @@ export interface SchemaEdgeData {
   highlighted: boolean;
   highlightKind?: import("@/types/api").BindingKind;
   diffStatus?: DiffStatus;
+  /** ADR-0057 — quality gaps the runtime / SHACL flagged for this
+   *  edge. Renders as a severity-tiered dot adjacent to the edge
+   *  label (red for `high`, amber for `medium`); `low` gaps are
+   *  suppressed at the canvas surface to keep it readable, and
+   *  remain visible inside the inspector's `GapsList`. */
+  gaps?: QualityGap[];
 }
 
 type SchemaEdgeProps = EdgeProps & { data: SchemaEdgeData };
@@ -30,6 +36,13 @@ type SchemaEdgeProps = EdgeProps & { data: SchemaEdgeData };
 function schemaEdgeEqual(prev: SchemaEdgeProps, next: SchemaEdgeProps): boolean {
   const a = prev.data;
   const b = next.data;
+  // Mirror SchemaNode's per-tier counting (ADR-0057) so a gap-list
+  // reorder that doesn't change total length but shifts severity
+  // still re-renders.
+  const aHigh = (a?.gaps ?? []).filter((g) => g.severity === "high").length;
+  const bHigh = (b?.gaps ?? []).filter((g) => g.severity === "high").length;
+  const aMedium = (a?.gaps ?? []).filter((g) => g.severity === "medium").length;
+  const bMedium = (b?.gaps ?? []).filter((g) => g.severity === "medium").length;
   return (
     prev.sourceX === next.sourceX &&
     prev.sourceY === next.sourceY &&
@@ -40,7 +53,9 @@ function schemaEdgeEqual(prev: SchemaEdgeProps, next: SchemaEdgeProps): boolean 
     a?.selected === b?.selected &&
     a?.highlighted === b?.highlighted &&
     a?.highlightKind === b?.highlightKind &&
-    a?.diffStatus === b?.diffStatus
+    a?.diffStatus === b?.diffStatus &&
+    aHigh === bHigh &&
+    aMedium === bMedium
   );
 }
 
@@ -76,7 +91,11 @@ export const SchemaEdge = memo(function SchemaEdge({
   style,
   markerEnd,
 }: SchemaEdgeProps) {
-  const { edgeDef, selected, highlighted, highlightKind, diffStatus } = data ?? {};
+  const { edgeDef, selected, highlighted, highlightKind, diffStatus, gaps } = data ?? {};
+  const highGapCount =
+    gaps?.filter((g) => g.severity === "high").length ?? 0;
+  const mediumGapCount =
+    gaps?.filter((g) => g.severity === "medium").length ?? 0;
   // The locale chain is shared across all edge instances via the
   // hook's TanStack Query cache — N edges resolve to one fetch.
   const localeChain = useLocaleChain();
@@ -156,6 +175,22 @@ export const SchemaEdge = memo(function SchemaEdge({
           {edgeDef?.cardinality && edgeDef.cardinality !== "many_to_many" && (
             <span className="ml-1 text-[8px] text-muted-foreground">
               ({formatCardinality(edgeDef.cardinality)})
+            </span>
+          )}
+          {highGapCount > 0 && (
+            <span
+              className="ml-1 inline-flex h-3 min-w-3 items-center justify-center rounded-full bg-red-500 px-0.5 text-[8px] font-bold text-white"
+              aria-label={`${highGapCount} high-severity quality gaps`}
+            >
+              {highGapCount}
+            </span>
+          )}
+          {mediumGapCount > 0 && highGapCount === 0 && (
+            <span
+              className="ml-1 inline-flex h-3 min-w-3 items-center justify-center rounded-full bg-amber-500 px-0.5 text-[8px] font-bold text-white"
+              aria-label={`${mediumGapCount} medium-severity quality gaps`}
+            >
+              {mediumGapCount}
             </span>
           )}
         </div>
