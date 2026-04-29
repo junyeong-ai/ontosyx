@@ -121,24 +121,38 @@ pub enum AnalyzeSelection {
     Extend {
         tables: BTreeSet<String>,
     },
+    /// Drop the named tables from an existing baseline analysis.
+    /// Symmetric to `Extend` — the operator already pulled the
+    /// tables in but later realised they are infrastructure /
+    /// audit / log relations that don't belong in the ontology.
+    /// The kernel returns the baseline minus the named tables and
+    /// every foreign key that referenced them. ADR-0026.
+    Reduce {
+        tables: BTreeSet<String>,
+    },
 }
 
 impl AnalyzeSelection {
     /// Lower to the kernel-facing [`TableSelection`] — used by
     /// callers that route their own baseline merge (so `Extend` and
     /// `Subset` collapse to the same `TableSelection::Subset`).
+    /// `Reduce` lowers to an empty `Subset` because the kernel
+    /// path that handles it (`analyze_reduction`) does not call
+    /// the adapter — it operates entirely on the supplied baseline.
     pub fn as_table_selection(&self) -> TableSelection {
         match self {
             Self::All => TableSelection::All,
             Self::Subset { tables } | Self::Extend { tables } => {
                 TableSelection::Subset(tables.clone())
             }
+            Self::Reduce { .. } => TableSelection::Subset(BTreeSet::new()),
         }
     }
 
-    /// Reject empty `Subset`/`Extend` lists at the request boundary.
-    /// `All` is always valid; the named-list variants must carry at
-    /// least one table to express a meaningful intent.
+    /// Reject empty `Subset` / `Extend` / `Reduce` lists at the
+    /// request boundary. `All` is always valid; the named-list
+    /// variants must carry at least one table to express a
+    /// meaningful intent.
     pub fn validate(&self) -> OxResult<()> {
         match self {
             Self::All => Ok(()),
@@ -150,7 +164,11 @@ impl AnalyzeSelection {
                 field: "selection.tables".to_string(),
                 message: "extend selection requires at least one table name".to_string(),
             }),
-            Self::Subset { .. } | Self::Extend { .. } => Ok(()),
+            Self::Reduce { tables } if tables.is_empty() => Err(OxError::Validation {
+                field: "selection.tables".to_string(),
+                message: "reduce selection requires at least one table name".to_string(),
+            }),
+            Self::Subset { .. } | Self::Extend { .. } | Self::Reduce { .. } => Ok(()),
         }
     }
 }
@@ -351,6 +369,39 @@ mod tests {
         }
         .validate()
         .unwrap();
+    }
+
+    #[test]
+    fn analyze_selection_reduce_with_tables_is_valid() {
+        AnalyzeSelection::Reduce {
+            tables: names(&["audit_log"]),
+        }
+        .validate()
+        .unwrap();
+    }
+
+    #[test]
+    fn analyze_selection_reduce_empty_is_rejected() {
+        let err = AnalyzeSelection::Reduce {
+            tables: BTreeSet::new(),
+        }
+        .validate()
+        .unwrap_err();
+        assert!(matches!(err, OxError::Validation { ref field, .. } if field == "selection.tables"));
+    }
+
+    #[test]
+    fn analyze_selection_reduce_lowers_to_empty_subset() {
+        // Reduce never calls the adapter, so it lowers to an empty
+        // subset — the kernel routes it to `reduce_baseline`
+        // before any introspection primitive runs.
+        let reduce = AnalyzeSelection::Reduce {
+            tables: names(&["audit_log"]),
+        };
+        match reduce.as_table_selection() {
+            TableSelection::Subset(s) => assert!(s.is_empty()),
+            TableSelection::All => panic!("reduce must not lower to All"),
+        }
     }
 
     #[test]

@@ -339,6 +339,21 @@ impl IntrospectionKernel {
                 Some(base) => self.analyze_extension(base, tables).await,
                 None => self.analyze_subset(tables).await,
             },
+            // ADR-0026: reduce operates entirely on the baseline —
+            // no adapter call needed. Without a baseline the
+            // operation is meaningless (there is nothing to remove
+            // from), so surface that as a typed validation error
+            // instead of silently degrading to a different shape.
+            AnalyzeSelection::Reduce { tables } => match baseline {
+                Some(base) => Ok(Arc::new(reduce_baseline(base, &tables))),
+                None => Err(OxError::Validation {
+                    field: "selection".to_string(),
+                    message:
+                        "reduce selection requires a baseline; the project carries no \
+                         stored introspection to drop tables from"
+                            .to_string(),
+                }),
+            },
         }
     }
 
@@ -652,6 +667,57 @@ impl IntrospectionKernel {
             profile,
             warnings,
         })
+    }
+}
+
+/// Drop the named tables from `base`, plus every foreign key that
+/// referenced them and every table profile that described them.
+/// ADR-0026: the inverse of `analyze_extension` — symmetric round-
+/// trip lets the operator narrow a baseline they over-included.
+///
+/// Names not present in the baseline are silently ignored — the
+/// caller has already asked for the table to disappear, so its
+/// absence is the desired terminal state. Warnings carry through
+/// unchanged because they pin source-level events that retain
+/// historical value even after a table is dropped.
+fn reduce_baseline(base: &AnalysisResult, drop_tables: &BTreeSet<String>) -> AnalysisResult {
+    let drop_set: HashSet<&str> = drop_tables.iter().map(String::as_str).collect();
+
+    let tables = base
+        .schema
+        .tables
+        .iter()
+        .filter(|t| !drop_set.contains(t.name.as_str()))
+        .cloned()
+        .collect();
+
+    let foreign_keys = base
+        .schema
+        .foreign_keys
+        .iter()
+        .filter(|fk| {
+            !drop_set.contains(fk.from_table.as_str())
+                && !drop_set.contains(fk.to_table.as_str())
+        })
+        .cloned()
+        .collect();
+
+    let table_profiles = base
+        .profile
+        .table_profiles
+        .iter()
+        .filter(|tp| !drop_set.contains(tp.table_name.as_str()))
+        .cloned()
+        .collect();
+
+    AnalysisResult {
+        schema: SourceSchema {
+            source_type: base.schema.source_type.clone(),
+            tables,
+            foreign_keys,
+        },
+        profile: SourceProfile { table_profiles },
+        warnings: base.warnings.clone(),
     }
 }
 
@@ -1403,6 +1469,86 @@ mod tests {
         assert!(names.contains("a"));
         assert!(names.contains("b"));
         assert!(!names.contains("c"));
+    }
+
+    #[tokio::test]
+    async fn analyze_routes_reduce_with_baseline_drops_named_tables_and_their_fks() {
+        // Two-table baseline with a single FK; reduce drops one
+        // table and the FK referencing it must vanish too.
+        struct FkAdapter {
+            inner: MultiTableAdapter,
+        }
+        #[async_trait]
+        impl DataSourceAdapter for FkAdapter {
+            fn source_type(&self) -> &str { self.inner.source_type() }
+            fn supports_scan(&self) -> bool { self.inner.supports_scan() }
+            async fn list_tables(&self) -> OxResult<Vec<String>> { self.inner.list_tables().await }
+            async fn list_tables_with_summary(&self) -> OxResult<Vec<crate::TableSummary>> {
+                self.inner.list_tables_with_summary().await
+            }
+            async fn describe_table(&self, t: &str) -> OxResult<SourceTableDef> {
+                self.inner.describe_table(t).await
+            }
+            async fn count_rows(&self, t: &str) -> OxResult<u64> { self.inner.count_rows(t).await }
+            async fn sample_column(
+                &self,
+                t: &str,
+                c: &SourceColumnDef,
+            ) -> OxResult<ox_core::source_schema::ColumnStats> {
+                self.inner.sample_column(t, c).await
+            }
+            async fn list_foreign_keys(&self) -> OxResult<Vec<ForeignKeyDef>> {
+                Ok(vec![ForeignKeyDef {
+                    from_table: "orders".to_string(),
+                    from_column: "user_id".to_string(),
+                    to_table: "users".to_string(),
+                    to_column: "id".to_string(),
+                    inferred: false,
+                }])
+            }
+        }
+        let adapter = Arc::new(FkAdapter {
+            inner: MultiTableAdapter::new(&["users", "orders"]),
+        });
+        let kernel = IntrospectionKernel::new(adapter.clone());
+        let base = kernel
+            .analyze(AnalyzeSelection::All, None)
+            .await
+            .expect("base");
+        let reduced = kernel
+            .analyze(
+                AnalyzeSelection::Reduce {
+                    tables: BTreeSet::from(["orders".to_string()]),
+                },
+                Some(base.as_ref()),
+            )
+            .await
+            .expect("reduce");
+        assert_eq!(reduced.schema.tables.len(), 1);
+        assert_eq!(reduced.schema.tables[0].name, "users");
+        assert!(
+            reduced.schema.foreign_keys.is_empty(),
+            "FK referencing the dropped table must vanish"
+        );
+    }
+
+    #[tokio::test]
+    async fn analyze_routes_reduce_without_baseline_returns_validation_error() {
+        let adapter = Arc::new(MultiTableAdapter::new(&["a"]));
+        let kernel = IntrospectionKernel::new(adapter);
+        let err = kernel
+            .analyze(
+                AnalyzeSelection::Reduce {
+                    tables: BTreeSet::from(["a".to_string()]),
+                },
+                None,
+            )
+            .await
+            .expect_err("reduce without baseline must reject");
+        match err {
+            OxError::Validation { ref field, .. } => assert_eq!(field, "selection"),
+            other => panic!("expected Validation, got {other:?}"),
+        }
     }
 
     #[tokio::test]

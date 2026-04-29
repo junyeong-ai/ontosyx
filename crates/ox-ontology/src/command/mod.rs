@@ -1,5 +1,6 @@
 mod execute;
 mod reconcile;
+mod retract;
 #[cfg(test)]
 mod tests;
 
@@ -8,6 +9,7 @@ pub use reconcile::{
     ReconcileEntityKind, ReconcileReport, ReconcileResult, UncertainMatch,
     apply_match_decisions, reconcile_refined,
 };
+pub use retract::build_retract_source_batch;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

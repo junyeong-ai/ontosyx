@@ -95,6 +95,7 @@ pub use concept_map::{ConceptMapDef, ConceptMapId, ConceptMapping, Equivalence, 
 pub use command::{
     CommandResult, MatchDecision, OntologyCommand, PropertyPatch, ReconcileConfidence,
     ReconcileEntityKind, ReconcileReport, ReconcileResult, UncertainMatch,
+    build_retract_source_batch,
 };
 pub use dependency::{
     DependencyBucket, DependencyEdge, DependencyKind, SchemaDependencyGraph, SchemaEntityRef,

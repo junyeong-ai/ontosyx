@@ -1066,43 +1066,40 @@ pub(crate) async fn analyze_adapter(
     let adapter = kind.build_adapter(state.secret_resolver.as_ref()).await?;
     let kernel = ox_source::IntrospectionKernel::new(adapter.clone());
 
-    // Each variant maps to one kernel entry point. `Extend` is the
-    // only branch that needs the stored baseline; the kernel handles
-    // the dedup-and-merge.
-    let (analysis, mode) = match req.selection {
-        AnalyzeSelection::All => (
-            kernel.analyze_all().await.map_err(AppError::from)?,
-            "all",
-        ),
-        AnalyzeSelection::Subset { tables } => (
-            kernel
-                .analyze_subset(tables)
-                .await
-                .map_err(AppError::from)?,
-            "subset",
-        ),
-        AnalyzeSelection::Extend { tables } => {
-            let baseline_snapshot = row.last_analysis_snapshot.clone().ok_or_else(|| {
-                AppError::bad_request(
-                    "extend requires an existing analysis snapshot — \
-                     run a base analyse first",
-                )
-            })?;
-            let baseline: ox_source::AnalysisResult =
-                serde_json::from_value(baseline_snapshot).map_err(|e| {
-                    AppError::internal(format!(
-                        "stored analysis snapshot is not a valid AnalysisResult: {e}"
-                    ))
-                })?;
-            (
-                kernel
-                    .analyze_extension(&baseline, tables)
-                    .await
-                    .map_err(AppError::from)?,
-                "extension",
+    // `Extend` and `Reduce` need the stored baseline; `All` /
+    // `Subset` ignore it. The kernel's `analyze` single-entry
+    // routing handles dispatch; we only need to surface the mode
+    // tag for the audit log here.
+    let baseline = if matches!(
+        req.selection,
+        AnalyzeSelection::Extend { .. } | AnalyzeSelection::Reduce { .. }
+    ) {
+        let snapshot = row.last_analysis_snapshot.clone().ok_or_else(|| {
+            AppError::bad_request(
+                "extend / reduce require an existing analysis snapshot — \
+                 run a base analyse first",
             )
-        }
+        })?;
+        let parsed: ox_source::AnalysisResult =
+            serde_json::from_value(snapshot).map_err(|e| {
+                AppError::internal(format!(
+                    "stored analysis snapshot is not a valid AnalysisResult: {e}"
+                ))
+            })?;
+        Some(parsed)
+    } else {
+        None
     };
+    let mode = match &req.selection {
+        AnalyzeSelection::All => "all",
+        AnalyzeSelection::Subset { .. } => "subset",
+        AnalyzeSelection::Extend { .. } => "extension",
+        AnalyzeSelection::Reduce { .. } => "reduction",
+    };
+    let analysis = kernel
+        .analyze(req.selection, baseline.as_ref())
+        .await
+        .map_err(AppError::from)?;
 
     // Stamp the result + per-table fingerprints back onto the source
     // row. Fingerprints compute via the kernel's default impl —
