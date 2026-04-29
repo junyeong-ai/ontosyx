@@ -516,14 +516,21 @@ mod tests {
         assert_eq!(hash_canonical(&canonical_json(&a)), hash_canonical(&canonical_json(&b)));
     }
 
-    #[test]
-    fn entity_kind_wire_names_round_trip_through_parse() {
-        for kind in [
+    /// Single source of truth for "every variant of `EntityKind`" —
+    /// every test that needs to walk the full enum reuses this so a
+    /// future variant cannot silently slip past `parse` /
+    /// `as_str` / cardinality checks. Adding a variant to `EntityKind`
+    /// without listing it here is caught by `every_variant_appears_
+    /// in_all_variants` (a missing-variant compile error from the
+    /// exhaustive `match` below).
+    fn all_variants() -> [EntityKind; 25] {
+        [
             EntityKind::OntologyHeader,
             EntityKind::NodeType,
             EntityKind::EdgeType,
             EntityKind::IndexDef,
             EntityKind::Interface,
+            EntityKind::Property,
             EntityKind::ObjectMapping,
             EntityKind::LinkMapping,
             EntityKind::PropertyMapping,
@@ -537,15 +544,82 @@ mod tests {
             EntityKind::GlossaryTerm,
             EntityKind::Taxonomy,
             EntityKind::CodeSystem,
+            EntityKind::CodedValue,
             EntityKind::ValueSet,
             EntityKind::NotationPattern,
             EntityKind::ConceptMap,
             EntityKind::ValueRangeSet,
             EntityKind::ColumnProfile,
-        ] {
+        ]
+    }
+
+    /// Compile-time guard that `all_variants` actually covers every
+    /// variant. The exhaustive `match` fails to compile the moment
+    /// someone adds a new variant to `EntityKind` without also
+    /// adding it to `all_variants`. Combined with the unit tests
+    /// below, this makes "you added a kind but forgot to wire its
+    /// wire string / parse arm" a build break, not a runtime drift.
+    #[test]
+    fn every_variant_appears_in_all_variants() {
+        fn assert_listed(k: EntityKind) {
+            // Exhaustive match — adding a new EntityKind without
+            // updating this arm is a compile error.
+            match k {
+                EntityKind::OntologyHeader
+                | EntityKind::NodeType
+                | EntityKind::EdgeType
+                | EntityKind::IndexDef
+                | EntityKind::Interface
+                | EntityKind::Property
+                | EntityKind::ObjectMapping
+                | EntityKind::LinkMapping
+                | EntityKind::PropertyMapping
+                | EntityKind::Rule
+                | EntityKind::DataQuality
+                | EntityKind::Action
+                | EntityKind::Provenance
+                | EntityKind::Function
+                | EntityKind::Metric
+                | EntityKind::Enrichment
+                | EntityKind::GlossaryTerm
+                | EntityKind::Taxonomy
+                | EntityKind::CodeSystem
+                | EntityKind::CodedValue
+                | EntityKind::ValueSet
+                | EntityKind::NotationPattern
+                | EntityKind::ConceptMap
+                | EntityKind::ValueRangeSet
+                | EntityKind::ColumnProfile => {}
+            }
+        }
+        for k in all_variants() {
+            assert_listed(k);
+        }
+    }
+
+    #[test]
+    fn entity_kind_wire_names_round_trip_through_parse() {
+        for kind in all_variants() {
             let wire = kind.as_str();
-            let back = EntityKind::parse(wire).unwrap();
+            let back = EntityKind::parse(wire)
+                .unwrap_or_else(|_| panic!("parse missing arm for {wire}"));
             assert_eq!(back, kind, "round-trip broke for {wire}");
+        }
+    }
+
+    #[test]
+    fn entity_kind_wire_names_are_distinct() {
+        // Two variants accidentally returning the same `as_str()`
+        // would collide on parse — surface that here rather than
+        // letting the second variant silently shadow the first.
+        let mut seen: std::collections::HashSet<&'static str> =
+            std::collections::HashSet::new();
+        for kind in all_variants() {
+            let wire = kind.as_str();
+            assert!(
+                seen.insert(wire),
+                "two EntityKind variants share wire string '{wire}'"
+            );
         }
     }
 

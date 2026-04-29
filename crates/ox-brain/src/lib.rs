@@ -746,8 +746,12 @@ impl OntologyEditor for DefaultBrain {
         vars.insert("ontology", ontology_json.as_str());
         vars.insert("user_request", user_request);
 
-        let response: EditCommandsResponse = self
-            .call_structured(
+        // `call_structured_traced` already captures the resolved
+        // model id alongside the parsed output — no second
+        // `model_resolver.resolve` round-trip that could drift behind
+        // a concurrent admin update.
+        let (response, call): (EditCommandsResponse, _) = self
+            .call_structured_traced(
                 "edit_ontology",
                 Some("1.0.0"),
                 "edit_ontology",
@@ -755,12 +759,10 @@ impl OntologyEditor for DefaultBrain {
                 "Generating ontology edit commands",
             )
             .await?;
-
-        let resolved = self.model_resolver.resolve("edit_ontology").await?;
         Ok(EditCommandsOutput {
             commands: response.commands,
             explanation: response.explanation,
-            model: resolved.model_id,
+            model: call.model_id,
         })
     }
 }
