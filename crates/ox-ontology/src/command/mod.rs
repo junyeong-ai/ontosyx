@@ -4,9 +4,9 @@ mod reconcile;
 mod tests;
 
 pub use reconcile::{
-    DeletedEntity, EntityKind, GeneratedEntity, MatchDecision, PreservedEntity,
-    ReconcileConfidence, ReconcileReport, ReconcileResult, UncertainMatch, apply_match_decisions,
-    reconcile_refined,
+    DeletedEntity, GeneratedEntity, MatchDecision, PreservedEntity, ReconcileConfidence,
+    ReconcileEntityKind, ReconcileReport, ReconcileResult, UncertainMatch,
+    apply_match_decisions, reconcile_refined,
 };
 
 use schemars::JsonSchema;

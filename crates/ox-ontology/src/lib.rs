@@ -90,8 +90,8 @@ pub use code_system::{
 };
 pub use concept_map::{ConceptMapDef, ConceptMapId, ConceptMapping, Equivalence, Translation};
 pub use command::{
-    CommandResult, EntityKind, MatchDecision, OntologyCommand, PropertyPatch,
-    ReconcileConfidence, ReconcileReport, ReconcileResult, UncertainMatch,
+    CommandResult, MatchDecision, OntologyCommand, PropertyPatch, ReconcileConfidence,
+    ReconcileEntityKind, ReconcileReport, ReconcileResult, UncertainMatch,
 };
 pub use dependency::{
     DependencyBucket, DependencyEdge, DependencyKind, SchemaDependencyGraph, SchemaEntityRef,

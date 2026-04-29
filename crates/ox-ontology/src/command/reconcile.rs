@@ -37,14 +37,14 @@ pub struct ReconcileReport {
 pub struct PreservedEntity {
     pub id: String,
     pub label: String,
-    pub entity_kind: EntityKind,
+    pub entity_kind: ReconcileEntityKind,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GeneratedEntity {
     pub id: String,
     pub label: String,
-    pub entity_kind: EntityKind,
+    pub entity_kind: ReconcileEntityKind,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -53,24 +53,41 @@ pub struct UncertainMatch {
     pub original_label: String,
     pub matched_label: String,
     pub match_reason: String,
-    pub entity_kind: EntityKind,
+    pub entity_kind: ReconcileEntityKind,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeletedEntity {
     pub id: String,
     pub label: String,
-    pub entity_kind: EntityKind,
+    pub entity_kind: ReconcileEntityKind,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+/// Discriminator for the entity kinds the reconcile pipeline can
+/// re-stamp ids on when the LLM lost track of an existing entity's
+/// identifier.
+///
+/// ADR-0021: scoped narrowly to topology (Node / Edge / Property)
+/// because the LLM design path that feeds reconcile only emits
+/// those three. Other IR collections — constraints, indices,
+/// governance, vocabulary, mapping, lineage — flow through
+/// dedicated paths that already preserve their ids without the
+/// reconcile fuzzy match. Listing only the kinds reconcile can
+/// actually act on lets `apply_match_decisions` use an exhaustive
+/// match — the previous `_ => {}` fallthrough silently swallowed
+/// `Constraint` / `Index` ids that the system was never going to
+/// touch anyway.
+///
+/// `storage::EntityKind` is a sibling discriminator with a much
+/// wider surface (every persisted IR entity); the two intentionally
+/// stay separate so a reconcile-flow change doesn't ripple through
+/// the content-addressed storage layer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum EntityKind {
+pub enum ReconcileEntityKind {
     Node,
     Edge,
     Property,
-    Constraint,
-    Index,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -112,7 +129,7 @@ pub fn apply_match_decisions(
         {
             let new_uuid = uuid::Uuid::new_v4().to_string();
             match um.entity_kind {
-                EntityKind::Node => {
+                ReconcileEntityKind::Node => {
                     let new_id: NodeTypeId = new_uuid.into();
                     if let Some(node) = ontology
                         .node_types
@@ -145,7 +162,7 @@ pub fn apply_match_decisions(
                         }
                     }
                 }
-                EntityKind::Edge => {
+                ReconcileEntityKind::Edge => {
                     let new_id: EdgeTypeId = new_uuid.into();
                     if let Some(edge) = ontology
                         .edge_types
@@ -155,7 +172,7 @@ pub fn apply_match_decisions(
                         edge.id = new_id;
                     }
                 }
-                EntityKind::Property => {
+                ReconcileEntityKind::Property => {
                     let new_id: PropertyId = new_uuid.into();
                     // Properties: find in any node or edge
                     let mut found = false;
@@ -197,7 +214,6 @@ pub fn apply_match_decisions(
                         }
                     }
                 }
-                _ => {} // Constraint/Index — less common, skip for now
             }
         }
     }
@@ -242,7 +258,7 @@ pub fn reconcile_refined(
             preserved.push(PreservedEntity {
                 id: node.id.to_string(),
                 label: node.label.to_string(),
-                entity_kind: EntityKind::Node,
+                entity_kind: ReconcileEntityKind::Node,
             });
         } else if let Some(orig_node) = orig_node_by_label.get(node.label.as_str()) {
             // Label fallback match
@@ -251,7 +267,7 @@ pub fn reconcile_refined(
                 original_label: orig_node.label.to_string(),
                 matched_label: node.label.to_string(),
                 match_reason: "matched by label".to_string(),
-                entity_kind: EntityKind::Node,
+                entity_kind: ReconcileEntityKind::Node,
             });
             matched_orig_node_ids.insert(orig_node.id.clone());
             let old_id = node.id.clone();
@@ -262,7 +278,7 @@ pub fn reconcile_refined(
             generated.push(GeneratedEntity {
                 id: node.id.to_string(),
                 label: node.label.to_string(),
-                entity_kind: EntityKind::Node,
+                entity_kind: ReconcileEntityKind::Node,
             });
         }
     }
@@ -273,7 +289,7 @@ pub fn reconcile_refined(
             deleted.push(DeletedEntity {
                 id: orig_node.id.to_string(),
                 label: orig_node.label.to_string(),
-                entity_kind: EntityKind::Node,
+                entity_kind: ReconcileEntityKind::Node,
             });
         }
     }
@@ -309,7 +325,7 @@ pub fn reconcile_refined(
             preserved.push(PreservedEntity {
                 id: edge.id.to_string(),
                 label: edge.label.to_string(),
-                entity_kind: EntityKind::Edge,
+                entity_kind: ReconcileEntityKind::Edge,
             });
         } else if let Some(orig_edge) = orig_edge_by_sig.get(&(
             edge.label.as_str(),
@@ -321,7 +337,7 @@ pub fn reconcile_refined(
                 original_label: orig_edge.label.to_string(),
                 matched_label: edge.label.to_string(),
                 match_reason: "matched by label+source+target".to_string(),
-                entity_kind: EntityKind::Edge,
+                entity_kind: ReconcileEntityKind::Edge,
             });
             matched_orig_edge_ids.insert(orig_edge.id.clone());
             edge.id = orig_edge.id.clone();
@@ -329,7 +345,7 @@ pub fn reconcile_refined(
             generated.push(GeneratedEntity {
                 id: edge.id.to_string(),
                 label: edge.label.to_string(),
-                entity_kind: EntityKind::Edge,
+                entity_kind: ReconcileEntityKind::Edge,
             });
         }
     }
@@ -339,7 +355,7 @@ pub fn reconcile_refined(
             deleted.push(DeletedEntity {
                 id: orig_edge.id.to_string(),
                 label: orig_edge.label.to_string(),
-                entity_kind: EntityKind::Edge,
+                entity_kind: ReconcileEntityKind::Edge,
             });
         }
     }
@@ -359,7 +375,7 @@ pub fn reconcile_refined(
         reconcile_properties_for_owners(
             &orig_nodes,
             &mut ref_nodes,
-            EntityKind::Property,
+            ReconcileEntityKind::Property,
             &mut preserved,
             &mut generated,
             &mut uncertain,
@@ -380,7 +396,7 @@ pub fn reconcile_refined(
         reconcile_properties_for_owners(
             &orig_edges,
             &mut ref_edges,
-            EntityKind::Property,
+            ReconcileEntityKind::Property,
             &mut preserved,
             &mut generated,
             &mut uncertain,
@@ -392,12 +408,12 @@ pub fn reconcile_refined(
     // Deleted nodes
     for del in &deleted {
         match del.entity_kind {
-            EntityKind::Node => {
+            ReconcileEntityKind::Node => {
                 commands.push(OntologyCommand::DeleteNode {
                     node_id: del.id.clone().into(),
                 });
             }
-            EntityKind::Edge => {
+            ReconcileEntityKind::Edge => {
                 commands.push(OntologyCommand::DeleteEdge {
                     edge_id: del.id.clone().into(),
                 });
@@ -541,7 +557,7 @@ pub fn reconcile_refined(
 fn reconcile_properties_for_owners(
     originals: &[(&str, &Vec<PropertyDef>)],
     refineds: &mut [(&str, &mut Vec<PropertyDef>)],
-    kind: EntityKind,
+    kind: ReconcileEntityKind,
     preserved: &mut Vec<PreservedEntity>,
     generated: &mut Vec<GeneratedEntity>,
     uncertain: &mut Vec<UncertainMatch>,
