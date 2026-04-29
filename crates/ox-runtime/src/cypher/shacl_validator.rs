@@ -828,18 +828,18 @@ fn build_issue(
     // otherwise. Wire shape stays additive so consumers without the
     // new field keep rendering the catalogue text unchanged.
     let mut final_message = message;
-    if let Some(authored) = rule.sh_message.as_ref() {
-        if !authored.is_empty() {
+    if let Some(authored) = rule.sh_message.as_ref()
+        && !authored.is_empty()
+    {
+        final_message.params.insert(
+            "sh_message_default".to_string(),
+            serde_json::Value::String(authored.default.clone()),
+        );
+        for (lang, text) in &authored.translations {
             final_message.params.insert(
-                "sh_message_default".to_string(),
-                serde_json::Value::String(authored.default.clone()),
+                format!("sh_message_{}", lang.as_str()),
+                serde_json::Value::String(text.clone()),
             );
-            for (lang, text) in &authored.translations {
-                final_message.params.insert(
-                    format!("sh_message_{}", lang.as_str()),
-                    serde_json::Value::String(text.clone()),
-                );
-            }
         }
     }
     let issue = match rule.severity {

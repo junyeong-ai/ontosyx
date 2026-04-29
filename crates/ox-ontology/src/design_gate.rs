@@ -307,8 +307,10 @@ mod tests {
     fn partial_analysis_acknowledged_meets_gate() {
         let mut report = empty_report();
         report.analysis_completeness = AnalysisCompleteness::Partial;
-        let mut options = DesignOptions::default();
-        options.partial_analysis_acknowledged = true;
+        let options = DesignOptions {
+            partial_analysis_acknowledged: true,
+            ..DesignOptions::default()
+        };
         let gates = evaluate_design_gates(&report, &options);
         assert_eq!(
             gates
