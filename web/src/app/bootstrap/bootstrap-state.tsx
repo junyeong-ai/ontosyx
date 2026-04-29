@@ -5,6 +5,29 @@
 // Keeping the schema tight — the wizard collects intent only; real
 // writes (project creation, glossary edits, etc.) still go through
 // the existing APIs once the user hits Finish on step 6.
+//
+// Architecture (ADR-0064 — rejected, but the rationale lives here so
+// future audits don't re-open the question):
+//
+// - Step location is the URL path itself (`/bootstrap/1-pilot`,
+//   `/bootstrap/2-source`, `/bootstrap/2b-select-tables`, …). Browser
+//   back / forward / deep-link work by construction; an
+//   additional URL search-param "step pointer" would duplicate the
+//   path and create two ways to disagree about which step is active.
+// - Form draft persists through `localStorage` keyed by
+//   `BOOTSTRAP_STORAGE_KEY`. The Zod schema gates every read so a
+//   malformed payload (older writers, manual tampering) collapses
+//   to `EMPTY` rather than reaching React state.
+// - Private-mode / disabled-storage browsers degrade to in-memory
+//   only — the wizard still functions, draft just doesn't survive
+//   reload.
+// - SSR returns `EMPTY` via `getServerSnapshot`; client hydration
+//   reconciles after the first `subscribe` call without a
+//   render-phase mutation.
+//
+// "Adding URL state" or "moving to a routed reducer" was rejected
+// — both add coupling without addressing a real failure mode the
+// existing layout doesn't cover.
 
 import {
   createContext,
