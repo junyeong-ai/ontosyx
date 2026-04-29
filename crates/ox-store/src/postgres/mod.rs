@@ -135,13 +135,26 @@ impl PostgresStore {
                         sqlx::query("SELECT set_config('app.system_bypass', 'true', false)")
                             .execute(&mut *conn)
                             .await?;
-                        // Also prime workspace_id to the default workspace
-                        // so that INSERT DEFAULT values resolve correctly.
-                        // This can run before the `workspaces` table exists
-                        // (first-boot migration scenario) — swallow the
-                        // "relation does not exist" in that window; the
-                        // system_bypass policy already covers the RLS path
-                        // for the migration's seed INSERTs.
+                        // PostgreSQL evaluates PERMISSIVE policies as
+                        // OR but still casts every policy's predicate
+                        // expression — `ws_isolation`'s
+                        // `current_setting('app.workspace_id', true)::uuid`
+                        // raises 22P02 on an empty session var even when
+                        // `system_bypass` would have matched. Set a nil
+                        // sentinel so the cast always succeeds; it never
+                        // matches a real workspace row, and policy OR
+                        // resolves through `system_bypass`.
+                        sqlx::query("SELECT set_config('app.workspace_id', $1, false)")
+                            .bind(Uuid::nil().to_string())
+                            .execute(&mut *conn)
+                            .await?;
+                        // Best-effort: prime to the actual default
+                        // workspace if it exists, so INSERT DEFAULTs
+                        // resolve to a real id when the system task
+                        // creates new rows. The earlier sentinel keeps
+                        // the cast safe whether or not this query
+                        // matches; "relation does not exist" during
+                        // first-boot is also tolerated.
                         #[allow(clippy::let_underscore_must_use)]
                         let _ = sqlx::query(
                             "SELECT set_config('app.workspace_id', id::text, false) \

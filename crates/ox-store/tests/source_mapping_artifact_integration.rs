@@ -108,14 +108,13 @@ async fn cleanup(store: &PostgresStore, ws_id: Uuid) {
     .await;
 }
 
-async fn count_artifacts(store: &PostgresStore, ws_id: Uuid, source_id: &str) -> i64 {
-    // RLS on `source_mapping_artifacts` requires `app.workspace_id`
-    // to be a valid UUID — an unset session var fails the policy's
-    // `::uuid` cast with `22P02`. The `SYSTEM_BYPASS` path also
-    // primes `app.workspace_id` from a 'default' workspace, which
-    // tests don't seed; staying inside the test's own workspace
-    // scope is the simpler + correct narrowing here.
-    PostgresStore::with_workspace(ws_id, || async {
+async fn count_artifacts(store: &PostgresStore, source_id: &str) -> i64 {
+    // SYSTEM_BYPASS lets the count see rows across every workspace
+    // without seeding a 'default'. The `before_acquire` hook now
+    // primes `app.workspace_id` to the nil UUID sentinel under
+    // SYSTEM_BYPASS so the `ws_isolation` policy's cast still
+    // succeeds (and the OR resolves through `system_bypass`).
+    PostgresStore::with_system_bypass(|| async {
         let pool = store.pool();
         sqlx::query_scalar::<_, i64>(
             "SELECT COUNT(*) FROM source_mapping_artifacts WHERE source_id = $1",
@@ -241,7 +240,7 @@ async fn replay_with_unchanged_schema_collapses_to_one_row() {
         "schema hash must be stable across replays"
     );
 
-    let count = count_artifacts(&store, ws_id, &source).await;
+    let count = count_artifacts(&store, &source).await;
     assert_eq!(
         count, 1,
         "two replays of the same design must persist one row, got {count}"
@@ -306,7 +305,7 @@ async fn schema_change_yields_a_new_row() {
         "schema change must change the snapshot hash"
     );
 
-    let count = count_artifacts(&store, ws_id, &source).await;
+    let count = count_artifacts(&store, &source).await;
     assert_eq!(
         count, 2,
         "design against a new schema version must add a new row, got {count}"

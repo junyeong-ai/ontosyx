@@ -90,7 +90,9 @@ impl crate::store::DataSourceStore for PostgresStore {
                 SET kind = EXCLUDED.kind,
                     config = EXCLUDED.config,
                     updated_at = NOW()
-             RETURNING id, workspace_id, source_id, kind, config, created_at, updated_at",
+             RETURNING id, workspace_id, source_id, kind, config,
+                       last_analysis_snapshot, schema_fingerprints,
+                       last_analyzed_at, created_at, updated_at",
         )
         .bind(source_id)
         .bind(kind)
