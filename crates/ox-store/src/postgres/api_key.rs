@@ -31,6 +31,7 @@ impl crate::store::ApiKeyStore for PostgresStore {
         key_hash: &[u8],
         role: &str,
     ) -> OxResult<crate::models::ApiKey> {
+        super::require_workspace_context()?;
         let id = Uuid::new_v4();
         let created_at = chrono::Utc::now();
 

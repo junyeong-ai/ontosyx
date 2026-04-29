@@ -141,7 +141,7 @@ pub(crate) async fn design_project(
             serde_json::from_value::<ox_core::source_schema::SourceSchema>(schema_value.clone())
     {
         persist_design_artifact(
-            std::sync::Arc::clone(&state.store),
+            state.store.as_ref(),
             &ontology,
             &source_id,
             &schema,

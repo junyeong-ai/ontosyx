@@ -37,8 +37,6 @@ use ox_ontology::mapping::{
 use ox_ontology::source_mapping::{ArtifactProvenance, SourceMappingArtifact};
 use ox_ontology::test_fixtures;
 use ox_store::{PostgresStore, SourceMappingArtifactStore};
-use sqlx::postgres::PgPoolOptions;
-use sqlx::PgPool;
 use std::collections::BTreeMap;
 use uuid::Uuid;
 
@@ -55,18 +53,11 @@ fn resolve_test_db_url() -> Option<String> {
 
 async fn connect_store() -> Option<PostgresStore> {
     let url = resolve_test_db_url()?;
-    let store = PostgresStore::connect(&url, 4).await.ok()?;
-    store.migrate().await.ok()?;
-    Some(store)
-}
-
-async fn admin_pool(url: &str) -> PgPool {
-    PgPoolOptions::new()
-        .max_connections(2)
-        .acquire_timeout(std::time::Duration::from_secs(5))
-        .connect(url)
+    let store = PostgresStore::connect(&url, 4)
         .await
-        .expect("admin pool connect")
+        .expect("connect to test DB");
+    store.migrate().await.expect("apply migrations");
+    Some(store)
 }
 
 async fn seed_workspace(store: &PostgresStore) -> Uuid {
@@ -117,15 +108,24 @@ async fn cleanup(store: &PostgresStore, ws_id: Uuid) {
     .await;
 }
 
-async fn count_artifacts(url: &str, source_id: &str) -> i64 {
-    let pool = admin_pool(url).await;
-    sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM source_mapping_artifacts WHERE source_id = $1",
-    )
-    .bind(source_id)
-    .fetch_one(&pool)
+async fn count_artifacts(store: &PostgresStore, ws_id: Uuid, source_id: &str) -> i64 {
+    // RLS on `source_mapping_artifacts` requires `app.workspace_id`
+    // to be a valid UUID — an unset session var fails the policy's
+    // `::uuid` cast with `22P02`. The `SYSTEM_BYPASS` path also
+    // primes `app.workspace_id` from a 'default' workspace, which
+    // tests don't seed; staying inside the test's own workspace
+    // scope is the simpler + correct narrowing here.
+    PostgresStore::with_workspace(ws_id, || async {
+        let pool = store.pool();
+        sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM source_mapping_artifacts WHERE source_id = $1",
+        )
+        .bind(source_id)
+        .fetch_one(pool)
+        .await
+        .expect("count artifacts")
+    })
     .await
-    .expect("count artifacts")
 }
 
 fn schema_users(extra_columns: &[(&str, &str)]) -> SourceSchema {
@@ -198,9 +198,6 @@ async fn replay_with_unchanged_schema_collapses_to_one_row() {
     let Some(store) = connect_store().await else {
         return;
     };
-    let Some(url) = resolve_test_db_url() else {
-        return;
-    };
     let ws_id = seed_workspace(&store).await;
 
     let source = format!("pg-replay-{}", &ws_id.simple().to_string()[..8]);
@@ -244,7 +241,7 @@ async fn replay_with_unchanged_schema_collapses_to_one_row() {
         "schema hash must be stable across replays"
     );
 
-    let count = count_artifacts(&url, &source).await;
+    let count = count_artifacts(&store, ws_id, &source).await;
     assert_eq!(
         count, 1,
         "two replays of the same design must persist one row, got {count}"
@@ -257,9 +254,6 @@ async fn replay_with_unchanged_schema_collapses_to_one_row() {
 #[ignore = "requires OX_TEST_DATABASE_URL"]
 async fn schema_change_yields_a_new_row() {
     let Some(store) = connect_store().await else {
-        return;
-    };
-    let Some(url) = resolve_test_db_url() else {
         return;
     };
     let ws_id = seed_workspace(&store).await;
@@ -312,7 +306,7 @@ async fn schema_change_yields_a_new_row() {
         "schema change must change the snapshot hash"
     );
 
-    let count = count_artifacts(&url, &source).await;
+    let count = count_artifacts(&store, ws_id, &source).await;
     assert_eq!(
         count, 2,
         "design against a new schema version must add a new row, got {count}"

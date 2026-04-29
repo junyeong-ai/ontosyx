@@ -9,14 +9,12 @@
 //! content-addressed — a re-run of the same design call against an
 //! unchanged schema collapses to a single row instead of duplicating.
 
-use std::sync::Arc;
-
 use ox_brain::DesignAttribution;
 use ox_core::source_schema::SourceSchema;
 use ox_ontology::ir::OntologyIR;
 use ox_ontology::mapping::SourceId;
 use ox_ontology::source_mapping::{ArtifactProvenance, SourceMappingArtifact};
-use ox_store::Store;
+use ox_store::SourceMappingArtifactStore;
 use tracing::{info, warn};
 
 /// Translate a brain-side attribution into the artifact-side
@@ -41,14 +39,21 @@ fn provenance_from_attribution(attribution: DesignAttribution) -> ArtifactProven
 /// must not block the design flow from succeeding — the ontology has
 /// already been persisted by the caller and the artifact replays
 /// from the same inputs the next time the action runs.
-pub(crate) async fn persist_design_artifact<S: Store + ?Sized>(
-    store: Arc<S>,
+///
+/// Bounded on `SourceMappingArtifactStore` rather than the full
+/// `Store` supertrait so the helper exposes only the surface it
+/// actually consumes — easier to mock in unit tests, narrower
+/// dependency on the store layer.
+pub(crate) async fn persist_design_artifact<S>(
+    store: &S,
     ontology: &OntologyIR,
     source_id: &SourceId,
     schema: &SourceSchema,
     attribution: DesignAttribution,
     created_by: impl Into<String>,
-) {
+) where
+    S: SourceMappingArtifactStore + ?Sized,
+{
     let artifact = SourceMappingArtifact::derive_from_design(
         ontology,
         source_id,

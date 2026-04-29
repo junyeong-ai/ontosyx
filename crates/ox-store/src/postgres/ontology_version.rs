@@ -123,6 +123,7 @@ impl crate::store::OntologyVersionStore for PostgresStore {
         committed_by: &str,
         commit_message: &str,
     ) -> OxResult<crate::models::OntologyVersionSnapshot> {
+        super::require_workspace_context()?;
         // Extract content-addressed entities BEFORE opening the
         // transaction — serialisation failures should not leave a
         // half-open tx behind.

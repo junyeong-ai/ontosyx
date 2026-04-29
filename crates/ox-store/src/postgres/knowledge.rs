@@ -272,6 +272,7 @@ impl KnowledgeStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn verify_knowledge(&self, id: Uuid, version: i32) -> OxResult<()> {
+        super::require_workspace_context()?;
         sqlx::query(
             "UPDATE knowledge_entries SET version_checked = $2, updated_at = now() WHERE id = $1",
         )

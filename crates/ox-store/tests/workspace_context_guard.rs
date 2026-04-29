@@ -25,7 +25,10 @@
 )]
 
 use ox_core::error::OxError;
-use ox_store::{PatternStore, PinStore, PostgresStore, ProjectStore, SourceMappingArtifactStore};
+use ox_store::{
+    ApprovalStore, PatternStore, PinStore, PostgresStore, ProjectStore,
+    SourceMappingArtifactStore, VerificationStore,
+};
 use uuid::Uuid;
 
 fn resolve_test_db_url() -> Option<String> {
@@ -41,8 +44,10 @@ fn resolve_test_db_url() -> Option<String> {
 
 async fn connect_store() -> Option<PostgresStore> {
     let url = resolve_test_db_url()?;
-    let store = PostgresStore::connect(&url, 4).await.ok()?;
-    store.migrate().await.ok()?;
+    let store = PostgresStore::connect(&url, 4)
+        .await
+        .expect("connect to test DB");
+    store.migrate().await.expect("apply migrations");
     Some(store)
 }
 
@@ -102,6 +107,26 @@ async fn delete_artifact_rejects_unscoped_call() {
     };
     let result = store.delete_artifact(&"sma-nonexistent".into()).await;
     assert_missing_context(result, "delete_artifact");
+}
+
+#[tokio::test]
+#[ignore = "requires OX_TEST_DATABASE_URL"]
+async fn expire_old_approvals_rejects_unscoped_call() {
+    let Some(store) = connect_store().await else {
+        return;
+    };
+    let result = store.expire_old_approvals().await;
+    assert_missing_context(result, "expire_old_approvals");
+}
+
+#[tokio::test]
+#[ignore = "requires OX_TEST_DATABASE_URL"]
+async fn invalidate_for_elements_rejects_unscoped_call() {
+    let Some(store) = connect_store().await else {
+        return;
+    };
+    let result = store.invalidate_for_elements("ont-1", &[], "test").await;
+    assert_missing_context(result, "invalidate_for_elements");
 }
 
 #[tokio::test]

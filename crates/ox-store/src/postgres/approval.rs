@@ -90,6 +90,7 @@ impl ApprovalStore for PostgresStore {
         approved: bool,
         note: Option<String>,
     ) -> OxResult<Option<ApprovalComment>> {
+        super::require_workspace_context()?;
         // Atomic: the row update and the first-comment insert either
         // both land or both roll back. The reviewer's rationale lives
         // in the thread alone — the row carries the decision metadata
@@ -150,6 +151,7 @@ impl ApprovalStore for PostgresStore {
 
     #[tracing::instrument(level = "debug", skip_all)]
     async fn expire_old_approvals(&self) -> OxResult<Vec<(Uuid, u64)>> {
+        super::require_workspace_context()?;
         // Strict `<` so a request whose `expires_at == NOW()` is still
         // valid for its last clock tick — matches the share-token
         // semantics in `get_dashboard_by_share_token`.

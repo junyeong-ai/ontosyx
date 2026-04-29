@@ -175,15 +175,16 @@ impl SourceMappingArtifact {
     /// `created_at` is stamped at call-time. The store layer's
     /// content-addressed unique constraint
     /// `(workspace_id, source_id, schema_snapshot_hash, content_hash)`
-    /// dedupes a re-emit of the same body — `created_at` is excluded
-    /// from `content_hash` (the body hash) by virtue of being on the
-    /// outer struct so a replay collapses to the existing row.
+    /// dedupes a re-emit of the same body — `created_at` /
+    /// `created_by` / `id` are deliberately excluded from
+    /// [`Self::content_hash`] so a replay against the same
+    /// `(source, schema, mappings, provenance)` tuple collapses to
+    /// the existing row regardless of clock or operator.
     ///
-    /// `id` is minted from the schema-snapshot hash + a 12-character
-    /// short-hash of the body so a content-addressed replay produces
-    /// the same id; the store layer does not depend on this — the
-    /// `ON CONFLICT DO NOTHING` path absorbs duplicate inserts — but
-    /// stable ids make logs and audit links deterministic.
+    /// `id` is minted as `sma-{schema-hash-12}-{body-hash-12}` from
+    /// the same content hash the store dedupes on, so a replay
+    /// produces the same id deterministically. Content-addressed:
+    /// audit links + logs reference the same id across re-runs.
     pub fn derive_from_design(
         ontology: &OntologyIR,
         source_id: &SourceId,
@@ -216,52 +217,84 @@ impl SourceMappingArtifact {
             })
             .collect();
 
-        let created_at = Utc::now();
-
-        // Mint a stable, content-addressed id. Body hash is computed
-        // pre-self-construction over the structural fields so the id
-        // is reproducible across replays of the same design call.
-        let mut probe = Self {
-            id: SourceMappingArtifactId::new("placeholder"),
-            source_id: source_id.clone(),
-            schema_snapshot_hash: schema_snapshot_hash.clone(),
-            property_mappings: property_mappings.clone(),
-            edge_mappings: edge_mappings.clone(),
-            open_questions: Vec::new(),
-            provenance: provenance.clone(),
-            created_at: DateTime::<Utc>::from_timestamp(0, 0).unwrap_or_else(Utc::now),
-            created_by: String::new(),
+        let body = ContentBody {
+            source_id,
+            schema_snapshot_hash: &schema_snapshot_hash,
+            property_mappings: &property_mappings,
+            edge_mappings: &edge_mappings,
+            provenance: &provenance,
         };
-        let body_hash = probe.content_hash();
-        let id = format!(
+        let body_hash = body.hash();
+        let id = SourceMappingArtifactId::new(format!(
             "sma-{}-{}",
             short_hash(&schema_snapshot_hash),
             short_hash(&body_hash),
-        );
-        probe.id = SourceMappingArtifactId::new(&id);
-        probe.created_at = created_at;
-        probe.created_by = created_by.into();
-        probe
+        ));
+
+        Self {
+            id,
+            source_id: source_id.clone(),
+            schema_snapshot_hash,
+            property_mappings,
+            edge_mappings,
+            open_questions: Vec::new(),
+            provenance,
+            created_at: Utc::now(),
+            created_by: created_by.into(),
+        }
     }
 
-    /// Compute the canonical content hash for an artifact body —
-    /// the same hash the store layer dedupes on at insert. Stable
-    /// across whitespace differences in the source JSON because
-    /// it operates on the deserialised structure.
+    /// Hash of the artifact's *content-addressable* fields — the
+    /// same value the store layer's unique constraint dedupes on,
+    /// and the same value [`Self::derive_from_design`] derives the
+    /// `id` short-hash from.
+    ///
+    /// Deliberately excludes `id` (would create a circular
+    /// dependency on hash-of-the-hash), `created_at` (clock-stamped
+    /// at insert, not part of the design decision), `created_by`
+    /// (operator identity, recorded but not part of "what mapping
+    /// was authored"), and `open_questions` (operator-mutable
+    /// post-creation; flipping a question's resolved state must not
+    /// orphan the artifact).
     pub fn content_hash(&self) -> String {
+        ContentBody {
+            source_id: &self.source_id,
+            schema_snapshot_hash: &self.schema_snapshot_hash,
+            property_mappings: &self.property_mappings,
+            edge_mappings: &self.edge_mappings,
+            provenance: &self.provenance,
+        }
+        .hash()
+    }
+}
+
+/// Borrowed view over the artifact fields that participate in the
+/// content hash. Lives next to [`SourceMappingArtifact`] so any
+/// future field addition has to choose explicitly: include in the
+/// hash (and add here) or exclude (and document why above).
+///
+/// `Serialize` is derived in struct-declaration order; `serde_json`
+/// emits fields in that order so the hash is deterministic across
+/// platforms.
+#[derive(Serialize)]
+struct ContentBody<'a> {
+    source_id: &'a SourceId,
+    schema_snapshot_hash: &'a str,
+    property_mappings: &'a [PropertyMappingDef],
+    edge_mappings: &'a [EdgeMapping],
+    provenance: &'a ArtifactProvenance,
+}
+
+impl ContentBody<'_> {
+    fn hash(&self) -> String {
         use sha2::{Digest, Sha256};
-        // `serde_json::to_string` produces canonical-enough output
-        // for hashing — fields are emitted in struct-declaration
-        // order, BTreeMap keys are sorted, and `Vec` order is
-        // significant by design (operators ordered the questions).
         let bytes = match serde_json::to_vec(self) {
             Ok(v) => v,
             Err(_) => return String::new(),
         };
         let mut hasher = Sha256::new();
         hasher.update(&bytes);
-        let digest = hasher.finalize();
-        hex_encode(&digest)
+        hex_encode(&hasher.finalize())
     }
 }
 
@@ -331,11 +364,35 @@ mod tests {
     }
 
     #[test]
-    fn content_hash_changes_when_body_changes() {
+    fn content_hash_changes_when_property_mappings_change() {
         let a = fixture();
         let mut b = a.clone();
-        b.created_by = "user-2".into();
+        b.property_mappings[0].property_id = "p-other".into();
         assert_ne!(a.content_hash(), b.content_hash());
+    }
+
+    #[test]
+    fn content_hash_is_invariant_to_transient_fields() {
+        // Replays of the same design call differ in `created_at`,
+        // `created_by`, and the minted `id` — none of those are
+        // mapping decisions, so the hash must stay stable.
+        let a = fixture();
+        let mut b = a.clone();
+        b.id = "sma-different-id".into();
+        b.created_at = DateTime::<Utc>::from_timestamp(2_000_000_000, 0).unwrap();
+        b.created_by = "user-2".into();
+        b.open_questions.push(OpenQuestion {
+            id: "q-1".into(),
+            anchor: None,
+            message: LocalizedText::new("does this column actually identify the customer?"),
+            options: Vec::new(),
+        });
+        assert_eq!(
+            a.content_hash(),
+            b.content_hash(),
+            "transient fields (id, created_at, created_by, open_questions) \
+             must not affect the dedup hash"
+        );
     }
 
     #[test]

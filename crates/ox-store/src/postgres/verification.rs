@@ -6,6 +6,7 @@ use super::*;
 impl VerificationStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn verify_element(&self, v: &ElementVerification) -> OxResult<Uuid> {
+        super::require_workspace_context()?;
         let row: (Uuid,) = sqlx::query_as(
             "INSERT INTO ontology_verifications
              (ontology_lineage_id, element_id, element_kind, verified_by, review_notes)
@@ -53,6 +54,7 @@ impl VerificationStore for PostgresStore {
         element_ids: &[&str],
         reason: &str,
     ) -> OxResult<u64> {
+        super::require_workspace_context()?;
         let result = sqlx::query(
             "UPDATE ontology_verifications
              SET invalidated_at = NOW(), invalidation_reason = $3

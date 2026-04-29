@@ -611,7 +611,7 @@ pub(crate) async fn design_project_stream(
         // text designs lives in audit + ontology metadata instead.
         if let Some(schema_for_artifact) = schema_and_profile.as_ref().map(|(s, _)| s.clone()) {
             persist_design_artifact(
-                std::sync::Arc::clone(&state.store),
+                state.store.as_ref(),
                 &ontology,
                 &source_id,
                 &schema_for_artifact,

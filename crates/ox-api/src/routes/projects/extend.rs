@@ -218,7 +218,7 @@ pub(crate) async fn extend_project(
     // the schema hash so a future replay can short-circuit re-prompt.
     if let Some(schema) = new_source_schema.as_ref() {
         persist_design_artifact(
-            std::sync::Arc::clone(&state.store),
+            state.store.as_ref(),
             &new_ontology,
             &new_source_id,
             schema,

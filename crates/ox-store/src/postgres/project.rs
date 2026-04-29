@@ -172,6 +172,7 @@ impl ProjectStore for PostgresStore {
         snapshot: &AnalysisSnapshot,
         expected_revision: i32,
     ) -> OxResult<()> {
+        super::require_workspace_context()?;
         let result = sqlx::query(
             "UPDATE design_projects
              SET source_config = $1, source_id = $2, source_data = $3,
