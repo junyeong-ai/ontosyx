@@ -954,6 +954,143 @@ impl OntologyIR {
         }
 
         // -------------------------------------------------------------
+        // ADR-0014 — concept referential integrity.
+        //
+        // Each `ConceptDef` anchors 1:1 to a glossary term (homonym
+        // defence), and any `realisation` must resolve to a real
+        // Segment / Function on this same IR. NodeType / EdgeType
+        // back-references (`node.concept_id`, `edge.concept_id`)
+        // must point at a declared concept — drift here would
+        // strand the federation planner's reverse-index lookup.
+        let mut anchored_terms = std::collections::HashMap::<
+            crate::glossary::GlossaryTermId,
+            crate::concept::ConceptId,
+        >::new();
+        let known_glossary_terms: std::collections::HashSet<&str> = self
+            .glossary
+            .iter()
+            .map(|t| t.id.as_str())
+            .collect();
+        let known_segments: std::collections::HashSet<&str> = self
+            .segments
+            .iter()
+            .map(|s| s.id.as_str())
+            .collect();
+        let known_functions: std::collections::HashSet<&str> = self
+            .functions
+            .iter()
+            .map(|f| f.id.as_str())
+            .collect();
+
+        for concept in &self.concepts {
+            if !known_glossary_terms.contains(concept.glossary_term_id.as_str()) {
+                errors.push(
+                    diag("ontology.validate.concept.unknown_glossary_term")
+                        .with("concept_id", concept.id.as_str())
+                        .with("glossary_term_id", concept.glossary_term_id.as_str())
+                        .message(format!(
+                            "Concept '{}' anchors to glossary term '{}' which is not declared",
+                            concept.id, concept.glossary_term_id
+                        )),
+                );
+            }
+            if let Some(prev) = anchored_terms.insert(
+                concept.glossary_term_id.clone(),
+                concept.id.clone(),
+            ) {
+                errors.push(
+                    diag("ontology.validate.concept.duplicate_glossary_anchor")
+                        .with("concept_id", concept.id.as_str())
+                        .with("conflicting_concept_id", prev.as_str())
+                        .with("glossary_term_id", concept.glossary_term_id.as_str())
+                        .message(format!(
+                            "Concept '{}' shares glossary term '{}' with concept '{}' — anchor is 1:1",
+                            concept.id, concept.glossary_term_id, prev
+                        )),
+                );
+            }
+            match &concept.realisation {
+                Some(crate::concept::TermRealisation::Segment { segment_id }) => {
+                    if !known_segments.contains(segment_id.as_str()) {
+                        errors.push(
+                            diag("ontology.validate.concept.unknown_realisation_segment")
+                                .with("concept_id", concept.id.as_str())
+                                .with("segment_id", segment_id.as_str())
+                                .message(format!(
+                                    "Concept '{}' realisation references segment '{}' which is not declared",
+                                    concept.id, segment_id
+                                )),
+                        );
+                    }
+                }
+                Some(crate::concept::TermRealisation::Function { function_id }) => {
+                    if !known_functions.contains(function_id.as_str()) {
+                        errors.push(
+                            diag("ontology.validate.concept.unknown_realisation_function")
+                                .with("concept_id", concept.id.as_str())
+                                .with("function_id", function_id.as_str())
+                                .message(format!(
+                                    "Concept '{}' realisation references function '{}' which is not declared",
+                                    concept.id, function_id
+                                )),
+                        );
+                    }
+                }
+                Some(crate::concept::TermRealisation::CrossEntity { predicate }) => {
+                    if predicate.trim().is_empty() {
+                        errors.push(
+                            diag("ontology.validate.concept.empty_cross_entity_predicate")
+                                .with("concept_id", concept.id.as_str())
+                                .message(format!(
+                                    "Concept '{}' carries a CrossEntity realisation with an empty predicate",
+                                    concept.id
+                                )),
+                        );
+                    }
+                }
+                None => {}
+            }
+        }
+
+        let known_concepts: std::collections::HashSet<&str> = self
+            .concepts
+            .iter()
+            .map(|c| c.id.as_str())
+            .collect();
+        for node in &self.node_types {
+            if let Some(concept_id) = &node.concept_id
+                && !known_concepts.contains(concept_id.as_str())
+            {
+                errors.push(
+                    diag("ontology.validate.node.unknown_concept")
+                        .with("node_id", node.id.as_str())
+                        .with("concept_id", concept_id.as_str())
+                        .message(format!(
+                            "Node type '{}' realises concept '{}' which is not declared",
+                            node.label.as_str(),
+                            concept_id
+                        )),
+                );
+            }
+        }
+        for edge in &self.edge_types {
+            if let Some(concept_id) = &edge.concept_id
+                && !known_concepts.contains(concept_id.as_str())
+            {
+                errors.push(
+                    diag("ontology.validate.edge.unknown_concept")
+                        .with("edge_id", edge.id.as_str())
+                        .with("concept_id", concept_id.as_str())
+                        .message(format!(
+                            "Edge type '{}' realises concept '{}' which is not declared",
+                            edge.label.as_str(),
+                            concept_id
+                        )),
+                );
+            }
+        }
+
+        // -------------------------------------------------------------
         // ADR-0015 — segment referential integrity.
         //
         // A `SegmentDef` declares a named membership predicate over
@@ -1627,6 +1764,164 @@ mod tests {
         match err {
             crate::ir::OntologyInvariantError::DuplicateCollectionId { kind, .. } => {
                 assert_eq!(kind, "segment");
+            }
+            other => panic!("expected DuplicateCollectionId, got {other:?}"),
+        }
+    }
+
+    // ADR-0014 — concept referential integrity.
+
+    fn term(id: &str, name: &str) -> crate::glossary::GlossaryTermDef {
+        crate::glossary::GlossaryTermDef {
+            id: crate::glossary::GlossaryTermId::new(id),
+            term: LocalizedText::new(name),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            examples: Vec::new(),
+            category: None,
+            aliases: Vec::new(),
+            related_terms: Vec::new(),
+            governance: crate::glossary::TermGovernance::default(),
+            valid_from: None,
+            valid_to: None,
+            lifecycle: crate::glossary::TermLifecycle::default(),
+        }
+    }
+
+    fn concept(
+        id: &str,
+        term_id: &str,
+        realisation: Option<crate::concept::TermRealisation>,
+    ) -> crate::concept::ConceptDef {
+        crate::concept::ConceptDef {
+            id: crate::concept::ConceptId::new(id),
+            name: id.to_string(),
+            glossary_term_id: crate::glossary::GlossaryTermId::new(term_id),
+            description: LocalizedText::default(),
+            realisation,
+        }
+    }
+
+    #[test]
+    fn validate_accepts_concept_anchored_to_real_term_without_realisation() {
+        let mut ontology = base_ontology();
+        ontology.glossary.push(term("gt-customer", "Customer"));
+        ontology
+            .add_concept(concept("c-customer", "gt-customer", None))
+            .expect("add concept");
+
+        let errors = ontology.validate();
+        assert!(
+            !errors
+                .iter()
+                .any(|e| e.code.starts_with("ontology.validate.concept.")),
+            "well-formed concept must validate: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn validate_rejects_concept_anchored_to_unknown_glossary_term() {
+        let mut ontology = base_ontology();
+        ontology
+            .add_concept(concept("c-orphan", "gt-missing", None))
+            .expect("add concept");
+
+        let errors = ontology.validate();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.concept.unknown_glossary_term"),
+            "expected unknown_glossary_term diagnostic: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn validate_rejects_two_concepts_sharing_one_glossary_anchor() {
+        let mut ontology = base_ontology();
+        ontology.glossary.push(term("gt-customer", "Customer"));
+        ontology
+            .add_concept(concept("c-a", "gt-customer", None))
+            .expect("first concept");
+        ontology
+            .add_concept(concept("c-b", "gt-customer", None))
+            .expect("second concept");
+
+        let errors = ontology.validate();
+        assert!(
+            errors.iter().any(|e| e.code
+                == "ontology.validate.concept.duplicate_glossary_anchor"),
+            "expected duplicate_glossary_anchor diagnostic: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn validate_rejects_concept_realisation_pointing_at_missing_segment() {
+        let mut ontology = base_ontology();
+        ontology.glossary.push(term("gt-active", "Active"));
+        ontology
+            .add_concept(concept(
+                "c-active",
+                "gt-active",
+                Some(crate::concept::TermRealisation::Segment {
+                    segment_id: crate::segment::SegmentId::new("seg-missing"),
+                }),
+            ))
+            .expect("add concept");
+
+        let errors = ontology.validate();
+        assert!(
+            errors.iter().any(|e| e.code
+                == "ontology.validate.concept.unknown_realisation_segment"),
+            "expected unknown_realisation_segment diagnostic: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn validate_rejects_node_back_reference_to_unknown_concept() {
+        let mut ontology = base_ontology();
+        ontology.node_types[0].concept_id =
+            Some(crate::concept::ConceptId::new("c-not-declared"));
+
+        let errors = ontology.validate();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.node.unknown_concept"),
+            "expected node.unknown_concept diagnostic: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn reverse_index_resolves_implementing_node_types_in_constant_time() {
+        let mut ontology = base_ontology();
+        ontology.glossary.push(term("gt-customer", "Customer"));
+        ontology
+            .add_concept(concept("c-customer", "gt-customer", None))
+            .expect("add concept");
+        ontology.node_types[0].concept_id =
+            Some(crate::concept::ConceptId::new("c-customer"));
+        ontology.rebuild_indices().expect("rebuild");
+
+        let implementers = ontology
+            .node_types_realising_concept(&crate::concept::ConceptId::new("c-customer"));
+        assert_eq!(implementers.len(), 1);
+        assert_eq!(implementers[0].id, ontology.node_types[0].id);
+    }
+
+    #[test]
+    fn add_concept_rejects_duplicate_id() {
+        let mut ontology = base_ontology();
+        ontology.glossary.push(term("gt-1", "T1"));
+        ontology.glossary.push(term("gt-2", "T2"));
+        ontology
+            .add_concept(concept("c-dup", "gt-1", None))
+            .expect("first");
+        let err = ontology
+            .add_concept(concept("c-dup", "gt-2", None))
+            .expect_err("duplicate id must reject");
+        match err {
+            crate::ir::OntologyInvariantError::DuplicateCollectionId { kind, .. } => {
+                assert_eq!(kind, "concept");
             }
             other => panic!("expected DuplicateCollectionId, got {other:?}"),
         }

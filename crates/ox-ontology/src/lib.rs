@@ -25,6 +25,7 @@ pub mod audit;
 pub mod binding;
 pub mod code_system;
 pub mod command;
+pub mod concept;
 pub mod concept_map;
 pub mod data_quality;
 pub mod dependency;
@@ -88,6 +89,7 @@ pub use binding::{BindingStrength, PropertyBinding, PropertyBindingHandle};
 pub use code_system::{
     CodeSystemDef, CodeSystemId, CodeSystemKind, CodedValue, CodedValueId, ucum_seed,
 };
+pub use concept::{ConceptDef, ConceptId, TermRealisation};
 pub use concept_map::{ConceptMapDef, ConceptMapId, ConceptMapping, Equivalence, Translation};
 pub use command::{
     CommandResult, MatchDecision, OntologyCommand, PropertyPatch, ReconcileConfidence,
