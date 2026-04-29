@@ -953,6 +953,54 @@ impl OntologyIR {
             errors.extend(render_dangling_references(&dangling));
         }
 
+        // -------------------------------------------------------------
+        // ADR-0015 — segment referential integrity.
+        //
+        // A `SegmentDef` declares a named membership predicate over
+        // a single NodeType. Two invariants the rest of the system
+        // depends on: the target NodeType resolves, and every
+        // property the filter mentions exists on that target.
+        // Drift here would break the glossary realisation chain
+        // (ADR-0014) and the runtime's segment-aware compile pass.
+        for seg in &self.segments {
+            let target_node = self
+                .node_types
+                .iter()
+                .find(|n| n.id == seg.target_node_type_id);
+            let Some(target) = target_node else {
+                errors.push(
+                    diag("ontology.validate.segment.unknown_target_node_type")
+                        .with("segment_id", seg.id.as_str())
+                        .with("target_node_type_id", seg.target_node_type_id.as_str())
+                        .message(format!(
+                            "Segment '{}' targets node type '{}' which is not declared on the ontology",
+                            seg.id, seg.target_node_type_id
+                        )),
+                );
+                continue;
+            };
+            let known_properties: std::collections::HashSet<&str> = target
+                .properties
+                .iter()
+                .map(|p| p.name.as_str())
+                .collect();
+            for prop in seg.referenced_properties() {
+                if !known_properties.contains(prop.as_str()) {
+                    errors.push(
+                        diag("ontology.validate.segment.unknown_property")
+                            .with("segment_id", seg.id.as_str())
+                            .with("target_node_label", target.label.as_str())
+                            .with("property", prop.as_str())
+                            .message(format!(
+                                "Segment '{}' filter references property '{}' which is not declared on \
+                                 node type '{}'",
+                                seg.id, prop, target.label
+                            )),
+                    );
+                }
+            }
+        }
+
         errors
     }
 
@@ -1447,6 +1495,141 @@ mod tests {
                 == "ontology.validate.edge.composition_requires_singular_source"),
             "OneToMany composition is the canonical case: {errors:?}"
         );
+    }
+
+    // ADR-0015 — segment referential integrity.
+
+    #[test]
+    fn validate_accepts_segment_targeting_real_node_with_real_properties() {
+        use crate::segment::{SegmentDef, SegmentFilter, SegmentLiteral};
+        use ox_core::PropertyKey;
+
+        let mut ontology = base_ontology();
+        let target_node_id = ontology.node_types[0].id.clone();
+        let target_property =
+            ontology.node_types[0].properties[0].name.as_str().to_string();
+
+        ontology
+            .add_segment(SegmentDef {
+                id: "seg-active".into(),
+                name: "active".to_string(),
+                display_name: LocalizedText::default(),
+                description: LocalizedText::default(),
+                target_node_type_id: target_node_id,
+                filter: SegmentFilter::Equals {
+                    property: PropertyKey::new(target_property)
+                        .expect("test property name is valid"),
+                    value: SegmentLiteral::Bool { value: true },
+                },
+                overlap_policy: Default::default(),
+                refresh_policy: Default::default(),
+            })
+            .expect("add segment");
+
+        let errors = ontology.validate();
+        assert!(
+            !errors
+                .iter()
+                .any(|e| e.code.starts_with("ontology.validate.segment.")),
+            "well-formed segment must validate: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn validate_rejects_segment_targeting_unknown_node_type() {
+        use crate::segment::{SegmentDef, SegmentFilter, SegmentLiteral};
+        use ox_core::PropertyKey;
+
+        let mut ontology = base_ontology();
+        ontology
+            .add_segment(SegmentDef {
+                id: "seg-bad".into(),
+                name: "bad".to_string(),
+                display_name: LocalizedText::default(),
+                description: LocalizedText::default(),
+                target_node_type_id: "nt-does-not-exist".into(),
+                filter: SegmentFilter::Equals {
+                    property: PropertyKey::new("anything").unwrap(),
+                    value: SegmentLiteral::Bool { value: true },
+                },
+                overlap_policy: Default::default(),
+                refresh_policy: Default::default(),
+            })
+            .expect("add survives — referential check is in validate()");
+
+        let errors = ontology.validate();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.segment.unknown_target_node_type"),
+            "expected unknown-target-node diagnostic: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn validate_rejects_segment_referencing_unknown_property() {
+        use crate::segment::{SegmentDef, SegmentFilter, SegmentLiteral};
+        use ox_core::PropertyKey;
+
+        let mut ontology = base_ontology();
+        let target_node_id = ontology.node_types[0].id.clone();
+
+        ontology
+            .add_segment(SegmentDef {
+                id: "seg-prop-missing".into(),
+                name: "prop_missing".to_string(),
+                display_name: LocalizedText::default(),
+                description: LocalizedText::default(),
+                target_node_type_id: target_node_id,
+                filter: SegmentFilter::Equals {
+                    property: PropertyKey::new("never_declared_property").unwrap(),
+                    value: SegmentLiteral::Int { value: 1 },
+                },
+                overlap_policy: Default::default(),
+                refresh_policy: Default::default(),
+            })
+            .expect("add segment");
+
+        let errors = ontology.validate();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.code == "ontology.validate.segment.unknown_property"),
+            "expected unknown-property diagnostic: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn add_segment_rejects_duplicate_id() {
+        use crate::segment::{SegmentDef, SegmentFilter, SegmentLiteral};
+        use ox_core::PropertyKey;
+
+        let mut ontology = base_ontology();
+        let target_node_id = ontology.node_types[0].id.clone();
+        let make = || SegmentDef {
+            id: "seg-dup".into(),
+            name: "dup".to_string(),
+            display_name: LocalizedText::default(),
+            description: LocalizedText::default(),
+            target_node_type_id: target_node_id.clone(),
+            filter: SegmentFilter::Equals {
+                property: PropertyKey::new("anything").unwrap(),
+                value: SegmentLiteral::Bool { value: true },
+            },
+            overlap_policy: Default::default(),
+            refresh_policy: Default::default(),
+        };
+
+        ontology.add_segment(make()).expect("first insert");
+        let err = ontology
+            .add_segment(make())
+            .expect_err("duplicate id must reject");
+        match err {
+            crate::ir::OntologyInvariantError::DuplicateCollectionId { kind, .. } => {
+                assert_eq!(kind, "segment");
+            }
+            other => panic!("expected DuplicateCollectionId, got {other:?}"),
+        }
     }
 
     #[test]

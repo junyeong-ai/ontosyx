@@ -159,6 +159,8 @@ struct OntologyLookup {
     value_range_set_id_idx: HashMap<crate::value_range::ValueRangeSetId, usize>,
     // Φ3: per-column distribution snapshots.
     column_profile_id_idx: HashMap<crate::column_profile::ColumnProfileId, usize>,
+    // ADR-0015: named NodeType-membership predicates.
+    segment_id_idx: HashMap<crate::segment::SegmentId, usize>,
 }
 
 /// Current on-wire schema version for `OntologyIR` JSONB. Bumped whenever
@@ -306,6 +308,18 @@ pub struct OntologyIR {
     /// source rescan.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) column_profiles: Vec<crate::column_profile::ColumnProfileDef>,
+
+    /// Named, reusable membership predicates over a single NodeType
+    /// (`SegmentDef` — "Active Customer", "Lapsed Subscriber",
+    /// "VIP"). Promoted to a first-class IR collection so segment
+    /// references from `PropertyBinding`, `RuleDef`, and the
+    /// glossary realisation surface (ADR-0014) resolve through
+    /// `OntologyLookup` without round-tripping a side artifact.
+    /// Validated by `validate()`: `target_node_type_id` must
+    /// resolve, every `referenced_properties()` entry must exist
+    /// on the target, and SegmentId values are unique.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(crate) segments: Vec<crate::segment::SegmentDef>,
 
     /// Precomputed lookup indices — not serialized, rebuilt on deserialize.
     #[serde(skip)]
@@ -512,6 +526,7 @@ impl OntologyIR {
             concept_maps: Vec::new(),
             value_range_sets: Vec::new(),
             column_profiles: Vec::new(),
+            segments: Vec::new(),
             lookup: OntologyLookup::default(),
         };
         ont.rebuild_indices()?;
@@ -709,6 +724,7 @@ impl OntologyIR {
         index_collection!(concept_maps, concept_map_id_idx, "concept_map");
         index_collection!(value_range_sets, value_range_set_id_idx, "value_range_set");
         index_collection!(column_profiles, column_profile_id_idx, "column_profile");
+        index_collection!(segments, segment_id_idx, "segment");
 
         self.lookup = lookup;
         Ok(())
@@ -1002,6 +1018,13 @@ impl OntologyIR {
         &self.column_profiles
     }
 
+    /// ADR-0015 — every named membership predicate (`SegmentDef`)
+    /// the IR carries. Glossary realisation, rule anchors, and the
+    /// query-time disambiguator all resolve through this collection.
+    pub fn segments(&self) -> &[crate::segment::SegmentDef] {
+        &self.segments
+    }
+
     /// Append an interface definition. Fails with
     /// [`OntologyInvariantError::DuplicateCollectionId`] when the id
     /// is already in use (Phase 5-D enforcement).
@@ -1157,6 +1180,27 @@ impl OntologyIR {
     pub fn add_provenance(&mut self, def: crate::provenance::ProvenanceDef) {
         self.provenance.push(def);
         // Intentionally no rebuild — provenance is not indexed.
+    }
+
+    /// ADR-0015 — register a named NodeType-membership predicate.
+    /// Referential integrity (`target_node_type_id` resolves; every
+    /// `referenced_properties()` entry exists on the target) is
+    /// asserted by `validate()` rather than the insert path because
+    /// the project flow lands segments alongside the node types
+    /// they target — strict insert-time checks would force an
+    /// awkward two-pass commit.
+    pub fn add_segment(
+        &mut self,
+        def: crate::segment::SegmentDef,
+    ) -> Result<(), OntologyInvariantError> {
+        if self.lookup.segment_id_idx.contains_key(&def.id) {
+            return Err(OntologyInvariantError::DuplicateCollectionId {
+                kind: "segment",
+                id: def.id.to_string(),
+            });
+        }
+        self.segments.push(def);
+        self.rebuild_indices()
     }
 
     pub fn add_object_mapping(
