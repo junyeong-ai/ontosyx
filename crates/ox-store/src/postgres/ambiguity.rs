@@ -198,11 +198,7 @@ impl AmbiguityStore for PostgresStore {
         &self,
         context: ox_ontology::ambiguity::AmbiguityContext,
     ) -> OxResult<ox_ontology::ambiguity::AmbiguityContext> {
-        super::require_workspace_context()?;
-        // Workspace column uses the `app.workspace_id` setting the pool
-        // injects on each connection acquisition — we read it back via
-        // `current_setting(...)::uuid` so the row lands in the right
-        // tenant without an extra bind variable.
+        let workspace_id = super::bound_workspace_id_for_dml()?;
         let ctx_uuid: Uuid = context.id.as_str().parse().map_err(|e: uuid::Error| {
             OxError::Runtime {
                 message: format!("ambiguity id must be uuid: {e}"),
@@ -230,8 +226,8 @@ impl AmbiguityStore for PostgresStore {
              (id, workspace_id, source_id, relation, column_name, kind, sample_values, \
               distinct_estimate, nullable, clarification_prompt, detection_source_hash, \
               repo_hint, detected_at) \
-             VALUES ($1, current_setting('app.workspace_id', true)::uuid, $2, $3, $4, $5, $6, \
-                     $7, $8, $9, $10, $11, $12) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, \
+                     $8, $9, $10, $11, $12, $13) \
              ON CONFLICT (workspace_id, source_id, relation, column_name) DO UPDATE SET \
                  id = EXCLUDED.id, \
                  kind = EXCLUDED.kind, \
@@ -244,6 +240,7 @@ impl AmbiguityStore for PostgresStore {
                  detected_at = EXCLUDED.detected_at",
         )
         .bind(ctx_uuid)
+        .bind(workspace_id)
         .bind(context.source_id.as_str())
         .bind(&context.column.relation)
         .bind(&context.column.column)
@@ -329,10 +326,10 @@ impl AmbiguityStore for PostgresStore {
         &self,
         resolution: ox_ontology::ambiguity::AmbiguityResolution,
     ) -> OxResult<ox_ontology::ambiguity::AmbiguityResolution> {
-        super::require_workspace_context()?;
         // Atomic: revoke the current active row (if any) and insert the
         // new one in a single transaction so the partial unique index
         // (one active per context) is never violated at read time.
+        let workspace_id = super::bound_workspace_id_for_dml()?;
         let res_uuid: Uuid = resolution.id.as_str().parse().map_err(|e: uuid::Error| {
             OxError::Runtime {
                 message: format!("resolution id must be uuid: {e}"),
@@ -382,10 +379,10 @@ impl AmbiguityStore for PostgresStore {
             "INSERT INTO ambiguity_resolutions \
              (id, workspace_id, context_id, context_source_hash, mapping, \
               resolved_at, resolved_by_user_id, supersedes_id, revoked_at) \
-             VALUES ($1, current_setting('app.workspace_id', true)::uuid, $2, $3, $4, \
-                     $5, $6, $7, NULL)",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULL)",
         )
         .bind(res_uuid)
+        .bind(workspace_id)
         .bind(ctx_uuid)
         .bind(&resolution.context_source_hash)
         .bind(&mapping_json)

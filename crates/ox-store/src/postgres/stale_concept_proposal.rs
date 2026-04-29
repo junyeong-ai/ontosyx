@@ -99,17 +99,16 @@ impl StaleConceptProposalStore for PostgresStore {
         &self,
         proposal: crate::quality_signal::StaleConceptProposal,
     ) -> OxResult<crate::quality_signal::StaleConceptProposal> {
-        super::require_workspace_context()?;
         // Cron-friendly: natural key dedup. A re-proposal after a
         // previous `dismissed` decision needs the admin to clear the
         // old row first — we don't auto-resurrect, because that
         // would flap every scan.
+        let workspace_id = super::bound_workspace_id_for_dml()?;
         let row = sqlx::query(
             "INSERT INTO stale_concept_proposals \
              (id, workspace_id, type_id, type_kind, last_used_at, \
               days_since_last_use, proposed_at, decision) \
-             VALUES ($1, current_setting('app.workspace_id', true)::uuid, $2, $3, $4, \
-                     $5, $6, 'pending') \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending') \
              ON CONFLICT (workspace_id, type_id) DO UPDATE SET \
                  last_used_at = EXCLUDED.last_used_at, \
                  days_since_last_use = EXCLUDED.days_since_last_use \
@@ -118,6 +117,7 @@ impl StaleConceptProposalStore for PostgresStore {
                        decided_by_user_id, reason",
         )
         .bind(proposal.id)
+        .bind(workspace_id)
         .bind(proposal.type_id)
         .bind(&proposal.type_kind)
         .bind(proposal.last_used_at)

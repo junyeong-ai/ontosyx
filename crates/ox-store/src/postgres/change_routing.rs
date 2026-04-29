@@ -153,7 +153,21 @@ impl ChangeRoutingStore for PostgresStore {
         &self,
         rule: ox_ontology::change_routing::ChangeRoutingRule,
     ) -> OxResult<ox_ontology::change_routing::ChangeRoutingRule> {
-        super::require_workspace_context()?;
+        // Workspace overrides bind to the caller's workspace context;
+        // global defaults (`workspace_id IS NULL`) are seeded by the
+        // migration, never written via this path.
+        let workspace_id = super::bound_workspace_id_for_dml()?;
+        if let Some(supplied) = rule.workspace_id
+            && supplied != workspace_id
+        {
+            return Err(OxError::Validation {
+                field: "workspace_id".to_string(),
+                message: format!(
+                    "rule.workspace_id ({supplied}) must match the active \
+                     WORKSPACE_ID context ({workspace_id})"
+                ),
+            });
+        }
         let id_uuid: Uuid = rule.id.as_str().parse().map_err(|e: uuid::Error| {
             OxError::Runtime {
                 message: format!("routing rule id must be uuid: {e}"),
@@ -168,13 +182,14 @@ impl ChangeRoutingStore for PostgresStore {
         sqlx::query(
             "INSERT INTO change_routing_rules \
              (id, workspace_id, change_type, routing, risk_level, priority, created_at) \
-             VALUES ($1, current_setting('app.workspace_id', true)::uuid, $2, $3, $4, $5, $6) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7) \
              ON CONFLICT (workspace_id, change_type) DO UPDATE SET \
                  routing = EXCLUDED.routing, \
                  risk_level = EXCLUDED.risk_level, \
                  priority = EXCLUDED.priority",
         )
         .bind(id_uuid)
+        .bind(workspace_id)
         .bind(change_type_to_str(rule.change_type))
         .bind(&routing_json)
         .bind(risk_level_to_str(rule.risk_level))
@@ -184,22 +199,25 @@ impl ChangeRoutingStore for PostgresStore {
         .await
         .map_err(to_ox_error)?;
 
-        Ok(rule)
+        Ok(ox_ontology::change_routing::ChangeRoutingRule {
+            workspace_id: Some(workspace_id),
+            ..rule
+        })
     }
 
     async fn delete_change_routing_rule(
         &self,
         change_type: ox_ontology::change_routing::ChangeType,
     ) -> OxResult<bool> {
-        super::require_workspace_context()?;
         // Delete only the workspace override — the global default row
         // lives under `workspace_id IS NULL` and is never touched
         // through this path (migrations or SYSTEM_BYPASS own it).
+        let workspace_id = super::bound_workspace_id_for_dml()?;
         let result = sqlx::query(
             "DELETE FROM change_routing_rules \
-             WHERE workspace_id = current_setting('app.workspace_id', true)::uuid \
-               AND change_type = $1",
+             WHERE workspace_id = $1 AND change_type = $2",
         )
+        .bind(workspace_id)
         .bind(change_type_to_str(change_type))
         .execute(&self.pool)
         .await

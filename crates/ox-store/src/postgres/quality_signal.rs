@@ -260,21 +260,22 @@ impl QualitySignalStore for PostgresStore {
         &self,
         type_ids: &[(uuid::Uuid, &str)],
     ) -> OxResult<()> {
-        super::require_workspace_context()?;
         if type_ids.is_empty() {
             return Ok(());
         }
+        let workspace_id = super::bound_workspace_id_for_dml()?;
         for (id, kind) in type_ids {
             sqlx::query(
                 "INSERT INTO ontology_type_last_used \
                  (workspace_id, type_id, type_kind, last_used_at, use_count_7d, use_count_30d) \
-                 VALUES (current_setting('app.workspace_id', true)::uuid, $1, $2, now(), 1, 1) \
+                 VALUES ($1, $2, $3, now(), 1, 1) \
                  ON CONFLICT (workspace_id, type_id) DO UPDATE SET \
                      last_used_at  = now(), \
                      use_count_7d  = ontology_type_last_used.use_count_7d + 1, \
                      use_count_30d = ontology_type_last_used.use_count_30d + 1, \
                      updated_at    = now()",
             )
+            .bind(workspace_id)
             .bind(id)
             .bind(kind)
             .execute(&self.pool)

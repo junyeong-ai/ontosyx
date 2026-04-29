@@ -103,6 +103,50 @@ pub fn require_workspace_context() -> OxResult<()> {
     })
 }
 
+/// Resolve the workspace UUID a per-row DML statement must bind into the
+/// `workspace_id` column. Use this helper *whenever* a store impl needs to
+/// stamp a row with the caller's workspace — never read it back from the
+/// PostgreSQL session variable inside the SQL itself.
+///
+/// Why: the pool's `before_acquire` primes `app.workspace_id` to
+/// [`Uuid::nil`] under [`SYSTEM_BYPASS`] so the RLS predicate's
+/// `::uuid` cast doesn't 22P02. That sentinel is correct for *reads*
+/// (the OR-with `system_bypass` policy lets the row through anyway)
+/// but wrong for *writes*: a SQL like
+/// `VALUES (current_setting('app.workspace_id', true)::uuid, ...)`
+/// silently writes the nil sentinel as the row's tenant. Cross-workspace
+/// cron paths that rely on this idiom land every row under the same
+/// nil-UUID workspace — silent data corruption.
+///
+/// Resolution order:
+/// 1. Inner [`WORKSPACE_ID`] scope wins, even when [`SYSTEM_BYPASS`] is
+///    also active. Cron sweeps are expected to wrap per-workspace work
+///    in `WORKSPACE_ID.scope(target_ws, ...)` *inside* the outer
+///    `SYSTEM_BYPASS.scope(true, ...)`.
+/// 2. [`SYSTEM_BYPASS`] alone is rejected — the caller has not declared
+///    which workspace owns the new row. The error message names the fix.
+/// 3. No scope at all surfaces as [`OxError::MissingContext`] just like
+///    [`require_workspace_context`].
+pub(crate) fn bound_workspace_id_for_dml() -> OxResult<Uuid> {
+    if let Ok(id) = WORKSPACE_ID.try_with(|id| *id) {
+        return Ok(id);
+    }
+    if SYSTEM_BYPASS.try_with(|b| *b).unwrap_or(false) {
+        return Err(OxError::Runtime {
+            message: "store DML invoked under SYSTEM_BYPASS without an \
+                      inner WORKSPACE_ID.scope. Wrap the call in \
+                      `WORKSPACE_ID.scope(target_workspace_id, async { ... })` \
+                      so the row binds to a real workspace instead of \
+                      the nil-UUID sentinel."
+                .to_string(),
+        });
+    }
+    Err(OxError::MissingContext {
+        kind: "workspace".to_string(),
+        message: "store DML requires a WORKSPACE_ID context".to_string(),
+    })
+}
+
 // ---------------------------------------------------------------------------
 // PostgresStore — Store implementation backed by PostgreSQL
 // ---------------------------------------------------------------------------
@@ -411,6 +455,58 @@ mod context_guard_tests {
     #[tokio::test]
     async fn require_workspace_context_rejects_when_no_scope() {
         let err = require_workspace_context().expect_err("must reject");
+        match err {
+            OxError::MissingContext { kind, .. } => assert_eq!(kind, "workspace"),
+            other => panic!("expected MissingContext, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn dml_helper_returns_workspace_id_inside_workspace_scope() {
+        let target = Uuid::new_v4();
+        let resolved = WORKSPACE_ID
+            .scope(target, async {
+                bound_workspace_id_for_dml().expect("must resolve")
+            })
+            .await;
+        assert_eq!(resolved, target);
+    }
+
+    #[tokio::test]
+    async fn dml_helper_prefers_inner_workspace_scope_under_system_bypass() {
+        let target = Uuid::new_v4();
+        let resolved = SYSTEM_BYPASS
+            .scope(true, async {
+                WORKSPACE_ID
+                    .scope(target, async {
+                        bound_workspace_id_for_dml().expect("inner scope wins")
+                    })
+                    .await
+            })
+            .await;
+        assert_eq!(resolved, target);
+    }
+
+    #[tokio::test]
+    async fn dml_helper_rejects_bare_system_bypass() {
+        let err = SYSTEM_BYPASS
+            .scope(true, async { bound_workspace_id_for_dml() })
+            .await
+            .expect_err("bare bypass must fail");
+        match err {
+            OxError::Runtime { message } => {
+                assert!(
+                    message.contains("WORKSPACE_ID.scope"),
+                    "remediation must name the wrapper, got: {message}"
+                );
+            }
+            other => panic!("expected Runtime, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn dml_helper_rejects_no_scope_with_missing_context() {
+        let err = bound_workspace_id_for_dml().expect_err("no context must fail");
         match err {
             OxError::MissingContext { kind, .. } => assert_eq!(kind, "workspace"),
             other => panic!("expected MissingContext, got {other:?}"),

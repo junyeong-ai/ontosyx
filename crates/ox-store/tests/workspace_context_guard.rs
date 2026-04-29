@@ -26,8 +26,8 @@
 
 use ox_core::error::OxError;
 use ox_store::{
-    ApprovalStore, PatternStore, PinStore, PostgresStore, ProjectStore,
-    SourceMappingArtifactStore, VerificationStore,
+    ApprovalStore, ChangeRoutingStore, PatternStore, PinStore, PostgresStore, ProjectStore,
+    QualitySignalStore, SourceMappingArtifactStore, VerificationStore,
 };
 use uuid::Uuid;
 
@@ -166,5 +166,107 @@ async fn system_bypass_lets_mutation_through() {
             "delete_pattern inside SYSTEM_BYPASS.scope still surfaced \
              MissingContext — guard misfired"
         );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ADR-0039 — bare SYSTEM_BYPASS DML must fail fast, never write nil-UUID
+// ---------------------------------------------------------------------------
+//
+// Pre-ADR-0039, store impls bound `current_setting('app.workspace_id', true)::uuid`
+// directly into INSERT payloads. Under SYSTEM_BYPASS the pool primes
+// that setting to `Uuid::nil()` so the RLS predicate's cast doesn't
+// 22P02 — but row writes inherited the nil sentinel as the row's
+// tenant. These tests prove the post-ADR helper rejects bare-bypass
+// DML loud-and-fast (the row never lands), and that wrapping in an
+// inner `WORKSPACE_ID.scope` is the documented escape.
+
+#[tokio::test]
+#[ignore = "requires OX_TEST_DATABASE_URL"]
+async fn upsert_type_last_used_under_bare_system_bypass_fails_fast() {
+    let Some(store) = connect_store().await else {
+        return;
+    };
+    let result = PostgresStore::with_system_bypass(|| async {
+        store
+            .upsert_type_last_used(&[(Uuid::new_v4(), "node_type")])
+            .await
+    })
+    .await;
+    match result {
+        Err(OxError::Runtime { message }) => {
+            assert!(
+                message.contains("WORKSPACE_ID.scope"),
+                "remediation must name the wrapper, got: {message}"
+            );
+        }
+        Err(other) => panic!("expected Runtime, got {other:?}"),
+        Ok(_) => panic!(
+            "upsert_type_last_used wrote under bare SYSTEM_BYPASS — \
+             the nil-UUID corruption guard is missing"
+        ),
+    }
+}
+
+#[tokio::test]
+#[ignore = "requires OX_TEST_DATABASE_URL"]
+async fn delete_change_routing_rule_under_bare_system_bypass_fails_fast() {
+    let Some(store) = connect_store().await else {
+        return;
+    };
+    let result = PostgresStore::with_system_bypass(|| async {
+        store
+            .delete_change_routing_rule(
+                ox_ontology::change_routing::ChangeType::CodedValueCreate,
+            )
+            .await
+    })
+    .await;
+    match result {
+        Err(OxError::Runtime { message }) => {
+            assert!(
+                message.contains("WORKSPACE_ID.scope"),
+                "remediation must name the wrapper, got: {message}"
+            );
+        }
+        Err(other) => panic!("expected Runtime, got {other:?}"),
+        Ok(_) => panic!(
+            "delete_change_routing_rule under bare SYSTEM_BYPASS \
+             matched the nil-UUID filter — guard missing"
+        ),
+    }
+}
+
+#[tokio::test]
+#[ignore = "requires OX_TEST_DATABASE_URL"]
+async fn upsert_type_last_used_under_bypass_with_inner_scope_writes_target_workspace() {
+    let Some(store) = connect_store().await else {
+        return;
+    };
+    // Explicit inner scope is the supported pattern for cron sweeps that
+    // span workspaces under outer SYSTEM_BYPASS.
+    let target_ws = Uuid::new_v4();
+    let result = PostgresStore::with_system_bypass(|| async {
+        PostgresStore::with_workspace(target_ws, || async {
+            store
+                .upsert_type_last_used(&[(Uuid::new_v4(), "node_type")])
+                .await
+        })
+        .await
+    })
+    .await;
+    // The row likely lands successfully or fails with an FK error
+    // (depending on whether `workspaces` has the test-generated id),
+    // but it MUST NOT surface as MissingContext or Runtime("SYSTEM_BYPASS
+    // without inner WORKSPACE_ID.scope") — those would mean the inner
+    // scope was ignored.
+    match result {
+        Err(OxError::MissingContext { .. }) => {
+            panic!("inner WORKSPACE_ID.scope was ignored")
+        }
+        Err(OxError::Runtime { message }) if message.contains("SYSTEM_BYPASS") => {
+            panic!("inner WORKSPACE_ID.scope was ignored: {message}")
+        }
+        _ => {}
     }
 }
