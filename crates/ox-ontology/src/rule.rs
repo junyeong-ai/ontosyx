@@ -58,17 +58,112 @@ use crate::value_set::ValueSetId;
 )]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum RuleOrigin {
-    /// Authored by a human (or persisted by an LLM acting as one).
-    /// Default — every existing rule deserialises with this origin
-    /// when the field is missing on the wire.
+    /// Authored directly by an operator. Default — the rule editor
+    /// stamps this kind when a human commits a rule from the UI;
+    /// missing-on-wire deserialises here.
     #[default]
     Authored,
+
     /// Synthesised from a `PropertyBinding`. Carries the source
     /// coordinates so consumers can navigate back to the binding.
+    /// Validators forbid hand-editing — the binding is the source
+    /// of truth, the rule is a projection.
     DerivedFromBinding {
         node_type_id: NodeTypeId,
         property_id: PropertyId,
     },
+
+    /// Imported from an external SHACL shape catalogue (FHIR, FIBO,
+    /// gist, internal compliance bundles). The pair `(catalog,
+    /// external_id)` is enough to re-fetch / diff against the
+    /// upstream artifact when the catalogue advances; a missing
+    /// `external_id` means the import bundled the rule without a
+    /// stable upstream key (e.g., catalogue is a flat SHACL file
+    /// rather than a dereferenceable graph).
+    ImportedFrom {
+        catalog: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        external_id: Option<String>,
+    },
+
+    /// LLM-proposed rule that an operator subsequently accepted.
+    /// `prompt_id` / `model_id` close the reproducibility loop;
+    /// `accepted_at` / `accepted_by` pin the human review event so
+    /// the audit trail can distinguish a confirmed proposal from a
+    /// pending one (a draft proposal never persists with this
+    /// origin — it lives in the proposal queue until reviewed).
+    LlmProposed {
+        prompt_id: String,
+        model_id: String,
+        accepted_at: chrono::DateTime<chrono::Utc>,
+        accepted_by: String,
+    },
+
+    /// Sourced from a regulatory / legal mandate. The `jurisdiction`
+    /// names the regulator (`KFTC-2024`, `EU-AI-Act-Art-9`); the
+    /// optional citation URL points at the canonical document so the
+    /// editor can show "this rule exists because the regulator
+    /// requires it" with a click-through.
+    Regulatory {
+        jurisdiction: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        citation_url: Option<String>,
+    },
+
+    /// Internal business policy (data quality bar, governance
+    /// commitment, SLA). `policy_id` is the workspace-level identity
+    /// of the policy (commonly a wiki / notion page id); `owner` is
+    /// the principal accountable for the policy's lifecycle.
+    BusinessPolicy {
+        policy_id: String,
+        owner: String,
+    },
+
+    /// Inferred from the data itself — "this property is non-null in
+    /// 99.6% of rows; propose adding a NOT-NULL invariant". Always
+    /// goes through operator confirmation before landing with this
+    /// origin; `confidence_bps` stays attached so a low-confidence
+    /// rule can be re-confirmed when the sample window rotates.
+    ///
+    /// Confidence is expressed in basis points (0–10000) rather than
+    /// `f64` so the IR keeps `Eq` / `Hash` cleanly — float NaN and
+    /// signalling values would otherwise infect every container that
+    /// needs to compare or dedup rules.
+    ObservedInvariant {
+        confidence_bps: u32,
+        sample_size: u64,
+        detected_at: chrono::DateTime<chrono::Utc>,
+    },
+
+    /// Carried forward from a prior ontology version that was
+    /// retired or restructured. `previous_id` lets the audit trail
+    /// stitch the rule's history across the migration boundary;
+    /// `migration_note` records the human rationale.
+    MigratedFrom {
+        previous_id: RuleId,
+        migration_note: String,
+    },
+}
+
+impl RuleOrigin {
+    /// Whether the editor should accept hand-edits on a rule with
+    /// this origin. Derived / imported / observed rules regenerate
+    /// from their source signal and must not drift from it; manual
+    /// origins (Authored / LlmProposed accepted / BusinessPolicy /
+    /// Regulatory / MigratedFrom) carry the operator's intent and
+    /// stay editable.
+    pub fn is_editable(&self) -> bool {
+        match self {
+            RuleOrigin::DerivedFromBinding { .. }
+            | RuleOrigin::ObservedInvariant { .. }
+            | RuleOrigin::ImportedFrom { .. } => false,
+            RuleOrigin::Authored
+            | RuleOrigin::LlmProposed { .. }
+            | RuleOrigin::Regulatory { .. }
+            | RuleOrigin::BusinessPolicy { .. }
+            | RuleOrigin::MigratedFrom { .. } => true,
+        }
+    }
 }
 
 /// Ontology constraint, named and serializable.
@@ -964,5 +1059,143 @@ mod tests {
                 "{c:?} should not surface cross-collection refs"
             );
         }
+    }
+
+    // ADR-0016 — RuleOrigin lifecycle variants editability matrix.
+
+    #[test]
+    fn rule_origin_authored_default_is_editable() {
+        assert!(RuleOrigin::default().is_editable());
+        assert!(RuleOrigin::Authored.is_editable());
+    }
+
+    #[test]
+    fn rule_origin_derived_from_binding_is_not_editable() {
+        let origin = RuleOrigin::DerivedFromBinding {
+            node_type_id: NodeTypeId::new("nt-1"),
+            property_id: PropertyId::new("p-1"),
+        };
+        assert!(
+            !origin.is_editable(),
+            "binding-derived rules regenerate from the binding and \
+             must not drift from it"
+        );
+    }
+
+    #[test]
+    fn rule_origin_observed_invariant_is_not_editable() {
+        let origin = RuleOrigin::ObservedInvariant {
+            confidence_bps: 9_960,
+            sample_size: 12_345,
+            detected_at: chrono::Utc::now(),
+        };
+        assert!(
+            !origin.is_editable(),
+            "data-observed invariants re-derive from the next sample \
+             window — hand-edits would be erased on the next pass"
+        );
+    }
+
+    #[test]
+    fn rule_origin_imported_from_is_not_editable() {
+        let origin = RuleOrigin::ImportedFrom {
+            catalog: "FHIR-R5".into(),
+            external_id: Some("vs-1".into()),
+        };
+        assert!(!origin.is_editable());
+    }
+
+    #[test]
+    fn rule_origin_llm_proposed_accepted_is_editable() {
+        // Once the operator accepts the proposal, the rule becomes
+        // theirs — they own the edits going forward.
+        let origin = RuleOrigin::LlmProposed {
+            prompt_id: "design.toml".into(),
+            model_id: "claude-opus-4-7".into(),
+            accepted_at: chrono::Utc::now(),
+            accepted_by: "alice".into(),
+        };
+        assert!(origin.is_editable());
+    }
+
+    #[test]
+    fn rule_origin_regulatory_and_business_policy_are_editable() {
+        let regulatory = RuleOrigin::Regulatory {
+            jurisdiction: "EU-AI-Act-Art-9".into(),
+            citation_url: Some("https://eur-lex.europa.eu/...".into()),
+        };
+        let policy = RuleOrigin::BusinessPolicy {
+            policy_id: "policy-12".into(),
+            owner: "alice".into(),
+        };
+        assert!(regulatory.is_editable());
+        assert!(policy.is_editable());
+    }
+
+    #[test]
+    fn rule_origin_migrated_from_carries_history_pointer_and_is_editable() {
+        let origin = RuleOrigin::MigratedFrom {
+            previous_id: RuleId::new("rule-old"),
+            migration_note: "renamed in v3".into(),
+        };
+        assert!(origin.is_editable());
+    }
+
+    #[test]
+    fn rule_origin_round_trips_through_serde() {
+        // Each variant must round-trip so wire-shape changes that
+        // accidentally drop a field surface as a deserialise failure.
+        let cases = vec![
+            RuleOrigin::Authored,
+            RuleOrigin::DerivedFromBinding {
+                node_type_id: NodeTypeId::new("nt-1"),
+                property_id: PropertyId::new("p-1"),
+            },
+            RuleOrigin::ImportedFrom {
+                catalog: "FIBO".into(),
+                external_id: None,
+            },
+            RuleOrigin::LlmProposed {
+                prompt_id: "design.toml".into(),
+                model_id: "claude-opus-4-7".into(),
+                accepted_at: chrono::Utc::now(),
+                accepted_by: "alice".into(),
+            },
+            RuleOrigin::Regulatory {
+                jurisdiction: "KFTC-2024".into(),
+                citation_url: None,
+            },
+            RuleOrigin::BusinessPolicy {
+                policy_id: "p-1".into(),
+                owner: "bob".into(),
+            },
+            RuleOrigin::ObservedInvariant {
+                confidence_bps: 9_500,
+                sample_size: 1_000,
+                detected_at: chrono::Utc::now(),
+            },
+            RuleOrigin::MigratedFrom {
+                previous_id: RuleId::new("rule-old"),
+                migration_note: "v2→v3 split".into(),
+            },
+        ];
+        for c in cases {
+            let json = serde_json::to_string(&c).expect("serialise");
+            let back: RuleOrigin = serde_json::from_str(&json).expect("round-trip");
+            assert_eq!(back, c);
+        }
+    }
+
+    #[test]
+    fn rule_origin_missing_field_deserialises_to_authored() {
+        // Wire-shape compatibility for documents persisted before
+        // ADR-0016 — every absent `origin` lands as `Authored`.
+        let json = r#"{
+            "id":"r1",
+            "name":{"default":"x"},
+            "kind":{"kind":"node_shape","target_node_type_id":"nt-1"}
+        }"#;
+        let rule: RuleDef = serde_json::from_str(json).expect("legacy parse");
+        assert_eq!(rule.origin, RuleOrigin::Authored);
     }
 }
