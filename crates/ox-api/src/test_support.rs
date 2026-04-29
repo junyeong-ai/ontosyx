@@ -123,6 +123,8 @@ pub fn admin_auth_layer(user_id: Uuid) -> Extension<AuthClaims> {
         iss: "ontosyx".to_string(),
         exp: 0,
         iat: 0,
+        jti: Uuid::new_v4(),
+        tv: 0,
     })
 }
 

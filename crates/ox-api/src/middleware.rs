@@ -23,7 +23,10 @@ use crate::state::AppState;
 /// Created by the `/auth/token` endpoint after OIDC verification.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthClaims {
-    /// User UUID (from `users.id`)
+    /// User UUID (from `users.id`) — or `apikey:<label>` for synthetic
+    /// claims minted from a DB-backed API key. The `apikey:` prefix
+    /// also signals the JWT-revocation check to short-circuit (API
+    /// keys are revoked by deleting the row, not via `revoked_jwts`).
     pub sub: String,
     pub email: String,
     pub name: Option<String>,
@@ -35,6 +38,18 @@ pub struct AuthClaims {
     pub exp: usize,
     /// Issued at (UNIX timestamp)
     pub iat: usize,
+    /// Per-token id. Generated at `/auth/token`. Required on every
+    /// platform JWT; the explicit revocation list keys on this value.
+    /// Synthetic API-key claims set this to `Uuid::nil()` — the
+    /// revocation check skips them via the `apikey:` `sub` prefix.
+    #[serde(default = "Uuid::nil")]
+    pub jti: Uuid,
+    /// Bulk-invalidation snapshot. Issued tokens carry the user's
+    /// `token_version` at minting; the auth middleware compares
+    /// against the current row and rejects on mismatch — one DB
+    /// update retires every prior token in the user's fleet.
+    #[serde(default)]
+    pub tv: i64,
 }
 
 impl AuthClaims {
@@ -42,6 +57,13 @@ impl AuthClaims {
     #[allow(dead_code)]
     pub fn user_id(&self) -> Result<Uuid, AppError> {
         Uuid::parse_str(&self.sub).map_err(|_| AppError::unauthorized("Invalid user ID in token"))
+    }
+
+    /// True for synthetic API-key claims. Used to gate paths that
+    /// only apply to interactive user sessions (logout endpoint, JWT
+    /// revocation list lookup).
+    pub fn is_api_key(&self) -> bool {
+        self.sub.starts_with("apikey:")
     }
 }
 
@@ -111,10 +133,17 @@ pub fn create_jwt(claims: &AuthClaims, secret: &str) -> Result<String, AppError>
 ///   1. JWT (cookie or Authorization header)
 ///   2. DB-backed API key (X-API-Key header → sha256 → `api_keys` table)
 ///
-/// On successful JWT auth, injects `AuthClaims` into request extensions.
+/// On successful JWT auth, the platform JWT path also consults the
+/// revocation surface (ADR-0048): the explicit `revoked_jwts` list
+/// and the `users.token_version` snapshot. A 30-second cache keeps
+/// the per-request DB cost negligible; revocation writes invalidate
+/// the cache so the operator who just clicked "revoke" sees the
+/// effect immediately.
+///
 /// On successful API key auth, injects a synthetic `AuthClaims` whose
-/// `sub` is `apikey:<label>` and whose `exp` is short (1h) so a downstream
-/// claim cache cannot bypass DB revocation for long.
+/// `sub` is `apikey:<label>` and whose `exp` is short (1h). API keys
+/// skip the JWT revocation check — they are revoked by deleting the
+/// `api_keys` row, which `find_api_key_by_hash` already enforces.
 pub async fn require_auth(
     State(state): State<AppState>,
     mut req: Request,
@@ -125,6 +154,7 @@ pub async fn require_auth(
         && let Some(token) = extract_token(&req)
     {
         let claims = validate_jwt(&token, secret)?;
+        check_jwt_revocation(&state, &claims).await?;
         req.extensions_mut().insert(claims);
         return Ok(next.run(req).await);
     }
@@ -155,7 +185,10 @@ pub async fn require_auth(
                 // The CHECK constraint already restricts the column to
                 // `admin | designer | viewer`, so this copy is safe to
                 // embed in the synthetic JWT claim without further
-                // validation.
+                // validation. `jti` is `Uuid::nil()` and `tv` is `0` —
+                // synthetic API-key claims are out of scope for the
+                // JWT revocation surface (`is_api_key()` short-circuits
+                // `check_jwt_revocation`).
                 let now = chrono::Utc::now().timestamp() as usize;
                 let claims = AuthClaims {
                     sub: format!("apikey:{label}"),
@@ -165,6 +198,8 @@ pub async fn require_auth(
                     iss: "ontosyx-api-key".to_string(),
                     iat: now,
                     exp: now + 3600,
+                    jti: Uuid::nil(),
+                    tv: 0,
                 };
                 req.extensions_mut().insert(claims);
                 return Ok(next.run(req).await);
@@ -192,6 +227,103 @@ pub async fn require_auth(
     Err(AppError::unauthorized(
         "Invalid or missing authentication. Provide a valid JWT or API key.",
     ))
+}
+
+/// Reject a JWT whose `jti` lives in `revoked_jwts` or whose `tv`
+/// no longer matches `users.token_version`. ADR-0048: pairs with
+/// the cryptographic checks in `validate_jwt` (signature + exp +
+/// issuer) to gate every JWT-authenticated request against both
+/// fine-grained per-token revocation and bulk
+/// "retire-every-token-this-user-ever-held" invalidation.
+///
+/// API-key claims short-circuit — they have a synthetic `sub` of
+/// `apikey:<label>` and are revoked by deleting the `api_keys`
+/// row, which `find_api_key_by_hash` already verified.
+///
+/// Cache misses fall through to the store; a stable error message
+/// is returned on lookup failure so a flaky DB doesn't produce a
+/// 500 cascade for every authed request.
+async fn check_jwt_revocation(
+    state: &AppState,
+    claims: &AuthClaims,
+) -> Result<(), AppError> {
+    if claims.is_api_key() {
+        return Ok(());
+    }
+
+    let cache = &state.jwt_revocation_cache;
+
+    // Step 1: explicit per-jti revocation. Cache hits avoid the DB
+    // hop on the hot path.
+    let revoked = match cache.lookup_revocation(claims.jti) {
+        Some(answer) => answer,
+        None => {
+            let store = state.store.clone();
+            let jti = claims.jti;
+            let lookup = ox_store::SYSTEM_BYPASS
+                .scope(true, async move { store.find_revoked_jwt(jti).await })
+                .await;
+            match lookup {
+                Ok(entry) => {
+                    let revoked = entry.is_some();
+                    cache.record_revocation(jti, revoked);
+                    revoked
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, "JWT revocation lookup failed");
+                    return Err(AppError::service_unavailable(
+                        "Auth backend temporarily unavailable.",
+                    ));
+                }
+            }
+        }
+    };
+    if revoked {
+        return Err(AppError::unauthorized(
+            "Session was revoked. Sign in again.",
+        ));
+    }
+
+    // Step 2: bulk-invalidation `token_version` snapshot. Same
+    // cache-aside shape; the user id is parsed once from `claims.sub`
+    // and reused on the cache miss.
+    let user_id = claims.user_id()?;
+    let current_tv = match cache.lookup_token_version(user_id) {
+        Some(v) => v,
+        None => {
+            let store = state.store.clone();
+            let lookup = ox_store::SYSTEM_BYPASS
+                .scope(
+                    true,
+                    async move { store.get_user_token_version(user_id).await },
+                )
+                .await;
+            match lookup {
+                Ok(Some(v)) => {
+                    cache.record_token_version(user_id, v);
+                    v
+                }
+                Ok(None) => {
+                    return Err(AppError::unauthorized(
+                        "Issuing user no longer exists. Sign in again.",
+                    ));
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, "token_version lookup failed");
+                    return Err(AppError::service_unavailable(
+                        "Auth backend temporarily unavailable.",
+                    ));
+                }
+            }
+        }
+    };
+    if claims.tv != current_tv {
+        return Err(AppError::unauthorized(
+            "Session was retired by a security event. Sign in again.",
+        ));
+    }
+
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------

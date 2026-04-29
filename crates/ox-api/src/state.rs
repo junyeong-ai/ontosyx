@@ -15,6 +15,7 @@ use ox_source::registry::AdapterRegistry;
 use ox_store::{ApprovalStore, Store, ToolApproval};
 use uuid::Uuid;
 
+use crate::jwt_revocation_cache::JwtRevocationCache;
 use crate::model_router::DbModelRouter;
 
 use crate::collaboration::CollaborationHub;
@@ -90,6 +91,13 @@ pub struct AppState {
     /// call. Feeds the Phase 4.6 `clarification_success_rate`
     /// quality signal.
     pub clarification_tracker: ox_agent::clarification_tracker::SharedClarificationTracker,
+    /// 30-second cache in front of `revoked_jwts` + `users.token_version`
+    /// lookups. Sized for the read amplification `require_auth`
+    /// imposes on every protected request; revocation handlers call
+    /// `invalidate_jti` / `invalidate_user` on write so the freshness
+    /// cliff is paid only by quiet sessions, not by the operator who
+    /// just clicked the revoke button.
+    pub jwt_revocation_cache: Arc<JwtRevocationCache>,
 }
 
 impl AppState {

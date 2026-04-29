@@ -8,8 +8,8 @@ impl UserStore for PostgresStore {
     async fn upsert_user(&self, user: &User) -> OxResult<User> {
         super::require_workspace_context()?;
         sqlx::query_as::<_, User>(
-            "INSERT INTO users (id, email, name, picture, provider, provider_sub, role, created_at, last_login_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            "INSERT INTO users (id, email, name, picture, provider, provider_sub, role, token_version, created_at, last_login_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
              ON CONFLICT (provider, provider_sub)
              DO UPDATE SET
                 email = EXCLUDED.email,
@@ -25,6 +25,7 @@ impl UserStore for PostgresStore {
         .bind(&user.provider)
         .bind(&user.provider_sub)
         .bind(&user.role)
+        .bind(user.token_version)
         .bind(user.created_at)
         .bind(user.last_login_at)
         .fetch_one(&self.pool)
@@ -112,5 +113,35 @@ impl UserStore for PostgresStore {
             .await
             .map_err(to_ox_error)?;
         Ok(count)
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn get_user_token_version(&self, id: Uuid) -> OxResult<Option<i64>> {
+        let row: Option<(i64,)> =
+            sqlx::query_as("SELECT token_version FROM users WHERE id = $1")
+                .bind(id)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(to_ox_error)?;
+        Ok(row.map(|(v,)| v))
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn increment_user_token_version(&self, id: Uuid) -> OxResult<i64> {
+        super::require_workspace_context()?;
+        let row: Option<(i64,)> = sqlx::query_as(
+            "UPDATE users \
+             SET token_version = token_version + 1 \
+             WHERE id = $1 \
+             RETURNING token_version",
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+
+        row.map(|(v,)| v).ok_or_else(|| OxError::NotFound {
+            entity: "User".to_string(),
+        })
     }
 }

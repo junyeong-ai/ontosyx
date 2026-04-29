@@ -266,8 +266,26 @@ pub struct User {
     pub provider: String,
     pub provider_sub: String,
     pub role: String,
+    /// Bulk JWT invalidation counter. Issued tokens carry this value
+    /// as the `tv` claim; an increment retires every prior token in
+    /// one round-trip. Pairs with the per-token `revoked_jwts` list
+    /// for fine-grained revocation.
+    pub token_version: i64,
     pub created_at: DateTime<Utc>,
     pub last_login_at: Option<DateTime<Utc>>,
+}
+
+/// One revoked JWT entry. The pair `(jti, expires_at)` is enough to
+/// keep the table bounded — once `now() > expires_at` the underlying
+/// token is unusable regardless of revocation state and the row can
+/// be dropped by the cleanup cron.
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct RevokedJwt {
+    pub jti: Uuid,
+    pub revoked_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
+    pub revoked_by_user_id: Option<Uuid>,
+    pub reason: Option<String>,
 }
 
 // ---------------------------------------------------------------------------

@@ -33,7 +33,7 @@ pub use store::{
     ApiKeyStore, ApprovalCommentStore, ApprovalStore, AuditRecord, AuditStore, AuditTrailFilter,
     AuditTrailStore, ChangeRoutingStore, ConfigStore,
     CursorPage, CursorParams, DashboardStore, DataSourceStore, EmbeddingRetryStore, ExtendResult,
-    HealthStore, InsightStore, KnowledgeStore, LineageStore, LoadCheckpointStore, MeteringStore, ModelConfigStore,
+    HealthStore, InsightStore, JwtRevocationStore, KnowledgeStore, LineageStore, LoadCheckpointStore, MeteringStore, ModelConfigStore,
     NotificationStore, OntologyNavigationStore, OntologyVersionStore, PatternStore,
     PerspectiveStore, PinStore, ProjectStore, PromptTemplateStore, QualityBaselineStore,
     QualitySignalStore, QualityStore, QueryStore, RecipeStore, ReportStore, ScheduledTaskStore,

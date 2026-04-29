@@ -59,12 +59,50 @@ CREATE TABLE users (
     provider text NOT NULL,
     provider_sub text NOT NULL,
     role text DEFAULT 'designer' NOT NULL,
+    -- Bulk JWT invalidation counter. Incremented when the entire fleet
+    -- of issued tokens for this user must stop being honoured at once
+    -- (role downgrade, suspected credential theft, password reset).
+    -- Every issued JWT carries the value as the `tv` claim; require_auth
+    -- compares the claim against the current row and rejects on
+    -- mismatch — no per-token enumeration needed.
+    token_version BIGINT NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
     last_login_at TIMESTAMPTZ,
     CONSTRAINT users_pkey PRIMARY KEY (id),
     CONSTRAINT users_email_key UNIQUE (email),
     CONSTRAINT users_provider_provider_sub_key UNIQUE (provider, provider_sub)
 );
+
+-- Per-token JWT revocation list. Pairs with users.token_version for
+-- two complementary invalidation surfaces:
+--
+-- - revoked_jwts: explicit per-token revoke (logout, security incident
+--   targeting a single session). Keyed by `jti` (UUID-v4 generated at
+--   token creation).
+-- - users.token_version: bulk invalidation across every token a user
+--   ever held. Cheaper than enumerating all issued jtis.
+--
+-- `expires_at` mirrors the original JWT `exp` so the cleanup cron can
+-- delete rows for tokens that have already expired naturally — keeping
+-- the table bounded without losing security guarantees (the JWT itself
+-- is unusable once `exp` has passed).
+--
+-- No RLS on this table: JWT revocation is global and queried before
+-- workspace context is established. Reads are limited to a single
+-- `find_revoked_jwt(jti)` lookup; writes go through the auth handler
+-- with a SYSTEM_BYPASS scope.
+CREATE TABLE revoked_jwts (
+    jti uuid NOT NULL,
+    revoked_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    revoked_by_user_id uuid,
+    reason text,
+    CONSTRAINT revoked_jwts_pkey PRIMARY KEY (jti),
+    CONSTRAINT revoked_jwts_revoked_by_fkey
+        FOREIGN KEY (revoked_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE INDEX revoked_jwts_expires_at_idx ON revoked_jwts (expires_at);
 
 CREATE TABLE workspaces (
     id uuid DEFAULT gen_random_uuid() NOT NULL,

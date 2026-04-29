@@ -648,6 +648,49 @@ pub trait UserStore: Send + Sync {
     async fn update_user_role(&self, id: Uuid, role: &str) -> OxResult<()>;
 
     async fn count_users(&self) -> OxResult<i64>;
+
+    /// Read just the `token_version` column. The `require_auth`
+    /// middleware uses this on every JWT request to detect bulk
+    /// invalidation; surface it as a narrow lookup so a 30-second
+    /// cache can sit in front without dragging the whole `User`
+    /// row's lifecycle around.
+    async fn get_user_token_version(&self, id: Uuid) -> OxResult<Option<i64>>;
+
+    /// Increment `token_version` and return the new value. Atomic
+    /// (`UPDATE ... SET token_version = token_version + 1
+    /// RETURNING ...`) so concurrent calls remain monotonic. Use
+    /// when retiring every issued JWT for the user — role downgrade,
+    /// password reset, suspected credential theft.
+    async fn increment_user_token_version(&self, id: Uuid) -> OxResult<i64>;
+}
+
+/// Per-token JWT revocation. Pairs with [`UserStore::get_user_token_version`]
+/// for the two-axis invalidation surface described in `revoked_jwts`'s
+/// schema comment.
+#[async_trait]
+pub trait JwtRevocationStore: Send + Sync {
+    /// Look up a single revoked-JWT row by `jti`. `Ok(None)` means
+    /// the token is in good standing as far as the explicit revocation
+    /// list is concerned (the caller must still verify `tv` against
+    /// `users.token_version`).
+    async fn find_revoked_jwt(&self, jti: Uuid) -> OxResult<Option<RevokedJwt>>;
+
+    /// Insert a revocation entry. Idempotent on `jti`: re-revoking
+    /// the same token is a no-op (first writer's metadata wins).
+    async fn revoke_jwt(
+        &self,
+        jti: Uuid,
+        expires_at: DateTime<Utc>,
+        revoked_by_user_id: Option<Uuid>,
+        reason: Option<String>,
+    ) -> OxResult<()>;
+
+    /// Drop rows whose `expires_at < now()`. The underlying tokens
+    /// are already unusable (JWT `exp` claim has passed), so the
+    /// revocation entry no longer carries security weight; the
+    /// cleanup keeps the table bounded. Returns the number of rows
+    /// removed for the cron's metric line.
+    async fn delete_expired_revocations(&self) -> OxResult<u64>;
 }
 
 #[async_trait]
@@ -1845,6 +1888,7 @@ pub trait Store:
     + StaleConceptProposalStore
     + InsightStore
     + SourceMappingArtifactStore
+    + JwtRevocationStore
 {
 }
 
@@ -1891,5 +1935,6 @@ impl<T> Store for T where
         + StaleConceptProposalStore
         + InsightStore
         + SourceMappingArtifactStore
+        + JwtRevocationStore
 {
 }

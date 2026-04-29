@@ -1,6 +1,6 @@
 use axum::Json;
-use axum::extract::State;
-use chrono::Utc;
+use axum::extract::{Extension, State};
+use chrono::{DateTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -85,6 +85,7 @@ pub(crate) async fn create_token(
         provider: req.provider.clone(),
         provider_sub: oidc_user.sub,
         role: "designer".to_string(),
+        token_version: 0,
         created_at: now,
         last_login_at: Some(now),
     };
@@ -161,6 +162,12 @@ pub(crate) async fn create_token(
         iss: "ontosyx".to_string(),
         exp,
         iat,
+        // ADR-0048: every issued platform JWT is keyed by a unique
+        // `jti` for per-token revocation, plus a `tv` snapshot of the
+        // user's bulk-invalidation counter. Both axes feed
+        // `require_auth`'s revocation check.
+        jti: Uuid::new_v4(),
+        tv: user.token_version,
     };
 
     let token = create_jwt(&claims, jwt_secret)?;
@@ -241,4 +248,80 @@ pub(crate) async fn me(
             role: user.role,
         },
     }))
+}
+
+// ---------------------------------------------------------------------------
+// POST /auth/logout — revoke the caller's current JWT
+// ---------------------------------------------------------------------------
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct LogoutResponse {
+    /// Always `true` on success — the response shape mirrors other
+    /// auth endpoints so the BFF can branch on JSON instead of HTTP
+    /// status alone.
+    pub revoked: bool,
+}
+
+/// Revoke the caller's current platform JWT so it can no longer be
+/// presented as proof of identity. Inserts a row in `revoked_jwts`
+/// keyed by the token's `jti`, and drops the cached negative-result
+/// in [`JwtRevocationCache`] so the next request from any holder of
+/// the same token sees the revocation immediately.
+///
+/// Idempotent — repeated calls are safe and return the same shape.
+/// API-key principals short-circuit: API keys don't have a JWT
+/// surface to revoke, so the endpoint surfaces a `400` so the client
+/// can route them to the admin "delete API key" path instead.
+#[utoipa::path(
+    post,
+    path = "/auth/logout",
+    responses(
+        (status = 200, description = "JWT revoked", body = LogoutResponse),
+        (status = 400, description = "API key principals cannot self-logout", body = inline(crate::openapi::ErrorResponse)),
+        (status = 401, description = "Not authenticated", body = inline(crate::openapi::ErrorResponse)),
+    ),
+    security(("bearer" = [])),
+    tag = "Auth",
+)]
+pub(crate) async fn logout(
+    State(state): State<AppState>,
+    Extension(claims): Extension<AuthClaims>,
+) -> Result<Json<ApiResponse<LogoutResponse>>, AppError> {
+    if claims.is_api_key() {
+        return Err(AppError::bad_request(
+            "API key principals cannot self-logout. Delete the key via \
+             the admin endpoint to revoke access.",
+        ));
+    }
+
+    // The original JWT's `exp` is the natural truncation point — once
+    // it has passed, the token is unusable regardless of revocation
+    // state and the row can be reaped by the cleanup cron.
+    let expires_at = jwt_exp_to_datetime(claims.exp).ok_or_else(|| {
+        AppError::unauthorized("Token has no usable expiry — cannot revoke")
+    })?;
+    let user_id = claims.user_id().ok();
+    let jti = claims.jti;
+
+    let store = state.store.clone();
+    ox_store::SYSTEM_BYPASS
+        .scope(true, async move {
+            store
+                .revoke_jwt(jti, expires_at, user_id, Some("user logout".to_string()))
+                .await
+        })
+        .await
+        .map_err(AppError::from)?;
+
+    // Drop the (likely cached) negative result so the next request
+    // from any holder of the same token sees the revocation without
+    // waiting out the TTL.
+    state.jwt_revocation_cache.invalidate_jti(jti);
+
+    Ok(ApiResponse::of(LogoutResponse { revoked: true }))
+}
+
+fn jwt_exp_to_datetime(exp: usize) -> Option<DateTime<Utc>> {
+    let secs: i64 = exp.try_into().ok()?;
+    Utc.timestamp_opt(secs, 0).single()
 }

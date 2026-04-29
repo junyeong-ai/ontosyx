@@ -542,6 +542,8 @@ async fn main() -> anyhow::Result<()> {
             config.agent.max_concurrent_streams_per_user,
         )),
         clarification_tracker: Arc::clone(&clarification_tracker),
+        jwt_revocation_cache:
+            ox_api::jwt_revocation_cache::JwtRevocationCache::with_default_ttl(),
     };
 
     // Spawn the clarification-tracker evict loop. Runs every 30
@@ -1171,6 +1173,7 @@ async fn seed_default_workspace_if_missing(
         provider: "system".into(),
         provider_sub: "bootstrap-default-owner".into(),
         role: "admin".into(),
+        token_version: 0,
         created_at: chrono::Utc::now(),
         last_login_at: None,
     };
