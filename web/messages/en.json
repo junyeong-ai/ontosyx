@@ -2755,6 +2755,33 @@
     }
   },
   "workbench": {
+    "projects": {
+      "hub": {
+        "heading": "Projects",
+        "subheading": "{count, plural, =0 {No projects yet} one {# project} other {# projects}}",
+        "createButton": "New project",
+        "searchLabel": "Search projects",
+        "searchPlaceholder": "Search by title…",
+        "statusFilterLabel": "Filter by status",
+        "loading": "Loading projects…",
+        "untitled": "Untitled project",
+        "cardMeta": "{source} · {updated}",
+        "relativeJustNow": "just now",
+        "relativeMinutes": "{count, plural, one {# minute ago} other {# minutes ago}}",
+        "relativeHours": "{count, plural, one {# hour ago} other {# hours ago}}",
+        "relativeDays": "{count, plural, one {# day ago} other {# days ago}}",
+        "status": {
+          "analyzed": "Analyzed",
+          "designed": "Designed",
+          "completed": "Completed"
+        },
+        "empty": {
+          "heading": "No projects match this filter",
+          "subheading": "Clear the filters to see every project, or start a new one.",
+          "cta": "Start a project"
+        }
+      }
+    },
     "design": {
       "initialSelection": {
         "kindSummary": {
@@ -3320,6 +3347,7 @@
         "untitled": "Untitled project",
         "count": "{count, plural, one {# project} other {# projects}}",
         "meta": "{source} · {updated}",
+        "viewAll": "View all projects",
         "relativeJustNow": "just now",
         "relativeMinutes": "{count, plural, one {# minute ago} other {# minutes ago}}",
         "relativeHours": "{count, plural, one {# hour ago} other {# hours ago}}",

@@ -2741,6 +2741,33 @@
     }
   },
   "workbench": {
+    "projects": {
+      "hub": {
+        "heading": "프로젝트",
+        "subheading": "{count, plural, =0 {아직 프로젝트 없음} other {프로젝트 #개}}",
+        "createButton": "새 프로젝트",
+        "searchLabel": "프로젝트 검색",
+        "searchPlaceholder": "제목으로 검색…",
+        "statusFilterLabel": "상태로 필터",
+        "loading": "프로젝트 로딩 중…",
+        "untitled": "제목 없는 프로젝트",
+        "cardMeta": "{source} · {updated}",
+        "relativeJustNow": "방금",
+        "relativeMinutes": "{count, plural, other {#분 전}}",
+        "relativeHours": "{count, plural, other {#시간 전}}",
+        "relativeDays": "{count, plural, other {#일 전}}",
+        "status": {
+          "analyzed": "분석 완료",
+          "designed": "설계 완료",
+          "completed": "완료"
+        },
+        "empty": {
+          "heading": "조건에 맞는 프로젝트 없음",
+          "subheading": "필터를 해제하거나 새 프로젝트를 시작하세요.",
+          "cta": "프로젝트 시작"
+        }
+      }
+    },
     "design": {
       "initialSelection": {
         "kindSummary": {
@@ -3306,6 +3333,7 @@
         "untitled": "이름 없는 프로젝트",
         "count": "{count}개 프로젝트",
         "meta": "{source} · {updated}",
+        "viewAll": "모든 프로젝트 보기",
         "relativeJustNow": "방금",
         "relativeMinutes": "{count}분 전",
         "relativeHours": "{count}시간 전",

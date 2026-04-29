@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -99,6 +100,15 @@ export function RecentProjects() {
           </li>
         ))}
       </ul>
+      {/* ADR-0055 — link out to the full Project Hub for browsing
+          beyond the compact 5-row "resume" list. */}
+      <Link
+        href="/projects"
+        className="flex items-center justify-center gap-1 border-t border-zinc-200 px-3 py-2 text-[10px] font-medium text-emerald-700 transition-colors hover:bg-emerald-50/40 dark:border-zinc-800 dark:text-emerald-400 dark:hover:bg-emerald-950/20"
+      >
+        {t("viewAll")}
+        <HugeiconsIcon icon={ArrowRight01Icon} className="h-3 w-3" size="100%" />
+      </Link>
     </section>
   );
 }
