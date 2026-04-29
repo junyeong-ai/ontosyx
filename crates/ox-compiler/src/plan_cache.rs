@@ -29,6 +29,29 @@
 //! hashes for the same semantic IR and costs us at most a cache miss.
 //! The cost is a single re-compile, not a correctness bug.
 //!
+//! ## Invariant: compile_query is pure on QueryIR
+//!
+//! Caching by `QueryIR` alone is **only** safe because
+//! [`GraphCompiler::compile_query`] is a pure transform — same IR in,
+//! same `CompiledQuery` out, regardless of the active ontology. Every
+//! ontology-dependent step (concept-map literal substitution,
+//! auto-DISTINCT for fan-out joins, label / property rename across a
+//! temporal pivot) is structured as a **pre-pass that mutates the
+//! IR upstream of this cache** — `rewrite_concept_map_values`,
+//! `rewrite_auto_distinct`, `rewrite_temporal_with_renames`. Different
+//! ontologies feed different pre-pass output, which feed different
+//! cache keys. The cache never sees ontology state directly.
+//!
+//! **If you add an ontology-dependent step inside `compile_query`,
+//! you break this invariant** and the cache will silently return
+//! stale Cypher when the ontology changes. The fix is *not* to mix
+//! ontology-derived state into the key here — that punishes every
+//! caller. Instead, factor the new step into a pre-pass like the
+//! ones above, or change the trait signature so the ontology becomes
+//! an explicit `compile_query` parameter and update the key
+//! accordingly. ADR-0030 (rejected: invariant-by-architecture, not
+//! key-padding).
+//!
 //! # Observability
 //!
 //! `hits` / `misses` counters are atomic and readable via
