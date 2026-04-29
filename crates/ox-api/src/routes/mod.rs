@@ -510,11 +510,22 @@ pub fn router(state: AppState) -> Router {
         .route("/acl/policies/{id}", patch(acl::update_policy))
         .route("/acl/policies/{id}", delete(acl::delete_policy))
         .route("/acl/effective", get(acl::effective_policies))
-        // Middleware order (outer → inner): require_auth → workspace_context → audit_log
-        // route_layer applies bottom-up, so audit_log (innermost) is first
+        // Middleware order (outer → inner):
+        //   require_auth → workspace_context → idempotency → audit_log → handler
+        //
+        // `route_layer` applies bottom-up, so the innermost wraps
+        // first. Idempotency sits between workspace_context (it
+        // needs `WorkspaceContext` from extensions) and audit_log
+        // (so a replayed cache-hit response still flows through
+        // the audit trail; the `idempotent-replay: true` header
+        // distinguishes the row).
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             crate::audit_middleware::audit_log,
+        ))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            crate::idempotency::idempotency_layer,
         ))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),

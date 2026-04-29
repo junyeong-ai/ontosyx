@@ -104,6 +104,44 @@ CREATE TABLE revoked_jwts (
 
 CREATE INDEX revoked_jwts_expires_at_idx ON revoked_jwts (expires_at);
 
+-- Idempotency-Key middleware records (ADR-0047). Caller-supplied
+-- key on POST/PATCH/PUT/DELETE replays the cached response when
+-- the request body hash matches the original; mismatched hash on a
+-- reused key surfaces as 409. The dominant cost driver this defends
+-- against is LLM-driven endpoints (design / refine / extend / edit
+-- / chat) where retries on transient failure double-charge tokens.
+--
+-- Scope is `(workspace_id, user_id, method, path, key)` so two
+-- different routes can reuse the same key without colliding (Stripe
+-- pattern). Bodies and response payloads are stored as `bytea`
+-- because raw JWT-bearing requests already cap at the API gateway
+-- limit and we want to cache exactly what the client sent / received,
+-- not a re-serialised reconstruction.
+--
+-- No RLS: writes are gated by the middleware passing `workspace_id`
+-- /  `user_id` from the authenticated principal; the table never
+-- backs reads through a workspace-scoped query.
+CREATE TABLE idempotency_records (
+    workspace_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    method text NOT NULL,
+    path text NOT NULL,
+    key text NOT NULL,
+    request_hash bytea NOT NULL,
+    response_status smallint NOT NULL,
+    response_body bytea NOT NULL,
+    response_content_type text,
+    created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    CONSTRAINT idempotency_records_pkey
+        PRIMARY KEY (workspace_id, user_id, method, path, key),
+    CONSTRAINT idempotency_records_user_fkey
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idempotency_records_expires_at_idx
+    ON idempotency_records (expires_at);
+
 CREATE TABLE workspaces (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     name VARCHAR(255) NOT NULL,

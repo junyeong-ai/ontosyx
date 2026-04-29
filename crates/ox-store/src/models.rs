@@ -288,6 +288,26 @@ pub struct RevokedJwt {
     pub reason: Option<String>,
 }
 
+/// One Idempotency-Key middleware record. The middleware reads
+/// `request_hash` to confirm a replay is genuinely the same request
+/// (not the same key reused for a different payload — Stripe's
+/// behaviour) and replays `response_status` / `response_body` /
+/// `response_content_type` byte-for-byte to the client.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct IdempotencyRecord {
+    pub workspace_id: Uuid,
+    pub user_id: Uuid,
+    pub method: String,
+    pub path: String,
+    pub key: String,
+    pub request_hash: Vec<u8>,
+    pub response_status: i16,
+    pub response_body: Vec<u8>,
+    pub response_content_type: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
+}
+
 // ---------------------------------------------------------------------------
 // Design projects — ontology design lifecycle persistence
 // ---------------------------------------------------------------------------

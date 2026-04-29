@@ -25,6 +25,7 @@ pub mod background;
 pub mod credential;
 #[cfg(feature = "gcp-sm")]
 pub mod gcp_secret_manager;
+pub mod idempotency;
 pub mod jwt_revocation_cache;
 pub mod federation_resolver;
 pub mod collaboration;
