@@ -37,7 +37,8 @@ use ox_core::types::PropertyValue;
 use ox_core::variable_name::VariableName;
 use ox_ontology::concept_map::{ConceptMapDef, Equivalence};
 use ox_query_ir::query::{
-    ComparisonOp, Expr, GraphPattern, PropertyFilter, QueryIR, QueryOp,
+    AnalyticsSource, ComparisonOp, Expr, GraphPattern, MutateOp, PropertyAssignment,
+    PropertyFilter, QueryIR, QueryOp,
 };
 
 /// Substitution direction.
@@ -245,7 +246,49 @@ where
             }
         }
         QueryOp::CallSubquery { inner, .. } => walk_match_patterns(&inner.operation, f),
-        QueryOp::Mutate { .. } | QueryOp::Analytics { .. } | QueryOp::PathFind { .. } => {}
+        QueryOp::Mutate {
+            context, operations, ..
+        } => {
+            if let Some(ctx) = context {
+                walk_match_patterns(ctx, f);
+            }
+            // Mutate ops with a *node* label (CreateNode / MergeNode)
+            // pin a (variable, label) pair the caller's translation
+            // table needs to dispatch property-level translations on
+            // the new row's property assignments. CreateEdge /
+            // MergeEdge carry an edge label, but the translation
+            // table is keyed on node-property pairs (the only surface
+            // a ConceptMap currently binds against), so edges
+            // contribute nothing here.
+            for op in operations {
+                match op {
+                    MutateOp::CreateNode {
+                        variable, label, ..
+                    }
+                    | MutateOp::MergeNode {
+                        variable, label, ..
+                    } => f(variable, label),
+                    _ => {}
+                }
+            }
+        }
+        QueryOp::Analytics { source, .. } => {
+            // Whole-graph / labels-only analytics carries no
+            // pattern variables to anchor on. A subgraph-source
+            // recurses into the embedded filter so its patterns
+            // contribute labels just like a top-level Match.
+            if let AnalyticsSource::Subgraph { filter } = source {
+                walk_match_patterns(filter, f);
+            }
+        }
+        QueryOp::PathFind { start, end, .. } => {
+            if let Some(label) = &start.label {
+                f(&start.variable, label);
+            }
+            if let Some(label) = &end.label {
+                f(&end.variable, label);
+            }
+        }
     }
 }
 
@@ -296,11 +339,164 @@ fn rewrite_op(
         } => {
             rewrite_op(&mut inner.operation, table, report);
         }
-        // The first slice covers Match + Aggregate + composite
-        // wrappers; Mutate / Analytics / PathFind carry literals in
-        // shapes different enough that bespoke walkers land in
-        // follow-up slices when a concrete use case arrives.
-        QueryOp::Mutate { .. } | QueryOp::Analytics { .. } | QueryOp::PathFind { .. } => {}
+        QueryOp::Mutate {
+            context,
+            operations,
+            returning: _,
+        } => {
+            // Recurse into the optional preceding MATCH so any
+            // anchor-bearing patterns are still subject to literal
+            // translation. The mutating operations themselves are
+            // walked individually — their property-assignment shape
+            // is distinct from `Match.filter`'s `Expr` tree.
+            if let Some(ctx) = context.as_mut() {
+                rewrite_op(ctx, table, report);
+            }
+            for op in operations {
+                rewrite_mutate_op(op, table, report);
+            }
+        }
+        QueryOp::Analytics {
+            source,
+            params: _,
+            algorithm: _,
+            projections: _,
+        } => {
+            // ConceptMap dispatch is keyed on (variable, property)
+            // pairs. `Analytics.params` is a `HashMap<String, Expr>`
+            // with only string keys (algorithm config — damping
+            // factor, iteration count) so there is no anchor to
+            // translate against. A subgraph source is the only
+            // anchor-bearing surface inside Analytics; recurse so
+            // its Match patterns get the same treatment as a
+            // top-level Match.
+            if let AnalyticsSource::Subgraph { filter } = source {
+                rewrite_op(filter, table, report);
+            }
+        }
+        QueryOp::PathFind {
+            start,
+            end,
+            edge_types: _,
+            direction: _,
+            max_depth: _,
+            algorithm: _,
+        } => {
+            // Endpoint inline filters mirror the `GraphPattern::Node`
+            // shape, so the existing rewriter applies unchanged.
+            for pf in &mut start.property_filters {
+                rewrite_property_filter(&start.variable, pf, table, report);
+            }
+            for pf in &mut end.property_filters {
+                rewrite_property_filter(&end.variable, pf, table, report);
+            }
+        }
+    }
+}
+
+/// Substitute literal values inside a list of property assignments
+/// (`Mutate` operations) when the `(variable, property)` pair binds
+/// to a concept map in the translation table. Mirrors
+/// `rewrite_property_filter` but operates on the assignment shape.
+fn rewrite_property_assignments(
+    variable: &VariableName,
+    assignments: &mut [PropertyAssignment],
+    table: &TranslationTable<'_>,
+    report: &mut RewriteReport,
+) {
+    for pa in assignments {
+        if let Some((concept_map, policy)) =
+            table.get(&(variable.clone(), pa.property.clone()))
+        {
+            rewrite_value_in_place(
+                variable,
+                &pa.property,
+                &mut pa.value,
+                concept_map,
+                policy,
+                report,
+            );
+        }
+    }
+}
+
+fn rewrite_mutate_op(
+    op: &mut MutateOp,
+    table: &TranslationTable<'_>,
+    report: &mut RewriteReport,
+) {
+    match op {
+        MutateOp::CreateNode {
+            variable,
+            label: _,
+            properties,
+        } => {
+            rewrite_property_assignments(variable, properties, table, report);
+        }
+        MutateOp::CreateEdge {
+            variable,
+            label: _,
+            source: _,
+            target: _,
+            properties,
+        } => {
+            // Edge variables are optional; absent variable = anonymous
+            // edge whose properties cannot be anchored to a
+            // (variable, property) translation key.
+            if let Some(var) = variable {
+                rewrite_property_assignments(var, properties, table, report);
+            }
+        }
+        MutateOp::MergeNode {
+            variable,
+            label: _,
+            match_properties,
+            on_create,
+            on_match,
+        } => {
+            rewrite_property_assignments(variable, match_properties, table, report);
+            rewrite_property_assignments(variable, on_create, table, report);
+            rewrite_property_assignments(variable, on_match, table, report);
+        }
+        MutateOp::MergeEdge {
+            variable,
+            label: _,
+            source: _,
+            target: _,
+            match_properties,
+            on_create,
+            on_match,
+        } => {
+            if let Some(var) = variable {
+                rewrite_property_assignments(var, match_properties, table, report);
+                rewrite_property_assignments(var, on_create, table, report);
+                rewrite_property_assignments(var, on_match, table, report);
+            }
+        }
+        MutateOp::SetProperty {
+            variable,
+            property,
+            value,
+        } => {
+            if let Some((concept_map, policy)) =
+                table.get(&(variable.clone(), property.clone()))
+            {
+                rewrite_value_in_place(
+                    variable,
+                    property,
+                    value,
+                    concept_map,
+                    policy,
+                    report,
+                );
+            }
+        }
+        MutateOp::Delete { .. }
+        | MutateOp::RemoveProperty { .. }
+        | MutateOp::RemoveLabel { .. } => {
+            // No literal substitution surface — these carry only
+            // variable / property / label references.
+        }
     }
 }
 
@@ -1034,5 +1230,310 @@ mod tests {
             })
             .collect();
         assert_eq!(strings, vec!["NEWA001", "NEWC003A", "NEWC003B"]);
+    }
+
+    // -----------------------------------------------------------------
+    // ADR-0031 — Mutate / Analytics / PathFind literal translation
+    // -----------------------------------------------------------------
+    //
+    // Pre-ADR-0031, `rewrite_op` no-op'd these three QueryOp variants,
+    // letting a `MERGE (s:Stock {status: "A001"})` write under the
+    // v2024 vocabulary land in v2026 storage unchanged. Each test
+    // pins a distinct write surface that the new walker covers.
+
+    #[test]
+    fn create_node_property_assignment_is_translated() {
+        use ox_query_ir::query::{MutateOp, PropertyAssignment};
+        let cm = concept_map();
+        let q = QueryIR {
+            schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Mutate {
+                context: None,
+                operations: vec![MutateOp::CreateNode {
+                    variable: vn("s"),
+                    label: GraphLabel::new("Stock").unwrap(),
+                    properties: vec![PropertyAssignment {
+                        property: pk("status"),
+                        value: Expr::Literal {
+                            value: PropertyValue::String("A001".into()),
+                        },
+                    }],
+                }],
+                returning: Vec::new(),
+            },
+            limit: None,
+            skip: None,
+            order_by: Vec::new(),
+            as_of: None,
+        };
+        let (rewritten, report) = rewrite_concept_map_values(q, &table(&cm, "s"));
+        assert_eq!(report.translations.len(), 1, "create write must rewrite");
+        let QueryOp::Mutate { operations, .. } = rewritten.operation else {
+            panic!("expected Mutate");
+        };
+        let MutateOp::CreateNode { properties, .. } = &operations[0] else {
+            panic!("expected CreateNode");
+        };
+        let Expr::Literal {
+            value: PropertyValue::String(s),
+        } = &properties[0].value
+        else {
+            panic!("expected string literal");
+        };
+        assert_eq!(s, "NEWA001", "v2024 code must be translated to v2026");
+    }
+
+    #[test]
+    fn merge_node_match_and_on_create_assignments_are_translated() {
+        use ox_query_ir::query::{MutateOp, PropertyAssignment};
+        let cm = concept_map();
+        let q = QueryIR {
+            schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Mutate {
+                context: None,
+                operations: vec![MutateOp::MergeNode {
+                    variable: vn("s"),
+                    label: GraphLabel::new("Stock").unwrap(),
+                    match_properties: vec![PropertyAssignment {
+                        property: pk("status"),
+                        value: Expr::Literal {
+                            value: PropertyValue::String("A001".into()),
+                        },
+                    }],
+                    on_create: vec![PropertyAssignment {
+                        property: pk("status"),
+                        value: Expr::Literal {
+                            value: PropertyValue::String("A001".into()),
+                        },
+                    }],
+                    on_match: Vec::new(),
+                }],
+                returning: Vec::new(),
+            },
+            limit: None,
+            skip: None,
+            order_by: Vec::new(),
+            as_of: None,
+        };
+        let (rewritten, report) = rewrite_concept_map_values(q, &table(&cm, "s"));
+        assert_eq!(
+            report.translations.len(),
+            2,
+            "match + on_create both rewrite"
+        );
+        let QueryOp::Mutate { operations, .. } = rewritten.operation else {
+            panic!("expected Mutate");
+        };
+        let MutateOp::MergeNode {
+            match_properties,
+            on_create,
+            ..
+        } = &operations[0]
+        else {
+            panic!("expected MergeNode");
+        };
+        let Expr::Literal {
+            value: PropertyValue::String(m),
+        } = &match_properties[0].value
+        else {
+            panic!("match value");
+        };
+        let Expr::Literal {
+            value: PropertyValue::String(c),
+        } = &on_create[0].value
+        else {
+            panic!("on_create value");
+        };
+        assert_eq!(m, "NEWA001");
+        assert_eq!(c, "NEWA001");
+    }
+
+    #[test]
+    fn set_property_value_is_translated() {
+        use ox_query_ir::query::MutateOp;
+        let cm = concept_map();
+        let q = QueryIR {
+            schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Mutate {
+                context: None,
+                operations: vec![MutateOp::SetProperty {
+                    variable: vn("s"),
+                    property: pk("status"),
+                    value: Expr::Literal {
+                        value: PropertyValue::String("A001".into()),
+                    },
+                }],
+                returning: Vec::new(),
+            },
+            limit: None,
+            skip: None,
+            order_by: Vec::new(),
+            as_of: None,
+        };
+        let (rewritten, report) = rewrite_concept_map_values(q, &table(&cm, "s"));
+        assert_eq!(report.translations.len(), 1);
+        let QueryOp::Mutate { operations, .. } = rewritten.operation else {
+            panic!("expected Mutate");
+        };
+        let MutateOp::SetProperty { value, .. } = &operations[0] else {
+            panic!("expected SetProperty");
+        };
+        let Expr::Literal {
+            value: PropertyValue::String(s),
+        } = value
+        else {
+            panic!("string literal");
+        };
+        assert_eq!(s, "NEWA001");
+    }
+
+    #[test]
+    fn pathfind_endpoint_filter_literal_is_translated() {
+        use ox_core::types::Direction;
+        use ox_query_ir::query::{NodeRef, PathAlgorithm, PropertyFilter as PF};
+        let cm = concept_map();
+        let q = QueryIR {
+            schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::PathFind {
+                start: NodeRef {
+                    variable: vn("s"),
+                    label: Some(GraphLabel::new("Stock").unwrap()),
+                    property_filters: vec![PF {
+                        property: pk("status"),
+                        value: Expr::Literal {
+                            value: PropertyValue::String("A001".into()),
+                        },
+                    }],
+                },
+                end: NodeRef {
+                    variable: vn("t"),
+                    label: Some(GraphLabel::new("Stock").unwrap()),
+                    property_filters: Vec::new(),
+                },
+                edge_types: Vec::new(),
+                direction: Direction::Outgoing,
+                max_depth: None,
+                algorithm: PathAlgorithm::ShortestPath,
+            },
+            limit: None,
+            skip: None,
+            order_by: Vec::new(),
+            as_of: None,
+        };
+        let (rewritten, report) = rewrite_concept_map_values(q, &table(&cm, "s"));
+        assert_eq!(report.translations.len(), 1, "endpoint filter rewrites");
+        let QueryOp::PathFind { start, .. } = rewritten.operation else {
+            panic!("expected PathFind");
+        };
+        let Expr::Literal {
+            value: PropertyValue::String(s),
+        } = &start.property_filters[0].value
+        else {
+            panic!("string literal");
+        };
+        assert_eq!(s, "NEWA001");
+    }
+
+    #[test]
+    fn analytics_subgraph_filter_recurses_into_match() {
+        use ox_query_ir::query::{AnalyticsSource, GraphAlgorithm};
+        let cm = concept_map();
+        let inner = build_match_query("s", "A001");
+        let q = QueryIR {
+            schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Analytics {
+                algorithm: GraphAlgorithm::PageRank,
+                source: AnalyticsSource::Subgraph {
+                    filter: Box::new(inner.operation),
+                },
+                params: Default::default(),
+                projections: Vec::new(),
+            },
+            limit: None,
+            skip: None,
+            order_by: Vec::new(),
+            as_of: None,
+        };
+        let (rewritten, report) = rewrite_concept_map_values(q, &table(&cm, "s"));
+        assert_eq!(
+            report.translations.len(),
+            1,
+            "subgraph filter inherits Match's literal-rewrite path"
+        );
+        let QueryOp::Analytics { source, .. } = rewritten.operation else {
+            panic!("expected Analytics");
+        };
+        let AnalyticsSource::Subgraph { filter } = source else {
+            panic!("expected Subgraph");
+        };
+        let QueryOp::Match { patterns, .. } = *filter else {
+            panic!("expected Match inside Subgraph");
+        };
+        let GraphPattern::Node {
+            property_filters, ..
+        } = &patterns[0]
+        else {
+            panic!("expected Node");
+        };
+        let Expr::Literal {
+            value: PropertyValue::String(s),
+        } = &property_filters[0].value
+        else {
+            panic!("string literal");
+        };
+        assert_eq!(s, "NEWA001");
+    }
+
+    #[test]
+    fn mutate_context_match_is_recursed() {
+        use ox_query_ir::query::MutateOp;
+        // Mutate with a leading MATCH that itself carries a translatable
+        // literal in a property filter — the recursion into `context`
+        // must apply the same rewriter the top-level Match path does.
+        let cm = concept_map();
+        let leading_match = QueryOp::Match {
+            patterns: vec![GraphPattern::Node {
+                variable: vn("s"),
+                label: Some(GraphLabel::new("Stock").unwrap()),
+                property_filters: vec![PropertyFilter {
+                    property: pk("status"),
+                    value: Expr::Literal {
+                        value: PropertyValue::String("A001".into()),
+                    },
+                }],
+            }],
+            filter: None,
+            projections: vec![Projection::Variable {
+                variable: vn("s"),
+                alias: None,
+            }],
+            optional: false,
+            group_by: Vec::new(),
+        };
+        let q = QueryIR {
+            schema_version: ox_query_ir::query::QUERY_IR_SCHEMA_VERSION,
+            operation: QueryOp::Mutate {
+                context: Some(Box::new(leading_match)),
+                operations: vec![MutateOp::SetProperty {
+                    variable: vn("s"),
+                    property: pk("status"),
+                    value: Expr::Literal {
+                        value: PropertyValue::String("A001".into()),
+                    },
+                }],
+                returning: Vec::new(),
+            },
+            limit: None,
+            skip: None,
+            order_by: Vec::new(),
+            as_of: None,
+        };
+        let (_, report) = rewrite_concept_map_values(q, &table(&cm, "s"));
+        // 1 from context Match's property_filter, 1 from SetProperty.
+        assert_eq!(
+            report.translations.len(),
+            2,
+            "context Match + outer SetProperty both translate"
+        );
     }
 }
