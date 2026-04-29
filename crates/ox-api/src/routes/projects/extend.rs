@@ -9,6 +9,7 @@ use ox_ontology::design_project::{DesignProjectStatus, SourceHistoryEntry};
 use ox_ontology::ir::OntologyIR;
 use ox_ontology::mapping::SourceId;
 use ox_core::source_schema::{SourceProfile, SourceSchema};
+use ox_source::AnalysisResult;
 use ox_source::analyzer::build_design_context;
 
 use super::helpers::artifact::persist_design_artifact;
@@ -74,24 +75,34 @@ pub(crate) async fn extend_project(
             .map_err(|e| AppError::internal(format!("Corrupt ontology in project: {e}")))?,
     };
 
-    // 1. Introspect the new source (including Code Repository)
-    // Extract URL before source is consumed (for source history)
+    // 1. Introspect the new source (including Code Repository).
+    //
+    // ADR-0025: when the project carries a structured `source_schema`
+    // / `source_profile` from a previous introspection, reconstruct
+    // it as the kernel's `baseline` so an
+    // `AnalyzeSelection::Extend { tables }` selection can recover
+    // cross-baseline foreign keys (an Order table newly added to a
+    // baseline that already had Customer must surface the Order →
+    // Customer FK even though only the Order table is in the
+    // introspection scope). Code-Repository / Text sources have no
+    // structured schema and skip the baseline.
     let source_url = match &req.source {
         ProjectSource::CodeRepository { url } => Some(url.clone()),
         _ => None,
     };
+    let baseline = build_extend_baseline(&project);
     let (new_source_config, new_source_data, new_source_schema, new_source_profile, new_report) =
         if let Some(url) = &source_url {
             let (config, schema, profile, report) = analyze_code_repository(&state, url).await?;
             (config, None, Some(schema), Some(profile), Some(report))
         } else {
-            // The extend endpoint passes its own selection — the
-            // caller may pull only a subset of the new source's
-            // tables. No baseline is involved on the source side
-            // (the project's baseline lives in `existing_ontology`,
-            // which is merged via reconcile after design).
-            let analyzed =
-                analyze_source(req.source, &state.adapter_registry, req.selection, None).await?;
+            let analyzed = analyze_source(
+                req.source,
+                &state.adapter_registry,
+                req.selection,
+                baseline.as_ref(),
+            )
+            .await?;
             (
                 analyzed.config,
                 analyzed.raw_data,
@@ -342,4 +353,113 @@ pub(crate) async fn extend_project(
         project: ProjectView::from_project(updated),
         reconcile_report: reconciled.report,
     }))
+}
+
+/// Reconstruct the kernel's `AnalysisResult` baseline from the
+/// project's stored introspection rows so the kernel's
+/// `analyze_extension` path runs the cross-baseline foreign-key
+/// recovery (ADR-0025).
+///
+/// Returns `None` when the project lacks a structured schema /
+/// profile (text-source projects, projects whose initial
+/// introspection failed). Decode failures also fall back to `None`
+/// — the extend call still succeeds, just without cross-baseline
+/// FK recovery; the alternative (rejecting the request) would
+/// hand-stitch an unrecoverable failure mode for a corruption the
+/// operator cannot fix from the FE.
+fn build_extend_baseline(project: &ox_store::DesignProject) -> Option<AnalysisResult> {
+    let schema_json = project.source_schema.as_ref()?;
+    let profile_json = project.source_profile.as_ref()?;
+    let schema: SourceSchema = serde_json::from_value(schema_json.clone()).ok()?;
+    let profile: SourceProfile = serde_json::from_value(profile_json.clone()).ok()?;
+    Some(AnalysisResult {
+        schema,
+        profile,
+        warnings: Vec::new(),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_extend_baseline;
+
+    fn schema_value() -> serde_json::Value {
+        serde_json::json!({
+            "source_type": "postgresql",
+            "tables": [
+                {
+                    "name": "users",
+                    "columns": [],
+                    "primary_key": [],
+                }
+            ],
+            "foreign_keys": [],
+        })
+    }
+
+    fn profile_value() -> serde_json::Value {
+        serde_json::json!({"table_profiles": []})
+    }
+
+    fn project(
+        schema: Option<serde_json::Value>,
+        profile: Option<serde_json::Value>,
+    ) -> ox_store::DesignProject {
+        ox_store::DesignProject {
+            id: uuid::Uuid::new_v4(),
+            status: "designed".to_string(),
+            revision: 1,
+            user_id: "u-1".to_string(),
+            title: None,
+            source_config: serde_json::json!({}),
+            source_id: "src-1".to_string(),
+            source_data: None,
+            source_schema: schema,
+            source_profile: profile,
+            analysis_report: None,
+            design_options: serde_json::json!({}),
+            initial_selection: None,
+            ontology: None,
+            quality_report: None,
+            ontology_id: None,
+            source_history: serde_json::json!([]),
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+            analyzed_at: None,
+        }
+    }
+
+    #[test]
+    fn baseline_round_trips_when_project_has_schema_and_profile() {
+        let baseline = build_extend_baseline(&project(
+            Some(schema_value()),
+            Some(profile_value()),
+        ))
+        .expect("baseline rebuilds when both rows present");
+        assert_eq!(baseline.schema.tables.len(), 1);
+        assert_eq!(baseline.schema.tables[0].name, "users");
+    }
+
+    #[test]
+    fn baseline_returns_none_when_either_row_missing() {
+        // Schema present, profile missing — extend cannot recover
+        // FKs without sample-driven profile, so baseline collapses
+        // to None and the extend call proceeds without
+        // cross-baseline recovery (the same shape as a fresh
+        // project's first source).
+        assert!(build_extend_baseline(&project(Some(schema_value()), None)).is_none());
+        assert!(build_extend_baseline(&project(None, Some(profile_value()))).is_none());
+        assert!(build_extend_baseline(&project(None, None)).is_none());
+    }
+
+    #[test]
+    fn baseline_returns_none_on_corrupt_schema_payload() {
+        // A wire shape that doesn't deserialise must not crash the
+        // extend handler — fall through to the no-baseline path.
+        let baseline = build_extend_baseline(&project(
+            Some(serde_json::json!({"this_is_not_a_schema": true})),
+            Some(profile_value()),
+        ));
+        assert!(baseline.is_none());
+    }
 }
