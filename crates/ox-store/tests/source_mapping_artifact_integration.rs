@@ -188,6 +188,7 @@ fn provenance() -> ArtifactProvenance {
         prompt_version: "1.0.0".into(),
         model_id: "anthropic:claude-sonnet-4-6".into(),
         params: BTreeMap::new(),
+        prompt_render_hash: String::new(),
     }
 }
 

@@ -158,6 +158,33 @@ pub struct ArtifactProvenance {
     /// deterministic.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub params: BTreeMap<String, serde_json::Value>,
+    /// SHA-256 of the rendered prompt body — system prompt + user
+    /// prompt with every variable interpolated, exactly as the
+    /// LLM saw it (ADR-0029). Bumps automatically when an admin
+    /// edits the DB row backing `prompt_id` / `prompt_version`
+    /// without bumping the version, so a replay against the same
+    /// `(prompt_id, prompt_version)` pair surfaces the divergence
+    /// instead of silently re-using the prior cache entry. Empty
+    /// string when the artifact pre-dates the field.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub prompt_render_hash: String,
+}
+
+impl ArtifactProvenance {
+    /// Compute the canonical render hash for a rendered prompt
+    /// body. Same input → same hash, deterministic across hosts.
+    /// SHA-256 hex (lowercase) so the value round-trips through
+    /// JSON / database columns unchanged.
+    ///
+    /// Callers compose the input from the system + user prompt
+    /// after every variable interpolation has resolved — pre-
+    /// interpolation snapshots would defeat the gate's purpose.
+    pub fn compute_prompt_render_hash(rendered: &str) -> String {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(rendered.as_bytes());
+        format!("{:x}", hasher.finalize())
+    }
 }
 
 impl SourceMappingArtifact {
@@ -349,6 +376,7 @@ mod tests {
                 prompt_version: "0.4.2".into(),
                 model_id: "anthropic:claude-sonnet-4-6".into(),
                 params: BTreeMap::new(),
+                prompt_render_hash: String::new(),
             },
             created_at: DateTime::<Utc>::from_timestamp(1_700_000_000, 0).unwrap(),
             created_by: "user-1".into(),
@@ -386,6 +414,30 @@ mod tests {
             PINNED_HASH,
             "content_hash drift detected — investigate ContentBody field \
              order, serde renames, or nested-type Serialize changes"
+        );
+    }
+
+    #[test]
+    fn content_hash_changes_when_prompt_render_hash_changes() {
+        // ADR-0029: bumping the render hash (e.g., admin edited
+        // the DB-backing prompt without bumping `prompt_version`)
+        // must shift the artifact's content hash so the prior
+        // cached row is no longer reused.
+        let a = fixture();
+        let mut b = a.clone();
+        b.provenance.prompt_render_hash = "deadbeef".to_string();
+        assert_ne!(a.content_hash(), b.content_hash());
+    }
+
+    #[test]
+    fn compute_prompt_render_hash_is_deterministic() {
+        let h1 = ArtifactProvenance::compute_prompt_render_hash("system\n\nuser");
+        let h2 = ArtifactProvenance::compute_prompt_render_hash("system\n\nuser");
+        assert_eq!(h1, h2);
+        assert_eq!(h1.len(), 64);
+        assert_ne!(
+            h1,
+            ArtifactProvenance::compute_prompt_render_hash("system\n\nDIFFERENT user")
         );
     }
 
@@ -494,6 +546,7 @@ mod tests {
                 prompt_version: "1.0.0".into(),
                 model_id: "anthropic:claude-sonnet-4-6".into(),
                 params: BTreeMap::new(),
+                prompt_render_hash: String::new(),
             }
         }
 

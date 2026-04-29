@@ -196,6 +196,7 @@ fn source_mapping_artifact_hash_is_stable_across_clones() {
             prompt_version: "0.4.2".into(),
             model_id: "anthropic:claude-sonnet-4-6".into(),
             params: BTreeMap::new(),
+            prompt_render_hash: String::new(),
         },
         created_at: DateTime::<Utc>::from_timestamp(1_700_000_000, 0).unwrap(),
         created_by: "user-1".into(),

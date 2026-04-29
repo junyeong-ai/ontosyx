@@ -458,6 +458,18 @@ impl DefaultBrain {
         )
         .await?;
 
+        // ADR-0029: render hash captures system + user post-
+        // interpolation. An admin who edits the DB-backing
+        // prompt without bumping `prompt_version` shifts this
+        // value, and `ContentBody` re-hashes against the new
+        // provenance — the prior artifact id no longer matches
+        // and the operator sees the divergence rather than a
+        // silent cache hit.
+        let prompt_render_hash =
+            ox_ontology::source_mapping::ArtifactProvenance::compute_prompt_render_hash(
+                &format!("{}\n\n{}", tmpl.system, user_prompt),
+            );
+
         Ok((
             parsed,
             CallProvenance {
@@ -466,6 +478,7 @@ impl DefaultBrain {
                 model_id: resolved.model_id,
                 max_tokens: effective_max_tokens,
                 temperature: effective_temperature,
+                prompt_render_hash,
             },
         ))
     }
@@ -483,6 +496,14 @@ pub struct CallProvenance {
     pub model_id: String,
     pub max_tokens: u32,
     pub temperature: Option<f32>,
+    /// SHA-256 hex of the rendered prompt (system + user with every
+    /// variable interpolated) — ADR-0029. Stays empty for paths
+    /// that have not been wired through the render-hashing helper
+    /// yet; a populated value bumps `ContentBody`'s hash so an
+    /// admin who edited the DB-backing prompt without bumping
+    /// `prompt_version` cannot accidentally re-use the prior
+    /// artifact id.
+    pub prompt_render_hash: String,
 }
 
 impl CallProvenance {
@@ -501,6 +522,7 @@ impl CallProvenance {
             prompt_version: self.prompt_version,
             model_id: self.model_id,
             params,
+            prompt_render_hash: self.prompt_render_hash,
         }
     }
 }
@@ -598,12 +620,19 @@ impl OntologyDesigner for DefaultBrain {
         let resolved = self.model_resolver.resolve(operation).await?;
         let max_tokens = resolved.max_tokens.unwrap_or(tmpl.max_tokens);
         let temperature = resolved.temperature.or(tmpl.temperature);
+        // No render hash on this path — the caller resolves
+        // provenance ahead of (or independent of) the actual LLM
+        // call, so there is no rendered prompt body to hash. The
+        // batch path that *does* emit prompts records its render
+        // hash through `call_structured` like the other LLM-driven
+        // operations.
         Ok(CallProvenance {
             prompt_id: prompt_name.to_string(),
             prompt_version: tmpl.version.clone(),
             model_id: resolved.model_id,
             max_tokens,
             temperature,
+            prompt_render_hash: String::new(),
         }
         .into_artifact_provenance())
     }
