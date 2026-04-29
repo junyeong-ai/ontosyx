@@ -10,6 +10,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import {
   AiNetworkIcon,
+  Book02Icon,
   FolderOpenIcon,
   Layers01Icon,
   Settings02Icon,
@@ -135,6 +136,12 @@ export function Sidebar() {
           active={!onSettings && workspaceMode === "dashboard"}
           label={t("modeDashboard")}
           icon={DashboardSpeed01Icon}
+        />
+        <ModeLink
+          href="/glossary"
+          active={!onSettings && workspaceMode === "glossary"}
+          label={t("modeGlossary")}
+          icon={Book02Icon}
         />
       </nav>
 

@@ -48,16 +48,16 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    // Φ4 — vocabulary admin surfaces. Glossary CRUD is the
-    // canonical pattern; the four sibling pages (code systems,
-    // value sets, concept maps, rules) share the
-    // `<VocabularyListPage>` scaffold and currently expose
-    // list + delete only. Bindings stays under this group as a
-    // sibling rather than a sub-page so the operator finds the
-    // post-pass binding tool next to the term editor it feeds.
+    // Φ4 — registry admin surfaces. Glossary CRUD lives at the
+    // top-level `/glossary` workbench mode (ADR-0058) — the Concept
+    // layer is cross-cutting and shouldn't sit behind the admin
+    // gate. The remaining vocabulary registries (code systems,
+    // value sets, concept maps) and Rules stay under Settings since
+    // they're per-workspace administrative configuration. Glossary
+    // batch-bindings stays here as the post-pass tooling next to
+    // the registries it feeds.
     titleKey: "vocabulary",
     items: [
-      { labelKey: "glossary", href: "/settings/glossary", adminOnly: true },
       {
         labelKey: "glossaryBindings",
         href: "/settings/glossary/bindings",

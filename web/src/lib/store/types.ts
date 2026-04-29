@@ -66,7 +66,12 @@ export interface ChatMessage {
 // Workspace mode — top-level layout orchestrator
 // ---------------------------------------------------------------------------
 
-export type WorkspaceMode = "design" | "analyze" | "explore" | "dashboard";
+export type WorkspaceMode =
+  | "design"
+  | "analyze"
+  | "explore"
+  | "dashboard"
+  | "glossary";
 
 // ---------------------------------------------------------------------------
 // Design mode sub-tabs (bottom panel within Design workspace)

@@ -545,6 +545,7 @@
       "modeAnalyze": "분석",
       "modeExplore": "탐색",
       "modeDashboard": "대시보드",
+      "modeGlossary": "용어",
       "settingsLabel": "설정",
       "hideExplorer": "탐색기 숨기기",
       "showExplorer": "탐색기 표시",
@@ -2741,6 +2742,60 @@
     }
   },
   "workbench": {
+    "glossary": {
+      "noOntology": {
+        "title": "커밋된 온톨로지 없음",
+        "description": "먼저 Design 모드에서 온톨로지를 만드세요 — Glossary 워크벤치는 가장 최근 커밋된 온톨로지 스냅샷의 어휘를 읽습니다."
+      },
+      "ambiguityBanner": {
+        "title": "의미 불명 컬럼 발견",
+        "description": "방금 실행한 쿼리에서 분석기가 해석하지 못한 컬럼이 있습니다. 일치하는 용어를 골라 /settings/ambiguity 에서 매칭하거나 아래에서 새 용어를 정의하세요.",
+        "contextLabel": "컨텍스트",
+        "dismissAria": "배너 닫기"
+      },
+      "tree": {
+        "heading": "{count, plural, =0 {용어 없음} other {용어 #개}}",
+        "createLabel": "추가",
+        "createAria": "새 용어 추가",
+        "searchAria": "용어 검색",
+        "searchPlaceholder": "용어 / 별칭 / 카테고리 검색…",
+        "uncategorised": "미분류",
+        "deprecatedGroup": "사용 중단 · 폐기",
+        "emptySearch": "\"{query}\" 와 일치하는 용어 없음",
+        "emptyAll": "이 용어집에 등록된 용어가 없습니다."
+      },
+      "editor": {
+        "createTitle": "새 용어",
+        "deleteAction": "용어 삭제",
+        "badges": {
+          "create": "신규",
+          "term": "용어"
+        },
+        "lifecycle": {
+          "deprecated": "사용 중단",
+          "retired": "폐기"
+        },
+        "empty": {
+          "title": "용어를 선택하세요",
+          "description": "왼쪽 목록에서 용어를 고르거나 새 용어를 추가하세요."
+        }
+      },
+      "usage": {
+        "heading": "참조 위치",
+        "subtitle": "{count, plural, =0 {참조 없음 — 노드/엣지/속성에서 이 용어를 anchor 로 연결하세요.} other {온톨로지에서 #곳에서 참조됨}}",
+        "groups": {
+          "nodes": "노드",
+          "edges": "엣지",
+          "properties": "속성",
+          "empty": "—"
+        },
+        "badges": {
+          "node": "Node",
+          "edge": "Edge"
+        },
+        "placeholder": "용어를 선택하면 참조 위치를 표시합니다."
+      }
+    },
     "projects": {
       "hub": {
         "heading": "프로젝트",
@@ -3068,6 +3123,10 @@
         "reviewBadge": "검토 필요",
         "viewInResults": "결과 패널에서 보기",
         "compiledCypherLabel": "실행된 Cypher",
+        "ambiguity": {
+          "heading": "{count, plural, =0 {} other {용어 미할당 컬럼 #개 — 용어집에서 매칭하세요}}",
+          "chipTooltip": "{relation}.{column} 매칭을 위해 용어집 열기"
+        },
         "hitl": {
           "description": "이 도구는 실행 전 승인이 필요합니다.",
           "approve": "승인",

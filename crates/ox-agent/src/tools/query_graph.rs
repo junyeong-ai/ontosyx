@@ -360,7 +360,7 @@ impl SchemaTool for QueryGraphTool {
         // pipeline runs a *permissive* variant so power users aren't
         // blocked; this strict re-pass is pure advice — the query
         // already executed.
-        let validator_notes = strict_advisory_diagnostics(
+        let mut validator_notes = strict_advisory_diagnostics(
             &compiled.statement,
             &self.domain.workspace_id.to_string(),
         );
@@ -387,6 +387,14 @@ impl SchemaTool for QueryGraphTool {
         // the same async scope so we don't reach for a blocking
         // shim. Failure to load the list is non-fatal — a missed
         // nudge is better than a failed query.
+        //
+        // ADR-0058 — same context fans out to two more channels:
+        // (1) structured `QueryDiagnostic { validator: "ambiguity" }`
+        // entries appended to `validator_notes`, so the FE chat panel
+        // can render disambiguation chips that deep-link to
+        // `/glossary?ambiguity=<context_id>`; (2) the existing
+        // text-only guidance line stays as the LLM-facing nudge so
+        // the model continues to see the same hint shape.
         let ambiguity_contexts = self
             .domain
             .store
@@ -428,6 +436,22 @@ impl SchemaTool for QueryGraphTool {
             match &mut guidance {
                 Some(g) => g.push_str(&note),
                 None => guidance = Some(note),
+            }
+            for ctx in &unresolved {
+                validator_notes.push(ox_query_ir::query::QueryDiagnostic {
+                    validator: "ambiguity".to_string(),
+                    level: ox_query_ir::query::DiagnosticLevel::Info,
+                    message: ox_core::diagnostic::diag(
+                        "agent.ambiguity.unresolved_column",
+                    )
+                    .with("context_id", ctx.id.as_str())
+                    .with("relation", ctx.column.relation.as_str())
+                    .with("column", ctx.column.column.as_str())
+                    .message(format!(
+                        "Unresolved ambiguity on column {}.{}",
+                        ctx.column.relation, ctx.column.column,
+                    )),
+                });
             }
         }
 

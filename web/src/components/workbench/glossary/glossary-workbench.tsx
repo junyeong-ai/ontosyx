@@ -1,0 +1,443 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { toast } from "sonner";
+
+import { Spinner } from "@/components/ui/spinner";
+import { EmptyState } from "@/components/ui/empty-state";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { GlossaryForm } from "@/components/settings/vocabulary/glossary-form";
+import {
+  useOntologies,
+  useOntologyDetail,
+} from "@/hooks/api/use-ontologies";
+import { useApplyOntologyEdits } from "@/hooks/api/use-ontology-edits";
+import { useAppStore } from "@/lib/store";
+import { selectStateOntology } from "@/lib/store/selectors";
+import { localize } from "@/lib/locale/localize";
+import { useLocaleChain } from "@/lib/use-locale-chain";
+import { arr } from "@/lib/ir-collections";
+import type { GlossaryTermDef } from "@/lib/api/edit-ops";
+import type { OntologyIR } from "@/types/api";
+
+import { TermTree, type TermAnchorCounts } from "./term-tree";
+import { UsageMap } from "./usage-map";
+
+// ---------------------------------------------------------------------------
+// GlossaryWorkbench — 3-pane workbench mode for the canonical
+// vocabulary layer (ConceptDef + GlossaryTermDef + TermRealisation,
+// see ADR-0014). Promoted out of `/settings/glossary` because the
+// Concept layer is cross-cutting: every other workspace mode reads
+// it (Design anchors, Analyze chips, Explore semantic labels), so
+// admin-gating it behind Settings was an asymmetry. Single-source
+// data flow: ontology snapshot from `useOntologyDetail` →
+// `OntologyIR.glossary` drives both the tree and the usage map; the
+// editor batches mutations through `useApplyOntologyEdits` so
+// audit + version commit ride the same `/edits` pipeline as
+// Design-mode changes.
+// ---------------------------------------------------------------------------
+
+const SEARCH_PARAM = "term";
+
+function freshGlossaryId(): string {
+  return `gt-${crypto.randomUUID()}`;
+}
+
+function computeAnchorCounts(ontology: OntologyIR): TermAnchorCounts {
+  const byTermId = new Map<string, number>();
+  const bump = (id: string) => {
+    byTermId.set(id, (byTermId.get(id) ?? 0) + 1);
+  };
+  for (const node of arr(ontology.node_types)) {
+    for (const anchor of arr(node.glossary_anchors)) bump(anchor);
+    for (const property of arr(node.properties)) {
+      for (const binding of arr(property.bindings)) {
+        if (binding.kind === "glossary") bump(binding.id);
+      }
+    }
+  }
+  for (const edge of arr(ontology.edge_types)) {
+    for (const anchor of arr(edge.glossary_anchors)) bump(anchor);
+    for (const property of arr(edge.properties)) {
+      for (const binding of arr(property.bindings)) {
+        if (binding.kind === "glossary") bump(binding.id);
+      }
+    }
+  }
+  return { byTermId };
+}
+
+export function GlossaryWorkbench() {
+  const t = useTranslations("workbench.glossary");
+  const tForm = useTranslations("settings.vocabulary.glossary");
+  const localeChain = useLocaleChain();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const confirm = useConfirm();
+
+  // Workbench owns the ontology fetch directly: this surface stands on
+  // its own without a project (analogous to Analyze / Explore), so we
+  // load the latest committed ontology by listing top-1 + detail.
+  // Standalone ontology cache (`selectStateOntology`) is kept in sync
+  // for downstream consumers (UsageMap reads from it indirectly via
+  // the same detail snapshot).
+  const ontologiesQuery = useOntologies({ limit: 1 });
+  const ontologyMeta = ontologiesQuery.data?.items?.[0];
+  const ontologyDetailQuery = useOntologyDetail(ontologyMeta?.id);
+  const apply = useApplyOntologyEdits(ontologyMeta?.id);
+
+  // Mirror the loaded ontology into the standalone cache so other
+  // surfaces (chat panel disambiguation chip, search palette) read the
+  // same snapshot the workbench is editing.
+  const loadStandaloneOntology = useAppStore(
+    (s) => s.loadStandaloneOntology,
+  );
+  const setOntologyId = useAppStore((s) => s.setOntologyId);
+  const cachedOntology = useAppStore(selectStateOntology);
+
+  useEffect(() => {
+    const fresh = ontologyDetailQuery.data?.ontology_ir as
+      | OntologyIR
+      | undefined;
+    if (!fresh) return;
+    if (cachedOntology?.id === fresh.id && cachedOntology.version === fresh.version) {
+      return;
+    }
+    loadStandaloneOntology(fresh);
+    if (ontologyDetailQuery.data?.id) {
+      setOntologyId(ontologyDetailQuery.data.id);
+    }
+  }, [
+    ontologyDetailQuery.data,
+    cachedOntology?.id,
+    cachedOntology?.version,
+    loadStandaloneOntology,
+    setOntologyId,
+  ]);
+
+  const ontology = ontologyDetailQuery.data?.ontology_ir as
+    | OntologyIR
+    | undefined;
+  const expectedVersion =
+    Number(ontologyDetailQuery.data?.current_version?.version ?? "0") || 0;
+
+  const glossary: readonly GlossaryTermDef[] = useMemo(
+    () => (ontology ? arr(ontology.glossary) : []),
+    [ontology],
+  );
+
+  const anchorCounts = useMemo(
+    () => (ontology ? computeAnchorCounts(ontology) : { byTermId: new Map() }),
+    [ontology],
+  );
+
+  // Selection state lives in the URL so deep links (`?term=g-…`) and
+  // future chat-panel disambiguation chips (ADR-0056 second half)
+  // round-trip cleanly. Falls back to the first term so the editor
+  // pane always renders something useful.
+  const urlTermId = searchParams.get(SEARCH_PARAM);
+  const [draftCreate, setDraftCreate] = useState(false);
+  const selectedTermId =
+    urlTermId && glossary.some((g) => g.id === urlTermId)
+      ? urlTermId
+      : glossary[0]?.id ?? null;
+  const selectedTerm = glossary.find((g) => g.id === selectedTermId) ?? null;
+
+  const setSelectedTermId = (id: string | null) => {
+    setDraftCreate(false);
+    const next = new URLSearchParams(Array.from(searchParams.entries()));
+    if (id) next.set(SEARCH_PARAM, id);
+    else next.delete(SEARCH_PARAM);
+    router.replace(`/glossary${next.toString() ? `?${next}` : ""}`);
+  };
+
+  // ------------------------------------------------------------------
+  // Mutations — matched to the existing `/edits` op surface. Each
+  // submit builds one op + locks the form via `apply.isPending`.
+  // ------------------------------------------------------------------
+
+  const handleCreate = (def: GlossaryTermDef) => {
+    if (!ontologyMeta?.id) return;
+    const label = localize(def.term, localeChain);
+    const id = def.id || freshGlossaryId();
+    apply.mutate(
+      {
+        operations: [
+          { op: "create_glossary_term", def: { ...def, id } },
+        ],
+        expected_version: expectedVersion,
+        message: tForm("messages.created", { term: label }),
+      },
+      {
+        onSuccess: () => {
+          toast.success(tForm("toast.created", { term: label }));
+          setDraftCreate(false);
+          // Land selection on the freshly minted term.
+          const next = new URLSearchParams(Array.from(searchParams.entries()));
+          next.set(SEARCH_PARAM, id);
+          router.replace(`/glossary?${next}`);
+        },
+        onError: (err) =>
+          toast.error(tForm("toast.createFailed", { error: err.message })),
+      },
+    );
+  };
+
+  const handleUpdate = (def: GlossaryTermDef) => {
+    if (!ontologyMeta?.id || !def.id) return;
+    const label = localize(def.term, localeChain);
+    apply.mutate(
+      {
+        operations: [{ op: "update_glossary_term", id: def.id, def }],
+        expected_version: expectedVersion,
+        message: tForm("messages.updated", { term: label }),
+      },
+      {
+        onSuccess: () => toast.success(tForm("toast.updated", { term: label })),
+        onError: (err) =>
+          toast.error(tForm("toast.updateFailed", { error: err.message })),
+      },
+    );
+  };
+
+  const handleDelete = async () => {
+    if (!ontologyMeta?.id || !selectedTerm) return;
+    const label = localize(selectedTerm.term, localeChain);
+    const ok = await confirm({
+      title: tForm("confirm.deleteTitle"),
+      description: tForm("confirm.deleteDescription", { term: label }),
+      confirmLabel: tForm("confirm.deleteConfirm"),
+      cancelLabel: tForm("confirm.cancel"),
+      variant: "danger",
+    });
+    if (!ok) return;
+    apply.mutate(
+      {
+        operations: [{ op: "delete_glossary_term", id: selectedTerm.id }],
+        expected_version: expectedVersion,
+        message: tForm("messages.deleted", { term: label }),
+      },
+      {
+        onSuccess: () => {
+          toast.success(tForm("toast.deleted", { term: label }));
+          setSelectedTermId(null);
+        },
+        onError: (err) =>
+          toast.error(tForm("toast.deleteFailed", { error: err.message })),
+      },
+    );
+  };
+
+  // ------------------------------------------------------------------
+  // Render branches
+  // ------------------------------------------------------------------
+
+  if (ontologiesQuery.isLoading || ontologyDetailQuery.isLoading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Spinner />
+      </div>
+    );
+  }
+
+  if (!ontology || !ontologyMeta) {
+    return (
+      <div className="flex h-full items-center justify-center px-6 py-12">
+        <EmptyState
+          title={t("noOntology.title")}
+          description={t("noOntology.description")}
+        />
+      </div>
+    );
+  }
+
+  const ambiguityContextId = searchParams.get("ambiguity");
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden bg-white dark:bg-zinc-950">
+      {ambiguityContextId && (
+        <AmbiguityHint
+          contextId={ambiguityContextId}
+          onDismiss={() => {
+            const next = new URLSearchParams(Array.from(searchParams.entries()));
+            next.delete("ambiguity");
+            router.replace(
+              `/glossary${next.toString() ? `?${next}` : ""}`,
+            );
+          }}
+        />
+      )}
+      <div className="grid min-h-0 flex-1 grid-cols-[280px_minmax(0,1fr)_340px] divide-x divide-zinc-200 dark:divide-zinc-800">
+        <TermTree
+        terms={glossary}
+        selectedTermId={selectedTermId}
+        onSelect={setSelectedTermId}
+        onCreate={() => {
+          setDraftCreate(true);
+        }}
+        anchorCounts={anchorCounts}
+      />
+
+      <div className="flex h-full min-w-0 flex-col overflow-hidden">
+        {draftCreate ? (
+          <EditorPane
+            key="create"
+            mode="create"
+            availableTerms={glossary}
+            onSubmit={handleCreate}
+            onCancel={() => setDraftCreate(false)}
+            pending={apply.isPending}
+            title={t("editor.createTitle")}
+          />
+        ) : selectedTerm ? (
+          <EditorPane
+            key={`edit-${selectedTerm.id}`}
+            mode="edit"
+            initial={selectedTerm}
+            availableTerms={glossary}
+            onSubmit={handleUpdate}
+            onCancel={() => undefined}
+            onDelete={handleDelete}
+            pending={apply.isPending}
+            title={localize(selectedTerm.term, localeChain)}
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center px-6 py-12">
+            <EmptyState
+              title={t("editor.empty.title")}
+              description={t("editor.empty.description")}
+            />
+          </div>
+        )}
+      </div>
+
+        <div className="h-full min-w-0 overflow-hidden">
+          {selectedTerm && !draftCreate ? (
+            <UsageMap ontology={ontology} termId={selectedTerm.id} />
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center px-4 py-8 text-center">
+              <p className="text-[11px] text-muted-foreground">
+                {t("usage.placeholder")}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// EditorPane — wraps `GlossaryForm` with a header strip carrying the
+// term label, lifecycle hint, and (when editing) a delete button.
+// `mode` controls submit-button copy; `initial` drives the form on
+// edit. The form remounts via `key=` on the parent so we don't sync
+// `initial` with `useEffect` (per react-hooks/set-state-in-effect).
+// ---------------------------------------------------------------------------
+
+function EditorPane({
+  mode,
+  initial,
+  availableTerms,
+  onSubmit,
+  onCancel,
+  onDelete,
+  pending,
+  title,
+}: {
+  mode: "create" | "edit";
+  initial?: GlossaryTermDef;
+  availableTerms: readonly GlossaryTermDef[];
+  onSubmit: (def: GlossaryTermDef) => void;
+  onCancel: () => void;
+  onDelete?: () => void;
+  pending: boolean;
+  title: string;
+}) {
+  const t = useTranslations("workbench.glossary.editor");
+  const lifecycleState = initial?.lifecycle?.state ?? "active";
+  const isInactive = lifecycleState !== "active";
+
+  return (
+    <>
+      <header className="flex items-center gap-3 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+        <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-emerald-700 dark:bg-emerald-900 dark:text-emerald-400">
+          {t(mode === "create" ? "badges.create" : "badges.term")}
+        </span>
+        <h1 className="flex-1 truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+          {title}
+        </h1>
+        {mode === "edit" && isInactive && (
+          <span className="rounded bg-amber-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+            {t(`lifecycle.${lifecycleState}`)}
+          </span>
+        )}
+        {mode === "edit" && onDelete && (
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={pending}
+            className="rounded border border-red-200 px-2.5 py-1 text-[11px] font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/30"
+          >
+            {t("deleteAction")}
+          </button>
+        )}
+      </header>
+      <div className="flex-1 overflow-y-auto px-4 py-4">
+        <GlossaryForm
+          initial={initial}
+          availableTerms={[...availableTerms]}
+          onSubmit={onSubmit}
+          onCancel={onCancel}
+          pending={pending}
+        />
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// AmbiguityHint — banner shown when the workbench is opened from a
+// chat tool-call disambiguation chip (`?ambiguity=<context_id>`).
+// Tells the modeller why they landed here without yet wiring the
+// resolution flow — once the modeller picks a term, the next step
+// is `/settings/ambiguity` (existing batch resolver). Banner stays
+// minimal so we don't ship a half-finished resolution dialog inside
+// this PR; the banner is the contract the chip relies on, the
+// dialog is a follow-up.
+// ---------------------------------------------------------------------------
+
+function AmbiguityHint({
+  contextId,
+  onDismiss,
+}: {
+  contextId: string;
+  onDismiss: () => void;
+}) {
+  const t = useTranslations("workbench.glossary.ambiguityBanner");
+  return (
+    <div className="flex items-start gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-xs dark:border-amber-900/40 dark:bg-amber-950/30">
+      <div className="flex-1">
+        <p className="font-medium text-amber-900 dark:text-amber-200">
+          {t("title")}
+        </p>
+        <p className="mt-0.5 text-amber-800 dark:text-amber-300">
+          {t("description")}
+        </p>
+        <p className="mt-1 font-mono text-[10px] text-amber-700 dark:text-amber-400">
+          {t("contextLabel")}: {contextId}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onDismiss}
+        className="rounded p-1 text-amber-700 hover:bg-amber-100 dark:text-amber-300 dark:hover:bg-amber-900/40"
+        aria-label={t("dismissAria")}
+      >
+        ✕
+      </button>
+    </div>
+  );
+}

@@ -149,6 +149,17 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
         </div>
       )}
 
+      {/* ADR-0056 second half / ADR-0058 — disambiguation chips.
+          One chip per unresolved ambiguity context the BE flagged on
+          this query. Each chip deep-links to the Glossary workbench
+          with `?ambiguity=<id>` so the modeller can pick a term to
+          bind. The compiled query is still surfaced above; chips
+          attach below it because they describe a follow-up action,
+          not the query itself. */}
+      {parsedResult?.ambiguityChips && parsedResult.ambiguityChips.length > 0 && (
+        <AmbiguityChipStrip chips={parsedResult.ambiguityChips} />
+      )}
+
       {/* Sub-step progress: expanded during execution, collapsed after completion */}
       {isRunning && toolCall.steps && toolCall.steps.length > 0 && (
         <div className="border-t border-emerald-200/30 px-3 py-2 space-y-1 dark:border-emerald-800/20">
@@ -294,6 +305,41 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
 }
 
 // ---------------------------------------------------------------------------
+// AmbiguityChipStrip — renders one deep-link chip per unresolved
+// ambiguity context the BE flagged. Standalone component so the
+// chip strip can grow extra affordances (resolve-inline, dismiss,
+// per-chip popover) without bloating ToolCallCard.
+// ---------------------------------------------------------------------------
+
+function AmbiguityChipStrip({ chips }: { chips: readonly AmbiguityChip[] }) {
+  const t = useTranslations("workbench.chat.toolCall.ambiguity");
+  return (
+    <div className="border-t border-amber-200/50 px-3 py-2 dark:border-amber-800/30">
+      <p className="mb-1.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
+        {t("heading", { count: chips.length })}
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {chips.map((chip) => (
+          <a
+            key={chip.contextId}
+            href={`/glossary?ambiguity=${encodeURIComponent(chip.contextId)}`}
+            className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 font-mono text-[10px] text-amber-800 transition-colors hover:border-amber-400 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:border-amber-700"
+            title={t("chipTooltip", {
+              relation: chip.relation,
+              column: chip.column,
+            })}
+          >
+            <span>
+              {chip.relation}.{chip.column}
+            </span>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Parse tool results for inline rendering
 // ---------------------------------------------------------------------------
 
@@ -306,6 +352,43 @@ interface ParsedToolResult {
    *  details dropdown (which is admin-only and intentionally
    *  noisy with execution metadata). */
   compiledCypher?: string;
+  /** ADR-0056 second half / ADR-0058 — unresolved ambiguity contexts
+   *  the agent flagged on this query. Backend emits a structured
+   *  `QueryDiagnostic { validator: "ambiguity", … }` for each one,
+   *  carrying `context_id` + `relation` + `column` in `params`.
+   *  The chat bubble renders one chip per entry, deep-linking to
+   *  the Glossary workbench so the modeller can pick a term to
+   *  bind. Empty when the BE didn't flag any unresolved column. */
+  ambiguityChips?: AmbiguityChip[];
+}
+
+interface AmbiguityChip {
+  contextId: string;
+  relation: string;
+  column: string;
+}
+
+function extractAmbiguityChips(warnings: unknown): AmbiguityChip[] {
+  if (!Array.isArray(warnings)) return [];
+  const out: AmbiguityChip[] = [];
+  for (const entry of warnings) {
+    if (
+      !entry ||
+      typeof entry !== "object" ||
+      (entry as { validator?: unknown }).validator !== "ambiguity"
+    ) {
+      continue;
+    }
+    const params = (entry as { message?: { params?: Record<string, unknown> } })
+      .message?.params;
+    if (!params) continue;
+    const contextId = typeof params.context_id === "string" ? params.context_id : null;
+    const relation = typeof params.relation === "string" ? params.relation : null;
+    const column = typeof params.column === "string" ? params.column : null;
+    if (!contextId || !relation || !column) continue;
+    out.push({ contextId, relation, column });
+  }
+  return out;
 }
 
 type ToolCallTranslator = ReturnType<typeof useTranslations<"workbench.chat.toolCall">>;
@@ -334,11 +417,13 @@ function tryParseToolResult(
         typeof parsed.compiled_query === "string" && parsed.compiled_query.length > 0
           ? (parsed.compiled_query as string)
           : undefined;
+      const ambiguityChips = extractAmbiguityChips(parsed.warnings);
 
       return {
         summary: t("summary.queryRowsColumns", { rows: rowCount, columns: columns.length }),
         widget: rowCount > 0 ? { spec, data } : undefined,
         compiledCypher,
+        ambiguityChips: ambiguityChips.length > 0 ? ambiguityChips : undefined,
       };
     }
 

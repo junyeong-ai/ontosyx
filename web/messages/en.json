@@ -563,6 +563,7 @@
       "modeAnalyze": "Analyze",
       "modeExplore": "Explore",
       "modeDashboard": "Dashboard",
+      "modeGlossary": "Glossary",
       "settingsLabel": "Settings",
       "hideExplorer": "Hide Explorer",
       "showExplorer": "Show Explorer",
@@ -2755,6 +2756,60 @@
     }
   },
   "workbench": {
+    "glossary": {
+      "noOntology": {
+        "title": "No committed ontology",
+        "description": "Create one in Design mode first — the workbench reads vocabulary off the latest committed ontology snapshot."
+      },
+      "ambiguityBanner": {
+        "title": "Ambiguous column flagged",
+        "description": "A query just touched a column the analyzer can't interpret. Pick a glossary term that matches and bind it from /settings/ambiguity, or define a new term below.",
+        "contextLabel": "Context",
+        "dismissAria": "Dismiss banner"
+      },
+      "tree": {
+        "heading": "{count, plural, =0 {No terms} one {# term} other {# terms}}",
+        "createLabel": "New",
+        "createAria": "Create new glossary term",
+        "searchAria": "Search terms",
+        "searchPlaceholder": "Filter by term, alias, category…",
+        "uncategorised": "Uncategorised",
+        "deprecatedGroup": "Deprecated · Retired",
+        "emptySearch": "No terms match \"{query}\".",
+        "emptyAll": "No terms in this glossary yet."
+      },
+      "editor": {
+        "createTitle": "New term",
+        "deleteAction": "Delete term",
+        "badges": {
+          "create": "New",
+          "term": "Term"
+        },
+        "lifecycle": {
+          "deprecated": "Deprecated",
+          "retired": "Retired"
+        },
+        "empty": {
+          "title": "Pick a term",
+          "description": "Select a term from the list to edit it, or create a new one."
+        }
+      },
+      "usage": {
+        "heading": "Used by",
+        "subtitle": "{count, plural, =0 {No anchors yet — pick a term and link it from a node, edge, or property.} one {# reference across the ontology} other {# references across the ontology}}",
+        "groups": {
+          "nodes": "Nodes",
+          "edges": "Edges",
+          "properties": "Properties",
+          "empty": "—"
+        },
+        "badges": {
+          "node": "Node",
+          "edge": "Edge"
+        },
+        "placeholder": "Pick a term to see where it's referenced."
+      }
+    },
     "projects": {
       "hub": {
         "heading": "Projects",
@@ -3082,6 +3137,10 @@
         "reviewBadge": "review required",
         "viewInResults": "View in Results panel",
         "compiledCypherLabel": "Cypher executed",
+        "ambiguity": {
+          "heading": "{count, plural, one {Unresolved column — pick a glossary term to bind} other {{count} unresolved columns — pick a glossary term to bind each}}",
+          "chipTooltip": "Open Glossary to bind {relation}.{column}"
+        },
         "hitl": {
           "description": "This tool requires your approval before execution.",
           "approve": "Approve",
