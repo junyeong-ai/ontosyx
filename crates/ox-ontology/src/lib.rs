@@ -37,6 +37,7 @@ pub mod enrichment;
 pub mod function;
 pub mod glossary;
 pub mod graph_exploration;
+pub mod heuristic;
 pub mod input;
 pub mod insight;
 pub mod interface;
@@ -110,6 +111,10 @@ pub use function::{
 pub use glossary::{
     GlossaryTermDef, GlossaryTermId, TaxonomyDef, TaxonomyId, TaxonomyNode, TermRelation,
     TermRelationKind,
+};
+pub use heuristic::{
+    ConfidenceBps, HeuristicDetectorKind, HeuristicProposal, HeuristicProposalId,
+    HeuristicProposalState, HeuristicProvenance, HeuristicProvenanceId,
 };
 pub use interface::{InterfaceDef, InterfaceEdge, InterfaceId, InterfaceProperty};
 pub use diff::{
