@@ -19,6 +19,24 @@ use ox_core::types::{PropertyType, PropertyValue, deserialize_patch_property_val
 
 // ---------------------------------------------------------------------------
 // OntologyCommand — atomic, invertible operations on OntologyIR
+//
+// `OntologyCommand` deliberately covers only the topology + mapping
+// operations the project-flow's commandStack and undo / redo path
+// need to be wire-stable: nodes, edges, properties, constraints,
+// indices, object mappings.
+//
+// Governance / vocabulary / lineage collections (rules, actions,
+// functions, metrics, enrichments, glossary terms, code systems,
+// value sets, notation patterns, concept maps, segments, interfaces,
+// column profiles, provenances, link mappings) intentionally stay
+// outside this enum. Their mutations land through dedicated admin
+// PATCH endpoints whose wire-shape is owned by the routes that
+// surface them — bundling that long tail under an
+// `OntologyCommand::Generic { payload: serde_json::Value }` escape
+// would erase types at exactly the seam where the audit log, undo
+// stack, and FE renderer benefit most from typed variants. Adding a
+// new collection to `OntologyIR` does not require a variant here;
+// expanding the project-flow's command surface is the only trigger.
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
