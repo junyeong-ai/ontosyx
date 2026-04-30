@@ -2,48 +2,59 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { useAppStore } from "@/lib/store";
 import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  PlusSignIcon,
-  Delete01Icon,
-} from "@hugeicons/core-free-icons";
+import { Delete01Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
+
+import { useAppStore } from "@/lib/store";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Tooltip } from "@/components/ui/tooltip";
 import { TabBar } from "@/components/ui/tab-bar";
-import { LineageTree } from "@/components/ontology/lineage-tree";
 import { useEntityDependencies } from "@/hooks/api/use-entity-dependencies";
 import type { SchemaEntityRef } from "@/lib/api/dependencies";
 import type {
   OntologyIR,
   NodeTypeDef,
   EdgeTypeDef,
-  PropertyPatch,
   QualityGap,
   ElementVerification,
 } from "@/types/api";
 import { defaultText } from "@/lib/locale/localize";
-import { DependentsBadge } from "./dependents-badge";
-import { InlineEdit } from "./inline-edit";
-import { useAiEdit, AiSuggestionList, AiAssistButton } from "./ai-suggestions";
-import { AddPropertyForm, PropertyRow } from "./property-editor";
-import { Section, formatConstraint } from "./shared";
-import { GapsList } from "./quality-gaps";
-import { SourceSampleMini } from "./source-sample-mini";
 import { arr } from "@/lib/ir-collections";
 
-// Re-export for external consumers
+import { DependentsBadge } from "./dependents-badge";
+import { InlineEdit } from "./inline-edit";
+import { DefinitionFacet } from "./facets/definition-facet";
+import { PropertiesFacet } from "./facets/properties-facet";
+import { SamplesFacet } from "./facets/samples-facet";
+import { ConstraintsFacet } from "./facets/constraints-facet";
+import { MappingsFacet } from "./facets/mappings-facet";
+import { LineageFacet } from "./facets/lineage-facet";
+import { QualityFacet } from "./facets/quality-facet";
+import { ChangeLogFacet } from "./facets/change-log-facet";
+import { Section } from "./shared";
+
+// Re-exports kept for callers that imported the inspector body
+// directly. The facets are the canonical surface — these stay so
+// the test suite and any external consumers don't break.
 export { InlineEdit } from "./inline-edit";
 export { Section } from "./shared";
 export { GapsList } from "./quality-gaps";
 
 // ---------------------------------------------------------------------------
-// Inspector tab identifiers — shared between NodeDetail and EdgeDetail so
-// the URL-state slice (if/when added) can persist a single key.
+// Inspector tabs — five-pane navigation that mirrors the page-side
+// CollapsibleSection set, minus a couple of always-relevant facets
+// that ride directly under "Definition" because they're how an
+// operator typically iterates on a type from the canvas.
+//
+// `definition` bundles Definition + Properties + Constraints +
+// Mappings; the page splits them into independent accordion
+// sections so a long-form context view doesn't bury Mappings under
+// scroll. Each pane (in both adapters) calls the same facet
+// component; this is the ADR-0054 contract.
 // ---------------------------------------------------------------------------
 
-type InspectorTab = "definition" | "sample" | "lineage" | "dependents";
+type InspectorTab = "definition" | "sample" | "lineage" | "quality" | "changelog";
 
 function useEntityRef(
   kind: "node_type" | "edge_type",
@@ -52,24 +63,8 @@ function useEntityRef(
   return useMemo<SchemaEntityRef>(() => ({ kind, id }), [kind, id]);
 }
 
-function useOntologyLabelResolver(ontology: OntologyIR) {
-  return useCallback(
-    (target: SchemaEntityRef): string | null => {
-      switch (target.kind) {
-        case "node_type":
-          return arr(ontology.node_types).find((n) => n.id === target.id)?.label ?? null;
-        case "edge_type":
-          return arr(ontology.edge_types).find((e) => e.id === target.id)?.label ?? null;
-        default:
-          return null;
-      }
-    },
-    [ontology],
-  );
-}
-
 // ---------------------------------------------------------------------------
-// Verification badge
+// Verification badge — kept inline with the entity header.
 // ---------------------------------------------------------------------------
 
 function VerificationBadge({
@@ -109,6 +104,104 @@ function VerificationBadge({
 }
 
 // ---------------------------------------------------------------------------
+// EntityHeader — shared chrome for NodeDetail + EdgeDetail. Owns
+// label / description editing, deletion, and the verification
+// badge. The same shape works for both kinds because the wire
+// fields are aligned (label, description, glossary_anchors).
+// ---------------------------------------------------------------------------
+
+function EntityHeader({
+  ontology,
+  entity,
+  kind,
+  verifications,
+  onVerify,
+  onRename,
+  onUpdateDescription,
+  onDelete,
+}: {
+  ontology: OntologyIR;
+  entity: NodeTypeDef | EdgeTypeDef;
+  kind: "node" | "edge";
+  verifications?: ElementVerification[];
+  onVerify?: () => void;
+  onRename: (label: string) => void;
+  onUpdateDescription: (desc: string) => void;
+  onDelete: () => void;
+}) {
+  const isEdge = kind === "edge";
+  const edge = isEdge ? (entity as EdgeTypeDef) : null;
+  const src = isEdge
+    ? (arr(ontology.node_types).find((n) => n.id === edge?.source_node_id)
+        ?.label ?? "?")
+    : null;
+  const tgt = isEdge
+    ? (arr(ontology.node_types).find((n) => n.id === edge?.target_node_id)
+        ?.label ?? "?")
+    : null;
+
+  return (
+    <div className="border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
+      <div className="flex items-center gap-2">
+        <span
+          className={
+            isEdge
+              ? "rounded bg-blue-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-blue-700 dark:bg-blue-900 dark:text-blue-400"
+              : "rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-700 dark:bg-emerald-900 dark:text-emerald-400"
+          }
+        >
+          {isEdge ? "Edge" : "Node"}
+        </span>
+        <InlineEdit
+          value={entity.label}
+          onSave={onRename}
+          className="font-semibold text-zinc-800 dark:text-zinc-200"
+        />
+        <DependentsBadge
+          ontologyId={ontology.id}
+          target={{
+            kind: isEdge ? "edge_type" : "node_type",
+            id: entity.id,
+          }}
+        />
+        <Tooltip content={isEdge ? "Delete edge" : "Delete node"}>
+          <button
+            onClick={onDelete}
+            aria-label={isEdge ? "Delete edge" : "Delete node"}
+            className="ml-auto rounded p-1 text-zinc-300 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950"
+          >
+            <HugeiconsIcon icon={Delete01Icon} className="h-3 w-3" size="100%" />
+          </button>
+        </Tooltip>
+      </div>
+      <div className="mt-1 flex items-center gap-1">
+        <InlineEdit
+          value={defaultText(entity.description)}
+          placeholder="Add description..."
+          onSave={onUpdateDescription}
+          className="flex-1 text-muted-foreground"
+        />
+      </div>
+      {isEdge && (
+        <p className="mt-1 text-muted-foreground">
+          {src} → {tgt}
+          {edge?.cardinality && (
+            <span className="ml-2">· Cardinality: {edge.cardinality}</span>
+          )}
+        </p>
+      )}
+      <div className="mt-1.5">
+        <VerificationBadge
+          verifications={verifications}
+          elementId={entity.id}
+          onVerify={onVerify}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Node detail (editable)
 // ---------------------------------------------------------------------------
 
@@ -127,20 +220,11 @@ export function NodeDetail({
 }) {
   const applyCommand = useAppStore((s) => s.applyCommand);
   const clearSelection = useAppStore((s) => s.clearSelection);
-  const [addingProp, setAddingProp] = useState(false);
   const [tab, setTab] = useState<InspectorTab>("definition");
   const confirm = useConfirm();
   const t = useTranslations("inspector.tabs");
-  const { canEdit, loading: propsLoading, suggestions, requestEdit, dismiss } = useAiEdit();
-  const { loading: descLoading, suggestions: descSuggestions, requestEdit: requestDescEdit, dismiss: dismissDesc } = useAiEdit();
-  const anyAiLoading = propsLoading || descLoading;
   const ref = useEntityRef("node_type", node.id);
   const { inbound, outbound } = useEntityDependencies(ontology.id, ref);
-  const labelOf = useOntologyLabelResolver(ontology);
-
-  const connectedEdges = arr(ontology.edge_types).filter(
-    (e) => e.source_node_id === node.id || e.target_node_id === node.id,
-  );
 
   const handleRename = useCallback(
     (newLabel: string) => {
@@ -151,7 +235,11 @@ export function NodeDetail({
 
   const handleUpdateDescription = useCallback(
     (desc: string) => {
-      applyCommand({ op: "update_node_description", node_id: node.id, description: desc ? { default: desc } : undefined });
+      applyCommand({
+        op: "update_node_description",
+        node_id: node.id,
+        description: desc ? { default: desc } : undefined,
+      });
     },
     [applyCommand, node.id],
   );
@@ -169,43 +257,8 @@ export function NodeDetail({
     toast.success(`Node "${node.label}" deleted`);
   }, [applyCommand, confirm, node.id, node.label, clearSelection]);
 
-  const handleDeleteProperty = useCallback(
-    (propId: string, propName: string) => {
-      applyCommand({ op: "delete_property", owner_id: node.id, property_id: propId });
-      toast.success(`Property "${propName}" deleted`);
-    },
-    [applyCommand, node.id],
-  );
-
-  const handleUpdateProperty = useCallback(
-    (propId: string, patch: PropertyPatch) => {
-      applyCommand({ op: "update_property", owner_id: node.id, property_id: propId, patch });
-    },
-    [applyCommand, node.id],
-  );
-
-  const handleRemoveConstraint = useCallback(
-    (constraintId: string) => {
-      applyCommand({ op: "remove_constraint", node_id: node.id, constraint_id: constraintId });
-      toast.success("Constraint removed");
-    },
-    [applyCommand, node.id],
-  );
-
-  const handleAiSuggestProperties = useCallback(() => {
-    requestEdit(
-      `Suggest additional properties for the '${node.label}' node that would be useful based on the ontology context`,
-    );
-  }, [requestEdit, node.label]);
-
-  const handleAiImproveDescription = useCallback(() => {
-    requestDescEdit(
-      `Improve the description for node '${node.label}'${node.description ? ` (current: "${node.description}")` : ""}. Provide a clear, concise description.`,
-    );
-  }, [requestDescEdit, node.label, node.description]);
-
-  const tabs = useMemo(() => {
-    return [
+  const tabs = useMemo(
+    () => [
       { id: "definition", label: t("definition") },
       ...(node.source_lineage?.table
         ? [{ id: "sample", label: t("sample") }]
@@ -213,71 +266,30 @@ export function NodeDetail({
       {
         id: "lineage",
         label: t("lineage"),
-        badge: outbound.length || undefined,
+        badge: outbound.length + inbound.length || undefined,
       },
       {
-        id: "dependents",
-        label: t("dependents"),
-        badge: inbound.length || undefined,
+        id: "quality",
+        label: t("quality"),
+        badge: gaps.length || undefined,
       },
-    ];
-  }, [t, node.source_lineage?.table, outbound.length, inbound.length]);
+      { id: "changelog", label: t("changelog") },
+    ],
+    [t, node.source_lineage?.table, outbound.length, inbound.length, gaps.length],
+  );
 
   return (
     <div className="flex h-full flex-col overflow-hidden text-xs">
-      {/* Header — outside the tabbed body so identity, rename, and
-          delete stay one click away regardless of which view is
-          active. */}
-      <div className="border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
-        <div className="flex items-center gap-2">
-          <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-700 dark:bg-emerald-900 dark:text-emerald-400">
-            Node
-          </span>
-          <InlineEdit
-            value={node.label}
-            onSave={handleRename}
-            className="font-semibold text-zinc-800 dark:text-zinc-200"
-          />
-          <DependentsBadge
-            ontologyId={ontology.id}
-            target={{ kind: "node_type", id: node.id }}
-          />
-          <Tooltip content="Delete node">
-            <button
-              onClick={handleDeleteNode}
-              aria-label="Delete node"
-              className="ml-auto rounded p-1 text-zinc-300 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950"
-            >
-              <HugeiconsIcon icon={Delete01Icon} className="h-3 w-3" size="100%" />
-            </button>
-          </Tooltip>
-        </div>
-        <div className="mt-1 flex items-center gap-1">
-          <InlineEdit
-            value={defaultText(node.description)}
-            placeholder="Add description..."
-            onSave={handleUpdateDescription}
-            className="flex-1 text-muted-foreground"
-          />
-          {canEdit && (
-            <AiAssistButton
-              tooltip="Improve description with AI"
-              loading={anyAiLoading}
-              onClick={handleAiImproveDescription}
-            />
-          )}
-        </div>
-        {descSuggestions && (
-          <AiSuggestionList
-            commands={descSuggestions.commands}
-            explanation={descSuggestions.explanation}
-            onDismiss={dismissDesc}
-          />
-        )}
-        <div className="mt-1.5">
-          <VerificationBadge verifications={verifications} elementId={node.id} onVerify={onVerify} />
-        </div>
-      </div>
+      <EntityHeader
+        ontology={ontology}
+        entity={node}
+        kind="node"
+        verifications={verifications}
+        onVerify={onVerify}
+        onRename={handleRename}
+        onUpdateDescription={handleUpdateDescription}
+        onDelete={handleDeleteNode}
+      />
 
       <div className="border-b border-zinc-200 dark:border-zinc-800">
         <TabBar
@@ -290,115 +302,67 @@ export function NodeDetail({
       <div className="min-h-0 flex-1 overflow-auto">
         {tab === "definition" && (
           <>
-            <Section
-              title={`Properties (${arr(node.properties).length})`}
-              action={
-                <>
-                  {canEdit && (
-                    <AiAssistButton
-                      tooltip="AI suggest properties"
-                      loading={anyAiLoading}
-                      onClick={handleAiSuggestProperties}
-                    />
-                  )}
-                  <Tooltip content="Add property">
-                    <button
-                      onClick={() => setAddingProp(true)}
-                      aria-label="Add property"
-                      className="rounded p-0.5 text-muted-foreground hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
-                    >
-                      <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
-                    </button>
-                  </Tooltip>
-                </>
-              }
-            >
-              {suggestions && (
-                <AiSuggestionList
-                  commands={suggestions.commands}
-                  explanation={suggestions.explanation}
-                  onDismiss={dismiss}
+            <Section title={t("definitionSubsection.glossary")}>
+              <div className="px-3 py-2">
+                <DefinitionFacet
+                  ontology={ontology}
+                  entity={node}
+                  kind="node"
                 />
-              )}
-              {addingProp && (
-                <AddPropertyForm ownerId={node.id} onClose={() => setAddingProp(false)} />
-              )}
-              {arr(node.properties).map((prop) => (
-                <PropertyRow
-                  key={prop.id}
-                  prop={prop}
-                  onDelete={() => handleDeleteProperty(prop.id, prop.name)}
-                  onUpdate={(patch) => handleUpdateProperty(prop.id, patch)}
-                  binding={
-                    ontology.id
-                      ? {
-                          ontologyId: ontology.id,
-                          expectedVersion: ontology.version,
-                          ownerKind: "node",
-                          ownerTypeId: node.id,
-                        }
-                      : undefined
-                  }
-                />
-              ))}
+              </div>
             </Section>
-
-            {node.constraints && arr(node.constraints).length > 0 && (
-              <Section title={`Constraints (${arr(node.constraints).length})`}>
-                {arr(node.constraints).map((cd) => (
-                  <div key={cd.id} className="group flex items-center justify-between px-3 py-1 text-zinc-600 dark:text-muted-foreground">
-                    <span>{formatConstraint(cd, node)}</span>
-                    <Tooltip content="Remove constraint">
-                      <button
-                        onClick={() => handleRemoveConstraint(cd.id)}
-                        aria-label="Remove constraint"
-                        className="rounded p-0.5 text-zinc-300 opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100"
-                      >
-                        <HugeiconsIcon icon={Delete01Icon} className="h-2.5 w-2.5" size="100%" />
-                      </button>
-                    </Tooltip>
-                  </div>
-                ))}
-              </Section>
-            )}
-
-            {connectedEdges.length > 0 && (
-              <Section title={`Relationships (${connectedEdges.length})`}>
-                {connectedEdges.map((edge) => {
-                  const src = arr(ontology.node_types).find((n) => n.id === edge.source_node_id)?.label ?? "?";
-                  const tgt = arr(ontology.node_types).find((n) => n.id === edge.target_node_id)?.label ?? "?";
-                  return (
-                    <div key={edge.id} className="px-3 py-1 text-zinc-600 dark:text-muted-foreground">
-                      {src} —[{edge.label}]→ {tgt}
-                    </div>
-                  );
-                })}
-              </Section>
-            )}
-
-            <GapsList gaps={gaps} />
-
+            <Section title={`Properties (${arr(node.properties).length})`}>
+              <div className="px-3 py-2">
+                <PropertiesFacet
+                  ontology={ontology}
+                  entity={node}
+                  kind="node"
+                />
+              </div>
+            </Section>
+            <Section
+              title={`Constraints (${arr(node.constraints).length})`}
+            >
+              <div className="px-3 py-2">
+                <ConstraintsFacet node={node} />
+              </div>
+            </Section>
+            <Section title={t("definitionSubsection.mappings")}>
+              <div className="px-3 py-2">
+                <MappingsFacet node={node} ontology={ontology} />
+              </div>
+            </Section>
             <p className="mt-3 px-3 pb-2 text-[10px] text-muted-foreground">
-              Tip: Press <kbd className="rounded bg-zinc-200 px-1 py-0.5 font-mono text-[9px] dark:bg-zinc-700">{"⌘"}K</kbd> to edit with AI
+              Tip: Press{" "}
+              <kbd className="rounded bg-zinc-200 px-1 py-0.5 font-mono text-[9px] dark:bg-zinc-700">
+                {"⌘"}K
+              </kbd>{" "}
+              to edit with AI
             </p>
           </>
         )}
 
-        {tab === "sample" && node.source_lineage?.table && (
+        {tab === "sample" && (
           <div className="px-3 py-3">
-            <SourceSampleMini tableName={node.source_lineage.table} />
+            <SamplesFacet node={node} />
           </div>
         )}
 
         {tab === "lineage" && (
           <div className="px-3 py-3">
-            <LineageTree edges={outbound} direction="outbound" labelOf={labelOf} />
+            <LineageFacet ontology={ontology} entityRef={ref} />
           </div>
         )}
 
-        {tab === "dependents" && (
+        {tab === "quality" && (
           <div className="px-3 py-3">
-            <LineageTree edges={inbound} direction="inbound" labelOf={labelOf} />
+            <QualityFacet gaps={gaps} />
+          </div>
+        )}
+
+        {tab === "changelog" && (
+          <div className="px-3 py-3">
+            <ChangeLogFacet ontology={ontology} entity={node} kind="node" />
           </div>
         )}
       </div>
@@ -425,19 +389,18 @@ export function EdgeDetail({
 }) {
   const applyCommand = useAppStore((s) => s.applyCommand);
   const clearSelection = useAppStore((s) => s.clearSelection);
-  const [addingProp, setAddingProp] = useState(false);
   const [tab, setTab] = useState<InspectorTab>("definition");
   const confirm = useConfirm();
   const t = useTranslations("inspector.tabs");
-  const { canEdit, loading: propsLoading, suggestions, requestEdit, dismiss } = useAiEdit();
-  const { loading: descLoading, suggestions: descSuggestions, requestEdit: requestDescEdit, dismiss: dismissDesc } = useAiEdit();
-  const anyAiLoading = propsLoading || descLoading;
   const ref = useEntityRef("edge_type", edge.id);
   const { inbound, outbound } = useEntityDependencies(ontology.id, ref);
-  const labelOf = useOntologyLabelResolver(ontology);
 
-  const src = arr(ontology.node_types).find((n) => n.id === edge.source_node_id)?.label ?? "?";
-  const tgt = arr(ontology.node_types).find((n) => n.id === edge.target_node_id)?.label ?? "?";
+  const src =
+    arr(ontology.node_types).find((n) => n.id === edge.source_node_id)?.label ??
+    "?";
+  const tgt =
+    arr(ontology.node_types).find((n) => n.id === edge.target_node_id)?.label ??
+    "?";
 
   const handleRename = useCallback(
     (newLabel: string) => {
@@ -448,7 +411,11 @@ export function EdgeDetail({
 
   const handleUpdateDescription = useCallback(
     (desc: string) => {
-      applyCommand({ op: "update_edge_description", edge_id: edge.id, description: desc ? { default: desc } : undefined });
+      applyCommand({
+        op: "update_edge_description",
+        edge_id: edge.id,
+        description: desc ? { default: desc } : undefined,
+      });
     },
     [applyCommand, edge.id],
   );
@@ -466,107 +433,36 @@ export function EdgeDetail({
     toast.success(`Edge "${edge.label}" deleted`);
   }, [applyCommand, confirm, edge.id, edge.label, clearSelection, src, tgt]);
 
-  const handleDeleteProperty = useCallback(
-    (propId: string, propName: string) => {
-      applyCommand({ op: "delete_property", owner_id: edge.id, property_id: propId });
-      toast.success(`Property "${propName}" deleted`);
-    },
-    [applyCommand, edge.id],
-  );
-
-  const handleUpdateProperty = useCallback(
-    (propId: string, patch: PropertyPatch) => {
-      applyCommand({ op: "update_property", owner_id: edge.id, property_id: propId, patch });
-    },
-    [applyCommand, edge.id],
-  );
-
-  const handleAiSuggestProperties = useCallback(() => {
-    requestEdit(
-      `Suggest additional properties for the '${edge.label}' edge (${src} -> ${tgt}) that would be useful based on the ontology context`,
-    );
-  }, [requestEdit, edge.label, src, tgt]);
-
-  const handleAiImproveDescription = useCallback(() => {
-    requestDescEdit(
-      `Improve the description for edge '${edge.label}' (${src} -> ${tgt})${edge.description ? ` (current: "${edge.description}")` : ""}. Provide a clear, concise description.`,
-    );
-  }, [requestDescEdit, edge.label, edge.description, src, tgt]);
-
-  const tabs = useMemo(() => {
-    return [
+  const tabs = useMemo(
+    () => [
       { id: "definition", label: t("definition") },
       {
         id: "lineage",
         label: t("lineage"),
-        badge: outbound.length || undefined,
+        badge: outbound.length + inbound.length || undefined,
       },
       {
-        id: "dependents",
-        label: t("dependents"),
-        badge: inbound.length || undefined,
+        id: "quality",
+        label: t("quality"),
+        badge: gaps.length || undefined,
       },
-    ];
-  }, [t, outbound.length, inbound.length]);
+      { id: "changelog", label: t("changelog") },
+    ],
+    [t, outbound.length, inbound.length, gaps.length],
+  );
 
   return (
     <div className="flex h-full flex-col overflow-hidden text-xs">
-      <div className="border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
-        <div className="flex items-center gap-2">
-          <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-blue-700 dark:bg-blue-900 dark:text-blue-400">
-            Edge
-          </span>
-          <InlineEdit
-            value={edge.label}
-            onSave={handleRename}
-            className="font-semibold text-zinc-800 dark:text-zinc-200"
-          />
-          <DependentsBadge
-            ontologyId={ontology.id}
-            target={{ kind: "edge_type", id: edge.id }}
-          />
-          <Tooltip content="Delete edge">
-            <button
-              onClick={handleDeleteEdge}
-              aria-label="Delete edge"
-              className="ml-auto rounded p-1 text-zinc-300 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950"
-            >
-              <HugeiconsIcon icon={Delete01Icon} className="h-3 w-3" size="100%" />
-            </button>
-          </Tooltip>
-        </div>
-        <div className="mt-1 flex items-center gap-1">
-          <InlineEdit
-            value={defaultText(edge.description)}
-            placeholder="Add description..."
-            onSave={handleUpdateDescription}
-            className="flex-1 text-muted-foreground"
-          />
-          {canEdit && (
-            <AiAssistButton
-              tooltip="Improve description with AI"
-              loading={anyAiLoading}
-              onClick={handleAiImproveDescription}
-            />
-          )}
-        </div>
-        {descSuggestions && (
-          <AiSuggestionList
-            commands={descSuggestions.commands}
-            explanation={descSuggestions.explanation}
-            onDismiss={dismissDesc}
-          />
-        )}
-        <p className="mt-1 text-muted-foreground">
-          {src} → {tgt}
-        </p>
-        {edge.cardinality && (
-          <p className="text-muted-foreground">Cardinality: {edge.cardinality}</p>
-        )}
-        <div className="mt-1.5">
-          <VerificationBadge verifications={verifications} elementId={edge.id} onVerify={onVerify} />
-        </div>
-      </div>
+      <EntityHeader
+        ontology={ontology}
+        entity={edge}
+        kind="edge"
+        verifications={verifications}
+        onVerify={onVerify}
+        onRename={handleRename}
+        onUpdateDescription={handleUpdateDescription}
+        onDelete={handleDeleteEdge}
+      />
 
       <div className="border-b border-zinc-200 dark:border-zinc-800">
         <TabBar
@@ -579,76 +475,49 @@ export function EdgeDetail({
       <div className="min-h-0 flex-1 overflow-auto">
         {tab === "definition" && (
           <>
-            <Section
-              title={`Properties (${arr(edge.properties).length})`}
-              action={
-                <>
-                  {canEdit && (
-                    <AiAssistButton
-                      tooltip="AI suggest properties"
-                      loading={anyAiLoading}
-                      onClick={handleAiSuggestProperties}
-                    />
-                  )}
-                  <Tooltip content="Add property">
-                    <button
-                      onClick={() => setAddingProp(true)}
-                      aria-label="Add property"
-                      className="rounded p-0.5 text-muted-foreground hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
-                    >
-                      <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
-                    </button>
-                  </Tooltip>
-                </>
-              }
-            >
-              {suggestions && (
-                <AiSuggestionList
-                  commands={suggestions.commands}
-                  explanation={suggestions.explanation}
-                  onDismiss={dismiss}
+            <Section title={t("definitionSubsection.glossary")}>
+              <div className="px-3 py-2">
+                <DefinitionFacet
+                  ontology={ontology}
+                  entity={edge}
+                  kind="edge"
                 />
-              )}
-              {addingProp && (
-                <AddPropertyForm ownerId={edge.id} onClose={() => setAddingProp(false)} />
-              )}
-              {arr(edge.properties).map((prop) => (
-                <PropertyRow
-                  key={prop.id}
-                  prop={prop}
-                  onDelete={() => handleDeleteProperty(prop.id, prop.name)}
-                  onUpdate={(patch) => handleUpdateProperty(prop.id, patch)}
-                  binding={
-                    ontology.id
-                      ? {
-                          ontologyId: ontology.id,
-                          expectedVersion: ontology.version,
-                          ownerKind: "edge",
-                          ownerTypeId: edge.id,
-                        }
-                      : undefined
-                  }
-                />
-              ))}
+              </div>
             </Section>
-
-            <GapsList gaps={gaps} />
-
+            <Section title={`Properties (${arr(edge.properties).length})`}>
+              <div className="px-3 py-2">
+                <PropertiesFacet
+                  ontology={ontology}
+                  entity={edge}
+                  kind="edge"
+                />
+              </div>
+            </Section>
             <p className="mt-3 px-3 pb-2 text-[10px] text-muted-foreground">
-              Tip: Press <kbd className="rounded bg-zinc-200 px-1 py-0.5 font-mono text-[9px] dark:bg-zinc-700">{"⌘"}K</kbd> to edit with AI
+              Tip: Press{" "}
+              <kbd className="rounded bg-zinc-200 px-1 py-0.5 font-mono text-[9px] dark:bg-zinc-700">
+                {"⌘"}K
+              </kbd>{" "}
+              to edit with AI
             </p>
           </>
         )}
 
         {tab === "lineage" && (
           <div className="px-3 py-3">
-            <LineageTree edges={outbound} direction="outbound" labelOf={labelOf} />
+            <LineageFacet ontology={ontology} entityRef={ref} />
           </div>
         )}
 
-        {tab === "dependents" && (
+        {tab === "quality" && (
           <div className="px-3 py-3">
-            <LineageTree edges={inbound} direction="inbound" labelOf={labelOf} />
+            <QualityFacet gaps={gaps} />
+          </div>
+        )}
+
+        {tab === "changelog" && (
+          <div className="px-3 py-3">
+            <ChangeLogFacet ontology={ontology} entity={edge} kind="edge" />
           </div>
         )}
       </div>

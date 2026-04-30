@@ -379,7 +379,13 @@
       "definition": "Definition",
       "sample": "Sample",
       "lineage": "Lineage",
-      "dependents": "Dependents"
+      "dependents": "Dependents",
+      "quality": "Quality",
+      "changelog": "Change log",
+      "definitionSubsection": {
+        "glossary": "Definition · Anchors",
+        "mappings": "Mappings"
+      }
     },
     "binding": {
       "linkTooltip": "Link to glossary term",
@@ -2932,11 +2938,63 @@
             "title": "Lineage",
             "subtitle": "What this concept references / what depends on it"
           },
+          "quality": {
+            "title": "Quality",
+            "subtitle": "SHACL gaps + workspace signal drill-through"
+          },
           "changelog": {
             "title": "Change log",
             "subtitle": "Audit trail — who changed what, when"
           }
         }
+      }
+    },
+    "entityFacets": {
+      "definition": {
+        "descriptionLabel": "Description",
+        "descriptionPlaceholder": "Describe this concept in one sentence…",
+        "anchorsLabel": "Glossary anchors",
+        "anchorsHint": "Pick the business concepts this entity represents.",
+        "aiAssistTooltip": "Improve description with AI"
+      },
+      "properties": {
+        "addAction": "Add property",
+        "aiSuggestTooltip": "AI suggest properties",
+        "deletedToast": "Property \"{name}\" deleted",
+        "emptyState": "No properties yet."
+      },
+      "samples": {
+        "noSourceLineage": "No source lineage — link a table mapping first."
+      },
+      "constraints": {
+        "addedToast": "Constraint added",
+        "removedToast": "Constraint removed"
+      },
+      "mappings": {
+        "createBlockedNoSource": "No data source on the project — connect one first.",
+        "createdToast": "Mapping created",
+        "deletedToast": "Mapping deleted",
+        "primaryLabel": "Primary mapping · {id}",
+        "deleteTooltip": "Delete mapping",
+        "createAction": "Create mapping",
+        "emptyState": "No mappings yet — physical lineage is undefined.",
+        "multiMappingHint": "{count} additional mapping(s) defined — manage at /settings/mappings."
+      },
+      "lineage": {
+        "loading": "Loading lineage…",
+        "outboundHeader": "Outbound",
+        "inboundHeader": "Inbound"
+      },
+      "quality": {
+        "noGaps": "No quality issues for this entity.",
+        "viewWorkspaceSignals": "View workspace quality signals →"
+      },
+      "changelog": {
+        "loading": "Loading change log…",
+        "loadingMore": "Loading…",
+        "loadMore": "Load more",
+        "loadError": "Failed to load change log.",
+        "emptyState": "No recorded changes yet."
       }
     },
     "explore": {

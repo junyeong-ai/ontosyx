@@ -4,62 +4,38 @@ import { useCallback } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  ArrowLeft01Icon,
-  Cancel01Icon,
-  PlusSignIcon,
-  Tick02Icon,
-} from "@hugeicons/core-free-icons";
-import { useState } from "react";
-import { toast } from "sonner";
+import { ArrowLeft01Icon, Tick02Icon } from "@hugeicons/core-free-icons";
 
 import { useAppStore } from "@/lib/store";
 import { selectStateOntology } from "@/lib/store/selectors";
 import { arr } from "@/lib/ir-collections";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
-import { GlossaryAnchorPicker } from "@/components/ontology/glossary-anchor-picker";
-import { NodeConstraintBuilder } from "@/components/ontology/node-constraint-builder";
-import { InlineObjectMappingEditor } from "@/components/ontology/inline-object-mapping-editor";
-import { LineageTree } from "@/components/ontology/lineage-tree";
-import { SourceSampleMini } from "@/components/workbench/inspector/source-sample-mini";
-import {
-  AddPropertyForm,
-  PropertyRow,
-} from "@/components/workbench/inspector/property-editor";
-import { InlineEdit } from "@/components/workbench/inspector/inline-edit";
-import { defaultText } from "@/lib/locale/localize";
-import type {
-  ConstraintDef,
-  NodeTypeDef,
-  OntologyCommand,
-  OntologyIR,
-  PropertyPatch,
-} from "@/types/api";
-import type {
-  GlossaryTermDef,
-  ObjectMappingDef,
-} from "@/lib/api/edit-ops";
-import { useEntityDependencies } from "@/hooks/api/use-entity-dependencies";
-import type { SchemaEntityRef } from "@/lib/api/dependencies";
 import { Tooltip } from "@/components/ui/tooltip";
-import { useAuditTrail } from "@/hooks/api/use-audit-trail";
-import type { AuditRecord, ProvenanceDef } from "@/types/audit";
+import { defaultText } from "@/lib/locale/localize";
+import type { NodeTypeDef, OntologyIR, QualityGap } from "@/types/api";
+import type { SchemaEntityRef } from "@/lib/api/dependencies";
+
+import { InlineEdit } from "@/components/workbench/inspector/inline-edit";
+import { DefinitionFacet } from "@/components/workbench/inspector/facets/definition-facet";
+import { PropertiesFacet } from "@/components/workbench/inspector/facets/properties-facet";
+import { SamplesFacet } from "@/components/workbench/inspector/facets/samples-facet";
+import { ConstraintsFacet } from "@/components/workbench/inspector/facets/constraints-facet";
+import { MappingsFacet } from "@/components/workbench/inspector/facets/mappings-facet";
+import { LineageFacet } from "@/components/workbench/inspector/facets/lineage-facet";
+import { QualityFacet } from "@/components/workbench/inspector/facets/quality-facet";
+import { ChangeLogFacet } from "@/components/workbench/inspector/facets/change-log-facet";
 
 /**
- * Domain Context page for one NodeType. Seven canonical sections
- * — Definition, Properties, Samples, Constraints, Mappings,
- * Lineage, Change Log — surface every facet a modeller might shape
- * for a single business concept on one screen.
+ * Entity-Centric Domain Context page (ADR-0054). Eight canonical
+ * facets — Definition, Properties, Samples, Constraints, Mappings,
+ * Lineage, Quality, Change log — surface every aspect a modeller
+ * might shape for one business concept. Each facet is a shared
+ * component; the canvas inspector renders the same set under a
+ * tabbed layout, so behaviour stays in lockstep.
  *
- * This commit wires Definition + Properties:
- * - Definition: inline label + description editing, GlossaryAnchorPicker
- *   bound to `set_node_glossary_anchors` command (atomic list replace).
- * - Properties: reuses the inspector's PropertyRow + AddPropertyForm,
- *   so every property edit flows through the same applyCommand →
- *   commandStack → save pipeline as the canvas inspector.
- *
- * Subsequent commits replace each remaining placeholder
- * (samples, constraints, mappings, lineage, changelog).
+ * `quality` was added in this commit (drill-through landing for
+ * ADR-0057's severity-tiered overlay); `change_log` was promoted
+ * from page-only to a shared facet so the inspector gains it too.
  */
 export function DomainContextPage({ nodeId }: { nodeId: string }) {
   const t = useTranslations("workbench.types.detail");
@@ -77,10 +53,6 @@ export function DomainContextPage({ nodeId }: { nodeId: string }) {
   return <NodeView ontology={ontology} node={node} />;
 }
 
-// ---------------------------------------------------------------------------
-// NodeView — owns the per-node hooks once we know the node resolved
-// ---------------------------------------------------------------------------
-
 function NodeView({
   ontology,
   node,
@@ -94,7 +66,7 @@ function NodeView({
   const propertyCount = arr(node.properties).length;
   const constraintCount = arr(node.constraints).length;
   const anchors = arr(node.glossary_anchors);
-  const glossary: readonly GlossaryTermDef[] = arr(ontology.glossary);
+  const entityRef: SchemaEntityRef = { kind: "node_type", id: node.id };
 
   const handleRename = useCallback(
     (newLabel: string) => {
@@ -107,30 +79,15 @@ function NodeView({
     [applyCommand, node.id],
   );
 
-  const handleUpdateDescription = useCallback(
-    (desc: string) => {
-      applyCommand({
-        op: "update_node_description",
-        node_id: node.id,
-        description: desc ? { default: desc } : undefined,
-      });
-    },
-    [applyCommand, node.id],
-  );
-
-  const handleAnchorsChange = useCallback(
-    (next: string[]) => {
-      applyCommand({
-        op: "set_node_glossary_anchors",
-        node_id: node.id,
-        anchors: next,
-      });
-    },
-    [applyCommand, node.id],
-  );
-
   const readiness = evaluateReadiness(node, ontology);
   const readinessPassed = readiness.filter((r) => r.passed).length;
+
+  // Page-level gaps come from the canvas pipeline; the page is
+  // typically opened from a search / drill-through and we don't
+  // re-fetch quality here. The inspector path threads gaps in via
+  // props; the page surfaces an empty list when none are loaded
+  // and points to the workspace dashboard.
+  const gaps: QualityGap[] = [];
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -147,14 +104,11 @@ function NodeView({
           <CollapsibleSection
             title={t("sections.definition.title")}
             description={t("sections.definition.subtitle")}
-            badge={anchors.length > 0 ? <CountBadge count={anchors.length} /> : undefined}
+            badge={
+              anchors.length > 0 ? <CountBadge count={anchors.length} /> : undefined
+            }
           >
-            <DefinitionSection
-              node={node}
-              glossary={glossary}
-              onUpdateDescription={handleUpdateDescription}
-              onAnchorsChange={handleAnchorsChange}
-            />
+            <DefinitionFacet ontology={ontology} entity={node} kind="node" />
           </CollapsibleSection>
 
           <CollapsibleSection
@@ -162,14 +116,14 @@ function NodeView({
             description={t("sections.properties.subtitle")}
             badge={<CountBadge count={propertyCount} />}
           >
-            <PropertiesSection node={node} ontology={ontology} />
+            <PropertiesFacet ontology={ontology} entity={node} kind="node" />
           </CollapsibleSection>
 
           <CollapsibleSection
             title={t("sections.samples.title")}
             description={t("sections.samples.subtitle")}
           >
-            <SamplesSection node={node} />
+            <SamplesFacet node={node} />
           </CollapsibleSection>
 
           <CollapsibleSection
@@ -182,7 +136,7 @@ function NodeView({
             }
             defaultOpen={false}
           >
-            <ConstraintsSection node={node} />
+            <ConstraintsFacet node={node} />
           </CollapsibleSection>
 
           <CollapsibleSection
@@ -190,7 +144,7 @@ function NodeView({
             description={t("sections.mappings.subtitle")}
             defaultOpen={false}
           >
-            <MappingsSection node={node} ontology={ontology} />
+            <MappingsFacet node={node} ontology={ontology} />
           </CollapsibleSection>
 
           <CollapsibleSection
@@ -198,7 +152,15 @@ function NodeView({
             description={t("sections.lineage.subtitle")}
             defaultOpen={false}
           >
-            <LineageSection node={node} ontology={ontology} />
+            <LineageFacet ontology={ontology} entityRef={entityRef} />
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title={t("sections.quality.title")}
+            description={t("sections.quality.subtitle")}
+            defaultOpen={false}
+          >
+            <QualityFacet gaps={gaps} />
           </CollapsibleSection>
 
           <CollapsibleSection
@@ -206,549 +168,13 @@ function NodeView({
             description={t("sections.changelog.subtitle")}
             defaultOpen={false}
           >
-            <ChangeLogSection node={node} ontology={ontology} />
+            <ChangeLogFacet ontology={ontology} entity={node} kind="node" />
           </CollapsibleSection>
         </div>
       </div>
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Definition section
-// ---------------------------------------------------------------------------
-
-function DefinitionSection({
-  node,
-  glossary,
-  onUpdateDescription,
-  onAnchorsChange,
-}: {
-  node: NodeTypeDef;
-  glossary: readonly GlossaryTermDef[];
-  onUpdateDescription: (desc: string) => void;
-  onAnchorsChange: (next: string[]) => void;
-}) {
-  const t = useTranslations("workbench.types.detail.definition");
-  const description = defaultText(node.description);
-
-  return (
-    <div className="space-y-4">
-      <FieldGroup label={t("descriptionLabel")}>
-        <InlineEdit
-          value={description}
-          placeholder={t("descriptionPlaceholder")}
-          onSave={onUpdateDescription}
-          className="text-zinc-700 dark:text-zinc-200"
-        />
-      </FieldGroup>
-
-      <FieldGroup
-        label={t("anchorsLabel")}
-        hint={t("anchorsHint")}
-      >
-        <GlossaryAnchorPicker
-          value={arr(node.glossary_anchors)}
-          glossary={glossary}
-          onChange={onAnchorsChange}
-        />
-      </FieldGroup>
-
-      {node.source_lineage?.table && (
-        <FieldGroup label={t("sourceLineageLabel")}>
-          <p className="font-mono text-[11px] text-muted-foreground">
-            {node.source_lineage.table}
-          </p>
-        </FieldGroup>
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Properties section
-// ---------------------------------------------------------------------------
-
-function PropertiesSection({
-  node,
-  ontology,
-}: {
-  node: NodeTypeDef;
-  ontology: OntologyIR;
-}) {
-  const t = useTranslations("workbench.types.detail.properties");
-  const applyCommand = useAppStore((s) => s.applyCommand);
-  const [adding, setAdding] = useState(false);
-
-  const handleDelete = useCallback(
-    (propId: string, propName: string) => {
-      applyCommand({
-        op: "delete_property",
-        owner_id: node.id,
-        property_id: propId,
-      });
-      toast.success(t("deletedToast", { name: propName }));
-    },
-    [applyCommand, node.id, t],
-  );
-
-  const handleUpdate = useCallback(
-    (propId: string, patch: PropertyPatch) => {
-      applyCommand({
-        op: "update_property",
-        owner_id: node.id,
-        property_id: propId,
-        patch,
-      });
-    },
-    [applyCommand, node.id],
-  );
-
-  const properties = arr(node.properties);
-
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-end">
-        {!adding && (
-          <Tooltip content={t("addAction")}>
-            <button
-              type="button"
-              onClick={() => setAdding(true)}
-              className="inline-flex items-center gap-1 rounded border border-dashed border-zinc-300 px-2 py-1 text-[11px] text-muted-foreground hover:border-emerald-300 hover:text-emerald-600 dark:border-zinc-700 dark:hover:border-emerald-700 dark:hover:text-emerald-400"
-            >
-              <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" size="100%" />
-              {t("addAction")}
-            </button>
-          </Tooltip>
-        )}
-      </div>
-      {adding && (
-        <AddPropertyForm ownerId={node.id} onClose={() => setAdding(false)} />
-      )}
-      {properties.length === 0 && !adding ? (
-        <p className="text-[11px] italic text-muted-foreground">
-          {t("emptyState")}
-        </p>
-      ) : (
-        <ul className="divide-y divide-zinc-100 rounded border border-zinc-100 dark:divide-zinc-800/60 dark:border-zinc-800/60">
-          {properties.map((prop) => (
-            <li key={prop.id}>
-              <PropertyRow
-                prop={prop}
-                onDelete={() => handleDelete(prop.id, prop.name)}
-                onUpdate={(patch) => handleUpdate(prop.id, patch)}
-                binding={
-                  ontology.id
-                    ? {
-                        ontologyId: ontology.id,
-                        expectedVersion: ontology.version,
-                        ownerKind: "node",
-                        ownerTypeId: node.id,
-                      }
-                    : undefined
-                }
-              />
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Samples section
-// ---------------------------------------------------------------------------
-
-function SamplesSection({ node }: { node: NodeTypeDef }) {
-  const t = useTranslations("workbench.types.detail.samples");
-  const table = node.source_lineage?.table;
-  if (!table) {
-    return (
-      <p className="text-[11px] italic text-muted-foreground">
-        {t("noSourceLineage")}
-      </p>
-    );
-  }
-  return <SourceSampleMini tableName={table} />;
-}
-
-// ---------------------------------------------------------------------------
-// Constraints section
-// ---------------------------------------------------------------------------
-
-function ConstraintsSection({ node }: { node: NodeTypeDef }) {
-  const t = useTranslations("workbench.types.detail.constraints");
-  const applyCommand = useAppStore((s) => s.applyCommand);
-
-  const handleAdd = useCallback(
-    (constraint: ConstraintDef) => {
-      applyCommand({
-        op: "add_constraint",
-        node_id: node.id,
-        constraint,
-      });
-      toast.success(t("addedToast"));
-    },
-    [applyCommand, node.id, t],
-  );
-
-  const handleRemove = useCallback(
-    (constraintId: string) => {
-      applyCommand({
-        op: "remove_constraint",
-        node_id: node.id,
-        constraint_id: constraintId,
-      });
-      toast.success(t("removedToast"));
-    },
-    [applyCommand, node.id, t],
-  );
-
-  return (
-    <NodeConstraintBuilder
-      node={node}
-      onAdd={handleAdd}
-      onRemove={handleRemove}
-    />
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Mappings section
-// ---------------------------------------------------------------------------
-
-function MappingsSection({
-  node,
-  ontology,
-}: {
-  node: NodeTypeDef;
-  ontology: OntologyIR;
-}) {
-  const t = useTranslations("workbench.types.detail.mappings");
-  const applyCommand = useAppStore((s) => s.applyCommand);
-  const project = useAppStore((s) => s.activeProject);
-
-  const mappings = arr(ontology.object_mappings).filter(
-    (m) => m.node_type_id === node.id,
-  );
-
-  // Single-mapping is the common case the inline editor targets.
-  // The multi-mapping admin path stays on /settings/mappings.
-  const primary = mappings[0];
-  const additional = mappings.length > 1 ? mappings.length - 1 : 0;
-
-  const sourceColumns: readonly string[] | undefined = (() => {
-    if (!primary?.relation || !project?.source_profile) return undefined;
-    const profile = project.source_profile.table_profiles?.find(
-      (tp) => tp.table_name === primary.relation,
-    );
-    return profile?.column_stats.map((c) => c.column_name);
-  })();
-
-  const handleCreate = () => {
-    if (!project?.source_id) {
-      toast.error(t("createBlockedNoSource"));
-      return;
-    }
-    const mapping: ObjectMappingDef = {
-      id: `om-${crypto.randomUUID()}`,
-      node_type_id: node.id,
-      source_id: project.source_id,
-      relation: "",
-      relation_kind: "table",
-      property_mappings: [],
-    };
-    applyCommand({ op: "create_object_mapping", mapping });
-    toast.success(t("createdToast"));
-  };
-
-  const handleUpdate = (mapping: ObjectMappingDef) => {
-    applyCommand({ op: "update_object_mapping", id: mapping.id, mapping });
-  };
-
-  const handleDelete = (id: string) => {
-    applyCommand({ op: "delete_object_mapping", id });
-    toast.success(t("deletedToast"));
-  };
-
-  if (!primary) {
-    return (
-      <div className="space-y-2">
-        <p className="text-[11px] italic text-muted-foreground">
-          {t("emptyState")}
-        </p>
-        <button
-          type="button"
-          onClick={handleCreate}
-          disabled={!project?.source_id}
-          className="inline-flex items-center gap-1 rounded border border-dashed border-zinc-300 px-2 py-1 text-[11px] text-muted-foreground hover:border-violet-300 hover:text-violet-600 disabled:opacity-50 dark:border-zinc-700 dark:hover:border-violet-700 dark:hover:text-violet-400"
-        >
-          {t("createAction")}
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-mono text-muted-foreground">
-          {t("primaryLabel", { id: primary.id })}
-        </span>
-        <Tooltip content={t("deleteTooltip")}>
-          <button
-            type="button"
-            onClick={() => handleDelete(primary.id)}
-            aria-label={t("deleteTooltip")}
-            className="rounded p-0.5 text-zinc-300 hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-950"
-          >
-            <HugeiconsIcon icon={Cancel01Icon} className="h-3 w-3" size="100%" />
-          </button>
-        </Tooltip>
-      </div>
-      <InlineObjectMappingEditor
-        value={primary}
-        properties={arr(node.properties)}
-        availableColumns={sourceColumns}
-        onChange={handleUpdate}
-      />
-      {additional > 0 && (
-        <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">
-          {t("multiMappingHint", { count: additional })}
-        </p>
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Lineage section
-// ---------------------------------------------------------------------------
-
-function LineageSection({
-  node,
-  ontology,
-}: {
-  node: NodeTypeDef;
-  ontology: OntologyIR;
-}) {
-  const t = useTranslations("workbench.types.detail.lineage");
-  const ref: SchemaEntityRef = { kind: "node_type", id: node.id };
-  const { inbound, outbound, isLoading } = useEntityDependencies(
-    ontology.id,
-    ref,
-  );
-
-  const labelOf = useCallback(
-    (target: SchemaEntityRef): string | null => {
-      switch (target.kind) {
-        case "node_type":
-          return arr(ontology.node_types).find((n) => n.id === target.id)?.label ?? null;
-        case "edge_type":
-          return arr(ontology.edge_types).find((e) => e.id === target.id)?.label ?? null;
-        default:
-          return null;
-      }
-    },
-    [ontology],
-  );
-
-  if (isLoading) {
-    return (
-      <p className="text-[11px] italic text-muted-foreground">
-        {t("loading")}
-      </p>
-    );
-  }
-
-  return (
-    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-      <div className="space-y-1">
-        <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          {t("outboundHeader")}
-        </h3>
-        <LineageTree
-          edges={outbound}
-          direction="outbound"
-          labelOf={labelOf}
-        />
-      </div>
-      <div className="space-y-1">
-        <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          {t("inboundHeader")}
-        </h3>
-        <LineageTree edges={inbound} direction="inbound" labelOf={labelOf} />
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Change log section
-// ---------------------------------------------------------------------------
-
-interface ChangeRow {
-  at_time: string;
-  agent: string;
-  summary: string;
-}
-
-function ChangeLogSection({
-  node,
-  ontology,
-}: {
-  node: NodeTypeDef;
-  ontology: OntologyIR;
-}) {
-  const t = useTranslations("workbench.types.detail.changelog");
-  const audit = useAuditTrail({ ontology_id: ontology.id }, 50);
-
-  const records: ChangeRow[] = (audit.data?.pages ?? [])
-    .flatMap((page) => page.items as AuditRecord[])
-    .map((record) => projectRecordForNode(record, node))
-    .filter((row): row is ChangeRow => row !== null);
-
-  if (audit.isLoading && records.length === 0) {
-    return <p className="text-[11px] italic text-muted-foreground">{t("loading")}</p>;
-  }
-  if (audit.isError) {
-    return (
-      <p className="text-[11px] text-rose-600 dark:text-rose-400">
-        {t("loadError")}
-      </p>
-    );
-  }
-  if (records.length === 0) {
-    return (
-      <p className="text-[11px] italic text-muted-foreground">
-        {t("emptyState")}
-      </p>
-    );
-  }
-
-  return (
-    <ol className="space-y-2">
-      {records.map((row, idx) => (
-        <li
-          key={`${row.at_time}-${idx}`}
-          className="flex items-start gap-3 rounded border border-zinc-100 bg-zinc-50/40 px-3 py-2 dark:border-zinc-800/60 dark:bg-zinc-900/40"
-        >
-          <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
-            {formatRelative(row.at_time)}
-          </span>
-          <span className="flex flex-1 flex-col gap-0.5">
-            <span className="text-[11px] text-zinc-700 dark:text-zinc-200">
-              {row.summary}
-            </span>
-            <span className="text-[10px] text-muted-foreground">
-              {row.agent}
-            </span>
-          </span>
-        </li>
-      ))}
-      {audit.hasNextPage && (
-        <li>
-          <button
-            type="button"
-            onClick={() => audit.fetchNextPage()}
-            disabled={audit.isFetchingNextPage}
-            className="text-[11px] text-violet-600 hover:underline disabled:opacity-50 dark:text-violet-400"
-          >
-            {audit.isFetchingNextPage ? t("loadingMore") : t("loadMore")}
-          </button>
-        </li>
-      )}
-    </ol>
-  );
-}
-
-function projectRecordForNode(
-  record: AuditRecord,
-  node: NodeTypeDef,
-): ChangeRow | null {
-  const prov = record.provenance as ProvenanceDef | undefined;
-  if (!prov) return null;
-  const subjectMatchesNode = subjectTouchesNode(prov, node);
-  const activityMentionsNode =
-    prov.activity.kind === "ontology_edit" &&
-    prov.activity.command_summary.includes(node.id);
-  if (!subjectMatchesNode && !activityMentionsNode) return null;
-  return {
-    at_time: record.at_time,
-    agent: formatAgent(prov),
-    summary: formatActivity(prov),
-  };
-}
-
-function subjectTouchesNode(
-  prov: ProvenanceDef,
-  node: NodeTypeDef,
-): boolean {
-  switch (prov.subject.kind) {
-    case "node_instance":
-      return prov.subject.node_type_id === node.id;
-    case "property_value":
-      return prov.subject.node_type_id === node.id;
-    case "edge_instance":
-    case "arbitrary":
-      return false;
-  }
-}
-
-function formatActivity(prov: ProvenanceDef): string {
-  switch (prov.activity.kind) {
-    case "ontology_edit":
-      return prov.activity.command_summary;
-    case "rule_validate":
-      return `Rule validate (${prov.activity.outcome})`;
-    case "source_scan":
-      return `Source scan: ${prov.activity.mapping_id}`;
-    case "function_eval":
-      return `Function eval: ${prov.activity.function_id}`;
-    case "action_execute":
-      return `Action execute: ${prov.activity.action_id}`;
-    case "draft_proposal":
-      return `LLM draft (${prov.activity.model_id})`;
-    case "cache_refresh":
-      return `Cache refresh: ${prov.activity.mapping_id}`;
-    case "enrichment":
-      return `Enrichment: ${prov.activity.enrichment_id}`;
-    case "import":
-      return `Import (${prov.activity.format})`;
-    case "export":
-      return `Export (${prov.activity.format})`;
-  }
-}
-
-function formatAgent(prov: ProvenanceDef): string {
-  switch (prov.agent.kind) {
-    case "user":
-      return prov.agent.user_id;
-    case "service":
-      return `service:${prov.agent.service_id}`;
-    case "llm_model":
-      return `llm:${prov.agent.model_id}`;
-    case "system":
-      return "system";
-  }
-}
-
-function formatRelative(iso: string): string {
-  // Minimalist HH:mm · MM-DD output. The audit list orders newest
-  // first, so the relative axis the operator cares about is "today
-  // vs older" — keep it readable without a full i18n date library.
-  try {
-    const d = new Date(iso);
-    return `${d.toISOString().slice(0, 10)} ${d.toISOString().slice(11, 16)}`;
-  } catch {
-    return iso;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Readiness signal — surfaces in the page header
-// ---------------------------------------------------------------------------
 
 interface ReadinessCheck {
   id: string;
@@ -771,10 +197,6 @@ function evaluateReadiness(
     { id: "sourceLineage", passed: !!node.source_lineage?.table },
   ];
 }
-
-// ---------------------------------------------------------------------------
-// Page chrome
-// ---------------------------------------------------------------------------
 
 function PageHeader({
   label,
@@ -818,13 +240,7 @@ function PageHeader({
           <ul className="space-y-0.5 text-[11px]">
             {readiness.map((r) => (
               <li key={r.id} className="flex items-center gap-2">
-                <span
-                  className={
-                    r.passed
-                      ? "text-emerald-400"
-                      : "text-rose-400"
-                  }
-                >
+                <span className={r.passed ? "text-emerald-400" : "text-rose-400"}>
                   {r.passed ? "✓" : "✗"}
                 </span>
                 <span>{t(`checks.${r.id}`)}</span>
@@ -850,30 +266,6 @@ function PageHeader({
   );
 }
 
-function FieldGroup({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1">
-      <div className="flex items-baseline gap-2">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          {label}
-        </span>
-        {hint && (
-          <span className="text-[10px] text-muted-foreground">{hint}</span>
-        )}
-      </div>
-      {children}
-    </div>
-  );
-}
-
 function EmptyShell({ message }: { message: string }) {
   return (
     <div className="flex h-full items-center justify-center px-6 py-12 text-sm text-muted-foreground">
@@ -889,5 +281,3 @@ function CountBadge({ count }: { count: number }) {
     </span>
   );
 }
-
-export type { OntologyCommand };
