@@ -75,6 +75,30 @@ fn sse_result<T: Serialize>(data: &T) -> String {
 //   phase   → { phase: "persisting" }
 //   result  → DesignProjectResponse
 //   error   → { error: { type, message } }
+//
+// ADR-0053 (rejected for now). The "progressive streaming" plan
+// would surface per-cluster results on the FE as each batch
+// completes, keep partial work on a transient failure, and replay
+// only the un-completed clusters on retry — backed by the cluster
+// checkpoint primitives `ox_ontology::cluster_checkpoint::{
+// ClusterSignature, DraftClusterCheckpoint }` (ADR-0027).
+//
+// The blocker is real: the BE persistence trait
+// `DraftClusterCheckpointStore` is documented in
+// `crates/ox-ontology/src/cluster_checkpoint.rs` ("the store trait
+// that persists / looks it up lives in `ox-store` — added in the
+// integration slice") but the integration slice has not landed.
+// Without it, replay is a fiction — every retry re-runs every
+// cluster against the LLM, and the FE "progressive" treatment is
+// purely cosmetic.
+//
+// Shipping the FE-only half before the BE persistence path exists
+// would either (a) silently drop on retry — a confusing UX — or
+// (b) require a mock checkpoint layer that lies about persistence.
+// Both options trade short-term motion for incoherence we then
+// have to undo. The cluster checkpoint integration is the
+// well-defined unblock; this rejection note stays here so the
+// rationale is read at the call site that would have changed.
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
