@@ -33,7 +33,6 @@
 )]
 
 use sqlx::Row;
-use sqlx::postgres::PgPoolOptions;
 
 fn resolve_test_db_url() -> Option<String> {
     for key in ["OX_TEST_DATABASE_URL", "OX_DATABASE_URL", "DATABASE_URL"] {
@@ -56,18 +55,17 @@ async fn pre_scope_tables_carry_no_rls_policies() {
         return;
     };
 
-    let pool = PgPoolOptions::new()
-        .max_connections(2)
-        .acquire_timeout(std::time::Duration::from_secs(5))
-        .connect(&url)
+    // Bring the schema up via the canonical entry-point so the
+    // RLS pool hooks (`after_connect` / `before_acquire`) are
+    // attached the same way production runs them. The pool is
+    // re-acquired below for the catalog queries — those are admin
+    // reads against `pg_policies` / `pg_class`, not RLS-gated user
+    // data, so they pass regardless of session-var state.
+    let store = ox_store::PostgresStore::connect(&url, 2)
         .await
-        .expect("admin pool connect");
-
-    // Run migrations so the tables exist before we ask `pg_policies`
-    // about them. Use the public migration entry-point so a fresh DB
-    // never short-circuits with "relation does not exist".
-    let store = ox_store::PostgresStore::from_pool(pool.clone());
+        .expect("connect");
     store.migrate().await.expect("migrate");
+    let pool = store.pool().clone();
 
     let rows = sqlx::query(
         "SELECT tablename, policyname \
@@ -112,14 +110,11 @@ async fn force_row_level_security_is_off_on_pre_scope_tables() {
         return;
     };
 
-    let pool = PgPoolOptions::new()
-        .max_connections(2)
-        .acquire_timeout(std::time::Duration::from_secs(5))
-        .connect(&url)
+    let store = ox_store::PostgresStore::connect(&url, 2)
         .await
-        .expect("admin pool connect");
-    let store = ox_store::PostgresStore::from_pool(pool.clone());
+        .expect("connect");
     store.migrate().await.expect("migrate");
+    let pool = store.pool().clone();
 
     // `pg_class.relrowsecurity` is the "ENABLE ROW LEVEL SECURITY"
     // flag; `relforcerowsecurity` is the "FORCE" flag that applies

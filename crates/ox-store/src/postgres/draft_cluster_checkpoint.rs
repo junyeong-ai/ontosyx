@@ -37,12 +37,16 @@ impl DraftClusterCheckpointRow {
             .map_err(|e| OxError::Runtime {
                 message: format!("draft cluster checkpoint output parse failed: {e}"),
             })?;
+        let signature =
+            ClusterSignature::from_hex(self.signature).map_err(|e| OxError::Runtime {
+                message: format!("draft cluster checkpoint signature parse failed: {e}"),
+            })?;
         Ok(DraftClusterCheckpoint {
-            id: self.id,
-            workspace_id: self.workspace_id,
+            id: Some(self.id),
+            workspace_id: Some(self.workspace_id),
             project_id: self.project_id,
             source_id: self.source_id,
-            signature: ClusterSignature::from_hex(self.signature),
+            signature,
             cluster_id: self.cluster_id as usize,
             output,
             created_at: self.created_at,

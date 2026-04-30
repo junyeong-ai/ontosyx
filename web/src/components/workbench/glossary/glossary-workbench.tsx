@@ -165,9 +165,9 @@ export function GlossaryWorkbench() {
       {
         onSuccess: () => {
           toast.success(tForm("toast.created", { term: label }));
-          setDraftCreate(false);
-          // Land selection on the freshly minted term.
-          router.replace(buildHref(searchParams, { [TERM_PARAM]: id }));
+          // setSelectedTermId clears the create draft + lands the
+          // URL on the new term in one go.
+          setSelectedTermId(id);
         },
         onError: (err) =>
           toast.error(tForm("toast.createFailed", { error: err.message })),

@@ -57,20 +57,47 @@ async fn connect_store() -> Option<PostgresStore> {
     Some(store)
 }
 
+/// Drop every row this test wrote so the table doesn't accumulate
+/// garbage across CI runs. Random workspace ids make per-test rows
+/// unreachable to anything but a SYSTEM_BYPASS sweep, so this also
+/// runs under bypass.
+async fn cleanup_workspace(store: &PostgresStore, workspace_id: Uuid) {
+    SYSTEM_BYPASS
+        .scope(true, async {
+            let _ = sqlx::query(
+                "DELETE FROM draft_cluster_checkpoints WHERE workspace_id = $1",
+            )
+            .bind(workspace_id)
+            .execute(store.pool())
+            .await;
+        })
+        .await;
+}
+
 fn fresh_checkpoint(
     project_id: Uuid,
     source_id: &str,
-    signature: &str,
+    signature: ClusterSignature,
     cluster_id: usize,
 ) -> DraftClusterCheckpoint {
     DraftClusterCheckpoint::draft(
         project_id,
         source_id.to_string(),
-        ClusterSignature::from_hex(signature.to_string()),
+        signature,
         cluster_id,
         empty_input_ontology(),
         ChronoDuration::hours(24),
     )
+}
+
+/// Tests need stable-but-distinct signatures without spinning up a
+/// real `TableCluster`. SHA-256 the seed string and lift through
+/// `from_hex`'s validation so the helper exercises the same shape
+/// the production path produces.
+fn signature_from_seed(seed: &str) -> ClusterSignature {
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::digest(seed.as_bytes());
+    ClusterSignature::from_hex(format!("{digest:x}")).expect("valid hex digest")
 }
 
 fn empty_input_ontology() -> InputOntologyDef {
@@ -92,7 +119,12 @@ async fn upsert_rejects_unscoped_call() {
     let Some(store) = connect_store().await else {
         return;
     };
-    let checkpoint = fresh_checkpoint(Uuid::new_v4(), "src", "sig", 0);
+    let checkpoint = fresh_checkpoint(
+        Uuid::new_v4(),
+        "src",
+        signature_from_seed("guard-test"),
+        0,
+    );
     match store.upsert_draft_cluster_checkpoint(&checkpoint).await {
         Err(OxError::MissingContext { kind, .. }) => {
             assert_eq!(kind, "workspace");
@@ -143,8 +175,8 @@ async fn round_trip_upsert_and_find() {
     let workspace_id = Uuid::new_v4();
     let project_id = Uuid::new_v4();
     let source_id = "src-rt";
-    let signature = format!("sig-{}", Uuid::new_v4());
-    let checkpoint = fresh_checkpoint(project_id, source_id, &signature, 0);
+    let signature = signature_from_seed(&format!("rt-{}", Uuid::new_v4()));
+    let checkpoint = fresh_checkpoint(project_id, source_id, signature.clone(), 0);
 
     PostgresStore::with_workspace(workspace_id, || async {
         store
@@ -152,16 +184,18 @@ async fn round_trip_upsert_and_find() {
             .await
             .expect("upsert");
         let found = store
-            .find_draft_cluster_checkpoint_by_signature(project_id, source_id, &signature)
+            .find_draft_cluster_checkpoint_by_signature(project_id, source_id, signature.as_str())
             .await
             .expect("find")
             .expect("checkpoint must round-trip");
-        assert_eq!(found.signature.as_str(), signature);
-        assert_eq!(found.workspace_id, workspace_id);
+        assert_eq!(found.signature, signature);
+        assert_eq!(found.workspace_id, Some(workspace_id));
         assert_eq!(found.project_id, project_id);
         assert_eq!(found.cluster_id, 0);
+        assert!(found.id.is_some(), "store must populate id on insert");
     })
     .await;
+    cleanup_workspace(&store, workspace_id).await;
 }
 
 #[tokio::test]
@@ -173,9 +207,9 @@ async fn upsert_replaces_on_natural_key_collision() {
     let workspace_id = Uuid::new_v4();
     let project_id = Uuid::new_v4();
     let source_id = "src-collide";
-    let signature = format!("sig-{}", Uuid::new_v4());
-    let first = fresh_checkpoint(project_id, source_id, &signature, 0);
-    let second = fresh_checkpoint(project_id, source_id, &signature, 1);
+    let signature = signature_from_seed(&format!("collide-{}", Uuid::new_v4()));
+    let first = fresh_checkpoint(project_id, source_id, signature.clone(), 0);
+    let second = fresh_checkpoint(project_id, source_id, signature.clone(), 1);
 
     PostgresStore::with_workspace(workspace_id, || async {
         store
@@ -197,6 +231,7 @@ async fn upsert_replaces_on_natural_key_collision() {
         assert_eq!(listed[0].cluster_id, 1);
     })
     .await;
+    cleanup_workspace(&store, workspace_id).await;
 }
 
 #[tokio::test]
@@ -208,8 +243,10 @@ async fn delete_for_project_scoped_to_that_project() {
     let workspace_id = Uuid::new_v4();
     let project_a = Uuid::new_v4();
     let project_b = Uuid::new_v4();
-    let cp_a = fresh_checkpoint(project_a, "src", "sig-a", 0);
-    let cp_b = fresh_checkpoint(project_b, "src", "sig-b", 0);
+    let sig_a = signature_from_seed(&format!("project-a-{}", Uuid::new_v4()));
+    let sig_b = signature_from_seed(&format!("project-b-{}", Uuid::new_v4()));
+    let cp_a = fresh_checkpoint(project_a, "src", sig_a.clone(), 0);
+    let cp_b = fresh_checkpoint(project_b, "src", sig_b.clone(), 0);
 
     PostgresStore::with_workspace(workspace_id, || async {
         store
@@ -228,18 +265,19 @@ async fn delete_for_project_scoped_to_that_project() {
         assert_eq!(removed, 1);
 
         let still_b = store
-            .find_draft_cluster_checkpoint_by_signature(project_b, "src", "sig-b")
+            .find_draft_cluster_checkpoint_by_signature(project_b, "src", sig_b.as_str())
             .await
             .expect("find b");
         assert!(still_b.is_some(), "project B's checkpoint must survive");
 
         let gone_a = store
-            .find_draft_cluster_checkpoint_by_signature(project_a, "src", "sig-a")
+            .find_draft_cluster_checkpoint_by_signature(project_a, "src", sig_a.as_str())
             .await
             .expect("find a");
         assert!(gone_a.is_none(), "project A's checkpoint must be gone");
     })
     .await;
+    cleanup_workspace(&store, workspace_id).await;
 }
 
 #[tokio::test]
@@ -250,11 +288,11 @@ async fn sweep_expired_under_system_bypass() {
     };
     let workspace_id = Uuid::new_v4();
     let project_id = Uuid::new_v4();
-    let signature_fresh = format!("sig-fresh-{}", Uuid::new_v4());
-    let signature_expired = format!("sig-expired-{}", Uuid::new_v4());
+    let sig_fresh = signature_from_seed(&format!("fresh-{}", Uuid::new_v4()));
+    let sig_expired = signature_from_seed(&format!("expired-{}", Uuid::new_v4()));
 
-    let fresh = fresh_checkpoint(project_id, "src", &signature_fresh, 0);
-    let mut expired = fresh_checkpoint(project_id, "src", &signature_expired, 1);
+    let fresh = fresh_checkpoint(project_id, "src", sig_fresh.clone(), 0);
+    let mut expired = fresh_checkpoint(project_id, "src", sig_expired.clone(), 1);
     expired.expires_at = Utc::now() - ChronoDuration::hours(1);
 
     PostgresStore::with_workspace(workspace_id, || async {
@@ -286,16 +324,17 @@ async fn sweep_expired_under_system_bypass() {
     // Fresh row survives — verify under workspace scope.
     PostgresStore::with_workspace(workspace_id, || async {
         let still_fresh = store
-            .find_draft_cluster_checkpoint_by_signature(project_id, "src", &signature_fresh)
+            .find_draft_cluster_checkpoint_by_signature(project_id, "src", sig_fresh.as_str())
             .await
             .expect("find fresh");
         assert!(still_fresh.is_some(), "fresh row must survive sweep");
 
         let gone = store
-            .find_draft_cluster_checkpoint_by_signature(project_id, "src", &signature_expired)
+            .find_draft_cluster_checkpoint_by_signature(project_id, "src", sig_expired.as_str())
             .await
             .expect("find expired");
         assert!(gone.is_none(), "expired row must be gone after sweep");
     })
     .await;
+    cleanup_workspace(&store, workspace_id).await;
 }

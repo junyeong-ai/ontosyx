@@ -82,15 +82,38 @@ impl ClusterSignature {
         &self.0
     }
 
-    /// Reconstruct a signature from its hex form. Used by the store
-    /// layer when lifting a persisted row back into the typed
-    /// shape; the value is treated as opaque (no hash re-validation
-    /// since the store row already passed the natural-key check on
-    /// insert).
-    pub fn from_hex(hex: String) -> Self {
-        Self(hex)
+    /// Reconstruct a signature from a 64-character lowercase hex
+    /// digest. The store layer calls this when lifting a persisted
+    /// row into the typed shape — the column was written by
+    /// [`Self::from_cluster`] so it's already canonical, but we
+    /// validate shape on the way out so a hand-edited or corrupted
+    /// row surfaces as a typed error rather than a silent
+    /// `signature.as_str()` returning garbage to consumers
+    /// downstream.
+    pub fn from_hex(hex: String) -> Result<Self, ClusterSignatureParseError> {
+        if hex.len() != 64 || !hex.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+        {
+            return Err(ClusterSignatureParseError);
+        }
+        Ok(Self(hex))
     }
 }
+
+/// `ClusterSignature::from_hex` rejects values that don't match the
+/// SHA-256 digest shape `Self::from_cluster` produces. Carries no
+/// payload — the offending input would only echo bad data to logs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClusterSignatureParseError;
+
+impl std::fmt::Display for ClusterSignatureParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(
+            "ClusterSignature must be a 64-character lowercase SHA-256 hex digest",
+        )
+    }
+}
+
+impl std::error::Error for ClusterSignatureParseError {}
 
 fn canonicalise_fks(fks: &[ForeignKeyDef], tag: &'static str) -> Vec<String> {
     let mut lines: Vec<String> = fks
@@ -111,25 +134,23 @@ fn canonicalise_fks(fks: &[ForeignKeyDef], tag: &'static str) -> Vec<String> {
 /// natural key the store layer dedups on — the same signature
 /// against the same project + source replays from cache.
 ///
-/// `id` and `workspace_id` are surrogate persistence concerns: the
-/// store impl mints `id` on insert (DB DEFAULT) and stamps
-/// `workspace_id` from the active task-local. Callers that author
-/// a fresh checkpoint use [`Self::draft`], which leaves both empty
-/// for the store to fill. Callers that read a checkpoint back
-/// observe the populated values.
+/// `id` and `workspace_id` reflect persistence state: `None` on a
+/// freshly-authored checkpoint (the store mints `id` via the
+/// column DEFAULT and stamps `workspace_id` from the active
+/// task-local on insert), `Some(_)` on a checkpoint read back from
+/// the store. Use [`Self::draft`] to author fresh entries.
 #[derive(
     Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
 )]
 pub struct DraftClusterCheckpoint {
-    /// Surrogate key the store assigns on insert. Authored
-    /// instances leave this `Uuid::nil()` and the store overwrites
-    /// it through the column DEFAULT.
-    #[serde(default)]
-    pub id: Uuid,
-    /// RLS partition. Stamped by the store from the bound
-    /// task-local; authored instances leave it `Uuid::nil()`.
-    #[serde(default)]
-    pub workspace_id: Uuid,
+    /// Surrogate key. Set by the persistence layer on insert; absent
+    /// on freshly-authored checkpoints.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<Uuid>,
+    /// RLS partition. Stamped by the persistence layer from the
+    /// bound task-local; absent on freshly-authored checkpoints.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace_id: Option<Uuid>,
     pub project_id: Uuid,
     pub source_id: String,
     pub signature: ClusterSignature,
@@ -163,8 +184,8 @@ impl DraftClusterCheckpoint {
     ) -> Self {
         let now = Utc::now();
         Self {
-            id: Uuid::nil(),
-            workspace_id: Uuid::nil(),
+            id: None,
+            workspace_id: None,
             project_id,
             source_id,
             signature,

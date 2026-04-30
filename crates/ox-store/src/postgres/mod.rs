@@ -74,70 +74,6 @@ tokio::task_local! {
     pub static SYSTEM_BYPASS: bool;
 }
 
-/// Configure PostgreSQL session variables that drive the RLS
-/// policies for the calling task. Single source of truth shared by
-/// the pool's `after_connect` (fresh connections) and
-/// `before_acquire` (idle-queue re-acquires) hooks — every
-/// connection runs this exactly once before serving its first
-/// query, and again before each subsequent re-acquire.
-///
-/// Priority: SYSTEM_BYPASS > WORKSPACE_ID > none. The "none" path
-/// leaves both vars unset; RLS-protected reads return empty, RLS-
-/// protected writes raise 42501 — the safe deny-all default for
-/// initialisation paths (`PgPool::connect`'s health-check, OIDC
-/// provider boot) that must run without a tenant.
-async fn configure_rls_session_vars(
-    conn: &mut sqlx::PgConnection,
-) -> Result<(), sqlx::Error> {
-    if SYSTEM_BYPASS.try_with(|b| *b).unwrap_or(false) {
-        sqlx::query("SELECT set_config('app.system_bypass', 'true', false)")
-            .execute(&mut *conn)
-            .await?;
-        // PostgreSQL evaluates PERMISSIVE policies as OR but still
-        // casts every policy's predicate expression. `ws_isolation`'s
-        // `current_setting('app.workspace_id', true)::uuid` raises
-        // 22P02 on an empty session var even when `system_bypass`
-        // would have matched. Set a nil sentinel so the cast always
-        // succeeds; it never matches a real workspace row, and the
-        // policy OR resolves through `system_bypass`.
-        sqlx::query("SELECT set_config('app.workspace_id', $1, false)")
-            .bind(Uuid::nil().to_string())
-            .execute(&mut *conn)
-            .await?;
-        // Best-effort: prime to the actual default workspace if it
-        // exists, so INSERT DEFAULTs resolve to a real id when the
-        // system task creates new rows. The earlier sentinel keeps
-        // the cast safe whether or not this query matches; "relation
-        // does not exist" during first-boot is also tolerated.
-        #[allow(clippy::let_underscore_must_use)]
-        let _ = sqlx::query(
-            "SELECT set_config('app.workspace_id', id::text, false) \
-             FROM workspaces WHERE slug = 'default' LIMIT 1",
-        )
-        .execute(&mut *conn)
-        .await;
-        return Ok(());
-    }
-    if let Ok(ws_id) = WORKSPACE_ID.try_with(|id| *id) {
-        sqlx::query("SELECT set_config('app.workspace_id', $1, false)")
-            .bind(ws_id.to_string())
-            .execute(&mut *conn)
-            .await?;
-        // ADR-0041: bound the worst-case query and idle-in-
-        // transaction durations. RESET ALL clears these on release
-        // so we re-apply per acquire. Bypass paths (migrations / cron
-        // sweeps) intentionally skip — those are bounded by their
-        // outer scheduler and may legitimately run long.
-        sqlx::query("SET statement_timeout = 30000")
-            .execute(&mut *conn)
-            .await?;
-        sqlx::query("SET idle_in_transaction_session_timeout = 5000")
-            .execute(&mut *conn)
-            .await?;
-    }
-    Ok(())
-}
-
 /// Assert that the caller is inside a `WORKSPACE_ID.scope(...)` or a
 /// `SYSTEM_BYPASS.scope(true, ...)` block. Mutating store methods
 /// call this at the top so a programming error (forgot to wrap a
@@ -298,11 +234,11 @@ impl PostgresStore {
         Ok(Self { pool })
     }
 
-    pub fn from_pool(pool: PgPool) -> Self {
-        Self { pool }
-    }
-
-    /// Get a reference to the underlying connection pool (for sharing with PgVectorStore).
+    /// Get a reference to the underlying connection pool. The pool
+    /// is the same handle [`Self::connect`] / [`Self::connect_with_min`]
+    /// configured with the RLS hooks, so reads against the returned
+    /// reference inherit `app.workspace_id` / `app.system_bypass`
+    /// from the active task-local just like store methods do.
     pub fn pool(&self) -> &PgPool {
         &self.pool
     }
@@ -333,7 +269,10 @@ impl PostgresStore {
     }
 
     /// Run a future within a workspace context.
-    /// Sets the task-local so `before_acquire` configures RLS on every connection.
+    /// Sets the [`WORKSPACE_ID`] task-local so the pool's
+    /// `after_connect` (fresh connections) and `before_acquire`
+    /// (idle re-acquires) hooks both configure `app.workspace_id`
+    /// from the same source.
     /// Used by the workspace middleware and background tasks targeting a specific workspace.
     pub async fn with_workspace<F, Fut, T>(workspace_id: Uuid, f: F) -> T
     where
@@ -344,8 +283,10 @@ impl PostgresStore {
     }
 
     /// Run a future with system bypass (cross-workspace access).
-    /// Sets the task-local so `before_acquire` configures `app.system_bypass`
-    /// instead of `app.workspace_id`. Used by scheduled tasks, cleanup, and migrations.
+    /// Sets the [`SYSTEM_BYPASS`] task-local so the pool's
+    /// `after_connect` / `before_acquire` hooks configure
+    /// `app.system_bypass` instead of `app.workspace_id`. Used by
+    /// scheduled tasks, cleanup, and migrations.
     pub async fn with_system_bypass<F, Fut, T>(f: F) -> T
     where
         F: FnOnce() -> Fut,
@@ -486,6 +427,7 @@ mod quality_signal;
 mod query;
 mod recipe;
 mod report;
+mod rls_session;
 mod scheduled_task;
 mod source_mapping;
 mod stale_concept_proposal;
@@ -493,6 +435,8 @@ mod tool_approval;
 mod user;
 mod verification;
 mod workspace;
+
+use rls_session::configure_rls_session_vars;
 
 
 #[cfg(test)]
