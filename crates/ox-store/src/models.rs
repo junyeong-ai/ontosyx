@@ -1027,12 +1027,21 @@ pub struct RoutingRuleUpdate {
 // Load Checkpoints — watermark-based incremental loading state
 // ---------------------------------------------------------------------------
 
-/// Tracks the last successfully loaded watermark value for incremental (delta) loads.
-/// Each checkpoint is unique per (workspace, project, source_table, graph_label).
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+/// Tracks the last successfully loaded watermark value for
+/// incremental (delta) loads. Unique per
+/// `(workspace, project, source_table, graph_label)`.
+///
+/// `id` and `workspace_id` reflect persistence state: `None` on a
+/// freshly-authored checkpoint (the store mints `id` via the
+/// column DEFAULT and stamps `workspace_id` from the active
+/// task-local on insert), `Some(_)` on a checkpoint read back from
+/// the store. Use [`Self::draft`] to author fresh entries.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoadCheckpoint {
-    pub id: Uuid,
-    pub workspace_id: Uuid,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<Uuid>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace_id: Option<Uuid>,
     pub project_id: Uuid,
     pub source_table: String,
     pub graph_label: String,
@@ -1040,6 +1049,31 @@ pub struct LoadCheckpoint {
     pub watermark_value: String,
     pub record_count: i64,
     pub loaded_at: DateTime<Utc>,
+}
+
+impl LoadCheckpoint {
+    /// Author a fresh checkpoint with the persistence-side fields
+    /// (`id`, `workspace_id`) left for the store to populate.
+    pub fn draft(
+        project_id: Uuid,
+        source_table: String,
+        graph_label: String,
+        watermark_column: String,
+        watermark_value: String,
+        record_count: i64,
+    ) -> Self {
+        Self {
+            id: None,
+            workspace_id: None,
+            project_id,
+            source_table,
+            graph_label,
+            watermark_column,
+            watermark_value,
+            record_count,
+            loaded_at: Utc::now(),
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -1160,19 +1160,19 @@ pub(crate) async fn execute_load_from_source(
                 }
             }
 
-            // Upsert checkpoint with the new max watermark
+            // Upsert checkpoint with the new max watermark.
+            // `id` and `workspace_id` are persistence-side fields the
+            // store fills in from the column DEFAULT and the bound
+            // task-local respectively.
             if max_watermark != wm_value || step_rows > 0 {
-                let cp = ox_store::LoadCheckpoint {
-                    id: Uuid::new_v4(),
-                    workspace_id: ws.workspace_id,
-                    project_id: id,
-                    source_table: source_table.clone(),
-                    graph_label: graph_label.clone(),
-                    watermark_column: wm_col.clone(),
-                    watermark_value: max_watermark,
-                    record_count: step_rows,
-                    loaded_at: Utc::now(),
-                };
+                let cp = ox_store::LoadCheckpoint::draft(
+                    id,
+                    source_table.clone(),
+                    graph_label.clone(),
+                    wm_col.clone(),
+                    max_watermark,
+                    step_rows,
+                );
                 if let Err(error) = state.store.upsert_checkpoint(&cp).await {
                     tracing::warn!(?error, %graph_label, "load checkpoint upsert failed");
                 }
