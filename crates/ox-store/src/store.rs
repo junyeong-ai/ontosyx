@@ -1479,6 +1479,61 @@ pub trait LoadCheckpointStore: Send + Sync {
 }
 
 // ---------------------------------------------------------------------------
+// DraftClusterCheckpointStore — per-cluster checkpoints (ADR-0027)
+//
+// `design_ontology_batch` runs the LLM design call N times across
+// N clusters per design pass. A transient failure on cluster K
+// previously discarded clusters 0..K's output; this store caches
+// each completed cluster's `InputOntologyDef` keyed by a
+// deterministic `(workspace_id, project_id, source_id, signature)`
+// natural key. Replay on retry skips the LLM call when the
+// signature matches.
+// ---------------------------------------------------------------------------
+
+#[async_trait]
+pub trait DraftClusterCheckpointStore: Send + Sync {
+    /// Insert or replace one cluster's checkpoint. Replaces on
+    /// `(workspace_id, project_id, source_id, signature)` collision —
+    /// the cached output is the most recent successful design for
+    /// that signature.
+    async fn upsert_draft_cluster_checkpoint(
+        &self,
+        checkpoint: &DraftClusterCheckpointRow,
+    ) -> OxResult<()>;
+
+    /// Look up one checkpoint by natural key. Returns `Ok(None)`
+    /// when the cluster has not been designed yet (cache miss → run
+    /// the LLM call).
+    async fn find_draft_cluster_checkpoint_by_signature(
+        &self,
+        project_id: Uuid,
+        source_id: &str,
+        signature: &str,
+    ) -> OxResult<Option<DraftClusterCheckpointRow>>;
+
+    /// Every checkpoint for a project, newest first. Telemetry +
+    /// debug surface; the streaming pipeline keys lookups on
+    /// signature directly.
+    async fn list_draft_cluster_checkpoints_for_project(
+        &self,
+        project_id: Uuid,
+    ) -> OxResult<Vec<DraftClusterCheckpointRow>>;
+
+    /// Drop every row whose `expires_at` is in the past. Run by the
+    /// daily cleanup cron under `SYSTEM_BYPASS`. Returns the number
+    /// of rows deleted for telemetry.
+    async fn delete_expired_draft_cluster_checkpoints(&self) -> OxResult<u64>;
+
+    /// Drop every checkpoint for a project — called when the design
+    /// completes successfully (the cached entries are no longer
+    /// authoritative once the project rolls forward).
+    async fn delete_draft_cluster_checkpoints_for_project(
+        &self,
+        project_id: Uuid,
+    ) -> OxResult<u64>;
+}
+
+// ---------------------------------------------------------------------------
 // ApiKeyStore — DB-backed API key management for programmatic access
 // ---------------------------------------------------------------------------
 
@@ -1924,6 +1979,7 @@ pub trait Store:
     + SourceMappingArtifactStore
     + JwtRevocationStore
     + IdempotencyStore
+    + DraftClusterCheckpointStore
 {
 }
 
@@ -1972,5 +2028,6 @@ impl<T> Store for T where
         + SourceMappingArtifactStore
         + JwtRevocationStore
         + IdempotencyStore
+        + DraftClusterCheckpointStore
 {
 }

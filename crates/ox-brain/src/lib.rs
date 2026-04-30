@@ -186,6 +186,19 @@ pub trait OntologyDesigner: Send + Sync {
         operation: &str,
     ) -> OxResult<ox_ontology::source_mapping::ArtifactProvenance>;
 
+    /// Template-level SHA-256 hex of the named prompt — system body
+    /// only, pre-render. Used by ADR-0027's draft cluster checkpoint
+    /// store as the prompt fingerprint folded into
+    /// `ClusterSignature::from_cluster`. Distinct from
+    /// `prompt_render_hash` on `ArtifactProvenance` (which captures
+    /// post-render content per call): checkpoints key on the
+    /// *cluster*, not the *call*, so the per-cluster sample data
+    /// must not enter the cache key. An admin who edits the prompt
+    /// body without bumping `prompt_version` shifts this hash, and
+    /// every checkpoint authored under the prior body misses the
+    /// cache the next pass — the right cache-invalidation contract.
+    async fn design_prompt_template_hash(&self, prompt_name: &str) -> OxResult<String>;
+
     /// Generate missing cross-domain edges for uncovered FK relationships.
     /// Returns edge definitions to be appended to the merged InputIR.
     async fn resolve_cross_edges(
@@ -635,6 +648,20 @@ impl OntologyDesigner for DefaultBrain {
             prompt_render_hash: String::new(),
         }
         .into_artifact_provenance())
+    }
+
+    async fn design_prompt_template_hash(&self, prompt_name: &str) -> OxResult<String> {
+        let tmpl = self.prompts.get(prompt_name)?;
+        // Hash the template's system body only — the user-side
+        // template renders per-call with cluster-specific sample
+        // data, which must NOT enter the checkpoint key (per the
+        // trait doc). System-only hashing folds in the prompt's
+        // semantic instructions while staying call-shape-agnostic.
+        Ok(
+            ox_ontology::source_mapping::ArtifactProvenance::compute_prompt_render_hash(
+                &tmpl.system,
+            ),
+        )
     }
 
     async fn design_ontology_batch(

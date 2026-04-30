@@ -5,11 +5,71 @@ use axum::{
     extract::{Path, State},
     response::sse::{Event, KeepAlive, Sse},
 };
+use chrono::{Duration as ChronoDuration, Utc};
 use futures_core::Stream;
 use serde::Serialize;
 use tokio::time::Instant;
 use tracing::{info, warn};
 use uuid::Uuid;
+
+/// How long a draft cluster checkpoint stays cached before the
+/// daily cleanup cron sweeps it. ADR-0027 — long enough that a
+/// session of design retries hits the cache, short enough that
+/// abandoned designs don't accumulate.
+const DRAFT_CHECKPOINT_TTL_HOURS: i64 = 24;
+
+/// Author + persist one draft cluster checkpoint. Failures log
+/// loudly but never propagate — the LLM call already succeeded
+/// and `batch_results` carries the output forward. A later replay
+/// of the same cluster will hit the LLM again rather than the
+/// cache, which is the desirable degraded behaviour.
+///
+/// Bounded on `DraftClusterCheckpointStore` (not the full Store
+/// supertrait) so the helper stays narrow on the surface it
+/// actually consumes.
+async fn persist_cluster_checkpoint<S>(
+    store: &S,
+    workspace_id: Uuid,
+    project_id: Uuid,
+    source_id: &str,
+    signature: &str,
+    cluster_id: usize,
+    output: &ox_ontology::input::InputOntologyDef,
+) where
+    S: ox_store::DraftClusterCheckpointStore + ?Sized,
+{
+    let serialized = match serde_json::to_value(output) {
+        Ok(v) => v,
+        Err(e) => {
+            warn!(
+                project_id = %project_id,
+                cluster = cluster_id,
+                error = %e,
+                "Cluster checkpoint serialise failed; skipping persist"
+            );
+            return;
+        }
+    };
+    let row = ox_store::DraftClusterCheckpointRow {
+        id: Uuid::new_v4(),
+        workspace_id,
+        project_id,
+        source_id: source_id.to_string(),
+        signature: signature.to_string(),
+        cluster_id: cluster_id as i32,
+        output: serialized,
+        created_at: Utc::now(),
+        expires_at: Utc::now() + ChronoDuration::hours(DRAFT_CHECKPOINT_TTL_HOURS),
+    };
+    if let Err(e) = store.upsert_draft_cluster_checkpoint(&row).await {
+        warn!(
+            project_id = %project_id,
+            cluster = cluster_id,
+            error = %e,
+            "Cluster checkpoint persist failed"
+        );
+    }
+}
 
 use crate::error::AppError;
 use crate::principal::Principal;
@@ -76,29 +136,22 @@ fn sse_result<T: Serialize>(data: &T) -> String {
 //   result  → DesignProjectResponse
 //   error   → { error: { type, message } }
 //
-// ADR-0053 (rejected for now). The "progressive streaming" plan
-// would surface per-cluster results on the FE as each batch
-// completes, keep partial work on a transient failure, and replay
-// only the un-completed clusters on retry — backed by the cluster
-// checkpoint primitives `ox_ontology::cluster_checkpoint::{
-// ClusterSignature, DraftClusterCheckpoint }` (ADR-0027).
+// ADR-0027 store integration: the BE checkpoint replay path is
+// wired below. Each cluster's `InputOntologyDef` is cached in
+// `draft_cluster_checkpoints` keyed by
+// `ClusterSignature::from_cluster(cluster, prompt_template_hash)`;
+// a transient failure on cluster K no longer discards 0..K's
+// output. Retry replays the cached entries and only re-runs the
+// uncompleted clusters. Successful design completion drops the
+// project's checkpoints; the daily cleanup cron sweeps any rows
+// past `expires_at` (24h TTL).
 //
-// The blocker is real: the BE persistence trait
-// `DraftClusterCheckpointStore` is documented in
-// `crates/ox-ontology/src/cluster_checkpoint.rs` ("the store trait
-// that persists / looks it up lives in `ox-store` — added in the
-// integration slice") but the integration slice has not landed.
-// Without it, replay is a fiction — every retry re-runs every
-// cluster against the LLM, and the FE "progressive" treatment is
-// purely cosmetic.
-//
-// Shipping the FE-only half before the BE persistence path exists
-// would either (a) silently drop on retry — a confusing UX — or
-// (b) require a mock checkpoint layer that lies about persistence.
-// Both options trade short-term motion for incoherence we then
-// have to undo. The cluster checkpoint integration is the
-// well-defined unblock; this rejection note stays here so the
-// rationale is read at the call site that would have changed.
+// ADR-0053 progressive streaming (FE half) is the remaining slice.
+// With the BE store now in place, the FE can render per-cluster
+// outcome events as each cluster completes (cache-hit vs
+// cache-miss) and surface partial-progress retry recovery to the
+// operator. That work lives in the FE; the BE contract is now
+// stable for it to ride.
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
@@ -188,6 +241,17 @@ pub(crate) async fn design_project_stream(
     // would return `MissingContext`). `scope_stream` re-enters the
     // captured scope on every poll.
     let ws_scope = WsScope::capture();
+
+    // Workspace id for the draft cluster checkpoint rows (ADR-0027).
+    // System / None scopes (cron-driven design replays, if they ever
+    // exist) skip the checkpoint flow — the row's `workspace_id`
+    // column has no meaningful value to populate. Captured here in
+    // the synchronous prologue, before scope_stream takes ownership
+    // of `ws_scope`.
+    let checkpoint_workspace_id: Option<Uuid> = match &ws_scope {
+        WsScope::Workspace(id) => Some(*id),
+        WsScope::System | WsScope::None => None,
+    };
 
     let stream = async_stream::stream! {
         yield Ok(Event::default().event("phase").data(sse_phase("validating", None)));
@@ -281,6 +345,30 @@ pub(crate) async fn design_project_stream(
                     return;
                 }
             };
+
+            // Prompt template hash for the cluster signature
+            // (ADR-0027). Folds the template body into the cache key
+            // so an admin who edits the prompt without bumping
+            // `prompt_version` cleanly invalidates every cached
+            // checkpoint authored under the prior body. Computed
+            // once for the whole batch; every cluster signature
+            // pulls in the same hash.
+            let prompt_template_hash = match state
+                .brain
+                .design_prompt_template_hash("design_ontology_batch")
+                .await
+            {
+                Ok(h) => h,
+                Err(e) => {
+                    yield Ok(Event::default().event("error").data(
+                        sse_error("design_error", &format!(
+                            "Failed to compute prompt template hash: {e}"
+                        ))
+                    ));
+                    return;
+                }
+            };
+            let project_source_id = project.source_id.clone();
 
             let mut schema = raw_schema.clone();
             let mut profile = raw_profile.clone();
@@ -385,37 +473,101 @@ pub(crate) async fn design_project_stream(
                         "{}/{} ({} tables)",
                         completed, total_clusters, cluster.tables.len(),
                     );
-                    yield Ok(Event::default().event("phase").data(
-                        sse_phase("designing", Some(&detail))
-                    ));
 
-                    let batch_input = match build_batch_llm_input(&schema, &profile, cluster, &sys_config_snapshot) {
-                        Ok(data) => data,
+                    // ADR-0027 — checkpoint cache lookup before the
+                    // LLM call. The signature folds tables + FKs +
+                    // prompt template hash, so a re-run with the
+                    // same inputs replays from cache.
+                    let signature = ox_ontology::cluster_checkpoint::ClusterSignature::from_cluster(
+                        cluster, &prompt_template_hash,
+                    );
+                    let cached = match state
+                        .store
+                        .find_draft_cluster_checkpoint_by_signature(
+                            id,
+                            &project_source_id,
+                            signature.as_str(),
+                        )
+                        .await
+                    {
+                        Ok(Some(row)) => match serde_json::from_value::<
+                            ox_ontology::input::InputOntologyDef,
+                        >(row.output)
+                        {
+                            Ok(ir) => Some(ir),
+                            Err(e) => {
+                                warn!(
+                                    project_id = %id,
+                                    cluster = cluster_id,
+                                    error = %e,
+                                    "Checkpoint deserialise failed; rerunning LLM"
+                                );
+                                None
+                            }
+                        },
+                        Ok(None) => None,
                         Err(e) => {
-                            yield Ok(Event::default().event("error").data(
-                                sse_error("design_error", &format!("Cluster {} input failed: {e:?}", cluster_id))
-                            ));
-                            return;
+                            warn!(
+                                project_id = %id,
+                                cluster = cluster_id,
+                                error = %e,
+                                "Checkpoint lookup failed; rerunning LLM"
+                            );
+                            None
                         }
                     };
-                    let existing = format_existing_nodes(&batch_results);
-                    let cross = format_cross_fks(&cluster.cross_fks, cluster, &batch_results);
 
-                    match tokio::time::timeout(
-                        timeout,
-                        state.brain.design_ontology_batch(&batch_input, &effective_context, &existing, &cross),
-                    ).await {
-                        Ok(Ok(ir)) => {
-                            info!(project_id = %id, cluster = cluster_id, nodes = ir.node_types.len(), "Batch completed");
-                            batch_results.push(ir);
-                        }
-                        Ok(Err(e)) => {
-                            yield Ok(Event::default().event("error").data(sse_error("design_error", &e.to_string())));
-                            return;
-                        }
-                        Err(_) => {
-                            yield Ok(Event::default().event("error").data(sse_error("timeout", &format!("Cluster {} timed out", cluster_id))));
-                            return;
+                    if let Some(ir) = cached {
+                        info!(project_id = %id, cluster = cluster_id, "Cluster checkpoint cache hit");
+                        yield Ok(Event::default().event("phase").data(
+                            sse_phase("designing", Some(&format!("{} (cached)", detail)))
+                        ));
+                        batch_results.push(ir);
+                    } else {
+                        yield Ok(Event::default().event("phase").data(
+                            sse_phase("designing", Some(&detail))
+                        ));
+
+                        let batch_input = match build_batch_llm_input(&schema, &profile, cluster, &sys_config_snapshot) {
+                            Ok(data) => data,
+                            Err(e) => {
+                                yield Ok(Event::default().event("error").data(
+                                    sse_error("design_error", &format!("Cluster {} input failed: {e:?}", cluster_id))
+                                ));
+                                return;
+                            }
+                        };
+                        let existing = format_existing_nodes(&batch_results);
+                        let cross = format_cross_fks(&cluster.cross_fks, cluster, &batch_results);
+
+                        match tokio::time::timeout(
+                            timeout,
+                            state.brain.design_ontology_batch(&batch_input, &effective_context, &existing, &cross),
+                        ).await {
+                            Ok(Ok(ir)) => {
+                                info!(project_id = %id, cluster = cluster_id, nodes = ir.node_types.len(), "Batch completed");
+                                if let Some(ws_id) = checkpoint_workspace_id {
+                                    persist_cluster_checkpoint(
+                                        state.store.as_ref(),
+                                        ws_id,
+                                        id,
+                                        &project_source_id,
+                                        signature.as_str(),
+                                        cluster_id,
+                                        &ir,
+                                    )
+                                    .await;
+                                }
+                                batch_results.push(ir);
+                            }
+                            Ok(Err(e)) => {
+                                yield Ok(Event::default().event("error").data(sse_error("design_error", &e.to_string())));
+                                return;
+                            }
+                            Err(_) => {
+                                yield Ok(Event::default().event("error").data(sse_error("timeout", &format!("Cluster {} timed out", cluster_id))));
+                                return;
+                            }
                         }
                     }
                 } else {
@@ -431,11 +583,67 @@ pub(crate) async fn design_project_stream(
                     // Snapshot current batch_results for all parallel tasks in this level
                     let existing = format_existing_nodes(&batch_results);
 
-                    // Prepare inputs for all clusters in this level
-                    let mut tasks: Vec<(usize, String, String)> = Vec::new();
+                    // ADR-0027 — pre-resolve checkpoints for every
+                    // cluster in this level. Cache hits skip the LLM
+                    // call entirely; misses go through the parallel
+                    // join_all path below. The two halves merge back
+                    // by `cluster_id` at the bottom of the level so
+                    // the eventual `batch_results` order is
+                    // deterministic regardless of the hit/miss split.
+                    let mut level_results: Vec<(usize, ox_ontology::InputOntologyDef)> =
+                        Vec::new();
+                    let mut miss_tasks: Vec<(usize, String, String, String)> = Vec::new();
                     for &cluster_id in level {
                         let cluster = &plan.clusters[cluster_id];
-                        let batch_input = match build_batch_llm_input(&schema, &profile, cluster, &sys_config_snapshot) {
+                        let signature = ox_ontology::cluster_checkpoint::ClusterSignature::from_cluster(
+                            cluster, &prompt_template_hash,
+                        );
+                        let cached = match state
+                            .store
+                            .find_draft_cluster_checkpoint_by_signature(
+                                id,
+                                &project_source_id,
+                                signature.as_str(),
+                            )
+                            .await
+                        {
+                            Ok(Some(row)) => match serde_json::from_value::<
+                                ox_ontology::input::InputOntologyDef,
+                            >(row.output)
+                            {
+                                Ok(ir) => Some(ir),
+                                Err(e) => {
+                                    warn!(
+                                        project_id = %id,
+                                        cluster = cluster_id,
+                                        error = %e,
+                                        "Checkpoint deserialise failed; rerunning LLM"
+                                    );
+                                    None
+                                }
+                            },
+                            Ok(None) => None,
+                            Err(e) => {
+                                warn!(
+                                    project_id = %id,
+                                    cluster = cluster_id,
+                                    error = %e,
+                                    "Checkpoint lookup failed; rerunning LLM"
+                                );
+                                None
+                            }
+                        };
+                        if let Some(ir) = cached {
+                            info!(project_id = %id, cluster = cluster_id, "Cluster checkpoint cache hit");
+                            level_results.push((cluster_id, ir));
+                            continue;
+                        }
+                        let batch_input = match build_batch_llm_input(
+                            &schema,
+                            &profile,
+                            cluster,
+                            &sys_config_snapshot,
+                        ) {
                             Ok(data) => data,
                             Err(e) => {
                                 yield Ok(Event::default().event("error").data(
@@ -444,48 +652,68 @@ pub(crate) async fn design_project_stream(
                                 return;
                             }
                         };
-                        let cross = format_cross_fks(&cluster.cross_fks, cluster, &batch_results);
-                        tasks.push((cluster_id, batch_input, cross));
+                        let cross =
+                            format_cross_fks(&cluster.cross_fks, cluster, &batch_results);
+                        miss_tasks.push((
+                            cluster_id,
+                            signature.as_str().to_string(),
+                            batch_input,
+                            cross,
+                        ));
                     }
 
-                    // Run LLM calls with bounded concurrency to avoid API rate limits
-                    let max_concurrent = 5;
-                    let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(max_concurrent));
-                    let futs: Vec<_> = tasks.iter().map(|(_, batch_input, cross)| {
-                        let sem = semaphore.clone();
-                        let brain = state.brain.clone();
-                        let ctx = effective_context.clone();
-                        let ex = existing.clone();
-                        let bi = batch_input.clone();
-                        let cr = cross.clone();
-                        let t = timeout;
-                        async move {
-                            // `acquire().await` only errors when the
-                            // semaphore is closed — which we never do in this
-                            // scope. If it ever happens, drop the concurrency
-                            // bound and proceed so we never silently deadlock.
-                            let _permit = sem.acquire().await.ok();
-                            tokio::time::timeout(t, brain.design_ontology_batch(&bi, &ctx, &ex, &cr)).await
-                        }
-                    }).collect();
-
-                    let results = futures::future::join_all(futs).await;
-
-                    let mut level_results: Vec<(usize, ox_ontology::InputOntologyDef)> = Vec::new();
-                    for (idx, result) in results.into_iter().enumerate() {
-                        let cluster_id = tasks[idx].0;
-                        match result {
-                            Ok(Ok(ir)) => {
-                                info!(project_id = %id, cluster = cluster_id, nodes = ir.node_types.len(), "Parallel batch completed");
-                                level_results.push((cluster_id, ir));
+                    if !miss_tasks.is_empty() {
+                        // Run LLM calls with bounded concurrency to avoid API rate limits
+                        let max_concurrent = 5;
+                        let semaphore =
+                            std::sync::Arc::new(tokio::sync::Semaphore::new(max_concurrent));
+                        let futs: Vec<_> = miss_tasks.iter().map(|(_, _, batch_input, cross)| {
+                            let sem = semaphore.clone();
+                            let brain = state.brain.clone();
+                            let ctx = effective_context.clone();
+                            let ex = existing.clone();
+                            let bi = batch_input.clone();
+                            let cr = cross.clone();
+                            let t = timeout;
+                            async move {
+                                // `acquire().await` only errors when the
+                                // semaphore is closed — which we never do in this
+                                // scope. If it ever happens, drop the concurrency
+                                // bound and proceed so we never silently deadlock.
+                                let _permit = sem.acquire().await.ok();
+                                tokio::time::timeout(t, brain.design_ontology_batch(&bi, &ctx, &ex, &cr)).await
                             }
-                            Ok(Err(e)) => {
-                                yield Ok(Event::default().event("error").data(sse_error("design_error", &e.to_string())));
-                                return;
-                            }
-                            Err(_) => {
-                                yield Ok(Event::default().event("error").data(sse_error("timeout", &format!("Cluster {} timed out", cluster_id))));
-                                return;
+                        }).collect();
+
+                        let results = futures::future::join_all(futs).await;
+
+                        for (idx, result) in results.into_iter().enumerate() {
+                            let (cluster_id, signature_str, _, _) = &miss_tasks[idx];
+                            match result {
+                                Ok(Ok(ir)) => {
+                                    info!(project_id = %id, cluster = cluster_id, nodes = ir.node_types.len(), "Parallel batch completed");
+                                    if let Some(ws_id) = checkpoint_workspace_id {
+                                        persist_cluster_checkpoint(
+                                            state.store.as_ref(),
+                                            ws_id,
+                                            id,
+                                            &project_source_id,
+                                            signature_str,
+                                            *cluster_id,
+                                            &ir,
+                                        )
+                                        .await;
+                                    }
+                                    level_results.push((*cluster_id, ir));
+                                }
+                                Ok(Err(e)) => {
+                                    yield Ok(Event::default().event("error").data(sse_error("design_error", &e.to_string())));
+                                    return;
+                                }
+                                Err(_) => {
+                                    yield Ok(Event::default().event("error").data(sse_error("timeout", &format!("Cluster {} timed out", cluster_id))));
+                                    return;
+                                }
                             }
                         }
                     }
@@ -706,6 +934,23 @@ pub(crate) async fn design_project_stream(
                 sse_error("persist_error", &e.to_string())
             ));
             return;
+        }
+
+        // ADR-0027 — design completed; the cached checkpoints are no
+        // longer authoritative (the project rolled forward, the next
+        // pass starts from the persisted result, not from cache).
+        // Drop them eagerly. Failures here are non-fatal: stale rows
+        // get swept by the daily cleanup cron via `expires_at`.
+        if let Err(e) = state
+            .store
+            .delete_draft_cluster_checkpoints_for_project(id)
+            .await
+        {
+            warn!(
+                project_id = %id,
+                error = %e,
+                "Failed to drop draft cluster checkpoints after design completion"
+            );
         }
 
         let updated = match reload_project(&state, id).await {

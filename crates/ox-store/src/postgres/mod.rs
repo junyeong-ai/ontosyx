@@ -52,7 +52,8 @@ use crate::store::{
     AclStore, AgentSessionStore, AmbiguityStore, AnalysisResultStore, AnalysisSnapshot,
     ApprovalCommentStore, ApprovalStore, AuditRecord, AuditStore, AuditTrailFilter,
     AuditTrailStore, ChangeRoutingStore, ConfigStore, CursorPage, CursorParams, DashboardStore,
-    EmbeddingRetryStore, ExtendResult, HealthStore, IdempotencyStore, InsightStore,
+    DraftClusterCheckpointStore, EmbeddingRetryStore, ExtendResult, HealthStore, IdempotencyStore,
+    InsightStore,
     JwtRevocationStore, KnowledgeStore, LineageStore, LoadCheckpointStore, MeteringStore, PatternStore, PerspectiveStore, PinStore,
     ProjectStore,
     PromptTemplateStore, QualitySignalStore, QualityStore, QueryStore, RecipeStore, ReportStore,
@@ -434,6 +435,7 @@ mod change_routing;
 mod config;
 mod dashboard;
 mod data_source;
+mod draft_cluster_checkpoint;
 mod embedding_retry;
 mod health;
 mod idempotency;

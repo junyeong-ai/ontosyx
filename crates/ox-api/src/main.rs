@@ -388,6 +388,16 @@ async fn main() -> anyhow::Result<()> {
         cancel_token.clone(),
     );
 
+    // Daily draft-checkpoint cleanup — sweeps `expires_at` past
+    // rows from `draft_cluster_checkpoints` (ADR-0027). A
+    // successful design drops its own checkpoints inline; this
+    // cron catches abandoned design sessions before the cache
+    // accumulates.
+    ox_api::background::spawn_draft_checkpoint_cleanup(
+        Arc::clone(&store),
+        cancel_token.clone(),
+    );
+
     // Daily retention compaction — hard-deletes nodes whose
     // `_deleted_at` tombstone is older than the configured cutoff.
     // Runs under SYSTEM_BYPASS so the SoftDeleteRewriter passes the
