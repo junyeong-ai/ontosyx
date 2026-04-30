@@ -28,7 +28,7 @@
 //! the design (and the project rolls forward), or (b) explicitly
 //! resets — `expires_at` lets a cleanup cron drop stale rows.
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -37,6 +37,12 @@ use uuid::Uuid;
 use crate::input::InputOntologyDef;
 use crate::table_clustering::TableCluster;
 use ox_core::source_schema::ForeignKeyDef;
+
+/// How long a freshly-authored checkpoint stays cached before the
+/// daily cleanup cron sweeps it. Long enough that a session of
+/// design retries hits the cache, short enough that abandoned
+/// designs don't accumulate. ADR-0027.
+pub const DRAFT_CHECKPOINT_TTL_HOURS: i64 = 24;
 
 /// Stable digest pinning a cluster's input shape. Two clusters
 /// hashing to the same signature are treated as the same logical
@@ -174,13 +180,15 @@ pub struct DraftClusterCheckpoint {
 impl DraftClusterCheckpoint {
     /// Author a fresh checkpoint with the persistence-side fields
     /// (`id`, `workspace_id`) left for the store to populate.
+    /// `expires_at` is set from [`DRAFT_CHECKPOINT_TTL_HOURS`] —
+    /// tests that need a different horizon override the field
+    /// directly after construction.
     pub fn draft(
         project_id: Uuid,
         source_id: String,
         signature: ClusterSignature,
         cluster_id: usize,
         output: InputOntologyDef,
-        ttl: chrono::Duration,
     ) -> Self {
         let now = Utc::now();
         Self {
@@ -192,7 +200,7 @@ impl DraftClusterCheckpoint {
             cluster_id,
             output,
             created_at: now,
-            expires_at: now + ttl,
+            expires_at: now + Duration::hours(DRAFT_CHECKPOINT_TTL_HOURS),
         }
     }
 }

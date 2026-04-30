@@ -39,7 +39,7 @@ impl LoadCheckpointRow {
 #[async_trait]
 impl LoadCheckpointStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn get_checkpoint(
+    async fn get_load_checkpoint(
         &self,
         project_id: Uuid,
         source_table: &str,
@@ -61,7 +61,7 @@ impl LoadCheckpointStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn upsert_checkpoint(&self, c: &LoadCheckpoint) -> OxResult<()> {
+    async fn upsert_load_checkpoint(&self, c: &LoadCheckpoint) -> OxResult<()> {
         // Bind workspace_id from the active task-local rather than
         // the caller-supplied field — RLS enforces row.workspace_id =
         // current_setting('app.workspace_id'), and the table's `id`
@@ -95,7 +95,7 @@ impl LoadCheckpointStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn list_checkpoints(&self, project_id: Uuid) -> OxResult<Vec<LoadCheckpoint>> {
+    async fn list_load_checkpoints(&self, project_id: Uuid) -> OxResult<Vec<LoadCheckpoint>> {
         let rows: Vec<LoadCheckpointRow> = sqlx::query_as(
             "SELECT id, workspace_id, project_id, source_table, graph_label,
                     watermark_column, watermark_value, record_count, loaded_at
@@ -111,7 +111,7 @@ impl LoadCheckpointStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn delete_checkpoint(&self, id: Uuid) -> OxResult<bool> {
+    async fn delete_load_checkpoint(&self, id: Uuid) -> OxResult<bool> {
         super::require_workspace_context()?;
         let result = sqlx::query("DELETE FROM load_checkpoints WHERE id = $1")
             .bind(id)

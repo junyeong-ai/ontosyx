@@ -86,7 +86,6 @@ fn fresh_checkpoint(
         signature,
         cluster_id,
         empty_input_ontology(),
-        ChronoDuration::hours(24),
     )
 }
 

@@ -192,8 +192,8 @@ pub fn router(state: AppState) -> Router {
         // Data loading
         .route("/load", post(load::plan_load))
         .route("/load/execute", post(load::execute_load))
-        .route("/load/checkpoints", get(load::list_checkpoints))
-        .route("/load/checkpoints/{id}", delete(load::delete_checkpoint))
+        .route("/load/checkpoints", get(load::list_load_checkpoints))
+        .route("/load/checkpoints/{id}", delete(load::delete_load_checkpoint))
         // System
         .route("/prompts", get(load::list_prompts))
         // Config management

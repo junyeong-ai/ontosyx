@@ -1461,7 +1461,7 @@ pub trait KnowledgeStore: Send + Sync {
 #[async_trait]
 pub trait LoadCheckpointStore: Send + Sync {
     /// Get the latest checkpoint for a specific (project, source_table, graph_label) combination.
-    async fn get_checkpoint(
+    async fn get_load_checkpoint(
         &self,
         project_id: Uuid,
         source_table: &str,
@@ -1469,13 +1469,13 @@ pub trait LoadCheckpointStore: Send + Sync {
     ) -> OxResult<Option<LoadCheckpoint>>;
 
     /// Create or update a checkpoint (matched by project + source_table + graph_label).
-    async fn upsert_checkpoint(&self, checkpoint: &LoadCheckpoint) -> OxResult<()>;
+    async fn upsert_load_checkpoint(&self, checkpoint: &LoadCheckpoint) -> OxResult<()>;
 
     /// List all checkpoints for a project.
-    async fn list_checkpoints(&self, project_id: Uuid) -> OxResult<Vec<LoadCheckpoint>>;
+    async fn list_load_checkpoints(&self, project_id: Uuid) -> OxResult<Vec<LoadCheckpoint>>;
 
     /// Delete a specific checkpoint (forces a full reload on next run).
-    async fn delete_checkpoint(&self, id: Uuid) -> OxResult<bool>;
+    async fn delete_load_checkpoint(&self, id: Uuid) -> OxResult<bool>;
 }
 
 // ---------------------------------------------------------------------------

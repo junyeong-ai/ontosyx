@@ -3,10 +3,10 @@
 //! Validates the four contract properties the load pipeline
 //! depends on:
 //!
-//! 1. `upsert_checkpoint` rejects a call outside any workspace
-//!    scope (`MissingContext`).
-//! 2. Round-trip: upsert + get_checkpoint returns the same row,
-//!    with `id` / `workspace_id` populated by the store.
+//! 1. `upsert_load_checkpoint` rejects a call outside any
+//!    workspace scope (`MissingContext`).
+//! 2. Round-trip: upsert + get returns the same row, with `id` /
+//!    `workspace_id` populated by the store.
 //! 3. Upsert is idempotent on the natural key
 //!    `(workspace_id, project_id, source_table, graph_label)` and
 //!    accumulates `record_count` (the production contract — every
@@ -87,7 +87,7 @@ async fn upsert_rejects_unscoped_call() {
         return;
     };
     let cp = fresh_checkpoint(Uuid::new_v4(), "orders", "Order", "0", 0);
-    match store.upsert_checkpoint(&cp).await {
+    match store.upsert_load_checkpoint(&cp).await {
         Err(OxError::MissingContext { kind, .. }) => assert_eq!(kind, "workspace"),
         Err(other) => panic!("expected MissingContext, got {other:?}"),
         Ok(()) => panic!("upsert succeeded outside any scope — guard missing"),
@@ -106,9 +106,9 @@ async fn round_trip_upsert_and_get() {
     let cp = fresh_checkpoint(project_id, &table, "Order", "100", 50);
 
     PostgresStore::with_workspace(workspace_id, || async {
-        store.upsert_checkpoint(&cp).await.expect("upsert");
+        store.upsert_load_checkpoint(&cp).await.expect("upsert");
         let found = store
-            .get_checkpoint(project_id, &table, "Order")
+            .get_load_checkpoint(project_id, &table, "Order")
             .await
             .expect("get")
             .expect("checkpoint must round-trip");
@@ -137,10 +137,10 @@ async fn upsert_accumulates_record_count_on_natural_key_collision() {
     let second = fresh_checkpoint(project_id, &table, "Order", "200", 30);
 
     PostgresStore::with_workspace(workspace_id, || async {
-        store.upsert_checkpoint(&first).await.expect("first upsert");
-        store.upsert_checkpoint(&second).await.expect("second upsert");
+        store.upsert_load_checkpoint(&first).await.expect("first upsert");
+        store.upsert_load_checkpoint(&second).await.expect("second upsert");
         let found = store
-            .get_checkpoint(project_id, &table, "Order")
+            .get_load_checkpoint(project_id, &table, "Order")
             .await
             .expect("get")
             .expect("checkpoint must exist");
@@ -168,9 +168,9 @@ async fn rls_isolates_workspaces() {
     let cp = fresh_checkpoint(project_id, &table, "Order", "100", 50);
 
     PostgresStore::with_workspace(workspace_a, || async {
-        store.upsert_checkpoint(&cp).await.expect("upsert under A");
+        store.upsert_load_checkpoint(&cp).await.expect("upsert under A");
         let visible = store
-            .get_checkpoint(project_id, &table, "Order")
+            .get_load_checkpoint(project_id, &table, "Order")
             .await
             .expect("get under A");
         assert!(visible.is_some(), "workspace A must see its own row");
@@ -179,7 +179,7 @@ async fn rls_isolates_workspaces() {
 
     PostgresStore::with_workspace(workspace_b, || async {
         let visible = store
-            .get_checkpoint(project_id, &table, "Order")
+            .get_load_checkpoint(project_id, &table, "Order")
             .await
             .expect("get under B");
         assert!(

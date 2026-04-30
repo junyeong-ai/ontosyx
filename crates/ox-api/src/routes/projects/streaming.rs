@@ -5,18 +5,11 @@ use axum::{
     extract::{Path, State},
     response::sse::{Event, KeepAlive, Sse},
 };
-use chrono::Duration as ChronoDuration;
 use futures_core::Stream;
 use serde::Serialize;
 use tokio::time::Instant;
 use tracing::{info, warn};
 use uuid::Uuid;
-
-/// How long a draft cluster checkpoint stays cached before the
-/// daily cleanup cron sweeps it. ADR-0027 — long enough that a
-/// session of design retries hits the cache, short enough that
-/// abandoned designs don't accumulate.
-const DRAFT_CHECKPOINT_TTL_HOURS: i64 = 24;
 
 /// Author + persist one draft cluster checkpoint. Failures log
 /// loudly but never propagate — the LLM call already succeeded and
@@ -43,7 +36,6 @@ async fn persist_cluster_checkpoint<S>(
         signature,
         cluster_id,
         output,
-        ChronoDuration::hours(DRAFT_CHECKPOINT_TTL_HOURS),
     );
     if let Err(e) = store.upsert_draft_cluster_checkpoint(&checkpoint).await {
         warn!(

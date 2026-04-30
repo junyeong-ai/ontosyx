@@ -2,16 +2,14 @@
 //! setup (`crates/ox-store/src/postgres/rls_session.rs`).
 //!
 //! The pool wires the same body into BOTH `after_connect` (fresh
-//! connections) and `before_acquire` (idle re-acquires). Without
-//! the `after_connect` half, the *first* query on a brand-new
-//! connection runs with no session vars — RLS WITH CHECK 42501s,
-//! and the failure is non-deterministic depending on whether the
-//! pool reused an idle connection or grew a new one.
-//!
-//! These tests pin the contract under both paths so a sqlx upgrade
-//! that reshapes the acquire flow surfaces the regression
-//! immediately rather than as a flaky `42501` halfway through a
-//! test run.
+//! connections) and `before_acquire` (idle re-acquires), so every
+//! connection lands with `app.workspace_id` / `app.system_bypass`
+//! configured from the calling task's task-locals before serving
+//! its first query — regardless of which acquisition path the pool
+//! took. These tests pin that combined invariant. A future sqlx
+//! upgrade that reshapes the acquire flow (or a regression that
+//! drops one of the two hooks) surfaces immediately rather than as
+//! a flaky `42501` halfway through a workspace-scoped INSERT.
 //!
 //! Ignored by default — run against a live PostgreSQL:
 //!
@@ -43,11 +41,12 @@ fn resolve_test_db_url() -> Option<String> {
 
 async fn connect_store() -> Option<PostgresStore> {
     let url = resolve_test_db_url()?;
-    // `max_connections=1` forces every acquire after the first
-    // release to take the same connection slot — but the *first*
-    // acquire still goes through the freshly-opened path, which is
-    // exactly the case `after_connect` exists to handle. Subsequent
-    // acquires (after RESET ALL on release) ride `before_acquire`.
+    // `max_connections=1` keeps the pool tight: every release
+    // returns the only slot to the idle queue, every subsequent
+    // acquire re-runs `before_acquire` against fresh task-local
+    // values. The boot acquire `PgPoolOptions::connect` performs
+    // already exercises the `after_connect` half, so any failure
+    // here surfaces a regression in either hook.
     let store = PostgresStore::connect(&url, 1).await.expect("connect");
     store.migrate().await.expect("migrate");
     Some(store)
@@ -63,16 +62,12 @@ async fn read_session_var(store: &PostgresStore, key: &str) -> Option<String> {
 
 #[tokio::test]
 #[ignore = "requires OX_TEST_DATABASE_URL"]
-async fn after_connect_sets_workspace_id_on_first_acquire() {
+async fn pool_sets_app_workspace_id_under_workspace_scope() {
     let Some(store) = connect_store().await else {
         return;
     };
     let workspace_id = Uuid::new_v4();
 
-    // First query under workspace scope — connection is fresh, the
-    // pool grows past `min_connections=0` to serve it. The only
-    // hook that fires is `after_connect`. If the body is missing,
-    // session var stays unset and 22P02s on cast.
     let observed = PostgresStore::with_workspace(workspace_id, || async {
         read_session_var(&store, "app.workspace_id").await
     })
@@ -81,24 +76,24 @@ async fn after_connect_sets_workspace_id_on_first_acquire() {
     assert_eq!(
         observed.as_deref(),
         Some(workspace_id.to_string().as_str()),
-        "after_connect must set app.workspace_id on the first query"
+        "the pool must set app.workspace_id from the active task-local"
     );
 }
 
 #[tokio::test]
 #[ignore = "requires OX_TEST_DATABASE_URL"]
-async fn before_acquire_resets_workspace_id_across_scopes() {
+async fn pool_resets_app_workspace_id_across_workspace_switch() {
     let Some(store) = connect_store().await else {
         return;
     };
     let workspace_a = Uuid::new_v4();
     let workspace_b = Uuid::new_v4();
 
-    // Drive two acquires back-to-back. The second one returns from
-    // the idle queue (RESET ALL cleared the prior session) and must
-    // pick up the new workspace via `before_acquire`. A leak from
-    // workspace A into workspace B's connection would defeat
-    // tenancy isolation.
+    // Drive two acquires back-to-back. Workspace A's value must not
+    // leak into B's connection — that would defeat tenancy
+    // isolation. `RESET ALL` (in `after_release`) clears the prior
+    // session, the per-acquire hook re-establishes from B's
+    // task-local.
     let a = PostgresStore::with_workspace(workspace_a, || async {
         read_session_var(&store, "app.workspace_id").await
     })
@@ -114,7 +109,7 @@ async fn before_acquire_resets_workspace_id_across_scopes() {
 
 #[tokio::test]
 #[ignore = "requires OX_TEST_DATABASE_URL"]
-async fn after_connect_sets_system_bypass_on_first_acquire() {
+async fn pool_sets_app_system_bypass_under_bypass_scope() {
     let Some(store) = connect_store().await else {
         return;
     };
@@ -126,13 +121,13 @@ async fn after_connect_sets_system_bypass_on_first_acquire() {
     assert_eq!(
         observed.as_deref(),
         Some("true"),
-        "after_connect must set app.system_bypass under SYSTEM_BYPASS scope"
+        "the pool must set app.system_bypass under SYSTEM_BYPASS scope"
     );
 }
 
 #[tokio::test]
 #[ignore = "requires OX_TEST_DATABASE_URL"]
-async fn no_scope_leaves_session_vars_unset() {
+async fn pool_leaves_session_vars_unset_outside_any_scope() {
     let Some(store) = connect_store().await else {
         return;
     };

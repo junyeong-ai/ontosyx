@@ -271,7 +271,7 @@ pub struct CheckpointListQuery {
     security(("api_key" = [])),
     tag = "Load",
 )]
-pub(crate) async fn list_checkpoints(
+pub(crate) async fn list_load_checkpoints(
     State(state): State<AppState>,
     principal: Principal,
     axum::extract::Query(query): axum::extract::Query<CheckpointListQuery>,
@@ -280,7 +280,7 @@ pub(crate) async fn list_checkpoints(
 
     let checkpoints = state
         .store
-        .list_checkpoints(query.project_id)
+        .list_load_checkpoints(query.project_id)
         .await
         .map_err(AppError::from)?;
 
@@ -302,7 +302,7 @@ pub(crate) async fn list_checkpoints(
     security(("api_key" = [])),
     tag = "Load",
 )]
-pub(crate) async fn delete_checkpoint(
+pub(crate) async fn delete_load_checkpoint(
     State(state): State<AppState>,
     principal: Principal,
     axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
@@ -311,7 +311,7 @@ pub(crate) async fn delete_checkpoint(
 
     let deleted = state
         .store
-        .delete_checkpoint(id)
+        .delete_load_checkpoint(id)
         .await
         .map_err(AppError::from)?;
     if !deleted {

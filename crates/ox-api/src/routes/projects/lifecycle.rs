@@ -1068,7 +1068,7 @@ pub(crate) async fn execute_load_from_source(
         let watermark_state = if let Some(wm_col) = &incremental_config {
             let checkpoint = state
                 .store
-                .get_checkpoint(id, &source_table, &graph_label)
+                .get_load_checkpoint(id, &source_table, &graph_label)
                 .await
                 .map_err(|e| AppError::internal(format!("Failed to read checkpoint: {e}")))?;
             Some((wm_col.clone(), checkpoint))
@@ -1173,7 +1173,7 @@ pub(crate) async fn execute_load_from_source(
                     max_watermark,
                     step_rows,
                 );
-                if let Err(error) = state.store.upsert_checkpoint(&cp).await {
+                if let Err(error) = state.store.upsert_load_checkpoint(&cp).await {
                     tracing::warn!(?error, %graph_label, "load checkpoint upsert failed");
                 }
             }
