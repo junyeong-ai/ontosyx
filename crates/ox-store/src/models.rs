@@ -1024,37 +1024,6 @@ pub struct RoutingRuleUpdate {
 }
 
 // ---------------------------------------------------------------------------
-// Draft cluster checkpoints — ADR-0027
-//
-// `design_ontology_batch` runs the LLM design call N times across
-// N clusters per design pass. Each completed cluster's
-// `InputOntologyDef` is cached here keyed by signature; a re-run
-// with the same `(workspace_id, project_id, source_id, signature)`
-// replays from cache and skips the LLM call.
-//
-// `signature` is the SHA-256 hex emitted by
-// `ox_ontology::cluster_checkpoint::ClusterSignature::from_cluster`,
-// folding tables + FKs + prompt template hash.
-// `output` is `serde_json::Value` so the persistence layer doesn't
-// take a dependency on `ox-ontology`'s `InputOntologyDef` type
-// (the streaming caller serialises / deserialises at the
-// boundary).
-// ---------------------------------------------------------------------------
-
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
-pub struct DraftClusterCheckpointRow {
-    pub id: Uuid,
-    pub workspace_id: Uuid,
-    pub project_id: Uuid,
-    pub source_id: String,
-    pub signature: String,
-    pub cluster_id: i32,
-    pub output: serde_json::Value,
-    pub created_at: DateTime<Utc>,
-    pub expires_at: DateTime<Utc>,
-}
-
-// ---------------------------------------------------------------------------
 // Load Checkpoints — watermark-based incremental loading state
 // ---------------------------------------------------------------------------
 

@@ -2,7 +2,7 @@
 //!
 //! `design_ontology_batch`'s checkpoint cache is bounded by the
 //! 24-hour `expires_at` on each row. A successful design drops its
-//! own checkpoints (via `delete_draft_cluster_checkpoints_for_project`
+//! own checkpoints (via `delete_draft_cluster_checkpoints_by_project`
 //! in the streaming handler), but abandoned design sessions —
 //! browser closed, user lost interest, transient failure not
 //! retried — leave rows behind. This cron runs once a day under
@@ -55,7 +55,7 @@ async fn run_sweep(store: &dyn Store) -> ox_core::error::OxResult<()> {
     // The store impl runs the DELETE under the bypass policy — no
     // need to wrap in `WORKSPACE_ID.scope`. The cron driver owns
     // the SYSTEM_BYPASS scope already.
-    match store.delete_expired_draft_cluster_checkpoints().await {
+    match store.sweep_expired_draft_cluster_checkpoints().await {
         Ok(deleted) => {
             if deleted > 0 {
                 info!(

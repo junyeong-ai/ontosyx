@@ -8,85 +8,94 @@
 //! `SYSTEM_BYPASS::scope(true, …)` from the cron driver and uses
 //! the bypass-policy branch on the table.
 
+use ox_ontology::cluster_checkpoint::{ClusterSignature, DraftClusterCheckpoint};
+use ox_ontology::input::InputOntologyDef;
+
 use super::*;
+
+/// Crate-private row mirror for `draft_cluster_checkpoints`. Lives
+/// here only because sqlx's `FromRow` cannot decode the typed
+/// `InputOntologyDef` directly off the JSONB column —
+/// [`Self::into_domain`] lifts the row to the canonical
+/// [`DraftClusterCheckpoint`] in one place.
+#[derive(sqlx::FromRow)]
+struct DraftClusterCheckpointRow {
+    id: Uuid,
+    workspace_id: Uuid,
+    project_id: Uuid,
+    source_id: String,
+    signature: String,
+    cluster_id: i32,
+    output: serde_json::Value,
+    created_at: chrono::DateTime<chrono::Utc>,
+    expires_at: chrono::DateTime<chrono::Utc>,
+}
+
+impl DraftClusterCheckpointRow {
+    fn into_domain(self) -> OxResult<DraftClusterCheckpoint> {
+        let output: InputOntologyDef = serde_json::from_value(self.output)
+            .map_err(|e| OxError::Runtime {
+                message: format!("draft cluster checkpoint output parse failed: {e}"),
+            })?;
+        Ok(DraftClusterCheckpoint {
+            id: self.id,
+            workspace_id: self.workspace_id,
+            project_id: self.project_id,
+            source_id: self.source_id,
+            signature: ClusterSignature::from_hex(self.signature),
+            cluster_id: self.cluster_id as usize,
+            output,
+            created_at: self.created_at,
+            expires_at: self.expires_at,
+        })
+    }
+}
 
 #[async_trait]
 impl DraftClusterCheckpointStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn upsert_draft_cluster_checkpoint(
         &self,
-        c: &DraftClusterCheckpointRow,
+        c: &DraftClusterCheckpoint,
     ) -> OxResult<()> {
-        // Bind the row's `workspace_id` from the active task-local
-        // rather than the caller-supplied field — RLS enforces that
-        // `workspace_id = current_setting('app.workspace_id')`, so a
-        // mismatch between the two would 42501 even when the caller
-        // intended the same workspace. ADR-0039: stamp every DML row
-        // with the bound id (never trust user-provided workspace_id).
+        // Bind workspace_id from the active task-local rather than
+        // the caller-supplied field — RLS enforces row.workspace_id =
+        // current_setting('app.workspace_id'), so a mismatch would
+        // 42501 even when the caller intended the same workspace.
+        // ADR-0039: stamp every DML row with the bound id (never
+        // trust user-provided workspace_id). The table's `id`
+        // column carries `DEFAULT gen_random_uuid()` so the
+        // surrogate key falls out of the schema, not the caller.
         let workspace_id = super::bound_workspace_id_for_dml()?;
-        // Split insert/update instead of `INSERT … ON CONFLICT DO
-        // UPDATE`. The UPSERT shape was failing under RLS in the
-        // sqlx 0.8 + PgPool path: `before_acquire` did not always set
-        // `app.workspace_id` on the per-acquire connection (likely a
-        // task-local-vs-pool-driver interaction), and Postgres
-        // evaluates the WITH CHECK against `current_setting(...)` for
-        // *both* the INSERT and the UPDATE arm of `ON CONFLICT DO
-        // UPDATE`, so a missed scope on the UPDATE arm 42501s even
-        // when the INSERT WITH CHECK would have passed.
-        //
-        // The split-write pattern is RLS-clean: each statement is
-        // either pure INSERT (USING never evaluated) or pure UPDATE
-        // (USING + WITH CHECK on a single row that already exists in
-        // the workspace by RLS construction). Idempotency rides on
-        // the natural-key UNIQUE constraint plus the lookup-then-
-        // mutate sequence — concurrent identical writes serialise via
-        // PG's row-level locking.
-        let existing_id: Option<Uuid> = sqlx::query_scalar(
-            "SELECT id FROM draft_cluster_checkpoints
-             WHERE project_id = $1 AND source_id = $2 AND signature = $3",
+        let output_json = serde_json::to_value(&c.output).map_err(|e| OxError::Runtime {
+            message: format!("draft cluster checkpoint output serialise failed: {e}"),
+        })?;
+        let cluster_id = i32::try_from(c.cluster_id).map_err(|_| OxError::Runtime {
+            message: format!("cluster_id {} exceeds i32 range", c.cluster_id),
+        })?;
+        sqlx::query(
+            "INSERT INTO draft_cluster_checkpoints
+                (workspace_id, project_id, source_id, signature,
+                 cluster_id, output, created_at, expires_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+             ON CONFLICT (workspace_id, project_id, source_id, signature)
+             DO UPDATE SET
+                cluster_id = EXCLUDED.cluster_id,
+                output = EXCLUDED.output,
+                created_at = EXCLUDED.created_at,
+                expires_at = EXCLUDED.expires_at",
         )
+        .bind(workspace_id)
         .bind(c.project_id)
         .bind(&c.source_id)
-        .bind(&c.signature)
-        .fetch_optional(&self.pool)
+        .bind(c.signature.as_str())
+        .bind(cluster_id)
+        .bind(output_json)
+        .bind(c.created_at)
+        .bind(c.expires_at)
+        .execute(&self.pool)
         .await
         .map_err(to_ox_error)?;
-
-        if let Some(existing_id) = existing_id {
-            sqlx::query(
-                "UPDATE draft_cluster_checkpoints
-                 SET cluster_id = $1, output = $2, created_at = $3,
-                     expires_at = $4
-                 WHERE id = $5",
-            )
-            .bind(c.cluster_id)
-            .bind(&c.output)
-            .bind(c.created_at)
-            .bind(c.expires_at)
-            .bind(existing_id)
-            .execute(&self.pool)
-            .await
-            .map_err(to_ox_error)?;
-        } else {
-            sqlx::query(
-                "INSERT INTO draft_cluster_checkpoints
-                    (id, workspace_id, project_id, source_id, signature,
-                     cluster_id, output, created_at, expires_at)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
-            )
-            .bind(c.id)
-            .bind(workspace_id)
-            .bind(c.project_id)
-            .bind(&c.source_id)
-            .bind(&c.signature)
-            .bind(c.cluster_id)
-            .bind(&c.output)
-            .bind(c.created_at)
-            .bind(c.expires_at)
-            .execute(&self.pool)
-            .await
-            .map_err(to_ox_error)?;
-        }
         Ok(())
     }
 
@@ -96,10 +105,12 @@ impl DraftClusterCheckpointStore for PostgresStore {
         project_id: Uuid,
         source_id: &str,
         signature: &str,
-    ) -> OxResult<Option<DraftClusterCheckpointRow>> {
+    ) -> OxResult<Option<DraftClusterCheckpoint>> {
         super::require_workspace_context()?;
-        sqlx::query_as(
-            "SELECT * FROM draft_cluster_checkpoints
+        let row: Option<DraftClusterCheckpointRow> = sqlx::query_as(
+            "SELECT id, workspace_id, project_id, source_id, signature,
+                    cluster_id, output, created_at, expires_at
+             FROM draft_cluster_checkpoints
              WHERE project_id = $1 AND source_id = $2 AND signature = $3",
         )
         .bind(project_id)
@@ -107,32 +118,37 @@ impl DraftClusterCheckpointStore for PostgresStore {
         .bind(signature)
         .fetch_optional(&self.pool)
         .await
-        .map_err(to_ox_error)
+        .map_err(to_ox_error)?;
+        row.map(DraftClusterCheckpointRow::into_domain).transpose()
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn list_draft_cluster_checkpoints_for_project(
+    async fn list_draft_cluster_checkpoints_by_project(
         &self,
         project_id: Uuid,
-    ) -> OxResult<Vec<DraftClusterCheckpointRow>> {
+    ) -> OxResult<Vec<DraftClusterCheckpoint>> {
         super::require_workspace_context()?;
-        sqlx::query_as(
-            "SELECT * FROM draft_cluster_checkpoints
+        let rows: Vec<DraftClusterCheckpointRow> = sqlx::query_as(
+            "SELECT id, workspace_id, project_id, source_id, signature,
+                    cluster_id, output, created_at, expires_at
+             FROM draft_cluster_checkpoints
              WHERE project_id = $1
              ORDER BY created_at DESC",
         )
         .bind(project_id)
         .fetch_all(&self.pool)
         .await
-        .map_err(to_ox_error)
+        .map_err(to_ox_error)?;
+        rows.into_iter()
+            .map(DraftClusterCheckpointRow::into_domain)
+            .collect()
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn delete_expired_draft_cluster_checkpoints(&self) -> OxResult<u64> {
+    async fn sweep_expired_draft_cluster_checkpoints(&self) -> OxResult<u64> {
         // Cron-driven cleanup runs under SYSTEM_BYPASS::scope; the
         // RLS policy whitelists `app.system_bypass = 'true'` so the
-        // sweep sees every workspace. No explicit context guard
-        // here — that would reject the cron driver's bypass scope.
+        // sweep sees every workspace.
         let result = sqlx::query(
             "DELETE FROM draft_cluster_checkpoints WHERE expires_at < now()",
         )
@@ -143,7 +159,7 @@ impl DraftClusterCheckpointStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
-    async fn delete_draft_cluster_checkpoints_for_project(
+    async fn delete_draft_cluster_checkpoints_by_project(
         &self,
         project_id: Uuid,
     ) -> OxResult<u64> {

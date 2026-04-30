@@ -1495,10 +1495,12 @@ pub trait DraftClusterCheckpointStore: Send + Sync {
     /// Insert or replace one cluster's checkpoint. Replaces on
     /// `(workspace_id, project_id, source_id, signature)` collision —
     /// the cached output is the most recent successful design for
-    /// that signature.
+    /// that signature. The store stamps `id` (DB DEFAULT) and
+    /// `workspace_id` (bound from the active task-local) regardless
+    /// of what the caller passes.
     async fn upsert_draft_cluster_checkpoint(
         &self,
-        checkpoint: &DraftClusterCheckpointRow,
+        checkpoint: &ox_ontology::cluster_checkpoint::DraftClusterCheckpoint,
     ) -> OxResult<()>;
 
     /// Look up one checkpoint by natural key. Returns `Ok(None)`
@@ -1509,25 +1511,25 @@ pub trait DraftClusterCheckpointStore: Send + Sync {
         project_id: Uuid,
         source_id: &str,
         signature: &str,
-    ) -> OxResult<Option<DraftClusterCheckpointRow>>;
+    ) -> OxResult<Option<ox_ontology::cluster_checkpoint::DraftClusterCheckpoint>>;
 
     /// Every checkpoint for a project, newest first. Telemetry +
     /// debug surface; the streaming pipeline keys lookups on
     /// signature directly.
-    async fn list_draft_cluster_checkpoints_for_project(
+    async fn list_draft_cluster_checkpoints_by_project(
         &self,
         project_id: Uuid,
-    ) -> OxResult<Vec<DraftClusterCheckpointRow>>;
+    ) -> OxResult<Vec<ox_ontology::cluster_checkpoint::DraftClusterCheckpoint>>;
 
     /// Drop every row whose `expires_at` is in the past. Run by the
     /// daily cleanup cron under `SYSTEM_BYPASS`. Returns the number
     /// of rows deleted for telemetry.
-    async fn delete_expired_draft_cluster_checkpoints(&self) -> OxResult<u64>;
+    async fn sweep_expired_draft_cluster_checkpoints(&self) -> OxResult<u64>;
 
     /// Drop every checkpoint for a project — called when the design
     /// completes successfully (the cached entries are no longer
     /// authoritative once the project rolls forward).
-    async fn delete_draft_cluster_checkpoints_for_project(
+    async fn delete_draft_cluster_checkpoints_by_project(
         &self,
         project_id: Uuid,
     ) -> OxResult<u64>;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -14,8 +14,6 @@ import {
   useOntologyDetail,
 } from "@/hooks/api/use-ontologies";
 import { useApplyOntologyEdits } from "@/hooks/api/use-ontology-edits";
-import { useAppStore } from "@/lib/store";
-import { selectStateOntology } from "@/lib/store/selectors";
 import { localize } from "@/lib/locale/localize";
 import { useLocaleChain } from "@/lib/use-locale-chain";
 import { arr } from "@/lib/ir-collections";
@@ -39,10 +37,28 @@ import { UsageMap } from "./usage-map";
 // Design-mode changes.
 // ---------------------------------------------------------------------------
 
-const SEARCH_PARAM = "term";
+const TERM_PARAM = "term";
+const AMBIGUITY_PARAM = "ambiguity";
+const ROUTE = "/glossary";
 
 function freshGlossaryId(): string {
   return `gt-${crypto.randomUUID()}`;
+}
+
+/// Pure URL helper. Centralised here so the workbench never builds
+/// `URLSearchParams` ad-hoc — every navigation routes through this
+/// shape and stays consistent.
+function buildHref(
+  current: URLSearchParams,
+  patches: Record<string, string | null>,
+): string {
+  const next = new URLSearchParams(current);
+  for (const [key, value] of Object.entries(patches)) {
+    if (value === null) next.delete(key);
+    else next.set(key, value);
+  }
+  const qs = next.toString();
+  return qs ? `${ROUTE}?${qs}` : ROUTE;
 }
 
 function computeAnchorCounts(ontology: OntologyIR): TermAnchorCounts {
@@ -77,45 +93,17 @@ export function GlossaryWorkbench() {
   const searchParams = useSearchParams();
   const confirm = useConfirm();
 
-  // Workbench owns the ontology fetch directly: this surface stands on
-  // its own without a project (analogous to Analyze / Explore), so we
-  // load the latest committed ontology by listing top-1 + detail.
-  // Standalone ontology cache (`selectStateOntology`) is kept in sync
-  // for downstream consumers (UsageMap reads from it indirectly via
-  // the same detail snapshot).
+  // Workbench owns the ontology fetch directly: this surface stands
+  // on its own without a project (analogous to Analyze / Explore),
+  // so we load the latest committed ontology by listing top-1 +
+  // detail. The detail snapshot is the single source of truth for
+  // every pane below; we never mirror it into the global Zustand
+  // cache because each consumer that needs an ontology fetches its
+  // own (avoids two-source drift between fetch and cache).
   const ontologiesQuery = useOntologies({ limit: 1 });
   const ontologyMeta = ontologiesQuery.data?.items?.[0];
   const ontologyDetailQuery = useOntologyDetail(ontologyMeta?.id);
   const apply = useApplyOntologyEdits(ontologyMeta?.id);
-
-  // Mirror the loaded ontology into the standalone cache so other
-  // surfaces (chat panel disambiguation chip, search palette) read the
-  // same snapshot the workbench is editing.
-  const loadStandaloneOntology = useAppStore(
-    (s) => s.loadStandaloneOntology,
-  );
-  const setOntologyId = useAppStore((s) => s.setOntologyId);
-  const cachedOntology = useAppStore(selectStateOntology);
-
-  useEffect(() => {
-    const fresh = ontologyDetailQuery.data?.ontology_ir as
-      | OntologyIR
-      | undefined;
-    if (!fresh) return;
-    if (cachedOntology?.id === fresh.id && cachedOntology.version === fresh.version) {
-      return;
-    }
-    loadStandaloneOntology(fresh);
-    if (ontologyDetailQuery.data?.id) {
-      setOntologyId(ontologyDetailQuery.data.id);
-    }
-  }, [
-    ontologyDetailQuery.data,
-    cachedOntology?.id,
-    cachedOntology?.version,
-    loadStandaloneOntology,
-    setOntologyId,
-  ]);
 
   const ontology = ontologyDetailQuery.data?.ontology_ir as
     | OntologyIR
@@ -133,11 +121,11 @@ export function GlossaryWorkbench() {
     [ontology],
   );
 
-  // Selection state lives in the URL so deep links (`?term=g-…`) and
-  // future chat-panel disambiguation chips (ADR-0056 second half)
-  // round-trip cleanly. Falls back to the first term so the editor
-  // pane always renders something useful.
-  const urlTermId = searchParams.get(SEARCH_PARAM);
+  // Selection lives in the URL so deep links (`?term=g-…`) and chat-
+  // panel disambiguation chips (ADR-0056 second half) round-trip
+  // cleanly. Falls back to the first term so the editor pane always
+  // renders something useful.
+  const urlTermId = searchParams.get(TERM_PARAM);
   const [draftCreate, setDraftCreate] = useState(false);
   const selectedTermId =
     urlTermId && glossary.some((g) => g.id === urlTermId)
@@ -145,13 +133,17 @@ export function GlossaryWorkbench() {
       : glossary[0]?.id ?? null;
   const selectedTerm = glossary.find((g) => g.id === selectedTermId) ?? null;
 
-  const setSelectedTermId = (id: string | null) => {
-    setDraftCreate(false);
-    const next = new URLSearchParams(Array.from(searchParams.entries()));
-    if (id) next.set(SEARCH_PARAM, id);
-    else next.delete(SEARCH_PARAM);
-    router.replace(`/glossary${next.toString() ? `?${next}` : ""}`);
-  };
+  const setSelectedTermId = useCallback(
+    (id: string | null) => {
+      setDraftCreate(false);
+      router.replace(buildHref(searchParams, { [TERM_PARAM]: id }));
+    },
+    [router, searchParams],
+  );
+
+  const dismissAmbiguityHint = useCallback(() => {
+    router.replace(buildHref(searchParams, { [AMBIGUITY_PARAM]: null }));
+  }, [router, searchParams]);
 
   // ------------------------------------------------------------------
   // Mutations — matched to the existing `/edits` op surface. Each
@@ -175,9 +167,7 @@ export function GlossaryWorkbench() {
           toast.success(tForm("toast.created", { term: label }));
           setDraftCreate(false);
           // Land selection on the freshly minted term.
-          const next = new URLSearchParams(Array.from(searchParams.entries()));
-          next.set(SEARCH_PARAM, id);
-          router.replace(`/glossary?${next}`);
+          router.replace(buildHref(searchParams, { [TERM_PARAM]: id }));
         },
         onError: (err) =>
           toast.error(tForm("toast.createFailed", { error: err.message })),
@@ -253,20 +243,14 @@ export function GlossaryWorkbench() {
     );
   }
 
-  const ambiguityContextId = searchParams.get("ambiguity");
+  const ambiguityContextId = searchParams.get(AMBIGUITY_PARAM);
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-white dark:bg-zinc-950">
       {ambiguityContextId && (
         <AmbiguityHint
           contextId={ambiguityContextId}
-          onDismiss={() => {
-            const next = new URLSearchParams(Array.from(searchParams.entries()));
-            next.delete("ambiguity");
-            router.replace(
-              `/glossary${next.toString() ? `?${next}` : ""}`,
-            );
-          }}
+          onDismiss={dismissAmbiguityHint}
         />
       )}
       <div className="grid min-h-0 flex-1 grid-cols-[280px_minmax(0,1fr)_340px] divide-x divide-zinc-200 dark:divide-zinc-800">

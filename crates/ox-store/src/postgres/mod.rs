@@ -63,13 +63,79 @@ use crate::store::{
 
 tokio::task_local! {
     /// Per-request workspace ID. Set by the workspace middleware.
-    /// Used by PgPool's `before_acquire` to configure RLS session variable.
+    /// Read by `configure_rls_session_vars` to populate the
+    /// `app.workspace_id` PostgreSQL session variable on every
+    /// connection (both fresh and recycled).
     pub static WORKSPACE_ID: Uuid;
 
-    /// When true, `before_acquire` sets `app.system_bypass` instead of
-    /// `app.workspace_id`. Used by scheduled tasks, cleanup, and migrations
-    /// that need cross-workspace access.
+    /// When true, the connection-setup hook sets `app.system_bypass`
+    /// instead of `app.workspace_id`. Used by scheduled tasks,
+    /// cleanup, and migrations that need cross-workspace access.
     pub static SYSTEM_BYPASS: bool;
+}
+
+/// Configure PostgreSQL session variables that drive the RLS
+/// policies for the calling task. Single source of truth shared by
+/// the pool's `after_connect` (fresh connections) and
+/// `before_acquire` (idle-queue re-acquires) hooks — every
+/// connection runs this exactly once before serving its first
+/// query, and again before each subsequent re-acquire.
+///
+/// Priority: SYSTEM_BYPASS > WORKSPACE_ID > none. The "none" path
+/// leaves both vars unset; RLS-protected reads return empty, RLS-
+/// protected writes raise 42501 — the safe deny-all default for
+/// initialisation paths (`PgPool::connect`'s health-check, OIDC
+/// provider boot) that must run without a tenant.
+async fn configure_rls_session_vars(
+    conn: &mut sqlx::PgConnection,
+) -> Result<(), sqlx::Error> {
+    if SYSTEM_BYPASS.try_with(|b| *b).unwrap_or(false) {
+        sqlx::query("SELECT set_config('app.system_bypass', 'true', false)")
+            .execute(&mut *conn)
+            .await?;
+        // PostgreSQL evaluates PERMISSIVE policies as OR but still
+        // casts every policy's predicate expression. `ws_isolation`'s
+        // `current_setting('app.workspace_id', true)::uuid` raises
+        // 22P02 on an empty session var even when `system_bypass`
+        // would have matched. Set a nil sentinel so the cast always
+        // succeeds; it never matches a real workspace row, and the
+        // policy OR resolves through `system_bypass`.
+        sqlx::query("SELECT set_config('app.workspace_id', $1, false)")
+            .bind(Uuid::nil().to_string())
+            .execute(&mut *conn)
+            .await?;
+        // Best-effort: prime to the actual default workspace if it
+        // exists, so INSERT DEFAULTs resolve to a real id when the
+        // system task creates new rows. The earlier sentinel keeps
+        // the cast safe whether or not this query matches; "relation
+        // does not exist" during first-boot is also tolerated.
+        #[allow(clippy::let_underscore_must_use)]
+        let _ = sqlx::query(
+            "SELECT set_config('app.workspace_id', id::text, false) \
+             FROM workspaces WHERE slug = 'default' LIMIT 1",
+        )
+        .execute(&mut *conn)
+        .await;
+        return Ok(());
+    }
+    if let Ok(ws_id) = WORKSPACE_ID.try_with(|id| *id) {
+        sqlx::query("SELECT set_config('app.workspace_id', $1, false)")
+            .bind(ws_id.to_string())
+            .execute(&mut *conn)
+            .await?;
+        // ADR-0041: bound the worst-case query and idle-in-
+        // transaction durations. RESET ALL clears these on release
+        // so we re-apply per acquire. Bypass paths (migrations / cron
+        // sweeps) intentionally skip — those are bounded by their
+        // outer scheduler and may legitimately run long.
+        sqlx::query("SET statement_timeout = 30000")
+            .execute(&mut *conn)
+            .await?;
+        sqlx::query("SET idle_in_transaction_session_timeout = 5000")
+            .execute(&mut *conn)
+            .await?;
+    }
+    Ok(())
 }
 
 /// Assert that the caller is inside a `WORKSPACE_ID.scope(...)` or a
@@ -171,66 +237,25 @@ impl PostgresStore {
             .min_connections(min_connections)
             .acquire_timeout(std::time::Duration::from_secs(10))
             .idle_timeout(std::time::Duration::from_secs(300))
-            // RLS: configure session variables on every connection acquire.
-            // Priority: SYSTEM_BYPASS > WORKSPACE_ID > (no context = deny all)
+            // RLS session-variable setup runs on BOTH connection
+            // creation (`after_connect`) and idle-queue re-acquire
+            // (`before_acquire`). sqlx's pool only fires
+            // `before_acquire` when popping from the idle queue —
+            // freshly-opened connections (the first acquire on a
+            // pool, or any acquire that grows past current size)
+            // bypass it entirely. A fresh connection without
+            // session-var setup hits the RLS WITH CHECK at the first
+            // INSERT and 42501s. Mirroring the body in
+            // `after_connect` closes that gap so every connection,
+            // fresh or recycled, lands with the same session state.
+            .after_connect(|conn, _meta| {
+                Box::pin(async move {
+                    configure_rls_session_vars(conn).await
+                })
+            })
             .before_acquire(|conn, _meta| {
                 Box::pin(async move {
-                    if SYSTEM_BYPASS.try_with(|b| *b).unwrap_or(false) {
-                        // System task: bypass RLS for cross-workspace access.
-                        sqlx::query("SELECT set_config('app.system_bypass', 'true', false)")
-                            .execute(&mut *conn)
-                            .await?;
-                        // PostgreSQL evaluates PERMISSIVE policies as
-                        // OR but still casts every policy's predicate
-                        // expression — `ws_isolation`'s
-                        // `current_setting('app.workspace_id', true)::uuid`
-                        // raises 22P02 on an empty session var even when
-                        // `system_bypass` would have matched. Set a nil
-                        // sentinel so the cast always succeeds; it never
-                        // matches a real workspace row, and policy OR
-                        // resolves through `system_bypass`.
-                        sqlx::query("SELECT set_config('app.workspace_id', $1, false)")
-                            .bind(Uuid::nil().to_string())
-                            .execute(&mut *conn)
-                            .await?;
-                        // Best-effort: prime to the actual default
-                        // workspace if it exists, so INSERT DEFAULTs
-                        // resolve to a real id when the system task
-                        // creates new rows. The earlier sentinel keeps
-                        // the cast safe whether or not this query
-                        // matches; "relation does not exist" during
-                        // first-boot is also tolerated.
-                        #[allow(clippy::let_underscore_must_use)]
-                        let _ = sqlx::query(
-                            "SELECT set_config('app.workspace_id', id::text, false) \
-                             FROM workspaces WHERE slug = 'default' LIMIT 1",
-                        )
-                        .execute(&mut *conn)
-                        .await;
-                    } else if let Ok(ws_id) = WORKSPACE_ID.try_with(|id| *id) {
-                        // Normal request: scope to workspace via RLS.
-                        sqlx::query("SELECT set_config('app.workspace_id', $1, false)")
-                            .bind(ws_id.to_string())
-                            .execute(&mut *conn)
-                            .await?;
-                        // ADR-0041: Bound the worst-case query and
-                        // idle-in-transaction durations. RESET ALL
-                        // clears these on release so we re-apply per
-                        // acquire. Bypass paths (migrations / cron
-                        // sweeps) intentionally skip — those are
-                        // bounded by their outer scheduler and may
-                        // legitimately run long. No-context paths
-                        // (init / health-check) also skip; they don't
-                        // execute user queries.
-                        sqlx::query("SET statement_timeout = 30000")
-                            .execute(&mut *conn)
-                            .await?;
-                        sqlx::query("SET idle_in_transaction_session_timeout = 5000")
-                            .execute(&mut *conn)
-                            .await?;
-                    }
-                    // No context set: RLS returns empty results (safe deny-all default).
-                    // This is expected during migrations and OIDC provider initialization.
+                    configure_rls_session_vars(conn).await?;
                     Ok(true)
                 })
             })

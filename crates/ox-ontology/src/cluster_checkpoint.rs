@@ -32,6 +32,7 @@ use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use uuid::Uuid;
 
 use crate::input::InputOntologyDef;
 use crate::table_clustering::TableCluster;
@@ -80,6 +81,15 @@ impl ClusterSignature {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    /// Reconstruct a signature from its hex form. Used by the store
+    /// layer when lifting a persisted row back into the typed
+    /// shape; the value is treated as opaque (no hash re-validation
+    /// since the store row already passed the natural-key check on
+    /// insert).
+    pub fn from_hex(hex: String) -> Self {
+        Self(hex)
+    }
 }
 
 fn canonicalise_fks(fks: &[ForeignKeyDef], tag: &'static str) -> Vec<String> {
@@ -96,15 +106,31 @@ fn canonicalise_fks(fks: &[ForeignKeyDef], tag: &'static str) -> Vec<String> {
     lines
 }
 
-/// Persisted record of one completed cluster's LLM-design output.
-/// The `(project_id, source_id, signature)` triple is the natural
-/// key the store layer dedups on — the same signature against the
-/// same project + source replays from cache.
+/// One completed cluster's LLM-design output, ready to persist or
+/// replay. The `(project_id, source_id, signature)` triple is the
+/// natural key the store layer dedups on — the same signature
+/// against the same project + source replays from cache.
+///
+/// `id` and `workspace_id` are surrogate persistence concerns: the
+/// store impl mints `id` on insert (DB DEFAULT) and stamps
+/// `workspace_id` from the active task-local. Callers that author
+/// a fresh checkpoint use [`Self::draft`], which leaves both empty
+/// for the store to fill. Callers that read a checkpoint back
+/// observe the populated values.
 #[derive(
     Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema,
 )]
 pub struct DraftClusterCheckpoint {
-    pub project_id: String,
+    /// Surrogate key the store assigns on insert. Authored
+    /// instances leave this `Uuid::nil()` and the store overwrites
+    /// it through the column DEFAULT.
+    #[serde(default)]
+    pub id: Uuid,
+    /// RLS partition. Stamped by the store from the bound
+    /// task-local; authored instances leave it `Uuid::nil()`.
+    #[serde(default)]
+    pub workspace_id: Uuid,
+    pub project_id: Uuid,
     pub source_id: String,
     pub signature: ClusterSignature,
     /// Cluster id at the time the checkpoint was written. Useful
@@ -122,6 +148,32 @@ pub struct DraftClusterCheckpoint {
     /// 24-hour default lets a session of design retries hit the
     /// cache without keeping checkpoints around forever.
     pub expires_at: DateTime<Utc>,
+}
+
+impl DraftClusterCheckpoint {
+    /// Author a fresh checkpoint with the persistence-side fields
+    /// (`id`, `workspace_id`) left for the store to populate.
+    pub fn draft(
+        project_id: Uuid,
+        source_id: String,
+        signature: ClusterSignature,
+        cluster_id: usize,
+        output: InputOntologyDef,
+        ttl: chrono::Duration,
+    ) -> Self {
+        let now = Utc::now();
+        Self {
+            id: Uuid::nil(),
+            workspace_id: Uuid::nil(),
+            project_id,
+            source_id,
+            signature,
+            cluster_id,
+            output,
+            created_at: now,
+            expires_at: now + ttl,
+        }
+    }
 }
 
 #[cfg(test)]

@@ -9,8 +9,10 @@ import { UndoIcon, RedoIcon, FloppyDiskIcon } from "@hugeicons/core-free-icons";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { Tooltip } from "@/components/ui/tooltip";
-import type { QualityGap } from "@/types/api";import { NodeDetail, EdgeDetail } from "./entity-detail";
+import type { QualityGap } from "@/types/api";
+import { NodeDetail, EdgeDetail } from "./entity-detail";
 import { arr } from "@/lib/ir-collections";
+import { gapTouchesEntity } from "@/lib/quality-utils";
 
 // ---------------------------------------------------------------------------
 // Inspector — editable detail view for selected node or edge
@@ -65,10 +67,9 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
     if (selectedNodeId) {
       const node = arr(ontology.node_types).find((n) => n.id === selectedNodeId);
       if (!node) return <Empty text="Node not found" />;
-      const nodeGaps = gaps.filter((g) => {
-        const loc = g.location;
-        return "node_id" in loc && loc.node_id === selectedNodeId && !("edge_id" in loc);
-      });
+      const nodeGaps = gaps.filter((g) =>
+        gapTouchesEntity(g, "node", selectedNodeId),
+      );
       return (
         <NodeDetail
           node={node}
@@ -83,10 +84,9 @@ export function InspectorPanel({ gaps }: { gaps: QualityGap[] }) {
     if (selectedEdgeId) {
       const edge = arr(ontology.edge_types).find((e) => e.id === selectedEdgeId);
       if (!edge) return <Empty text="Edge not found" />;
-      const edgeGaps = gaps.filter((g) => {
-        const loc = g.location;
-        return "edge_id" in loc && loc.edge_id === selectedEdgeId;
-      });
+      const edgeGaps = gaps.filter((g) =>
+        gapTouchesEntity(g, "edge", selectedEdgeId),
+      );
       return (
         <EdgeDetail
           edge={edge}

@@ -5,7 +5,7 @@ use axum::{
     extract::{Path, State},
     response::sse::{Event, KeepAlive, Sse},
 };
-use chrono::{Duration as ChronoDuration, Utc};
+use chrono::Duration as ChronoDuration;
 use futures_core::Stream;
 use serde::Serialize;
 use tokio::time::Instant;
@@ -19,49 +19,33 @@ use uuid::Uuid;
 const DRAFT_CHECKPOINT_TTL_HOURS: i64 = 24;
 
 /// Author + persist one draft cluster checkpoint. Failures log
-/// loudly but never propagate — the LLM call already succeeded
-/// and `batch_results` carries the output forward. A later replay
-/// of the same cluster will hit the LLM again rather than the
-/// cache, which is the desirable degraded behaviour.
+/// loudly but never propagate — the LLM call already succeeded and
+/// `batch_results` carries the output forward. A later replay of
+/// the same cluster will hit the LLM again rather than the cache,
+/// which is the desirable degraded behaviour.
 ///
 /// Bounded on `DraftClusterCheckpointStore` (not the full Store
 /// supertrait) so the helper stays narrow on the surface it
 /// actually consumes.
 async fn persist_cluster_checkpoint<S>(
     store: &S,
-    workspace_id: Uuid,
     project_id: Uuid,
     source_id: &str,
-    signature: &str,
+    signature: ox_ontology::cluster_checkpoint::ClusterSignature,
     cluster_id: usize,
-    output: &ox_ontology::input::InputOntologyDef,
+    output: ox_ontology::input::InputOntologyDef,
 ) where
     S: ox_store::DraftClusterCheckpointStore + ?Sized,
 {
-    let serialized = match serde_json::to_value(output) {
-        Ok(v) => v,
-        Err(e) => {
-            warn!(
-                project_id = %project_id,
-                cluster = cluster_id,
-                error = %e,
-                "Cluster checkpoint serialise failed; skipping persist"
-            );
-            return;
-        }
-    };
-    let row = ox_store::DraftClusterCheckpointRow {
-        id: Uuid::new_v4(),
-        workspace_id,
+    let checkpoint = ox_ontology::cluster_checkpoint::DraftClusterCheckpoint::draft(
         project_id,
-        source_id: source_id.to_string(),
-        signature: signature.to_string(),
-        cluster_id: cluster_id as i32,
-        output: serialized,
-        created_at: Utc::now(),
-        expires_at: Utc::now() + ChronoDuration::hours(DRAFT_CHECKPOINT_TTL_HOURS),
-    };
-    if let Err(e) = store.upsert_draft_cluster_checkpoint(&row).await {
+        source_id.to_string(),
+        signature,
+        cluster_id,
+        output,
+        ChronoDuration::hours(DRAFT_CHECKPOINT_TTL_HOURS),
+    );
+    if let Err(e) = store.upsert_draft_cluster_checkpoint(&checkpoint).await {
         warn!(
             project_id = %project_id,
             cluster = cluster_id,
@@ -242,17 +226,6 @@ pub(crate) async fn design_project_stream(
     // captured scope on every poll.
     let ws_scope = WsScope::capture();
 
-    // Workspace id for the draft cluster checkpoint rows (ADR-0027).
-    // System / None scopes (cron-driven design replays, if they ever
-    // exist) skip the checkpoint flow — the row's `workspace_id`
-    // column has no meaningful value to populate. Captured here in
-    // the synchronous prologue, before scope_stream takes ownership
-    // of `ws_scope`.
-    let checkpoint_workspace_id: Option<Uuid> = match &ws_scope {
-        WsScope::Workspace(id) => Some(*id),
-        WsScope::System | WsScope::None => None,
-    };
-
     let stream = async_stream::stream! {
         yield Ok(Event::default().event("phase").data(sse_phase("validating", None)));
 
@@ -355,8 +328,7 @@ pub(crate) async fn design_project_stream(
             // pulls in the same hash.
             let prompt_template_hash = match state
                 .brain
-                .design_prompt_template_hash("design_ontology_batch")
-                .await
+                .prompt_template_hash("design_ontology_batch")
             {
                 Ok(h) => h,
                 Err(e) => {
@@ -490,21 +462,7 @@ pub(crate) async fn design_project_stream(
                         )
                         .await
                     {
-                        Ok(Some(row)) => match serde_json::from_value::<
-                            ox_ontology::input::InputOntologyDef,
-                        >(row.output)
-                        {
-                            Ok(ir) => Some(ir),
-                            Err(e) => {
-                                warn!(
-                                    project_id = %id,
-                                    cluster = cluster_id,
-                                    error = %e,
-                                    "Checkpoint deserialise failed; rerunning LLM"
-                                );
-                                None
-                            }
-                        },
+                        Ok(Some(checkpoint)) => Some(checkpoint.output),
                         Ok(None) => None,
                         Err(e) => {
                             warn!(
@@ -546,18 +504,15 @@ pub(crate) async fn design_project_stream(
                         ).await {
                             Ok(Ok(ir)) => {
                                 info!(project_id = %id, cluster = cluster_id, nodes = ir.node_types.len(), "Batch completed");
-                                if let Some(ws_id) = checkpoint_workspace_id {
-                                    persist_cluster_checkpoint(
-                                        state.store.as_ref(),
-                                        ws_id,
-                                        id,
-                                        &project_source_id,
-                                        signature.as_str(),
-                                        cluster_id,
-                                        &ir,
-                                    )
-                                    .await;
-                                }
+                                persist_cluster_checkpoint(
+                                    state.store.as_ref(),
+                                    id,
+                                    &project_source_id,
+                                    signature,
+                                    cluster_id,
+                                    ir.clone(),
+                                )
+                                .await;
                                 batch_results.push(ir);
                             }
                             Ok(Err(e)) => {
@@ -592,7 +547,12 @@ pub(crate) async fn design_project_stream(
                     // deterministic regardless of the hit/miss split.
                     let mut level_results: Vec<(usize, ox_ontology::InputOntologyDef)> =
                         Vec::new();
-                    let mut miss_tasks: Vec<(usize, String, String, String)> = Vec::new();
+                    let mut miss_tasks: Vec<(
+                        usize,
+                        ox_ontology::cluster_checkpoint::ClusterSignature,
+                        String,
+                        String,
+                    )> = Vec::new();
                     for &cluster_id in level {
                         let cluster = &plan.clusters[cluster_id];
                         let signature = ox_ontology::cluster_checkpoint::ClusterSignature::from_cluster(
@@ -607,21 +567,7 @@ pub(crate) async fn design_project_stream(
                             )
                             .await
                         {
-                            Ok(Some(row)) => match serde_json::from_value::<
-                                ox_ontology::input::InputOntologyDef,
-                            >(row.output)
-                            {
-                                Ok(ir) => Some(ir),
-                                Err(e) => {
-                                    warn!(
-                                        project_id = %id,
-                                        cluster = cluster_id,
-                                        error = %e,
-                                        "Checkpoint deserialise failed; rerunning LLM"
-                                    );
-                                    None
-                                }
-                            },
+                            Ok(Some(checkpoint)) => Some(checkpoint.output),
                             Ok(None) => None,
                             Err(e) => {
                                 warn!(
@@ -654,12 +600,7 @@ pub(crate) async fn design_project_stream(
                         };
                         let cross =
                             format_cross_fks(&cluster.cross_fks, cluster, &batch_results);
-                        miss_tasks.push((
-                            cluster_id,
-                            signature.as_str().to_string(),
-                            batch_input,
-                            cross,
-                        ));
+                        miss_tasks.push((cluster_id, signature, batch_input, cross));
                     }
 
                     if !miss_tasks.is_empty() {
@@ -688,23 +629,21 @@ pub(crate) async fn design_project_stream(
                         let results = futures::future::join_all(futs).await;
 
                         for (idx, result) in results.into_iter().enumerate() {
-                            let (cluster_id, signature_str, _, _) = &miss_tasks[idx];
+                            let cluster_id = miss_tasks[idx].0;
+                            let signature = miss_tasks[idx].1.clone();
                             match result {
                                 Ok(Ok(ir)) => {
                                     info!(project_id = %id, cluster = cluster_id, nodes = ir.node_types.len(), "Parallel batch completed");
-                                    if let Some(ws_id) = checkpoint_workspace_id {
-                                        persist_cluster_checkpoint(
-                                            state.store.as_ref(),
-                                            ws_id,
-                                            id,
-                                            &project_source_id,
-                                            signature_str,
-                                            *cluster_id,
-                                            &ir,
-                                        )
-                                        .await;
-                                    }
-                                    level_results.push((*cluster_id, ir));
+                                    persist_cluster_checkpoint(
+                                        state.store.as_ref(),
+                                        id,
+                                        &project_source_id,
+                                        signature,
+                                        cluster_id,
+                                        ir.clone(),
+                                    )
+                                    .await;
+                                    level_results.push((cluster_id, ir));
                                 }
                                 Ok(Err(e)) => {
                                     yield Ok(Event::default().event("error").data(sse_error("design_error", &e.to_string())));
@@ -943,7 +882,7 @@ pub(crate) async fn design_project_stream(
         // get swept by the daily cleanup cron via `expires_at`.
         if let Err(e) = state
             .store
-            .delete_draft_cluster_checkpoints_for_project(id)
+            .delete_draft_cluster_checkpoints_by_project(id)
             .await
         {
             warn!(

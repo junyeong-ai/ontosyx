@@ -48,6 +48,32 @@ struct QueryGraphOutput {
     /// `guidance`, the structured list stays here for the chat UI.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     warnings: Vec<ox_query_ir::query::QueryDiagnostic>,
+    /// Unresolved AmbiguityContext entries the source-analyzer flagged
+    /// on columns this query touched. Distinct wire field from
+    /// `warnings` because validator diagnostics and ambiguity hints
+    /// have different origins (Cypher AST vs source analysis) and
+    /// different consumers (LLM error-recovery vs FE chip rendering).
+    /// Rendered as deep-link chips in the chat tool-call card —
+    /// each chip jumps to the Glossary workbench so the modeller can
+    /// bind a term. ADR-0027 / ADR-0058 — second half of ADR-0056.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    unresolved_ambiguities: Vec<UnresolvedAmbiguityHint>,
+}
+
+/// Wire-stable hint pointing at one unresolved AmbiguityContext.
+/// FE chips read these directly; the LLM doesn't reason about them
+/// (the `guidance` text already nudges the model toward the
+/// `resolve_ambiguity` tool, so duplicating that reasoning surface
+/// here would be noise).
+#[derive(Debug, Serialize)]
+struct UnresolvedAmbiguityHint {
+    /// `AmbiguityContext.id` — the FE chip uses this as the
+    /// `?ambiguity=…` deep-link target on `/glossary`.
+    context_id: String,
+    /// Source relation (table) the ambiguous column lives in.
+    relation: String,
+    /// The ambiguous column name itself.
+    column: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -360,7 +386,7 @@ impl SchemaTool for QueryGraphTool {
         // pipeline runs a *permissive* variant so power users aren't
         // blocked; this strict re-pass is pure advice — the query
         // already executed.
-        let mut validator_notes = strict_advisory_diagnostics(
+        let validator_notes = strict_advisory_diagnostics(
             &compiled.statement,
             &self.domain.workspace_id.to_string(),
         );
@@ -380,28 +406,23 @@ impl SchemaTool for QueryGraphTool {
             }
         }
 
-        // Φ3-D — surface unresolved AmbiguityContext entries as a
-        // guidance hint so the LLM can close the detection loop by
-        // calling `resolve_ambiguity` before the next query. The
-        // active-resolution lookup happens once per context inside
-        // the same async scope so we don't reach for a blocking
-        // shim. Failure to load the list is non-fatal — a missed
-        // nudge is better than a failed query.
-        //
-        // ADR-0058 — same context fans out to two more channels:
-        // (1) structured `QueryDiagnostic { validator: "ambiguity" }`
-        // entries appended to `validator_notes`, so the FE chat panel
-        // can render disambiguation chips that deep-link to
-        // `/glossary?ambiguity=<context_id>`; (2) the existing
-        // text-only guidance line stays as the LLM-facing nudge so
-        // the model continues to see the same hint shape.
+        // Φ3-D — surface unresolved AmbiguityContext entries on two
+        // channels: a single text line on `guidance` for the LLM
+        // (nudge toward the `resolve_ambiguity` tool), and a typed
+        // `unresolved_ambiguities` Vec on the result envelope for
+        // the FE (one chip per context, deep-linking to the
+        // Glossary workbench). The two channels target different
+        // consumers and stay narrow on purpose — the LLM never
+        // reasons over the chip list, the FE never parses the text.
+        // Failure to load the list is non-fatal — a missed nudge is
+        // better than a failed query.
         let ambiguity_contexts = self
             .domain
             .store
             .list_ambiguity_contexts_in_workspace()
             .await
             .unwrap_or_default();
-        let mut unresolved: Vec<&ox_ontology::ambiguity::AmbiguityContext> = Vec::new();
+        let mut unresolved_ambiguities: Vec<UnresolvedAmbiguityHint> = Vec::new();
         for ctx in &ambiguity_contexts {
             let active = self
                 .domain
@@ -411,47 +432,36 @@ impl SchemaTool for QueryGraphTool {
                 .ok()
                 .flatten();
             if active.is_none() {
-                unresolved.push(ctx);
+                unresolved_ambiguities.push(UnresolvedAmbiguityHint {
+                    context_id: ctx.id.as_str().to_string(),
+                    relation: ctx.column.relation.clone(),
+                    column: ctx.column.column.clone(),
+                });
             }
         }
-        if !unresolved.is_empty() {
-            let preview: Vec<String> = unresolved
+        if !unresolved_ambiguities.is_empty() {
+            let preview = unresolved_ambiguities
                 .iter()
                 .take(3)
-                .map(|c| format!("{}.{}", c.column.relation, c.column.column))
-                .collect();
-            let suffix = if unresolved.len() > 3 {
-                format!(" (+{} more)", unresolved.len() - 3)
+                .map(|h| format!("{}.{}", h.relation, h.column))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let suffix = if unresolved_ambiguities.len() > 3 {
+                format!(" (+{} more)", unresolved_ambiguities.len() - 3)
             } else {
                 String::new()
             };
             let note = format!(
                 " [Ambiguity: {} unresolved column{} ({}{}); consider calling \
                  resolve_ambiguity to bind one before the next query]",
-                unresolved.len(),
-                if unresolved.len() == 1 { "" } else { "s" },
-                preview.join(", "),
+                unresolved_ambiguities.len(),
+                if unresolved_ambiguities.len() == 1 { "" } else { "s" },
+                preview,
                 suffix,
             );
             match &mut guidance {
                 Some(g) => g.push_str(&note),
                 None => guidance = Some(note),
-            }
-            for ctx in &unresolved {
-                validator_notes.push(ox_query_ir::query::QueryDiagnostic {
-                    validator: "ambiguity".to_string(),
-                    level: ox_query_ir::query::DiagnosticLevel::Info,
-                    message: ox_core::diagnostic::diag(
-                        "agent.ambiguity.unresolved_column",
-                    )
-                    .with("context_id", ctx.id.as_str())
-                    .with("relation", ctx.column.relation.as_str())
-                    .with("column", ctx.column.column.as_str())
-                    .message(format!(
-                        "Unresolved ambiguity on column {}.{}",
-                        ctx.column.relation, ctx.column.column,
-                    )),
-                });
             }
         }
 
@@ -601,6 +611,7 @@ impl SchemaTool for QueryGraphTool {
             cost,
             guidance,
             warnings: validator_notes,
+            unresolved_ambiguities,
         };
 
         ToolResult::success(serde_json::to_string_pretty(&output).unwrap_or_default())

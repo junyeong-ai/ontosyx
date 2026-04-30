@@ -124,12 +124,7 @@ function subjectTouchesEntity(
     case "property_value":
       return kind === "node" && prov.subject.node_type_id === entityId;
     case "edge_instance":
-      // edge_instance carries a typed shape; we only flag this row
-      // for the relevant edge_type when the wire shape evolves to
-      // include the source edge_type_id (today the audit doesn't
-      // carry it on the subject). Stay conservative here so the
-      // node-side false-negative doesn't cross over to edges.
-      return false;
+      return kind === "edge" && prov.subject.edge_type_id === entityId;
     case "arbitrary":
       return false;
   }

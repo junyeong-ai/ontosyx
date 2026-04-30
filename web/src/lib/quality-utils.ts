@@ -22,6 +22,21 @@ export function getGapEntityId(
 }
 
 /**
+ * Membership test for "does this gap touch the named entity?". The
+ * inspector and the domain-context page both filter the workspace-
+ * wide gap list down to a single entity; centralising the predicate
+ * here keeps the two surfaces in lockstep.
+ */
+export function gapTouchesEntity(
+  gap: QualityGap,
+  entityKind: "node" | "edge",
+  entityId: string,
+): boolean {
+  const target = getGapEntityId(gap);
+  return target?.type === entityKind && target.id === entityId;
+}
+
+/**
  * Navigate to the entity referenced by a quality gap:
  * select it on the canvas and ensure the inspector panel is open.
  * Returns true if navigation occurred, false if the gap has no canvas anchor.

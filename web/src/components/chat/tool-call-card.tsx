@@ -352,13 +352,12 @@ interface ParsedToolResult {
    *  details dropdown (which is admin-only and intentionally
    *  noisy with execution metadata). */
   compiledCypher?: string;
-  /** ADR-0056 second half / ADR-0058 — unresolved ambiguity contexts
-   *  the agent flagged on this query. Backend emits a structured
-   *  `QueryDiagnostic { validator: "ambiguity", … }` for each one,
-   *  carrying `context_id` + `relation` + `column` in `params`.
-   *  The chat bubble renders one chip per entry, deep-linking to
-   *  the Glossary workbench so the modeller can pick a term to
-   *  bind. Empty when the BE didn't flag any unresolved column. */
+  /** Unresolved ambiguity contexts the agent flagged on this query
+   *  (ADR-0058). Backend emits one entry per unresolved column on
+   *  the typed `unresolved_ambiguities` wire field; the chat bubble
+   *  renders one chip per entry, deep-linking to the Glossary
+   *  workbench so the modeller can pick a term to bind. Empty when
+   *  the BE didn't flag any unresolved column. */
   ambiguityChips?: AmbiguityChip[];
 }
 
@@ -368,23 +367,15 @@ interface AmbiguityChip {
   column: string;
 }
 
-function extractAmbiguityChips(warnings: unknown): AmbiguityChip[] {
-  if (!Array.isArray(warnings)) return [];
+function extractAmbiguityChips(raw: unknown): AmbiguityChip[] {
+  if (!Array.isArray(raw)) return [];
   const out: AmbiguityChip[] = [];
-  for (const entry of warnings) {
-    if (
-      !entry ||
-      typeof entry !== "object" ||
-      (entry as { validator?: unknown }).validator !== "ambiguity"
-    ) {
-      continue;
-    }
-    const params = (entry as { message?: { params?: Record<string, unknown> } })
-      .message?.params;
-    if (!params) continue;
-    const contextId = typeof params.context_id === "string" ? params.context_id : null;
-    const relation = typeof params.relation === "string" ? params.relation : null;
-    const column = typeof params.column === "string" ? params.column : null;
+  for (const entry of raw) {
+    if (!entry || typeof entry !== "object") continue;
+    const e = entry as Record<string, unknown>;
+    const contextId = typeof e.context_id === "string" ? e.context_id : null;
+    const relation = typeof e.relation === "string" ? e.relation : null;
+    const column = typeof e.column === "string" ? e.column : null;
     if (!contextId || !relation || !column) continue;
     out.push({ contextId, relation, column });
   }
@@ -417,7 +408,7 @@ function tryParseToolResult(
         typeof parsed.compiled_query === "string" && parsed.compiled_query.length > 0
           ? (parsed.compiled_query as string)
           : undefined;
-      const ambiguityChips = extractAmbiguityChips(parsed.warnings);
+      const ambiguityChips = extractAmbiguityChips(parsed.unresolved_ambiguities);
 
       return {
         summary: t("summary.queryRowsColumns", { rows: rowCount, columns: columns.length }),

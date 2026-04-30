@@ -14,6 +14,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { defaultText } from "@/lib/locale/localize";
 import type { NodeTypeDef, OntologyIR, QualityGap } from "@/types/api";
 import type { SchemaEntityRef } from "@/lib/api/dependencies";
+import { gapTouchesEntity } from "@/lib/quality-utils";
 
 import { InlineEdit } from "@/components/workbench/inspector/inline-edit";
 import { DefinitionFacet } from "@/components/workbench/inspector/facets/definition-facet";
@@ -24,6 +25,11 @@ import { MappingsFacet } from "@/components/workbench/inspector/facets/mappings-
 import { LineageFacet } from "@/components/workbench/inspector/facets/lineage-facet";
 import { QualityFacet } from "@/components/workbench/inspector/facets/quality-facet";
 import { ChangeLogFacet } from "@/components/workbench/inspector/facets/change-log-facet";
+
+// Stable empty reference so the Zustand selector returns the same
+// array across renders when no quality report is loaded — keeps
+// `useAppStore` from re-firing and avoids needless re-renders.
+const EMPTY_GAPS: readonly QualityGap[] = [];
 
 /**
  * Entity-Centric Domain Context page (ADR-0054). Eight canonical
@@ -62,6 +68,9 @@ function NodeView({
 }) {
   const t = useTranslations("workbench.types.detail");
   const applyCommand = useAppStore((s) => s.applyCommand);
+  const allGaps = useAppStore(
+    (s) => s.activeProject?.quality_report?.gaps ?? EMPTY_GAPS,
+  );
 
   const propertyCount = arr(node.properties).length;
   const constraintCount = arr(node.constraints).length;
@@ -82,12 +91,13 @@ function NodeView({
   const readiness = evaluateReadiness(node, ontology);
   const readinessPassed = readiness.filter((r) => r.passed).length;
 
-  // Page-level gaps come from the canvas pipeline; the page is
-  // typically opened from a search / drill-through and we don't
-  // re-fetch quality here. The inspector path threads gaps in via
-  // props; the page surfaces an empty list when none are loaded
-  // and points to the workspace dashboard.
-  const gaps: QualityGap[] = [];
+  // Quality gaps are read off the active project's persisted quality
+  // report (the same source the canvas overlay consumes). Filtering
+  // by entity here keeps the facet identical to the inspector's
+  // selection-scoped view.
+  const gaps: QualityGap[] = allGaps.filter((g) =>
+    gapTouchesEntity(g, "node", node.id),
+  );
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
