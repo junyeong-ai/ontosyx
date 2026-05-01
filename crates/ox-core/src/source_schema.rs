@@ -267,7 +267,9 @@ pub enum PiiSuspectKind {
 pub fn classify_pii_suspect_by_name(column_name: &str) -> Option<PiiSuspectKind> {
     let n = column_name.to_ascii_lowercase();
 
-    // Auth secrets — always redact, no false-positive cost.
+    // Auth secrets — always redact, no false-positive cost. Even
+    // `api_key_id` columns dereference into key material, so the
+    // FK-suffix demote below does not apply here.
     if n.contains("password") || n.contains("passwd") || n == "pwd" {
         return Some(PiiSuspectKind::Password);
     }
@@ -275,8 +277,21 @@ pub fn classify_pii_suspect_by_name(column_name: &str) -> Option<PiiSuspectKind>
         return Some(PiiSuspectKind::Token);
     }
 
-    // Identity fields.
-    if n.contains("email") || n == "e_mail" {
+    // Substance PII below — columns named `*_template_id` /
+    // `*_config_id` / `*_lookup_id` / `*_enum_id` / `*_kind_id` /
+    // `*_type_id` / `*_category_id` are FKs into configuration /
+    // lookup rows, not the sensitive substance itself.
+    // `email_template_id` is the id of an email-template row, not an
+    // email address; demoting here keeps the redaction badge off
+    // identifier columns that would otherwise lose all sample
+    // visibility for the wrong reason.
+    if is_lookup_table_fk(&n) {
+        return None;
+    }
+
+    // Identity fields. Substring on both spellings — `customer_e_mail_backup`
+    // must classify as Email even though "email" is split across separators.
+    if n.contains("email") || n.contains("e_mail") {
         return Some(PiiSuspectKind::Email);
     }
     if n.contains("phone")
@@ -339,6 +354,22 @@ pub fn classify_pii_suspect_by_name(column_name: &str) -> Option<PiiSuspectKind>
     }
 
     None
+}
+
+/// Match the lookup-table FK naming patterns the substance-PII
+/// heuristics demote. Kept as a pure helper so the test fixture can
+/// exercise each suffix variant directly.
+fn is_lookup_table_fk(name: &str) -> bool {
+    const SUFFIXES: &[&str] = &[
+        "_template_id",
+        "_config_id",
+        "_lookup_id",
+        "_enum_id",
+        "_kind_id",
+        "_type_id",
+        "_category_id",
+    ];
+    SUFFIXES.iter().any(|suffix| name.ends_with(suffix))
 }
 
 #[cfg(test)]
@@ -420,6 +451,66 @@ mod tests {
                 "{n} should not classify"
             );
         }
+    }
+
+    #[test]
+    fn pii_classifier_demotes_lookup_table_fk_columns() {
+        // The id of a configuration / template / lookup row is not
+        // itself the substance the heuristic targets. Without this
+        // demote, `email_template_id` redacts the integer ids of
+        // email-template rows, hiding sample data the operator needs
+        // to recognise the column as a relationship.
+        for n in [
+            "email_template_id",
+            "phone_format_lookup_id",
+            "address_kind_id",
+            "name_category_id",
+            "billing_email_config_id",
+            "address_type_id",
+            "delivery_address_enum_id",
+        ] {
+            assert_eq!(
+                classify_pii_suspect_by_name(n),
+                None,
+                "{n} should demote — lookup-table FK"
+            );
+        }
+    }
+
+    #[test]
+    fn pii_classifier_keeps_secret_substance_under_lookup_suffix() {
+        // Secret substance survives the FK-suffix demote — the id of
+        // an api-key row dereferences to key material; redacting the
+        // column hides that link from the prompt while keeping the
+        // operator-visible badge.
+        assert_eq!(
+            classify_pii_suspect_by_name("api_key_template_id"),
+            Some(PiiSuspectKind::Token)
+        );
+        assert_eq!(
+            classify_pii_suspect_by_name("password_config_id"),
+            Some(PiiSuspectKind::Password)
+        );
+    }
+
+    #[test]
+    fn pii_classifier_flags_separator_split_email_variants() {
+        // Token-boundary FN: `customer_e_mail_backup` contains the
+        // standard "e_mail" spelling but no contiguous "email"
+        // substring. The substring check on both spellings catches
+        // the variant before the sample heuristics get to it.
+        assert_eq!(
+            classify_pii_suspect_by_name("customer_e_mail_backup"),
+            Some(PiiSuspectKind::Email)
+        );
+        assert_eq!(
+            classify_pii_suspect_by_name("e_mail_history"),
+            Some(PiiSuspectKind::Email)
+        );
+        assert_eq!(
+            classify_pii_suspect_by_name("user_e_mail"),
+            Some(PiiSuspectKind::Email)
+        );
     }
 
     fn table(name: &str, columns: Vec<SourceColumnDef>, pk: Vec<&str>) -> SourceTableDef {
