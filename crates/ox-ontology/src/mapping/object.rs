@@ -14,8 +14,7 @@
 //! Multi-mapping semantics (one node type, multiple mappings) are
 //! resolved by the planner using `precedence` — the highest value
 //! wins on conflicts, with `DISTINCT ON (primary_key_columns)`
-//! applied across the `UNION ALL` of every mapping's scan. See
-//! ADR 0003.
+//! applied across the `UNION ALL` of every mapping's scan.
 
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
@@ -99,7 +98,7 @@ pub struct ObjectMappingDef {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub valid_to: Option<DateTime<Utc>>,
 
-    /// Graph-cache participation for this mapping. ADR 0004.
+    /// Graph-cache participation for this mapping.
     #[serde(default)]
     pub cache_hint: CacheHintKind,
 }

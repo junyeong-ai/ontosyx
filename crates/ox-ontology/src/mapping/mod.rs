@@ -1,7 +1,7 @@
 //! Mapping layer — binds the logical ontology to physical data
 //! sources.
 //!
-//! Three first-class definitions (ADR 0003):
+//! Three first-class definitions:
 //!
 //! - [`ObjectMappingDef`] — one NodeType ↔ one physical relation.
 //! - [`LinkMappingDef`] — one EdgeType ↔ the relation(s) that supply
@@ -12,11 +12,9 @@
 //! Plus the reference types ([`SourceId`], [`ColumnRef`],
 //! [`SourceRelationRef`], [`CacheHintKind`]) they share.
 //!
-//! The three `XxxDef` types above are the canonical mapping layer;
-//! the `object_mappings` vector on [`crate::ir::OntologyIR`] is the
-//! single source of truth for "which source relation supplies a given
-//! node type". Earlier flat-HashMap `SourceMapping` and the transitional
-//! `ObjectMappingLookup` trait have been removed.
+//! The `object_mappings` vector on [`crate::ir::OntologyIR`] is the
+//! single source of truth for "which source relation supplies a
+//! given node type".
 
 pub mod link;
 pub mod object;

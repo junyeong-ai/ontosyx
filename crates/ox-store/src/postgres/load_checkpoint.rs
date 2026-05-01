@@ -66,7 +66,7 @@ impl LoadCheckpointStore for PostgresStore {
         // the caller-supplied field — RLS enforces row.workspace_id =
         // current_setting('app.workspace_id'), and the table's `id`
         // column carries `DEFAULT gen_random_uuid()` so the surrogate
-        // key falls out of the schema, not the caller. ADR-0039.
+        // key falls out of the schema, not the caller.
         let workspace_id = super::bound_workspace_id_for_dml()?;
         sqlx::query(
             "INSERT INTO load_checkpoints

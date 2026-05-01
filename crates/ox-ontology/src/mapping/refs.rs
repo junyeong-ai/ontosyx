@@ -1,4 +1,4 @@
-//! Reference / identifier types used by the Phase 4 mapping layer.
+//! Reference / identifier types used by the mapping layer.
 //!
 //! These primitives sit below `ObjectMappingDef`, `LinkMappingDef`, and
 //! `PropertyMappingDef` — they describe *where* a value lives in a
@@ -153,9 +153,9 @@ pub struct SourceRelationRef {
 // Cache hint
 // ---------------------------------------------------------------------------
 
-/// Per-mapping hint for the graph-cache backend (ADR 0004). The
-/// planner treats `None` as "never cache"; `GraphCache` is an opt-in
-/// that names a freshness window and an explicit refresh cadence.
+/// Per-mapping hint for the graph-cache backend. The planner treats
+/// `None` as "never cache"; `GraphCache` is an opt-in that names a
+/// freshness window and an explicit refresh cadence.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum CacheHintKind {

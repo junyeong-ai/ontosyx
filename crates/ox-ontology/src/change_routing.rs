@@ -10,14 +10,14 @@
 //!   with-notification, approve-required-unless-predicate, or
 //!   always-approve.
 //! - [`ChangeRoutingRule`] — a persistent `(workspace_id?, change_type)`
-//!   → `ApprovalRouting` binding that the router consults when a
-//!   Phase-2 edit request lands. Per-workspace overrides take
-//!   precedence over the global default rows (via `priority`).
+//!   → `ApprovalRouting` binding that the router consults when an
+//!   edit request lands. Per-workspace overrides take precedence
+//!   over the global default rows (via `priority`).
 //!
-//! The routing engine itself lives alongside the approval workflow
-//! (Phase 2) so this module only ships the data shapes + defaults.
-//! A fresh deploy seeds one rule per `ChangeType` with the
-//! patent-matrix automation tier; workspaces override as needed.
+//! The routing engine itself lives alongside the approval workflow,
+//! so this module only ships the data shapes + defaults. A fresh
+//! deploy seeds one rule per `ChangeType` with the patent-matrix
+//! automation tier; workspaces override as needed.
 
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
@@ -29,7 +29,7 @@ ox_core::define_id_newtype!(ChangeRoutingRuleId);
 /// Taxonomy of edit operations the routing matrix knows about.
 /// The variant set is closed — adding a new kind is a deliberate
 /// schema extension, not a silent addition. Every `OntologyEditOp`
-/// (Phase 2) classifies into exactly one of these.
+/// classifies into exactly one of these.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ChangeType {
@@ -316,7 +316,7 @@ pub enum RiskLevel {
 }
 
 /// Evaluation result for a classified change request. Consumed by
-/// the approval workflow (Phase 2) to decide "apply vs queue".
+/// the approval workflow to decide "apply vs queue".
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EditRoutingDecision {
     /// Apply immediately. `notify_roles` non-empty when the rule

@@ -201,7 +201,7 @@ pub struct EndpointRef {
 }
 
 /// Adapter-reported join-cost hint. Coarse on purpose — a richer
-/// cost estimator is scoped to the planner (Phase 6).
+/// cost estimator belongs to the planner.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum JoinCostHint {

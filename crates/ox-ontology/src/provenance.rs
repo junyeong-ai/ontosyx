@@ -1,4 +1,4 @@
-//! `ProvenanceDef` — W3C PROV-O aligned origin record (ADR 0008).
+//! `ProvenanceDef` — W3C PROV-O aligned origin record.
 //!
 //! Every fact asserted by the platform carries a `ProvenanceDef`
 //! pointer that names *what activity produced it*, *which agent was
@@ -55,8 +55,8 @@ pub struct ProvenanceDef {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub derived_from: Vec<EntityRef>,
 
-    /// Ontology time the subject was valid under (bitemporal axis,
-    /// ADR 0007). `None` means "current".
+    /// Ontology time the subject was valid under (bitemporal axis).
+    /// `None` means "current".
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ontology_valid_at: Option<DateTime<Utc>>,
 
@@ -94,9 +94,8 @@ pub enum EntityRef {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ProvenanceActivityKind {
-    /// Source scan via an object mapping (ADR 0003). Records which
-    /// mapping fetched the data and which underlying source it
-    /// came from.
+    /// Source scan via an object mapping. Records which mapping
+    /// fetched the data and which underlying source it came from.
     SourceScan {
         source_id: SourceId,
         mapping_id: ObjectMappingId,

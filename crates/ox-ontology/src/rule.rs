@@ -331,8 +331,8 @@ pub enum ConstraintSignature {
 
 /// SHACL Core constraint component. The subset covers ~95% of
 /// real-world rule usage; advanced components (`sh:and`, `sh:or`,
-/// `sh:xone`, recursion rules) land in Phase 11 with the reasoning
-/// engine.
+/// `sh:xone`, recursion rules) are not yet implemented and land
+/// alongside the reasoning engine.
 ///
 /// `ShaclConstraint` lives at the **logical** layer — the SHACL
 /// validator pipeline checks each constraint at write/read time and

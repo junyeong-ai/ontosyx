@@ -1,5 +1,5 @@
 //! [`DraftClusterCheckpointStore`] — per-cluster checkpoint cache
-//! for `design_ontology_batch` (ADR-0027).
+//! for `design_ontology_batch`.
 //!
 //! Workspace isolation rides RLS — every read/write below carries
 //! the `super::require_workspace_context()?` guard so a missing

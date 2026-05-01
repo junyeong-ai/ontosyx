@@ -681,10 +681,10 @@ pub trait UserStore: Send + Sync {
     async fn increment_user_token_version(&self, id: Uuid) -> OxResult<i64>;
 }
 
-/// Backing store for the `Idempotency-Key` middleware (ADR-0047).
-/// Records are scoped to `(workspace_id, user_id, method, path, key)`
-/// so the same client-supplied key cannot accidentally cross routes
-/// or tenants.
+/// Backing store for the `Idempotency-Key` middleware. Records are
+/// scoped to `(workspace_id, user_id, method, path, key)` so the
+/// same client-supplied key cannot accidentally cross routes or
+/// tenants.
 #[async_trait]
 pub trait IdempotencyStore: Send + Sync {
     /// Look up a prior response for this scope. `Ok(None)` means
@@ -1496,7 +1496,7 @@ pub trait LoadCheckpointStore: Send + Sync {
 }
 
 // ---------------------------------------------------------------------------
-// DraftClusterCheckpointStore — per-cluster checkpoints (ADR-0027)
+// DraftClusterCheckpointStore — per-cluster checkpoints
 //
 // `design_ontology_batch` runs the LLM design call N times across
 // N clusters per design pass. A transient failure on cluster K
@@ -1912,9 +1912,9 @@ pub trait AmbiguityStore: Send + Sync {
     ) -> OxResult<bool>;
 }
 
-/// Source-to-IR mapping artifacts (ADR 0011) — declarative,
-/// content-addressed bridge between a source schema snapshot and
-/// the OntologyIR derived from it. Immutable by design: callers
+/// Source-to-IR mapping artifacts — declarative, content-addressed
+/// bridge between a source schema snapshot and the OntologyIR
+/// derived from it. Immutable by design: callers
 /// `create_artifact` (idempotent on body hash + schema hash),
 /// `get_artifact` by id, `list_artifacts_by_source` for review,
 /// and `delete_artifact` to retract.

@@ -1,4 +1,4 @@
-//! Source-retraction delta — ADR-0026 second half.
+//! Source-retraction delta.
 //!
 //! Pairs with `AnalyzeSelection::Reduce` on the introspection side
 //! (`ox_source::AnalyzeSelection::Reduce` drops named tables from the

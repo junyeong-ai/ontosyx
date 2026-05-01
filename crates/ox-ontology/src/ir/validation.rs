@@ -812,8 +812,8 @@ impl OntologyIR {
         }
 
         // -------------------------------------------------------------
-        // Mapping (ADR 0003) referential integrity. O(1) per mapping
-        // via `node_id_idx` / `edge_id_idx` instead of a per-validate
+        // Mapping referential integrity. O(1) per mapping via
+        // `node_id_idx` / `edge_id_idx` instead of a per-validate
         // HashSet alloc.
         // -------------------------------------------------------------
         for om in &self.object_mappings {

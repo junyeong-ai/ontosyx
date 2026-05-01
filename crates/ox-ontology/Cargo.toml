@@ -1,15 +1,10 @@
 [package]
 name = "ox-ontology"
-description = "Ontosyx ontology model — NodeType / EdgeType / Interface / Property / Rule (SHACL) / Function / Action / Metric / Enrichment / Glossary / Mapping / Provenance / DataQuality / Drift / Audit (Phase 3+)"
+description = "Ontosyx ontology model — NodeType / EdgeType / Interface / Property / Rule (SHACL) / Function / Action / Metric / Enrichment / Glossary / Mapping / Provenance / DataQuality / Drift / Audit"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
-
-# Phase 3 scaffolding crate — the actual move from `ox-core` happens in
-# Phase 3-B. The crate exists now so workspace members, `cargo-deny`
-# wrappers, and dependency arrows can be established without a churn
-# cycle later.
 
 [features]
 # Expose the Korean e-commerce fixture + other shared test helpers to

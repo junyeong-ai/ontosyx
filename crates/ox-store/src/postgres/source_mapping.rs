@@ -1,9 +1,9 @@
-//! [`SourceMappingArtifactStore`] — content-addressed store for the
-//! source-to-IR mapping artifacts described in ADR 0011. Inserts
-//! collapse on the `(workspace_id, source_id, schema_snapshot_hash,
-//! content_hash)` unique constraint so re-running the design action
-//! against an unchanged schema replays the previous artifact instead
-//! of writing a duplicate row.
+//! [`SourceMappingArtifactStore`] — content-addressed store for
+//! source-to-IR mapping artifacts. Inserts collapse on the
+//! `(workspace_id, source_id, schema_snapshot_hash, content_hash)`
+//! unique constraint so re-running the design action against an
+//! unchanged schema replays the previous artifact instead of writing
+//! a duplicate row.
 
 use super::*;
 

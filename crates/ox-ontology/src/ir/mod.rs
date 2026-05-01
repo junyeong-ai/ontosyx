@@ -47,13 +47,13 @@ pub enum OntologyInvariantError {
     #[error("index not found: {id}")]
     IndexNotFound { id: String },
 
-    /// A Phase 5-A/B/4-A semantic-superstructure or mapping
-    /// collection ingested a duplicate id. Kept separate from the
-    /// typed `Duplicate*Id` variants so we do not need a new variant
-    /// per collection; the `kind` field names the collection
-    /// (`"interface"`, `"rule"`, `"action"`, `"function"`,
-    /// `"metric"`, `"enrichment"`, `"glossary_term"`,
-    /// `"data_quality"`, `"object_mapping"`, `"link_mapping"`).
+    /// A semantic-superstructure or mapping collection ingested a
+    /// duplicate id. Kept separate from the typed `Duplicate*Id`
+    /// variants so we do not need a new variant per collection; the
+    /// `kind` field names the collection (`"interface"`, `"rule"`,
+    /// `"action"`, `"function"`, `"metric"`, `"enrichment"`,
+    /// `"glossary_term"`, `"data_quality"`, `"object_mapping"`,
+    /// `"link_mapping"`).
     #[error("duplicate {kind} id: {id}")]
     DuplicateCollectionId { kind: &'static str, id: String },
 
@@ -111,9 +111,9 @@ pub enum SchemaView {
 /// Precomputed lookup indices for O(1) resolver access.
 /// Rebuilt automatically on deserialization and after mutations.
 ///
-/// Every Phase 5-A/B/4-A collection gets its own id → index map so
-/// the validator and planner read them in O(1) instead of scanning
-/// the owning vector. The maps are populated in [`OntologyIR::rebuild_indices`]
+/// Every collection gets its own id → index map so the validator
+/// and planner read them in O(1) instead of scanning the owning
+/// vector. The maps are populated in [`OntologyIR::rebuild_indices`]
 /// and rebuilt on every structural mutation; a duplicate id in any
 /// collection surfaces as
 /// [`OntologyInvariantError::DuplicateCollectionId`] rather than
@@ -129,7 +129,7 @@ struct OntologyLookup {
     /// property id → (node_types index, property index within that node)
     prop_id_loc: HashMap<PropertyId, (usize, usize)>,
 
-    // --- Phase 5-D — semantic superstructure + mapping indices ----------
+    // --- Semantic superstructure + mapping indices ----------------------
     interface_id_idx: HashMap<crate::interface::InterfaceId, usize>,
     rule_id_idx: HashMap<crate::action::RuleId, usize>,
     action_id_idx: HashMap<crate::action::ActionId, usize>,
@@ -183,15 +183,15 @@ struct OntologyLookup {
 ///
 /// **Version history**
 /// - `1` — original shape (node_types, edge_types, indexes).
-/// - `2` — Phase 5-B wiring: adds first-class collections for
-///   `InterfaceDef`, `RuleDef`, `ActionDef`, `FunctionDef`,
-///   `MetricDef`, `EnrichmentDef`, `GlossaryTermDef`, `DataQualityDef`,
-///   and `ProvenanceDef`. Every new collection defaults to empty, so a
-///   v1 payload deserialises correctly into a v2 value without a
-///   migration pass — we still bump the version so the server refuses
-///   to downgrade (a v2 ontology round-tripping through a v1 build
-///   would silently lose these collections).
-/// - `3` — Phase Ω wiring: adds the terminology registry collection
+/// - `2` — first-class collections added: `InterfaceDef`, `RuleDef`,
+///   `ActionDef`, `FunctionDef`, `MetricDef`, `EnrichmentDef`,
+///   `GlossaryTermDef`, `DataQualityDef`, and `ProvenanceDef`. Every
+///   new collection defaults to empty, so a v1 payload deserialises
+///   correctly into a v2 value without a migration pass — we still
+///   bump the version so the server refuses to downgrade (a v2
+///   ontology round-tripping through a v1 build would silently lose
+///   these collections).
+/// - `3` — adds the terminology registry collection
 ///   `code_systems: Vec<CodeSystemDef>` (with nested `CodedValue`
 ///   entries). Same defaults-to-empty guarantee — a v2 payload
 ///   round-trips through v3 unchanged.
@@ -284,15 +284,15 @@ pub struct OntologyIR {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) provenance: Vec<crate::provenance::ProvenanceDef>,
 
-    /// Object-level mappings (ADR 0003). Binds a node type to a
-    /// physical relation in a specific source. Multi-mapping per
-    /// node type is allowed; the federation planner deduplicates
-    /// using `precedence` + `primary_key_columns`.
+    /// Object-level mappings. Binds a node type to a physical
+    /// relation in a specific source. Multi-mapping per node type
+    /// is allowed; the federation planner deduplicates using
+    /// `precedence` + `primary_key_columns`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) object_mappings: Vec<crate::mapping::ObjectMappingDef>,
-    /// Edge-level mappings (ADR 0003). Binds an edge type to the
-    /// relation(s) that supply edges — FK, bridge, computed, or
-    /// federated across sources.
+    /// Edge-level mappings. Binds an edge type to the relation(s)
+    /// that supply edges — FK, bridge, computed, or federated
+    /// across sources.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) link_mappings: Vec<crate::mapping::LinkMappingDef>,
 
@@ -431,10 +431,10 @@ impl<'de> Deserialize<'de> for OntologyIR {
         )
         .map_err(serde::de::Error::custom)?;
         // Populate the superstructure after base construction, then
-        // rebuild the lookup once more so the Phase 5-D indices
-        // cover the new collections. `try_new` already built the
-        // node/edge/property indices; the second pass is idempotent
-        // over those and populates the new id→index maps.
+        // rebuild the lookup once more so the superstructure
+        // indices cover the new collections. `try_new` already
+        // built the node/edge/property indices; the second pass is
+        // idempotent over those and populates the new id→index maps.
         ont.interfaces = w.interfaces;
         ont.rules = w.rules;
         ont.actions = w.actions;
@@ -695,7 +695,7 @@ impl OntologyIR {
             }
         }
 
-        // --- Phase 5-D — semantic superstructure + mapping indices ------
+        // --- Semantic superstructure + mapping indices ------------------
         //
         // The loop below is mechanically repetitive because each
         // collection has its own typed id; the generic
@@ -1162,7 +1162,7 @@ impl OntologyIR {
 
     /// Append an interface definition. Fails with
     /// [`OntologyInvariantError::DuplicateCollectionId`] when the id
-    /// is already in use (Phase 5-D enforcement).
+    /// is already in use.
     ///
     /// The sibling add-methods below follow the same contract —
     /// push, then [`OntologyIR::rebuild_indices`] to keep the

@@ -719,9 +719,9 @@ pub struct OntologyEditPreCheck {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub failure_message: Option<String>,
     /// Whole-IR validation errors (`OntologyIR::validate()`),
-    /// including dangling registry references (Phase 1.7). Each
-    /// entry is a structured [`ox_core::DiagnosticMessage`] — the FE
-    /// renders `code` + `params` through its i18n catalogue.
+    /// including dangling registry references. Each entry is a
+    /// structured [`ox_core::DiagnosticMessage`] — the FE renders
+    /// `code` + `params` through its i18n catalogue.
     pub validation_errors: Vec<ox_core::DiagnosticMessage>,
     /// Classified `ChangeType` per operation — same classification
     /// the approval-routing layer uses. Lets the UI highlight
@@ -921,7 +921,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Property-binding ops (Phase 4.5 backend half).
+    // Property-binding ops.
     // ------------------------------------------------------------------
 
     fn bare_property(id: &str, name: &str) -> crate::ir::PropertyDef {
@@ -1017,7 +1017,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Type-deprecation ops (Phase 4.7 follow-up).
+    // Type-deprecation ops.
     // ------------------------------------------------------------------
 
     #[test]

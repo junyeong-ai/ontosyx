@@ -15,9 +15,8 @@
 //! - **glossary_term_hits** — which glossary terms the agent
 //!   actually consulted while translating NL→Cypher.
 //! - **ambiguity_resolution_ids** — which ambiguity resolutions the
-//!   query path applied (Phase 1).
-//! - **shacl_passed / shacl_failure_kind** — Phase 5 [ShaclValidator]
-//!   verdict.
+//!   query path applied.
+//! - **shacl_passed / shacl_failure_kind** — `ShaclValidator` verdict.
 //! - **query_ir_normalized_hash** — deterministic hash of the
 //!   QueryIR with timestamps and auto-generated ids stripped;
 //!   anchors the "쿼리 재현성" (query reproducibility) metric.
@@ -52,7 +51,7 @@ pub struct QueryExecutionSignal {
     // Ambiguity layer — closed-loop resolver use.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub ambiguity_resolution_ids: Vec<Uuid>,
-    /// Did the query follow a clarification (Phase 1 resolve_ambiguity tool)?
+    /// Did the query follow a clarification (`resolve_ambiguity` tool)?
     /// Feeds the "되묻기 이후 성공률" metric.
     #[serde(default)]
     pub ambiguity_was_clarified: bool,
@@ -70,8 +69,8 @@ pub struct QueryExecutionSignal {
     pub query_ir_normalized_hash: String,
 
     // Stale-concept layer — the exact types the query touched.
-    // Written after the compiler emits plan metadata (Phase 3 already
-    // collects `type_ids` via Π-3 provenance).
+    // Written after the compiler emits plan metadata (which already
+    // collects `type_ids` via the provenance trail).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub referenced_type_ids: Vec<Uuid>,
 }

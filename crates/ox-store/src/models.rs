@@ -1158,9 +1158,9 @@ pub struct KnowledgeEntry {
 ///
 /// Rows in this table are the durable form of every `source_id` the
 /// `ox-federation` planner might resolve at query time. The admin
-/// CRUD routes write here; the AppState bootstrap (slice W3b) will
-/// stream the rows back into `InMemoryAdapterResolver` at server
-/// start so a restart does not drop registrations.
+/// CRUD routes write here; the `AppState` bootstrap streams the
+/// rows back into `InMemoryAdapterResolver` at server start so a
+/// restart does not drop registrations.
 ///
 /// `config` is adapter-specific JSON — for CSV/JSON it carries a
 /// `data` field holding the inline payload, for future Postgres /

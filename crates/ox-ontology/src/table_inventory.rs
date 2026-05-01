@@ -1,13 +1,12 @@
 //! `TableInventoryEntry` — first-class record of every source
-//! table the project has touched (ADR-0024).
+//! table the project has touched.
 //!
-//! Pre-ADR-0024 there was no canonical answer to "which tables did
-//! this project bring in, and which NodeTypes / EdgeTypes did each
-//! contribute to?". The information lived implicitly in
-//! `object_mappings` (relation → NodeType) and a per-project
-//! `analyzed_tables` list, neither of which preserved the
+//! Without this collection there's no canonical answer to "which
+//! tables did this project bring in, and which NodeTypes /
+//! EdgeTypes did each contribute to?". `object_mappings` (relation
+//! → NodeType) only tells half the story; the inventory adds the
 //! "imported but never mapped" / "available but never imported"
-//! axes that the source-as-first-class UX needs.
+//! axes the source-as-first-class UX needs.
 //!
 //! `TableInventoryEntry` carries that axis at IR-level so:
 //!
@@ -57,7 +56,7 @@ pub enum TableInventoryStatus {
     Retracted,
 }
 
-/// One row of the project's source-table inventory (ADR-0024).
+/// One row of the project's source-table inventory.
 ///
 /// `(source_id, table_name)` is the natural key — the IR's
 /// `add_table_inventory_entry` upserts on the pair so re-introspection

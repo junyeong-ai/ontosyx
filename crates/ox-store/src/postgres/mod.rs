@@ -196,10 +196,10 @@ impl PostgresStore {
                 })
             })
             // RLS: clear workspace context when the connection returns
-            // to the pool. ADR-0040: `RESET ALL` failures must NOT be
-            // swallowed — a connection that retains the previous
-            // tenant's `app.workspace_id` would lend that scope to the
-            // next acquirer, defeating workspace isolation. Returning
+            // to the pool. `RESET ALL` failures must NOT be swallowed
+            // — a connection that retains the previous tenant's
+            // `app.workspace_id` would lend that scope to the next
+            // acquirer, defeating workspace isolation. Returning
             // `Ok(false)` from `after_release` instructs sqlx to close
             // the connection rather than recycle it; a fresh
             // connection (with no session-var inheritance) replaces

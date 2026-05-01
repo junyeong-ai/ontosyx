@@ -9,11 +9,11 @@ use ox_core::types::{PropertyType, PropertyValue, deserialize_optional_property_
 // ---------------------------------------------------------------------------
 // Type-safe entity ID newtypes
 //
-// Defined via the shared `define_id_newtype!` macro in `ox-core::id` so
-// every crate in the workspace that introduces a new id type
-// (Phase 3+: `MappingId`, `RuleId`, `ActionId`, `FunctionId`,
-// `MetricId`, `GlossaryTermId`, ...) picks up the same trait surface
-// without copying the boilerplate.
+// Defined via the shared `define_id_newtype!` macro in `ox-core::id`
+// so every crate in the workspace that introduces a new id type
+// (`MappingId`, `RuleId`, `ActionId`, `FunctionId`, `MetricId`,
+// `GlossaryTermId`, ...) picks up the same trait surface without
+// copying the boilerplate.
 // ---------------------------------------------------------------------------
 
 ox_core::define_id_newtype!(
@@ -217,9 +217,10 @@ impl std::fmt::Display for PropertyOwner {
 
 /// A suggested PII classification awaiting user confirmation.
 ///
-/// Auto-detection (Phase 4.6) produces suggestions — never sets `pii_kind`
-/// directly on PropertyDef. The user confirms or rejects each suggestion
-/// via the UI before it becomes a committed classification.
+/// Auto-detection produces suggestions — never sets `pii_kind`
+/// directly on `PropertyDef`. The user confirms or rejects each
+/// suggestion via the UI before it becomes a committed
+/// classification.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 pub struct PiiSuggestion {
     /// Property affected.
@@ -545,7 +546,7 @@ pub struct PropertyDef {
     /// custom units for domain-specific measures.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unit_id: Option<crate::code_system::CodedValueId>,
-    /// PII kind — user-declared, never auto-assigned. See Phase 4.6.
+    /// PII kind — user-declared, never auto-assigned.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pii_kind: Option<PiiKind>,
     /// Source column name this property was derived from.

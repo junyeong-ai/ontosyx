@@ -1,4 +1,4 @@
-//! Per-cluster checkpoint primitives — ADR-0027.
+//! Per-cluster checkpoint primitives.
 //!
 //! `design_ontology_batch` runs the LLM design call N times across
 //! N table clusters per design pass. A transient failure on cluster
@@ -19,10 +19,9 @@
 //!   same prompt-render hash → same signature.
 //! - `DraftClusterCheckpoint` — the persisted record. The store
 //!   trait that persists / looks it up lives in `ox-store`
-//!   (`DraftClusterCheckpointStore` — added in the integration
-//!   slice). This module ships the wire-shape so consumers can
-//!   serialise / deserialise checkpoints without depending on
-//!   the persistence crate.
+//!   (`DraftClusterCheckpointStore`). This module ships the
+//!   wire-shape so consumers can serialise / deserialise checkpoints
+//!   without depending on the persistence crate.
 //!
 //! The checkpoint expires when the operator either (a) completes
 //! the design (and the project rolls forward), or (b) explicitly
@@ -41,7 +40,7 @@ use ox_core::source_schema::ForeignKeyDef;
 /// How long a freshly-authored checkpoint stays cached before the
 /// daily cleanup cron sweeps it. Long enough that a session of
 /// design retries hits the cache, short enough that abandoned
-/// designs don't accumulate. ADR-0027.
+/// designs don't accumulate.
 pub const DRAFT_CHECKPOINT_TTL_HOURS: i64 = 24;
 
 /// Stable digest pinning a cluster's input shape. Two clusters
@@ -56,12 +55,11 @@ pub struct ClusterSignature(String);
 
 impl ClusterSignature {
     /// Hash the cluster's table set + internal FKs + cross-cluster
-    /// FKs + the prompt render hash that authored it. The
-    /// `prompt_render_hash` argument folds in ADR-0029's render
-    /// fingerprint so an admin who edited the prompt body without
-    /// bumping `prompt_version` causes a cache miss — the prior
-    /// cluster output is no longer authoritative under the new
-    /// prompt.
+    /// FKs + the prompt render hash that authored it. Folding in
+    /// the render fingerprint means an admin who edited the prompt
+    /// body without bumping `prompt_version` causes a cache miss —
+    /// the prior cluster output is no longer authoritative under
+    /// the new prompt.
     pub fn from_cluster(cluster: &TableCluster, prompt_render_hash: &str) -> Self {
         let mut hasher = Sha256::new();
         // Tables: alphabetical to keep order-independence.

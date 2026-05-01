@@ -15,9 +15,8 @@
 //!   tool loop without a preview unless the action is marked
 //!   `Automatic`.
 //!
-//! ADR 0001 + ADR 0009: actions are single-source by contract.
-//! Cross-source workflows are Saga-shaped, outside the scope of one
-//! action.
+//! Actions are single-source by contract. Cross-source workflows
+//! are Saga-shaped and outside the scope of one action.
 
 use chrono::Duration;
 use schemars::JsonSchema;

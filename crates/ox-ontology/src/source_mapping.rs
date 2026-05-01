@@ -160,9 +160,9 @@ pub struct ArtifactProvenance {
     pub params: BTreeMap<String, serde_json::Value>,
     /// SHA-256 of the rendered prompt body — system prompt + user
     /// prompt with every variable interpolated, exactly as the
-    /// LLM saw it (ADR-0029). Bumps automatically when an admin
-    /// edits the DB row backing `prompt_id` / `prompt_version`
-    /// without bumping the version, so a replay against the same
+    /// LLM saw it. Bumps automatically when an admin edits the DB
+    /// row backing `prompt_id` / `prompt_version` without bumping
+    /// the version, so a replay against the same
     /// `(prompt_id, prompt_version)` pair surfaces the divergence
     /// instead of silently re-using the prior cache entry. Empty
     /// string when the artifact pre-dates the field.

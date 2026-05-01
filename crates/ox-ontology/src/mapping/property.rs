@@ -97,10 +97,10 @@ pub enum PropertyTransform {
     /// planner passes this through to the source dialect verbatim,
     /// so the author's expression must be valid for that dialect.
     SqlExpr { expression: String },
-    /// Derived property resolved by an `ox_ontology::FunctionDef`
-    /// (Phase 5). Kept as a string id because `FunctionDef` is not
-    /// yet part of the ontology model; the id will become a typed
-    /// `FunctionId` once the function registry lands.
+    /// Derived property resolved by an `ox_ontology::FunctionDef`.
+    /// Kept as a string id because `FunctionDef` is not yet part of
+    /// the ontology model; the id will become a typed `FunctionId`
+    /// once the function registry lands.
     Derived { function_id: String },
 }
 

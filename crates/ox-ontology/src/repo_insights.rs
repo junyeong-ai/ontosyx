@@ -180,7 +180,7 @@ pub struct FileContent {
 }
 
 // ---------------------------------------------------------------------------
-// FileSelection — LLM output from navigate_repo (Phase 1)
+// FileSelection — LLM output from navigate_repo
 // ---------------------------------------------------------------------------
 
 /// Structured output from the repo navigation LLM agent.
@@ -192,7 +192,7 @@ pub struct FileSelection {
 }
 
 // ---------------------------------------------------------------------------
-// RepoInsights — LLM output from analyze_repo_files (Phase 2)
+// RepoInsights — LLM output from analyze_repo_files
 // ---------------------------------------------------------------------------
 
 /// Structured insights extracted from repository source files by the LLM agent.

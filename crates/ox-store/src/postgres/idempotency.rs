@@ -1,6 +1,6 @@
 //! [`IdempotencyStore`] — backing layer for the Idempotency-Key
-//! middleware (ADR-0047). One row per replayable response,
-//! scoped to `(workspace_id, user_id, method, path, key)`.
+//! middleware. One row per replayable response, scoped to
+//! `(workspace_id, user_id, method, path, key)`.
 //!
 //! Reads and writes are tiny by design: the middleware sits on
 //! every mutating LLM endpoint and the round-trip cost is the
