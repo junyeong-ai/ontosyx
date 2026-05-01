@@ -7,6 +7,7 @@ import type { ReactElement } from "react";
 import messages from "../../../messages/en.json";
 import { GlossaryBindingPanel } from "@/components/glossary/binding-panel";
 import * as bindingApi from "@/lib/api/binding-suggestions";
+import * as editOps from "@/lib/api/edit-ops";
 
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -105,7 +106,7 @@ describe("GlossaryBindingPanel", () => {
       ],
     });
     const apply = vi
-      .spyOn(bindingApi, "applyOntologyEdits")
+      .spyOn(editOps, "submitOntologyEdits")
       .mockResolvedValue({
         new_version: 3,
         new_version_id: "vid-1",

@@ -7,9 +7,10 @@ import type { ReactElement } from "react";
 import messages from "../../../messages/en.json";
 import { LinkTermDropdown } from "@/components/workbench/inspector/link-term-dropdown";
 import * as bindingApi from "@/lib/api/binding-suggestions";
+import * as editOps from "@/lib/api/edit-ops";
 
-// Stub the Phase 4.5 API module so the component exercises its full
-// state machine (loading / populated / pick / unbind) without network.
+// Stub the API surface so the component exercises its full state
+// machine (loading / populated / pick / unbind) without network.
 // `vi.spyOn` keeps the real exports importable, critical for the
 // typed variables and for other tests that import from the same file.
 vi.mock("sonner", () => ({
@@ -116,7 +117,7 @@ describe("LinkTermDropdown", () => {
       ],
     });
     const apply = vi
-      .spyOn(bindingApi, "applyOntologyEdits")
+      .spyOn(editOps, "submitOntologyEdits")
       .mockResolvedValue({
         new_version: 4,
         new_version_id: "vid-1",
@@ -151,7 +152,7 @@ describe("LinkTermDropdown", () => {
 
   it("clicking the bound pill fires an unbind_property edit", async () => {
     const apply = vi
-      .spyOn(bindingApi, "applyOntologyEdits")
+      .spyOn(editOps, "submitOntologyEdits")
       .mockResolvedValue({
         new_version: 4,
         new_version_id: "vid-1",

@@ -8,10 +8,8 @@ import {
   useDecideStaleProposal,
   useStaleProposals,
 } from "@/hooks/api/use-quality";
-import {
-  applyOntologyEdits,
-  type BindingEditOp,
-} from "@/lib/api/binding-suggestions";
+import { type BindingEditOp } from "@/lib/api/binding-suggestions";
+import { submitOntologyEdits } from "@/lib/api/edit-ops";
 import {
   listTypeCandidates,
   type TypeCandidate,
@@ -59,7 +57,7 @@ export default function StaleConceptsPage() {
             id: proposal.type_id,
           };
     try {
-      await applyOntologyEdits(candidate.ontology_id, {
+      await submitOntologyEdits(candidate.ontology_id, {
         expected_version: expected,
         operations: [op],
         message: reason

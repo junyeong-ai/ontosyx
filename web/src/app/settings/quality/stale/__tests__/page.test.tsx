@@ -18,13 +18,13 @@ vi.mock("@/lib/api/quality", async () => {
   };
 });
 
-vi.mock("@/lib/api/binding-suggestions", async () => {
+vi.mock("@/lib/api/edit-ops", async () => {
   const actual = await vi.importActual<Record<string, unknown>>(
-    "@/lib/api/binding-suggestions",
+    "@/lib/api/edit-ops",
   );
   return {
     ...actual,
-    applyOntologyEdits: vi.fn(),
+    submitOntologyEdits: vi.fn(),
   };
 });
 

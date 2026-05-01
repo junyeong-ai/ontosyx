@@ -105,16 +105,11 @@ export async function suggestTermsForProperty(
 }
 
 // ---------------------------------------------------------------------------
-// /edits — apply the binding
-//
 // `BindingEditOp` is the narrow subset of `OntologyEditOp` the
-// binding-suggestions UI ever constructs (bind / unbind / deprecate
-// node / deprecate edge). It composes into the canonical edit-ops
-// surface — `submitOntologyEdits` from `./edit-ops` is the single
-// transport, the request envelope and receipt come from there too.
-// Keeping the narrow union here lets the binding form lock the
-// shape of what it can author at the type level without inheriting
-// the full 24-variant union.
+// binding-suggestions UI ever constructs. It locks the form's
+// authoring surface at the type level so the binding affordance
+// can't accidentally emit, say, a `create_glossary_term` op — the
+// full 24-variant union would silently allow that.
 // ---------------------------------------------------------------------------
 
 import type {
@@ -122,8 +117,6 @@ import type {
   PropertyBindingHandle,
 } from "@/types/ontology";
 import type { PropertyOwnerPath } from "./edit-ops";
-
-export type { PropertyOwnerPath };
 
 export type BindingEditOp =
   | {
@@ -148,9 +141,3 @@ export type BindingEditOp =
       id: string;
       replaced_by_id?: string;
     };
-
-export type {
-  EditOntologyRequest,
-  OntologyEditReceipt,
-} from "./edit-ops";
-export { submitOntologyEdits as applyOntologyEdits } from "./edit-ops";

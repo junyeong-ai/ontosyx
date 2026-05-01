@@ -16,17 +16,19 @@ import {
 } from "@tanstack/react-query";
 
 import {
-  applyOntologyEdits,
   suggestGlossaryBindings,
   suggestTermsForProperty,
-  type OntologyEditReceipt,
-  type EditOntologyRequest,
   type SuggestBindingsRequest,
   type SuggestBindingsResponse,
   type SuggestTermsResponse,
   type OwnerKind,
   type BindingPolicyBody,
 } from "@/lib/api/binding-suggestions";
+import {
+  submitOntologyEdits,
+  type EditOntologyRequest,
+  type OntologyEditReceipt,
+} from "@/lib/api/edit-ops";
 
 import { ontologiesKeys } from "./use-ontologies";
 
@@ -88,7 +90,7 @@ export function useApplyBindingEdits(
   const { onSuccess, ...rest } = options ?? {};
   return useMutation<OntologyEditReceipt, Error, EditOntologyRequest>({
     ...rest,
-    mutationFn: (body) => applyOntologyEdits(ontologyId, body),
+    mutationFn: (body) => submitOntologyEdits(ontologyId, body),
     onSuccess: (...args) => {
       queryClient.invalidateQueries({
         queryKey: ontologiesKeys.detail(ontologyId),

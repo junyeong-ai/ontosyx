@@ -5,10 +5,6 @@
 // format: `serde(tag = "op", rename_all = "snake_case")` →
 // `{"op": "create_glossary_term", "def": {...}}`.
 //
-// `binding-suggestions.ts` re-exports the same submit function as
-// `applyOntologyEdits` so the binding-form UI keeps its
-// historically-named import path; both names resolve to one impl.
-//
 // Source of truth: `crates/ox-ontology/src/edit.rs::OntologyEditOp`.
 // Adding a new variant on the backend requires a parallel entry here
 // — there is no codegen step yet, the pair stays hand-mirrored.

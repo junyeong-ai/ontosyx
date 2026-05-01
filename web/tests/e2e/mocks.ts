@@ -40,10 +40,10 @@ import type {
 } from "@/lib/api/ambiguity";
 import type {
   BindingSignal,
-  OntologyEditReceipt,
   PropertyCandidate,
   SuggestBindingsResponse,
 } from "@/lib/api/binding-suggestions";
+import type { OntologyEditReceipt } from "@/lib/api/edit-ops";
 import type {
   CurrentVersionSummary,
   OntologyDetail,
