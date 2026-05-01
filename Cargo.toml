@@ -29,12 +29,10 @@ publish = false
 too_many_arguments = "allow"
 items_after_test_module = "allow"
 
-# Correctness gates — promoted from `warn` to `deny` after the Phase 1.7
-# sweep closed out the last in-tree violations. Test modules are
-# exempted per-crate via
+# Correctness gates. Test modules are exempted per-crate via
 # `#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]`.
 # Binaries with legitimate startup-time `expect`s (e.g. `ox-api::main`
-# initializing OTLP / Prometheus) opt out with a targeted
+# initialising OTLP / Prometheus) opt out with a targeted
 # `#![allow(clippy::expect_used)]` on the binary crate.
 unwrap_used = "deny"
 expect_used = "deny"
