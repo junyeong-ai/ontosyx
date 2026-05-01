@@ -91,7 +91,7 @@ pub(crate) async fn extend_project(
         _ => None,
     };
     let baseline = build_extend_baseline(&project);
-    let (new_source_config, new_source_data, new_source_schema, new_source_profile, new_report) =
+    let (new_source_config, new_source_data, new_source_schema, new_source_profile, mut new_report) =
         if let Some(url) = &source_url {
             let (config, schema, profile, report) = analyze_code_repository(&state, url).await?;
             (config, None, Some(schema), Some(profile), Some(report))
@@ -111,6 +111,25 @@ pub(crate) async fn extend_project(
                 analyzed.report,
             )
         };
+
+    // Eager drift detection: compare the new profile against the
+    // existing ontology's value-set bindings. A new sample value
+    // outside the bound set means the derived `InValueSet` rule
+    // would silently reject it on write — surface as an analysis
+    // warning so the operator reviews the binding before the next
+    // deploy.
+    if let (Some(profile), Some(report)) = (&new_source_profile, new_report.as_mut()) {
+        let drift_warnings =
+            ox_ontology::detect_value_set_drift(&existing_ontology, profile);
+        if !drift_warnings.is_empty() {
+            warn!(
+                project_id = %id,
+                drift_count = drift_warnings.len(),
+                "Value-set drift detected — derived rules may silently reject samples"
+            );
+            report.analysis_warnings.extend(drift_warnings);
+        }
+    }
 
     // 2. Build LLM input directly from the new source data (no temp struct needed)
     let existing_opts = get_design_options(&project);

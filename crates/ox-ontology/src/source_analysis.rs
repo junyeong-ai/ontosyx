@@ -147,6 +147,15 @@ pub enum WarningClass {
     /// the wait as a warning.
     SnowflakeWarehouseSuspended,
 
+    // ── Ontology-level drift ──────────────────────────────────────
+    /// A property bound to a `ValueSetDef` carries sample values
+    /// outside the set's expansion. The derived `InValueSet` rule
+    /// will silently reject those values on write — operator
+    /// should review the binding before the next deploy.
+    /// `params.unmapped_codes` lists the offending codes;
+    /// `params.value_set` names the bound set.
+    ValueSetDriftDetected,
+
     // ── Catch-all ─────────────────────────────────────────────────
     /// No specific class matched — the raw error is the hint.
     Other,
@@ -167,6 +176,7 @@ impl WarningClass {
             Self::BigQueryJobsCreateDenied => "bigquery_jobs_create_denied",
             Self::PostgresPermissionDenied => "postgres_permission_denied",
             Self::SnowflakeWarehouseSuspended => "snowflake_warehouse_suspended",
+            Self::ValueSetDriftDetected => "value_set_drift_detected",
             Self::Other => "other",
         }
     }

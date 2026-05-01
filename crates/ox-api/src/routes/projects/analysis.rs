@@ -70,7 +70,7 @@ pub(crate) async fn reanalyze_project(
     }
 
     // Re-analyze (CodeRepository has a separate path requiring LLM calls)
-    let (source_config, source_data, source_schema, source_profile, report) =
+    let (source_config, source_data, source_schema, source_profile, mut report) =
         if let ProjectSource::CodeRepository { url } = req.source {
             let (config, schema, profile, report) = analyze_code_repository(&state, &url).await?;
             (config, None, Some(schema), Some(profile), Some(report))
@@ -103,6 +103,29 @@ pub(crate) async fn reanalyze_project(
                 report,
             )
         };
+
+    // Eager drift detection: compare the new profile against the
+    // existing ontology's value-set bindings. Skipped on source
+    // identity change (different source = different bindings; no
+    // meaningful drift comparison) and when the project has no
+    // ontology yet.
+    let existing_ontology: Option<ox_ontology::OntologyIR> = project
+        .ontology
+        .as_ref()
+        .and_then(|v| serde_json::from_value(v.clone()).ok());
+    if let (Some(profile), Some(report), Some(ontology)) =
+        (&source_profile, report.as_mut(), existing_ontology.as_ref())
+    {
+        let drift_warnings = ox_ontology::detect_value_set_drift(ontology, profile);
+        if !drift_warnings.is_empty() {
+            warn!(
+                project_id = %id,
+                drift_count = drift_warnings.len(),
+                "Value-set drift detected — derived rules may silently reject samples"
+            );
+            report.analysis_warnings.extend(drift_warnings);
+        }
+    }
 
     // Detect source identity change via fingerprint comparison
     let source_identity_changed = {

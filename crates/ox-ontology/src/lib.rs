@@ -61,6 +61,7 @@ pub mod integrity;
 pub mod notation_inference;
 pub mod locale_consistency;
 pub mod merge;
+pub mod rule_drift;
 pub mod rule_suggestions;
 pub mod segment;
 pub mod source_analysis;
@@ -155,6 +156,7 @@ pub use rule::{
     ConstraintTarget, EnforcementKind, RuleActivationKind, RuleDef, RuleKind, Severity,
     ShaclConstraint, StateTransition,
 };
+pub use rule_drift::detect_value_set_drift;
 pub use quality::{
     OntologyQualityReport, QualityConfidence, QualityGap, QualityGapCategory, QualityGapRef,
     QualityGapSeverity, is_cryptic_short,
