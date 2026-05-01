@@ -2857,7 +2857,21 @@
         "tooltipTitle": "Project scope: {modeled} modeled, {deferred} deferred",
         "includedLabel": "Modeled tables",
         "deferredLabel": "Deferred tables",
-        "more": "+{n} more"
+        "more": "+{n} more",
+        "actions": {
+          "promote": "Promote",
+          "defer": "Defer",
+          "deferConfirm": "Save",
+          "cancel": "Cancel"
+        },
+        "deferReasonPlaceholder": "Reason…",
+        "toast": {
+          "promoted": "`{table}` promoted to modeled.",
+          "promoteFailed": "Couldn't promote: {error}",
+          "deferred": "`{table}` deferred.",
+          "deferFailed": "Couldn't defer: {error}",
+          "reasonRequired": "Enter a deferral reason."
+        }
       }
     },
     "types": {

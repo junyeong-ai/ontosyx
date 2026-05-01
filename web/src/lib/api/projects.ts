@@ -155,6 +155,41 @@ export async function completeProject(
   });
 }
 
+export interface IncludeScopeTablesRequest {
+  tables: string[];
+  expected_revision: number;
+}
+
+export interface DeferScopeTablesRequest {
+  tables: string[];
+  reason: string;
+  expected_revision: number;
+}
+
+export interface ScopeUpdateResponse {
+  project: DesignProject;
+}
+
+export async function includeScopeTables(
+  id: string,
+  req: IncludeScopeTablesRequest,
+): Promise<ScopeUpdateResponse> {
+  return request(`/projects/${encodeURIComponent(id)}/scope/include`, {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+}
+
+export async function deferScopeTables(
+  id: string,
+  req: DeferScopeTablesRequest,
+): Promise<ScopeUpdateResponse> {
+  return request(`/projects/${encodeURIComponent(id)}/scope/defer`, {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Ontology Commands (save boundary)
 // ---------------------------------------------------------------------------

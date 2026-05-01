@@ -18,6 +18,7 @@ use crate::routes::projects::lifecycle as project_lifecycle;
 use crate::routes::projects::preview as project_preview;
 use crate::routes::projects::refinement as project_refinement;
 use crate::routes::projects::revisions as project_revisions;
+use crate::routes::projects::scope as project_scope;
 use crate::routes::projects::streaming as project_streaming;
 use crate::routes::projects::types as project_types;
 
@@ -127,6 +128,8 @@ impl Modify for SecurityAddon {
         project_refinement::refine_project,
         project_refinement::apply_reconcile,
         project_analysis::reanalyze_project,
+        project_scope::include_scope_tables,
+        project_scope::defer_scope_tables,
         project_edit::edit_project,
         project_extend::extend_project,
         project_preview::preview_source,
@@ -246,6 +249,9 @@ impl Modify for SecurityAddon {
             project_preview::PreviewSourceRequest,
             project_preview::PreviewSourceResponse,
             project_preview::PreviewTableSummary,
+            project_scope::IncludeScopeTablesRequest,
+            project_scope::DeferScopeTablesRequest,
+            project_scope::ScopeUpdateResponse,
             // Ontology
             ontology::CreateOntologyRequest,
             ontology::CreateOntologyResponse,

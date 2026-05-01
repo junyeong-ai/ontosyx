@@ -8,9 +8,14 @@ import {
 } from "@tanstack/react-query";
 import {
   createProject,
+  deferScopeTables,
   deleteProject,
   getProject,
+  includeScopeTables,
   listProjects,
+  type DeferScopeTablesRequest,
+  type IncludeScopeTablesRequest,
+  type ScopeUpdateResponse,
 } from "@/lib/api/projects";
 import type {
   CreateProjectRequest,
@@ -97,6 +102,42 @@ export function useDeleteProject() {
     onSuccess: (_data, id) => {
       qc.invalidateQueries({ queryKey: projectsKeys.lists() });
       qc.removeQueries({ queryKey: projectsKeys.detail(id) });
+    },
+  });
+}
+
+/**
+ * Promote tables from `deferred` (or first-time-seen) into
+ * `included`. Wraps `POST /api/projects/:id/scope/include`.
+ *
+ * Per-table reclassification — does not introspect or redesign;
+ * the staged-bootstrap flow's deferred entries land here for
+ * one-click promotion.
+ */
+export function useIncludeScopeTables(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation<ScopeUpdateResponse, Error, IncludeScopeTablesRequest>({
+    mutationFn: (req) => includeScopeTables(projectId, req),
+    onSuccess: (data) => {
+      qc.setQueryData(projectsKeys.detail(projectId), data.project);
+      qc.invalidateQueries({ queryKey: projectsKeys.lists() });
+    },
+  });
+}
+
+/**
+ * Demote tables from `included` to `deferred`. Wraps
+ * `POST /api/projects/:id/scope/defer`. Backend rejects with 409 if
+ * the project's ontology still binds a NodeType to one of the
+ * tables — the caller must retract those nodes first.
+ */
+export function useDeferScopeTables(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation<ScopeUpdateResponse, Error, DeferScopeTablesRequest>({
+    mutationFn: (req) => deferScopeTables(projectId, req),
+    onSuccess: (data) => {
+      qc.setQueryData(projectsKeys.detail(projectId), data.project);
+      qc.invalidateQueries({ queryKey: projectsKeys.lists() });
     },
   });
 }

@@ -2843,7 +2843,21 @@
         "tooltipTitle": "프로젝트 범위: 모델링 {modeled}, 보류 {deferred}",
         "includedLabel": "포함된 테이블",
         "deferredLabel": "보류된 테이블",
-        "more": "+{n}개 더"
+        "more": "+{n}개 더",
+        "actions": {
+          "promote": "승격",
+          "defer": "보류",
+          "deferConfirm": "저장",
+          "cancel": "취소"
+        },
+        "deferReasonPlaceholder": "보류 사유…",
+        "toast": {
+          "promoted": "`{table}` 모델링으로 승격됨.",
+          "promoteFailed": "승격 실패: {error}",
+          "deferred": "`{table}` 보류됨.",
+          "deferFailed": "보류 실패: {error}",
+          "reasonRequired": "보류 사유를 입력하세요."
+        }
       }
     },
     "types": {

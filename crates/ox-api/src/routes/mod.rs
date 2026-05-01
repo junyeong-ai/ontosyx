@@ -80,6 +80,14 @@ pub fn router(state: AppState) -> Router {
             "/projects/{id}/reanalyze",
             post(projects::reanalyze_project),
         )
+        .route(
+            "/projects/{id}/scope/include",
+            post(projects::include_scope_tables),
+        )
+        .route(
+            "/projects/{id}/scope/defer",
+            post(projects::defer_scope_tables),
+        )
         .route("/projects/{id}/refine", post(projects::refine_project))
         .route(
             "/projects/{id}/refine/stream",

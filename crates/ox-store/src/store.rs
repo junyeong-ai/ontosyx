@@ -532,6 +532,19 @@ pub trait ProjectStore: Send + Sync {
         expected_revision: i32,
     ) -> OxResult<()>;
 
+    /// Thin update of `analysis_scope` only — used by the per-table
+    /// promote / defer endpoints. Doesn't touch ontology, schema,
+    /// profile, or status; the operator is moving table-level
+    /// classification (included ↔ deferred) without re-running
+    /// introspection or re-designing. CAS on `revision` like the
+    /// other write paths.
+    async fn update_analysis_scope(
+        &self,
+        id: Uuid,
+        scope: &serde_json::Value,
+        expected_revision: i32,
+    ) -> OxResult<()>;
+
     /// Mark the project as completed and link it to a committed
     /// ontology identity. The caller performs
     /// [`OntologyVersionStore::create_ontology`] + `commit_version`

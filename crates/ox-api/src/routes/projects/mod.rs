@@ -7,6 +7,7 @@ pub(crate) mod lifecycle;
 pub(crate) mod preview;
 pub(crate) mod refinement;
 pub mod revisions;
+pub mod scope;
 pub(crate) mod streaming;
 pub mod types;
 
@@ -24,4 +25,5 @@ pub(crate) use refinement::{apply_reconcile, design_project, refine_project};
 pub(crate) use revisions::{
     diff_current, diff_revisions, get_revision, list_revisions, migrate_schema, restore_revision,
 };
+pub(crate) use scope::{defer_scope_tables, include_scope_tables};
 pub(crate) use streaming::{design_project_stream, refine_project_stream};

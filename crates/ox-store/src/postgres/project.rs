@@ -201,6 +201,29 @@ impl ProjectStore for PostgresStore {
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
+    async fn update_analysis_scope(
+        &self,
+        id: Uuid,
+        scope: &serde_json::Value,
+        expected_revision: i32,
+    ) -> OxResult<()> {
+        super::require_workspace_context()?;
+        let result = sqlx::query(
+            "UPDATE design_projects
+             SET analysis_scope = $1, updated_at = NOW(),
+                 revision = revision + 1
+             WHERE id = $2 AND revision = $3 ",
+        )
+        .bind(scope)
+        .bind(id)
+        .bind(expected_revision)
+        .execute(&self.pool)
+        .await
+        .map_err(to_ox_error)?;
+        check_cas_result(result.rows_affected())
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
     async fn complete_design_project(
         &self,
         project_id: Uuid,
