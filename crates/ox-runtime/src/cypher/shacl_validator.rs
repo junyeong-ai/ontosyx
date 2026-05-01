@@ -9,16 +9,25 @@
 //! emits [`ValidationIssue`]s when a CREATE / MERGE pattern violates
 //! the declared constraints.
 //!
-//! ## Scope (MVP)
+//! ## Scope
 //!
-//! Constraints enforced today:
-//! - `MinCount { min >= 1 }` on a `PropertyShape` → the referenced
-//!   property must appear in the node's inline property map on
-//!   `CREATE` / `MERGE`.
-//! - `In { allowed }` on a `PropertyShape` with a string-literal value
-//!   → the literal must match an entry in the enum set.
-//! - `Pattern { regex }` on a `PropertyShape` with a string-literal
-//!   value → the literal must match the regex.
+//! The validator covers every write surface the AST exposes — every
+//! point where a property's value lands or leaves the graph:
+//!
+//! - **`CREATE` / `MERGE`** on a `NodePattern` runs the full property
+//!   battery against the inline map: `MinCount { min >= 1 }`,
+//!   `InValueSet`, `MatchesPattern` (notation pattern), `LessThan` /
+//!   `Equals` property-pair predicates, plus the node-level
+//!   `Closed` / `Disjoint` / `UniqueKey` / `UniqueLang` checks.
+//! - **`SET n.prop = value`** resolves `n` to its labels via the
+//!   statement's MATCH / CREATE / MERGE patterns, then runs the
+//!   `InValueSet` and `MatchesPattern` checks against the new value
+//!   the same way as the inline-map path. The synthetic single-key
+//!   `NodePattern` keeps `check_property_constraint` as the single
+//!   source of constraint logic.
+//! - **`REMOVE n.prop`** rejects when a `MinCount >= 1` rule covers
+//!   the property — the removal would leave the node violating its
+//!   declared cardinality.
 //!
 //! ## Deliberately deferred
 //!
@@ -30,10 +39,14 @@
 //! - Value references (`$param`, function calls, variables) → we only
 //!   examine string literals because a parameterised value's
 //!   compliance can't be settled without runtime substitution.
-//! - `NodeShape` / `EdgeShape` / `CrossEntityShape` / `StateMachine`
-//!   → each lands on its own phase; today's emitter surfaces them as
-//!   `Info` so the rule author sees the rule is recognised but not
-//!   yet enforced here.
+//! - `EdgeShape` / `CrossEntityShape` / `StateMachine` → each lands
+//!   on its own phase; today's emitter surfaces them as `Info` so the
+//!   rule author sees the rule is recognised but not yet enforced
+//!   here.
+//! - Whole-node `DELETE` / `DETACH DELETE` → cascade semantics belong
+//!   to the storage engine, not the SHACL property surface; referential
+//!   integrity for deletes lives with the relationship-layer
+//!   enforcement.
 //!
 //! ## Why not fold into `OntologyValidator`?
 //!
@@ -58,7 +71,10 @@ use ox_ontology::rule::{
 };
 use ox_ontology::value_set::ValueSetId;
 
-use crate::cypher::ast::{ClauseKind, CypherAst, CypherPatternElement, NodePattern};
+use crate::cypher::ast::{
+    ClauseKind, CypherAst, CypherPatternElement, CypherStatement, NodePattern, RemoveItem,
+    SetItem,
+};
 use crate::cypher::validate::{
     CypherValidator, ValidateContext, ValidatePhase, ValidationIssue,
 };
@@ -170,22 +186,45 @@ impl CypherValidator for ShaclValidator {
         }
 
         for statement in &ast.statements {
+            // Statement-scoped variable → label resolution. Walk
+            // every pattern-bearing clause (MATCH / OPTIONAL MATCH /
+            // CREATE / MERGE) once and remember which labels each
+            // variable carries so SET / REMOVE clauses later in the
+            // same statement can resolve `n` back to its NodeType
+            // without re-walking the AST per item.
+            let variable_labels = collect_variable_labels(statement);
+
             for clause in &statement.clauses {
-                if !matches!(clause.kind, ClauseKind::Create | ClauseKind::Merge) {
-                    // SHACL Write enforcement only; MATCH/OPTIONAL MATCH
-                    // are read-side. SET / DELETE are handled under
-                    // their own phase: SET needs per-key evaluation,
-                    // DELETE invokes `sh:closed` + referential rules —
-                    // tracked separately to keep this validator's
-                    // surface predictable.
-                    continue;
-                }
-                for pattern in &clause.patterns {
-                    for element in &pattern.elements {
-                        if let CypherPatternElement::Node(node) = element {
-                            self.validate_node(&active, node, &mut issues);
+                match clause.kind {
+                    ClauseKind::Create | ClauseKind::Merge => {
+                        for pattern in &clause.patterns {
+                            for element in &pattern.elements {
+                                if let CypherPatternElement::Node(node) = element {
+                                    self.validate_node(&active, node, &mut issues);
+                                }
+                            }
                         }
                     }
+                    ClauseKind::Set => {
+                        for item in &clause.set_items {
+                            self.validate_set_item(&active, &variable_labels, item, &mut issues);
+                        }
+                    }
+                    ClauseKind::Remove => {
+                        for item in &clause.remove_items {
+                            self.validate_remove_item(
+                                &active,
+                                &variable_labels,
+                                item,
+                                &mut issues,
+                            );
+                        }
+                    }
+                    // MATCH / OPTIONAL MATCH / WHERE / RETURN /
+                    // WITH / DELETE / DETACH DELETE / etc. — read-
+                    // side or whole-node lifecycle, neither of which
+                    // engages SHACL property-shape enforcement.
+                    _ => {}
                 }
             }
         }
@@ -463,6 +502,136 @@ impl ShaclValidator {
         }
     }
 
+    /// Resolve `SET n.prop = value` against every label `n` carries
+    /// and run the property-level constraints (InValueSet,
+    /// MatchesPattern, LessThan, Equals) against the new value. The
+    /// raw `value_text` slips into the same `lookup` shape the
+    /// CREATE / MERGE path uses — a synthetic single-property node
+    /// pattern keeps the existing `check_property_constraint`
+    /// machinery as the single source of enforcement logic.
+    fn validate_set_item(
+        &self,
+        rules: &[&RuleDef],
+        variable_labels: &HashMap<String, Vec<String>>,
+        item: &SetItem,
+        issues: &mut Vec<ValidationIssue>,
+    ) {
+        let Some(labels) = variable_labels.get(&item.variable) else {
+            // Variable not bound to a labelled node in this statement
+            // (e.g. an alias from WITH, an aggregate result). Schema
+            // conformance is `OntologyValidator`'s job — skip silently.
+            return;
+        };
+        let synth = NodePattern {
+            variable: Some(item.variable.clone()),
+            labels: labels.clone(),
+            properties: vec![(item.property.clone(), item.value_text.clone())],
+            span: item.span,
+        };
+        for label_text in labels {
+            let Ok(label) = GraphLabel::new(label_text) else {
+                continue;
+            };
+            let Some(node_type) = self.ontology.node_by_label(&label) else {
+                continue;
+            };
+            let Some(prop) = node_type
+                .properties
+                .iter()
+                .find(|p| p.name.as_str() == item.property)
+            else {
+                continue;
+            };
+            for rule in rules {
+                let RuleKind::PropertyShape {
+                    target_node_type_id,
+                    target_property_id,
+                } = &rule.kind
+                else {
+                    continue;
+                };
+                if *target_node_type_id != node_type.id || *target_property_id != prop.id {
+                    continue;
+                }
+                for constraint in &rule.constraints {
+                    self.check_property_constraint(rule, prop, &synth, constraint, issues);
+                }
+            }
+        }
+    }
+
+    /// Resolve `REMOVE n.prop` against every label `n` carries and
+    /// reject when a `MinCount >= 1` PropertyShape covers the
+    /// property — the removal would leave the node violating the
+    /// declared cardinality. Other constraint kinds (InValueSet,
+    /// MatchesPattern, …) don't engage on removals because there is
+    /// no value left to inspect.
+    fn validate_remove_item(
+        &self,
+        rules: &[&RuleDef],
+        variable_labels: &HashMap<String, Vec<String>>,
+        item: &RemoveItem,
+        issues: &mut Vec<ValidationIssue>,
+    ) {
+        let Some(labels) = variable_labels.get(&item.variable) else {
+            return;
+        };
+        for label_text in labels {
+            let Ok(label) = GraphLabel::new(label_text) else {
+                continue;
+            };
+            let Some(node_type) = self.ontology.node_by_label(&label) else {
+                continue;
+            };
+            let Some(prop) = node_type
+                .properties
+                .iter()
+                .find(|p| p.name.as_str() == item.property)
+            else {
+                continue;
+            };
+            for rule in rules {
+                let RuleKind::PropertyShape {
+                    target_node_type_id,
+                    target_property_id,
+                } = &rule.kind
+                else {
+                    continue;
+                };
+                if *target_node_type_id != node_type.id || *target_property_id != prop.id {
+                    continue;
+                }
+                for constraint in &rule.constraints {
+                    let ShaclConstraint::MinCount { target, min } = constraint else {
+                        continue;
+                    };
+                    if *min == 0 {
+                        continue;
+                    }
+                    if !target_matches_property(target, prop) {
+                        continue;
+                    }
+                    let rn = rule_label(rule);
+                    let key = prop.name.as_str();
+                    issues.push(build_issue(
+                        rule,
+                        diag("runtime.cypher.shacl.min_count_removed")
+                            .with("property", key)
+                            .with("rule_id", rule.id.as_str())
+                            .with("rule_name", &rule.name)
+                            .with("min", *min)
+                            .message(format!(
+                                "REMOVE on `{}.{key}` violates rule `{rn}` (minCount={min}) — \
+                                 the property is required but the write would clear it",
+                                label.as_str()
+                            )),
+                        Some(item.span),
+                    ));
+                }
+            }
+        }
+    }
+
     /// Node-level constraints — `sh:closed`, `sh:disjoint`,
     /// `sh:uniqueKey`, `sh:uniqueLang`. These don't belong to a
     /// single `PropertyDef`; they apply to the whole write pattern.
@@ -629,6 +798,40 @@ impl ShaclValidator {
             _ => {}
         }
     }
+}
+
+/// Walk every pattern-bearing clause in `statement` and collect the
+/// labels each variable picks up. A variable can carry multiple
+/// labels across MATCH and CREATE / MERGE — `MATCH (n:Person)
+/// MERGE (n:Customer)` lands `n` with `[Person, Customer]` here so
+/// downstream SET / REMOVE checks fire against every applicable
+/// PropertyShape. The first label declaration wins for ordering;
+/// duplicates are coalesced to keep the per-clause loop stable.
+fn collect_variable_labels(statement: &CypherStatement) -> HashMap<String, Vec<String>> {
+    let mut out: HashMap<String, Vec<String>> = HashMap::new();
+    for clause in &statement.clauses {
+        if !matches!(
+            clause.kind,
+            ClauseKind::Match | ClauseKind::OptionalMatch | ClauseKind::Create | ClauseKind::Merge
+        ) {
+            continue;
+        }
+        for pattern in &clause.patterns {
+            for element in &pattern.elements {
+                if let CypherPatternElement::Node(node) = element
+                    && let Some(var) = &node.variable
+                {
+                    let entry = out.entry(var.clone()).or_default();
+                    for label in &node.labels {
+                        if !entry.contains(label) {
+                            entry.push(label.clone());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    out
 }
 
 /// Pull the `property_id` from a `ConstraintTarget`; `Inherit` /
@@ -1640,6 +1843,157 @@ mod tests {
         assert!(
             issues.iter().all(|i| i.level != IssueLevel::Error),
             "Preferred binding must not block writes: {issues:?}"
+        );
+    }
+
+    // ---------- SET / REMOVE coverage ----------
+
+    #[test]
+    fn set_blocks_out_of_value_set_literal() {
+        let prop = status_prop();
+        let mut onto = OntologyIR::try_new(
+            "ont-test".into(),
+            "Test".into(),
+            LocalizedText::default(),
+            1u32,
+            vec![user_with(prop)],
+            vec![],
+            vec![],
+        )
+        .expect("seed");
+        let vs_id = seed_value_set(&mut onto, "status", &["A", "B"]);
+        onto.add_rule(enum_rule(vs_id)).expect("rule");
+
+        let issues = run(onto, "MATCH (u:User) SET u.status = 'C'");
+        assert!(
+            issues.iter().any(|i| i.level == IssueLevel::Error
+                && i.message.code == "runtime.cypher.shacl.value_not_in_set"
+                && i.message.params.get("property")
+                    == Some(&serde_json::Value::from("status"))),
+            "SET of out-of-set literal must fire value_not_in_set: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn set_passes_in_value_set_literal() {
+        let prop = status_prop();
+        let mut onto = OntologyIR::try_new(
+            "ont-test".into(),
+            "Test".into(),
+            LocalizedText::default(),
+            1u32,
+            vec![user_with(prop)],
+            vec![],
+            vec![],
+        )
+        .expect("seed");
+        let vs_id = seed_value_set(&mut onto, "status", &["A", "B"]);
+        onto.add_rule(enum_rule(vs_id)).expect("rule");
+
+        let issues = run(onto, "MATCH (u:User) SET u.status = 'A'");
+        assert!(
+            issues.iter().all(|i| i.level != IssueLevel::Error),
+            "in-set SET must not block: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn set_skips_parameter_value() {
+        let prop = status_prop();
+        let mut onto = OntologyIR::try_new(
+            "ont-test".into(),
+            "Test".into(),
+            LocalizedText::default(),
+            1u32,
+            vec![user_with(prop)],
+            vec![],
+            vec![],
+        )
+        .expect("seed");
+        let vs_id = seed_value_set(&mut onto, "status", &["A", "B"]);
+        onto.add_rule(enum_rule(vs_id)).expect("rule");
+
+        let issues = run(onto, "MATCH (u:User) SET u.status = $new_status");
+        assert!(
+            issues.iter().all(|i| i.level != IssueLevel::Error),
+            "non-literal SET value can't be settled at AST time: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn set_against_unbound_variable_skips_silently() {
+        // Variable not introduced by any MATCH / CREATE / MERGE in
+        // this statement — schema conformance is not the SHACL
+        // validator's job, so the absence of label resolution must
+        // produce no false positive (no panic, no error).
+        let prop = status_prop();
+        let mut onto = OntologyIR::try_new(
+            "ont-test".into(),
+            "Test".into(),
+            LocalizedText::default(),
+            1u32,
+            vec![user_with(prop)],
+            vec![],
+            vec![],
+        )
+        .expect("seed");
+        let vs_id = seed_value_set(&mut onto, "status", &["A", "B"]);
+        onto.add_rule(enum_rule(vs_id)).expect("rule");
+
+        let issues = run(onto, "WITH 1 AS x SET x.status = 'C'");
+        assert!(
+            issues.iter().all(|i| i.level != IssueLevel::Error),
+            "unbound variable SET must not raise SHACL errors: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn remove_blocks_required_property() {
+        let (rule, prop) = required_email_rule();
+        let onto = fixture_ontology_with_rule(rule, prop);
+
+        let issues = run(onto, "MATCH (u:User) REMOVE u.email");
+        assert!(
+            issues.iter().any(|i| i.level == IssueLevel::Error
+                && i.message.code == "runtime.cypher.shacl.min_count_removed"
+                && i.message.params.get("property")
+                    == Some(&serde_json::Value::from("email"))),
+            "REMOVE of required property must fire min_count_removed: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn remove_optional_property_is_silent() {
+        let prop = status_prop();
+        let onto = fixture_ontology_with_rule(
+            RuleDef {
+                id: RuleId::new("r-status-min0"),
+                name: "status_optional".into(),
+                description: LocalizedText::default(),
+                rationale: LocalizedText::default(),
+                kind: RuleKind::PropertyShape {
+                    target_node_type_id: NodeTypeId::new("nt-user"),
+                    target_property_id: PropertyId::new("prop-status"),
+                },
+                severity: Severity::Violation,
+                enforcement: EnforcementKind::Write,
+                activation: RuleActivationKind::Always,
+                origin: RuleOrigin::Authored,
+                constraints: vec![ShaclConstraint::MinCount {
+                    target: ConstraintTarget::Inherit,
+                    min: 0,
+                }],
+                valid_from: None,
+                valid_to: None,
+                sh_message: None,
+            },
+            prop,
+        );
+
+        let issues = run(onto, "MATCH (u:User) REMOVE u.status");
+        assert!(
+            issues.iter().all(|i| i.level != IssueLevel::Error),
+            "REMOVE of optional property must not fire: {issues:?}"
         );
     }
 }

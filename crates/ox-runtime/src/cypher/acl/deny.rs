@@ -101,6 +101,8 @@ pub(super) fn inject_deny_in_statement(
                         text: " WHERE false".to_string(),
                         span: Span::default(),
                         patterns: Vec::new(),
+                        set_items: Vec::new(),
+                        remove_items: Vec::new(),
                     },
                 );
             }

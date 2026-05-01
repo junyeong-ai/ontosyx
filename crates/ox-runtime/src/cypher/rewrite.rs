@@ -441,6 +441,8 @@ impl WorkspaceScopeRewriter {
                     text: format!(" WHERE {combined}"),
                     span: Span::default(),
                     patterns: Vec::new(),
+                    set_items: Vec::new(),
+                    remove_items: Vec::new(),
                 };
                 statement.clauses.insert(*clause_idx + 1, where_clause);
             }
@@ -490,6 +492,8 @@ impl WorkspaceScopeRewriter {
                     text: format!(" SET {assignment}"),
                     span: Span::default(),
                     patterns: Vec::new(),
+                    set_items: Vec::new(),
+                    remove_items: Vec::new(),
                 };
                 statement.clauses.insert(create_idx + 1, set_clause);
             }

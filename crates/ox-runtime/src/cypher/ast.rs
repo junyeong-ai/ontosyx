@@ -68,6 +68,48 @@ pub struct CypherClause {
     /// Structured patterns for MATCH / OPTIONAL MATCH / CREATE / MERGE.
     /// Empty for every other kind.
     pub patterns: Vec<CypherPattern>,
+    /// Property assignments captured from `SET` clauses
+    /// (`SET n.status = 'X', e.weight = 0.5`). Empty for every kind
+    /// other than `Set`. Pre-rewrite validators (SHACL) consume
+    /// these to enforce constraints on the new value the same way
+    /// they enforce inline `CREATE { ... }` maps.
+    pub set_items: Vec<SetItem>,
+    /// Property removals captured from `REMOVE` clauses
+    /// (`REMOVE n.legacy_field, n.tmp`). Empty for every kind other
+    /// than `Remove`. SHACL `MinCount` enforcement reads this to
+    /// reject removals of required properties.
+    pub remove_items: Vec<RemoveItem>,
+}
+
+/// One assignment inside a `SET` clause: `n.status = 'X'`.
+///
+/// Variable / property names are bare strings — backtick quoting is
+/// stripped at parse time so the same key matches the inline-map
+/// representation `(NodePattern.properties)`. `value_text` is the raw
+/// source slice the parser saw on the right-hand side
+/// (`'X'`, `42`, `$param`, `null`, `n.other_prop`, …); validators
+/// inspect string-literal values directly and skip non-literals
+/// because their compliance can't be settled at AST time.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SetItem {
+    pub variable: String,
+    pub property: String,
+    pub value_text: String,
+    pub span: Span,
+}
+
+/// One target inside a `REMOVE` clause: `n.legacy_field`.
+///
+/// Same naming rules as [`SetItem`] (bare variable / property,
+/// backticks stripped). REMOVE on a label (`REMOVE n:Customer`) is
+/// represented by a separate target shape later; the MVP captures
+/// the property-removal form because that's the surface SHACL
+/// MinCount enforcement covers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemoveItem {
+    pub variable: String,
+    pub property: String,
+    pub span: Span,
 }
 
 /// Recognised clause keyword at the head of a clause.

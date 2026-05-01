@@ -153,6 +153,8 @@ fn inject_tombstone_predicate(statement: &mut CypherStatement) -> bool {
                         text: format!(" WHERE {combined}"),
                         span: Span::default(),
                         patterns: Vec::new(),
+                        set_items: Vec::new(),
+                        remove_items: Vec::new(),
                     },
                 );
             }
@@ -251,6 +253,8 @@ fn rewrite_delete_clauses(statement: &mut CypherStatement) -> bool {
             text: format!("{lead}SET {assignments}"),
             span: Span::default(),
             patterns: Vec::new(),
+            set_items: Vec::new(),
+            remove_items: Vec::new(),
         };
         statement.clauses[idx] = set_clause;
 
@@ -267,6 +271,8 @@ fn rewrite_delete_clauses(statement: &mut CypherStatement) -> bool {
                     text: format!(" OPTIONAL MATCH ({var})-[{rel_var}]-()"),
                     span: Span::default(),
                     patterns: Vec::new(),
+                    set_items: Vec::new(),
+                    remove_items: Vec::new(),
                 };
                 let delete_rel = CypherClause {
                     kind: ClauseKind::Delete,
@@ -274,6 +280,8 @@ fn rewrite_delete_clauses(statement: &mut CypherStatement) -> bool {
                     text: format!(" DELETE {rel_var}"),
                     span: Span::default(),
                     patterns: Vec::new(),
+                    set_items: Vec::new(),
+                    remove_items: Vec::new(),
                 };
                 statement.clauses.insert(idx, delete_rel);
                 statement.clauses.insert(idx, detach_match);

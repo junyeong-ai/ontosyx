@@ -24,7 +24,7 @@
 
 use crate::cypher::ast::{
     ClauseKind, CypherAst, CypherClause, CypherPattern, CypherPatternElement, CypherStatement,
-    NodePattern, RelDirection, RelationshipPattern, UnionKind,
+    NodePattern, RelDirection, RelationshipPattern, RemoveItem, SetItem, UnionKind,
 };
 use crate::cypher::token::{CypherToken, Span, TokenKind, tokenize};
 
@@ -166,6 +166,16 @@ impl<'a> Parser<'a> {
         } else {
             Vec::new()
         };
+        let set_items = if matches!(kind, ClauseKind::Set) {
+            parse_set_items(&clause_tokens, self.source)
+        } else {
+            Vec::new()
+        };
+        let remove_items = if matches!(kind, ClauseKind::Remove) {
+            parse_remove_items(&clause_tokens, self.source)
+        } else {
+            Vec::new()
+        };
 
         CypherClause {
             kind,
@@ -173,6 +183,8 @@ impl<'a> Parser<'a> {
             text,
             span,
             patterns,
+            set_items,
+            remove_items,
         }
     }
 
@@ -816,6 +828,207 @@ fn strip_backticks(s: &str) -> String {
     } else {
         s.to_string()
     }
+}
+
+// ---------------------------------------------------------------------------
+// SET / REMOVE clause body parsing
+// ---------------------------------------------------------------------------
+
+/// Walk a `SET` clause's tokens (keyword already consumed by the
+/// caller — but still present in `clause_tokens`) and pull every
+/// `<var>.<prop> = <value>` assignment into a [`SetItem`]. Comma-
+/// separated assignments parse as multiple items; non-property-target
+/// SET forms (`SET n += {…}`, `SET n :Label`) are skipped silently
+/// because the SHACL surface only enforces per-property writes.
+fn parse_set_items(clause_tokens: &[CypherToken], source: &str) -> Vec<SetItem> {
+    let mut items = Vec::new();
+    let mut i = 0;
+    // Skip the leading SET keyword and any trivia.
+    while i < clause_tokens.len()
+        && (clause_tokens[i].is_trivia()
+            || (clause_tokens[i].kind == TokenKind::Keyword
+                && clause_tokens[i].text.eq_ignore_ascii_case("SET")))
+    {
+        i += 1;
+    }
+    while i < clause_tokens.len() {
+        let segment_start = i;
+        // Find the next top-level comma (or end of clause). Track
+        // nesting so commas inside maps / parentheses don't split.
+        let mut depth_paren = 0i32;
+        let mut depth_bracket = 0i32;
+        let mut depth_brace = 0i32;
+        let mut segment_end = clause_tokens.len();
+        while i < clause_tokens.len() {
+            let tok = &clause_tokens[i];
+            if tok.kind == TokenKind::Paren {
+                match tok.text.as_str() {
+                    "(" => depth_paren += 1,
+                    ")" => depth_paren -= 1,
+                    "[" => depth_bracket += 1,
+                    "]" => depth_bracket -= 1,
+                    "{" => depth_brace += 1,
+                    "}" => depth_brace -= 1,
+                    _ => {}
+                }
+            }
+            if depth_paren == 0
+                && depth_bracket == 0
+                && depth_brace == 0
+                && tok.kind == TokenKind::Punctuation
+                && tok.text == ","
+            {
+                segment_end = i;
+                break;
+            }
+            i += 1;
+        }
+        if let Some(item) = parse_set_segment(&clause_tokens[segment_start..segment_end], source) {
+            items.push(item);
+        }
+        // Skip the comma we landed on (if any) before the next segment.
+        if i < clause_tokens.len()
+            && clause_tokens[i].kind == TokenKind::Punctuation
+            && clause_tokens[i].text == ","
+        {
+            i += 1;
+        }
+    }
+    items
+}
+
+fn parse_set_segment(tokens: &[CypherToken], source: &str) -> Option<SetItem> {
+    let non_trivia: Vec<&CypherToken> =
+        tokens.iter().filter(|t| !t.is_trivia()).collect();
+    // Need at least: ident . ident = value
+    if non_trivia.len() < 5 {
+        return None;
+    }
+    if !matches!(
+        non_trivia[0].kind,
+        TokenKind::Identifier | TokenKind::QuotedIdentifier
+    ) {
+        return None;
+    }
+    if non_trivia[1].kind != TokenKind::Operator || non_trivia[1].text != "." {
+        return None;
+    }
+    if !matches!(
+        non_trivia[2].kind,
+        TokenKind::Identifier | TokenKind::QuotedIdentifier
+    ) {
+        return None;
+    }
+    // Equality assignment only — `+=` (map merge) targets the whole
+    // node, not a single property, so SHACL per-property enforcement
+    // doesn't apply.
+    if non_trivia[3].kind != TokenKind::Operator || non_trivia[3].text != "=" {
+        return None;
+    }
+
+    let variable = strip_backticks(&non_trivia[0].text);
+    let property = strip_backticks(&non_trivia[2].text);
+
+    // The value is everything from after the `=` to the end of the
+    // segment. Take the source slice between the `=` end and the last
+    // non-trivia token's end so callers see the original expression
+    // verbatim (including parens, function calls, parameters).
+    let value_start = non_trivia[3].span.end;
+    let value_end = non_trivia.last()?.span.end;
+    let value_text = source[value_start..value_end].trim().to_string();
+
+    let span = Span::new(non_trivia[0].span.start, value_end);
+    Some(SetItem {
+        variable,
+        property,
+        value_text,
+        span,
+    })
+}
+
+/// Walk a `REMOVE` clause's tokens and pull every `<var>.<prop>`
+/// target into a [`RemoveItem`]. Label removals (`REMOVE n:Label`)
+/// are skipped — those don't engage the SHACL property-shape surface.
+fn parse_remove_items(clause_tokens: &[CypherToken], _source: &str) -> Vec<RemoveItem> {
+    let mut items = Vec::new();
+    let mut i = 0;
+    while i < clause_tokens.len()
+        && (clause_tokens[i].is_trivia()
+            || (clause_tokens[i].kind == TokenKind::Keyword
+                && clause_tokens[i].text.eq_ignore_ascii_case("REMOVE")))
+    {
+        i += 1;
+    }
+    while i < clause_tokens.len() {
+        let segment_start = i;
+        let mut depth_paren = 0i32;
+        let mut depth_bracket = 0i32;
+        let mut depth_brace = 0i32;
+        let mut segment_end = clause_tokens.len();
+        while i < clause_tokens.len() {
+            let tok = &clause_tokens[i];
+            if tok.kind == TokenKind::Paren {
+                match tok.text.as_str() {
+                    "(" => depth_paren += 1,
+                    ")" => depth_paren -= 1,
+                    "[" => depth_bracket += 1,
+                    "]" => depth_bracket -= 1,
+                    "{" => depth_brace += 1,
+                    "}" => depth_brace -= 1,
+                    _ => {}
+                }
+            }
+            if depth_paren == 0
+                && depth_bracket == 0
+                && depth_brace == 0
+                && tok.kind == TokenKind::Punctuation
+                && tok.text == ","
+            {
+                segment_end = i;
+                break;
+            }
+            i += 1;
+        }
+        if let Some(item) = parse_remove_segment(&clause_tokens[segment_start..segment_end]) {
+            items.push(item);
+        }
+        if i < clause_tokens.len()
+            && clause_tokens[i].kind == TokenKind::Punctuation
+            && clause_tokens[i].text == ","
+        {
+            i += 1;
+        }
+    }
+    items
+}
+
+fn parse_remove_segment(tokens: &[CypherToken]) -> Option<RemoveItem> {
+    let non_trivia: Vec<&CypherToken> =
+        tokens.iter().filter(|t| !t.is_trivia()).collect();
+    // Need exactly: ident . ident
+    if non_trivia.len() != 3 {
+        return None;
+    }
+    if !matches!(
+        non_trivia[0].kind,
+        TokenKind::Identifier | TokenKind::QuotedIdentifier
+    ) {
+        return None;
+    }
+    if non_trivia[1].kind != TokenKind::Operator || non_trivia[1].text != "." {
+        return None;
+    }
+    if !matches!(
+        non_trivia[2].kind,
+        TokenKind::Identifier | TokenKind::QuotedIdentifier
+    ) {
+        return None;
+    }
+    Some(RemoveItem {
+        variable: strip_backticks(&non_trivia[0].text),
+        property: strip_backticks(&non_trivia[2].text),
+        span: Span::new(non_trivia[0].span.start, non_trivia[2].span.end),
+    })
 }
 
 // ---------------------------------------------------------------------------
