@@ -3044,7 +3044,10 @@
         "types": {
           "label": "Types",
           "clear": "Clear",
-          "empty": "No types found in the current graph."
+          "empty": "No types found in the current graph.",
+          "searchPlaceholder": "Search types…",
+          "searchAria": "Filter facet types",
+          "noMatches": "No types match \"{query}\"."
         },
         "saveSegment": "Save {count} type(s) as segment"
       }

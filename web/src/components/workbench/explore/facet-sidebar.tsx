@@ -14,7 +14,7 @@
 // wires this, not the sidebar itself).
 
 import { useTranslations } from "next-intl";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import type { GraphOverview } from "@/lib/api/queries";
 
@@ -45,7 +45,25 @@ export function ExploreFacetSidebar({
     [selectedLabels],
   );
 
+  // Type search: large ontologies surface 50+ labels; the sidebar
+  // becomes a wall of types that hides the one the operator wants
+  // to facet on. Local filter + count-desc sort lets them narrow
+  // quickly without a backend change. Selected types stay visible
+  // even if they don't match the filter so the operator can still
+  // toggle them off.
+  const [labelFilter, setLabelFilter] = useState("");
+
   const depths: Array<1 | 2 | 3> = [1, 2, 3];
+
+  const visibleLabels = useMemo(() => {
+    if (!overview) return [] as GraphOverview["labels"];
+    const needle = labelFilter.trim().toLowerCase();
+    if (!needle) return overview.labels;
+    return overview.labels.filter(
+      (l) =>
+        l.label.toLowerCase().includes(needle) || selectedSet.has(l.label),
+    );
+  }, [overview, labelFilter, selectedSet]);
 
   return (
     <aside
@@ -99,6 +117,17 @@ export function ExploreFacetSidebar({
           )}
         </div>
 
+        {!loading && overview && overview.labels.length > 0 && (
+          <input
+            type="search"
+            value={labelFilter}
+            onChange={(e) => setLabelFilter(e.target.value)}
+            placeholder={t("types.searchPlaceholder")}
+            aria-label={t("types.searchAria")}
+            className="mb-1 w-full rounded border border-zinc-200 bg-white px-1.5 py-1 text-[11px] outline-none focus:border-violet-400 dark:border-zinc-700 dark:bg-zinc-900"
+          />
+        )}
+
         {loading && (
           <p className="py-2 text-[11px] text-muted-foreground">
             {t("loading")}
@@ -109,9 +138,14 @@ export function ExploreFacetSidebar({
             {t("types.empty")}
           </p>
         )}
+        {!loading && overview && labelFilter.trim() && visibleLabels.length === 0 && (
+          <p className="py-2 text-[11px] text-muted-foreground">
+            {t("types.noMatches", { query: labelFilter.trim() })}
+          </p>
+        )}
         {!loading && overview && (
           <ul className="flex flex-1 flex-col gap-0.5 overflow-auto pr-1 text-[11px]">
-            {overview.labels.map((l) => {
+            {visibleLabels.map((l) => {
               const selected = selectedSet.has(l.label);
               return (
                 <li key={l.label}>

@@ -3030,7 +3030,10 @@
         "types": {
           "label": "타입",
           "clear": "지우기",
-          "empty": "현재 그래프에 타입이 없습니다."
+          "empty": "현재 그래프에 타입이 없습니다.",
+          "searchPlaceholder": "타입 검색…",
+          "searchAria": "타입 필터",
+          "noMatches": "\"{query}\" 와 일치하는 타입 없음"
         },
         "saveSegment": "{count}개 타입을 세그먼트로 저장"
       }
