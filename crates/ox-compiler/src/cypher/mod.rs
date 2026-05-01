@@ -121,13 +121,11 @@ impl GraphCompiler for CypherCompiler {
         query: &QueryIR,
         ontology: Option<&OntologyIR>,
     ) -> OxResult<CompiledQuery> {
-        // Phase 2-2 foundation: the IR now carries a temporal AS-OF field
-        // but the Cypher emitter has no snapshot-resolution path yet. Fail
-        // loudly with a clear message rather than silently ignore the
-        // timestamp and return stale-against-caller-intent results. The
-        // dedicated TemporalRewriter pass (future commit) will consume the
-        // field upstream and hand the compiler a temporally-resolved
-        // QueryIR with `as_of = None`.
+        // The IR carries a temporal AS-OF field but the Cypher emitter
+        // has no snapshot-resolution path yet. Refuse rather than
+        // silently ignore the timestamp — the upstream
+        // TemporalRewriter pass is expected to feed the compiler a
+        // temporally-resolved QueryIR with `as_of = None`.
         if query.as_of.is_some() {
             return Err(OxError::Compilation {
                 message: "temporal AS-OF queries are not yet supported by the Cypher compiler — \

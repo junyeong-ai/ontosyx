@@ -341,11 +341,10 @@ impl IntrospectionKernel {
                 Some(base) => self.analyze_extension(base, tables).await,
                 None => self.analyze_subset(tables).await,
             },
-            // ADR-0026: reduce operates entirely on the baseline —
-            // no adapter call needed. Without a baseline the
-            // operation is meaningless (there is nothing to remove
-            // from), so surface that as a typed validation error
-            // instead of silently degrading to a different shape.
+            // Reduce operates entirely on the baseline — no adapter
+            // call. Without a baseline the operation is meaningless
+            // (nothing to remove from); surface as a typed
+            // validation error rather than silently degrading.
             AnalyzeSelection::Reduce { tables } => match baseline {
                 Some(base) => Ok(Arc::new(reduce_baseline(base, &tables))),
                 None => Err(OxError::Validation {
@@ -674,8 +673,8 @@ impl IntrospectionKernel {
 
 /// Drop the named tables from `base`, plus every foreign key that
 /// referenced them and every table profile that described them.
-/// ADR-0026: the inverse of `analyze_extension` — symmetric round-
-/// trip lets the operator narrow a baseline they over-included.
+/// Inverse of `analyze_extension` — the symmetric round-trip lets
+/// the operator narrow a baseline they over-included.
 ///
 /// Names not present in the baseline are silently ignored — the
 /// caller has already asked for the table to disappear, so its

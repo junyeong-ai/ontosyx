@@ -1247,13 +1247,12 @@ mod tests {
     }
 
     // -----------------------------------------------------------------
-    // ADR-0031 — Mutate / Analytics / PathFind literal translation
+    // Mutate / Analytics / PathFind literal translation
     // -----------------------------------------------------------------
     //
-    // Pre-ADR-0031, `rewrite_op` no-op'd these three QueryOp variants,
-    // letting a `MERGE (s:Stock {status: "A001"})` write under the
-    // v2024 vocabulary land in v2026 storage unchanged. Each test
-    // pins a distinct write surface that the new walker covers.
+    // Each test pins a distinct write surface so a `MERGE (s:Stock
+    // {status: "A001"})` against an old vocabulary cannot land in
+    // the current storage unrewritten.
 
     #[test]
     fn create_node_property_assignment_is_translated() {

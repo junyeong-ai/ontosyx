@@ -109,18 +109,11 @@ impl TableSelection {
 /// `Subset` / `Extend` / `Reduce` list, so a missing field can
 /// never collapse into a silent full-warehouse sweep.
 ///
-/// ADR-0067 (rejected): an audit recommended a per-adapter contract
-/// test asserting every adapter implements `AnalyzeSelection`'s
-/// four variants identically. Architecture review showed the
-/// contract is enforced by construction — `DataSourceAdapter`
-/// exposes only atomic primitives (`list_tables`, `describe_table`,
-/// `count_rows`, `sample_column`, `list_foreign_keys`); selection
-/// semantics live entirely in [`IntrospectionKernel::analyze`],
-/// which composes those primitives. An adapter has no surface
-/// through which it could re-interpret `AnalyzeSelection`. Adding
-/// the test would verify the kernel against itself, not the
-/// adapter contract; the existing two-adapter unit suite in
-/// `kernel.rs::tests` already covers the kernel's dispatch.
+/// Selection semantics live entirely in
+/// [`IntrospectionKernel::analyze`]; `DataSourceAdapter` exposes
+/// only atomic primitives (`list_tables`, `describe_table`,
+/// `count_rows`, `sample_column`, `list_foreign_keys`) so adapters
+/// cannot re-interpret `AnalyzeSelection`.
 #[derive(
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, utoipa::ToSchema,
 )]

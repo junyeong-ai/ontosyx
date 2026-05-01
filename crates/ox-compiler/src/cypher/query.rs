@@ -219,15 +219,12 @@ pub(super) fn compile_op(
             params,
             projections,
         } => {
-            // ADR-0036: GDS procedures (`gds.*`) are Neo4j Enterprise
-            // surface area. Memgraph ships its own analytics (MAGE
-            // module: `mg.pagerank.get`, etc.) with different return
-            // shapes; emitting `gds.pageRank.stream` against a
-            // Memgraph driver fails opaquely at execution as an
-            // "unknown procedure". Refuse at compile time and name
-            // the alternative path so the caller swaps backend or
-            // rewrites the query, rather than discovering the gap
-            // through a runtime error.
+            // GDS procedures (`gds.*`) are Neo4j Enterprise surface
+            // area. Memgraph ships its own analytics (MAGE module:
+            // `mg.pagerank.get`, etc.) with different return shapes;
+            // emitting `gds.pageRank.stream` against a Memgraph
+            // driver fails opaquely at execution. Refuse at compile
+            // time and name the alternative path.
             if pc.dialect() == super::CypherDialect::Memgraph {
                 return Err(OxError::Compilation {
                     message: format!(

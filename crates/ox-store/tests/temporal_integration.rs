@@ -1,4 +1,4 @@
-//! Phase 2-2 end-to-end Temporal AS-OF integration.
+//! End-to-end Temporal AS-OF integration.
 //!
 //! Validates that the full pipeline
 //!

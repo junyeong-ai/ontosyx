@@ -170,16 +170,15 @@ async fn system_bypass_lets_mutation_through() {
 }
 
 // ---------------------------------------------------------------------------
-// ADR-0039 — bare SYSTEM_BYPASS DML must fail fast, never write nil-UUID
+// Bare SYSTEM_BYPASS DML must fail fast, never write nil-UUID
 // ---------------------------------------------------------------------------
 //
-// Pre-ADR-0039, store impls bound `current_setting('app.workspace_id', true)::uuid`
-// directly into INSERT payloads. Under SYSTEM_BYPASS the pool primes
-// that setting to `Uuid::nil()` so the RLS predicate's cast doesn't
-// 22P02 — but row writes inherited the nil sentinel as the row's
-// tenant. These tests prove the post-ADR helper rejects bare-bypass
-// DML loud-and-fast (the row never lands), and that wrapping in an
-// inner `WORKSPACE_ID.scope` is the documented escape.
+// The DML helper rejects bare-bypass writes loud-and-fast — under
+// SYSTEM_BYPASS the pool primes `app.workspace_id` to `Uuid::nil()`
+// so the RLS predicate's cast doesn't 22P02, but a row written with
+// that nil sentinel would land tenant-less. These tests prove the
+// helper refuses bare-bypass DML and accepts the documented escape:
+// wrap in an inner `WORKSPACE_ID.scope`.
 
 #[tokio::test]
 #[ignore = "requires OX_TEST_DATABASE_URL"]

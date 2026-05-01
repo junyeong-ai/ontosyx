@@ -66,10 +66,8 @@ impl DraftClusterCheckpointStore for PostgresStore {
         // the caller-supplied field — RLS enforces row.workspace_id =
         // current_setting('app.workspace_id'), so a mismatch would
         // 42501 even when the caller intended the same workspace.
-        // ADR-0039: stamp every DML row with the bound id (never
-        // trust user-provided workspace_id). The table's `id`
-        // column carries `DEFAULT gen_random_uuid()` so the
-        // surrogate key falls out of the schema, not the caller.
+        // The table's `id` column carries `DEFAULT gen_random_uuid()`
+        // so the surrogate key falls out of the schema.
         let workspace_id = super::bound_workspace_id_for_dml()?;
         let output_json = serde_json::to_value(&c.output).map_err(|e| OxError::Runtime {
             message: format!("draft cluster checkpoint output serialise failed: {e}"),

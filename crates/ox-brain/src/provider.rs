@@ -217,13 +217,12 @@ fn parse_json_response<T: serde::de::DeserializeOwned>(response: &ModelResponse)
     let json_str = extract_json(&content);
     serde_json::from_str(json_str)
         .or_else(|first_err| {
-            // Phase 2.7 fallback path — only reached when the strict
-            // structured-output parse failed AND the response is not
-            // already cleanly JSON. We log every entry here so the
-            // operator can spot how often the heuristic actually saves
-            // a request vs. how often it just masks a real bug. When
-            // the count converges to zero we drop `extract_last_json`
-            // entirely and treat the parse failure as terminal.
+            // Fallback only reached when the strict structured-output
+            // parse failed AND the response isn't cleanly JSON. Every
+            // entry is logged so operators can see whether the
+            // heuristic still earns its keep — once the count
+            // converges to zero, drop `extract_last_json` entirely
+            // and treat the parse failure as terminal.
             tracing::warn!(
                 first_error = %first_err,
                 content_len = content.len(),
@@ -417,10 +416,10 @@ Wait, I need to fix the query.
         assert!(extract_last_json(input).is_none());
     }
 
-    // Phase 2.7 — pin the known false-positive shape so anyone
-    // tightening or removing `extract_last_json` later sees what
-    // breaks. Today the heuristic returns the trailing object even
-    // when the surrounding prose makes the meaning ambiguous.
+    // Pin the known false-positive shape so anyone tightening or
+    // removing `extract_last_json` later sees what breaks. The
+    // heuristic returns the trailing object even when surrounding
+    // prose makes the meaning ambiguous.
     #[test]
     fn extract_last_json_returns_inline_example_object() {
         let input = "Earlier I considered {\"shape\": \"draft\"} \

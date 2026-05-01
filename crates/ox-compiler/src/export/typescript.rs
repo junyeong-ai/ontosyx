@@ -6,7 +6,7 @@ use ox_core::types::PropertyType;
 /// Produces interface declarations for each node type and edge type,
 /// with property types mapped to their TypeScript equivalents.
 ///
-/// Phase A semantic fields surface in JSDoc:
+/// Semantic fields surface in JSDoc:
 /// - `deprecated_at` → `@deprecated [reason]` in the entity / field doc.
 /// - `replaced_by_id` is resolved against the ontology so the reason
 ///   names the successor inline.

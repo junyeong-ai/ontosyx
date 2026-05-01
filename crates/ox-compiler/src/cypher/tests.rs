@@ -176,7 +176,7 @@ fn test_compile_schema_constraints() {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 0.2 — Korean label round-trip
+// Korean label round-trip
 //
 // Verifies that every Cypher emission path (constraints, indexes, match
 // patterns, edge types) correctly backtick-escapes Korean identifiers.
@@ -1988,7 +1988,7 @@ fn named_param_rejects_injection_shaped_name() {
 }
 
 // ---------------------------------------------------------------------------
-// ADR-0036 — backend capability gates
+// Backend capability gates
 // ---------------------------------------------------------------------------
 
 #[test]

@@ -371,9 +371,9 @@ impl StructuredMatchQuery {
             }
 
             // Exactly one value field should be set (mutual exclusion).
-            // Phase 2.6.1: we intentionally reject ambiguous conditions
-            // instead of silently picking one via priority heuristic.
-            // The LLM structured-output retry loop will fix the input.
+            // Reject ambiguous conditions outright rather than picking
+            // one via heuristic — the LLM structured-output retry loop
+            // surfaces the gap.
             if needs_value && value_count > 1 {
                 return Err(OxError::Validation {
                     field: format!("conditions[{i}]"),

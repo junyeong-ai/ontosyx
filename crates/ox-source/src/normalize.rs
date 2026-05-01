@@ -18,10 +18,9 @@
 //!   unexpected dialect variant.
 //! - **Schema-only.** No value coercion happens here; row-level
 //!   conversion lives in each adapter's `scan` implementation.
-//!
-//! Phase 2 covers the common SQL primitives plus JSON/BLOB. Phase 6
-//! extends to temporal ranges with timezones, arrays, and nested
-//! structs as adapters gain pushdown support for them.
+//! - Common SQL primitives + JSON / BLOB are covered today.
+//!   Temporal ranges with timezones, arrays, and nested structs
+//!   land as adapters gain pushdown support.
 
 use arrow_schema::{DataType, Field, Schema, TimeUnit};
 use ox_core::source_schema::{SourceColumnDef, SourceTableDef};

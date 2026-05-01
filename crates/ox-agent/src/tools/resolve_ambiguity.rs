@@ -145,10 +145,9 @@ impl SchemaTool for ResolveAmbiguityTool {
             .await
         {
             Ok(saved) => {
-                // Phase 4.6 signal wire — stamp "this session just
-                // clarified" so the next `query_graph` in the same
-                // branchforge session counts toward the
-                // clarification_success_rate tile.
+                // Stamp "this session just clarified" so the next
+                // `query_graph` in the same branchforge session
+                // counts toward the clarification_success_rate tile.
                 self.clarification_tracker.record(exec_ctx.session_id());
                 ToolResult::success(
                     serde_json::to_string_pretty(&ResolveAmbiguityOutput {

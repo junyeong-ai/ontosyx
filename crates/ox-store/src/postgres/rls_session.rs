@@ -64,11 +64,11 @@ pub(super) async fn configure_rls_session_vars(
             .bind(ws_id.to_string())
             .execute(&mut *conn)
             .await?;
-        // ADR-0041: bound the worst-case query and idle-in-
-        // transaction durations. `RESET ALL` clears these on release
-        // so we re-apply per acquire. Bypass paths (migrations /
-        // cron sweeps) intentionally skip — those are bounded by
-        // their outer scheduler and may legitimately run long.
+        // Bound the worst-case query and idle-in-transaction
+        // durations. `RESET ALL` clears these on release so we
+        // re-apply per acquire. Bypass paths (migrations / cron
+        // sweeps) skip — they are bounded by their outer scheduler
+        // and may legitimately run long.
         sqlx::query("SET statement_timeout = 30000")
             .execute(&mut *conn)
             .await?;

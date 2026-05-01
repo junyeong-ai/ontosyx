@@ -294,8 +294,8 @@ async fn workspace_rls_isolates_data_sources_between_tenants() {
     );
 }
 
-/// Φ2-D: stamping the cached analysis snapshot + per-table fingerprint
-/// map back onto the source row. Verifies the round-trip plus the
+/// Stamp the cached analysis snapshot + per-table fingerprint map
+/// back onto the source row. Verifies the round-trip plus the
 /// `last_analyzed_at` server-stamping behaviour.
 #[tokio::test]
 #[ignore]

@@ -471,13 +471,12 @@ impl DefaultBrain {
         )
         .await?;
 
-        // ADR-0029: render hash captures system + user post-
-        // interpolation. An admin who edits the DB-backing
-        // prompt without bumping `prompt_version` shifts this
-        // value, and `ContentBody` re-hashes against the new
-        // provenance — the prior artifact id no longer matches
-        // and the operator sees the divergence rather than a
-        // silent cache hit.
+        // Render hash captures system + user post-interpolation.
+        // An admin who edits the DB-backing prompt without bumping
+        // `prompt_version` shifts this value, and `ContentBody`
+        // re-hashes against the new provenance — the prior artifact
+        // id no longer matches and the operator sees the divergence
+        // rather than a silent cache hit.
         let prompt_render_hash =
             ox_ontology::source_mapping::ArtifactProvenance::compute_prompt_render_hash(
                 &format!("{}\n\n{}", tmpl.system, user_prompt),
