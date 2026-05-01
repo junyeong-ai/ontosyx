@@ -3818,6 +3818,8 @@
       },
       "workflowForms": {
         "reanalyze": "Reanalyze",
+        "reanalyzeModeled": "Reanalyze modeled tables",
+        "modeledOnlyLabel": "Re-analyze only the {count, plural, one {# modeled table} other {# modeled tables}}",
         "extendOntology": "Extend Ontology",
         "postgresPlaceholder": "postgres://user:password@host:5432/dbname",
         "mysqlPlaceholder": "mysql://user:password@host:3306/dbname",

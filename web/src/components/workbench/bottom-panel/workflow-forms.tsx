@@ -30,6 +30,9 @@ export function ReanalyzeForm({
   repoUrl,
   setRepoUrl,
   onSubmit,
+  modeledOnly,
+  setModeledOnly,
+  modeledTablesAvailable,
 }: {
   sourceType: string;
   connectionString: string;
@@ -44,6 +47,11 @@ export function ReanalyzeForm({
   setRepoUrl: (v: string) => void;
   loading: boolean;
   onSubmit: () => void;
+  modeledOnly: boolean;
+  setModeledOnly: (v: boolean) => void;
+  /** Number of tables in `analysis_scope.included` — when 0 the
+   * "modeled only" checkbox is hidden (the action would 400). */
+  modeledTablesAvailable: number;
 }) {
   const t = useTranslations("workbench.bottomPanel.workflowForms");
   const isDisabled = loading || (() => {
@@ -95,6 +103,19 @@ export function ReanalyzeForm({
           onChange={(e) => setRepoPath(e.target.value)}
         />
       )}
+      {modeledTablesAvailable > 0 && sourceType !== "code_repository" && (
+        <label className="flex cursor-pointer items-center gap-2 rounded border border-zinc-200 bg-white px-2 py-1.5 text-[11px] hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800/50">
+          <input
+            type="checkbox"
+            checked={modeledOnly}
+            onChange={(e) => setModeledOnly(e.target.checked)}
+            className="h-3 w-3"
+          />
+          <span className="flex-1">
+            {t("modeledOnlyLabel", { count: modeledTablesAvailable })}
+          </span>
+        </label>
+      )}
       <Button
         size="sm"
         onClick={onSubmit}
@@ -106,7 +127,7 @@ export function ReanalyzeForm({
         ) : (
           <HugeiconsIcon icon={Refresh01Icon} className="mr-1.5 h-3 w-3" size="100%" />
         )}
-        {t("reanalyze")}
+        {modeledOnly ? t("reanalyzeModeled") : t("reanalyze")}
       </Button>
     </div>
   );

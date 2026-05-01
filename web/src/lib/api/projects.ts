@@ -25,6 +25,7 @@ import type {
   ProjectRefineResponse,
   UpdateProjectDecisionsRequest,
 } from "@/types/api";
+import type { ProjectSource } from "@/types/projects";
 import { getPrincipalId } from "@/lib/principal";
 import { getWorkspaceId } from "@/lib/workspace";
 import { fetchWithTimeout, PROXY_BASE, DESIGN_TIMEOUT, request } from "./client";
@@ -100,6 +101,22 @@ export async function reanalyzeProject(
   req: ReanalyzeProjectRequest,
 ): Promise<{ project: DesignProject; invalidated_decisions?: string[] }> {
   return request(`/projects/${encodeURIComponent(id)}/reanalyze`, {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+}
+
+export interface ReanalyzeModeledProjectRequest {
+  source: ProjectSource;
+  revision: number;
+  repo_source?: ReanalyzeProjectRequest["repo_source"];
+}
+
+export async function reanalyzeModeledProject(
+  id: string,
+  req: ReanalyzeModeledProjectRequest,
+): Promise<{ project: DesignProject; invalidated_decisions?: string[] }> {
+  return request(`/projects/${encodeURIComponent(id)}/reanalyze-modeled`, {
     method: "POST",
     body: JSON.stringify(req),
   });

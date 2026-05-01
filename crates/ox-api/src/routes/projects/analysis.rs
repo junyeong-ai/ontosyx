@@ -1,10 +1,12 @@
 use axum::Json;
 use axum::extract::{Path, State};
+use serde::Deserialize;
 use tracing::warn;
 use uuid::Uuid;
 
 use ox_ontology::design_project::{SourceConfig, SourceTypeKind};
 use ox_ontology::mapping::SourceId;
+use ox_source::AnalyzeSelection;
 use ox_store::store::AnalysisSnapshot;
 
 use crate::error::AppError;
@@ -43,13 +45,121 @@ pub(crate) async fn reanalyze_project(
 ) -> Result<Json<ApiResponse<ReanalyzeProjectResponse>>, AppError> {
     principal.require_designer()?;
     req.selection.validate().map_err(AppError::from)?;
+    run_reanalyze(
+        &state,
+        id,
+        ReanalyzeInputs {
+            source: req.source,
+            repo_source: req.repo_source,
+            selection: req.selection,
+            expected_revision: req.revision,
+        },
+    )
+    .await
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/projects/:id/reanalyze-modeled
+//
+// Same pipeline as plain reanalyze, but the table selection is auto-
+// derived from the project's `analysis_scope.included` — the modeler
+// asks "re-introspect what I've already chosen to model" without
+// re-supplying the table list. The source connection still comes
+// from the request body since credentials are never persisted
+// server-side; only the picked-tables decision is.
+//
+// 400 when `included` is empty (the project has nothing to re-
+// introspect under the modeled-only contract — the operator should
+// promote a deferred table or run plain reanalyze first).
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct ReanalyzeModeledProjectRequest {
+    /// Same source connection used for the project. Source type must
+    /// match the project's stored kind; selection is auto-derived.
+    pub source: ProjectSource,
+    pub revision: i32,
+    /// Optional repository source for enrichment.
+    #[serde(default)]
+    #[schema(value_type = Option<Object>)]
+    pub repo_source: Option<ox_ontology::repo_insights::RepoSource>,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/projects/{id}/reanalyze-modeled",
+    params(("id" = Uuid, Path, description = "Project ID")),
+    request_body = ReanalyzeModeledProjectRequest,
+    responses(
+        (status = 200, description = "Modeled tables re-analyzed", body = ReanalyzeProjectResponse),
+        (status = 400, description = "No modeled tables / source type mismatch", body = inline(crate::openapi::ErrorResponse)),
+        (status = 404, description = "Project not found", body = inline(crate::openapi::ErrorResponse)),
+    ),
+    security(("api_key" = [])),
+    tag = "Projects",
+)]
+pub(crate) async fn reanalyze_modeled_project(
+    State(state): State<AppState>,
+    principal: Principal,
+    Path(id): Path<Uuid>,
+    Json(req): Json<ReanalyzeModeledProjectRequest>,
+) -> Result<Json<ApiResponse<ReanalyzeProjectResponse>>, AppError> {
+    principal.require_designer()?;
+
+    // Derive selection from the project's `analysis_scope.included`.
+    // Loaded here (rather than inside `run_reanalyze`) so the empty-
+    // included precondition surfaces as a clear 400 before the
+    // pipeline runs any introspection.
     let project = load_mutable_project(&state, id).await?;
+    let scope: ox_source::AnalysisScope =
+        serde_json::from_value(project.analysis_scope.clone()).unwrap_or_default();
+    if scope.included.is_empty() {
+        return Err(AppError::bad_request(
+            "no modeled tables — promote at least one deferred table or use the regular reanalyze endpoint",
+        ));
+    }
+    let selection = AnalyzeSelection::Subset {
+        tables: scope.included.clone(),
+    };
+
+    run_reanalyze(
+        &state,
+        id,
+        ReanalyzeInputs {
+            source: req.source,
+            repo_source: req.repo_source,
+            selection,
+            expected_revision: req.revision,
+        },
+    )
+    .await
+}
+
+// ---------------------------------------------------------------------------
+// run_reanalyze — shared pipeline body. Same flow as the legacy
+// inline handler: introspect → drift detect (value-set + table-
+// schema) → fingerprint roll-forward → snapshot replace.
+// ---------------------------------------------------------------------------
+
+struct ReanalyzeInputs {
+    source: ProjectSource,
+    repo_source: Option<ox_ontology::repo_insights::RepoSource>,
+    selection: AnalyzeSelection,
+    expected_revision: i32,
+}
+
+async fn run_reanalyze(
+    state: &AppState,
+    id: Uuid,
+    inputs: ReanalyzeInputs,
+) -> Result<Json<ApiResponse<ReanalyzeProjectResponse>>, AppError> {
+    let project = load_mutable_project(state, id).await?;
 
     let stored_config: SourceConfig = serde_json::from_value(project.source_config.clone())
         .map_err(|e| AppError::bad_request(format!("Corrupt source_config: {e}")))?;
 
     // Validate source type matches
-    let new_source_type = match &req.source {
+    let new_source_type = match &inputs.source {
         ProjectSource::Text { .. } => SourceTypeKind::Text,
         ProjectSource::Csv { .. } => SourceTypeKind::Csv,
         ProjectSource::Json { .. } => SourceTypeKind::Json,
@@ -71,21 +181,21 @@ pub(crate) async fn reanalyze_project(
 
     // Re-analyze (CodeRepository has a separate path requiring LLM calls)
     let (source_config, source_data, source_schema, source_profile, mut report) =
-        if let ProjectSource::CodeRepository { url } = req.source {
-            let (config, schema, profile, report) = analyze_code_repository(&state, &url).await?;
+        if let ProjectSource::CodeRepository { url } = inputs.source {
+            let (config, schema, profile, report) = analyze_code_repository(state, &url).await?;
             (config, None, Some(schema), Some(profile), Some(report))
         } else {
             let analyzed =
-                analyze_source(req.source, &state.adapter_registry, req.selection.clone(), None).await?;
+                analyze_source(inputs.source, &state.adapter_registry, inputs.selection.clone(), None).await?;
             let mut report = analyzed.report;
 
             // Optional repo enrichment (non-fatal — failures recorded in repo_summary)
-            if let (Some(source), Some(rpt)) = (&req.repo_source, &mut report) {
+            if let (Some(source), Some(rpt)) = (&inputs.repo_source, &mut report) {
                 match source.validate(
                     &state.repo_policy.allowed_roots,
                     &state.repo_policy.allowed_git_hosts,
                 ) {
-                    Ok(validated) => run_repo_enrichment(&state, &validated, rpt).await,
+                    Ok(validated) => run_repo_enrichment(state, &validated, rpt).await,
                     Err(reason) => {
                         warn!(reason = %reason, "Repo enrichment skipped");
                         rpt.repo_summary = Some(skipped_repo_summary(
@@ -206,7 +316,7 @@ pub(crate) async fn reanalyze_project(
             .as_ref()
             .map(|s| s.tables.iter().map(|t| t.name.clone()).collect())
             .unwrap_or_default();
-        scope.record_selection(&req.selection, &all_tables, now);
+        scope.record_selection(&inputs.selection, &all_tables, now);
         scope.record_fingerprints(fresh_fingerprints);
         AppError::to_json(&scope)?
     };
@@ -237,11 +347,11 @@ pub(crate) async fn reanalyze_project(
 
     state
         .store
-        .replace_analysis_snapshot(id, &snapshot, req.revision)
+        .replace_analysis_snapshot(id, &snapshot, inputs.expected_revision)
         .await
         .map_err(AppError::from)?;
 
-    let updated = reload_project(&state, id).await?;
+    let updated = reload_project(state, id).await?;
 
     Ok(ApiResponse::of(ReanalyzeProjectResponse {
         project: ProjectView::from_project(updated),

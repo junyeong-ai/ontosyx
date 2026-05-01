@@ -81,6 +81,10 @@ pub fn router(state: AppState) -> Router {
             post(projects::reanalyze_project),
         )
         .route(
+            "/projects/{id}/reanalyze-modeled",
+            post(projects::reanalyze_modeled_project),
+        )
+        .route(
             "/projects/{id}/scope/include",
             post(projects::include_scope_tables),
         )

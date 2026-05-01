@@ -9,7 +9,11 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { toAnalyzeSelection } from "@/components/workbench/source-import-panel";
 import { useAppStore } from "@/lib/store";
-import { extendProject, reanalyzeProject } from "@/lib/api";
+import {
+  extendProject,
+  reanalyzeModeledProject,
+  reanalyzeProject,
+} from "@/lib/api";
 import { isGitUrl } from "@/lib/git-url";
 import { useGuardPendingEdits } from "@/lib/guard-pending-edits";
 import type { DesignProject, DesignSource} from "@/types/api";
@@ -187,20 +191,31 @@ export function EnhanceActions({
 
     setLoading(true);
     try {
-      const resp = await reanalyzeProject(project.id, {
-        source,
-        revision: project.revision,
-        repo_source: reanalyze.repoPath.trim()
-          ? isGitUrl(reanalyze.repoPath.trim())
-            ? { type: "git_url" as const, url: reanalyze.repoPath.trim() }
-            : { type: "local" as const, path: reanalyze.repoPath.trim() }
-          : undefined,
-        // Reanalyze defaults to a full sweep — narrowing requires
-        // a UI for selection, which lives only on the extend
-        // surface today. Sent explicitly so the wire is self-
-        // describing.
-        selection: { kind: "all" },
-      });
+      const repo_source = reanalyze.repoPath.trim()
+        ? isGitUrl(reanalyze.repoPath.trim())
+          ? { type: "git_url" as const, url: reanalyze.repoPath.trim() }
+          : { type: "local" as const, path: reanalyze.repoPath.trim() }
+        : undefined;
+      // Modeled-only branch dispatches to /reanalyze-modeled — same
+      // pipeline, selection auto-derived from analysis_scope.included
+      // server-side. The checkbox is gated by the FE on
+      // `included.length > 0` so the request shouldn't 400 here.
+      const resp = reanalyze.modeledOnly
+        ? await reanalyzeModeledProject(project.id, {
+            source,
+            revision: project.revision,
+            repo_source,
+          })
+        : await reanalyzeProject(project.id, {
+            source,
+            revision: project.revision,
+            repo_source,
+            // Reanalyze defaults to a full sweep — narrowing
+            // requires a UI for selection, which lives only on the
+            // extend surface today. Sent explicitly so the wire is
+            // self-describing.
+            selection: { kind: "all" },
+          });
       applyProjectSnapshot(resp.project);
       reanalyze.setShowReanalyze(false);
       toast.success(t("reanalyzed"), {
@@ -316,6 +331,11 @@ export function EnhanceActions({
                   setRepoUrl={reanalyze.setRepoUrl}
                   loading={loading}
                   onSubmit={handleReanalyze}
+                  modeledOnly={reanalyze.modeledOnly}
+                  setModeledOnly={reanalyze.setModeledOnly}
+                  modeledTablesAvailable={
+                    project.analysis_scope?.included?.length ?? 0
+                  }
                 />
               )}
             </>

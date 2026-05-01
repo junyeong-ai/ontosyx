@@ -3804,6 +3804,8 @@
       },
       "workflowForms": {
         "reanalyze": "재분석",
+        "reanalyzeModeled": "모델링된 테이블만 재분석",
+        "modeledOnlyLabel": "모델링된 테이블 {count}개만 재분석",
         "extendOntology": "온톨로지 확장",
         "postgresPlaceholder": "postgres://user:password@host:5432/dbname",
         "mysqlPlaceholder": "mysql://user:password@host:3306/dbname",

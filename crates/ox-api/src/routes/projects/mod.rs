@@ -12,7 +12,7 @@ pub(crate) mod streaming;
 pub mod types;
 
 // Re-export handler functions for use in the router
-pub(crate) use analysis::reanalyze_project;
+pub(crate) use analysis::{reanalyze_modeled_project, reanalyze_project};
 pub(crate) use decisions::update_decisions;
 pub(crate) use edit::edit_project;
 pub(crate) use extend::extend_project;
