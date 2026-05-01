@@ -173,8 +173,27 @@ export async function listRecipes(params?: {
   return request(`/recipes${qs ? `?${qs}` : ""}`);
 }
 
+/**
+ * Wire shape the backend `CreateRecipeRequest` accepts. `version`,
+ * `status`, and `parent_id` live on the response (`AnalysisRecipe`)
+ * but the create handler doesn't accept them — they're stamped
+ * server-side. Earlier this surface accepted the full
+ * `Omit<AnalysisRecipe, ...>` shape and serde silently dropped the
+ * extra fields; the narrow type makes the contract honest.
+ */
+export type CreateRecipeRequest = Pick<
+  AnalysisRecipe,
+  | "name"
+  | "description"
+  | "algorithm_type"
+  | "code_template"
+  | "parameters"
+  | "required_columns"
+  | "output_description"
+>;
+
 export async function createRecipe(
-  req: Omit<AnalysisRecipe, "id" | "created_by" | "created_at">,
+  req: CreateRecipeRequest,
 ): Promise<AnalysisRecipe> {
   return request("/recipes", {
     method: "POST",

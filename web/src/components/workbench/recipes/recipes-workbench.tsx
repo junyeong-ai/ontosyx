@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { AnalysisRecipe, RecipeStatus } from "@/types/api";
 import {
+  type CreateRecipeRequest,
   listRecipes,
   createRecipe,
   deleteRecipe,
@@ -83,9 +84,7 @@ export function RecipesWorkbench() {
     }
   };
 
-  const handleCreate = async (
-    values: Omit<AnalysisRecipe, "id" | "created_by" | "created_at">,
-  ) => {
+  const handleCreate = async (values: CreateRecipeRequest) => {
     const recipe = await createRecipe(values);
     setRecipes((prev) => [recipe, ...prev]);
     toast.success(t("toast.created"));
@@ -506,7 +505,7 @@ function VersionRow({
 function RecipeCreateForm({
   onSubmit,
 }: {
-  onSubmit: (values: Omit<AnalysisRecipe, "id" | "created_by" | "created_at">) => Promise<void>;
+  onSubmit: (values: CreateRecipeRequest) => Promise<void>;
 }) {
   const t = useTranslations("settings.recipes");
   const [isOpen, setIsOpen] = useState(false);
@@ -544,9 +543,6 @@ function RecipeCreateForm({
           .map((s) => s.trim())
           .filter(Boolean),
         output_description: outputDescription.trim(),
-        version: 1,
-        status: "draft",
-        parent_id: null,
       });
       reset();
       setIsOpen(false);

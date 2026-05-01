@@ -101,7 +101,7 @@ describe("ApprovalsSettingsPage", () => {
       `/approvals/${MOCK_PENDING.id}/review`,
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ approved: true, note: null }),
+        body: JSON.stringify({ approved: true }),
       }),
     );
   });
@@ -122,7 +122,7 @@ describe("ApprovalsSettingsPage", () => {
     const body = JSON.parse(
       (request as ReturnType<typeof vi.fn>).mock.calls[1][1].body as string,
     );
-    expect(body).toEqual({ approved: false, note: null });
+    expect(body).toEqual({ approved: false });
   });
 
   it("swallows malformed list response into an empty page", async () => {
