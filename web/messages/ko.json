@@ -1595,9 +1595,6 @@
         "sessions": "세션",
         "federation": "연합 데이터 소스",
         "vocabulary": "어휘",
-        "glossary": "용어사전",
-        "valueSets": "값 집합",
-        "conceptMaps": "개념 매핑",
         "rules": "규칙"
       }
     },
@@ -2825,7 +2822,10 @@
       "subtitle": "워크스페이스 범위 어휘 레지스트리 — 코드 시스템, 값 집합 등 용어집이 앵커하는 도메인 어휘를 관리합니다.",
       "tabsAria": "어휘 레지스트리",
       "tabs": {
-        "code-systems": "코드 시스템"
+        "code-systems": "코드 시스템",
+        "value-sets": "값 집합",
+        "concept-maps": "개념 매핑",
+        "notation-patterns": "표기 패턴"
       }
     },
     "projects": {

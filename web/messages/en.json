@@ -1609,9 +1609,6 @@
         "sessions": "Sessions",
         "federation": "Federation Adapters",
         "vocabulary": "Vocabulary",
-        "glossary": "Glossary",
-        "valueSets": "Value Sets",
-        "conceptMaps": "Concept Maps",
         "rules": "Rules"
       }
     },
@@ -2839,7 +2836,10 @@
       "subtitle": "Workspace-scoped registries — code systems, value sets, and the rest of the domain vocabulary the glossary anchors against.",
       "tabsAria": "Vocabulary registry",
       "tabs": {
-        "code-systems": "Code systems"
+        "code-systems": "Code systems",
+        "value-sets": "Value sets",
+        "concept-maps": "Concept maps",
+        "notation-patterns": "Notation patterns"
       }
     },
     "projects": {

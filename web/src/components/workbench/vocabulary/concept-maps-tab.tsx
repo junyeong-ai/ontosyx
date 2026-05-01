@@ -3,46 +3,54 @@
 import { useTranslations } from "next-intl";
 
 import { JsonEntityCrudPage } from "@/components/settings/vocabulary/json-entity-crud-page";
-import type { ValueSetDef } from "@/lib/api/edit-ops";
+import type { ConceptMapDef } from "@/types/ontology";
 
-const VALUE_SET_HINT = `{
-  "id": "vs-order-status",
-  "name": "OrderStatus",
+const CONCEPT_MAP_HINT = `{
+  "id": "cm-status-iso",
+  "name": "OrderStatus → ISO",
   "version": "1.0.0",
-  "composition": [
+  "source_system_id": "cs-order-status",
+  "target_system_id": "cs-iso-status",
+  "mappings": [
     {
-      "system_id": "cs-order-status",
-      "selector": { "kind": "all" },
-      "mode": "include"
+      "source_code": "PENDING",
+      "target_code": "OPEN",
+      "equivalence": "equivalent"
     }
   ]
 }`;
 
-export default function ValueSetsAdminPage() {
-  const t = useTranslations("settings.vocabulary.valueSets");
-
+/**
+ * Concept Maps tab — registry of `ConceptMapDef`s mapping codes
+ * across systems. Migrated from /settings/conceptmaps; underlying
+ * JsonEntityCrudPage unchanged, only the host.
+ */
+export function ConceptMapsTab() {
+  const t = useTranslations("settings.vocabulary.conceptMaps");
   return (
-    <JsonEntityCrudPage<ValueSetDef>
-      schemaHint={VALUE_SET_HINT}
-      selectItems={(ir) =>
-        ((ir as unknown as { value_sets?: ValueSetDef[] }).value_sets ?? [])
-      }
-      itemId={(vs) => vs.id}
-      buildCreateOp={(def) => ({ op: "create_value_set", def })}
-      buildUpdateOp={(id, def) => ({ op: "update_value_set", id, def })}
-      buildDeleteOp={(id) => ({ op: "delete_value_set", id })}
-      renderRow={(vs) => (
+    <JsonEntityCrudPage<ConceptMapDef>
+      schemaHint={CONCEPT_MAP_HINT}
+      selectItems={(ir) => ir.concept_maps ?? []}
+      itemId={(cm) => cm.id}
+      buildCreateOp={(def) => ({ op: "create_concept_map", def })}
+      buildUpdateOp={(id, def) => ({ op: "update_concept_map", id, def })}
+      buildDeleteOp={(id) => ({ op: "delete_concept_map", id })}
+      renderRow={(cm) => (
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-mono text-sm font-medium text-zinc-900 dark:text-zinc-100">
-              {vs.id}
+              {cm.id}
             </span>
             <span className="text-xs text-zinc-500 dark:text-zinc-400">
-              · {vs.name} · v{vs.version}
+              · {cm.name} · v{cm.version}
             </span>
           </div>
           <p className="mt-1 text-[10px] text-zinc-500 dark:text-zinc-500">
-            {t("includeCount", { count: vs.composition?.length ?? 0 })}
+            {t("mappingSummary", {
+              source: cm.source_system_id,
+              target: cm.target_system_id,
+              count: cm.mappings?.length ?? 0,
+            })}
           </p>
         </div>
       )}

@@ -48,23 +48,15 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    // Φ4 — registry admin surfaces. Glossary CRUD + batch
-    // bindings live at the top-level `/glossary` workbench mode
-    // (ADR-0058 + N16-a). Code systems moved to the `/vocabulary`
-    // workbench mode (N16-b) — they're domain-vocabulary editing
-    // not admin configuration. Value sets, concept maps, and
-    // rules will follow into `/vocabulary` as their absorption
-    // sub-tasks land; until then they stay here.
+    // Φ4 — registry admin surfaces. The vocabulary registries
+    // (glossary, code systems, value sets, concept maps, notation
+    // patterns) all moved to dedicated workbench modes
+    // (`/glossary`, `/vocabulary`) — they're domain-vocabulary
+    // editing, not admin configuration. SHACL rules stay here for
+    // now; they'll move into the design workbench's quality view
+    // when that absorption lands.
     titleKey: "vocabulary",
-    items: [
-      { labelKey: "valueSets", href: "/settings/valuesets", adminOnly: true },
-      {
-        labelKey: "conceptMaps",
-        href: "/settings/conceptmaps",
-        adminOnly: true,
-      },
-      { labelKey: "rules", href: "/settings/rules", adminOnly: true },
-    ],
+    items: [{ labelKey: "rules", href: "/settings/rules", adminOnly: true }],
   },
   {
     titleKey: "governance",

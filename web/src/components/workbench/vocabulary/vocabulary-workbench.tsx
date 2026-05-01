@@ -4,6 +4,9 @@ import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { CodeSystemsTab } from "./code-systems-tab";
+import { ConceptMapsTab } from "./concept-maps-tab";
+import { NotationPatternsTab } from "./notation-patterns-tab";
+import { ValueSetsTab } from "./value-sets-tab";
 
 // ---------------------------------------------------------------------------
 // VocabularyWorkbench — sixth workbench mode (alongside Design /
@@ -24,9 +27,18 @@ import { CodeSystemsTab } from "./code-systems-tab";
 const TAB_PARAM = "tab";
 const ROUTE = "/vocabulary";
 
-type VocabularyTab = "code-systems";
+type VocabularyTab =
+  | "code-systems"
+  | "value-sets"
+  | "concept-maps"
+  | "notation-patterns";
 
-const TABS: ReadonlyArray<VocabularyTab> = ["code-systems"];
+const TABS: ReadonlyArray<VocabularyTab> = [
+  "code-systems",
+  "value-sets",
+  "concept-maps",
+  "notation-patterns",
+];
 
 function isTab(v: string | null): v is VocabularyTab {
   return TABS.some((t) => t === v);
@@ -80,6 +92,9 @@ export function VocabularyWorkbench() {
       </nav>
       <div className="flex-1 overflow-auto">
         {tab === "code-systems" && <CodeSystemsTab />}
+        {tab === "value-sets" && <ValueSetsTab />}
+        {tab === "concept-maps" && <ConceptMapsTab />}
+        {tab === "notation-patterns" && <NotationPatternsTab />}
       </div>
     </div>
   );
