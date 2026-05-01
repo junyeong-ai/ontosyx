@@ -558,7 +558,7 @@ export interface ColumnStats {
    * name heuristic and dropped raw values. The FE renders a
    * "Redacted: <kind>" badge in place of the distribution detail.
    */
-  pii_redacted?: PiiSuspectKind | null;
+  pii_redacted?: PiiSuspectKind;
 }
 
 export type PiiSuspectKind =
