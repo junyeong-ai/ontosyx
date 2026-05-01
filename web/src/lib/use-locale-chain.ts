@@ -40,6 +40,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { getWorkspaceId } from "@/lib/workspace";
 import { DEFAULT_LOCALE_CHAIN } from "@/lib/locale/localize";
+import type { components } from "@/types/api.generated";
 
 const SUBSCRIPTION_KEY = "ontosyx.workspace_id";
 
@@ -67,15 +68,10 @@ function readWorkspaceIdServer(): string | undefined {
   return undefined;
 }
 
-interface WorkspaceMe {
-  id: string;
-  name: string;
-  slug: string;
-  role: string;
-  primary_locale: string;
-  admin_locale_fallback: string[];
-  llm_locale_fallback: string[];
-}
+// Wire shape comes from the OpenAPI spec — keeps the locale-chain
+// surface aligned with the backend without a parallel hand-rolled
+// type that drifts when the workspace endpoint grows fields.
+type WorkspaceMe = components["schemas"]["WorkspaceMeResponse"];
 
 /** Which locale axis to read — admin UI vs LLM context. */
 export type LocaleSurface = "admin" | "llm";
