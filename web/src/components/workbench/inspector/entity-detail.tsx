@@ -51,7 +51,7 @@ export { GapsList } from "./quality-gaps";
 // Mappings; the page splits them into independent accordion
 // sections so a long-form context view doesn't bury Mappings under
 // scroll. Each pane (in both adapters) calls the same facet
-// component; this is the ADR-0054 contract.
+// component so the inspector and the page stay in lockstep.
 // ---------------------------------------------------------------------------
 
 type InspectorTab = "definition" | "sample" | "lineage" | "quality" | "changelog";

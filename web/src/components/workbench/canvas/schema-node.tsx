@@ -48,11 +48,11 @@ type SchemaNodeProps = NodeProps & { data: SchemaNodeData };
 function schemaNodeEqual(prev: SchemaNodeProps, next: SchemaNodeProps): boolean {
   const a = prev.data;
   const b = next.data;
-  // Severity-tier counts factor into the canvas overlay (ADR-0057),
-  // so a gap-list reorder that doesn't change total length but
-  // shifts severity must still re-render. We compare per-tier
-  // counts rather than walking the full gap list because the
-  // counts are the only thing the rendered surface reads.
+  // Severity-tier counts factor into the canvas overlay so a
+  // gap-list reorder that doesn't change total length but shifts
+  // severity must still re-render. We compare per-tier counts
+  // rather than walking the full gap list because the counts are
+  // the only thing the rendered surface reads.
   const aHigh = a.gaps.filter((g) => g.severity === "high").length;
   const bHigh = b.gaps.filter((g) => g.severity === "high").length;
   const aMedium = a.gaps.filter((g) => g.severity === "medium").length;
@@ -99,12 +99,12 @@ function highlightBorderClass(kind?: import("@/types/api").BindingKind): string 
 export const SchemaNode = memo(function SchemaNode({ data, id }: SchemaNodeProps) {
   const t = useTranslations("workbench.canvas.node");
   const { nodeDef, gaps, selected, highlighted, highlightKind, highlightedPropertyIds, layer, diffStatus, dimmed, verified } = data;
-  // ADR-0057 — severity-tiered overlay. `high` is the red-dot tier
-  // operators must address before completing the design; `medium`
-  // gets the existing amber treatment; `low` is intentionally
-  // suppressed at the canvas surface (still visible inside the
-  // inspector's `GapsList`) so the canvas reads as a quality
-  // dashboard, not as a wall of yellow noise on every node.
+  // Severity-tiered overlay. `high` is the red-dot tier operators
+  // must address before completing the design; `medium` gets the
+  // amber treatment; `low` is intentionally suppressed at the canvas
+  // surface (still visible inside the inspector's `GapsList`) so
+  // the canvas reads as a quality dashboard, not as a wall of
+  // yellow noise on every node.
   const highGaps = gaps.filter((g) => g.severity === "high");
   const mediumGaps = gaps.filter((g) => g.severity === "medium");
   const hasGaps = gaps.length > 0;

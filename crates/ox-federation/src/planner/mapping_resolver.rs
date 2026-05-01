@@ -67,10 +67,9 @@ impl<'a> MappingResolver<'a> {
     }
 
     /// Resolver pinned to `at`. Only mappings whose `valid_from`/
-    /// `valid_to` contain `at` pass through. Used by the temporal
-    /// query path (ADR 0007) so a query with
-    /// `ontology_valid_at = 2025-01-01` sees the mapping world as it
-    /// was on that date, not today.
+    /// `valid_to` contain `at` pass through. Used by the bitemporal
+    /// query path so a query with `ontology_valid_at = 2025-01-01`
+    /// sees the mapping world as it was on that date, not today.
     pub fn at(ontology: &'a OntologyIR, at: DateTime<Utc>) -> Self {
         Self {
             ontology,
@@ -129,8 +128,7 @@ impl<'a> MappingResolver<'a> {
     ) -> FederationResult<Vec<&'a LinkMappingDef>> {
         // Edge ids aren't surfaced through an `edge_by_id` lookup on
         // OntologyIR — iterate once instead. `OntologyIR::edge_types`
-        // is small (per v3 sizing ~1000 edges max) so this stays
-        // cheap for Phase 6-A.
+        // is small (~1000 edges max) so this stays cheap.
         let declared = self
             .ontology
             .edge_types()

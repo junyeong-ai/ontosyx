@@ -28,10 +28,9 @@ export function useCanvasLayout(
 ) {
   const uiConfig = useUiConfig();
   const uiConfigRef = useRef(uiConfig);
-  // TODO(phase-2): migrate to useEffectEvent(uiConfig) once the API
-  // stabilises in React 19. Keeping the render-phase assignment so
-  // later layout math can read the freshest config without adding a
-  // dependency on every uiConfig field.
+  // Render-phase ref sync — layout math below reads the freshest
+  // uiConfig without re-firing on every field. Switch to
+  // `useEffectEvent` when it leaves experimental.
   // eslint-disable-next-line react-hooks/refs
   uiConfigRef.current = uiConfig;
   const ontology = useAppStore((s) => s.ontology);

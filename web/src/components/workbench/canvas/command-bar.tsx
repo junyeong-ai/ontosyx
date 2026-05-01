@@ -191,11 +191,9 @@ export function CommandBar() {
     }
   }, [activeProject, input, t]);
 
-  // Keep ref in sync for auto-submit from external triggers.
-  // TODO(phase-2): replace this render-phase assignment with
-  // `useEffectEvent(handleEditSubmit)` once a stable API is available;
-  // until then the guarded assignment is the minimum-risk way to
-  // expose the latest callback to a global keybinding.
+  // Render-phase ref sync — global keybindings invoke this without
+  // a hook dep array. Switch to `useEffectEvent` when it leaves
+  // experimental.
   // eslint-disable-next-line react-hooks/refs
   handleEditSubmitRef.current = handleEditSubmit;
 

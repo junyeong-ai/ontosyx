@@ -9,11 +9,10 @@ import { GapsList } from "../quality-gaps";
 
 // ---------------------------------------------------------------------------
 // QualityFacet — surfaces this entity's quality gaps + a
-// drill-through to the workspace-wide signals dashboard. Built as
-// part of ADR-0054 so both the inspector and the domain-context
-// page reach the same per-entity quality view; ADR-0057's
-// severity-tiered overlay drops a chip on the canvas, this facet
-// is where the operator lands when they click the chip.
+// drill-through to the workspace-wide signals dashboard. Both the
+// inspector and the domain-context page reach this facet so they
+// share a single per-entity quality view; the canvas severity chip
+// links here when the operator drills into a flagged entity.
 // ---------------------------------------------------------------------------
 
 export function QualityFacet({ gaps }: { gaps: QualityGap[] }) {

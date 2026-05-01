@@ -23,7 +23,7 @@ import type {
 
 /**
  * Project Hub — card grid of every design project the operator
- * can see (ADR-0055).
+ * can see.
  *
  * Three surfaces:
  *

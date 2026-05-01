@@ -104,9 +104,9 @@ pub struct TailClauses<'a> {
 /// has declared that relation shared across workspaces.
 ///
 /// When `None`, no predicate is injected. This is the system-bypass
-/// path used by scheduled jobs, admin bootstraps, and the Phase 2
-/// CSV integration tests. The planner does **not** treat `None` as
-/// an error — that decision is a policy concern that belongs to
+/// path used by scheduled jobs, admin bootstraps, and CSV
+/// integration tests. The planner does **not** treat `None` as an
+/// error — that decision is a policy concern that belongs to
 /// the call-site (an `ox-api` route that accepts an unscoped query
 /// from a non-admin principal is the bug, not this builder).
 #[derive(Debug, Clone, Copy)]
@@ -201,9 +201,9 @@ async fn build_match_plan_full<R: AdapterResolver + ?Sized>(
 
 /// Convenience wrapper: take a whole `QueryOp::Match` and route it
 /// through the planner → spec → logical-plan pipeline. Exists so
-/// downstream callers (Phase 6-C slice 3 E2E tests, eventually
-/// `ox-api` query routes) hand over a `QueryOp` directly instead of
-/// building the intermediate spec themselves.
+/// downstream callers (E2E tests and `ox-api` query routes) hand
+/// over a `QueryOp` directly instead of building the intermediate
+/// spec themselves.
 ///
 /// Tail clauses (ORDER BY / LIMIT / SKIP) live on `QueryIR` rather
 /// than `QueryOp`, so this entry point passes an empty `TailClauses`.
@@ -247,9 +247,9 @@ pub async fn build_match_op<R: AdapterResolver + ?Sized>(
 /// that instant, so a query with `as_of = 2025-01-01` resolves
 /// `ObjectMappingDef`s using their `valid_from`/`valid_to` window —
 /// the federation engine sees the mapping world as it was on that
-/// date. ADR 0007 calls this the "temporal pivot"; without the wire-
-/// through, the planner silently used "now" regardless of the IR
-/// field, defeating the whole bitemporal contract.
+/// date. Without the wire-through, the planner would silently use
+/// "now" regardless of the IR field and defeat the bitemporal
+/// contract.
 pub async fn build_query_ir<R: AdapterResolver + ?Sized>(
     ontology: &ox_ontology::OntologyIR,
     query: &QueryIR,
@@ -400,9 +400,8 @@ async fn build_single_scan<R: AdapterResolver + ?Sized>(
 /// incompatible schema across mappings surfaces as a DataFusion
 /// error at plan build time, which our FederationError::DataFusion
 /// carrier preserves. Mapping-time schema projection (PropertyMapping
-/// column renames) lands in Phase 6-C slice 4; until then the
-/// onus is on the ontology author to keep the underlying columns
-/// aligned.
+/// column renames) is not yet implemented; until then the onus is
+/// on the ontology author to keep the underlying columns aligned.
 async fn build_union_scan<R: AdapterResolver + ?Sized>(
     scan: &NodeScanSpec<'_>,
     entries: &[ScanMappingEntry<'_>],
@@ -450,17 +449,13 @@ async fn build_union_scan<R: AdapterResolver + ?Sized>(
 /// parallel to the FK case but stitches two equi-predicates per
 /// hop.
 ///
-/// The qualified-column scheme from slice 5a is unchanged — every
-/// scan is aliased by its variable (or `__brN` for bridges) and
-/// every predicate column is qualified with `<alias>.<column>`.
+/// Every scan is aliased by its variable (or `__brN` for bridges)
+/// and every predicate column is qualified with `<alias>.<column>`.
 ///
-/// ## Still unsupported (explicit future-slice messages)
+/// ## Not yet implemented
 ///
-/// - Multi-mapping hops (UNION over link mappings).
 /// - `LinkMappingKind::Computed` (predicate string in source
 ///   dialect — needs per-adapter pushdown).
-/// - Multi-mapping scan on a hop endpoint (UNION-of-mappings × JOIN).
-/// - Composite endpoint keys on bridges (`key_columns.len() > 1`).
 #[allow(clippy::too_many_arguments)]
 async fn apply_joins<R: AdapterResolver + ?Sized>(
     base_plans: HashMap<VariableName, LogicalPlan>,
@@ -872,7 +867,7 @@ impl JoinAssembler {
     /// endpoint predicates the same way [`Self::attach_bridge_hop`]
     /// does at seed position.
     ///
-    /// `Computed` still waits on slice 5d.
+    /// `Computed` is not yet implemented.
     #[allow(clippy::too_many_arguments)]
     async fn seed_multi_mapping_hop<R: AdapterResolver + ?Sized>(
         &mut self,
@@ -980,7 +975,7 @@ impl JoinAssembler {
                     return Err(FederationError::unsupported(format!(
                         "LogicalPlanBuilder: multi-mapping hop {}→{} carries a \
                          Computed link mapping — adapter-side predicate pushdown \
-                         (slice 5d) is required",
+                         is not yet implemented",
                         hop.source_variable, hop.target_variable
                     )));
                 }
@@ -1159,7 +1154,7 @@ impl JoinAssembler {
                     return Err(FederationError::unsupported(format!(
                         "LogicalPlanBuilder: multi-mapping hop {}→{} carries a \
                          Computed link mapping — adapter-side predicate pushdown \
-                         (slice 5d) is required",
+                         is not yet implemented",
                         hop.source_variable, hop.target_variable
                     )));
                 }
@@ -1318,7 +1313,7 @@ impl JoinAssembler {
                     return Err(FederationError::unsupported(format!(
                         "LogicalPlanBuilder: multi-mapping hop {}→{} carries a \
                          Computed link mapping — adapter-side predicate pushdown \
-                         (slice 5d) is required",
+                         is not yet implemented",
                         hop.source_variable, hop.target_variable
                     )));
                 }
@@ -1614,7 +1609,7 @@ async fn build_bridge_scan<R: AdapterResolver + ?Sized>(
 
 /// Look up the single backing relation for a variable. Returns
 /// `Unsupported` when the scan binds to zero or multiple mappings —
-/// multi-mapping hops are slice 5b's problem.
+/// multi-mapping hops are handled elsewhere.
 fn single_scan_relation<'a>(
     scans: &'a [NodeScanSpec<'_>],
     variable: &VariableName,
@@ -1636,7 +1631,7 @@ fn single_scan_relation<'a>(
         [only] => Ok(only.mapping.relation.as_str()),
         _ => Err(FederationError::unsupported(format!(
             "LogicalPlanBuilder: variable '{variable}' binds to multiple mappings — \
-             joining across a UNION-of-mappings scan lands in Phase 6-C slice 5b"
+             joining across a UNION-of-mappings scan is not yet implemented"
         ))),
     }
 }
@@ -1683,8 +1678,8 @@ fn qualify_join_column(
 /// `OrderClause` must reference a concrete field today — Variable /
 /// Expression / Aggregation projections surface as Unsupported
 /// (Variable because "order by the whole row" has no SQL meaning;
-/// Aggregation because it needs GROUP BY lowering, Phase 6-C
-/// slice 6).
+/// Aggregation because it needs GROUP BY lowering, which is not
+/// yet implemented).
 fn apply_order_by(
     base: LogicalPlan,
     clauses: &[OrderClause],
@@ -1706,14 +1701,14 @@ fn apply_order_by(
             }
             Projection::Expression { alias, .. } => {
                 return Err(FederationError::unsupported(format!(
-                    "LogicalPlanBuilder: ORDER BY on expression alias '{alias}' waits \
-                     on slice 6 (expression compilation + projection aliasing)"
+                    "LogicalPlanBuilder: ORDER BY on expression alias '{alias}' is \
+                     not yet implemented"
                 )));
             }
             Projection::Aggregation { function, alias, .. } => {
                 return Err(FederationError::unsupported(format!(
                     "LogicalPlanBuilder: ORDER BY on aggregation (function={function:?}, \
-                     alias='{alias}') waits on slice 6 (GROUP BY + HAVING)"
+                     alias='{alias}') is not yet implemented (needs GROUP BY + HAVING)"
                 )));
             }
             Projection::AllProperties { variable } => {
@@ -1800,9 +1795,8 @@ fn apply_filters(
 ///   plan. A future hop-aware version qualifies with `variable.field`.
 /// - `Projection::Variable { variable, alias }` → pass-through.
 ///   When the alias is `Some`, we'd ideally rename every column;
-///   slice 4a keeps it simple — the plan projects every column
-///   unchanged and the alias is stored in a comment rather than a
-///   schema rewrite.
+///   for now the plan projects every column unchanged and the
+///   alias is dropped rather than rewritten into the schema.
 /// - Everything else → `Unsupported` with a descriptive message.
 fn apply_projections(
     base: LogicalPlan,
@@ -1858,13 +1852,13 @@ fn projection_to_df_expr(p: &Projection) -> FederationResult<DfExpr> {
             )))
         }
         Projection::Expression { alias, .. } => Err(FederationError::unsupported(format!(
-            "LogicalPlanBuilder: Projection::Expression (alias='{alias}') lowering \
-             lands in Phase 6-C slice 4b (expression compilation)"
+            "LogicalPlanBuilder: Projection::Expression (alias='{alias}') is not \
+             yet implemented"
         ))),
         Projection::Aggregation { function, alias, .. } => {
             Err(FederationError::unsupported(format!(
                 "LogicalPlanBuilder: Projection::Aggregation (function={function:?}, \
-                 alias='{alias}') lands in Phase 6-C slice 6 with GROUP BY"
+                 alias='{alias}') is not yet implemented (needs GROUP BY)"
             )))
         }
         Projection::AllProperties { variable } => {
@@ -1891,9 +1885,8 @@ async fn build_table_scan<R: AdapterResolver + ?Sized>(
 
     // Use the query variable as the DataFusion table alias so
     // downstream planner stages (hops, projections) can reference
-    // columns as `<variable>.<column>`. Projection / filter
-    // pushdown is the job of slice 3; this call always scans every
-    // column.
+    // columns as `<variable>.<column>`. This call always scans every
+    // column — projection / filter pushdown happens in later stages.
     let mut plan = DfLogicalPlanBuilder::scan(scan.variable.as_str(), source, None)
         .map_err(FederationError::from)?
         .build()

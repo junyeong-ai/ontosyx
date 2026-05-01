@@ -16,7 +16,7 @@
 //! keeping the planner layer pure lets us test the shape of the
 //! match independently of the engine.
 //!
-//! ## Phase 6-C slice 1 scope
+//! ## Pattern coverage
 //!
 //! - `GraphPattern::Node` — fully handled. Every node pattern
 //!   contributes a `NodeScanSpec`.
@@ -25,10 +25,8 @@
 //!   by sibling Node patterns. The edge's own label (if any) is
 //!   resolved against the ontology's edge types.
 //! - `GraphPattern::Path` — explicitly rejected with an
-//!   `Unsupported` error. Path patterns decompose into node / edge
-//!   sequences; that decomposition lands in Phase 6-C slice 2
-//!   (see `docs/adr/0002-datafusion-federation.md` for the overall
-//!   staging).
+//!   `Unsupported` error. Path patterns must decompose into node /
+//!   edge sequences upstream; the federation planner does not.
 
 use chrono::{DateTime, Utc};
 
@@ -67,9 +65,9 @@ pub struct NodeScanSpec<'a> {
     pub variable: VariableName,
     /// `None` when the pattern is label-less (`MATCH (n)`). The
     /// federation planner still needs a scan entry so downstream
-    /// `HopSpec` can reference `n`, but it must materialise a
-    /// union of every mapped node type — a Phase 6-C slice 3
-    /// concern, not this module's.
+    /// `HopSpec` can reference `n`, but the union of every mapped
+    /// node type is materialised in the logical-plan builder, not
+    /// this module.
     pub target: Option<ResolvedLabelTarget>,
     /// Flat list of `(node_type, mapping)` pairs across every
     /// implementer of the target (or just the concrete type).
@@ -245,8 +243,8 @@ impl<'a> MatchPlanner<'a> {
                 }
                 GraphPattern::Path { .. } => {
                     return Err(FederationError::unsupported(
-                        "MatchPlanner: path patterns are not yet supported \
-                         (Phase 6-C slice 2 decomposes them into node + edge sequences)",
+                        "MatchPlanner: path patterns must be decomposed into \
+                         node + edge sequences upstream",
                     ));
                 }
             }

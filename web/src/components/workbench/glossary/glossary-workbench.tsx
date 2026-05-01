@@ -127,10 +127,9 @@ export function GlossaryWorkbench() {
     [ontology],
   );
 
-  // Selection lives in the URL so deep links (`?term=g-…`) and chat-
-  // panel disambiguation chips (ADR-0056 second half) round-trip
-  // cleanly. Falls back to the first term so the editor pane always
-  // renders something useful.
+  // Selection lives in the URL so deep links (`?term=g-…`) and
+  // chat-panel disambiguation chips round-trip cleanly. Falls back
+  // to the first term so the editor pane always renders something.
   const urlTermId = searchParams.get(TERM_PARAM);
   const [draftCreate, setDraftCreate] = useState(false);
   const selectedTermId =

@@ -29,7 +29,7 @@ tokio = { workspace = true }
 # Error propagation.
 thiserror = { workspace = true }
 
-# Temporal windows on mappings (ADR 0007 bitemporal support).
+# Bitemporal windows on object/link mappings.
 chrono = { workspace = true }
 
 # Observability.

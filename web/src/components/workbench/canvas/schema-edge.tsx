@@ -23,11 +23,11 @@ export interface SchemaEdgeData {
   highlighted: boolean;
   highlightKind?: import("@/types/api").BindingKind;
   diffStatus?: DiffStatus;
-  /** ADR-0057 — quality gaps the runtime / SHACL flagged for this
-   *  edge. Renders as a severity-tiered dot adjacent to the edge
-   *  label (red for `high`, amber for `medium`); `low` gaps are
-   *  suppressed at the canvas surface to keep it readable, and
-   *  remain visible inside the inspector's `GapsList`. */
+  /** Quality gaps the runtime / SHACL flagged for this edge.
+   *  Renders as a severity-tiered dot adjacent to the edge label
+   *  (red for `high`, amber for `medium`); `low` gaps are suppressed
+   *  at the canvas surface to keep it readable, and remain visible
+   *  inside the inspector's `GapsList`. */
   gaps?: QualityGap[];
 }
 
@@ -36,9 +36,9 @@ type SchemaEdgeProps = EdgeProps & { data: SchemaEdgeData };
 function schemaEdgeEqual(prev: SchemaEdgeProps, next: SchemaEdgeProps): boolean {
   const a = prev.data;
   const b = next.data;
-  // Mirror SchemaNode's per-tier counting (ADR-0057) so a gap-list
-  // reorder that doesn't change total length but shifts severity
-  // still re-renders.
+  // Mirror SchemaNode's per-tier counting so a gap-list reorder
+  // that doesn't change total length but shifts severity still
+  // re-renders.
   const aHigh = (a?.gaps ?? []).filter((g) => g.severity === "high").length;
   const bHigh = (b?.gaps ?? []).filter((g) => g.severity === "high").length;
   const aMedium = (a?.gaps ?? []).filter((g) => g.severity === "medium").length;

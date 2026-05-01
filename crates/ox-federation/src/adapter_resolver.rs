@@ -11,8 +11,8 @@
 //! workspace-scoped adapter registry — the same registry that owns
 //! connection pools and lifecycle. In tests and bring-up paths the
 //! [`InMemoryAdapterResolver`] is enough; it keeps the planner
-//! source-agnostic and lets Phase 2's CSV infrastructure be reused
-//! by the end-to-end federation tests.
+//! source-agnostic and lets the CSV infrastructure be reused by
+//! the end-to-end federation tests.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -25,10 +25,9 @@ use crate::error::{FederationError, FederationResult};
 /// Resolve a `SourceId` to a ready-to-scan adapter.
 ///
 /// Trait-based so ox-api can plug its workspace-aware registry in
-/// without dragging that machinery into this crate. Phase 6-C slice 2
-/// only needs the synchronous shape; later slices that need
-/// lazy / async adapter construction (e.g. Snowflake auth
-/// handshake) can add an async companion method.
+/// without dragging that machinery into this crate. Synchronous
+/// shape; lazy / async adapter construction (e.g. Snowflake auth
+/// handshake) can add an async companion method later.
 pub trait AdapterResolver: Send + Sync {
     /// Return the adapter registered under `source_id`. Returns
     /// `FederationError::Unsupported` with a descriptive message

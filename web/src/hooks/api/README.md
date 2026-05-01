@@ -1,4 +1,4 @@
-# `hooks/api/` — TanStack Query hooks (Phase 5.1)
+# `hooks/api/` — TanStack Query hooks
 
 Every data-fetching hook in the app lives here, one file per feature. The goal is that components never call `listX()` / `fetch` inside `useEffect` — they import a typed hook and let TanStack Query handle lifecycle, cache, retries, and invalidation.
 

@@ -4,7 +4,7 @@
 //! A `SourceTableProvider` wraps a single (adapter, table) pair: its
 //! schema is resolved once at construction via
 //! `DataSourceAdapter::describe_table`, and `scan` delegates to the
-//! adapter's `scan` primitive (Phase 2 addition on the trait).
+//! adapter's `scan` primitive.
 //!
 //! Predicate and projection pushdown are surfaced through the
 //! `supports_filters_pushdown` hook: by default we report `Inexact`,
@@ -109,8 +109,7 @@ impl TableProvider for SourceTableProvider {
     /// Declare `Inexact` for every filter: DataFusion may hand us the
     /// filter, but keeps its own filter pass on top. Each adapter
     /// promotes to `Exact` per-predicate once it has verified that the
-    /// source dialect round-trips the expression faithfully — that
-    /// upgrade lands in Phase 6.
+    /// source dialect round-trips the expression faithfully.
     fn supports_filters_pushdown(
         &self,
         filters: &[&Expr],

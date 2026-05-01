@@ -41,8 +41,8 @@ pub struct FederationContext {
 
 impl FederationContext {
     /// Build an empty federation context for `workspace`. DataFusion's
-    /// default session config is used — Phase 6 may layer on
-    /// concurrency / memory caps per workspace.
+    /// default session config is used; concurrency / memory caps per
+    /// workspace can layer on later if needed.
     pub fn new(workspace: WorkspaceRef) -> Self {
         Self {
             workspace,

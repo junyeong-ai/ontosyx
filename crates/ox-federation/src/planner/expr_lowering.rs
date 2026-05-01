@@ -189,9 +189,8 @@ pub fn property_filter_to_df(
 }
 
 /// Hint: does `dt` fit the target column type we're about to
-/// compare against? Unused today (Phase 6-C slice 4b has no type
-/// inference yet) but kept here so slice 4c / 6 can start folding
-/// implicit casts without a new file.
+/// compare against? Unused today (no type inference yet) but kept
+/// here so implicit-cast folding can land in this file.
 #[allow(dead_code)]
 pub(crate) fn is_numeric(dt: &DataType) -> bool {
     matches!(

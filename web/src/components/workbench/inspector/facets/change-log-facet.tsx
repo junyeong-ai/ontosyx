@@ -16,7 +16,6 @@ import type { AuditRecord, ProvenanceDef } from "@/types/audit";
 // client-side projection); we read 50 rows per page and walk the
 // activity payloads to keep only those that touch this entity
 // (subject id matches OR command_summary mentions the id).
-// Promoted from page-only to a shared facet as part of ADR-0054.
 // ---------------------------------------------------------------------------
 
 interface ChangeLogFacetProps {

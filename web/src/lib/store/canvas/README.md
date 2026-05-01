@@ -1,10 +1,11 @@
 # Canvas store slices
 
-The Design workbench canvas was a single 577-line component that combined
-ReactFlow wiring, keyboard shortcuts, context-menu logic, selection effects,
-and high-level actions. Phase 5.7 split each concern into a dedicated hook
-under `lib/store/canvas/`. The main `ontology-canvas.tsx` now orchestrates
-these hooks and renders the canvas surface.
+The Design workbench canvas splits its concerns across dedicated hooks
+under `lib/store/canvas/` rather than a single mega-component:
+ReactFlow wiring, keyboard shortcuts, context-menu logic, selection
+effects, and high-level actions each get their own file. The main
+`ontology-canvas.tsx` orchestrates these hooks and renders the canvas
+surface.
 
 Each hook subscribes to the app store (`useAppStore`) with fine-grained
 selectors so components re-render only when the slices they observe change.

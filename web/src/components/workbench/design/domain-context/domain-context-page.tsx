@@ -32,16 +32,12 @@ import { ChangeLogFacet } from "@/components/workbench/inspector/facets/change-l
 const EMPTY_GAPS: readonly QualityGap[] = [];
 
 /**
- * Entity-Centric Domain Context page (ADR-0054). Eight canonical
- * facets — Definition, Properties, Samples, Constraints, Mappings,
- * Lineage, Quality, Change log — surface every aspect a modeller
- * might shape for one business concept. Each facet is a shared
- * component; the canvas inspector renders the same set under a
- * tabbed layout, so behaviour stays in lockstep.
- *
- * `quality` was added in this commit (drill-through landing for
- * ADR-0057's severity-tiered overlay); `change_log` was promoted
- * from page-only to a shared facet so the inspector gains it too.
+ * Entity-centric domain context page. Eight canonical facets —
+ * Definition, Properties, Samples, Constraints, Mappings, Lineage,
+ * Quality, Change log — surface every aspect a modeller might shape
+ * for one business concept. Each facet is a shared component; the
+ * canvas inspector renders the same set under a tabbed layout so
+ * behaviour stays in lockstep.
  */
 export function DomainContextPage({ nodeId }: { nodeId: string }) {
   const t = useTranslations("workbench.types.detail");

@@ -5,8 +5,7 @@
 //! every node type whose `implements` list contains `HasAddress`. The
 //! expander walks `OntologyIR::node_types()` and returns the matching
 //! ids so the downstream planner can register one `TableProvider`
-//! per implementer and wire the `UNION ALL` in `LogicalPlanBuilder`
-//! (Phase 6-C).
+//! per implementer and wire the `UNION ALL` in `LogicalPlanBuilder`.
 //!
 //! The expander is intentionally non-recursive. An interface today
 //! cannot extend another interface — implementing relationships live
