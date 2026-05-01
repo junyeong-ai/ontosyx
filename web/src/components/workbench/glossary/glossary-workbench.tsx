@@ -25,11 +25,10 @@ import { UsageMap } from "./usage-map";
 
 // ---------------------------------------------------------------------------
 // GlossaryWorkbench — 3-pane workbench mode for the canonical
-// vocabulary layer (ConceptDef + GlossaryTermDef + TermRealisation,
-// see ADR-0014). Promoted out of `/settings/glossary` because the
-// Concept layer is cross-cutting: every other workspace mode reads
-// it (Design anchors, Analyze chips, Explore semantic labels), so
-// admin-gating it behind Settings was an asymmetry. Single-source
+// vocabulary layer (`GlossaryTermDef` + optional `TermRealisation`).
+// Cross-cutting: every other workspace mode reads it (Design
+// anchors, Analyze chips, Explore semantic labels), so admin-gating
+// it behind Settings would be an asymmetry. Single-source
 // data flow: ontology snapshot from `useOntologyDetail` →
 // `OntologyIR.glossary` drives both the tree and the usage map; the
 // editor batches mutations through `useApplyOntologyEdits` so

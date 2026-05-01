@@ -61,8 +61,8 @@ pub fn generate_glossary_skos(ontology: &OntologyIR) -> String {
 
     // ---- Concepts ------------------------------------------------
     for term in ontology.glossary() {
-        let concept_id = local_name(term.id.as_str());
-        out.push_str(&format!(":{concept_id} a skos:Concept ;\n"));
+        let term_local_id = local_name(term.id.as_str());
+        out.push_str(&format!(":{term_local_id} a skos:Concept ;\n"));
         out.push_str(&format!(
             "    skos:inScheme <{base_ns}> ;\n",
             base_ns = base_ns,
@@ -298,6 +298,7 @@ mod tests {
             valid_from: None,
             valid_to: None,
             lifecycle: TermLifecycle::Active,
+            realisation: None,
         }
     }
 

@@ -161,24 +161,23 @@ struct OntologyLookup {
     column_profile_id_idx: HashMap<crate::column_profile::ColumnProfileId, usize>,
     // ADR-0015: named NodeType-membership predicates.
     segment_id_idx: HashMap<crate::segment::SegmentId, usize>,
-    // ADR-0014: workspace-canonical concepts.
-    concept_id_idx: HashMap<crate::concept::ConceptId, usize>,
     // ADR-0024: `(source_id, table_name)` → row index. Composite
     // natural key — `add_table_inventory_entry` upserts on it so
     // re-introspection is idempotent.
     table_inventory_idx: HashMap<(crate::mapping::SourceId, String), usize>,
-    /// Reverse index — concept → every NodeType that flags it as
-    /// `concept_id`. Empty Vec when no NodeType realises the
-    /// concept (legal — the concept stays as identity-only until
-    /// an implementer is wired). Built from the forward
-    /// `NodeTypeDef.concept_id` field, so adding / removing the
-    /// pointer on a node automatically rebuilds the reverse view
-    /// on the next `rebuild_indices()`.
-    concept_realised_by_node_types:
-        HashMap<crate::concept::ConceptId, Vec<usize>>,
+    /// Reverse index — glossary term → every NodeType that flags it
+    /// as `concept_term_id`. Empty Vec when no NodeType realises the
+    /// term (legal — the term stays as a vocabulary entry until an
+    /// implementer is wired, or the term carries no `realisation` and
+    /// is plain glossary content). Built from the forward
+    /// `NodeTypeDef.concept_term_id` field, so adding / removing the
+    /// pointer on a node automatically rebuilds the reverse view on
+    /// the next `rebuild_indices()`.
+    glossary_term_realised_by_node_types:
+        HashMap<crate::glossary::GlossaryTermId, Vec<usize>>,
     /// Reverse index for edges; same shape as the node version.
-    concept_realised_by_edge_types:
-        HashMap<crate::concept::ConceptId, Vec<usize>>,
+    glossary_term_realised_by_edge_types:
+        HashMap<crate::glossary::GlossaryTermId, Vec<usize>>,
 }
 
 /// Current on-wire schema version for `OntologyIR` JSONB. Bumped whenever
@@ -205,7 +204,17 @@ struct OntologyLookup {
 ///   data-distribution snapshot the introspection kernel produced
 ///   survives commit / hydrate cycles. Defaults-to-empty, so a v3
 ///   payload round-trips through v4 unchanged.
-pub const ONTOLOGY_IR_SCHEMA_VERSION: u32 = 4;
+/// - `5` — Vocabulary unification: the standalone `concepts:
+///   Vec<ConceptDef>` collection is folded into the glossary as
+///   `GlossaryTermDef.realisation: Option<TermRealisation>`, and
+///   `NodeTypeDef.concept_id` / `EdgeTypeDef.concept_id` are
+///   replaced by `concept_term_id: Option<GlossaryTermId>` pointing
+///   directly at the term that names the concept. The 1:1 anchor
+///   that the old shape declared as an invariant is now structural:
+///   the term *is* the concept. v4 payloads need an explicit
+///   migration pass — concept rows must be rewritten as glossary
+///   terms with `realisation` set.
+pub const ONTOLOGY_IR_SCHEMA_VERSION: u32 = 5;
 
 fn default_ontology_ir_schema_version() -> u32 {
     ONTOLOGY_IR_SCHEMA_VERSION
@@ -338,21 +347,6 @@ pub struct OntologyIR {
     /// on the target, and SegmentId values are unique.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) segments: Vec<crate::segment::SegmentDef>,
-
-    /// Workspace-canonical business concepts (ADR-0014). One
-    /// `ConceptDef` is the identity above NodeType / EdgeType — two
-    /// sources can each contribute their own NodeType for the same
-    /// Customer concept, both flagging `concept_id =
-    /// Some(customer_id)`. Anchored 1:1 to a glossary term;
-    /// optionally carries a `TermRealisation` declaring how
-    /// membership / value is computed at query time.
-    ///
-    /// Validated by `validate()`: every concept's `glossary_term_id`
-    /// resolves, no two concepts share a term (homonym defence),
-    /// and any `realisation` resolves to a real Segment / Function
-    /// living on the same IR.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub(crate) concepts: Vec<crate::concept::ConceptDef>,
 
     /// Source-table inventory (ADR-0024). One row per
     /// `(source_id, table_name)` the project has touched, carrying
@@ -570,7 +564,6 @@ impl OntologyIR {
             value_range_sets: Vec::new(),
             column_profiles: Vec::new(),
             segments: Vec::new(),
-            concepts: Vec::new(),
             table_inventory: Vec::new(),
             lookup: OntologyLookup::default(),
         };
@@ -770,7 +763,6 @@ impl OntologyIR {
         index_collection!(value_range_sets, value_range_set_id_idx, "value_range_set");
         index_collection!(column_profiles, column_profile_id_idx, "column_profile");
         index_collection!(segments, segment_id_idx, "segment");
-        index_collection!(concepts, concept_id_idx, "concept");
 
         // ADR-0024 — table-inventory composite key. Duplicate
         // `(source_id, table_name)` rows are an invariant violation
@@ -790,26 +782,26 @@ impl OntologyIR {
             }
         }
 
-        // ADR-0014 — reverse index: concept → implementers. Built
-        // from the forward `concept_id` pointers on every NodeType
-        // and EdgeType. A concept that no NodeType / EdgeType
-        // points at carries an empty Vec (or simply doesn't appear
+        // Reverse index: glossary term → every implementing
+        // NodeType / EdgeType. Built from the forward
+        // `concept_term_id` pointer on each type. A term with no
+        // implementer carries an empty Vec (or simply doesn't appear
         // in the map — both shapes are distinguishable through
-        // `lookup.concept_id_idx.contains_key`).
+        // `lookup.glossary_term_id_idx.contains_key`).
         for (i, node) in self.node_types.iter().enumerate() {
-            if let Some(concept_id) = &node.concept_id {
+            if let Some(term_id) = &node.concept_term_id {
                 lookup
-                    .concept_realised_by_node_types
-                    .entry(concept_id.clone())
+                    .glossary_term_realised_by_node_types
+                    .entry(term_id.clone())
                     .or_default()
                     .push(i);
             }
         }
         for (i, edge) in self.edge_types.iter().enumerate() {
-            if let Some(concept_id) = &edge.concept_id {
+            if let Some(term_id) = &edge.concept_term_id {
                 lookup
-                    .concept_realised_by_edge_types
-                    .entry(concept_id.clone())
+                    .glossary_term_realised_by_edge_types
+                    .entry(term_id.clone())
                     .or_default()
                     .push(i);
             }
@@ -1114,9 +1106,17 @@ impl OntologyIR {
         &self.segments
     }
 
-    /// ADR-0014 — every workspace-canonical concept the IR carries.
-    pub fn concepts(&self) -> &[crate::concept::ConceptDef] {
-        &self.concepts
+    /// Every glossary term whose `realisation` field declares an
+    /// executable concept spec (Segment / Function / CrossEntity).
+    /// Terms without a realisation are pure vocabulary entries and
+    /// stay out of this view; consumers that want the full glossary
+    /// walk [`OntologyIR::glossary`] directly.
+    pub fn concept_terms(
+        &self,
+    ) -> impl Iterator<Item = &crate::glossary::GlossaryTermDef> {
+        self.glossary
+            .iter()
+            .filter(|term| term.realisation.is_some())
     }
 
     /// ADR-0024 — every source-table inventory row the IR carries.
@@ -1140,29 +1140,29 @@ impl OntologyIR {
     }
 
     /// O(1) lookup: every NodeType that flags itself as realising
-    /// the named concept. Reads the reverse index built in
-    /// [`rebuild_indices`]. Empty slice when the concept has no
-    /// implementing nodes (legitimate transient state — concept
-    /// can be created before its first implementer lands).
-    pub fn node_types_realising_concept(
+    /// the named glossary term. Reads the reverse index built in
+    /// [`rebuild_indices`]. Empty slice when the term has no
+    /// implementing nodes (legitimate transient state — a term can
+    /// declare a `realisation` before its first implementer lands).
+    pub fn node_types_realising_glossary_term(
         &self,
-        concept_id: &crate::concept::ConceptId,
+        term_id: &crate::glossary::GlossaryTermId,
     ) -> Vec<&NodeTypeDef> {
         self.lookup
-            .concept_realised_by_node_types
-            .get(concept_id)
+            .glossary_term_realised_by_node_types
+            .get(term_id)
             .map(|indices| indices.iter().map(|&i| &self.node_types[i]).collect())
             .unwrap_or_default()
     }
 
-    /// Edge counterpart of [`node_types_realising_concept`].
-    pub fn edge_types_realising_concept(
+    /// Edge counterpart of [`node_types_realising_glossary_term`].
+    pub fn edge_types_realising_glossary_term(
         &self,
-        concept_id: &crate::concept::ConceptId,
+        term_id: &crate::glossary::GlossaryTermId,
     ) -> Vec<&EdgeTypeDef> {
         self.lookup
-            .concept_realised_by_edge_types
-            .get(concept_id)
+            .glossary_term_realised_by_edge_types
+            .get(term_id)
             .map(|indices| indices.iter().map(|&i| &self.edge_types[i]).collect())
             .unwrap_or_default()
     }
@@ -1365,26 +1365,6 @@ impl OntologyIR {
                 self.table_inventory.push(entry);
             }
         }
-        self.rebuild_indices()
-    }
-
-    /// ADR-0014 — register a workspace-canonical business concept.
-    /// `validate()` asserts the glossary anchor resolves, no two
-    /// concepts share the same anchor, and any `realisation`
-    /// resolves to a real Segment / Function on this IR. The same
-    /// "lands alongside its targets" reasoning as `add_segment`
-    /// keeps strict integrity checks out of the insert path.
-    pub fn add_concept(
-        &mut self,
-        def: crate::concept::ConceptDef,
-    ) -> Result<(), OntologyInvariantError> {
-        if self.lookup.concept_id_idx.contains_key(&def.id) {
-            return Err(OntologyInvariantError::DuplicateCollectionId {
-                kind: "concept",
-                id: def.id.to_string(),
-            });
-        }
-        self.concepts.push(def);
         self.rebuild_indices()
     }
 

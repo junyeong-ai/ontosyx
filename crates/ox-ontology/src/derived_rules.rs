@@ -428,6 +428,7 @@ mod tests {
                 valid_from: None,
                 valid_to: None,
                 lifecycle: crate::glossary::TermLifecycle::default(),
+            realisation: None,
             })
             .unwrap();
         push_binding(

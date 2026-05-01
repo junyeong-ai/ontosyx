@@ -26,7 +26,6 @@ pub mod binding;
 pub mod cluster_checkpoint;
 pub mod code_system;
 pub mod command;
-pub mod concept;
 pub mod concept_map;
 pub mod data_quality;
 pub mod dependency;
@@ -93,7 +92,6 @@ pub use code_system::{
     CodeSystemDef, CodeSystemId, CodeSystemKind, CodedValue, CodedValueId, ucum_seed,
 };
 pub use cluster_checkpoint::{ClusterSignature, DraftClusterCheckpoint};
-pub use concept::{ConceptDef, ConceptId, TermRealisation};
 pub use concept_map::{ConceptMapDef, ConceptMapId, ConceptMapping, Equivalence, Translation};
 pub use command::{
     CommandResult, MatchDecision, OntologyCommand, PropertyPatch, ReconcileConfidence,
@@ -113,8 +111,8 @@ pub use function::{
     FunctionDef, FunctionExpression, FunctionId, FunctionPurity, PropertyDependency,
 };
 pub use glossary::{
-    GlossaryTermDef, GlossaryTermId, TaxonomyDef, TaxonomyId, TaxonomyNode, TermRelation,
-    TermRelationKind,
+    GlossaryTermDef, GlossaryTermId, TaxonomyDef, TaxonomyId, TaxonomyNode, TermRealisation,
+    TermRelation, TermRelationKind,
 };
 pub use heuristic::{
     ConfidenceBps, HeuristicDetectorKind, HeuristicProposal, HeuristicProposalId,

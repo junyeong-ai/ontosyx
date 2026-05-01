@@ -36,6 +36,9 @@ use serde::{Deserialize, Serialize};
 
 use ox_core::i18n::LocalizedText;
 
+use crate::function::FunctionId;
+use crate::segment::SegmentId;
+
 ox_core::define_id_newtype!(
     /// Stable identifier for a glossary term.
     GlossaryTermId
@@ -116,6 +119,73 @@ pub struct GlossaryTermDef {
     /// route a deprecated term through its `replaced_by` automatically).
     #[serde(default)]
     pub lifecycle: TermLifecycle,
+
+    /// Optional executable spec for "what does it mean for a row to
+    /// belong to this term's concept?" — segment membership,
+    /// function-derived value, cross-entity predicate. Terms with a
+    /// realisation are workspace-canonical business concepts that
+    /// `NodeTypeDef.concept_term_id` / `EdgeTypeDef.concept_term_id`
+    /// pin as their primary anchor (1:1 from each implementing type
+    /// to its term); terms without a realisation are pure
+    /// vocabulary entries — labels, definitions, glossary anchors —
+    /// that the implementing types still describe structurally.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub realisation: Option<TermRealisation>,
+}
+
+/// Executable realisation of a glossary term that names a business
+/// concept — how the runtime decides membership / value at query
+/// time.
+///
+/// `Segment` is the canonical case: "Active Customer = Customer whose
+/// last_order < 90 days" lowers to a `SegmentDef`. `Function` covers
+/// computed-value concepts ("Lifetime Value = sum of order totals").
+/// `CrossEntity` is the structured-predicate escape for the rare case
+/// neither shape fits — the predicate is parsed by the planner
+/// against the concept's implementing NodeTypes.
+///
+/// `Query` (saved-view realisation) was deliberately rejected:
+/// `InsightId` lives in `ox-store`, not the IR, and layering
+/// `ox-ontology → ox-store` would break the dependency arrow
+/// `ox-core ← ox-ontology ← ox-store`. View-shaped concepts instead
+/// use a `Function` whose body returns the saved-view rows.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum TermRealisation {
+    Segment {
+        segment_id: SegmentId,
+    },
+    Function {
+        function_id: FunctionId,
+    },
+    /// Free-form predicate evaluated against the term's implementing
+    /// NodeTypes. Surfaced to the planner as a structured filter —
+    /// the predicate's properties must resolve on at least one
+    /// implementer for the term to validate.
+    CrossEntity {
+        predicate: String,
+    },
+}
+
+impl GlossaryTermDef {
+    /// Pull the SegmentId out when the realisation is segment-shaped.
+    /// Lets validators short-circuit the segment-existence check
+    /// without a full match.
+    pub fn segment_id(&self) -> Option<&SegmentId> {
+        match &self.realisation {
+            Some(TermRealisation::Segment { segment_id }) => Some(segment_id),
+            _ => None,
+        }
+    }
+
+    /// Pull the FunctionId out when the realisation is function-
+    /// shaped.
+    pub fn function_id(&self) -> Option<&FunctionId> {
+        match &self.realisation {
+            Some(TermRealisation::Function { function_id }) => Some(function_id),
+            _ => None,
+        }
+    }
 }
 
 /// One SKOS-style edge between two glossary terms.
@@ -396,6 +466,7 @@ mod tests {
             valid_from: None,
             valid_to: None,
             lifecycle: TermLifecycle::default(),
+        realisation: None,
         }
     }
 
