@@ -48,7 +48,16 @@ const STATUS_BADGE: Record<RecipeStatus, string> = {
   deprecated: "bg-zinc-200 text-zinc-500 dark:bg-zinc-700 dark:text-muted-foreground",
 };
 
-export default function RecipesPage() {
+/**
+ * Recipes workbench mode (seventh — alongside Design / Analyze /
+ * Explore / Dashboard / Glossary / Vocabulary). Hosts the analysis-
+ * recipe gallery + create/run flow that previously sat under
+ * /settings/recipes. Designers run recipes against query results;
+ * admin-only actions (delete, status change) stay gated through
+ * `useAuth().isAdmin` inside the same surface — no separate admin
+ * panel.
+ */
+export function RecipesWorkbench() {
   const t = useTranslations("settings.recipes");
   const [recipes, setRecipes] = useState<AnalysisRecipe[]>([]);
   const [loading, setLoading] = useState(true);

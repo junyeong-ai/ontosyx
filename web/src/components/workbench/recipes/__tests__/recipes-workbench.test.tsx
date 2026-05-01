@@ -34,7 +34,7 @@ vi.mock("@/components/recipes/recipe-runner", () => ({
   RecipeRunner: () => <div data-testid="recipe-runner" />,
 }));
 
-import RecipesPage from "@/app/settings/recipes/page";
+import { RecipesWorkbench } from "@/components/workbench/recipes/recipes-workbench";
 import * as api from "@/lib/api";
 import { useAuth } from "@/lib/use-auth";
 import type { AnalysisRecipe } from "@/types/api";
@@ -62,7 +62,7 @@ function sampleRecipe(overrides: Partial<AnalysisRecipe> = {}): AnalysisRecipe {
 function renderPage(): void {
   const ui: ReactElement = (
     <NextIntlClientProvider locale="en" messages={messages}>
-      <RecipesPage />
+      <RecipesWorkbench />
     </NextIntlClientProvider>
   );
   render(ui);
@@ -79,7 +79,7 @@ function asAdmin(): void {
   } as ReturnType<typeof useAuth>);
 }
 
-describe("RecipesPage", () => {
+describe("RecipesWorkbench", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.mocked(api.listRecipes).mockReset();

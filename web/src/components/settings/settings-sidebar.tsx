@@ -40,7 +40,8 @@ const NAV_GROUPS: NavGroup[] = [
   {
     titleKey: "data",
     items: [
-      { labelKey: "recipes", href: "/settings/recipes" },
+      // Recipes moved to /recipes workbench mode (N16-recipes) — analysts
+      // run them next to query results, not under the admin sidebar.
       { labelKey: "reports", href: "/settings/reports" },
       { labelKey: "schedules", href: "/settings/schedules", adminOnly: true },
       { labelKey: "knowledge", href: "/settings/knowledge", adminOnly: true },

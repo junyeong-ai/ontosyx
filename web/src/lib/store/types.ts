@@ -72,7 +72,8 @@ export type WorkspaceMode =
   | "explore"
   | "dashboard"
   | "glossary"
-  | "vocabulary";
+  | "vocabulary"
+  | "recipes";
 
 // ---------------------------------------------------------------------------
 // Design mode sub-tabs (bottom panel within Design workspace)

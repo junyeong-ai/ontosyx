@@ -12,6 +12,7 @@ import {
   AiNetworkIcon,
   Book02Icon,
   CatalogueIcon,
+  ChartAnalysisIcon,
   FolderOpenIcon,
   Layers01Icon,
   Settings02Icon,
@@ -149,6 +150,12 @@ export function Sidebar() {
           active={!onSettings && workspaceMode === "vocabulary"}
           label={t("modeVocabulary")}
           icon={CatalogueIcon}
+        />
+        <ModeLink
+          href="/recipes"
+          active={!onSettings && workspaceMode === "recipes"}
+          label={t("modeRecipes")}
+          icon={ChartAnalysisIcon}
         />
       </nav>
 
