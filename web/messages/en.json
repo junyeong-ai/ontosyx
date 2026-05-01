@@ -1526,6 +1526,10 @@
       "pageTitle": "Glossary — Batch bindings",
       "pageSubtitle": "Enter a glossary term and alias list; the engine scores every property in the current ontology and you commit the accepted matches in one /edits batch.",
       "noOntology": "No committed ontology available — create one in Design mode before batch-binding.",
+      "embedded": {
+        "targetLabel": "Scoring against",
+        "rescore": "Re-score"
+      },
       "fields": {
         "term": { "label": "Term", "placeholder": "VIP tier" },
         "termId": {
@@ -1603,7 +1607,6 @@
         "prompts": "Prompts",
         "sessions": "Sessions",
         "federation": "Federation Adapters",
-        "glossaryBindings": "Glossary Bindings",
         "vocabulary": "Vocabulary",
         "glossary": "Glossary",
         "codeSystems": "Code Systems",
@@ -2822,6 +2825,13 @@
           "edge": "Edge"
         },
         "placeholder": "Pick a term to see where it's referenced."
+      },
+      "rightPane": {
+        "tabsAria": "Right-pane view",
+        "tabs": {
+          "usage": "Usage",
+          "bindings": "Bindings"
+        }
       }
     },
     "projects": {

@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { GlossaryForm } from "@/components/settings/vocabulary/glossary-form";
 import { ResolutionModal } from "@/components/ambiguity/resolution-modal";
+import { GlossaryBindingPanel } from "@/components/glossary/binding-panel";
 import {
   useOntologies,
   useOntologyDetail,
@@ -304,7 +305,12 @@ export function GlossaryWorkbench() {
 
         <div className="h-full min-w-0 overflow-hidden">
           {selectedTerm && !draftCreate ? (
-            <UsageMap ontology={ontology} termId={selectedTerm.id} />
+            <RightPane
+              ontology={ontology}
+              ontologyId={ontologyMeta.id}
+              expectedVersion={expectedVersion}
+              term={selectedTerm}
+            />
           ) : (
             <div className="flex h-full flex-col items-center justify-center px-4 py-8 text-center">
               <p className="text-[11px] text-muted-foreground">
@@ -313,6 +319,83 @@ export function GlossaryWorkbench() {
             </div>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// RightPane — tabbed surface: "Usage" (lineage map) and "Bindings"
+// (term → property scorer + batch bind). Both tabs are term-scoped;
+// switching tabs does not invalidate the selection.
+// ---------------------------------------------------------------------------
+
+type RightPaneTab = "usage" | "bindings";
+
+function RightPane({
+  ontology,
+  ontologyId,
+  expectedVersion,
+  term,
+}: {
+  ontology: OntologyIR;
+  ontologyId: string;
+  expectedVersion: number;
+  term: GlossaryTermDef;
+}) {
+  const t = useTranslations("workbench.glossary.rightPane");
+  const localeChain = useLocaleChain();
+  const [tab, setTab] = useState<RightPaneTab>("usage");
+
+  const termContext = useMemo(
+    () => ({
+      term_id: term.id,
+      term: localize(term.term, localeChain),
+      aliases: arr(term.aliases).map((a) => localize(a, localeChain)),
+      description: term.description
+        ? localize(term.description, localeChain)
+        : undefined,
+    }),
+    [term, localeChain],
+  );
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden">
+      <nav
+        aria-label={t("tabsAria")}
+        className="flex shrink-0 gap-1 border-b border-zinc-200 px-2 dark:border-zinc-800"
+      >
+        {(["usage", "bindings"] as const).map((k) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => setTab(k)}
+            aria-pressed={tab === k}
+            className={`relative px-2.5 py-2 text-[11px] font-medium ${
+              tab === k
+                ? "text-violet-700 dark:text-violet-400"
+                : "text-muted-foreground hover:text-zinc-700 dark:hover:text-zinc-300"
+            }`}
+          >
+            {t(`tabs.${k}`)}
+            {tab === k && (
+              <span className="absolute inset-x-0 -bottom-px h-0.5 bg-violet-500" />
+            )}
+          </button>
+        ))}
+      </nav>
+      <div className="flex-1 overflow-hidden">
+        {tab === "usage" ? (
+          <UsageMap ontology={ontology} termId={term.id} />
+        ) : (
+          <div className="h-full overflow-hidden p-3">
+            <GlossaryBindingPanel
+              ontologyId={ontologyId}
+              expectedVersion={expectedVersion}
+              term={termContext}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

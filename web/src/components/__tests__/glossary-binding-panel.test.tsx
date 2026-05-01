@@ -5,21 +5,32 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
 import messages from "../../../messages/en.json";
-import { GlossaryBindingPanel } from "@/components/settings/glossary/binding-panel";
+import { GlossaryBindingPanel } from "@/components/glossary/binding-panel";
 import * as bindingApi from "@/lib/api/binding-suggestions";
 
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
-function renderPanel() {
+const FIXTURE_TERM = {
+  term_id: "g-vip",
+  term: "VIP tier",
+  aliases: ["premium", "loyalty"],
+  description: "Top-tier customers.",
+};
+
+function renderPanel(term = FIXTURE_TERM) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   const ui: ReactElement = (
     <NextIntlClientProvider locale="en" messages={messages}>
       <QueryClientProvider client={qc}>
-        <GlossaryBindingPanel ontologyId="ont-1" expectedVersion={2} />
+        <GlossaryBindingPanel
+          ontologyId="ont-1"
+          expectedVersion={2}
+          term={term}
+        />
       </QueryClientProvider>
     </NextIntlClientProvider>
   );
@@ -31,25 +42,12 @@ describe("GlossaryBindingPanel", () => {
     vi.restoreAllMocks();
   });
 
-  it("Score candidates forwards term + aliases + description + term_id", async () => {
+  it("auto-scores on mount with term + aliases + description + term_id", async () => {
     const suggest = vi
       .spyOn(bindingApi, "suggestGlossaryBindings")
       .mockResolvedValue({ ontology_id: "ont-1", candidates: [] });
 
     renderPanel();
-    fireEvent.change(screen.getByLabelText(/^Term\s*\*?$/), {
-      target: { value: "VIP tier" },
-    });
-    fireEvent.change(screen.getByLabelText(/^Term id/), {
-      target: { value: "g-vip" },
-    });
-    fireEvent.change(screen.getByLabelText(/^Aliases/), {
-      target: { value: "premium, loyalty" },
-    });
-    fireEvent.change(screen.getByLabelText(/^Description/), {
-      target: { value: "Top-tier customers." },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /Score candidates/ }));
 
     await waitFor(() => expect(suggest).toHaveBeenCalled());
     expect(suggest).toHaveBeenCalledWith("ont-1", {
@@ -76,10 +74,6 @@ describe("GlossaryBindingPanel", () => {
       ],
     });
     renderPanel();
-    fireEvent.change(screen.getByLabelText(/^Term\s*\*?$/), {
-      target: { value: "VIP tier" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /Score candidates/ }));
 
     await waitFor(() => screen.getByText("85%"));
     expect(screen.getByText("Customer")).toBeDefined();
@@ -121,13 +115,6 @@ describe("GlossaryBindingPanel", () => {
       });
 
     renderPanel();
-    fireEvent.change(screen.getByLabelText(/^Term\s*\*?$/), {
-      target: { value: "VIP tier" },
-    });
-    fireEvent.change(screen.getByLabelText(/^Term id/), {
-      target: { value: "g-vip" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /Score candidates/ }));
     await waitFor(() => screen.getByText("tier"));
 
     // Tick both rows.
