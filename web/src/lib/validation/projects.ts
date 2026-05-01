@@ -315,7 +315,23 @@ export const AnalyzeSelectionSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("all") }),
   z.object({ kind: z.literal("subset"), tables: z.array(z.string()) }),
   z.object({ kind: z.literal("extend"), tables: z.array(z.string()) }),
+  z.object({ kind: z.literal("reduce"), tables: z.array(z.string()) }),
 ]);
+
+export const DeferredTableSchema = z.object({
+  table: z.string(),
+  reason: z.string(),
+  deferred_at: z.string(),
+  revisit_at: z.string().nullable(),
+});
+
+export const AnalysisScopeSchema = z.object({
+  included: z.array(z.string()).default([]),
+  deferred: z.array(DeferredTableSchema).default([]),
+  excluded_by_policy: z.array(z.string()).default([]),
+  fingerprints: z.record(z.string(), z.string()).default({}),
+  last_introspected_at: z.string().nullable().default(null),
+});
 
 export const DesignProjectSchema = z.object({
   id: z.string(),
@@ -333,7 +349,13 @@ export const DesignProjectSchema = z.object({
   quality_report: OntologyQualityReportSchema.nullable(),
   ontology_id: z.string().nullable(),
   source_history: z.array(SourceHistoryEntrySchema),
-  initial_selection: AnalyzeSelectionSchema.nullable().default(null),
+  analysis_scope: AnalysisScopeSchema.default({
+    included: [],
+    deferred: [],
+    excluded_by_policy: [],
+    fingerprints: {},
+    last_introspected_at: null,
+  }),
   user_id: z.string(),
   created_at: z.string(),
   updated_at: z.string(),

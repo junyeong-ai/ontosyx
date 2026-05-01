@@ -83,6 +83,41 @@ impl SourceSchema {
     }
 }
 
+/// SHA-256 of one table's canonical column shape — same hash ⇒
+/// same column set, same data types, same nullability, same primary
+/// key. The full-source [`SourceSchema::canonical_hash`] does the
+/// same for the whole snapshot; this helper exposes the per-table
+/// view drift detection wants so the post-introspection scope can
+/// pin a fingerprint per table without re-implementing the canonical
+/// ordering rules.
+pub fn table_fingerprint(table: &SourceTableDef) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(table.name.as_bytes());
+    hasher.update(b"\x1e");
+
+    let mut cols: Vec<&SourceColumnDef> = table.columns.iter().collect();
+    cols.sort_by(|a, b| a.name.cmp(&b.name));
+    for col in cols {
+        hasher.update(col.name.as_bytes());
+        hasher.update(b"\x1d");
+        hasher.update(col.data_type.as_bytes());
+        hasher.update(b"\x1d");
+        hasher.update([col.nullable as u8]);
+        hasher.update(b"\x1d");
+    }
+    hasher.update(b"\x1e");
+
+    let mut pks: Vec<&String> = table.primary_key.iter().collect();
+    pks.sort();
+    for pk in pks {
+        hasher.update(pk.as_bytes());
+        hasher.update(b"\x1d");
+    }
+
+    format!("{:x}", hasher.finalize())
+}
+
 /// Lightweight metadata for one table — meant for **selection UIs**
 /// where the user picks which subset of a source to introspect. Adapters
 /// produce this from cheap backend statistics so listing 1000 tables

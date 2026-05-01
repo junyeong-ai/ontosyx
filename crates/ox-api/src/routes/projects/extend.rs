@@ -99,7 +99,7 @@ pub(crate) async fn extend_project(
             let analyzed = analyze_source(
                 req.source,
                 &state.adapter_registry,
-                req.selection,
+                req.selection.clone(),
                 baseline.as_ref(),
             )
             .await?;
@@ -344,15 +344,39 @@ pub(crate) async fn extend_project(
         serde_json::from_value(project.source_history.clone()).unwrap_or_default();
     history.push(new_history_entry);
 
-    // 10. Persist — merged schema/profile + updated source history.
-    //     Mapping state lives inside `ontology` (object_mappings),
-    //     so ExtendResult no longer carries a separate blob.
+    // Roll the analysis scope forward: extend always preserves the
+    // prior scope, adds the newly-selected tables to `included`,
+    // and refreshes every fingerprint against the merged schema.
+    let now = chrono::Utc::now();
+    let scope_json = {
+        let mut scope: ox_source::AnalysisScope =
+            serde_json::from_value(project.analysis_scope.clone()).unwrap_or_default();
+        let all_tables: std::collections::BTreeSet<String> = merged_schema
+            .tables
+            .iter()
+            .map(|t| t.name.clone())
+            .collect();
+        scope.record_selection(&req.selection, &all_tables, now);
+        scope.record_fingerprints(merged_schema.tables.iter().map(|t| {
+            (
+                t.name.clone(),
+                ox_core::source_schema::table_fingerprint(t),
+            )
+        }));
+        AppError::to_json(&scope)?
+    };
+
+    // 10. Persist — merged schema/profile + updated source history
+    //     and the rolled-forward analysis scope. Mapping state lives
+    //     inside `ontology` (object_mappings), so ExtendResult no
+    //     longer carries a separate blob.
     let extend_result = ox_store::store::ExtendResult {
         ontology: AppError::to_json(&merged)?,
         quality_report: AppError::to_json(&quality_report)?,
         source_schema: AppError::to_json(&merged_schema)?,
         source_profile: AppError::to_json(&merged_profile)?,
         source_history: AppError::to_json(&history)?,
+        analysis_scope: scope_json,
     };
     state
         .store
@@ -437,7 +461,7 @@ mod tests {
             source_profile: profile,
             analysis_report: None,
             design_options: serde_json::json!({}),
-            initial_selection: None,
+            analysis_scope: serde_json::json!({}),
             ontology: None,
             quality_report: None,
             ontology_id: None,

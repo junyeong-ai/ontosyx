@@ -11,7 +11,7 @@ impl ProjectStore for PostgresStore {
             "INSERT INTO design_projects
              (id, user_id, status, revision, title, source_config, source_id,
               source_data, source_schema, source_profile, analysis_report,
-              design_options, initial_selection, ontology, quality_report,
+              design_options, analysis_scope, ontology, quality_report,
               source_history, analyzed_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
                      $14, $15, $16, $17)",
@@ -28,7 +28,7 @@ impl ProjectStore for PostgresStore {
         .bind(&project.source_profile)
         .bind(&project.analysis_report)
         .bind(&project.design_options)
-        .bind(&project.initial_selection)
+        .bind(&project.analysis_scope)
         .bind(&project.ontology)
         .bind(&project.quality_report)
         .bind(&project.source_history)
@@ -148,15 +148,16 @@ impl ProjectStore for PostgresStore {
             "UPDATE design_projects
              SET ontology = $1, quality_report = $2,
                  source_schema = $3, source_profile = $4,
-                 source_history = $5,
+                 source_history = $5, analysis_scope = $6,
                  status = 'designed', updated_at = NOW(), revision = revision + 1
-             WHERE id = $6 AND revision = $7 ",
+             WHERE id = $7 AND revision = $8 ",
         )
         .bind(&result.ontology)
         .bind(&result.quality_report)
         .bind(&result.source_schema)
         .bind(&result.source_profile)
         .bind(&result.source_history)
+        .bind(&result.analysis_scope)
         .bind(id)
         .bind(expected_revision)
         .execute(&self.pool)
@@ -177,10 +178,11 @@ impl ProjectStore for PostgresStore {
             "UPDATE design_projects
              SET source_config = $1, source_id = $2, source_data = $3,
                  source_schema = $4, source_profile = $5, analysis_report = $6,
-                 design_options = $7, ontology = NULL, quality_report = NULL,
+                 design_options = $7, analysis_scope = $8,
+                 ontology = NULL, quality_report = NULL,
                  status = 'analyzed', analyzed_at = NOW(),
                  updated_at = NOW(), revision = revision + 1
-             WHERE id = $8 AND revision = $9 ",
+             WHERE id = $9 AND revision = $10 ",
         )
         .bind(&snapshot.source_config)
         .bind(&snapshot.source_id)
@@ -189,6 +191,7 @@ impl ProjectStore for PostgresStore {
         .bind(&snapshot.source_profile)
         .bind(&snapshot.analysis_report)
         .bind(&snapshot.design_options)
+        .bind(&snapshot.analysis_scope)
         .bind(id)
         .bind(expected_revision)
         .execute(&self.pool)

@@ -101,13 +101,16 @@ export interface DesignProject {
   ontology_id: string | null;
   source_history: SourceHistoryEntry[];
   /**
-   * The `AnalyzeSelection` chosen at project creation. `null` for
-   * projects sourced from a base ontology or a code repository
-   * (where the operator didn't curate a table list). Surfaced in
-   * the active-project header so the operator can answer "which
-   * tables did I bring into this project?" without leaving design.
+   * Project-lifecycle scope — the union of tables this project has
+   * modeled (`included`), the tables the operator deliberately
+   * skipped (`deferred`), the policy-excluded relations the
+   * platform never proposes, the per-table schema fingerprints the
+   * last introspection observed, and the freshness timestamp. The
+   * design-canvas header renders `included.size / total` as the
+   * progress badge; the source inspector exposes the deferred list
+   * so the operator can promote skipped tables one click later.
    */
-  initial_selection: AnalyzeSelection | null;
+  analysis_scope: AnalysisScope;
   user_id: string;
   created_at: string;
   updated_at: string;
@@ -159,7 +162,28 @@ export type ProjectSource = DesignSource;
 export type AnalyzeSelection =
   | { kind: "all" }
   | { kind: "subset"; tables: string[] }
-  | { kind: "extend"; tables: string[] };
+  | { kind: "extend"; tables: string[] }
+  | { kind: "reduce"; tables: string[] };
+
+/**
+ * Project-lifecycle scope, mirrors the Rust
+ * `ox_source::AnalysisScope`. Accumulates across every analyze /
+ * extend / reanalyze pass the project runs.
+ */
+export interface AnalysisScope {
+  included: string[];
+  deferred: DeferredTable[];
+  excluded_by_policy: string[];
+  fingerprints: Record<string, string>;
+  last_introspected_at: string | null;
+}
+
+export interface DeferredTable {
+  table: string;
+  reason: string;
+  deferred_at: string;
+  revisit_at: string | null;
+}
 
 export type RepoSource =
   | { type: "local"; path: string }

@@ -2830,15 +2830,11 @@
       }
     },
     "design": {
-      "initialSelection": {
-        "kindSummary": {
-          "subset": "{count}개 테이블",
-          "extend": "확장: {count}개 테이블"
-        },
-        "tooltipTitle": {
-          "subset": "프로젝트 생성 시 선택한 {count}개 테이블",
-          "extend": "확장 시 추가된 {count}개 테이블"
-        },
+      "scope": {
+        "summary": "모델링 {modeled} · 보류 {deferred}",
+        "tooltipTitle": "프로젝트 범위: 모델링 {modeled}, 보류 {deferred}",
+        "includedLabel": "포함된 테이블",
+        "deferredLabel": "보류된 테이블",
         "more": "+{n}개 더"
       }
     },

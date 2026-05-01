@@ -19,7 +19,7 @@ import { Group, Panel, usePanelRef } from "react-resizable-panels";
 import { ResizeHandle } from "@/components/ui/resize-handle";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import type { QualityGap } from "@/types/api";
-import { InitialSelectionBadge } from "./design/initial-selection-badge";
+import { ScopeBadge } from "./design/scope-badge";
 // ---------------------------------------------------------------------------
 // Design layout — Explorer | Canvas | Inspector / Bottom Panel
 // ---------------------------------------------------------------------------
@@ -192,7 +192,7 @@ export function DesignLayout() {
               )}
               {hasContent && activeProject && (
                 <div className="absolute right-12 top-2 z-10 flex items-center gap-1.5">
-                  <InitialSelectionBadge />
+                  <ScopeBadge />
                   <button
                     onClick={() => {
                       const store = useAppStore.getState();

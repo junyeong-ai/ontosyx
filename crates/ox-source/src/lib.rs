@@ -151,6 +151,33 @@ pub enum AnalyzeSelection {
 }
 
 impl AnalyzeSelection {
+    /// Tables this selection adds to the project's modeled set.
+    /// Empty for `Reduce` (it removes from the baseline) and for
+    /// `All` when no source-side table list is yet known to the
+    /// caller — the caller routes `All` through
+    /// [`AnalysisScope::record_selection`] with the resolved table
+    /// list so it lands as `included` rather than as an opaque
+    /// "everything" sentinel.
+    pub fn additive_tables(&self) -> &BTreeSet<String> {
+        static EMPTY: std::sync::OnceLock<BTreeSet<String>> = std::sync::OnceLock::new();
+        match self {
+            Self::Subset { tables } | Self::Extend { tables } => tables,
+            Self::All | Self::Reduce { .. } => EMPTY.get_or_init(BTreeSet::new),
+        }
+    }
+
+    /// Tables this selection removes from the project's modeled
+    /// set. Empty for everything except `Reduce`.
+    pub fn removal_tables(&self) -> &BTreeSet<String> {
+        static EMPTY: std::sync::OnceLock<BTreeSet<String>> = std::sync::OnceLock::new();
+        match self {
+            Self::Reduce { tables } => tables,
+            Self::All | Self::Subset { .. } | Self::Extend { .. } => {
+                EMPTY.get_or_init(BTreeSet::new)
+            }
+        }
+    }
+
     /// Lower to the kernel-facing [`TableSelection`] — used by
     /// callers that route their own baseline merge (so `Extend` and
     /// `Subset` collapse to the same `TableSelection::Subset`).
@@ -187,6 +214,177 @@ impl AnalyzeSelection {
                 message: "reduce selection requires at least one table name".to_string(),
             }),
             Self::Subset { .. } | Self::Extend { .. } | Self::Reduce { .. } => Ok(()),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// AnalysisScope — project-lifecycle scope state
+// ---------------------------------------------------------------------------
+
+/// Project-lifecycle scope: which tables this project has modeled,
+/// which are deliberately deferred (with a reason and optional
+/// revisit date), which are auto-excluded by policy, and the schema
+/// fingerprint of the last introspection so drift detection can
+/// compare against a fresh snapshot.
+///
+/// `included` is the union of every `AnalyzeSelection::All` /
+/// `Subset` / `Extend` that has run against the project; the design
+/// pipeline writes here whenever a table actually contributes a
+/// NodeType / EdgeType to the ontology. `deferred` is the operator's
+/// explicit "skip for now" — the table is acknowledged but not
+/// modeled; the FE renders these as `n / N` progress fractions and
+/// offers a one-click promotion to `included`. `excluded_by_policy`
+/// captures auto-excluded relations the system never proposes
+/// (system catalogues, audit tables, temp relations).
+#[derive(
+    Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize,
+    schemars::JsonSchema, utoipa::ToSchema,
+)]
+pub struct AnalysisScope {
+    /// Tables that have contributed to the ontology.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub included: BTreeSet<String>,
+    /// Tables the operator has acknowledged but explicitly skipped.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub deferred: Vec<DeferredTable>,
+    /// Tables the system filters out before the operator sees them
+    /// (system catalogues, audit tables, ephemeral relations). The
+    /// list is project-local rather than global so a workspace can
+    /// override the policy on a per-project basis.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub excluded_by_policy: BTreeSet<String>,
+    /// Per-table schema fingerprint as observed at the last
+    /// introspection. Drift detection compares fresh fingerprints
+    /// against these to flag tables whose columns have changed since
+    /// the last analysis.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub fingerprints: std::collections::BTreeMap<String, String>,
+    /// Inclusive lower bound on freshness — the moment the most
+    /// recent extend / reanalyze finished. `None` for projects that
+    /// have never analyzed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_introspected_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+/// One entry in [`AnalysisScope::deferred`] — a table the operator
+/// explicitly chose not to model yet.
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize,
+    schemars::JsonSchema, utoipa::ToSchema,
+)]
+pub struct DeferredTable {
+    pub table: String,
+    /// Why the operator skipped this table — surfaced in the FE
+    /// "deferred" tab so a future reviewer understands the call.
+    /// Free-form because the operator's reasoning is the value;
+    /// pinning a closed enum here would push every nuance into a
+    /// "Custom(String)" escape hatch that does the same job.
+    pub reason: String,
+    pub deferred_at: chrono::DateTime<chrono::Utc>,
+    /// Optional reminder timestamp the FE uses to surface stale
+    /// deferrals. `None` means "indefinite, the operator decides".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revisit_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+impl AnalysisScope {
+    /// Apply an [`AnalyzeSelection`] to the scope.
+    ///
+    /// `all_tables_for_all_selection` is consulted only when the
+    /// selection is `AnalyzeSelection::All` — the caller knows the
+    /// resolved table list (from a fresh introspection or the prior
+    /// project schema) and threads it in so the scope ingests every
+    /// table by name rather than carrying an opaque "everything"
+    /// flag downstream. Pass an empty set when the table list isn't
+    /// yet known; `record_introspected_tables` then fills it once
+    /// the introspection completes.
+    ///
+    /// `now` is the timestamp the caller wants stamped on
+    /// `last_introspected_at` and on any `Reduce`-driven
+    /// `DeferredTable`. Threading it in keeps the function pure and
+    /// deterministic for tests.
+    pub fn record_selection(
+        &mut self,
+        selection: &AnalyzeSelection,
+        all_tables_for_all_selection: &BTreeSet<String>,
+        now: chrono::DateTime<chrono::Utc>,
+    ) {
+        match selection {
+            AnalyzeSelection::All => {
+                for t in all_tables_for_all_selection {
+                    self.include_one(t);
+                }
+            }
+            AnalyzeSelection::Subset { tables } | AnalyzeSelection::Extend { tables } => {
+                for t in tables {
+                    self.include_one(t);
+                }
+            }
+            AnalyzeSelection::Reduce { tables } => {
+                for t in tables {
+                    self.included.remove(t);
+                    if !self.deferred.iter().any(|d| &d.table == t) {
+                        self.deferred.push(DeferredTable {
+                            table: t.clone(),
+                            reason: "removed via reduce".into(),
+                            deferred_at: now,
+                            revisit_at: None,
+                        });
+                    }
+                }
+            }
+        }
+        self.last_introspected_at = Some(now);
+    }
+
+    /// Promote a table from `deferred` (or first-time-seen) into
+    /// `included`. Idempotent — re-promoting a table that's already
+    /// included is a no-op.
+    fn include_one(&mut self, table: &str) {
+        self.deferred.retain(|d| d.table != table);
+        if !self.included.contains(table) {
+            self.included.insert(table.to_string());
+        }
+    }
+
+    /// Replace the per-table fingerprint snapshot in bulk. Existing
+    /// entries are dropped — the caller hands in the post-
+    /// introspection truth and the scope stays in sync.
+    pub fn record_fingerprints(
+        &mut self,
+        fingerprints: impl IntoIterator<Item = (String, String)>,
+    ) {
+        self.fingerprints = fingerprints.into_iter().collect();
+    }
+
+    /// Add tables that aren't yet `included` or `deferred` to the
+    /// `deferred` list with the supplied reason. Used by the
+    /// "selective + acknowledge the rest" bootstrap flow so a
+    /// curated subset implicitly defers everything the operator did
+    /// not pick.
+    pub fn defer_remaining(
+        &mut self,
+        all_tables: &BTreeSet<String>,
+        reason: &str,
+        now: chrono::DateTime<chrono::Utc>,
+    ) {
+        for t in all_tables {
+            if self.included.contains(t) {
+                continue;
+            }
+            if self.deferred.iter().any(|d| &d.table == t) {
+                continue;
+            }
+            if self.excluded_by_policy.contains(t) {
+                continue;
+            }
+            self.deferred.push(DeferredTable {
+                table: t.clone(),
+                reason: reason.to_string(),
+                deferred_at: now,
+                revisit_at: None,
+            });
         }
     }
 }
@@ -455,5 +653,154 @@ mod tests {
             TableSelection::Subset(s) => assert_eq!(s, names(&["a", "b"])),
             TableSelection::All => panic!("subset should not lower to All"),
         }
+    }
+
+    // ---------- AnalysisScope ----------
+
+    fn now() -> chrono::DateTime<chrono::Utc> {
+        chrono::Utc::now()
+    }
+
+    #[test]
+    fn scope_subset_includes_tables_and_stamps_timestamp() {
+        let mut scope = AnalysisScope::default();
+        let sel = AnalyzeSelection::Subset {
+            tables: names(&["customers", "orders"]),
+        };
+        scope.record_selection(&sel, &BTreeSet::new(), now());
+        assert_eq!(scope.included, names(&["customers", "orders"]));
+        assert!(scope.last_introspected_at.is_some());
+        assert!(scope.deferred.is_empty());
+    }
+
+    #[test]
+    fn scope_extend_accumulates_across_calls() {
+        let mut scope = AnalysisScope::default();
+        scope.record_selection(
+            &AnalyzeSelection::Subset {
+                tables: names(&["customers"]),
+            },
+            &BTreeSet::new(),
+            now(),
+        );
+        scope.record_selection(
+            &AnalyzeSelection::Extend {
+                tables: names(&["orders", "payments"]),
+            },
+            &BTreeSet::new(),
+            now(),
+        );
+        assert_eq!(scope.included, names(&["customers", "orders", "payments"]));
+    }
+
+    #[test]
+    fn scope_all_ingests_resolved_table_list() {
+        let mut scope = AnalysisScope::default();
+        let all_tables = names(&["a", "b", "c"]);
+        scope.record_selection(&AnalyzeSelection::All, &all_tables, now());
+        assert_eq!(scope.included, all_tables);
+    }
+
+    #[test]
+    fn scope_reduce_moves_table_to_deferred_with_audit_reason() {
+        let mut scope = AnalysisScope::default();
+        scope.record_selection(
+            &AnalyzeSelection::Subset {
+                tables: names(&["customers", "orders"]),
+            },
+            &BTreeSet::new(),
+            now(),
+        );
+        scope.record_selection(
+            &AnalyzeSelection::Reduce {
+                tables: names(&["orders"]),
+            },
+            &BTreeSet::new(),
+            now(),
+        );
+        assert_eq!(scope.included, names(&["customers"]));
+        assert_eq!(scope.deferred.len(), 1);
+        assert_eq!(scope.deferred[0].table, "orders");
+        assert_eq!(scope.deferred[0].reason, "removed via reduce");
+    }
+
+    #[test]
+    fn scope_re_including_a_deferred_table_clears_the_deferral() {
+        let mut scope = AnalysisScope::default();
+        scope.record_selection(
+            &AnalyzeSelection::Subset {
+                tables: names(&["orders"]),
+            },
+            &BTreeSet::new(),
+            now(),
+        );
+        scope.record_selection(
+            &AnalyzeSelection::Reduce {
+                tables: names(&["orders"]),
+            },
+            &BTreeSet::new(),
+            now(),
+        );
+        assert_eq!(scope.deferred.len(), 1);
+        scope.record_selection(
+            &AnalyzeSelection::Extend {
+                tables: names(&["orders"]),
+            },
+            &BTreeSet::new(),
+            now(),
+        );
+        assert!(scope.included.contains("orders"));
+        assert!(scope.deferred.is_empty(), "promotion clears the deferral");
+    }
+
+    #[test]
+    fn scope_defer_remaining_skips_included_excluded_and_already_deferred() {
+        let mut scope = AnalysisScope::default();
+        scope.record_selection(
+            &AnalyzeSelection::Subset {
+                tables: names(&["customers"]),
+            },
+            &BTreeSet::new(),
+            now(),
+        );
+        scope.excluded_by_policy.insert("audit_log".into());
+        scope.deferred.push(DeferredTable {
+            table: "drafts".into(),
+            reason: "explicit".into(),
+            deferred_at: now(),
+            revisit_at: None,
+        });
+
+        scope.defer_remaining(
+            &names(&["customers", "orders", "audit_log", "drafts", "payments"]),
+            "not picked at bootstrap",
+            now(),
+        );
+
+        // Only the genuinely-new tables become deferred.
+        let deferred_tables: BTreeSet<String> =
+            scope.deferred.iter().map(|d| d.table.clone()).collect();
+        assert_eq!(deferred_tables, names(&["drafts", "orders", "payments"]));
+        // Original deferral reason for `drafts` is preserved.
+        let drafts = scope
+            .deferred
+            .iter()
+            .find(|d| d.table == "drafts")
+            .unwrap();
+        assert_eq!(drafts.reason, "explicit");
+    }
+
+    #[test]
+    fn scope_record_fingerprints_replaces_prior_snapshot() {
+        let mut scope = AnalysisScope::default();
+        scope.record_fingerprints([
+            ("customers".into(), "v1".into()),
+            ("orders".into(), "v1".into()),
+        ]);
+        scope.record_fingerprints([("customers".into(), "v2".into())]);
+        // Replaces wholesale — the second call is the post-
+        // introspection truth, not a delta.
+        assert_eq!(scope.fingerprints.len(), 1);
+        assert_eq!(scope.fingerprints["customers"], "v2");
     }
 }

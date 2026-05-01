@@ -122,7 +122,7 @@ pub(crate) async fn create_project(
                 source_profile: None,
                 analysis_report: None,
                 design_options: AppError::to_json(&DesignOptions::default())?,
-                initial_selection: None,
+                analysis_scope: AppError::to_json(&ox_source::AnalysisScope::default())?,
                 ontology: Some(ontology_json),
                 quality_report: None,
                 ontology_id: None,
@@ -165,7 +165,12 @@ pub(crate) async fn create_project(
                     source_profile: Some(AppError::to_json(&source_profile)?),
                     analysis_report: Some(AppError::to_json(&report)?),
                     design_options: AppError::to_json(&DesignOptions::default())?,
-                    initial_selection: None,
+                    // Code-repository projects don't carry a tabular
+                    // schema — the scope's `included` / `deferred` /
+                    // `fingerprints` machinery doesn't apply. Empty
+                    // scope keeps the wire shape uniform across project
+                    // origins.
+                    analysis_scope: AppError::to_json(&ox_source::AnalysisScope::default())?,
                     ontology: None,
                     quality_report: None,
                     ontology_id: None,
@@ -254,7 +259,23 @@ pub(crate) async fn create_project(
                 source_profile: source_profile.as_ref().map(AppError::to_json).transpose()?,
                 analysis_report: report.as_ref().map(AppError::to_json).transpose()?,
                 design_options: AppError::to_json(&DesignOptions::default())?,
-                initial_selection: Some(AppError::to_json(&selection)?),
+                analysis_scope: AppError::to_json(&{
+                    let mut scope = ox_source::AnalysisScope::default();
+                    let all_tables: std::collections::BTreeSet<String> = source_schema
+                        .as_ref()
+                        .map(|s| s.tables.iter().map(|t| t.name.clone()).collect())
+                        .unwrap_or_default();
+                    scope.record_selection(&selection, &all_tables, now);
+                    if let Some(schema) = source_schema.as_ref() {
+                        scope.record_fingerprints(schema.tables.iter().map(|t| {
+                            (
+                                t.name.clone(),
+                                ox_core::source_schema::table_fingerprint(t),
+                            )
+                        }));
+                    }
+                    scope
+                })?,
                 ontology: None,
                 quality_report: None,
                 ontology_id: None,

@@ -340,13 +340,14 @@ pub struct DesignProject {
     pub analysis_report: Option<serde_json::Value>,
     /// User decisions (DesignOptions)
     pub design_options: serde_json::Value,
-    /// `AnalyzeSelection` chosen at project creation — `None` for
-    /// projects that pre-date the persistence column. The FE
-    /// surfaces it on the active-project header so the operator
-    /// can answer "which tables did I bring into this project?"
-    /// without leaving design mode.
-    #[sqlx(default)]
-    pub initial_selection: Option<serde_json::Value>,
+    /// Project-lifecycle [`ox_source::AnalysisScope`] — included
+    /// tables, deferred tables (with reason + revisit), policy-
+    /// excluded tables, per-table fingerprints, and the timestamp of
+    /// the last introspection. Accumulates across every analyze /
+    /// extend / reanalyze pass so the operator's "which tables are
+    /// modeled / deferred / drifted" view survives the full project
+    /// lifecycle.
+    pub analysis_scope: serde_json::Value,
     /// Generated OntologyIR. Canonical `object_mappings` (node→table,
     /// property→column bindings) live inside this value; there is
     /// no separate persisted blob.

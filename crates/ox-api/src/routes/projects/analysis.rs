@@ -76,7 +76,7 @@ pub(crate) async fn reanalyze_project(
             (config, None, Some(schema), Some(profile), Some(report))
         } else {
             let analyzed =
-                analyze_source(req.source, &state.adapter_registry, req.selection, None).await?;
+                analyze_source(req.source, &state.adapter_registry, req.selection.clone(), None).await?;
             let mut report = analyzed.report;
 
             // Optional repo enrichment (non-fatal — failures recorded in repo_summary)
@@ -143,6 +143,35 @@ pub(crate) async fn reanalyze_project(
     let (pruned_opts, invalidated) =
         prune_decisions(old_opts, source_schema.as_ref(), source_identity_changed);
 
+    // Roll the project's analysis scope forward against the new
+    // selection. A source identity change (different fingerprint)
+    // resets the scope — the prior scope's `included` / `deferred`
+    // refer to a different physical source and would mislead the
+    // FE; same source folds the new selection into the prior scope
+    // so deferred tables and history persist.
+    let now = chrono::Utc::now();
+    let scope_json = {
+        let mut scope = if source_identity_changed {
+            ox_source::AnalysisScope::default()
+        } else {
+            serde_json::from_value(project.analysis_scope.clone()).unwrap_or_default()
+        };
+        let all_tables: std::collections::BTreeSet<String> = source_schema
+            .as_ref()
+            .map(|s| s.tables.iter().map(|t| t.name.clone()).collect())
+            .unwrap_or_default();
+        scope.record_selection(&req.selection, &all_tables, now);
+        if let Some(s) = source_schema.as_ref() {
+            scope.record_fingerprints(s.tables.iter().map(|t| {
+                (
+                    t.name.clone(),
+                    ox_core::source_schema::table_fingerprint(t),
+                )
+            }));
+        }
+        AppError::to_json(&scope)?
+    };
+
     // Persist. `source_id` is recomputed from the (possibly new)
     // source_config via the canonical rule — when the fingerprint
     // shifts, downstream caches (federation plan-cache, ambiguity
@@ -164,6 +193,7 @@ pub(crate) async fn reanalyze_project(
             .transpose()?
             .unwrap_or(serde_json::Value::Null),
         design_options: AppError::to_json(&pruned_opts)?,
+        analysis_scope: scope_json,
     };
 
     state
