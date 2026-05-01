@@ -18,6 +18,12 @@ export interface WidgetCardProps {
   onClick: () => void;
 }
 
+// Stable empty array reference so the dashboard-types selector
+// returns the same value across renders when the dashboard has no
+// hidden types — Zustand's strict-equality skip-render relies on
+// this not being a fresh `[]` per call.
+const EMPTY_HIDDEN: readonly string[] = Object.freeze([]) as unknown as readonly string[];
+
 export function WidgetCard({ widget, selected, refreshKey, onClick }: WidgetCardProps) {
   const t = useTranslations("workbench.dashboard.widget");
   const [paramValues, setParamValues] = useState<Record<string, string | number | boolean>>(() => {
@@ -28,6 +34,18 @@ export function WidgetCard({ widget, selected, refreshKey, onClick }: WidgetCard
     return defaults;
   });
   const dashboardFilters = useAppStore((s) => s.dashboardFilters);
+
+  // Dashboard-scoped type filter (cross-widget legend toggle).
+  // Surfacing the count + a one-click reset in the card header tells
+  // the operator why a sibling widget might be showing fewer rows
+  // than expected — without forcing them to find the GraphWidget
+  // legend that hid the type.
+  const hiddenTypes = useAppStore((s) =>
+    widget.dashboard_id
+      ? s.dashboardTypeFilters[widget.dashboard_id] ?? EMPTY_HIDDEN
+      : EMPTY_HIDDEN,
+  );
+  const clearDashboardTypes = useAppStore((s) => s.clearDashboardTypes);
 
   // Substitute $param placeholders in query with current parameter values
   const resolvedQuery = useMemo(() => {
@@ -96,6 +114,23 @@ export function WidgetCard({ widget, selected, refreshKey, onClick }: WidgetCard
           {widget.title}
         </p>
         <div className="flex items-center gap-1.5">
+          {hiddenTypes.length > 0 && widget.dashboard_id && (
+            <button
+              type="button"
+              onClick={(e) => {
+                // Stop the click from reaching the card-level
+                // selection handler — the chip is a clear-the-
+                // filter affordance, not a card click.
+                e.stopPropagation();
+                clearDashboardTypes(widget.dashboard_id ?? "");
+              }}
+              title={t("crossFilterClearTitle", { types: hiddenTypes.join(", ") })}
+              className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 hover:bg-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-900/40"
+            >
+              <span>{t("crossFilterChip", { count: hiddenTypes.length })}</span>
+              <span aria-hidden="true">×</span>
+            </button>
+          )}
           {widget.refresh_interval_secs && widget.refresh_interval_secs > 0 && (
             <HugeiconsIcon
               icon={RepeatIcon}

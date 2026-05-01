@@ -4219,7 +4219,9 @@
       "widget": {
         "noQuery": "No query configured",
         "queryFailed": "Query failed",
-        "paramsLabel": "{label}:"
+        "paramsLabel": "{label}:",
+        "crossFilterChip": "{count, plural, one {# type hidden} other {# types hidden}}",
+        "crossFilterClearTitle": "Clear cross-widget filter ({types}). Click to show every type again."
       },
       "inspector": {
         "titleLabel": "Title",
