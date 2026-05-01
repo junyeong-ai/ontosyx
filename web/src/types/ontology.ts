@@ -209,7 +209,7 @@ export type PropertyBindingHandle =
  *  between two `CodeSystem`s. The IR carries these so a property
  *  binding can declare both the bound vocabulary (`target`) and the
  *  translation map used to reach it (`concept_map_id`). */
-export interface ConceptMapMapping {
+export interface ConceptMapping {
   source_code: string;
   target_code: string;
   equivalence:
@@ -229,7 +229,9 @@ export interface ConceptMapDef {
   version: string;
   source_system_id: string;
   target_system_id: string;
-  mappings: ConceptMapMapping[];
+  /** Backend `Vec<ConceptMapping>` skipped on empty — absent on the
+   *  wire when no mappings are authored yet. */
+  mappings?: ConceptMapping[];
 }
 
 export interface PropertyDef {
