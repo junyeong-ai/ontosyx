@@ -125,12 +125,12 @@ impl TableProvider for SourceTableProvider {
         filters: &[Expr],
         limit: Option<usize>,
     ) -> DfResult<Arc<dyn ExecutionPlan>> {
-        // Phase 2 scope: buffer the adapter output into a single
-        // `RecordBatch` and delegate the ExecutionPlan construction to
-        // `MemTable`. Projection is applied in the engine so that the
-        // adapter does not have to understand DataFusion's column-index
-        // semantics — Phase 6 switches to streaming + adapter-side
-        // projection once the cost model is in.
+        // Buffer the adapter output into a single `RecordBatch` and
+        // delegate the ExecutionPlan construction to `MemTable`.
+        // Projection is applied in the engine so adapters don't have
+        // to understand DataFusion's column-index semantics; the
+        // streaming + adapter-side projection upgrade lands when the
+        // cost model is in.
         //
         // Filters are not yet threaded into the adapter primitive; the
         // engine still applies them. See `supports_filters_pushdown`.

@@ -1,5 +1,5 @@
 // =============================================================================
-// Phase 6.5 — Criterion bench for IR → Cypher compilation.
+// Criterion bench for IR → Cypher compilation.
 //
 // Benchmarks three representative QueryIR shapes through the CypherCompiler:
 //   1. Simple MATCH with a scalar filter and projection.

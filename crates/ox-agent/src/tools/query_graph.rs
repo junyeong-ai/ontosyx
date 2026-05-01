@@ -387,16 +387,15 @@ impl SchemaTool for QueryGraphTool {
             }
         }
 
-        // Φ3-D — surface unresolved AmbiguityContext entries on two
+        // Surface unresolved AmbiguityContext entries on two
         // channels: a single text line on `guidance` for the LLM
         // (nudge toward the `resolve_ambiguity` tool), and a typed
         // `unresolved_ambiguities` Vec on the result envelope for
         // the FE (one chip per context, deep-linking to the
-        // Glossary workbench). The two channels target different
-        // consumers and stay narrow on purpose — the LLM never
-        // reasons over the chip list, the FE never parses the text.
-        // Failure to load the list is non-fatal — a missed nudge is
-        // better than a failed query.
+        // Glossary workbench). The two channels stay narrow — the
+        // LLM never reasons over the chip list, the FE never parses
+        // the text. A failed list load is non-fatal: a missed nudge
+        // is better than a failed query.
         let ambiguity_contexts = self
             .domain
             .store
@@ -460,8 +459,8 @@ impl SchemaTool for QueryGraphTool {
         // downgrades to `ontology_version: None` rather than failing
         // the whole tool call.
         //
-        // Phase 4.6 — the same snapshot feeds the anchor-search below,
-        // so fetch it once and reuse.
+        // Same snapshot feeds the anchor-search below — fetch once
+        // and reuse.
         let current_version_snapshot = match self.domain.ontology_id {
             Some(ontology_id) => self
                 .domain
@@ -489,12 +488,12 @@ impl SchemaTool for QueryGraphTool {
             None
         };
 
-        // Phase 4.6 — anchor search. Runs `search_entry_points` against
-        // the current version's searchable document index and records
+        // Anchor search. Runs `search_entry_points` against the
+        // current version's searchable document index and records
         // the top blended score + hit kinds in the signal. Off-path
-        // for the user-facing query result (we don't surface anchors
-        // in the tool output today), but the `anchor_match_rate` tile
-        // on /settings/quality/signals needs the reading.
+        // for the user-facing query result, but the
+        // `anchor_match_rate` tile on /settings/quality/signals
+        // needs the reading.
         let anchor_hit: Option<(f32, Vec<String>)> = if let Some(snapshot) =
             current_version_snapshot.as_ref()
         {
@@ -520,16 +519,15 @@ impl SchemaTool for QueryGraphTool {
             None
         };
 
-        // Phase 3 — quality-signal capture. Fire-and-forget: a write
-        // failure is logged but does NOT fail the user-facing query.
-        // Runs after the execution row lands so the FK
+        // Quality-signal capture. Fire-and-forget: a write failure
+        // is logged but does NOT fail the user-facing query. Runs
+        // after the execution row lands so the FK
         // `query_execution_signals.execution_id → query_executions(id)`
         // always resolves.
         {
-            // Phase 4.6 signal: did a `resolve_ambiguity` call in this
-            // same branchforge session land a resolution in the
-            // recent past? Read the shared tracker — it's process-wide
-            // and lives on `AppState` so the resolve + query turns
+            // Did a `resolve_ambiguity` call in this same branchforge
+            // session land a resolution in the recent past? The
+            // tracker lives on `AppState` so resolve + query turns
             // can land on different chat-stream requests and still
             // correlate.
             let ambiguity_was_clarified = self
@@ -666,13 +664,12 @@ fn first_shacl_failure_kind(
 
 /// Assemble a `QueryExecutionSignal` from the agent-path context.
 ///
-/// Phase 4.6 — the signal now carries the top anchor-search
-/// score + the list of hit entity kinds for the question that
-/// triggered the query. When `anchor_hit` is `Some((score, kinds))`
-/// those populate `anchor_top_score` and `anchor_hit_kinds`; the
-/// quality-signal aggregation thresholds at `score >= 0.5` so a
-/// zero is still a valid reading ("ontology under-indexed for
-/// this phrasing").
+/// The signal carries the top anchor-search score + the list of
+/// hit entity kinds for the question that triggered the query.
+/// When `anchor_hit` is `Some((score, kinds))` those populate
+/// `anchor_top_score` and `anchor_hit_kinds`; aggregation
+/// thresholds at `score >= 0.5` so a zero is still valid
+/// ("ontology under-indexed for this phrasing").
 ///
 /// `glossary_term_hits` is populated from the ontology: every
 /// property on a referenced type that carries a

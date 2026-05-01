@@ -1,9 +1,7 @@
 //! Lower a `QueryIR::Expr` to a DataFusion `Expr`.
 //!
-//! Phase 6-C slice 4b scope keeps the lowering small but honest.
 //! Every variant the lowering refuses returns
-//! [`FederationError::Unsupported`] with a descriptive message so
-//! the caller knows exactly which slice still owes the feature —
+//! [`FederationError::Unsupported`] with a descriptive message —
 //! there is no silent truncation.
 //!
 //! Supported today:

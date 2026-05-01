@@ -1899,11 +1899,11 @@ async fn build_table_scan<R: AdapterResolver + ?Sized>(
         .build()
         .map_err(FederationError::from)?;
 
-    // Phase 6-B — inject the workspace predicate when the mapping
-    // declares a `workspace_scope` column AND the caller provided a
-    // scope. The check is per-mapping: a relation shared across
-    // workspaces (scope = None) passes through unchanged, matching
-    // the author's declaration.
+    // Inject the workspace predicate when the mapping declares a
+    // `workspace_scope` column AND the caller provided a scope. The
+    // check is per-mapping: a relation shared across workspaces
+    // (scope = None) passes through unchanged, matching the
+    // author's declaration.
     if let (Some(ws), Some(scope_col)) = (scope, entry.mapping.workspace_scope.as_ref()) {
         let predicate = col(scope_col.column.as_str())
             .eq(datafusion::logical_expr::lit(ws.workspace_id.to_string()));

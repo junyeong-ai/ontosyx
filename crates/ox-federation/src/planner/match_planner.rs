@@ -133,8 +133,8 @@ impl<'a> MatchPlanner<'a> {
     /// the planner is intentionally single-purpose so the caller
     /// routes each op to its specialised planner.
     ///
-    /// ADR-0037: refuse the two semantic divergences from the Cypher
-    /// runtime that previously slipped through silently:
+    /// Refuse the two semantic divergences from the Cypher runtime
+    /// that would otherwise slip through silently:
     ///
     /// - `optional: true` (OPTIONAL MATCH on Cypher) lowers to an
     ///   INNER JOIN on federation — the left side disappears for
@@ -211,17 +211,16 @@ impl<'a> MatchPlanner<'a> {
                     if var_length.is_some() {
                         return Err(FederationError::unsupported(
                             "MatchPlanner: variable-length relationship patterns are \
-                             not yet supported (Phase 6-C slice 2)",
+                             not yet supported",
                         ));
                     }
-                    // ADR-0037: federation has no symmetric-edge
-                    // surface. Cypher's `(a)-[r]-(b)` returns each
-                    // pair twice (once per direction); federation
-                    // would have produced one row per pair. Refuse
-                    // until the planner grows a duplicate-direction
-                    // expansion pass — same QueryIR producing different
-                    // row counts across backends is the worst flavour
-                    // of silent divergence.
+                    // Federation has no symmetric-edge surface.
+                    // Cypher's `(a)-[r]-(b)` returns each pair twice
+                    // (once per direction); federation would emit
+                    // one row per pair. Refuse until the planner
+                    // grows a duplicate-direction expansion pass —
+                    // same QueryIR producing different row counts
+                    // across backends is the worst silent divergence.
                     if matches!(direction, ox_core::types::Direction::Both) {
                         return Err(FederationError::unsupported(
                             "MatchPlanner: direction-agnostic edge patterns \

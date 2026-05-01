@@ -196,9 +196,10 @@ pub(crate) async fn map_summary(
         ],
     };
 
-    // Phase 1.7 integrity check — every `Option<XxxId>` pointer on
-    // Property/Rule/ValueSet/ConceptMap gets walked and unresolved
-    // ids are surfaced for the dashboard's red-marker layer.
+    // Integrity check — every `Option<XxxId>` pointer on
+    // Property / Rule / ValueSet / ConceptMap gets walked and
+    // unresolved ids are surfaced for the dashboard's red-marker
+    // layer.
     let danglers = ir
         .dangling_references()
         .into_iter()
