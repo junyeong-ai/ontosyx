@@ -1,11 +1,8 @@
 //! `ox-query-ir` — DB-agnostic compile target for Ontosyx queries.
 //!
-//! Phase 3-B (2026-04-20): `query_ir`, `pattern_ir`,
-//! `structured_match_query`, `query_bindings` migrated here wholesale
-//! from `ox-core`, renamed to `query`, `pattern`, `structured_match`,
-//! `bindings`. The 1,555-line `query.rs` will split further into
-//! domain submodules (`op`, `expr`, `projection`, `mutate`, ...) in
-//! Phase 3-C.
+//! Two cooperating IRs: `QueryIR` (the compile target every
+//! downstream consumer works against) and `PatternIR` (the canvas-
+//! ergonomic UI form). They round-trip via `compile / decompile`.
 
 #![cfg_attr(
     test,

@@ -641,12 +641,12 @@ mod tests {
     use super::*;
 
     // -----------------------------------------------------------------------
-    // Phase 0.2 — Korean identifier acceptance
+    // Korean identifier acceptance
     //
     // Korean characters are Unicode alphabetic/alphanumeric per Rust's
     // char::is_alphabetic / is_alphanumeric. These tests freeze that
-    // guarantee so future tightening of identifier rules cannot silently
-    // break the Korean-first MVP.
+    // guarantee so future tightening of identifier rules cannot
+    // silently break the Korean-first surface.
     // -----------------------------------------------------------------------
 
     #[test]

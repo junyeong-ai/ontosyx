@@ -225,10 +225,10 @@ pub(super) fn compile_agg_function(
     distinct: bool,
     dialect: super::CypherDialect,
 ) -> OxResult<String> {
-    // ADR-0036: `percentileCont` is Neo4j-specific. Memgraph 4.x has
-    // no native percentile aggregator; emitting it produces an
-    // opaque "unknown function" at execution. Refuse at compile time
-    // so the caller knows to swap backends or compute the percentile
+    // `percentileCont` is Neo4j-specific. Memgraph 4.x has no
+    // native percentile aggregator; emitting it would produce an
+    // opaque "unknown function" at execution. Refuse at compile
+    // time so the caller swaps backends or computes the percentile
     // client-side.
     if matches!(function, AggFunction::Percentile)
         && dialect == super::CypherDialect::Memgraph

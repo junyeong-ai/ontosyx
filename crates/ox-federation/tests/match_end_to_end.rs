@@ -127,9 +127,8 @@ async fn match_single_node_executes_end_to_end_against_csv_adapter() {
 #[tokio::test]
 async fn match_with_field_projection_narrows_output_to_one_column() {
     // `MATCH (c:Customer) RETURN c.name AS customer_name` — the
-    // executed plan must return one column, three rows. This is
-    // Phase 6-C slice 4a's headline: projections pass from QueryIR
-    // through to the DataFusion plan.
+    // executed plan must return one column, three rows: projections
+    // pass from QueryIR through to the DataFusion plan.
     let (ont, resolver) = build_customer_ontology();
     let op = QueryOp::Match {
         patterns: vec![GraphPattern::Node {
@@ -779,8 +778,7 @@ async fn match_relationship_with_where_filter_pushes_on_left_side() {
 
 #[tokio::test]
 async fn match_two_hop_chain_inner_joins_every_endpoint() {
-    // Phase 6-C slice 5b headline: a two-hop chain threads three
-    // scans through two INNER JOINs.
+    // A two-hop chain threads three scans through two INNER JOINs:
     //
     //   MATCH (u:User)-[:PLACED]->(o:Order)-[:CONTAINS]->(p:Product)
     //   RETURN u.name, o.id, p.name
@@ -1064,8 +1062,8 @@ async fn match_disconnected_components_are_explicitly_rejected() {
 
 #[tokio::test]
 async fn match_bridge_link_mapping_joins_via_intermediate_relation() {
-    // Phase 6-C slice 5c headline: a many-to-many hop threads an
-    // intermediate bridge relation into the join chain.
+    // A many-to-many hop threads an intermediate bridge relation
+    // into the join chain.
     //
     //   MATCH (p:Post)-[:TAGGED]->(t:Tag) RETURN p.title, t.name
     //
@@ -1218,12 +1216,11 @@ async fn match_bridge_link_mapping_joins_via_intermediate_relation() {
 
 #[tokio::test]
 async fn match_federated_link_mapping_joins_across_sources() {
-    // Phase 6-C slice 5e headline: a `Federated` link mapping with
-    // endpoints in *different* sources lowers to the same INNER JOIN
-    // shape as ForeignKey. DataFusion materialises each side into
-    // Arrow and performs the equi-join engine-side, so the cross-
-    // source case works through the generic execute path without
-    // any source-native join plumbing.
+    // A `Federated` link mapping with endpoints in *different*
+    // sources lowers to the same INNER JOIN shape as ForeignKey.
+    // DataFusion materialises each side into Arrow and performs the
+    // equi-join engine-side, so the cross-source case works through
+    // the generic execute path with no source-native join plumbing.
     //
     //   MATCH (u:User)-[:OWNS]->(a:Account) RETURN u.email, a.alias
     //

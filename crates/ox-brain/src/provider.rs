@@ -181,11 +181,10 @@ pub async fn structured_completion_with_thresholds<
         }
     };
 
-    // Phase 1.8: record token consumption for baseline tracking.
-    // Counters are aggregated by the Prometheus recorder installed in
-    // ox-api. A sustained increase in input_tokens per commit signals
-    // prompt bloat; output_tokens spikes often indicate schema size
-    // changes that cause longer LLM output.
+    // Record token consumption for baseline tracking. Counters are
+    // aggregated by the Prometheus recorder installed in ox-api. A
+    // sustained input-token climb signals prompt bloat; output-token
+    // spikes typically reflect schema-size changes.
     metrics::counter!("ox_brain.tokens.input").increment(response.usage.input_tokens);
     metrics::counter!("ox_brain.tokens.output").increment(response.usage.output_tokens);
 
