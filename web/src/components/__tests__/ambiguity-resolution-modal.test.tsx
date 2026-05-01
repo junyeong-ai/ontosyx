@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import messages from "../../../messages/en.json";
-import { ResolutionModal } from "@/components/settings/ambiguity/resolution-modal";
+import { ResolutionModal } from "@/components/ambiguity/resolution-modal";
 import type { AmbiguityContext } from "@/lib/api/ambiguity";
 
 vi.mock("sonner", () => ({

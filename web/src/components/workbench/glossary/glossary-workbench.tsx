@@ -9,11 +9,17 @@ import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { GlossaryForm } from "@/components/settings/vocabulary/glossary-form";
+import { ResolutionModal } from "@/components/ambiguity/resolution-modal";
 import {
   useOntologies,
   useOntologyDetail,
 } from "@/hooks/api/use-ontologies";
 import { useApplyOntologyEdits } from "@/hooks/api/use-ontology-edits";
+import {
+  useAmbiguity,
+  useResolveAmbiguity,
+} from "@/hooks/api/use-ambiguities";
+import type { AmbiguityMapping } from "@/lib/api/ambiguity";
 import { localize } from "@/lib/locale/localize";
 import { useLocaleChain } from "@/lib/use-locale-chain";
 import { arr } from "@/lib/ir-collections";
@@ -247,7 +253,7 @@ export function GlossaryWorkbench() {
   return (
     <div className="flex h-full flex-col overflow-hidden bg-white dark:bg-zinc-950">
       {ambiguityContextId && (
-        <AmbiguityHint
+        <AmbiguityResolutionBanner
           contextId={ambiguityContextId}
           onDismiss={dismissAmbiguityHint}
         />
@@ -382,17 +388,18 @@ function EditorPane({
 }
 
 // ---------------------------------------------------------------------------
-// AmbiguityHint — banner shown when the workbench is opened from a
-// chat tool-call disambiguation chip (`?ambiguity=<context_id>`).
-// Tells the modeller why they landed here without yet wiring the
-// resolution flow — once the modeller picks a term, the next step
-// is `/settings/ambiguity` (existing batch resolver). Banner stays
-// minimal so we don't ship a half-finished resolution dialog inside
-// this PR; the banner is the contract the chip relies on, the
-// dialog is a follow-up.
+// AmbiguityResolutionBanner — opens with the workbench when the URL
+// carries `?ambiguity=<context_id>` (chat disambiguation chip in
+// `tool-call-card`). Loads the context, surfaces relation+column +
+// the analyzer's clarification prompt, and offers a "Resolve" button
+// that opens `ResolutionModal` inline. Submitting the modal fires the
+// shared `useResolveAmbiguity` mutation and dismisses the banner —
+// no context switch to `/settings/ambiguity` for the single-row case.
+// The settings page still holds the multi-row triage view; this is
+// the per-context shortcut from the place a modeller actually lands.
 // ---------------------------------------------------------------------------
 
-function AmbiguityHint({
+function AmbiguityResolutionBanner({
   contextId,
   onDismiss,
 }: {
@@ -400,27 +407,92 @@ function AmbiguityHint({
   onDismiss: () => void;
 }) {
   const t = useTranslations("workbench.glossary.ambiguityBanner");
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const ambiguityQuery = useAmbiguity(contextId);
+  const resolve = useResolveAmbiguity({
+    onSuccess: () => {
+      setModalOpen(false);
+      onDismiss();
+    },
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : String(err)),
+  });
+
+  const context = ambiguityQuery.data?.context ?? null;
+  const activeResolution = useMemo(() => {
+    const history = ambiguityQuery.data?.history ?? [];
+    // First non-revoked entry, latest-first by `resolved_at`.
+    return (
+      [...history]
+        .filter((r) => !r.revoked_at)
+        .sort((a, b) =>
+          b.resolved_at.localeCompare(a.resolved_at),
+        )[0] ?? null
+    );
+  }, [ambiguityQuery.data]);
+
   return (
-    <div className="flex items-start gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-xs dark:border-amber-900/40 dark:bg-amber-950/30">
-      <div className="flex-1">
-        <p className="font-medium text-amber-900 dark:text-amber-200">
-          {t("title")}
-        </p>
-        <p className="mt-0.5 text-amber-800 dark:text-amber-300">
-          {t("description")}
-        </p>
-        <p className="mt-1 font-mono text-[10px] text-amber-700 dark:text-amber-400">
-          {t("contextLabel")}: {contextId}
-        </p>
+    <>
+      <div className="flex items-start gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-xs dark:border-amber-900/40 dark:bg-amber-950/30">
+        <div className="flex-1">
+          <p className="font-medium text-amber-900 dark:text-amber-200">
+            {t("title")}
+          </p>
+          <p className="mt-0.5 text-amber-800 dark:text-amber-300">
+            {t("description")}
+          </p>
+          {ambiguityQuery.isLoading && (
+            <p className="mt-1 text-[10px] text-amber-700 dark:text-amber-400">
+              {t("loading")}
+            </p>
+          )}
+          {ambiguityQuery.isError && (
+            <p className="mt-1 text-[10px] text-amber-700 dark:text-amber-400">
+              {t("loadFailed")}
+            </p>
+          )}
+          {context && (
+            <p className="mt-1 font-mono text-[10px] text-amber-700 dark:text-amber-400">
+              {t("columnLabel")}: {context.column.relation}.
+              {context.column.column}
+            </p>
+          )}
+          {!context && (
+            <p className="mt-1 font-mono text-[10px] text-amber-700 dark:text-amber-400">
+              {t("contextLabel")}: {contextId}
+            </p>
+          )}
+        </div>
+        {context && (
+          <button
+            type="button"
+            onClick={() => setModalOpen(true)}
+            className="rounded bg-amber-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-amber-700"
+          >
+            {t("resolve")}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="rounded p-1 text-amber-700 hover:bg-amber-100 dark:text-amber-300 dark:hover:bg-amber-900/40"
+          aria-label={t("dismissAria")}
+        >
+          ✕
+        </button>
       </div>
-      <button
-        type="button"
-        onClick={onDismiss}
-        className="rounded p-1 text-amber-700 hover:bg-amber-100 dark:text-amber-300 dark:hover:bg-amber-900/40"
-        aria-label={t("dismissAria")}
-      >
-        ✕
-      </button>
-    </div>
+      {context && modalOpen && (
+        <ResolutionModal
+          context={context}
+          active={activeResolution}
+          busy={resolve.isPending}
+          onCancel={() => setModalOpen(false)}
+          onSubmit={(mapping: AmbiguityMapping) => {
+            resolve.mutate({ id: context.id, mapping });
+          }}
+        />
+      )}
+    </>
   );
 }

@@ -19,7 +19,7 @@ import type { ReactElement } from "react";
 
 import messages from "../../../../messages/en.json";
 import { LinkTermDropdown } from "@/components/workbench/inspector/link-term-dropdown";
-import { ResolutionModal } from "@/components/settings/ambiguity/resolution-modal";
+import { ResolutionModal } from "@/components/ambiguity/resolution-modal";
 import { ExploreFacetSidebar } from "@/components/workbench/explore/facet-sidebar";
 import { StepShell } from "@/app/bootstrap/step-shell";
 import { BootstrapProvider } from "@/app/bootstrap/bootstrap-state";

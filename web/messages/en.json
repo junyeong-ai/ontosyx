@@ -2769,8 +2769,12 @@
       },
       "ambiguityBanner": {
         "title": "Ambiguous column flagged",
-        "description": "A query just touched a column the analyzer can't interpret. Pick a glossary term that matches and bind it from /settings/ambiguity, or define a new term below.",
+        "description": "A query touched a column the analyzer can't interpret. Resolve it inline by binding a value-map, code system, or glossary term — or pick a term in the tree below and define it first.",
+        "columnLabel": "Column",
         "contextLabel": "Context",
+        "resolve": "Resolve…",
+        "loading": "Loading context…",
+        "loadFailed": "Couldn't load this ambiguity context.",
         "dismissAria": "Dismiss banner"
       },
       "tree": {
@@ -2844,15 +2848,11 @@
       }
     },
     "design": {
-      "initialSelection": {
-        "kindSummary": {
-          "subset": "{count} tables",
-          "extend": "Extended: {count} tables"
-        },
-        "tooltipTitle": {
-          "subset": "Selected {count} tables at project creation",
-          "extend": "Added {count} tables on extend"
-        },
+      "scope": {
+        "summary": "Modeled {modeled} · Deferred {deferred}",
+        "tooltipTitle": "Project scope: {modeled} modeled, {deferred} deferred",
+        "includedLabel": "Modeled tables",
+        "deferredLabel": "Deferred tables",
         "more": "+{n} more"
       }
     },

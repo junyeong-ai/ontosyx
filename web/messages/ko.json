@@ -2755,8 +2755,12 @@
       },
       "ambiguityBanner": {
         "title": "의미 불명 컬럼 발견",
-        "description": "방금 실행한 쿼리에서 분석기가 해석하지 못한 컬럼이 있습니다. 일치하는 용어를 골라 /settings/ambiguity 에서 매칭하거나 아래에서 새 용어를 정의하세요.",
+        "description": "분석기가 해석하지 못한 컬럼입니다. 값 매핑·코드 시스템·용어집 중 하나로 즉시 매칭하거나, 아래 트리에서 용어를 먼저 정의하세요.",
+        "columnLabel": "컬럼",
         "contextLabel": "컨텍스트",
+        "resolve": "매핑하기…",
+        "loading": "컨텍스트 불러오는 중…",
+        "loadFailed": "이 모호성 컨텍스트를 불러오지 못했습니다.",
         "dismissAria": "배너 닫기"
       },
       "tree": {

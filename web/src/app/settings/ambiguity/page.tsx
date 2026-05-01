@@ -21,7 +21,7 @@ import type {
   AmbiguityMapping,
   AmbiguitySummary,
 } from "@/lib/api/ambiguity";
-import { ResolutionModal } from "@/components/settings/ambiguity/resolution-modal";
+import { ResolutionModal } from "@/components/ambiguity/resolution-modal";
 
 type TabKey = "pending" | "resolved" | "stale";
 
