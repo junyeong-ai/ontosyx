@@ -75,7 +75,7 @@ function buildCreateRequest(
   pilotName: string,
   sourceKind: string,
   sourceConnection: string,
-  analyzeMode: "all" | "subset",
+  analyzeMode: "all" | "subset" | "staged",
   selectedTables: string[],
 ): CreateProjectRequest | null {
   const title = pilotName.trim() || undefined;
@@ -84,7 +84,9 @@ function buildCreateRequest(
   const selection: AnalyzeSelection =
     analyzeMode === "subset"
       ? { kind: "subset", tables: selectedTables }
-      : { kind: "all" };
+      : analyzeMode === "staged"
+        ? { kind: "staged", tables: selectedTables }
+        : { kind: "all" };
   return { title, origin_type: "source", source, selection };
 }
 

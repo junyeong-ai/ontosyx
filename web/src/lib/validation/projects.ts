@@ -316,6 +316,7 @@ export const DesignGateSchema = z.object({
 export const AnalyzeSelectionSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("all") }),
   z.object({ kind: z.literal("subset"), tables: z.array(z.string()) }),
+  z.object({ kind: z.literal("staged"), tables: z.array(z.string()) }),
   z.object({ kind: z.literal("extend"), tables: z.array(z.string()) }),
   z.object({ kind: z.literal("reduce"), tables: z.array(z.string()) }),
 ]);

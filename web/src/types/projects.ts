@@ -155,13 +155,21 @@ export type ProjectSource = DesignSource;
  * reanalyze. Mirrors the Rust `ox_source::AnalyzeSelection` enum.
  *
  * - `all`     — full sweep of the source's tables.
- * - `subset`  — analyse only the named tables.
+ * - `subset`  — analyse only the named tables. The remainder is
+ *   ignored — the scope has no record of them existing.
+ * - `staged`  — same introspection cost as `subset`, but the post-
+ *   introspection scope additionally `defer`s every other table the
+ *   source advertises with reason "deferred at bootstrap". The
+ *   "selective + acknowledge the rest" intent: model these now,
+ *   remember the rest as deliberately-deferred so the FE renders
+ *   `n / N` progress and offers one-click promotion later.
  * - `extend`  — grow the project's prior analysis with the named
  *   tables; existing tables are left untouched.
  */
 export type AnalyzeSelection =
   | { kind: "all" }
   | { kind: "subset"; tables: string[] }
+  | { kind: "staged"; tables: string[] }
   | { kind: "extend"; tables: string[] }
   | { kind: "reduce"; tables: string[] };
 

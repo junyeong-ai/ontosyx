@@ -1095,6 +1095,7 @@ pub(crate) async fn analyze_adapter(
         AnalyzeSelection::Subset { .. } => "subset",
         AnalyzeSelection::Extend { .. } => "extension",
         AnalyzeSelection::Reduce { .. } => "reduction",
+        AnalyzeSelection::Staged { .. } => "staged",
     };
     let analysis = kernel
         .analyze(req.selection, baseline.as_ref())

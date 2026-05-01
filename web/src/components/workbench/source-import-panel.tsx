@@ -22,7 +22,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { useSourcePreview } from "@/hooks/use-source-preview";
 import type { AnalyzeSelection, ProjectSource } from "@/types/projects";
 
-export type SourceImportMode = "all" | "subset";
+export type SourceImportMode = "all" | "subset" | "staged";
 
 export interface SourceImportValue {
   mode: SourceImportMode;
@@ -36,18 +36,29 @@ export function emptyImportValue(): SourceImportValue {
 
 /**
  * Lower the panel's local state to the wire-shape `AnalyzeSelection`
- * the backend expects. `extend` is decided by the surrounding flow
- * (Design-mode import maps `subset` → `extend`; bootstrap maps
- * `subset` → `subset`).
+ * the backend expects.
+ *
+ * Mode → wire mapping is intent-aware:
+ * - `extend` flows always emit `{ kind: "extend" }` regardless of
+ *   panel mode (Design-mode import grows the prior analysis).
+ * - `create` flows preserve the panel's mode: `all` / `subset` /
+ *   `staged` round-trip directly. Staged signals to the backend
+ *   "model these now, defer the rest" — same kernel cost as Subset
+ *   but the project's `AnalysisScope` ingests the unpicked names as
+ *   `deferred`.
  */
 export function toAnalyzeSelection(
   value: SourceImportValue,
   intent: "create" | "extend",
 ): AnalyzeSelection {
   if (value.mode === "all") return { kind: "all" };
-  return intent === "extend"
-    ? { kind: "extend", tables: value.selectedTables }
-    : { kind: "subset", tables: value.selectedTables };
+  if (intent === "extend") {
+    return { kind: "extend", tables: value.selectedTables };
+  }
+  if (value.mode === "staged") {
+    return { kind: "staged", tables: value.selectedTables };
+  }
+  return { kind: "subset", tables: value.selectedTables };
 }
 
 interface Props {
@@ -93,10 +104,10 @@ export function SourceImportPanel({ source, value, onChange }: Props) {
     <div className="flex flex-col gap-3">
       {/* Mode toggle — drives whether the table list is required. */}
       <fieldset
-        className="grid grid-cols-2 gap-2"
+        className="grid grid-cols-3 gap-2"
         aria-label={t("modeLabel")}
       >
-        {(["all", "subset"] as const).map((m) => (
+        {(["all", "subset", "staged"] as const).map((m) => (
           <label
             key={m}
             className={`cursor-pointer rounded border px-3 py-3 text-xs ${
@@ -121,7 +132,7 @@ export function SourceImportPanel({ source, value, onChange }: Props) {
         ))}
       </fieldset>
 
-      {value.mode === "subset" && (
+      {(value.mode === "subset" || value.mode === "staged") && (
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300">

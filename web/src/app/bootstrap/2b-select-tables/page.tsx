@@ -37,7 +37,10 @@ export default function SelectTablesStep() {
 
   // Step advances when:
   // - mode is "all" (no selection required), OR
-  // - mode is "subset" and at least one table is selected
+  // - mode is "subset" / "staged" and at least one table is selected
+  //   (both modes carry the same "list ≥ 1" precondition; the
+  //   defer-the-rest distinction lives post-introspection in the
+  //   AnalysisScope, not at the picker boundary).
   const canAdvance = value.mode === "all" || value.selectedTables.length > 0;
 
   return (

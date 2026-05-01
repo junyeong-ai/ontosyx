@@ -148,6 +148,17 @@ pub enum AnalyzeSelection {
     Reduce {
         tables: BTreeSet<String>,
     },
+    /// Same introspection cost as `Subset` — only the listed tables
+    /// are described / profiled — but the post-introspection
+    /// [`AnalysisScope`] additionally `defer_remaining`s every other
+    /// table the source advertises, with reason "deferred at
+    /// bootstrap". The "selective + acknowledge the rest" intent the
+    /// FE 3-way picker exposes: model these now, remember the others
+    /// as deliberately-deferred so the badge surfaces `n / N`
+    /// progress and the operator can promote on a later pass.
+    Staged {
+        tables: BTreeSet<String>,
+    },
 }
 
 impl AnalyzeSelection {
@@ -161,7 +172,7 @@ impl AnalyzeSelection {
     pub fn additive_tables(&self) -> &BTreeSet<String> {
         static EMPTY: std::sync::OnceLock<BTreeSet<String>> = std::sync::OnceLock::new();
         match self {
-            Self::Subset { tables } | Self::Extend { tables } => tables,
+            Self::Subset { tables } | Self::Extend { tables } | Self::Staged { tables } => tables,
             Self::All | Self::Reduce { .. } => EMPTY.get_or_init(BTreeSet::new),
         }
     }
@@ -172,7 +183,7 @@ impl AnalyzeSelection {
         static EMPTY: std::sync::OnceLock<BTreeSet<String>> = std::sync::OnceLock::new();
         match self {
             Self::Reduce { tables } => tables,
-            Self::All | Self::Subset { .. } | Self::Extend { .. } => {
+            Self::All | Self::Subset { .. } | Self::Extend { .. } | Self::Staged { .. } => {
                 EMPTY.get_or_init(BTreeSet::new)
             }
         }
@@ -187,7 +198,7 @@ impl AnalyzeSelection {
     pub fn as_table_selection(&self) -> TableSelection {
         match self {
             Self::All => TableSelection::All,
-            Self::Subset { tables } | Self::Extend { tables } => {
+            Self::Subset { tables } | Self::Extend { tables } | Self::Staged { tables } => {
                 TableSelection::Subset(tables.clone())
             }
             Self::Reduce { .. } => TableSelection::Subset(BTreeSet::new()),
@@ -213,7 +224,14 @@ impl AnalyzeSelection {
                 field: "selection.tables".to_string(),
                 message: "reduce selection requires at least one table name".to_string(),
             }),
-            Self::Subset { .. } | Self::Extend { .. } | Self::Reduce { .. } => Ok(()),
+            Self::Staged { tables } if tables.is_empty() => Err(OxError::Validation {
+                field: "selection.tables".to_string(),
+                message: "staged selection requires at least one table name".to_string(),
+            }),
+            Self::Subset { .. }
+            | Self::Extend { .. }
+            | Self::Reduce { .. }
+            | Self::Staged { .. } => Ok(()),
         }
     }
 }
@@ -320,6 +338,22 @@ impl AnalysisScope {
                 for t in tables {
                     self.include_one(t);
                 }
+            }
+            AnalyzeSelection::Staged { tables } => {
+                for t in tables {
+                    self.include_one(t);
+                }
+                // Same introspection cost as Subset; the difference
+                // is the implicit acknowledge-the-rest. The set
+                // passed in is the source's full table list resolved
+                // by the caller, so `defer_remaining` skips the
+                // already-included staged picks and attaches a
+                // bootstrap reason to everything else.
+                self.defer_remaining(
+                    all_tables_for_all_selection,
+                    "deferred at bootstrap",
+                    now,
+                );
             }
             AnalyzeSelection::Reduce { tables } => {
                 for t in tables {
@@ -683,6 +717,38 @@ mod tests {
     }
 
     #[test]
+    fn analyze_selection_staged_with_tables_is_valid() {
+        AnalyzeSelection::Staged {
+            tables: names(&["customers"]),
+        }
+        .validate()
+        .unwrap();
+    }
+
+    #[test]
+    fn analyze_selection_staged_empty_is_rejected() {
+        let err = AnalyzeSelection::Staged {
+            tables: BTreeSet::new(),
+        }
+        .validate()
+        .unwrap_err();
+        assert!(matches!(err, OxError::Validation { ref field, .. } if field == "selection.tables"));
+    }
+
+    #[test]
+    fn analyze_selection_staged_lowers_to_subset() {
+        // Same kernel path as Subset — the staged distinction lives
+        // in `record_selection`, not in introspection.
+        let staged = AnalyzeSelection::Staged {
+            tables: names(&["customers", "orders"]),
+        };
+        match staged.as_table_selection() {
+            TableSelection::Subset(s) => assert_eq!(s, names(&["customers", "orders"])),
+            TableSelection::All => panic!("staged must not lower to All"),
+        }
+    }
+
+    #[test]
     fn analyze_selection_lowers_to_table_selection() {
         assert!(matches!(
             AnalyzeSelection::All.as_table_selection(),
@@ -764,6 +830,53 @@ mod tests {
         assert_eq!(scope.deferred.len(), 1);
         assert_eq!(scope.deferred[0].table, "orders");
         assert_eq!(scope.deferred[0].reason, "removed via reduce");
+    }
+
+    #[test]
+    fn scope_staged_includes_picks_and_defers_the_rest() {
+        let mut scope = AnalysisScope::default();
+        let all = names(&[
+            "customers",
+            "orders",
+            "audit_log",
+            "drafts",
+            "payments",
+        ]);
+        let sel = AnalyzeSelection::Staged {
+            tables: names(&["customers", "orders"]),
+        };
+        scope.record_selection(&sel, &all, now());
+
+        // Picks land in `included`.
+        assert_eq!(scope.included, names(&["customers", "orders"]));
+        // The remainder lands in `deferred` with the bootstrap reason.
+        let deferred_tables: BTreeSet<String> =
+            scope.deferred.iter().map(|d| d.table.clone()).collect();
+        assert_eq!(deferred_tables, names(&["audit_log", "drafts", "payments"]));
+        for d in &scope.deferred {
+            assert_eq!(d.reason, "deferred at bootstrap");
+        }
+        assert!(scope.last_introspected_at.is_some());
+    }
+
+    #[test]
+    fn scope_staged_skips_tables_already_excluded_by_policy() {
+        // `defer_remaining` (which Staged folds into) honours the
+        // workspace's auto-exclusion list, so a Staged sweep does
+        // not write `system_*` / audit catalogues into the
+        // user-visible deferred list.
+        let mut scope = AnalysisScope::default();
+        scope.excluded_by_policy.insert("audit_log".into());
+        let all = names(&["customers", "orders", "audit_log", "drafts"]);
+        let sel = AnalyzeSelection::Staged {
+            tables: names(&["customers"]),
+        };
+        scope.record_selection(&sel, &all, now());
+
+        let deferred_tables: BTreeSet<String> =
+            scope.deferred.iter().map(|d| d.table.clone()).collect();
+        assert_eq!(deferred_tables, names(&["drafts", "orders"]));
+        assert!(scope.excluded_by_policy.contains("audit_log"));
     }
 
     #[test]

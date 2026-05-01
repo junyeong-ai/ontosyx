@@ -241,6 +241,10 @@
       "subset": {
         "label": "Selected only",
         "hint": "Incremental — only the tables you check below get analysed; the rest can be added later."
+      },
+      "staged": {
+        "label": "Selected + acknowledge rest",
+        "hint": "Same cost as Selected, plus the unpicked tables get marked deferred so the project shows n / N progress and you can promote them later in one click."
       }
     },
     "selectionSummary": "{selected} of {total} tables selected",
