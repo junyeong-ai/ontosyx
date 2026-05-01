@@ -291,11 +291,11 @@ export function GlossaryForm({
       ),
       aliases: linesToLocalized(aliasesText, initial?.aliases),
       examples: linesToLocalized(examplesText, initial?.examples),
-      category: category.trim() || null,
+      category: category.trim() || undefined,
       related_terms: relations,
       lifecycle: buildLifecycle(state, replacedBy, deprecatedAt, retiredAt),
-      valid_from: fromDateInput(validFrom) ?? null,
-      valid_to: fromDateInput(validTo) ?? null,
+      valid_from: fromDateInput(validFrom) ?? undefined,
+      valid_to: fromDateInput(validTo) ?? undefined,
       governance: {
         ...(initial?.governance ?? {}),
         origin: buildOrigin(

@@ -277,7 +277,7 @@ function PropertyMappingRow({
       property_key: property.name,
       location,
       transform: mapping?.transform ?? { kind: "identity" },
-      concept_map_id: mapping?.concept_map_id ?? null,
+      concept_map_id: mapping?.concept_map_id ?? undefined,
     });
   };
 
