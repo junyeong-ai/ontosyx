@@ -366,6 +366,8 @@ export type WarningClass =
   | "bigquery_jobs_create_denied"
   | "postgres_permission_denied"
   | "snowflake_warehouse_suspended"
+  | "value_set_drift_detected"
+  | "table_schema_drift"
   | "other";
 
 export type WarningLevel = "info" | "warning" | "error";

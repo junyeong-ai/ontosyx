@@ -155,6 +155,15 @@ pub enum WarningClass {
     /// `params.unmapped_codes` lists the offending codes;
     /// `params.value_set` names the bound set.
     ValueSetDriftDetected,
+    /// A previously-introspected table's column-shape fingerprint
+    /// no longer matches the live source. The shape changed (a
+    /// column was added / removed / retyped / nullability flipped)
+    /// or the table itself disappeared. Mappings derived against
+    /// the stale shape may now disagree with the source —
+    /// reviewing the binding before the next deploy keeps SHACL
+    /// rules and load plans honest. `params.kind` is `"changed"`
+    /// or `"removed"`.
+    TableSchemaDrift,
 
     // ── Catch-all ─────────────────────────────────────────────────
     /// No specific class matched — the raw error is the hint.
@@ -177,6 +186,7 @@ impl WarningClass {
             Self::PostgresPermissionDenied => "postgres_permission_denied",
             Self::SnowflakeWarehouseSuspended => "snowflake_warehouse_suspended",
             Self::ValueSetDriftDetected => "value_set_drift_detected",
+            Self::TableSchemaDrift => "table_schema_drift",
             Self::Other => "other",
         }
     }

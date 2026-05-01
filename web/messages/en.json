@@ -3628,6 +3628,8 @@
           "bigquery_jobs_create_denied": "BigQuery jobs.create permission denied",
           "postgres_permission_denied": "PostgreSQL permission denied on `{target}`",
           "snowflake_warehouse_suspended": "Snowflake warehouse suspended",
+          "value_set_drift_detected": "Value-set drift on `{target}`",
+          "table_schema_drift": "Schema drift on `{target}`",
           "other": "Analysis failed on `{target}`"
         },
         "hint": {
@@ -3640,6 +3642,8 @@
           "bigquery_jobs_create_denied": "Set `billing_project_id` to a project where you hold bigquery.jobs.create.",
           "postgres_permission_denied": "Grant SELECT / USAGE to the connecting user.",
           "snowflake_warehouse_suspended": "Snowflake auto-resumes on the next query — retry.",
+          "value_set_drift_detected": "Sample values include codes outside the bound `{value_set}` set ({unmapped_count} unmapped: {unmapped_codes}). The derived rule will silently reject these on write — review the binding before the next deploy.",
+          "table_schema_drift": "The table's column shape changed since the last analysis ({kind}). Review mappings and rules bound to this table before the next deploy.",
           "other": "Expand to inspect the raw provider error."
         }
       },

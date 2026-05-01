@@ -387,6 +387,48 @@ impl AnalysisScope {
             });
         }
     }
+
+    /// Compare a fresh per-table fingerprint snapshot against the
+    /// scope's stored baseline and emit one
+    /// [`WarningClass::TableSchemaDrift`] warning per drift event.
+    ///
+    /// Two drift kinds surface (`params.kind`):
+    /// - `"changed"` — table exists in both maps but the
+    ///   fingerprints differ (column added / dropped / retyped,
+    ///   nullability flipped, primary key shifted).
+    /// - `"removed"` — table was in the prior baseline but is
+    ///   missing from `fresh` (the table was dropped, renamed, or
+    ///   moved out of the introspection's visible set).
+    ///
+    /// Tables present only in `fresh` are NEW observations rather
+    /// than drift — the caller's `record_selection` flow ingests
+    /// them through the normal include path. Pure function: same
+    /// `(baseline, fresh)` always produces the same warnings, so
+    /// re-runs over an unchanged source produce empty output.
+    pub fn detect_drift(
+        &self,
+        fresh: &std::collections::BTreeMap<String, String>,
+    ) -> Vec<AnalysisWarning> {
+        let mut out = Vec::new();
+        for (table, prior_fp) in &self.fingerprints {
+            let kind = match fresh.get(table) {
+                Some(fresh_fp) if fresh_fp == prior_fp => continue,
+                Some(_) => "changed",
+                None => "removed",
+            };
+            let scope = WarningScope::Table { name: table.clone() };
+            out.push(
+                AnalysisWarning::new(
+                    WarningLevel::Warning,
+                    AnalysisPhase::SchemaIntrospection,
+                    WarningClass::TableSchemaDrift,
+                    scope,
+                )
+                .with_param("kind", kind),
+            );
+        }
+        out
+    }
 }
 
 /// Default concurrency limit for table introspection orchestration.
@@ -802,5 +844,88 @@ mod tests {
         // introspection truth, not a delta.
         assert_eq!(scope.fingerprints.len(), 1);
         assert_eq!(scope.fingerprints["customers"], "v2");
+    }
+
+    // ---------- AnalysisScope::detect_drift ----------
+
+    fn fp_map<I: IntoIterator<Item = (&'static str, &'static str)>>(
+        entries: I,
+    ) -> std::collections::BTreeMap<String, String> {
+        entries
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
+    }
+
+    #[test]
+    fn detect_drift_returns_empty_when_fingerprints_match() {
+        let mut scope = AnalysisScope::default();
+        scope.record_fingerprints([("customers".into(), "v1".into())]);
+        let fresh = fp_map([("customers", "v1")]);
+        assert!(scope.detect_drift(&fresh).is_empty());
+    }
+
+    #[test]
+    fn detect_drift_flags_changed_fingerprint() {
+        let mut scope = AnalysisScope::default();
+        scope.record_fingerprints([("customers".into(), "v1".into())]);
+        let fresh = fp_map([("customers", "v2")]);
+
+        let drift = scope.detect_drift(&fresh);
+        assert_eq!(drift.len(), 1);
+        let w = &drift[0];
+        assert_eq!(w.class, WarningClass::TableSchemaDrift);
+        assert_eq!(w.params.get("kind").map(String::as_str), Some("changed"));
+        assert!(matches!(
+            &w.scope,
+            WarningScope::Table { name } if name == "customers"
+        ));
+        assert_eq!(w.group_key, "table_schema_drift:customers");
+    }
+
+    #[test]
+    fn detect_drift_flags_table_disappearing_from_fresh() {
+        let mut scope = AnalysisScope::default();
+        scope.record_fingerprints([
+            ("customers".into(), "v1".into()),
+            ("orders".into(), "v1".into()),
+        ]);
+        let fresh = fp_map([("customers", "v1")]);
+
+        let drift = scope.detect_drift(&fresh);
+        assert_eq!(drift.len(), 1);
+        let w = &drift[0];
+        assert_eq!(w.params.get("kind").map(String::as_str), Some("removed"));
+        assert!(matches!(
+            &w.scope,
+            WarningScope::Table { name } if name == "orders"
+        ));
+    }
+
+    #[test]
+    fn detect_drift_ignores_tables_only_in_fresh() {
+        // First-time observations are not drift — `record_selection`
+        // ingests them through the normal include path.
+        let scope = AnalysisScope::default();
+        let fresh = fp_map([("customers", "v1")]);
+        assert!(scope.detect_drift(&fresh).is_empty());
+    }
+
+    #[test]
+    fn detect_drift_emits_one_warning_per_drifted_table() {
+        let mut scope = AnalysisScope::default();
+        scope.record_fingerprints([
+            ("customers".into(), "v1".into()),
+            ("orders".into(), "v1".into()),
+            ("payments".into(), "v1".into()),
+        ]);
+        let fresh = fp_map([("customers", "v2"), ("orders", "v1")]);
+
+        let drift = scope.detect_drift(&fresh);
+        assert_eq!(drift.len(), 2);
+        // Iteration order is BTreeMap-sorted: customers (changed),
+        // payments (removed).
+        assert_eq!(drift[0].params.get("kind").map(String::as_str), Some("changed"));
+        assert_eq!(drift[1].params.get("kind").map(String::as_str), Some("removed"));
     }
 }

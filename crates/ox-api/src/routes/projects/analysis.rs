@@ -143,13 +143,59 @@ pub(crate) async fn reanalyze_project(
     let (pruned_opts, invalidated) =
         prune_decisions(old_opts, source_schema.as_ref(), source_identity_changed);
 
+    // Pre-compute fresh per-table fingerprints once and reuse for
+    // both drift detection and the rolled-forward scope. The
+    // fingerprint is a SHA-256 over the canonical column shape; a
+    // mismatch against the prior baseline means the source-side
+    // table changed (column added / dropped / retyped, nullability
+    // flipped) since the last analysis.
+    let now = chrono::Utc::now();
+    let fresh_fingerprints: std::collections::BTreeMap<String, String> = source_schema
+        .as_ref()
+        .map(|s| {
+            s.tables
+                .iter()
+                .map(|t| {
+                    (
+                        t.name.clone(),
+                        ox_core::source_schema::table_fingerprint(t),
+                    )
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    // Eager schema-drift detection: when a same-source re-analysis
+    // observes a fingerprint change for a previously-known table,
+    // the derived ontology may now disagree with the live source
+    // shape (column dropped, type changed, nullability flipped, or
+    // the table itself disappeared). Surface as a warning so the
+    // operator reviews mappings before the next deploy. Skipped on
+    // source-identity change — different source ⇒ scope resets and
+    // the prior fingerprints refer to a different physical source.
+    if !source_identity_changed
+        && !fresh_fingerprints.is_empty()
+        && let Some(rpt) = report.as_mut()
+    {
+        let prior_scope: ox_source::AnalysisScope =
+            serde_json::from_value(project.analysis_scope.clone()).unwrap_or_default();
+        let drift_warnings = prior_scope.detect_drift(&fresh_fingerprints);
+        if !drift_warnings.is_empty() {
+            warn!(
+                project_id = %id,
+                drift_count = drift_warnings.len(),
+                "Table schema drift detected"
+            );
+            rpt.analysis_warnings.extend(drift_warnings);
+        }
+    }
+
     // Roll the project's analysis scope forward against the new
     // selection. A source identity change (different fingerprint)
     // resets the scope — the prior scope's `included` / `deferred`
     // refer to a different physical source and would mislead the
     // FE; same source folds the new selection into the prior scope
     // so deferred tables and history persist.
-    let now = chrono::Utc::now();
     let scope_json = {
         let mut scope = if source_identity_changed {
             ox_source::AnalysisScope::default()
@@ -161,14 +207,7 @@ pub(crate) async fn reanalyze_project(
             .map(|s| s.tables.iter().map(|t| t.name.clone()).collect())
             .unwrap_or_default();
         scope.record_selection(&req.selection, &all_tables, now);
-        if let Some(s) = source_schema.as_ref() {
-            scope.record_fingerprints(s.tables.iter().map(|t| {
-                (
-                    t.name.clone(),
-                    ox_core::source_schema::table_fingerprint(t),
-                )
-            }));
-        }
+        scope.record_fingerprints(fresh_fingerprints);
         AppError::to_json(&scope)?
     };
 

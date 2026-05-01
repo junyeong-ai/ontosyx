@@ -221,6 +221,8 @@ export const WarningClassSchema = z.enum([
   "bigquery_jobs_create_denied",
   "postgres_permission_denied",
   "snowflake_warehouse_suspended",
+  "value_set_drift_detected",
+  "table_schema_drift",
   "other",
 ]);
 

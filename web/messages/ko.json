@@ -3610,6 +3610,8 @@
           "bigquery_jobs_create_denied": "BigQuery 잡 생성 권한 거부됨",
           "postgres_permission_denied": "`{target}` PostgreSQL 권한 거부",
           "snowflake_warehouse_suspended": "Snowflake 웨어하우스 일시중지",
+          "value_set_drift_detected": "`{target}` value-set 드리프트",
+          "table_schema_drift": "`{target}` 스키마 변경 감지",
           "other": "`{target}` 분석 실패"
         },
         "hint": {
@@ -3622,6 +3624,8 @@
           "bigquery_jobs_create_denied": "data project 와 다른 billing project 에 잡 생성 권한이 있다면 `billing_project_id` 를 설정하세요.",
           "postgres_permission_denied": "데이터베이스 사용자에게 SELECT / USAGE 권한을 부여하세요.",
           "snowflake_warehouse_suspended": "다음 호출에서 자동 재개됩니다. 재시도해 보세요.",
+          "value_set_drift_detected": "샘플 값에 바인딩된 `{value_set}` 셋에 속하지 않는 코드가 있습니다 (미매핑 {unmapped_count}건: {unmapped_codes}). 파생 규칙이 이 값을 조용히 거부하므로 다음 배포 전에 바인딩을 검토하세요.",
+          "table_schema_drift": "마지막 분석 이후 컬럼 형태가 변경({kind})되었습니다. 다음 배포 전에 매핑과 규칙을 검토하세요.",
           "other": "원본 오류를 확장해 확인하세요."
         }
       },
