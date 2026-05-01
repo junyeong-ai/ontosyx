@@ -242,7 +242,7 @@ export const AnalysisWarningSchema = z.object({
   class: WarningClassSchema,
   scope: WarningScopeSchema,
   params: z.record(z.string(), z.string()).optional(),
-  detail: z.string().nullable().optional(),
+  detail: z.string().optional(),
   group_key: z.string(),
 });
 
@@ -309,7 +309,7 @@ export const DesignGateSchema = z.object({
   id: GateIdSchema,
   status: GateStatusSchema,
   blocks_design: z.boolean(),
-  anchor: z.string().nullable().optional(),
+  anchor: z.string().optional(),
   params: z.record(z.string(), z.string()).optional(),
 });
 

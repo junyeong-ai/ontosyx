@@ -26,19 +26,11 @@ export type GateId =
 
 export type GateStatus = "met" | "unmet";
 
-/**
- * Single condition the operator must satisfy before designing.
- *
- * `params` carries interpolation values for the i18n catalogue
- * (`warnings.gate.${id}`); the backend never produces user-facing
- * prose itself. `anchor` is the DOM element id to scroll to when
- * the operator clicks the gate row.
- */
 export interface DesignGate {
   id: GateId;
   status: GateStatus;
   blocks_design: boolean;
-  anchor?: string | null;
+  anchor?: string;
   params?: Record<string, string>;
 }
 
@@ -394,7 +386,7 @@ export interface AnalysisWarning {
   /** Interpolation arguments for the FE i18n catalogue. */
   params?: Record<string, string>;
   /** Raw provider error text — operator drilldown only. */
-  detail?: string | null;
+  detail?: string;
   /**
    * Deterministic fingerprint (`class:scope.table` or
    * `class:source`) the FE uses to coalesce N warnings of the same
