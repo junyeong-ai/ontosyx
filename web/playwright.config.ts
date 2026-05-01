@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * Playwright config — Phase 6.4 frontend E2E.
+ * Playwright config — frontend E2E.
  *
  * Assumptions:
  * - Tests run against the production Next build (`pnpm build && pnpm start`)

@@ -16,8 +16,7 @@ the high-level pieces and points at the files that hold depth.
   - `node_types`, `edge_types` — primary topology.
   - `indexes`, `constraints` — lookup + invariant metadata.
   - `object_mappings`, `link_mappings`, `property_mappings`
-    — physical mapping layer (ADR 0003). See
-    `src/mapping/`.
+    — physical mapping layer. See `src/mapping/`.
   - `interfaces` — shared-property abstractions (e.g., `HasAddress`).
   - `rules` — SHACL-style constraints.
   - `actions`, `functions`, `metrics`, `enrichments` —

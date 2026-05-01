@@ -44,7 +44,7 @@ See `docs/adr/0001-virtual-ontology-layer.md` and `0002-datafusion-federation.md
 | ForeignKey             | ✓    | ✓      | ✓           |
 | Federated              | ✓    | ✓      | ✓           |
 | Bridge                 | ✓    | ✓      | ✓           |
-| Computed               | refuse (slice 5d) — needs adapter-side SQL pushdown |
+| Computed               | refuse — needs adapter-side SQL pushdown            |
 
 Multi-mapping hops (`link_mappings.len() > 1`) are supported at all three positions:
 `seed_multi_mapping_hop`, `extend_multi_mapping_hop`, `close_cycle_multi_mapping_hop`.
