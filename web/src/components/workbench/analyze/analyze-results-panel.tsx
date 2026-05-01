@@ -120,7 +120,7 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
   //                     nothing to save for this tool call.
   // The canonical QueryIR is always read from the persisted row,
   // never from the LLM-facing tool envelope.
-  const tSave = useTranslations("workbench.results.saveButton");
+  const tSave = useTranslations("workbench.queryBuilder.results.saveButton");
   const isQueryResult = toolCall.name === "query_graph";
   const hasExecutionId = Boolean(parsed?.execution_id);
   const insightReady = Boolean(execution?.query_ir);

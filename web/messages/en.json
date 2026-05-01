@@ -3469,6 +3469,19 @@
         "noQualityReport": "No quality report available",
         "designFirst": "Design a project first."
       },
+      "tableSelector": {
+        "searchPlaceholder": "Search by name...",
+        "selectedCount": "{selected} of {total} selected",
+        "selectAll": "Select all {count}",
+        "selectAllFiltered": "Select {count} matching",
+        "clearAll": "Clear",
+        "emptyDataset": "This dataset has no tables.",
+        "noMatches": "No tables match the search.",
+        "rowCount": "{count, plural, =0 {empty} other {~# rows}}",
+        "rowsUnknown": "rows unknown",
+        "columnCount": "{count, plural, =0 {no columns} other {# columns}}",
+        "lastModifiedAt": "modified {timestamp}"
+      },
       "dashboard": {
         "title": "Dashboards",
         "new": "New",
@@ -3631,19 +3644,6 @@
         "toast": {
           "createFailed": "Failed to create project",
           "unknownError": "Unknown error"
-        },
-        "tableSelector": {
-          "searchPlaceholder": "Search by name...",
-          "selectedCount": "{selected} of {total} selected",
-          "selectAll": "Select all {count}",
-          "selectAllFiltered": "Select {count} matching",
-          "clearAll": "Clear",
-          "emptyDataset": "This dataset has no tables.",
-          "noMatches": "No tables match the search.",
-          "rowCount": "{count, plural, =0 {empty} other {~# rows}}",
-          "rowsUnknown": "rows unknown",
-          "columnCount": "{count, plural, =0 {no columns} other {# columns}}",
-          "lastModifiedAt": "modified {timestamp}"
         }
       },
       "review": {
@@ -3827,7 +3827,9 @@
           "closeProject": "Close Project"
         },
         "toast": {
-          "unknownError": "Unknown error"
+          "unknownError": "Unknown error",
+          "designGatesUnmetTitle": "Design gates unmet",
+          "designGatesUnmetDescription": "{count, plural, one {# design gate} other {# design gates}} need attention before designing."
         }
       },
       "workflowForms": {
