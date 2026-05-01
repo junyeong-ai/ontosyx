@@ -89,7 +89,7 @@ fn bench_simple_match(c: &mut Criterion) {
 
     c.bench_function("simple_match", |b| {
         b.iter(|| {
-            let compiled = compiler.compile_query(black_box(&query)).unwrap();
+            let compiled = compiler.compile_query(black_box(&query), None).unwrap();
             black_box(compiled);
         });
     });
@@ -152,7 +152,7 @@ fn bench_relationship_traversal(c: &mut Criterion) {
 
     c.bench_function("relationship_traversal", |b| {
         b.iter(|| {
-            let compiled = compiler.compile_query(black_box(&query)).unwrap();
+            let compiled = compiler.compile_query(black_box(&query), None).unwrap();
             black_box(compiled);
         });
     });
@@ -226,7 +226,7 @@ fn bench_aggregation(c: &mut Criterion) {
 
     c.bench_function("aggregation_group_by", |b| {
         b.iter(|| {
-            let compiled = compiler.compile_query(black_box(&query)).unwrap();
+            let compiled = compiler.compile_query(black_box(&query), None).unwrap();
             black_box(compiled);
         });
     });

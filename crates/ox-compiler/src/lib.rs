@@ -41,10 +41,17 @@ use ox_core::types::PropertyValue;
 
 /// A compiled query with its parameterized statement and bound parameters.
 /// Parameters use `$pN` placeholders (e.g. `$p0`, `$p1`) to prevent injection.
-#[derive(Debug, Clone, serde::Serialize)]
+///
+/// `concept_map_report` carries the rewrite trace for callers that
+/// surface "translated `A` → `ACTIVE` via map X" guidance to the
+/// operator (the agent tool path renders `untranslated` literals as
+/// hints). Empty for queries against ontologies without concept maps.
+#[derive(Debug, Clone, Default, serde::Serialize)]
 pub struct CompiledQuery {
     pub statement: String,
     pub params: HashMap<String, PropertyValue>,
+    #[serde(default, skip_serializing_if = "RewriteReport::is_empty")]
+    pub concept_map_report: RewriteReport,
 }
 
 // ---------------------------------------------------------------------------
@@ -58,8 +65,27 @@ pub trait GraphCompiler: Send + Sync {
     /// Compile an OntologyIR into schema DDL statements
     fn compile_schema(&self, ontology: &OntologyIR) -> OxResult<Vec<String>>;
 
-    /// Compile a QueryIR into a parameterized query
-    fn compile_query(&self, query: &QueryIR) -> OxResult<CompiledQuery>;
+    /// Compile a QueryIR into a parameterized query.
+    ///
+    /// `ontology` is consulted for the concept-map rewrite that
+    /// translates source-vocabulary literals onto the binding's
+    /// canonical vocabulary before emission — every backend gets
+    /// the safety automatically by routing through this single
+    /// entry point. The rewrite is a no-op when the ontology
+    /// carries no concept maps (the table builder short-circuits).
+    ///
+    /// `None` is the explicit "raw QueryIR, no ontology context"
+    /// signal — the planner skips the rewrite. Production routes
+    /// that have an `ontology_id` should always pass `Some` so
+    /// concept-map bindings actually fire; passing `None` against
+    /// an ontology with concept maps is a silent-corruption escape
+    /// hatch that the type signature now forces a caller to choose
+    /// deliberately.
+    fn compile_query(
+        &self,
+        query: &QueryIR,
+        ontology: Option<&OntologyIR>,
+    ) -> OxResult<CompiledQuery>;
 
     /// Compile a LoadPlan into batch load statements
     fn compile_load(&self, plan: &LoadPlan) -> OxResult<Vec<String>>;
@@ -77,8 +103,12 @@ impl<T: GraphCompiler + ?Sized> GraphCompiler for std::sync::Arc<T> {
         T::compile_schema(self, ontology)
     }
 
-    fn compile_query(&self, query: &QueryIR) -> OxResult<CompiledQuery> {
-        T::compile_query(self, query)
+    fn compile_query(
+        &self,
+        query: &QueryIR,
+        ontology: Option<&OntologyIR>,
+    ) -> OxResult<CompiledQuery> {
+        T::compile_query(self, query, ontology)
     }
 
     fn compile_load(&self, plan: &LoadPlan) -> OxResult<Vec<String>> {

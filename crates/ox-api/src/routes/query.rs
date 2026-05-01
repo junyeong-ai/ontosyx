@@ -626,11 +626,16 @@ pub(crate) async fn execute_from_ir(
         None
     };
 
-    // Step 1: Compile QueryIR → target language
-    let compiled = state.compiler.compile_query(&req.query_ir).map_err(|e| {
-        error!("QueryIR compilation failed: {e}");
-        AppError::unprocessable(format!("QueryIR compilation failed: {e}"))
-    })?;
+    // Step 1: Compile QueryIR → target language. The compiler applies
+    // ConceptMap rewrite internally when an ontology is supplied;
+    // raw-QueryIR callers (no `ontology_id`) opt out by passing None.
+    let compiled = state
+        .compiler
+        .compile_query(&req.query_ir, ontology.as_deref())
+        .map_err(|e| {
+            error!("QueryIR compilation failed: {e}");
+            AppError::unprocessable(format!("QueryIR compilation failed: {e}"))
+        })?;
 
     // Pre-execute blocking gate on the compiled Cypher — even when
     // the IR was authored cleanly, the lowering may have introduced

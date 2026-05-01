@@ -29,28 +29,21 @@
 //! hashes for the same semantic IR and costs us at most a cache miss.
 //! The cost is a single re-compile, not a correctness bug.
 //!
-//! ## Invariant: compile_query is pure on QueryIR
+//! ## Invariant: cache key tracks every input compile_query consumes
 //!
-//! Caching by `QueryIR` alone is **only** safe because
-//! [`GraphCompiler::compile_query`] is a pure transform — same IR in,
-//! same `CompiledQuery` out, regardless of the active ontology. Every
-//! ontology-dependent step (concept-map literal substitution,
-//! auto-DISTINCT for fan-out joins, label / property rename across a
-//! temporal pivot) is structured as a **pre-pass that mutates the
-//! IR upstream of this cache** — `rewrite_concept_map_values`,
-//! `rewrite_auto_distinct`, `rewrite_temporal_with_renames`. Different
-//! ontologies feed different pre-pass output, which feed different
-//! cache keys. The cache never sees ontology state directly.
+//! `compile_query` reads two inputs — the [`QueryIR`] and the active
+//! [`OntologyIR`] (the latter drives concept-map literal substitution,
+//! auto-DISTINCT shape decisions, and label / property rewrites). The
+//! cache key folds both: `serde_json::to_string(query_ir)` plus the
+//! ontology's `(id, version.number)`, with `None` (raw-QueryIR
+//! callers) reserved as its own keyspace. Different ontologies hash
+//! to different keys; same ontology re-runs hit the cache.
 //!
-//! **If you add an ontology-dependent step inside `compile_query`,
-//! you break this invariant** and the cache will silently return
-//! stale Cypher when the ontology changes. The fix is *not* to mix
-//! ontology-derived state into the key here — that punishes every
-//! caller. Instead, factor the new step into a pre-pass like the
-//! ones above, or change the trait signature so the ontology becomes
-//! an explicit `compile_query` parameter and update the key
-//! accordingly. ADR-0030 (rejected: invariant-by-architecture, not
-//! key-padding).
+//! **If you add a third input that affects the compile output —
+//! workspace context, dialect feature flag, anything — fold its
+//! identity into [`PlanCache::key`].** Anything `compile_query` reads
+//! must contribute to the key, otherwise the cache silently serves
+//! stale plans when that input changes.
 //!
 //! # Observability
 //!
@@ -193,14 +186,30 @@ where
         self.cache.clear();
     }
 
-    fn key(query: &QueryIR) -> Option<u64> {
+    fn key(query: &QueryIR, ontology: Option<&OntologyIR>) -> Option<u64> {
         // JSON round-trip is the one serialization that every IR type
         // already supports. A fallible map lets a caller with an
         // unserializable QueryIR (none today) still compile via the
         // cache-miss path instead of panicking.
+        //
+        // Ontology identity (`id` + `version.number`) joins the key so
+        // a cached plan from one ontology snapshot is never replayed
+        // against a different snapshot — concept-map bindings change
+        // with the ontology, and a plan compiled against the old
+        // mapping would emit literal codes the new mapping does not
+        // accept. `None` (raw-QueryIR caller) is its own keyspace so
+        // raw and ontology-bound compiles never share a cached plan.
         let json = serde_json::to_string(query).ok()?;
         let mut hasher = DefaultHasher::new();
         json.hash(&mut hasher);
+        match ontology {
+            Some(ont) => {
+                "ontology".hash(&mut hasher);
+                ont.id.hash(&mut hasher);
+                ont.version.number.hash(&mut hasher);
+            }
+            None => "raw".hash(&mut hasher),
+        }
         Some(hasher.finish())
     }
 
@@ -241,16 +250,20 @@ where
         self.inner.compile_schema(ontology)
     }
 
-    fn compile_query(&self, query: &QueryIR) -> OxResult<CompiledQuery> {
+    fn compile_query(
+        &self,
+        query: &QueryIR,
+        ontology: Option<&OntologyIR>,
+    ) -> OxResult<CompiledQuery> {
         if self.capacity == 0 {
             self.misses.fetch_add(1, Ordering::Relaxed);
-            return self.inner.compile_query(query);
+            return self.inner.compile_query(query, ontology);
         }
 
-        let Some(key) = Self::key(query) else {
+        let Some(key) = Self::key(query, ontology) else {
             // Unserializable IR — bypass the cache entirely.
             self.misses.fetch_add(1, Ordering::Relaxed);
-            return self.inner.compile_query(query);
+            return self.inner.compile_query(query, ontology);
         };
 
         if let Some(entry) = self.cache.get(&key) {
@@ -259,7 +272,7 @@ where
         }
 
         self.misses.fetch_add(1, Ordering::Relaxed);
-        let compiled = self.inner.compile_query(query)?;
+        let compiled = self.inner.compile_query(query, ontology)?;
         let seq = self.sequence.fetch_add(1, Ordering::Relaxed);
         self.cache.insert(
             key,
@@ -332,8 +345,8 @@ mod tests {
         let cache = PlanCache::new(CypherCompiler::neo4j(), 16);
         let q = simple_query("Person");
 
-        let a = cache.compile_query(&q).expect("compile");
-        let b = cache.compile_query(&q).expect("compile");
+        let a = cache.compile_query(&q, None).expect("compile");
+        let b = cache.compile_query(&q, None).expect("compile");
         assert_eq!(a.statement, b.statement);
 
         let stats = cache.stats();
@@ -345,9 +358,9 @@ mod tests {
     #[test]
     fn distinct_irs_produce_distinct_entries() {
         let cache = PlanCache::new(CypherCompiler::neo4j(), 16);
-        cache.compile_query(&simple_query("Person")).expect("c1");
-        cache.compile_query(&simple_query("Company")).expect("c2");
-        cache.compile_query(&simple_query("Person")).expect("c3");
+        cache.compile_query(&simple_query("Person"), None).expect("c1");
+        cache.compile_query(&simple_query("Company"), None).expect("c2");
+        cache.compile_query(&simple_query("Person"), None).expect("c3");
 
         let stats = cache.stats();
         assert_eq!(stats.entries, 2, "two distinct IRs → two entries");
@@ -358,8 +371,8 @@ mod tests {
     #[test]
     fn capacity_zero_disables_caching() {
         let cache = PlanCache::new(CypherCompiler::neo4j(), 0);
-        cache.compile_query(&simple_query("Person")).expect("ok");
-        cache.compile_query(&simple_query("Person")).expect("ok");
+        cache.compile_query(&simple_query("Person"), None).expect("ok");
+        cache.compile_query(&simple_query("Person"), None).expect("ok");
         let stats = cache.stats();
         assert_eq!(stats.hits, 0, "capacity=0 never hits");
         assert_eq!(stats.misses, 2);
@@ -395,7 +408,7 @@ mod tests {
                 18 => "L18",
                 _ => "L19",
             };
-            cache.compile_query(&simple_query(label)).expect("compile");
+            cache.compile_query(&simple_query(label), None).expect("compile");
         }
 
         let stats = cache.stats();
@@ -410,8 +423,8 @@ mod tests {
     #[test]
     fn invalidate_all_clears_entries_but_keeps_counters() {
         let cache = PlanCache::new(CypherCompiler::neo4j(), 16);
-        cache.compile_query(&simple_query("Person")).expect("c1");
-        cache.compile_query(&simple_query("Person")).expect("c2");
+        cache.compile_query(&simple_query("Person"), None).expect("c1");
+        cache.compile_query(&simple_query("Person"), None).expect("c2");
         let before = cache.stats();
         cache.invalidate_all();
         let after = cache.stats();
@@ -429,11 +442,97 @@ mod tests {
     #[test]
     fn hit_rate_reflects_traffic() {
         let cache = PlanCache::new(CypherCompiler::neo4j(), 16);
-        cache.compile_query(&simple_query("Person")).expect("c1");
-        cache.compile_query(&simple_query("Person")).expect("c2");
-        cache.compile_query(&simple_query("Person")).expect("c3");
+        cache.compile_query(&simple_query("Person"), None).expect("c1");
+        cache.compile_query(&simple_query("Person"), None).expect("c2");
+        cache.compile_query(&simple_query("Person"), None).expect("c3");
         // 1 miss, 2 hits → 0.667 rate
         let rate = cache.stats().hit_rate().expect("rate available");
         assert!((rate - 2.0 / 3.0).abs() < 1e-9, "hit_rate = {rate}");
+    }
+
+    fn empty_ontology(id: &str, version: u32) -> ox_ontology::ir::OntologyIR {
+        ox_ontology::ir::OntologyIR::new(
+            id.to_string(),
+            id.to_string(),
+            ox_core::i18n::LocalizedText::default(),
+            version,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        )
+    }
+
+    #[test]
+    fn same_query_under_different_ontology_misses() {
+        // Two different ontologies (or two versions of the same one)
+        // must never share a cached plan — the rewrite output depends
+        // on the active concept-map registry, and a cache hit across
+        // ontologies would silently serve a plan compiled against the
+        // wrong vocabulary.
+        let cache = PlanCache::new(CypherCompiler::neo4j(), 16);
+        let q = simple_query("Person");
+        let ont_a = empty_ontology("ont-a", 1);
+        let ont_b = empty_ontology("ont-b", 1);
+
+        cache.compile_query(&q, Some(&ont_a)).expect("a");
+        cache.compile_query(&q, Some(&ont_b)).expect("b");
+
+        let stats = cache.stats();
+        assert_eq!(stats.entries, 2, "different ontologies → distinct cache entries");
+        assert_eq!(stats.misses, 2);
+        assert_eq!(stats.hits, 0);
+    }
+
+    #[test]
+    fn same_query_same_ontology_hits() {
+        let cache = PlanCache::new(CypherCompiler::neo4j(), 16);
+        let q = simple_query("Person");
+        let ont = empty_ontology("ont-a", 1);
+
+        cache.compile_query(&q, Some(&ont)).expect("first");
+        cache.compile_query(&q, Some(&ont)).expect("second");
+
+        let stats = cache.stats();
+        assert_eq!(stats.entries, 1);
+        assert_eq!(stats.hits, 1, "second call against the same ontology must hit");
+        assert_eq!(stats.misses, 1);
+    }
+
+    #[test]
+    fn ontology_version_bump_invalidates_cache() {
+        // Same ontology id but a new version — concept maps may have
+        // changed in the bump, so the cached plan from v1 must not
+        // serve a v2 caller.
+        let cache = PlanCache::new(CypherCompiler::neo4j(), 16);
+        let q = simple_query("Person");
+        let v1 = empty_ontology("ont-a", 1);
+        let v2 = empty_ontology("ont-a", 2);
+
+        cache.compile_query(&q, Some(&v1)).expect("v1");
+        cache.compile_query(&q, Some(&v2)).expect("v2");
+
+        let stats = cache.stats();
+        assert_eq!(stats.entries, 2, "version bump → fresh cache entry");
+        assert_eq!(stats.misses, 2);
+        assert_eq!(stats.hits, 0);
+    }
+
+    #[test]
+    fn raw_and_ontology_callers_are_separate_keyspaces() {
+        // A raw-QueryIR caller (no ontology context) must never share
+        // a cached plan with an ontology-bound caller — otherwise an
+        // ontology-naive call could poison the cache for callers that
+        // expected the rewrite.
+        let cache = PlanCache::new(CypherCompiler::neo4j(), 16);
+        let q = simple_query("Person");
+        let ont = empty_ontology("ont-a", 1);
+
+        cache.compile_query(&q, None).expect("raw");
+        cache.compile_query(&q, Some(&ont)).expect("with ontology");
+
+        let stats = cache.stats();
+        assert_eq!(stats.entries, 2);
+        assert_eq!(stats.hits, 0);
+        assert_eq!(stats.misses, 2);
     }
 }

@@ -616,10 +616,14 @@ impl OntosyxMcpServer {
             ));
         }
 
-        // Compile QueryIR -> target language
-        let compiled = self.compiler.compile_query(&query_ir).map_err(|e| {
-            McpError::internal_error(format!("Query compilation failed: {e}"), None)
-        })?;
+        // Compile QueryIR -> target language. The compiler applies
+        // ConceptMap rewrite internally against the active ontology.
+        let compiled = self
+            .compiler
+            .compile_query(&query_ir, Some(&ontology))
+            .map_err(|e| {
+                McpError::internal_error(format!("Query compilation failed: {e}"), None)
+            })?;
 
         // Execute query
         let runtime = self.runtime.as_ref().ok_or_else(|| {

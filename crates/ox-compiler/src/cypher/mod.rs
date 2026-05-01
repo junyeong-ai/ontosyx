@@ -15,6 +15,9 @@ use ox_ontology::load_plan::{LoadPlan, LoadStep};
 use ox_ontology::ir::OntologyIR;
 use ox_query_ir::query::QueryIR;
 
+use crate::concept_map_rewrite::{
+    build_translation_table_for_query, rewrite_concept_map_values,
+};
 use crate::{CompiledQuery, GraphCompiler};
 
 use expr::compile_order_by;
@@ -113,7 +116,11 @@ impl GraphCompiler for CypherCompiler {
         Ok(statements)
     }
 
-    fn compile_query(&self, query: &QueryIR) -> OxResult<CompiledQuery> {
+    fn compile_query(
+        &self,
+        query: &QueryIR,
+        ontology: Option<&OntologyIR>,
+    ) -> OxResult<CompiledQuery> {
         // Phase 2-2 foundation: the IR now carries a temporal AS-OF field
         // but the Cypher emitter has no snapshot-resolution path yet. Fail
         // loudly with a clear message rather than silently ignore the
@@ -129,27 +136,55 @@ impl GraphCompiler for CypherCompiler {
             });
         }
 
+        // Concept-map rewrite — translates literal codes onto the
+        // binding's canonical vocabulary before emission. Runs once
+        // per compile here so every backend (and every call site —
+        // agent tool, direct API, MCP, dashboards, federation) gets
+        // the same safety net without re-implementing the funnel.
+        // Short-circuits cleanly when the ontology carries no concept
+        // maps, or when the caller explicitly opts out of rewrite by
+        // passing `None` (raw QueryIR with no semantic context).
+        let (rewritten_query, concept_map_report) = match ontology {
+            Some(ont) => {
+                let translation_table = build_translation_table_for_query(query, ont);
+                if translation_table.is_empty() {
+                    (query.clone(), Default::default())
+                } else {
+                    let (q, report) =
+                        rewrite_concept_map_values(query.clone(), &translation_table);
+                    tracing::debug!(
+                        fired = report.translations.len(),
+                        untranslated = report.untranslated.len(),
+                        "ConceptMap rewrite applied"
+                    );
+                    (q, report)
+                }
+            }
+            None => (query.clone(), Default::default()),
+        };
+
         let mut parts = Vec::new();
         let mut collector = ParamCollector::new(self.dialect);
 
-        compile_op(&query.operation, &mut parts, &mut collector)?;
+        compile_op(&rewritten_query.operation, &mut parts, &mut collector)?;
 
-        if !query.order_by.is_empty() {
-            parts.push(compile_order_by(&query.order_by, &mut collector)?);
+        if !rewritten_query.order_by.is_empty() {
+            parts.push(compile_order_by(&rewritten_query.order_by, &mut collector)?);
         }
 
         // SKIP/LIMIT stay inline (integers, safe for query plan caching)
-        if let Some(skip) = query.skip {
+        if let Some(skip) = rewritten_query.skip {
             parts.push(format!("SKIP {skip}"));
         }
 
-        if let Some(limit) = query.limit {
+        if let Some(limit) = rewritten_query.limit {
             parts.push(format!("LIMIT {limit}"));
         }
 
         Ok(CompiledQuery {
             statement: parts.join("\n"),
             params: collector.into_map(),
+            concept_map_report,
         })
     }
 

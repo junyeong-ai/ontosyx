@@ -70,7 +70,7 @@ fn test_compile_simple_match() {
         as_of: None,
     };
 
-    let compiled = compiler.compile_query(&query).unwrap();
+    let compiled = compiler.compile_query(&query, None).unwrap();
     let result = &compiled.statement;
     assert!(result.contains("MATCH (n:`Product`)"));
     // Value 1000 should be parameterized
@@ -116,7 +116,7 @@ fn test_compile_relationship_pattern() {
         as_of: None,
     };
 
-    let compiled = compiler.compile_query(&query).unwrap();
+    let compiled = compiler.compile_query(&query, None).unwrap();
     assert!(compiled.statement.contains("(c)-[r:`PURCHASED`]->(p)"));
     assert!(compiled.params.is_empty());
 }
@@ -293,7 +293,7 @@ fn test_korean_ontology_match_query_escapes_labels() {
         as_of: None,
     };
 
-    let compiled = compiler.compile_query(&query).unwrap();
+    let compiled = compiler.compile_query(&query, None).unwrap();
     let stmt = &compiled.statement;
 
     assert!(stmt.contains("(c:`고객`)"), "got: {stmt}");
@@ -384,7 +384,7 @@ fn test_compile_merge_node() {
         as_of: None,
     };
 
-    let compiled = compiler.compile_query(&query).unwrap();
+    let compiled = compiler.compile_query(&query, None).unwrap();
     let result = &compiled.statement;
     // String values should be parameterized
     assert!(
@@ -494,7 +494,7 @@ fn test_parameterization_string_values() {
         as_of: None,
     };
 
-    let compiled = compiler.compile_query(&query).unwrap();
+    let compiled = compiler.compile_query(&query, None).unwrap();
     // String values must become $pN params, never inline quotes
     assert!(
         compiled.statement.contains("$p0"),
@@ -556,7 +556,7 @@ fn test_parameterization_in_clause() {
         as_of: None,
     };
 
-    let compiled = compiler.compile_query(&query).unwrap();
+    let compiled = compiler.compile_query(&query, None).unwrap();
     // All three IN-clause values must be parameterized
     assert!(
         compiled.statement.contains("$p0"),
@@ -624,7 +624,7 @@ fn test_parameterization_null_stays_inline() {
         as_of: None,
     };
 
-    let compiled = compiler.compile_query(&query).unwrap();
+    let compiled = compiler.compile_query(&query, None).unwrap();
     // Null must stay inline as the `null` keyword, not parameterized
     assert!(
         compiled.statement.contains("null"),
@@ -669,7 +669,7 @@ fn test_parameterization_date_values() {
         as_of: None,
     };
 
-    let compiled = compiler.compile_query(&query).unwrap();
+    let compiled = compiler.compile_query(&query, None).unwrap();
     // Date values must be inline Cypher function calls (not parameterized)
     assert!(
         compiled.statement.contains("date('2025-06-15')"),
@@ -730,7 +730,7 @@ fn test_compile_aggregate_query() {
         as_of: None,
     };
 
-    let compiled = compiler.compile_query(&query).unwrap();
+    let compiled = compiler.compile_query(&query, None).unwrap();
     let stmt = &compiled.statement;
     assert!(stmt.contains("MATCH (o:`Order`)"), "got: {stmt}");
     assert!(stmt.contains("count(o) AS total"), "got: {stmt}");
@@ -800,7 +800,7 @@ fn test_compile_union_query() {
         as_of: None,
     };
 
-    let compiled = compiler.compile_query(&union_query).unwrap();
+    let compiled = compiler.compile_query(&union_query, None).unwrap();
     let stmt = &compiled.statement;
     assert!(stmt.contains("UNION ALL"), "got: {stmt}");
     assert!(stmt.contains("MATCH (n:`Person`)"), "got: {stmt}");
@@ -869,7 +869,7 @@ fn test_compile_chain_with_pass_through() {
         as_of: None,
     };
 
-    let compiled = compiler.compile_query(&query).unwrap();
+    let compiled = compiler.compile_query(&query, None).unwrap();
     let stmt = &compiled.statement;
     assert!(stmt.contains("WITH c"), "WITH clause expected: {stmt}");
     assert!(stmt.contains("MATCH (c:`Customer`)"), "got: {stmt}");
@@ -1080,7 +1080,7 @@ fn test_call_subquery_compilation() {
         as_of: None,
     };
 
-    let compiled = compiler.compile_query(&query).unwrap();
+    let compiled = compiler.compile_query(&query, None).unwrap();
     let stmt = &compiled.statement;
     assert!(stmt.contains("CALL {"), "should contain CALL block: {stmt}");
     assert!(stmt.contains("WITH n"), "should import n: {stmt}");
@@ -1152,7 +1152,7 @@ fn test_subquery_expr_count() {
         as_of: None,
     };
 
-    let compiled = compiler.compile_query(&query).unwrap();
+    let compiled = compiler.compile_query(&query, None).unwrap();
     let stmt = &compiled.statement;
     assert!(
         stmt.contains("COUNT {"),
@@ -1206,7 +1206,7 @@ fn test_call_subquery_standalone() {
         as_of: None,
     };
 
-    let compiled = compiler.compile_query(&query).unwrap();
+    let compiled = compiler.compile_query(&query, None).unwrap();
     let stmt = &compiled.statement;
     assert!(stmt.contains("CALL {"), "should contain CALL block: {stmt}");
     assert!(
@@ -1265,7 +1265,7 @@ fn test_collect_list_aggregation() {
         as_of: None,
     };
 
-    let compiled = compiler.compile_query(&query).unwrap();
+    let compiled = compiler.compile_query(&query, None).unwrap();
     let stmt = &compiled.statement;
     assert!(
         stmt.contains("collect(t.`name`) AS tags"),
@@ -1314,7 +1314,7 @@ fn test_compile_shortest_path() {
         as_of: None,
     };
 
-    let compiled = compiler.compile_query(&query).unwrap();
+    let compiled = compiler.compile_query(&query, None).unwrap();
     assert!(
         compiled.statement.contains("shortestPath("),
         "got: {}",
@@ -1356,7 +1356,7 @@ fn test_compile_all_shortest_paths() {
         as_of: None,
     };
 
-    let compiled = compiler.compile_query(&query).unwrap();
+    let compiled = compiler.compile_query(&query, None).unwrap();
     assert!(
         compiled.statement.contains("allShortestPaths("),
         "got: {}",
@@ -1401,7 +1401,7 @@ fn test_compile_all_paths_variable_length() {
         as_of: None,
     };
 
-    let compiled = compiler.compile_query(&query).unwrap();
+    let compiled = compiler.compile_query(&query, None).unwrap();
     // AllPaths should NOT use shortestPath/allShortestPaths functions
     assert!(
         !compiled.statement.contains("shortestPath"),
@@ -1472,7 +1472,7 @@ fn test_compile_case_expression() {
         as_of: None,
     };
 
-    let compiled = compiler.compile_query(&query).unwrap();
+    let compiled = compiler.compile_query(&query, None).unwrap();
     assert!(compiled.statement.contains("CASE"));
     assert!(compiled.statement.contains("WHEN"));
     assert!(compiled.statement.contains("THEN"));
@@ -1712,7 +1712,7 @@ fn temporal_as_of_is_rejected_with_compilation_error() {
         ),
     };
 
-    let err = compiler.compile_query(&query).unwrap_err();
+    let err = compiler.compile_query(&query, None).unwrap_err();
     let msg = format!("{err}");
     assert!(
         msg.contains("temporal") && msg.contains("not yet supported"),
@@ -1746,7 +1746,7 @@ fn temporal_as_of_none_compiles_normally() {
     };
     // Absence of as_of is the existing hot path; this test pins the
     // additive field's backwards compatibility.
-    let compiled = compiler.compile_query(&query).expect("compile");
+    let compiled = compiler.compile_query(&query, None).expect("compile");
     assert!(compiled.statement.contains("MATCH (p:`Person`)"));
 }
 
@@ -1810,7 +1810,7 @@ fn aggregate_with_having_emits_with_where_return() {
         as_of: None,
     };
 
-    let compiled = compiler.compile_query(&query).unwrap();
+    let compiled = compiler.compile_query(&query, None).unwrap();
     let stmt = &compiled.statement;
     // Verify the HAVING idiom: WITH alias, agg_alias / WHERE agg_alias > $p0 / RETURN alias, agg_alias
     assert!(
@@ -1874,7 +1874,7 @@ fn aggregate_without_having_preserves_existing_shape() {
         order_by: vec![],
         as_of: None,
     };
-    let stmt = compiler.compile_query(&query).unwrap().statement;
+    let stmt = compiler.compile_query(&query, None).unwrap().statement;
     // Without HAVING there's no intermediate WITH/WHERE — the compiler
     // emits a single RETURN with the projections inline.
     assert!(
@@ -1925,7 +1925,7 @@ fn named_param_compiles_to_dollar_name() {
         as_of: None,
     };
 
-    let compiled = compiler.compile_query(&query).unwrap();
+    let compiled = compiler.compile_query(&query, None).unwrap();
     assert!(
         compiled.statement.contains("$target_name"),
         "named param should emit as $name, got: {}",
@@ -1979,7 +1979,7 @@ fn named_param_rejects_injection_shaped_name() {
         as_of: None,
     };
 
-    let err = compiler.compile_query(&query).unwrap_err();
+    let err = compiler.compile_query(&query, None).unwrap_err();
     let msg = format!("{err:?}");
     assert!(
         msg.contains("is_valid_graph_identifier"),
@@ -2009,7 +2009,7 @@ fn memgraph_refuses_graph_analytics_at_compile_time() {
     };
 
     let err = compiler
-        .compile_query(&query)
+        .compile_query(&query, None)
         .expect_err("memgraph must not lower GDS procedures");
     let msg = format!("{err}");
     assert!(
@@ -2036,7 +2036,7 @@ fn neo4j_still_lowers_graph_analytics_unchanged() {
     };
 
     let compiled = compiler
-        .compile_query(&query)
+        .compile_query(&query, None)
         .expect("neo4j retains GDS lowering");
     assert!(compiled.statement.contains("gds.pageRank.stream"));
 }
@@ -2087,7 +2087,7 @@ fn memgraph_refuses_percentile_aggregation_at_compile_time() {
     };
 
     let err = compiler
-        .compile_query(&query)
+        .compile_query(&query, None)
         .expect_err("memgraph must not lower percentileCont");
     let msg = format!("{err}");
     assert!(
@@ -2142,7 +2142,7 @@ fn neo4j_lowers_percentile_aggregation_unchanged() {
     };
 
     let compiled = compiler
-        .compile_query(&query)
+        .compile_query(&query, None)
         .expect("neo4j retains percentile lowering");
     assert!(compiled.statement.contains("percentileCont"));
 }

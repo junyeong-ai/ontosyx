@@ -74,7 +74,7 @@ pub type TranslationTable<'a> =
 /// One translation that fired during a rewrite. Surfaces in the
 /// report so callers can trace "why did this literal become that
 /// one?" without re-walking the query themselves.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TranslationEvent {
     pub variable: String,
     pub property: String,
@@ -86,7 +86,7 @@ pub struct TranslationEvent {
 
 /// One literal the rewriter could **not** translate. The caller
 /// decides the policy: warn, drop, fail.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct UntranslatedLiteral {
     pub variable: String,
     pub property: String,
@@ -95,10 +95,24 @@ pub struct UntranslatedLiteral {
 }
 
 /// Report returned alongside the rewritten query.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct RewriteReport {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub translations: Vec<TranslationEvent>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub untranslated: Vec<UntranslatedLiteral>,
+}
+
+impl RewriteReport {
+    /// `true` when no translations fired and no untranslated literal
+    /// was reported. The compiler short-circuits the rewrite when the
+    /// translation table is empty, so the report stays empty for the
+    /// common no-concept-map case and serialises to `{}` (or omits
+    /// entirely on the `CompiledQuery` wire shape via
+    /// `skip_serializing_if`).
+    pub fn is_empty(&self) -> bool {
+        self.translations.is_empty() && self.untranslated.is_empty()
+    }
 }
 
 /// Rewrite `query` according to `translations`. Returns the
