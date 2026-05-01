@@ -211,7 +211,6 @@ export interface UpdateProjectDecisionsRequest {
 export interface DesignProjectRequest {
   revision: number;
   context?: string;
-  acknowledge_large_schema?: boolean;
 }
 
 export interface ReanalyzeProjectRequest {
