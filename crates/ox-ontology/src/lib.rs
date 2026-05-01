@@ -84,8 +84,7 @@ pub use action::{
     ActionDef, ActionId, ActionKind, ActionTarget, ApprovalPolicy, IdempotencyPolicy, RuleId,
 };
 pub use agent_view::{
-    AgentEdgeView, AgentGlossaryView, AgentInterfaceView, AgentNodeView, AgentOntologyView,
-    AgentPropertyView, AgentRuleView,
+    AgentEdgeView, AgentGlossaryView, AgentNodeView, AgentOntologyView, AgentPropertyView,
 };
 pub use audit::*;
 pub use binding::{BindingStrength, PropertyBinding, PropertyBindingHandle};
@@ -139,6 +138,11 @@ pub use mapping::{
     PropertyMappingDef, PropertyTransform, SourceId, SourceRelationKind, SourceRelationRef,
 };
 pub use metric::{MetricDef, MetricExpression, MetricId, MetricScope, TemporalGrain};
+pub use notation_inference::{
+    NotationInferencePolicy, NotationInferenceRejection, NotationInferenceReport,
+    NotationPatternProposal, NotationProposal, NotationSkip, propose_notation_pattern,
+    propose_notation_patterns,
+};
 pub use notation_pattern::{
     NotationComponent, NotationComponentKind, NotationError, NotationPatternDef,
     NotationPatternId, ParsedComponent, ParsedValue, RenderValue,

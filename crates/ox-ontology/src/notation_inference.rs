@@ -32,8 +32,9 @@
 //!   identifier is rare and ambiguous to parse. We only emit
 //!   FreeText for the trailing token when other tokens are typed.
 
-use ox_core::source_schema::ColumnStats;
+use ox_core::source_schema::{ColumnStats, SourceProfile, SourceSchema};
 
+use crate::mapping::ColumnRef;
 use crate::notation_pattern::{
     NotationComponent, NotationComponentKind, NotationPatternDef, NotationPatternId,
 };
@@ -216,6 +217,64 @@ pub fn propose_notation_pattern(
         examples,
         confidence: 1.0,
     })
+}
+
+// ---------------------------------------------------------------------------
+// Schema-walk wrapper
+// ---------------------------------------------------------------------------
+
+/// One column → notation pattern proposal in a schema-wide walk.
+#[derive(Debug, Clone)]
+pub struct NotationProposal {
+    pub column_ref: ColumnRef,
+    pub pattern: NotationPatternDef,
+    pub examples: Vec<String>,
+    pub confidence: f64,
+}
+
+/// Columns the policy considered but rejected, with the typed reason
+/// so the UI can explain why an expected column did not surface.
+#[derive(Debug, Clone)]
+pub struct NotationSkip {
+    pub column_ref: ColumnRef,
+    pub reason: NotationInferenceRejection,
+}
+
+/// Full result of one schema-walk inference pass.
+#[derive(Debug, Clone, Default)]
+pub struct NotationInferenceReport {
+    pub proposals: Vec<NotationProposal>,
+    pub skipped: Vec<NotationSkip>,
+}
+
+/// Walk every profiled column and run [`propose_notation_pattern`]
+/// against its sample slice. Pure function — same inputs always yield
+/// the same proposals.
+///
+/// `_schema` is accepted for symmetry with [`crate::propose_value_sets`]
+/// (callers send the same `(schema, profile)` pair) but is not consulted
+/// today: notation inference operates on the sample slice alone.
+pub fn propose_notation_patterns(
+    _schema: &SourceSchema,
+    profile: &SourceProfile,
+    policy: NotationInferencePolicy,
+) -> NotationInferenceReport {
+    let mut report = NotationInferenceReport::default();
+    for table_profile in &profile.table_profiles {
+        for stats in &table_profile.column_stats {
+            let column_ref = ColumnRef::new(&table_profile.table_name, &stats.column_name);
+            match propose_notation_pattern(stats, policy) {
+                Ok(proposal) => report.proposals.push(NotationProposal {
+                    column_ref,
+                    pattern: proposal.pattern,
+                    examples: proposal.examples,
+                    confidence: proposal.confidence,
+                }),
+                Err(reason) => report.skipped.push(NotationSkip { column_ref, reason }),
+            }
+        }
+    }
+    report
 }
 
 // ---------------------------------------------------------------------------
@@ -488,5 +547,87 @@ mod tests {
         // alphanumeric). So Unstructured fires.
         let err = propose_notation_pattern(&s, Default::default()).unwrap_err();
         assert!(matches!(err, NotationInferenceRejection::Unstructured));
+    }
+
+    // ---------- Schema-walk wrapper ----------
+
+    fn schema_with_tables(tables: &[&str]) -> SourceSchema {
+        SourceSchema {
+            source_type: "test".into(),
+            tables: tables
+                .iter()
+                .map(|name| ox_core::source_schema::SourceTableDef {
+                    name: (*name).into(),
+                    columns: vec![],
+                    primary_key: vec![],
+                })
+                .collect(),
+            foreign_keys: vec![],
+        }
+    }
+
+    fn profile_with_columns(rows: Vec<(&str, &str, &[&str])>) -> SourceProfile {
+        use std::collections::BTreeMap;
+        let mut grouped: BTreeMap<String, Vec<ColumnStats>> = BTreeMap::new();
+        for (table, column, samples) in rows {
+            let mut s = stats(samples);
+            s.column_name = column.into();
+            grouped.entry(table.into()).or_default().push(s);
+        }
+        SourceProfile {
+            table_profiles: grouped
+                .into_iter()
+                .map(|(table_name, column_stats)| ox_core::source_schema::TableProfile {
+                    table_name,
+                    row_count: 100,
+                    column_stats,
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn schema_walk_partitions_proposals_and_rejections() {
+        let schema = schema_with_tables(&["orders", "customers"]);
+        let profile = profile_with_columns(vec![
+            ("orders", "invoice_no", &["INV-2025-001", "INV-2025-002", "INV-2024-099"]),
+            ("orders", "status", &["pending", "shipped", "returned"]),
+            ("customers", "tier", &["a", "b"]),
+        ]);
+        let report =
+            propose_notation_patterns(&schema, &profile, NotationInferencePolicy::default());
+
+        assert_eq!(report.proposals.len(), 1, "only invoice_no consensuses");
+        let proposal = &report.proposals[0];
+        assert_eq!(proposal.column_ref.relation, "orders");
+        assert_eq!(proposal.column_ref.column, "invoice_no");
+        assert_eq!(proposal.confidence, 1.0);
+
+        // status is single-token (Unstructured); tier is too few samples.
+        assert_eq!(report.skipped.len(), 2);
+        let rejections: Vec<&NotationInferenceRejection> =
+            report.skipped.iter().map(|s| &s.reason).collect();
+        assert!(
+            rejections
+                .iter()
+                .any(|r| matches!(r, NotationInferenceRejection::Unstructured))
+        );
+        assert!(
+            rejections
+                .iter()
+                .any(|r| matches!(r, NotationInferenceRejection::InsufficientSamples { .. }))
+        );
+    }
+
+    #[test]
+    fn schema_walk_empty_profile_yields_empty_report() {
+        let schema = schema_with_tables(&[]);
+        let profile = SourceProfile {
+            table_profiles: vec![],
+        };
+        let report =
+            propose_notation_patterns(&schema, &profile, NotationInferencePolicy::default());
+        assert!(report.proposals.is_empty());
+        assert!(report.skipped.is_empty());
     }
 }

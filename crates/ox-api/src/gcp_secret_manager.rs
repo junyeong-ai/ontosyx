@@ -45,7 +45,7 @@ use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use base64::Engine as _;
-use ox_gcp::auth::{self, GcpAuthenticator};
+use ox_source::gcp_auth::{self, GcpAuthenticator};
 use serde::Deserialize;
 use tokio::sync::Mutex;
 

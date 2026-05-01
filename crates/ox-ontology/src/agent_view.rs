@@ -31,21 +31,16 @@
 //! and empty fields so the JSON payload is dense — no
 //! `"description": null` placeholders, no `"aliases": []` noise.
 
-use std::collections::HashSet;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use ox_core::i18n::{LanguageTag, LocalizedText};
+use ox_core::i18n::LanguageTag;
 
-use crate::action::RuleId;
 use crate::binding::{BindingStrength, PropertyBinding};
-use crate::glossary::{GlossaryTermDef, GlossaryTermId};
-use crate::interface::{InterfaceDef, InterfaceId};
+use crate::glossary::GlossaryTermDef;
 use crate::ir::{EdgeTypeDef, NodeTypeDef, OntologyIR, PropertyDef};
-use crate::notation_pattern::{NotationPatternDef, NotationPatternId};
-use crate::rule::{ConstraintTarget, RuleDef, RuleKind, ShaclConstraint};
-use crate::value_set::{expand_value_set, ValueSetDef, ValueSetId};
+use crate::notation_pattern::NotationPatternDef;
+use crate::value_set::{expand_value_set, ValueSetDef};
 
 // ---------------------------------------------------------------------------
 // Tunables
@@ -54,9 +49,7 @@ use crate::value_set::{expand_value_set, ValueSetDef, ValueSetId};
 /// Cap on how many enum values are flattened into
 /// [`AgentPropertyView::allowed_values`]. A value-set with thousands
 /// of codes (ISO country, ICD diagnosis) would dominate the prompt
-/// otherwise; the model sees the first slice and a hint that more
-/// exist via the catalogued semantics of `value set` constraints
-/// in the rule list.
+/// otherwise; the model sees the first slice.
 const MAX_INLINE_ALLOWED_VALUES: usize = 50;
 
 /// Cap on aliases / related terms surfaced per glossary term so a
@@ -77,11 +70,7 @@ pub struct AgentOntologyView {
     pub node_types: Vec<AgentNodeView>,
     pub edge_types: Vec<AgentEdgeView>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub interfaces: Vec<AgentInterfaceView>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub glossary: Vec<AgentGlossaryView>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub rules: Vec<AgentRuleView>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -143,16 +132,6 @@ pub struct AgentPropertyView {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct AgentInterfaceView {
-    pub id: String,
-    pub label: String,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub required_properties: Vec<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub required_edges: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AgentGlossaryView {
     pub term: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -161,19 +140,6 @@ pub struct AgentGlossaryView {
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub aliases: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct AgentRuleView {
-    pub id: String,
-    /// `node:<label>` / `edge:<label>` / `property:<node>.<prop>` /
-    /// `cross_entity` / `state_machine` — the addressable surface
-    /// of the rule.
-    pub target: String,
-    pub severity: String,
-    /// One human-readable summary per [`ShaclConstraint`] in the
-    /// rule, in declaration order.
-    pub constraints: Vec<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -201,20 +167,10 @@ impl OntologyIR {
                 .filter(|e| e.deprecated_at.is_none())
                 .map(|e| edge_to_view(e, self, locale_chain))
                 .collect(),
-            interfaces: self
-                .interfaces
-                .iter()
-                .map(|i| interface_to_view(i, self))
-                .collect(),
             glossary: self
                 .glossary
                 .iter()
                 .map(|g| glossary_to_view(g, locale_chain))
-                .collect(),
-            rules: self
-                .rules
-                .iter()
-                .map(|r| rule_to_view(r, self, locale_chain))
                 .collect(),
         }
     }
@@ -299,23 +255,6 @@ fn property_to_view(
     }
 }
 
-fn interface_to_view(iface: &InterfaceDef, _ontology: &OntologyIR) -> AgentInterfaceView {
-    AgentInterfaceView {
-        id: iface.id.as_str().to_string(),
-        label: iface.label.as_str().to_string(),
-        required_properties: iface
-            .required_properties
-            .iter()
-            .map(|p| p.name.as_str().to_string())
-            .collect(),
-        required_edges: iface
-            .required_edges
-            .iter()
-            .map(|req| req.label.as_str().to_string())
-            .collect(),
-    }
-}
-
 fn glossary_to_view(
     term: &GlossaryTermDef,
     locale_chain: &[LanguageTag],
@@ -330,23 +269,6 @@ fn glossary_to_view(
             .map(|alias| alias.resolve(locale_chain).to_string())
             .filter(|s| !s.is_empty())
             .take(MAX_GLOSSARY_ALIASES)
-            .collect(),
-    }
-}
-
-fn rule_to_view(
-    rule: &RuleDef,
-    ontology: &OntologyIR,
-    locale_chain: &[LanguageTag],
-) -> AgentRuleView {
-    AgentRuleView {
-        id: rule.id.as_str().to_string(),
-        target: rule_target(rule, ontology),
-        severity: format!("{:?}", rule.severity),
-        constraints: rule
-            .constraints
-            .iter()
-            .map(|c| constraint_summary(c, ontology, locale_chain))
             .collect(),
     }
 }
@@ -409,89 +331,6 @@ fn collect_glossary_term(
 }
 
 // ---------------------------------------------------------------------------
-// Rule rendering
-// ---------------------------------------------------------------------------
-
-fn rule_target(rule: &RuleDef, ontology: &OntologyIR) -> String {
-    match &rule.kind {
-        RuleKind::NodeShape { target_node_type_id } => ontology
-            .node_by_id(target_node_type_id.as_str())
-            .map(|n| format!("node:{}", n.label))
-            .unwrap_or_else(|| format!("node:{target_node_type_id}")),
-        RuleKind::PropertyShape {
-            target_node_type_id,
-            target_property_id,
-        } => {
-            let node = ontology.node_by_id(target_node_type_id.as_str());
-            let node_label = node
-                .map(|n| n.label.as_str())
-                .unwrap_or(target_node_type_id.as_str());
-            let prop_name = node
-                .and_then(|n| n.properties.iter().find(|p| p.id == *target_property_id))
-                .map(|p| p.name.as_str())
-                .unwrap_or(target_property_id.as_str());
-            format!("property:{node_label}.{prop_name}")
-        }
-        RuleKind::EdgeShape { target_edge_type_id } => ontology
-            .edge_by_id(target_edge_type_id.as_str())
-            .map(|e| format!("edge:{}", e.label))
-            .unwrap_or_else(|| format!("edge:{target_edge_type_id}")),
-        RuleKind::CrossEntityShape { .. } => "cross_entity".to_string(),
-        RuleKind::StateMachine { .. } => "state_machine".to_string(),
-    }
-}
-
-fn constraint_summary(
-    c: &ShaclConstraint,
-    ontology: &OntologyIR,
-    locale_chain: &[LanguageTag],
-) -> String {
-    match c {
-        ShaclConstraint::MinCount { min, .. } => format!("minCount = {min}"),
-        ShaclConstraint::MaxCount { max, .. } => format!("maxCount = {max}"),
-        ShaclConstraint::Datatype { expected, .. } => format!("datatype = {expected:?}"),
-        ShaclConstraint::MatchesPattern { notation_pattern_id, .. } => ontology
-            .notation_pattern_by_id(notation_pattern_id)
-            .map(|np| format!("matches `{}`", notation_pattern_summary(np)))
-            .unwrap_or_else(|| format!("matches `{notation_pattern_id}`")),
-        ShaclConstraint::InValueSet { value_set_id, .. } => {
-            let vs_label = ontology
-                .value_set_by_id(value_set_id)
-                .map(|vs| value_set_label(vs, locale_chain))
-                .unwrap_or_else(|| value_set_id.as_str().to_string());
-            format!("in `{vs_label}`")
-        }
-        ShaclConstraint::HasValue { value, .. } => format!("hasValue `{value}`"),
-        ShaclConstraint::MinInclusive { min, .. } => format!(">= {min}"),
-        ShaclConstraint::MaxInclusive { max, .. } => format!("<= {max}"),
-        ShaclConstraint::MinLength { min, .. } => format!("minLength = {min}"),
-        ShaclConstraint::MaxLength { max, .. } => format!("maxLength = {max}"),
-        ShaclConstraint::UniqueLang { .. } => "uniqueLang".to_string(),
-        ShaclConstraint::Closed { .. } => "closed shape".to_string(),
-        ShaclConstraint::Disjoint { .. } => "disjoint".to_string(),
-        ShaclConstraint::UniqueKey { property_keys, .. } => {
-            let keys: Vec<&str> = property_keys.iter().map(|k| k.as_str()).collect();
-            format!("uniqueKey ({})", keys.join(", "))
-        }
-        ShaclConstraint::LessThan { other_property, .. } => {
-            format!("< {}", other_property.as_str())
-        }
-        ShaclConstraint::Equals { other_property, .. } => {
-            format!("= {}", other_property.as_str())
-        }
-    }
-}
-
-fn value_set_label(vs: &ValueSetDef, locale_chain: &[LanguageTag]) -> String {
-    let display = vs.display_name.resolve(locale_chain);
-    if display.is_empty() {
-        vs.name.clone()
-    } else {
-        display.to_string()
-    }
-}
-
-// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -501,19 +340,6 @@ fn present(s: &str) -> Option<String> {
     } else {
         Some(s.to_string())
     }
-}
-
-// `unused` import guards — kept for forward compatibility.
-#[allow(dead_code)]
-fn _suppress_unused_imports(
-    _: HashSet<&LocalizedText>,
-    _: &RuleId,
-    _: &InterfaceId,
-    _: &ValueSetId,
-    _: &NotationPatternId,
-    _: &GlossaryTermId,
-    _: &ConstraintTarget,
-) {
 }
 
 // ---------------------------------------------------------------------------

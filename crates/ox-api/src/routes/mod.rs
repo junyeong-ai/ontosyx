@@ -165,6 +165,10 @@ pub fn router(state: AppState) -> Router {
             post(ontology::propose_ontology_value_sets),
         )
         .route(
+            "/ontologies/{id}/notation-patterns/propose",
+            post(ontology::propose_ontology_notation_patterns),
+        )
+        .route(
             "/ontologies/{id}/glossary/suggest-bindings",
             post(ontology::suggest_glossary_bindings),
         )

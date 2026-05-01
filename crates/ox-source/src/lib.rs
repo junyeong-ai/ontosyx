@@ -14,6 +14,7 @@ pub mod config;
 #[cfg(feature = "duckdb")]
 pub mod duckdb_source;
 pub mod fetcher;
+pub mod gcp_auth;
 pub mod kernel;
 pub mod mongodb;
 pub mod mysql;

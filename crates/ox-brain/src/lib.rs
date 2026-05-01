@@ -890,7 +890,7 @@ impl QueryTranslator for DefaultBrain {
         let query_ir = match self
             .call_structured::<ox_query_ir::StructuredMatchQuery>(
                 "translate_match_query",
-                Some("1.2.0"),
+                Some("1.3.0"),
                 "translate_match_query",
                 &vars,
                 "Translating to StructuredMatchQuery (structured output)",
@@ -918,7 +918,7 @@ impl QueryTranslator for DefaultBrain {
                 let result: OxResult<QueryIR> = self
                     .call_structured(
                         "translate_query",
-                        Some("1.1.0"),
+                        Some("1.2.0"),
                         "translate_query",
                         &vars,
                         "Translating to QueryIR (JSON mode fallback)",
@@ -944,7 +944,7 @@ impl QueryTranslator for DefaultBrain {
                         let retry_result = self
                             .call_structured::<QueryIR>(
                                 "translate_query",
-                                Some("1.1.0"),
+                                Some("1.2.0"),
                                 "translate_query",
                                 &vars,
                                 "Retrying query translation",
@@ -1001,7 +1001,7 @@ impl QueryTranslator for DefaultBrain {
                 let retry: OxResult<QueryIR> = self
                     .call_structured(
                         "translate_query",
-                        Some("1.1.0"),
+                        Some("1.2.0"),
                         "translate_query",
                         &retry_vars,
                         "Retrying query translation with label correction",

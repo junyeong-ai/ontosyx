@@ -12,7 +12,6 @@ members = [
     "crates/ox-store",
     "crates/ox-source",
     "crates/ox-federation",
-    "crates/ox-gcp",
 ]
 resolver = "3"
 
@@ -68,7 +67,6 @@ ox-memory = { path = "crates/ox-memory" }
 ox-federation = { path = "crates/ox-federation" }
 ox-ontology = { path = "crates/ox-ontology" }
 ox-query-ir = { path = "crates/ox-query-ir" }
-ox-gcp = { path = "crates/ox-gcp" }
 
 # LLM runtime
 branchforge = { version = "0.9", default-features = false }
@@ -116,10 +114,10 @@ datafusion = "49"
 # BigQuery client — Application Default Credentials first, service-account
 # JSON file fallback. Default features use rustls.
 gcp-bigquery-client = "0.22"
-# OAuth2 / ADC token source — used by the optional `gcp-sm` feature in
-# ox-api to mint Secret Manager access tokens. Same library
-# `gcp-bigquery-client` uses internally, so the workspace pulls one
-# version regardless of whether `gcp-sm` is enabled.
+# OAuth2 / ADC token source — used by ox-source's `gcp_auth` module for the
+# BigQuery adapter and (under the `gcp-sm` feature) ox-api's Secret Manager
+# resolver. Same library `gcp-bigquery-client` uses internally, so the
+# workspace pulls one version regardless of feature flags.
 yup-oauth2 = "11"
 # hyper connector type — `Authenticator<HttpsConnector<HttpConnector>>`
 # needs `HttpConnector` from `hyper-util` (yup-oauth2 11 re-exports

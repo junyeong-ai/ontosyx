@@ -16,6 +16,7 @@ mod dependencies;
 mod edits;
 mod exchange;
 mod map_summary;
+mod notation_patterns;
 mod routing;
 mod schema_ops;
 mod type_candidates;
@@ -44,6 +45,7 @@ pub(crate) use schema_ops::{
 pub(crate) use binding_suggestions::{
     suggest_glossary_bindings, suggest_glossary_terms_for_property,
 };
+pub(crate) use notation_patterns::propose_ontology_notation_patterns;
 pub(crate) use value_sets::propose_ontology_value_sets;
 pub(crate) use verifications::{delete_verification, list_verifications, verify_element};
 
@@ -60,6 +62,7 @@ pub use create::__path_create_ontology;
 pub use dependencies::__path_get_ontology_dependencies;
 pub use validate::__path_get_ontology_validate;
 pub use edits::__path_apply_ontology_edits;
+pub use notation_patterns::__path_propose_ontology_notation_patterns;
 pub use value_sets::__path_propose_ontology_value_sets;
 pub use binding_suggestions::{
     __path_suggest_glossary_bindings, __path_suggest_glossary_terms_for_property,
@@ -80,6 +83,10 @@ pub use exchange::ImportOntologyRequest;
 pub use value_sets::{
     EvidenceBody, ProposalBody, ProposePolicyBody, ProposeValueSetsRequest,
     ProposeValueSetsResponse, SkipBody,
+};
+pub use notation_patterns::{
+    NotationPolicyBody, NotationProposalBody, NotationSkipBody,
+    ProposeNotationPatternsRequest, ProposeNotationPatternsResponse,
 };
 pub use binding_suggestions::{
     BindingPolicyBody, PropertyCandidateBody, SignalBody, SuggestBindingsRequest,

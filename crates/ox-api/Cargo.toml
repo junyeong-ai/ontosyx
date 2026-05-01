@@ -62,7 +62,7 @@ url = "2.5.8"
 sha2 = "0.10.9"
 reqwest = { workspace = true }
 # Optional GCP Secret Manager resolver — enabled with feature `gcp-sm`.
-ox-gcp = { workspace = true, optional = true }
+# ADC dispatch reuses ox-source's `gcp_auth` module (the same seam BigQuery uses).
 base64 = { workspace = true, optional = true }
 
 [dev-dependencies]
@@ -87,7 +87,7 @@ test-helpers = []
 # resolvers cover most deployments. Enable on GCP-hosted servers
 # that want to dereference `gcp-sm:` references through Application
 # Default Credentials.
-gcp-sm = ["dep:ox-gcp", "dep:base64"]
+gcp-sm = ["dep:base64"]
 
 
 [lints]

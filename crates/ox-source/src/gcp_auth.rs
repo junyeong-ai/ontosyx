@@ -1,4 +1,10 @@
-//! Application Default Credentials dispatch.
+//! Application Default Credentials (ADC) dispatch for GCP-backed sources.
+//!
+//! Two callers traverse the same ADC chain: the BigQuery data-source
+//! adapter in this crate and the optional Secret Manager resolver
+//! (`ox-api`'s `gcp-sm` feature). Centralising dispatch keeps the
+//! `yup-oauth2` and `hyper-util` dependencies at one seam and gives
+//! future GCP integrations (GCS, Pub/Sub, IAM) a single plug-in point.
 //!
 //! GCP exposes three credential sources that any client library has to
 //! traverse in a fixed order:

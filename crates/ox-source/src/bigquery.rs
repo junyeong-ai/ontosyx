@@ -25,8 +25,8 @@
 //!
 //! ## Authentication
 //!
-//! ADC dispatch lives in [`ox_gcp::auth`]. The adapter consults
-//! [`ox_gcp::auth::detect_adc`] (with the optional
+//! ADC dispatch lives in [`crate::gcp_auth`]. The adapter consults
+//! [`crate::gcp_auth::detect_adc`] (with the optional
 //! `credentials_path` override) and routes the result to the matching
 //! `gcp-bigquery-client` constructor:
 //!
@@ -51,8 +51,9 @@ use gcp_bigquery_client::model::query_response::ResultSet;
 use tracing::info;
 
 use ox_core::error::{OxError, OxResult};
-use ox_gcp::auth::AdcCredential;
 use ox_ontology::source_analysis::ENUM_CARDINALITY_THRESHOLD;
+
+use crate::gcp_auth::AdcCredential;
 
 use crate::normalize::describe_to_arrow_schema;
 use crate::text_scan::{append_text_cell, make_builder};
@@ -99,7 +100,7 @@ impl BigQueryAdapter {
         }
 
         let override_path = parsed.credentials_path.as_deref().map(Path::new);
-        let credential = ox_gcp::auth::detect_adc(override_path)
+        let credential = crate::gcp_auth::detect_adc(override_path)
             .await
             .map_err(|e| OxError::Runtime {
                 message: format!("BigQuery ADC dispatch failed: {e}"),

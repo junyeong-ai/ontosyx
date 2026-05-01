@@ -9,7 +9,6 @@ publish.workspace = true
 [dependencies]
 ox-core = { workspace = true }
 ox-ontology = { workspace = true }
-ox-gcp = { workspace = true }
 sqlx = { workspace = true }
 tokio = { workspace = true }
 async-trait = { workspace = true }
@@ -31,6 +30,9 @@ futures = { workspace = true }
 chrono = { workspace = true }
 uuid = { workspace = true }
 url = "2.5"
+thiserror = { workspace = true }
+yup-oauth2 = { workspace = true }
+hyper-util = { workspace = true }
 duckdb = { workspace = true, optional = true }
 
 [features]

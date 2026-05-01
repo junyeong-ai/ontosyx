@@ -5080,7 +5080,6 @@ dependencies = [
  "ox-compiler",
  "ox-core",
  "ox-federation",
- "ox-gcp",
  "ox-memory",
  "ox-ontology",
  "ox-query-ir",
@@ -5191,18 +5190,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ox-gcp"
-version = "0.1.0"
-dependencies = [
- "hyper-util",
- "serde_json",
- "tempfile",
- "thiserror 2.0.18",
- "tokio",
- "yup-oauth2",
-]
-
-[[package]]
 name = "ox-memory"
 version = "0.1.0"
 dependencies = [
@@ -5294,10 +5281,10 @@ dependencies = [
  "duckdb",
  "futures",
  "gcp-bigquery-client",
+ "hyper-util",
  "ignore",
  "mongodb",
  "ox-core",
- "ox-gcp",
  "ox-ontology",
  "schemars",
  "serde",
@@ -5305,11 +5292,13 @@ dependencies = [
  "snowflake-api",
  "sqlx",
  "tempfile",
+ "thiserror 2.0.18",
  "tokio",
  "tracing",
  "url",
  "utoipa",
  "uuid",
+ "yup-oauth2",
 ]
 
 [[package]]
