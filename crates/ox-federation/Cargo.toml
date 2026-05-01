@@ -19,11 +19,9 @@ datafusion = { workspace = true }
 # DataSourceAdapter outputs into Arrow RecordBatches.
 arrow = { workspace = true }
 arrow-schema = { workspace = true }
-arrow-array = { workspace = true }
 
 # Async + traits.
 async-trait = { workspace = true }
-futures = { workspace = true }
 tokio = { workspace = true }
 
 # Error propagation.
@@ -31,9 +29,6 @@ thiserror = { workspace = true }
 
 # Bitemporal windows on object/link mappings.
 chrono = { workspace = true }
-
-# Observability.
-tracing = { workspace = true }
 
 [dev-dependencies]
 ox-source = { workspace = true, features = [] }
