@@ -124,6 +124,11 @@ pub struct MemberResponse {
     pub user_id: Uuid,
     pub role: String,
     pub joined_at: chrono::DateTime<chrono::Utc>,
+    pub email: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub picture: Option<String>,
 }
 
 impl From<WorkspaceMember> for MemberResponse {
@@ -133,6 +138,9 @@ impl From<WorkspaceMember> for MemberResponse {
             user_id: m.user_id,
             role: m.role,
             joined_at: m.joined_at,
+            email: m.email,
+            name: m.name,
+            picture: m.picture,
         }
     }
 }
@@ -476,18 +484,13 @@ pub(crate) async fn add_member(
         )));
     }
 
-    state
+    let member = state
         .store
         .add_workspace_member(id, req.user_id, &req.role)
         .await
         .map_err(AppError::from)?;
 
-    Ok(ApiResponse::of(MemberResponse {
-        workspace_id: id,
-        user_id: req.user_id,
-        role: req.role,
-        joined_at: chrono::Utc::now(),
-    }))
+    Ok(ApiResponse::of(member.into()))
 }
 
 /// DELETE /workspaces/:id/members/:uid — remove a member.

@@ -239,6 +239,18 @@ pub struct WorkspaceMember {
     pub user_id: Uuid,
     pub role: String,
     pub joined_at: DateTime<Utc>,
+    /// Joined from `users.email`. Always present for members because
+    /// the column is `NOT NULL` on the users table; modelled as
+    /// `String` rather than `Option<String>` so the FE doesn't have
+    /// to fall back on `user_id.slice()` for a label.
+    pub email: String,
+    /// Joined from `users.name` — display name on the OAuth provider.
+    /// `None` when the provider didn't surface one (some legacy /
+    /// API-key users).
+    pub name: Option<String>,
+    /// Joined from `users.picture` — profile avatar URL. `None` when
+    /// the provider didn't surface one.
+    pub picture: Option<String>,
 }
 
 /// Workspace with member count for list endpoints.

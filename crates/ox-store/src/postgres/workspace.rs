@@ -125,20 +125,29 @@ impl WorkspaceStore for PostgresStore {
         workspace_id: Uuid,
         user_id: Uuid,
         role: &str,
-    ) -> OxResult<()> {
+    ) -> OxResult<WorkspaceMember> {
         super::require_workspace_context()?;
-        sqlx::query(
-            "INSERT INTO workspace_members (workspace_id, user_id, role)
-             VALUES ($1, $2, $3)
-             ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = EXCLUDED.role",
+        // Insert (or upsert role on a re-add) and return the row
+        // joined against `users` so the caller has the display
+        // identity without a follow-up lookup.
+        sqlx::query_as(
+            "WITH upsert AS (
+                INSERT INTO workspace_members (workspace_id, user_id, role)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = EXCLUDED.role
+                RETURNING workspace_id, user_id, role, joined_at
+             )
+             SELECT m.workspace_id, m.user_id, m.role, m.joined_at,
+                    u.email, u.name, u.picture
+             FROM upsert m
+             JOIN users u ON u.id = m.user_id",
         )
         .bind(workspace_id)
         .bind(user_id)
         .bind(role)
-        .execute(&self.pool)
+        .fetch_one(&self.pool)
         .await
-        .map_err(to_ox_error)?;
-        Ok(())
+        .map_err(to_ox_error)
     }
 
     #[tracing::instrument(level = "debug", skip_all)]
@@ -196,8 +205,12 @@ impl WorkspaceStore for PostgresStore {
     #[tracing::instrument(level = "debug", skip_all)]
     async fn list_workspace_members(&self, workspace_id: Uuid) -> OxResult<Vec<WorkspaceMember>> {
         sqlx::query_as(
-            "SELECT workspace_id, user_id, role, joined_at
-             FROM workspace_members WHERE workspace_id = $1 ORDER BY joined_at",
+            "SELECT m.workspace_id, m.user_id, m.role, m.joined_at,
+                    u.email, u.name, u.picture
+             FROM workspace_members m
+             JOIN users u ON u.id = m.user_id
+             WHERE m.workspace_id = $1
+             ORDER BY m.joined_at",
         )
         .bind(workspace_id)
         .fetch_all(&self.pool)

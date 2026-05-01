@@ -1062,7 +1062,7 @@ pub trait WorkspaceStore: Send + Sync {
         workspace_id: Uuid,
         user_id: Uuid,
         role: &str,
-    ) -> OxResult<()>;
+    ) -> OxResult<WorkspaceMember>;
     async fn remove_workspace_member(&self, workspace_id: Uuid, user_id: Uuid) -> OxResult<bool>;
     async fn update_member_role(
         &self,

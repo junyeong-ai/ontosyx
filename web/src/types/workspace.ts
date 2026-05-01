@@ -47,8 +47,11 @@ export interface WorkspaceMember {
   user_id: string;
   role: string;
   joined_at: string;
-  email?: string;
+  /** Resolved server-side via JOIN against `users` — always present. */
+  email: string;
+  /** Provider display name; absent when the provider didn't surface one. */
   name?: string;
+  /** Avatar URL; absent when the provider didn't surface one. */
   picture?: string;
 }
 
