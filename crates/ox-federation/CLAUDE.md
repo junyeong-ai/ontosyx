@@ -11,7 +11,7 @@ See `docs/adr/0001-virtual-ontology-layer.md` and `0002-datafusion-federation.md
   primary entry. Injects `col(mapping.workspace_scope) = lit(workspace_id)` on every scan
   whose mapping declares a scope column.
 - `build_query_ir` — same without workspace scoping. System-bypass path; scheduled jobs
-  and Phase 2 CSV bring-up tests only.
+  and CSV bring-up tests only.
 - `build_match_op` / `build_match_plan` — lower a `QueryOp::Match` or a pre-planned
   `MatchPlanSpec` directly. Used by upstream callers that already built the spec.
 - `FederationContext::execute_plan(plan) -> Vec<RecordBatch>` — runs the DataFusion

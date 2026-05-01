@@ -2,10 +2,9 @@
 
 Primitives and shared infrastructure. Zero heavy dependencies — every other crate depends on this, and this crate depends on nothing else in the workspace.
 
-After the Phase 3-B split (2026-04-20) this crate holds only the
-"what every crate needs" foundation. Domain modelling (ontology,
-query algebra, patterns, mapping, governance) lives in sibling
-crates:
+This crate holds only the "what every crate needs" foundation.
+Domain modelling (ontology, query algebra, patterns, mapping,
+governance) lives in sibling crates:
 
 - `ox-ontology` — `OntologyIR`, node/edge/property defs, rules,
   mappings, provenance, glossary, data quality, etc.

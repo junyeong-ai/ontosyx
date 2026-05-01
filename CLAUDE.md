@@ -40,7 +40,7 @@ Use `./scripts/dev.sh start` to launch everything (Docker + backend + frontend).
   - `delete_X(id)` — remove by PK.
 - **Builders**: `with_X(...)`, `add_X(...)`, `remove_X(...)`, terminal `build() -> Result<T, _>`.
 - All LLM calls go through branchforge (crates.io). Never call provider APIs directly.
-- Errors propagate via `OxResult<T>`. No `unwrap()` / `expect()` / `panic!()` in library code — workspace lints are gated to `deny` once Phase 1 clean-up completes.
+- Errors propagate via `OxResult<T>`. No `unwrap()` / `expect()` / `panic!()` in library code.
 
 ### Identifier families
 
