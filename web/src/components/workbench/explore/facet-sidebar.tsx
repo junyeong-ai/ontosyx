@@ -171,6 +171,38 @@ export function ExploreFacetSidebar({
         )}
       </section>
 
+      {!loading && overview && overview.relationships.length > 0 && (
+        <section className="border-t border-zinc-200 pt-3 dark:border-zinc-800">
+          <h2 className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {t("relationships.label")}
+          </h2>
+          <ul className="flex max-h-40 flex-col gap-0.5 overflow-auto pr-1 text-[11px]">
+            {overview.relationships.map((r, idx) => (
+              <li
+                key={`${r.from_label}-${r.rel_type}-${r.to_label}-${idx}`}
+                className="rounded px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="min-w-0 flex-1 truncate font-mono text-[10px]">
+                    {r.from_label}
+                    <span className="text-muted-foreground"> ─[</span>
+                    <span className="font-medium">{r.rel_type}</span>
+                    <span className="text-muted-foreground">]→ </span>
+                    {r.to_label}
+                  </span>
+                  <span className="shrink-0 font-mono text-[10px] tabular-nums text-muted-foreground">
+                    {r.count.toLocaleString()}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-[10px] italic text-muted-foreground">
+            {t("relationships.readOnlyHint")}
+          </p>
+        </section>
+      )}
+
       {onSaveSegment && selectedLabels.length > 0 && (
         <button
           type="button"

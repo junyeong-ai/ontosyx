@@ -3035,6 +3035,10 @@
           "searchAria": "타입 필터",
           "noMatches": "\"{query}\" 와 일치하는 타입 없음"
         },
+        "relationships": {
+          "label": "관계",
+          "readOnlyHint": "위에서 타입을 클릭해 캔버스를 좁히세요. 관계 기반 필터는 다음 단계에서 추가됩니다."
+        },
         "saveSegment": "{count}개 타입을 세그먼트로 저장"
       }
     },
