@@ -130,10 +130,12 @@ pub enum PropertyBinding {
         #[serde(default)]
         strength: BindingStrength,
         /// Concept map applied when the upstream source's vocabulary
-        /// differs from the binding's canonical vocabulary. The query
-        /// compiler walks `(variable, property) → concept_map_id` and
-        /// rewrites literals before emitting Cypher / DataFusion
-        /// expressions.
+        /// differs from the binding's canonical vocabulary. Data-only
+        /// today — no consumer reads this field. The query compiler
+        /// will walk `(variable, property) → concept_map_id` and
+        /// rewrite literals before emitting Cypher / DataFusion
+        /// expressions once `ConceptMapApplicator` lands as part of
+        /// the SemanticEntity unification work.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         concept_map_id: Option<ConceptMapId>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -149,6 +151,7 @@ pub enum PropertyBinding {
         id: CodeSystemId,
         #[serde(default)]
         strength: BindingStrength,
+        /// See `ValueSet::concept_map_id` — same data-only semantics.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         concept_map_id: Option<ConceptMapId>,
         #[serde(default, skip_serializing_if = "Option::is_none")]

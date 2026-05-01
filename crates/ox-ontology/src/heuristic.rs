@@ -23,11 +23,10 @@
 //!    cleanly without float NaN ambiguity, and `evidence` is a
 //!    structured `Value` operators can inspect — the heuristic
 //!    cannot "trust me" its way into automatic acceptance.
-//! 3. **Threshold-below proposals require explicit operator action.**
-//!    Auto-accept policy belongs to the consuming surface, but the
-//!    proposal carries `auto_accept_threshold_bps` so the surface
-//!    cannot accidentally apply a lower bar than the heuristic
-//!    author intended.
+//! 3. **Every proposal requires operator review.** No auto-accept
+//!    pathway exists. Future calibrated auto-accept will reintroduce
+//!    a threshold mechanism keyed on a per-detector confidence model
+//!    (basis points alone are not comparable across detectors).
 //! 4. **Audit follows the proposal.** `HeuristicProvenance` records
 //!    the decision, who decided, when, and an evidence hash for
 //!    cross-check against the original proposal payload. The audit
@@ -198,13 +197,6 @@ pub struct HeuristicProposal {
     pub detector_version: u32,
     /// Self-rated confidence (basis points).
     pub confidence: ConfidenceBps,
-    /// Optional auto-accept threshold the consuming surface should
-    /// honour. `None` means "operator review required regardless of
-    /// confidence". Keeping the threshold on the proposal — not on
-    /// the consuming surface — pins the policy to the heuristic
-    /// author's intent.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub auto_accept_threshold: Option<ConfidenceBps>,
     /// Structured evidence the operator inspects. Wire-stable JSON
     /// so the same payload renders in both the FE and the audit
     /// row.
@@ -248,24 +240,11 @@ impl HeuristicProposal {
             detector,
             detector_version,
             confidence,
-            auto_accept_threshold: None,
             evidence,
             evidence_hash,
             state: HeuristicProposalState::Pending,
             created_at,
             expires_at,
-        }
-    }
-
-    /// Whether the consuming surface may auto-accept without
-    /// operator review. Returns `false` when no threshold is set
-    /// or when the proposal's confidence is strictly below the
-    /// threshold — equality is sufficient (the author's intent
-    /// reads naturally as "≥ threshold").
-    pub fn meets_auto_accept_threshold(&self) -> bool {
-        match self.auto_accept_threshold {
-            Some(threshold) => self.confidence >= threshold,
-            None => false,
         }
     }
 }
@@ -446,57 +425,7 @@ mod tests {
         );
         assert_ne!(
             v1.id, v2.id,
-            "version bump must produce a new proposal — auto-accept policy is keyed on (detector, version)"
-        );
-    }
-
-    #[test]
-    fn auto_accept_threshold_is_inclusive_at_equality() {
-        let now = now();
-        let exp = now + Duration::hours(24);
-        let mut p = HeuristicProposal::new(
-            HeuristicDetectorKind::GlossaryBindingSuggestion,
-            1,
-            ConfidenceBps::from_bps(8_000),
-            serde_json::json!({}),
-            now,
-            exp,
-        );
-        p.auto_accept_threshold = Some(ConfidenceBps::from_bps(8_000));
-        assert!(p.meets_auto_accept_threshold());
-    }
-
-    #[test]
-    fn auto_accept_rejected_below_threshold() {
-        let now = now();
-        let exp = now + Duration::hours(24);
-        let mut p = HeuristicProposal::new(
-            HeuristicDetectorKind::GlossaryBindingSuggestion,
-            1,
-            ConfidenceBps::from_bps(6_999),
-            serde_json::json!({}),
-            now,
-            exp,
-        );
-        p.auto_accept_threshold = Some(ConfidenceBps::from_bps(7_000));
-        assert!(!p.meets_auto_accept_threshold());
-    }
-
-    #[test]
-    fn auto_accept_requires_explicit_threshold() {
-        let now = now();
-        let exp = now + Duration::hours(24);
-        let p = HeuristicProposal::new(
-            HeuristicDetectorKind::GlossaryBindingSuggestion,
-            1,
-            ConfidenceBps::from_bps(9_999),
-            serde_json::json!({}),
-            now,
-            exp,
-        );
-        assert!(
-            !p.meets_auto_accept_threshold(),
-            "even maximum confidence must require operator review when no threshold is set"
+            "version bump must produce a new proposal — proposal identity is keyed on (detector, version, evidence)"
         );
     }
 

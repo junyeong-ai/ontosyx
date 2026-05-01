@@ -877,6 +877,12 @@ impl QueryTranslator for DefaultBrain {
         vars.insert("question", question);
         vars.insert("ontology", ontology_json.as_str());
         vars.insert("knowledge", knowledge_context.as_str());
+        // Empty placeholder by default; the label-retry path below
+        // overrides it with the offending labels. Keeps `{{correction}}`
+        // from leaking into the LLM prompt as a literal token on the
+        // happy path (PromptTemplate::render_user does plain string
+        // replacement — unmatched placeholders survive).
+        vars.insert("correction", "");
 
         // Phase 3: Primary LLM call (StructuredMatchQuery structured output)
         ctx.progress("llm_primary").started();
@@ -884,7 +890,7 @@ impl QueryTranslator for DefaultBrain {
         let query_ir = match self
             .call_structured::<ox_query_ir::StructuredMatchQuery>(
                 "translate_match_query",
-                Some("1.0.0"),
+                Some("1.2.0"),
                 "translate_match_query",
                 &vars,
                 "Translating to StructuredMatchQuery (structured output)",
@@ -912,7 +918,7 @@ impl QueryTranslator for DefaultBrain {
                 let result: OxResult<QueryIR> = self
                     .call_structured(
                         "translate_query",
-                        Some("1.0.0"),
+                        Some("1.1.0"),
                         "translate_query",
                         &vars,
                         "Translating to QueryIR (JSON mode fallback)",
@@ -938,7 +944,7 @@ impl QueryTranslator for DefaultBrain {
                         let retry_result = self
                             .call_structured::<QueryIR>(
                                 "translate_query",
-                                Some("1.0.0"),
+                                Some("1.1.0"),
                                 "translate_query",
                                 &vars,
                                 "Retrying query translation",
@@ -995,7 +1001,7 @@ impl QueryTranslator for DefaultBrain {
                 let retry: OxResult<QueryIR> = self
                     .call_structured(
                         "translate_query",
-                        Some("1.0.0"),
+                        Some("1.1.0"),
                         "translate_query",
                         &retry_vars,
                         "Retrying query translation with label correction",
