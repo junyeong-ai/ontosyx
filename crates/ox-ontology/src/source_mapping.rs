@@ -419,10 +419,10 @@ mod tests {
 
     #[test]
     fn content_hash_changes_when_prompt_render_hash_changes() {
-        // ADR-0029: bumping the render hash (e.g., admin edited
-        // the DB-backing prompt without bumping `prompt_version`)
-        // must shift the artifact's content hash so the prior
-        // cached row is no longer reused.
+        // Bumping the render hash (e.g., admin edited the DB-backing
+        // prompt without bumping `prompt_version`) must shift the
+        // artifact's content hash so the prior cached row is not
+        // reused.
         let a = fixture();
         let mut b = a.clone();
         b.provenance.prompt_render_hash = "deadbeef".to_string();

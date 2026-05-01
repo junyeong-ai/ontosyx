@@ -575,7 +575,7 @@ fn ontology_ir_accepts_missing_schema_version_as_current() {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 5-B — semantic superstructure wiring
+// Semantic superstructure wiring
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -700,7 +700,7 @@ fn node_type_def_carries_phase_5b_semantic_links_through_json() {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 5-C — referential-integrity validation
+// Referential-integrity validation
 // ---------------------------------------------------------------------------
 
 fn minimal_node(id: &str, label: &str) -> NodeTypeDef {
@@ -970,7 +970,7 @@ fn validate_passes_when_all_phase_5b_references_resolve() {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 5-D — lookup indices + by_id() accessors
+// Lookup indices + by_id() accessors
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -1764,7 +1764,7 @@ fn add_glossary_term_accepts_replacement_pointing_to_existing_term() {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 2 — ShaclConstraint::LessThan / Equals (property-pair operators)
+// ShaclConstraint::LessThan / Equals (property-pair operators)
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -1831,7 +1831,7 @@ fn validate_rejects_property_pair_referencing_unknown_sibling() {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 3 — EdgeKind classification
+// EdgeKind classification
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -1873,7 +1873,7 @@ fn edge_type_def_kind_roundtrips_through_json() {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 7 — locale-aware glossary alias resolver
+// Locale-aware glossary alias resolver
 // ---------------------------------------------------------------------------
 
 #[test]

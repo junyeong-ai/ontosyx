@@ -1,18 +1,10 @@
 //! `ox-ontology` — first-class ontology model for Ontosyx.
 //!
-//! See crate-level docs in `Cargo.toml`. This crate owns every
-//! domain-model type (NodeTypeDef, EdgeTypeDef, PropertyDef, Rule,
-//! Action, Function, Metric, Enrichment, Glossary, Mapping, Provenance,
-//! DataQuality, Drift, Audit) — `ox-core` below it holds only the
-//! primitives (`OxError`, newtypes, time).
-//!
-//! Phase 3-B (2026-04-20): `ontology_ir`, `ontology_input`,
-//! `ontology_command`, `ontology_diff`, `load_plan`,
-//! `graph_audit`, `source_analysis`, `quality`, `test_fixtures`,
-//! `table_clustering`, `design_project`, `widget_spec`,
-//! `repo_insights`, `graph_exploration` migrated here from
-//! `ox-core`, renamed to `ir`, `input`, `command`, `diff`, `mapping`,
-//! `load_plan`, `audit` (and keep their names for the rest).
+//! Owns every domain-model type (NodeTypeDef, EdgeTypeDef,
+//! PropertyDef, Rule, Action, Function, Metric, Enrichment,
+//! Glossary, Mapping, Provenance, DataQuality, Drift, Audit).
+//! `ox-core` sits below this crate and holds only the primitives
+//! (`OxError`, newtypes, time).
 
 #![cfg_attr(
     test,

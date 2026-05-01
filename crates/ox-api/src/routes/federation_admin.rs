@@ -904,7 +904,7 @@ pub(crate) async fn federation_health(
 }
 
 // ---------------------------------------------------------------------------
-// Φ2-E — selection-aware introspection routes
+// Selection-aware introspection routes
 //
 // `GET  /api/admin/federation/adapters/{source_id}/tables`
 // `POST /api/admin/federation/adapters/{source_id}/analyze`

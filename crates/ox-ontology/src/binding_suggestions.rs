@@ -1,11 +1,10 @@
-//! Glossary ↔ property binding suggestions — **fall-back layer**
-//! after the LLM-side context injection (see
+//! Glossary ↔ property binding suggestions — fallback layer after
+//! the LLM-side context injection (see
 //! [`ox_brain::DesignOntologyInput`]).
 //!
-//! Φ3 redesign: the design-time prompt now includes the workspace's
-//! glossary in `DesignOntologyInput.glossary_terms`, so the LLM sees
-//! every canonical term up-front and is expected to bind matching
-//! properties at generation time. This module's role narrows to:
+//! The design-time prompt threads the workspace's glossary into
+//! `DesignOntologyInput.glossary_terms`, so the LLM is expected to
+//! bind matching properties at generation time. This module's role:
 //!
 //! 1. **Catch what the LLM missed.** Some property ↔ term pairs are
 //!    only resolvable by structural / lexical similarity that LLMs

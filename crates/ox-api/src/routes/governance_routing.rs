@@ -1,9 +1,8 @@
-//! Φ6 #1 — admin CRUD for the per-workspace `ChangeRoutingRule`
-//! overrides. The runtime resolution path
-//! (`store.resolve_change_routing(change_type)`) was already
-//! DB-driven; this module adds the HTTP surface so an admin can
-//! actually edit the workspace's row through the UI rather than
-//! by hand-running SQL.
+//! Admin CRUD for the per-workspace `ChangeRoutingRule` overrides.
+//! The runtime resolution path
+//! (`store.resolve_change_routing(change_type)`) is DB-driven;
+//! this module is the HTTP surface for editing the workspace row
+//! through the UI rather than by hand-running SQL.
 //!
 //! Routes:
 //!

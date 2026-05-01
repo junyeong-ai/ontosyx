@@ -269,11 +269,10 @@ mod tests {
 
     #[test]
     fn signature_changes_when_prompt_render_hash_changes() {
-        // ADR-0027 + ADR-0029 interaction: an admin who edits the
-        // prompt body without bumping `prompt_version` shifts the
-        // render hash, which shifts the signature, which forces a
-        // cache miss — the cached cluster output is no longer
-        // authoritative under the new prompt.
+        // An admin who edits the prompt body without bumping
+        // `prompt_version` shifts the render hash, which shifts the
+        // signature, which forces a cache miss — the cached cluster
+        // output is no longer authoritative under the new prompt.
         let c = cluster(&["users", "orders"], Vec::new());
         let a = ClusterSignature::from_cluster(&c, "rh-old");
         let b = ClusterSignature::from_cluster(&c, "rh-new");

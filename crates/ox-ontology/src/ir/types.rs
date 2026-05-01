@@ -134,13 +134,11 @@ pub struct NodeTypeDef {
     pub replaced_by_id: Option<NodeTypeId>,
 
     // -------------------------------------------------------------------
-    // Phase 5-B — semantic links back to the top-level collections
-    //
-    // Every field is optional on the wire so a v1 payload lands in an
-    // empty v2 shape without a migration. The lists carry ids rather
-    // than full `*Def` values so a node type can be rendered without
-    // pulling every dependent type into memory — callers resolve the
-    // ids through `OntologyIR::actions()` / `metrics()` / etc.
+    // Semantic links back to the top-level collections. Lists carry
+    // ids rather than full `*Def` values so a node type can be
+    // rendered without pulling every dependent type into memory —
+    // callers resolve through `OntologyIR::actions()` / `metrics()` /
+    // etc.
     // -------------------------------------------------------------------
     /// Interfaces this node type fulfils. Must reference
     /// `InterfaceDef`s declared on the enclosing `OntologyIR`; the

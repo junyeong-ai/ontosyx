@@ -63,20 +63,15 @@ pub struct DeletedEntity {
     pub entity_kind: ReconcileEntityKind,
 }
 
-/// Discriminator for the entity kinds the reconcile pipeline can
-/// re-stamp ids on when the LLM lost track of an existing entity's
-/// identifier.
+/// Entity kinds the reconcile pipeline can re-stamp ids on when
+/// the LLM lost track of an existing entity's identifier.
 ///
-/// ADR-0021: scoped narrowly to topology (Node / Edge / Property)
-/// because the LLM design path that feeds reconcile only emits
-/// those three. Other IR collections — constraints, indices,
-/// governance, vocabulary, mapping, lineage — flow through
-/// dedicated paths that already preserve their ids without the
-/// reconcile fuzzy match. Listing only the kinds reconcile can
-/// actually act on lets `apply_match_decisions` use an exhaustive
-/// match — the previous `_ => {}` fallthrough silently swallowed
-/// `Constraint` / `Index` ids that the system was never going to
-/// touch anyway.
+/// Scoped to topology (Node / Edge / Property) because the LLM
+/// design path that feeds reconcile only emits those three. Other
+/// IR collections — constraints, indices, governance, vocabulary,
+/// mapping, lineage — flow through dedicated paths that preserve
+/// ids without the fuzzy match. Listing only the actionable kinds
+/// keeps `apply_match_decisions` exhaustive.
 ///
 /// `storage::EntityKind` is a sibling discriminator with a much
 /// wider surface (every persisted IR entity); the two intentionally

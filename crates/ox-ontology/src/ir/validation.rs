@@ -549,14 +549,10 @@ impl OntologyIR {
         }
 
         // -------------------------------------------------------------
-        // Phase 5-B + 4-A referential integrity.
-        //
-        // Every id link that NodeTypeDef / PropertyDef acquired in
-        // Phase 5-B, plus every object / link mapping id, must
-        // resolve against a matching *Def. Phase 5-D replaced the
-        // `HashSet`-per-validate pattern with the precomputed
-        // lookup indices on `self.lookup` — the check now runs in
-        // O(1) per reference instead of O(N) alloc + O(1) lookup.
+        // Referential integrity. Every id link on NodeTypeDef /
+        // PropertyDef plus every object / link mapping id must
+        // resolve against a matching *Def. Lookup indices on
+        // `self.lookup` make each check O(1).
         // -------------------------------------------------------------
         for node in &self.node_types {
             for if_id in &node.implements {
@@ -940,13 +936,10 @@ impl OntologyIR {
         }
 
         // -------------------------------------------------------------
-        // Phase 1.7 — registry cross-reference integrity.
-        //
-        // The dedicated module walks every `Option<XxxId>` pointer on
-        // PropertyDef / RuleDef / ValueSetDef / ConceptMapDef and
-        // flags any id that does not resolve. Using the trait here
-        // keeps the walker reusable from ad-hoc edit helpers without
-        // round-tripping through the full `validate()` surface.
+        // Registry cross-reference integrity. The dedicated module
+        // walks every `Option<XxxId>` pointer on PropertyDef /
+        // RuleDef / ValueSetDef / ConceptMapDef and flags any id
+        // that does not resolve.
         use crate::integrity::{render_dangling_references, RegistryReferenceCheck};
         let dangling = self.dangling_references();
         if !dangling.is_empty() {
@@ -954,13 +947,10 @@ impl OntologyIR {
         }
 
         // -------------------------------------------------------------
-        // ADR-0024 — table-inventory referential integrity.
-        //
-        // Every `contributed_node_ids` entry must resolve to a
-        // declared NodeType, and every `contributed_edge_ids` entry
-        // to a declared EdgeType. Drift here would surface as
-        // dangling links in the Source Inspector; the validator
-        // catches it before the project is allowed to commit.
+        // Table-inventory referential integrity. Every
+        // `contributed_node_ids` entry must resolve to a declared
+        // NodeType, and every `contributed_edge_ids` to a declared
+        // EdgeType.
         let known_node_ids: std::collections::HashSet<&str> = self
             .node_types
             .iter()
@@ -1106,14 +1096,11 @@ impl OntologyIR {
         }
 
         // -------------------------------------------------------------
-        // ADR-0015 — segment referential integrity.
-        //
-        // A `SegmentDef` declares a named membership predicate over
-        // a single NodeType. Two invariants the rest of the system
-        // depends on: the target NodeType resolves, and every
-        // property the filter mentions exists on that target.
-        // Drift here would break the glossary realisation chain
-        // (ADR-0014) and the runtime's segment-aware compile pass.
+        // Segment referential integrity. The target NodeType must
+        // resolve, and every property the filter mentions must
+        // exist on that target — drift here breaks the glossary
+        // realisation chain and the runtime's segment-aware
+        // compile pass.
         for seg in &self.segments {
             let target_node = self
                 .node_types
@@ -1650,7 +1637,6 @@ mod tests {
         );
     }
 
-    // ADR-0015 — segment referential integrity.
 
     #[test]
     fn validate_accepts_segment_targeting_real_node_with_real_properties() {
@@ -1785,7 +1771,6 @@ mod tests {
         }
     }
 
-    // ADR-0024 — table-inventory referential integrity.
 
     #[test]
     fn validate_accepts_inventory_pointing_at_declared_node() {

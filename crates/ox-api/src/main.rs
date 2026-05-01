@@ -925,8 +925,8 @@ async fn main() -> anyhow::Result<()> {
         let task_store = Arc::clone(&state.store);
         let analysis_timeout = state.timeouts.analysis;
         let token = cancel_token.clone();
-        // Phase 4.11: prevent the same task from spawning twice when a
-        // long-running execution overlaps the next 60-second poll.
+        // Prevent the same task from spawning twice when a long-
+        // running execution overlaps the next 60-second poll.
         let in_flight: Arc<dashmap::DashSet<uuid::Uuid>> = Arc::new(dashmap::DashSet::new());
         spawn_system(async move {
             let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));

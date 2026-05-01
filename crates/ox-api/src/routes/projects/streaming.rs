@@ -112,22 +112,14 @@ fn sse_result<T: Serialize>(data: &T) -> String {
 //   result  → DesignProjectResponse
 //   error   → { error: { type, message } }
 //
-// ADR-0027 store integration: the BE checkpoint replay path is
-// wired below. Each cluster's `InputOntologyDef` is cached in
+// Each cluster's `InputOntologyDef` is cached in
 // `draft_cluster_checkpoints` keyed by
 // `ClusterSignature::from_cluster(cluster, prompt_template_hash)`;
-// a transient failure on cluster K no longer discards 0..K's
-// output. Retry replays the cached entries and only re-runs the
-// uncompleted clusters. Successful design completion drops the
-// project's checkpoints; the daily cleanup cron sweeps any rows
-// past `expires_at` (24h TTL).
-//
-// ADR-0053 progressive streaming (FE half) is the remaining slice.
-// With the BE store now in place, the FE can render per-cluster
-// outcome events as each cluster completes (cache-hit vs
-// cache-miss) and surface partial-progress retry recovery to the
-// operator. That work lives in the FE; the BE contract is now
-// stable for it to ride.
+// a transient failure on cluster K does not discard 0..K's output.
+// Retry replays the cached entries and only re-runs the uncompleted
+// clusters. Successful design completion drops the project's
+// checkpoints; the daily cleanup cron sweeps rows past
+// `expires_at` (24h TTL).
 // ---------------------------------------------------------------------------
 
 #[utoipa::path(
@@ -311,13 +303,11 @@ pub(crate) async fn design_project_stream(
                 }
             };
 
-            // Prompt template hash for the cluster signature
-            // (ADR-0027). Folds the template body into the cache key
-            // so an admin who edits the prompt without bumping
+            // Prompt template hash for the cluster signature.
+            // Folds the template body into the cache key so an
+            // admin who edits the prompt without bumping
             // `prompt_version` cleanly invalidates every cached
-            // checkpoint authored under the prior body. Computed
-            // once for the whole batch; every cluster signature
-            // pulls in the same hash.
+            // checkpoint authored under the prior body.
             let prompt_template_hash = match state
                 .brain
                 .prompt_template_hash("design_ontology_batch")
@@ -438,10 +428,10 @@ pub(crate) async fn design_project_stream(
                         completed, total_clusters, cluster.tables.len(),
                     );
 
-                    // ADR-0027 — checkpoint cache lookup before the
-                    // LLM call. The signature folds tables + FKs +
-                    // prompt template hash, so a re-run with the
-                    // same inputs replays from cache.
+                    // Checkpoint cache lookup before the LLM call.
+                    // The signature folds tables + FKs + prompt
+                    // template hash, so a re-run replays from
+                    // cache.
                     let signature = ox_ontology::cluster_checkpoint::ClusterSignature::from_cluster(
                         cluster, &prompt_template_hash,
                     );
@@ -530,13 +520,12 @@ pub(crate) async fn design_project_stream(
                     // Snapshot current batch_results for all parallel tasks in this level
                     let existing = format_existing_nodes(&batch_results);
 
-                    // ADR-0027 — pre-resolve checkpoints for every
-                    // cluster in this level. Cache hits skip the LLM
-                    // call entirely; misses go through the parallel
-                    // join_all path below. The two halves merge back
-                    // by `cluster_id` at the bottom of the level so
-                    // the eventual `batch_results` order is
-                    // deterministic regardless of the hit/miss split.
+                    // Pre-resolve checkpoints for every cluster in
+                    // this level. Cache hits skip the LLM call;
+                    // misses go through the parallel join_all path.
+                    // The two halves merge back by `cluster_id` at
+                    // the bottom of the level so `batch_results`
+                    // order is deterministic.
                     let mut level_results: Vec<(usize, ox_ontology::InputOntologyDef)> =
                         Vec::new();
                     let mut miss_tasks: Vec<(
@@ -867,11 +856,10 @@ pub(crate) async fn design_project_stream(
             return;
         }
 
-        // ADR-0027 — design completed; the cached checkpoints are no
-        // longer authoritative (the project rolled forward, the next
-        // pass starts from the persisted result, not from cache).
-        // Drop them eagerly. Failures here are non-fatal: stale rows
-        // get swept by the daily cleanup cron via `expires_at`.
+        // Design completed; the cached checkpoints are no longer
+        // authoritative (the next pass starts from the persisted
+        // result). Drop them eagerly — failures are non-fatal
+        // because the daily cleanup cron sweeps via `expires_at`.
         if let Err(e) = state
             .store
             .delete_draft_cluster_checkpoints_by_project(id)

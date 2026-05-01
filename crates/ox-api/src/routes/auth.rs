@@ -162,9 +162,9 @@ pub(crate) async fn create_token(
         iss: "ontosyx".to_string(),
         exp,
         iat,
-        // ADR-0048: every issued platform JWT is keyed by a unique
-        // `jti` for per-token revocation, plus a `tv` snapshot of the
-        // user's bulk-invalidation counter. Both axes feed
+        // Every issued platform JWT is keyed by a unique `jti` for
+        // per-token revocation, plus a `tv` snapshot of the user's
+        // bulk-invalidation counter — both axes feed
         // `require_auth`'s revocation check.
         jti: Uuid::new_v4(),
         tv: user.token_version,

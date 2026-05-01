@@ -1,10 +1,8 @@
 //! Content-addressed storage primitives for [`OntologyIR`].
 //!
-//! This module is the type-layer implementation behind the Λ
-//! Phase storage refactor. It is paired with the `ox-store` Level
-//! 2 schema (`ontology_entity_versions` +
-//! `ontology_version_entities`, migrations 0017) and owns three
-//! concerns:
+//! Type-layer counterpart to the `ox-store` Level 2 schema
+//! (`ontology_entity_versions` + `ontology_version_entities`).
+//! Owns three concerns:
 //!
 //! 1. **Canonicalisation** — produce a deterministic byte sequence
 //!    for any `serde_json::Value`, so two semantically identical
@@ -118,9 +116,9 @@ pub enum EntityKind {
     NotationPattern,
     ConceptMap,
     ValueRangeSet,
-    /// Φ3 — per-column distribution snapshot. Carries the
-    /// `(source_id, relation, column)` location plus the
-    /// `ColumnStats` payload from the introspection kernel.
+    /// Per-column distribution snapshot — `(source_id, relation,
+    /// column)` location plus the `ColumnStats` payload from the
+    /// introspection kernel.
     ColumnProfile,
 }
 

@@ -287,10 +287,10 @@ impl From<OxError> for AppError {
         };
 
         let message = if status.is_server_error() {
-            // ADR-0045: Log the verbose form server-side at `error`
-            // level — operators get the full driver text + Contextual
-            // chain for diagnosis. The wire response carries only a
-            // stable string; correlation is via x-request-id.
+            // Log the verbose form server-side at `error` — operators
+            // get the full driver text + Contextual chain. The wire
+            // response carries only a stable string; correlation is
+            // via x-request-id.
             tracing::error!(
                 error_type,
                 status = status.as_u16(),

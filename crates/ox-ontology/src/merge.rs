@@ -683,12 +683,11 @@ fn merge_enrichments(
     Ok(())
 }
 
-/// Φ3 — column profile merge has *upsert* semantics, not the
+/// Column profile merge has *upsert* semantics, not the
 /// add/skip/conflict triad the other collections use. The IR's
-/// contract for column profiles is "always carry the most recent
-/// snapshot per `(source_id, relation, column)` location" — a fresh
-/// extension scan that re-profiles a column should overwrite the
-/// stale entry rather than flag it as a conflict.
+/// contract is "always carry the most recent snapshot per
+/// `(source_id, relation, column)`" — a re-profile overwrites the
+/// stale entry rather than flag a conflict.
 ///
 /// Reflected in the report: each entry lands in `added` (new id) or
 /// `skipped` (id present, content matches). A different-content

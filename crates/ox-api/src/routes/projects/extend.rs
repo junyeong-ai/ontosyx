@@ -77,15 +77,14 @@ pub(crate) async fn extend_project(
 
     // 1. Introspect the new source (including Code Repository).
     //
-    // ADR-0025: when the project carries a structured `source_schema`
-    // / `source_profile` from a previous introspection, reconstruct
+    // When the project carries a structured `source_schema` /
+    // `source_profile` from a previous introspection, reconstruct
     // it as the kernel's `baseline` so an
-    // `AnalyzeSelection::Extend { tables }` selection can recover
-    // cross-baseline foreign keys (an Order table newly added to a
+    // `AnalyzeSelection::Extend { tables }` can recover cross-
+    // baseline foreign keys (an Order table newly added to a
     // baseline that already had Customer must surface the Order →
-    // Customer FK even though only the Order table is in the
-    // introspection scope). Code-Repository / Text sources have no
-    // structured schema and skip the baseline.
+    // Customer FK even though only Order is in the new scope).
+    // Code-Repository / Text sources skip the baseline.
     let source_url = match &req.source {
         ProjectSource::CodeRepository { url } => Some(url.clone()),
         _ => None,

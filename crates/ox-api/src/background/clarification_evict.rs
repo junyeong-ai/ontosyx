@@ -1,12 +1,11 @@
 //! Periodic evict for the process-wide [`ClarificationTracker`].
 //!
-//! Phase 4.6 wired the tracker so resolve_ambiguity → query_graph
-//! in the same session flips `ambiguity_was_clarified = true` on
-//! the quality signal. Entries live in a `DashMap<session_id,
-//! DateTime<Utc>>`; without a sweep, sessions that started a
-//! resolve but then silently dropped (network failure, user
-//! walked away, long-running agent) would keep their stamp
-//! forever.
+//! The tracker flips `ambiguity_was_clarified = true` on the
+//! quality signal when a `resolve_ambiguity` is followed by
+//! `query_graph` in the same session. Entries live in a
+//! `DashMap<session_id, DateTime<Utc>>`; without a sweep, sessions
+//! that started a resolve but then silently dropped (network
+//! failure, user walked away) would keep their stamp forever.
 //!
 //! The tracker's own `evict_older_than(window)` already does the
 //! filtering; this module is the thin cron that calls it on an

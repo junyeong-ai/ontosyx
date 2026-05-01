@@ -153,17 +153,13 @@ struct OntologyLookup {
     // Ω-4: notation patterns.
     notation_pattern_id_idx:
         HashMap<crate::notation_pattern::NotationPatternId, usize>,
-    // Ω-5: concept maps.
     concept_map_id_idx: HashMap<crate::concept_map::ConceptMapId, usize>,
-    // Ω-7: value range sets.
     value_range_set_id_idx: HashMap<crate::value_range::ValueRangeSetId, usize>,
-    // Φ3: per-column distribution snapshots.
     column_profile_id_idx: HashMap<crate::column_profile::ColumnProfileId, usize>,
-    // ADR-0015: named NodeType-membership predicates.
     segment_id_idx: HashMap<crate::segment::SegmentId, usize>,
-    // ADR-0024: `(source_id, table_name)` → row index. Composite
-    // natural key — `add_table_inventory_entry` upserts on it so
-    // re-introspection is idempotent.
+    /// `(source_id, table_name)` → row index. The natural key is
+    /// composite so `add_table_inventory_entry` upserts cleanly and
+    /// re-introspection stays idempotent.
     table_inventory_idx: HashMap<(crate::mapping::SourceId, String), usize>,
     /// Reverse index — glossary term → every NodeType that flags it
     /// as `concept_term_id`. Empty Vec when no NodeType realises the
@@ -262,13 +258,12 @@ pub struct OntologyIR {
     pub(crate) indexes: Vec<IndexDef>,
 
     // -------------------------------------------------------------------
-    // Phase 5-B semantic superstructure (ADRs 0001, 0006, 0008)
+    // Semantic superstructure
     //
-    // Every collection below is optional on the wire (`#[serde(default)]`)
-    // so a v1 ontology deserialises into an empty v2 shape without any
-    // migration work. Read paths call `interfaces()` / `rules()` / etc.
-    // rather than touching the fields directly so a later refactor onto
-    // a lookup-indexed backing store stays source-compatible.
+    // Every collection below is optional on the wire
+    // (`#[serde(default)]`) so older payloads deserialise cleanly
+    // and read paths go through accessor methods rather than these
+    // fields directly.
     // -------------------------------------------------------------------
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) interfaces: Vec<crate::interface::InterfaceDef>,
@@ -328,33 +323,32 @@ pub struct OntologyIR {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) value_range_sets: Vec<crate::value_range::ValueRangeSetDef>,
 
-    /// Φ3 — per-column distribution snapshots. Keyed by
-    /// `(source_id, relation, column)`. Ingested from `SourceProfile`
-    /// via [`OntologyIR::ingest_source_profile`] so re-running
-    /// value-set / notation-pattern inference doesn't require a
-    /// source rescan.
+    /// Per-column distribution snapshots, keyed by
+    /// `(source_id, relation, column)`. Ingested from
+    /// `SourceProfile` via [`OntologyIR::ingest_source_profile`] so
+    /// re-running value-set / notation-pattern inference doesn't
+    /// require a source rescan.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) column_profiles: Vec<crate::column_profile::ColumnProfileDef>,
 
     /// Named, reusable membership predicates over a single NodeType
     /// (`SegmentDef` — "Active Customer", "Lapsed Subscriber",
-    /// "VIP"). Promoted to a first-class IR collection so segment
-    /// references from `PropertyBinding`, `RuleDef`, and the
-    /// glossary realisation surface (ADR-0014) resolve through
-    /// `OntologyLookup` without round-tripping a side artifact.
+    /// "VIP"). First-class so segment references from
+    /// `PropertyBinding`, `RuleDef`, and the glossary realisation
+    /// surface resolve through `OntologyLookup` without
+    /// round-tripping a side artifact.
     /// Validated by `validate()`: `target_node_type_id` must
     /// resolve, every `referenced_properties()` entry must exist
     /// on the target, and SegmentId values are unique.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) segments: Vec<crate::segment::SegmentDef>,
 
-    /// Source-table inventory (ADR-0024). One row per
-    /// `(source_id, table_name)` the project has touched, carrying
-    /// the import status, schema fingerprint, and the NodeType /
-    /// EdgeType ids that table contributed. Lets the FE answer
-    /// "which tables did this project bring in?" / "where did this
-    /// NodeType come from?" / "what's available but not yet
-    /// imported?" without re-introspecting.
+    /// Source-table inventory: one row per `(source_id, table_name)`
+    /// the project has touched, carrying import status, schema
+    /// fingerprint, and the contributed NodeType / EdgeType ids.
+    /// Answers "which tables did this project bring in?" / "where
+    /// did this NodeType come from?" / "what's available but not
+    /// yet imported?" without re-introspecting.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) table_inventory: Vec<crate::table_inventory::TableInventoryEntry>,
 
@@ -543,9 +537,8 @@ impl OntologyIR {
             node_types,
             edge_types,
             indexes,
-            // Phase 5-B superstructure starts empty — callers that
-            // need to populate it use the typed setters that land
-            // with the wire API (`add_rule`, `add_action`, ...).
+            // Superstructure starts empty — populate via the typed
+            // setters (`add_rule`, `add_action`, ...).
             interfaces: Vec::new(),
             rules: Vec::new(),
             actions: Vec::new(),
@@ -764,10 +757,10 @@ impl OntologyIR {
         index_collection!(column_profiles, column_profile_id_idx, "column_profile");
         index_collection!(segments, segment_id_idx, "segment");
 
-        // ADR-0024 — table-inventory composite key. Duplicate
-        // `(source_id, table_name)` rows are an invariant violation
-        // — `add_table_inventory_entry` upserts on the key, so a
-        // duplicate at deserialise time signals a corrupt payload.
+        // Duplicate `(source_id, table_name)` rows violate the
+        // composite key — `add_table_inventory_entry` upserts on
+        // it, so duplicates at deserialise time mean a corrupt
+        // payload.
         for (i, entry) in self.table_inventory.iter().enumerate() {
             let key = (entry.source_id.clone(), entry.table_name.clone());
             if lookup
@@ -1024,8 +1017,8 @@ impl OntologyIR {
     }
 
     // -------------------------------------------------------------------
-    // Phase 5-B accessors — read-only today; mutation goes through the
-    // typed setters below so the schema-version bump stays observable.
+    // Superstructure accessors. Read-only — mutation goes through
+    // the typed setters so schema-version bumps stay observable.
     // -------------------------------------------------------------------
 
     pub fn interfaces(&self) -> &[crate::interface::InterfaceDef] {
@@ -1092,16 +1085,16 @@ impl OntologyIR {
         &self.link_mappings
     }
 
-    /// Φ3 — every per-column distribution snapshot the IR carries.
+    /// Every per-column distribution snapshot the IR carries.
     /// Ingested from a [`SourceProfile`] via
     /// [`OntologyIR::ingest_source_profile`].
     pub fn column_profiles(&self) -> &[crate::column_profile::ColumnProfileDef] {
         &self.column_profiles
     }
 
-    /// ADR-0015 — every named membership predicate (`SegmentDef`)
-    /// the IR carries. Glossary realisation, rule anchors, and the
-    /// query-time disambiguator all resolve through this collection.
+    /// Every named NodeType-membership predicate (`SegmentDef`).
+    /// Glossary realisation, rule anchors, and the query-time
+    /// disambiguator all resolve through this collection.
     pub fn segments(&self) -> &[crate::segment::SegmentDef] {
         &self.segments
     }
@@ -1119,7 +1112,7 @@ impl OntologyIR {
             .filter(|term| term.realisation.is_some())
     }
 
-    /// ADR-0024 — every source-table inventory row the IR carries.
+    /// Every source-table inventory row the IR carries.
     pub fn table_inventory(&self) -> &[crate::table_inventory::TableInventoryEntry] {
         &self.table_inventory
     }
@@ -1324,13 +1317,13 @@ impl OntologyIR {
         // Intentionally no rebuild — provenance is not indexed.
     }
 
-    /// ADR-0015 — register a named NodeType-membership predicate.
-    /// Referential integrity (`target_node_type_id` resolves; every
+    /// Register a named NodeType-membership predicate. Referential
+    /// integrity (`target_node_type_id` resolves; every
     /// `referenced_properties()` entry exists on the target) is
-    /// asserted by `validate()` rather than the insert path because
-    /// the project flow lands segments alongside the node types
-    /// they target — strict insert-time checks would force an
-    /// awkward two-pass commit.
+    /// asserted by `validate()` rather than at insert because the
+    /// project flow lands segments alongside the node types they
+    /// target — strict insert-time checks would force a two-pass
+    /// commit.
     pub fn add_segment(
         &mut self,
         def: crate::segment::SegmentDef,
@@ -1345,13 +1338,11 @@ impl OntologyIR {
         self.rebuild_indices()
     }
 
-    /// ADR-0024 — record (or refresh) one source-table inventory
-    /// row. Idempotent on the natural key
-    /// `(source_id, table_name)`: re-introspection of the same
-    /// table replaces the prior row in place rather than appending.
-    /// Callers that want delete semantics flip the `status` to
-    /// `Retracted` so the audit trail keeps the historical
-    /// `contributed_*` ids reachable.
+    /// Record or refresh one source-table inventory row. Idempotent
+    /// on the natural key `(source_id, table_name)` — re-
+    /// introspection replaces the prior row in place. Callers that
+    /// want delete semantics flip `status` to `Retracted` so the
+    /// audit trail keeps historical `contributed_*` ids reachable.
     pub fn upsert_table_inventory_entry(
         &mut self,
         entry: crate::table_inventory::TableInventoryEntry,
@@ -1396,7 +1387,7 @@ impl OntologyIR {
         self.rebuild_indices()
     }
 
-    /// Φ3 — append (or upsert by id) a column profile snapshot.
+    /// Append (or upsert by id) a column profile snapshot.
     ///
     /// Identity is `(source_id, relation, column)` — encoded into the
     /// stable `ColumnProfileId` via
@@ -1424,8 +1415,8 @@ impl OntologyIR {
         }
     }
 
-    /// Φ3 — bulk-ingest every column entry of a [`SourceProfile`] for
-    /// a given source. Each `(table, column)` pair becomes (or
+    /// Bulk-ingest every column entry of a [`SourceProfile`] for a
+    /// given source. Each `(table, column)` pair becomes (or
     /// replaces) one [`ColumnProfileDef`] entry stamped with
     /// `sampled_at`.
     ///
@@ -1715,10 +1706,9 @@ impl OntologyIR {
     }
 
     // -------------------------------------------------------------------
-    // Phase 5-D — O(1) by_id accessors.
-    //
-    // Each helper returns `Option<&XxxDef>` so callers explicitly
-    // handle the missing case. Upstream validators should prefer
+    // O(1) by_id accessors. Each helper returns `Option<&XxxDef>`
+    // so callers explicitly handle the missing case. Upstream
+    // validators should prefer
     // these over `iter().find()` — the lookup maps are already
     // populated by `rebuild_indices`.
     // -------------------------------------------------------------------
@@ -1940,7 +1930,7 @@ impl OntologyIR {
             .map(|&i| &self.value_range_sets[i])
     }
 
-    /// Φ3 — O(1) lookup for a column profile by id.
+    /// O(1) lookup for a column profile by id.
     pub fn column_profile_by_id(
         &self,
         id: &crate::column_profile::ColumnProfileId,
@@ -2022,13 +2012,12 @@ impl OntologyIR {
         properties.iter().find(|p| p.id == prop_id)
     }
 
-    // NB: `unknown_labels_in_query(&OntologyIR, &QueryIR)` moved to
-    // `ox_query_ir::ontology_conformance::unknown_labels_in_query` in
-    // Phase 3-B — taking `&QueryIR` as a parameter of a method on
-    // `OntologyIR` would force a circular crate dependency between
-    // `ox-ontology` and `ox-query-ir`. The free-function form lives in
-    // the crate that owns `QueryIR` and calls `ontology.node_by_label`
-    // / `ontology.edge_types` through the ontology's public API.
+    // `unknown_labels_in_query(&OntologyIR, &QueryIR)` lives in
+    // `ox_query_ir::ontology_conformance` rather than here — taking
+    // `&QueryIR` on an `OntologyIR` method would force a circular
+    // dependency. The free-function form calls
+    // `ontology.node_by_label` / `ontology.edge_types` through the
+    // public API.
 
     // -----------------------------------------------------------------------
     // Schema RAG — natural language descriptions for embedding + compact schema

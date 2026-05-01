@@ -1,22 +1,16 @@
-//! `RuleDef` — SHACL Core-aligned ontology constraint.
-//!
-//! ADR 0006 settled the rule model on SHACL so the platform could
-//! inherit a W3C-backed constraint vocabulary and its ecosystem
-//! (shape libraries, validators, visualisers). This module is the
-//! Rust-native encoding of a subset large enough to cover every rule
-//! the v3 plan needs without shipping a full SHACL engine.
-//!
-//! Phase 5-A scope:
+//! `RuleDef` — SHACL Core-aligned ontology constraint. Rust-native
+//! encoding of a SHACL subset wide enough for the platform's rules
+//! without shipping a full SHACL engine.
 //!
 //! - `RuleKind` — the shape the rule is expressed as (`NodeShape`,
 //!   `PropertyShape`, `EdgeShape`, `CrossEntityShape`, `StateMachine`).
-//! - `ShaclConstraint` — the SHACL Core constraint components we
-//!   support (cardinality, datatype, pattern, enumeration, closed,
+//! - `ShaclConstraint` — the supported SHACL Core constraint
+//!   components (cardinality, datatype, pattern, enumeration, closed,
 //!   disjoint, unique-key).
 //! - `Severity` / `EnforcementKind` — orthogonal to the shape:
-//!   severity controls whether a violation blocks, warns, or
-//!   informs; enforcement names *when* the rule runs (write-time,
-//!   read-time, batch).
+//!   severity controls whether a violation blocks / warns / informs;
+//!   enforcement names *when* the rule runs (write-time, read-time,
+//!   batch).
 //! - `RuleActivationKind` — when the rule is actually live
 //!   (`Always`, `OnAction`, `OnSchedule`).
 //!
@@ -862,7 +856,7 @@ mod tests {
     }
 
     // -----------------------------------------------------------------
-    // Phase 6 — cross-cutting behaviour on `ShaclConstraint`
+    // Cross-cutting behaviour on `ShaclConstraint`
     // -----------------------------------------------------------------
 
     #[test]
@@ -1061,8 +1055,6 @@ mod tests {
         }
     }
 
-    // ADR-0016 — RuleOrigin lifecycle variants editability matrix.
-
     #[test]
     fn rule_origin_authored_default_is_editable() {
         assert!(RuleOrigin::default().is_editable());
@@ -1188,8 +1180,7 @@ mod tests {
 
     #[test]
     fn rule_origin_missing_field_deserialises_to_authored() {
-        // Wire-shape compatibility for documents persisted before
-        // ADR-0016 — every absent `origin` lands as `Authored`.
+        // Absent `origin` lands as `Authored` for wire compatibility.
         let json = r#"{
             "id":"r1",
             "name":{"default":"x"},

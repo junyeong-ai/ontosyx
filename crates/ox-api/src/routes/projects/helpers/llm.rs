@@ -203,7 +203,7 @@ fn reduce_schema_for_llm(
         }
     }
 
-    // Phase 2: cap detailed tables at max_tables; summarize the rest
+    // Cap detailed tables at max_tables; summarize the rest
     if schema.tables.len() <= max_tables {
         return ReducedSchema {
             schema,
