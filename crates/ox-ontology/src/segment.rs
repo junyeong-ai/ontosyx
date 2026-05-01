@@ -80,11 +80,20 @@ pub struct SegmentDef {
 /// definitions persist with the ontology and are translated to
 /// `Expr`s at query time, but the authoring surface is kept
 /// minimal.
+///
+/// `And` / `Or` / `Not` recurse into nested filters; the
+/// `#[schema(no_recursion)]` attribute on those variants tells
+/// utoipa to emit a `$ref` to `SegmentFilter` rather than
+/// inline-expanding the type forever (the derive's default walk
+/// otherwise blows the stack at compile-doc time).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SegmentFilter {
+    #[schema(no_recursion)]
     And { children: Vec<SegmentFilter> },
+    #[schema(no_recursion)]
     Or { children: Vec<SegmentFilter> },
+    #[schema(no_recursion)]
     Not { inner: Box<SegmentFilter> },
     Equals {
         property: PropertyKey,

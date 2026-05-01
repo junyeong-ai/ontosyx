@@ -2428,6 +2428,53 @@
         ]
       }
     },
+    "/api/ontologies/{id}/notation-patterns/propose": {
+      "post": {
+        "tags": [
+          "Ontologies"
+        ],
+        "operationId": "propose_ontology_notation_patterns",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Ontology identity ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposeNotationPatternsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Inference report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposeNotationPatternsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/api/ontologies/{id}/properties/{owner_kind}/{owner_type_id}/{property_id}/suggest-terms": {
       "post": {
         "tags": [
@@ -4045,6 +4092,89 @@
         ]
       }
     },
+    "/api/projects/{id}/reanalyze-modeled": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "reanalyze_modeled_project",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReanalyzeModeledProjectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Modeled tables re-analyzed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReanalyzeProjectResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No modeled tables / source type mismatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/api/projects/{id}/refine": {
       "post": {
         "tags": [
@@ -4404,6 +4534,210 @@
           },
           "404": {
             "description": "Project or revision not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}/scope/defer": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Move tables from included to deferred. Rejected with 409 when\nthe project's ontology already binds a NodeType to a target\ntable — the caller must retract those nodes first.",
+        "operationId": "defer_scope_tables",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeferScopeTablesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Scope updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScopeUpdateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty tables list / empty reason",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Table is currently modeled / revision mismatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{id}/scope/include": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Promote tables from deferred (or first-time) into included.",
+        "operationId": "include_scope_tables",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncludeScopeTablesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Scope updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScopeUpdateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty tables list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/ErrorBody"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision mismatch",
             "content": {
               "application/json": {
                 "schema": {
@@ -6064,7 +6398,7 @@
             }
           }
         ],
-        "description": "Per-mapping hint for the graph-cache backend (ADR 0004). The\nplanner treats `None` as \"never cache\"; `GraphCache` is an opt-in\nthat names a freshness window and an explicit refresh cadence."
+        "description": "Per-mapping hint for the graph-cache backend. The planner treats\n`None` as \"never cache\"; `GraphCache` is an opt-in that names a\nfreshness window and an explicit refresh cadence."
       },
       "Cardinality": {
         "type": "string",
@@ -6109,7 +6443,7 @@
       },
       "ChangeType": {
         "type": "string",
-        "description": "Taxonomy of edit operations the routing matrix knows about.\nThe variant set is closed — adding a new kind is a deliberate\nschema extension, not a silent addition. Every `OntologyEditOp`\n(Phase 2) classifies into exactly one of these.",
+        "description": "Taxonomy of edit operations the routing matrix knows about.\nThe variant set is closed — adding a new kind is a deliberate\nschema extension, not a silent addition. Every `OntologyEditOp`\nclassifies into exactly one of these.",
         "enum": [
           "coded_value_create",
           "coded_value_deprecate",
@@ -7364,6 +7698,29 @@
           }
         }
       },
+      "DeferScopeTablesRequest": {
+        "type": "object",
+        "required": [
+          "tables",
+          "reason",
+          "expected_revision"
+        ],
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "tables": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "DependencyBucket": {
         "type": "object",
         "description": "One entry in either index of [`SchemaDependencyGraph`] — a target\n(or source, depending on which index this bucket lives in) and\nthe edges that touch it. Tuple-shaped on the wire so the graph\nround-trips through JSON cleanly (enum keys can't ride in JSON\nobject keys).",
@@ -7677,6 +8034,17 @@
           "cardinality": {
             "$ref": "#/components/schemas/Cardinality",
             "description": "Cardinality constraint."
+          },
+          "concept_term_id": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/GlossaryTermId",
+                "description": "Workspace-canonical concept this EdgeType realises. Mirrors\n[`NodeTypeDef::concept_term_id`]; multiple EdgeTypes from\ndifferent sources can share a `concept_term_id` to declare\n\"these are the same business relationship\". The reverse index\n[`super::OntologyIR::glossary_term_realised_by_edge_types`]\nresolves a term to its implementing edges in O(1)."
+              }
+            ]
           },
           "deprecated_at": {
             "type": [
@@ -8601,6 +8969,17 @@
             "$ref": "#/components/schemas/TermLifecycle",
             "description": "Lifecycle state. Drives UI affordances (deprecation strikethrough,\nretired filter) and downstream resolvers (NL-to-Cypher should\nroute a deprecated term through its `replaced_by` automatically)."
           },
+          "realisation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TermRealisation",
+                "description": "Optional executable spec for \"what does it mean for a row to\nbelong to this term's concept?\" — segment membership,\nfunction-derived value, cross-entity predicate. Terms with a\nrealisation are workspace-canonical business concepts that\n`NodeTypeDef.concept_term_id` / `EdgeTypeDef.concept_term_id`\npin as their primary anchor (1:1 from each implementing type\nto its term); terms without a realisation are pure\nvocabulary entries — labels, definitions, glossary anchors —\nthat the implementing types still describe structurally."
+              }
+            ]
+          },
           "related_terms": {
             "type": "array",
             "items": {
@@ -8735,6 +9114,25 @@
           "include",
           "exclude"
         ]
+      },
+      "IncludeScopeTablesRequest": {
+        "type": "object",
+        "required": [
+          "tables",
+          "expected_revision"
+        ],
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tables": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
       },
       "IndexDef": {
         "oneOf": [
@@ -8981,7 +9379,7 @@
       },
       "JoinCostHint": {
         "type": "string",
-        "description": "Adapter-reported join-cost hint. Coarse on purpose — a richer\ncost estimator is scoped to the planner (Phase 6).",
+        "description": "Adapter-reported join-cost hint. Coarse on purpose — a richer\ncost estimator belongs to the planner.",
         "enum": [
           "unknown",
           "indexed",
@@ -9404,6 +9802,17 @@
             },
             "description": "Actions (writes / mutations) that apply to this node type.\nActions stay owned by the top-level `actions` collection; the\nnode type just points at the ones it supports."
           },
+          "concept_term_id": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/GlossaryTermId",
+                "description": "Workspace-canonical concept this NodeType implements,\nexpressed as the [`crate::glossary::GlossaryTermId`] of a\nterm whose `realisation` field names the executable spec.\nMultiple NodeTypes may share a `concept_term_id` (CRM and ERP\neach contributing their own Customer NodeType, both realising\nthe workspace's Customer concept); the federation planner\nwalks the reverse\n[`super::OntologyIR::glossary_term_realised_by_node_types`]\nindex to enumerate implementers when a query names the\nconcept rather than a specific NodeType. `None` is the\nstructural-only case where the node carries no concept-level\nidentity."
+              }
+            ]
+          },
           "constraints": {
             "type": "array",
             "items": {
@@ -9684,6 +10093,86 @@
         "type": "string",
         "description": "Stable identifier for a [`NotationPatternDef`]."
       },
+      "NotationPolicyBody": {
+        "type": "object",
+        "properties": {
+          "min_samples": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "require_full_agreement": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
+      "NotationProposalBody": {
+        "type": "object",
+        "required": [
+          "relation",
+          "column",
+          "pattern_id",
+          "template",
+          "separator",
+          "examples",
+          "confidence",
+          "pattern_json"
+        ],
+        "properties": {
+          "column": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number",
+            "format": "double"
+          },
+          "examples": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "pattern_id": {
+            "type": "string"
+          },
+          "pattern_json": {
+            "description": "Full `NotationPatternDef` JSON — kept flat so the admin UI can\npost it verbatim to `/edits` without re-deriving the id."
+          },
+          "relation": {
+            "type": "string"
+          },
+          "separator": {
+            "type": "string"
+          },
+          "template": {
+            "type": "string"
+          }
+        }
+      },
+      "NotationSkipBody": {
+        "type": "object",
+        "required": [
+          "relation",
+          "column",
+          "reason"
+        ],
+        "properties": {
+          "column": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "relation": {
+            "type": "string"
+          }
+        }
+      },
       "ObjectMappingDef": {
         "type": "object",
         "description": "Binding from a `NodeTypeDef` to a physical relation.",
@@ -9697,7 +10186,7 @@
         "properties": {
           "cache_hint": {
             "$ref": "#/components/schemas/CacheHintKind",
-            "description": "Graph-cache participation for this mapping. ADR 0004."
+            "description": "Graph-cache participation for this mapping."
           },
           "id": {
             "$ref": "#/components/schemas/ObjectMappingId",
@@ -9862,7 +10351,7 @@
             "items": {
               "$ref": "#/components/schemas/ColumnProfileDef"
             },
-            "description": "Φ3 — per-column distribution snapshots. Keyed by\n`(source_id, relation, column)`. Ingested from `SourceProfile`\nvia [`OntologyIR::ingest_source_profile`] so re-running\nvalue-set / notation-pattern inference doesn't require a\nsource rescan."
+            "description": "Per-column distribution snapshots, keyed by\n`(source_id, relation, column)`. Ingested from\n`SourceProfile` via [`OntologyIR::ingest_source_profile`] so\nre-running value-set / notation-pattern inference doesn't\nrequire a source rescan."
           },
           "concept_maps": {
             "type": "array",
@@ -9932,7 +10421,7 @@
             "items": {
               "$ref": "#/components/schemas/LinkMappingDef"
             },
-            "description": "Edge-level mappings (ADR 0003). Binds an edge type to the\nrelation(s) that supply edges — FK, bridge, computed, or\nfederated across sources."
+            "description": "Edge-level mappings. Binds an edge type to the relation(s)\nthat supply edges — FK, bridge, computed, or federated\nacross sources."
           },
           "metrics": {
             "type": "array",
@@ -9963,7 +10452,7 @@
             "items": {
               "$ref": "#/components/schemas/ObjectMappingDef"
             },
-            "description": "Object-level mappings (ADR 0003). Binds a node type to a\nphysical relation in a specific source. Multi-mapping per\nnode type is allowed; the federation planner deduplicates\nusing `precedence` + `primary_key_columns`."
+            "description": "Object-level mappings. Binds a node type to a physical\nrelation in a specific source. Multi-mapping per node type\nis allowed; the federation planner deduplicates using\n`precedence` + `primary_key_columns`."
           },
           "provenance": {
             "type": "array",
@@ -9982,6 +10471,20 @@
             "format": "int32",
             "description": "On-wire struct shape version. See `ONTOLOGY_IR_SCHEMA_VERSION`\nfor the live constant and version history.",
             "minimum": 0
+          },
+          "segments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SegmentDef"
+            },
+            "description": "Named, reusable membership predicates over a single NodeType\n(`SegmentDef` — \"Active Customer\", \"Lapsed Subscriber\",\n\"VIP\"). First-class so segment references from\n`PropertyBinding`, `RuleDef`, and the glossary realisation\nsurface resolve through `OntologyLookup` without\nround-tripping a side artifact.\nValidated by `validate()`: `target_node_type_id` must\nresolve, every `referenced_properties()` entry must exist\non the target, and SegmentId values are unique."
+          },
+          "table_inventory": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TableInventoryEntry"
+            },
+            "description": "Source-table inventory: one row per `(source_id, table_name)`\nthe project has touched, carrying import status, schema\nfingerprint, and the contributed NodeType / EdgeType ids.\nAnswers \"which tables did this project bring in?\" / \"where\ndid this NodeType come from?\" / \"what's available but not\nyet imported?\" without re-introspecting."
           },
           "value_range_sets": {
             "type": "array",
@@ -10152,6 +10655,14 @@
             "format": "date-time"
           }
         }
+      },
+      "OverlapPolicy": {
+        "type": "string",
+        "description": "Whether an instance may belong to multiple segments at once.\n`Allow` is the default — segments are orthogonal views, an\ninstance can be both \"high-spend\" and \"recent\" without\nconflict. `Disjoint` lets callers declare that the named\nsegments partition the node type; a downstream validator can\nthen flag an instance that would satisfy two disjoint-partition\nsegments.",
+        "enum": [
+          "allow",
+          "disjoint"
+        ]
       },
       "PageMeta": {
         "type": "object",
@@ -11197,7 +11708,7 @@
                   },
                   {
                     "$ref": "#/components/schemas/ConceptMapId",
-                    "description": "Concept map applied when the upstream source's vocabulary\ndiffers from the binding's canonical vocabulary. The query\ncompiler walks `(variable, property) → concept_map_id` and\nrewrites literals before emitting Cypher / DataFusion\nexpressions."
+                    "description": "Concept map applied when the upstream source's vocabulary\ndiffers from the binding's canonical vocabulary. Data-only\ntoday — no consumer reads this field. The query compiler\nwill walk `(variable, property) → concept_map_id` and\nrewrite literals before emitting Cypher / DataFusion\nexpressions once `ConceptMapApplicator` lands as part of\nthe SemanticEntity unification work."
                   }
                 ]
               },
@@ -11243,7 +11754,8 @@
                     "type": "null"
                   },
                   {
-                    "$ref": "#/components/schemas/ConceptMapId"
+                    "$ref": "#/components/schemas/ConceptMapId",
+                    "description": "See `ValueSet::concept_map_id` — same data-only semantics."
                   }
                 ]
               },
@@ -11556,7 +12068,7 @@
               },
               {
                 "$ref": "#/components/schemas/PiiKind",
-                "description": "PII kind — user-declared, never auto-assigned. See Phase 4.6."
+                "description": "PII kind — user-declared, never auto-assigned."
               }
             ]
           },
@@ -11766,7 +12278,7 @@
           },
           {
             "type": "object",
-            "description": "Derived property resolved by an `ox_ontology::FunctionDef`\n(Phase 5). Kept as a string id because `FunctionDef` is not\nyet part of the ontology model; the id will become a typed\n`FunctionId` once the function registry lands.",
+            "description": "Derived property resolved by an `ox_ontology::FunctionDef`.\nKept as a string id because `FunctionDef` is not yet part of\nthe ontology model; the id will become a typed `FunctionId`\nonce the function registry lands.",
             "required": [
               "function_id",
               "kind"
@@ -11837,6 +12349,60 @@
             "type": "string"
           },
           "value_set_json": {}
+        }
+      },
+      "ProposeNotationPatternsRequest": {
+        "type": "object",
+        "required": [
+          "schema",
+          "profile"
+        ],
+        "properties": {
+          "policy": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/NotationPolicyBody",
+                "description": "Optional policy knobs. Defaults are tuned for high-precision\npattern detection (`min_samples = 3`, full agreement required)."
+              }
+            ]
+          },
+          "profile": {
+            "type": "object",
+            "description": "Profile snapshot (row counts + column stats). Wire-shape is\ndefined by `ox_core::source_schema::SourceProfile`."
+          },
+          "schema": {
+            "type": "object",
+            "description": "Source schema snapshot — usually the `project.source_schema`\ncolumn of a design project. Wire-shape is defined by\n`ox_core::source_schema::SourceSchema`."
+          }
+        }
+      },
+      "ProposeNotationPatternsResponse": {
+        "type": "object",
+        "required": [
+          "ontology_id",
+          "proposals",
+          "skipped"
+        ],
+        "properties": {
+          "ontology_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "proposals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NotationProposalBody"
+            }
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NotationSkipBody"
+            }
+          }
         }
       },
       "ProposePolicyBody": {
@@ -11937,7 +12503,7 @@
         "oneOf": [
           {
             "type": "object",
-            "description": "Source scan via an object mapping (ADR 0003). Records which\nmapping fetched the data and which underlying source it\ncame from.",
+            "description": "Source scan via an object mapping. Records which mapping\nfetched the data and which underlying source it came from.",
             "required": [
               "source_id",
               "mapping_id",
@@ -12208,7 +12774,7 @@
               "null"
             ],
             "format": "date-time",
-            "description": "Ontology time the subject was valid under (bitemporal axis,\nADR 0007). `None` means \"current\"."
+            "description": "Ontology time the subject was valid under (bitemporal axis).\n`None` means \"current\"."
           },
           "subject": {
             "$ref": "#/components/schemas/EntityRef",
@@ -12347,6 +12913,30 @@
           "row_count": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "ReanalyzeModeledProjectRequest": {
+        "type": "object",
+        "description": "Modeled-only reanalyze: selection is derived from\n`analysis_scope.included`. Rejected with 400 when `included`\nis empty.",
+        "required": [
+          "source",
+          "revision"
+        ],
+        "properties": {
+          "repo_source": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Optional repository source for enrichment."
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "source": {
+            "$ref": "#/components/schemas/ProjectSource"
           }
         }
       },
@@ -13007,7 +13597,7 @@
         "oneOf": [
           {
             "type": "object",
-            "description": "Authored by a human (or persisted by an LLM acting as one).\nDefault — every existing rule deserialises with this origin\nwhen the field is missing on the wire.",
+            "description": "Authored directly by an operator. Default — the rule editor\nstamps this kind when a human commits a rule from the UI;\nmissing-on-wire deserialises here.",
             "required": [
               "kind"
             ],
@@ -13022,7 +13612,7 @@
           },
           {
             "type": "object",
-            "description": "Synthesised from a `PropertyBinding`. Carries the source\ncoordinates so consumers can navigate back to the binding.",
+            "description": "Synthesised from a `PropertyBinding`. Carries the source\ncoordinates so consumers can navigate back to the binding.\nValidators forbid hand-editing — the binding is the source\nof truth, the rule is a projection.",
             "required": [
               "node_type_id",
               "property_id",
@@ -13040,6 +13630,166 @@
               },
               "property_id": {
                 "$ref": "#/components/schemas/PropertyId"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Imported from an external SHACL shape catalogue (FHIR, FIBO,\ngist, internal compliance bundles). The pair `(catalog,\nexternal_id)` is enough to re-fetch / diff against the\nupstream artifact when the catalogue advances; a missing\n`external_id` means the import bundled the rule without a\nstable upstream key (e.g., catalogue is a flat SHACL file\nrather than a dereferenceable graph).",
+            "required": [
+              "catalog",
+              "kind"
+            ],
+            "properties": {
+              "catalog": {
+                "type": "string"
+              },
+              "external_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "imported_from"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "LLM-proposed rule that an operator subsequently accepted.\n`prompt_id` / `model_id` close the reproducibility loop;\n`accepted_at` / `accepted_by` pin the human review event so\nthe audit trail can distinguish a confirmed proposal from a\npending one (a draft proposal never persists with this\norigin — it lives in the proposal queue until reviewed).",
+            "required": [
+              "prompt_id",
+              "model_id",
+              "accepted_at",
+              "accepted_by",
+              "kind"
+            ],
+            "properties": {
+              "accepted_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "accepted_by": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "llm_proposed"
+                ]
+              },
+              "model_id": {
+                "type": "string"
+              },
+              "prompt_id": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Sourced from a regulatory / legal mandate. The `jurisdiction`\nnames the regulator (`KFTC-2024`, `EU-AI-Act-Art-9`); the\noptional citation URL points at the canonical document so the\neditor can show \"this rule exists because the regulator\nrequires it\" with a click-through.",
+            "required": [
+              "jurisdiction",
+              "kind"
+            ],
+            "properties": {
+              "citation_url": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "jurisdiction": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "regulatory"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Internal business policy (data quality bar, governance\ncommitment, SLA). `policy_id` is the workspace-level identity\nof the policy (commonly a wiki / notion page id); `owner` is\nthe principal accountable for the policy's lifecycle.",
+            "required": [
+              "policy_id",
+              "owner",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "business_policy"
+                ]
+              },
+              "owner": {
+                "type": "string"
+              },
+              "policy_id": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Inferred from the data itself — \"this property is non-null in\n99.6% of rows; propose adding a NOT-NULL invariant\". Always\ngoes through operator confirmation before landing with this\norigin; `confidence_bps` stays attached so a low-confidence\nrule can be re-confirmed when the sample window rotates.\n\nConfidence is expressed in basis points (0–10000) rather than\n`f64` so the IR keeps `Eq` / `Hash` cleanly — float NaN and\nsignalling values would otherwise infect every container that\nneeds to compare or dedup rules.",
+            "required": [
+              "confidence_bps",
+              "sample_size",
+              "detected_at",
+              "kind"
+            ],
+            "properties": {
+              "confidence_bps": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 0
+              },
+              "detected_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "observed_invariant"
+                ]
+              },
+              "sample_size": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Carried forward from a prior ontology version that was\nretired or restructured. `previous_id` lets the audit trail\nstitch the rule's history across the migration boundary;\n`migration_note` records the human rationale.",
+            "required": [
+              "previous_id",
+              "migration_note",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "migrated_from"
+                ]
+              },
+              "migration_note": {
+                "type": "string"
+              },
+              "previous_id": {
+                "$ref": "#/components/schemas/RuleId"
               }
             }
           }
@@ -13473,6 +14223,415 @@
         "enum": [
           "code_count"
         ]
+      },
+      "ScopeUpdateResponse": {
+        "type": "object",
+        "required": [
+          "project"
+        ],
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/ProjectView"
+          }
+        }
+      },
+      "SegmentDef": {
+        "type": "object",
+        "description": "A named subset of a single `NodeType`.",
+        "required": [
+          "id",
+          "name",
+          "target_node_type_id",
+          "filter"
+        ],
+        "properties": {
+          "description": {
+            "$ref": "#/components/schemas/LocalizedText"
+          },
+          "display_name": {
+            "$ref": "#/components/schemas/LocalizedText"
+          },
+          "filter": {
+            "$ref": "#/components/schemas/SegmentFilter"
+          },
+          "id": {
+            "$ref": "#/components/schemas/SegmentId"
+          },
+          "name": {
+            "type": "string"
+          },
+          "overlap_policy": {
+            "$ref": "#/components/schemas/OverlapPolicy"
+          },
+          "refresh_policy": {
+            "$ref": "#/components/schemas/SegmentRefreshPolicy"
+          },
+          "target_node_type_id": {
+            "$ref": "#/components/schemas/NodeTypeId"
+          }
+        }
+      },
+      "SegmentFilter": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "children",
+              "kind"
+            ],
+            "properties": {
+              "children": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SegmentFilter"
+                }
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "and"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "children",
+              "kind"
+            ],
+            "properties": {
+              "children": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SegmentFilter"
+                }
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "or"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "inner",
+              "kind"
+            ],
+            "properties": {
+              "inner": {
+                "$ref": "#/components/schemas/SegmentFilter"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "not"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "property",
+              "value",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "equals"
+                ]
+              },
+              "property": {
+                "$ref": "#/components/schemas/PropertyKey"
+              },
+              "value": {
+                "$ref": "#/components/schemas/SegmentLiteral"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "property",
+              "value",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "not_equals"
+                ]
+              },
+              "property": {
+                "$ref": "#/components/schemas/PropertyKey"
+              },
+              "value": {
+                "$ref": "#/components/schemas/SegmentLiteral"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "property",
+              "value",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "greater_than"
+                ]
+              },
+              "property": {
+                "$ref": "#/components/schemas/PropertyKey"
+              },
+              "value": {
+                "$ref": "#/components/schemas/SegmentLiteral"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "property",
+              "value",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "greater_or_equal"
+                ]
+              },
+              "property": {
+                "$ref": "#/components/schemas/PropertyKey"
+              },
+              "value": {
+                "$ref": "#/components/schemas/SegmentLiteral"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "property",
+              "value",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "less_than"
+                ]
+              },
+              "property": {
+                "$ref": "#/components/schemas/PropertyKey"
+              },
+              "value": {
+                "$ref": "#/components/schemas/SegmentLiteral"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "property",
+              "value",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "less_or_equal"
+                ]
+              },
+              "property": {
+                "$ref": "#/components/schemas/PropertyKey"
+              },
+              "value": {
+                "$ref": "#/components/schemas/SegmentLiteral"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "property",
+              "values",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "in"
+                ]
+              },
+              "property": {
+                "$ref": "#/components/schemas/PropertyKey"
+              },
+              "values": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SegmentLiteral"
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "property",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "is_null"
+                ]
+              },
+              "property": {
+                "$ref": "#/components/schemas/PropertyKey"
+              }
+            }
+          }
+        ],
+        "description": "Filter AST for segment membership. Internal-only: segment\ndefinitions persist with the ontology and are translated to\n`Expr`s at query time, but the authoring surface is kept\nminimal.\n\n`And` / `Or` / `Not` recurse into nested filters; the\n`#[schema(no_recursion)]` attribute on those variants tells\nutoipa to emit a `$ref` to `SegmentFilter` rather than\ninline-expanding the type forever (the derive's default walk\notherwise blows the stack at compile-doc time)."
+      },
+      "SegmentId": {
+        "type": "string",
+        "description": "Stable identifier for a [`SegmentDef`]."
+      },
+      "SegmentLiteral": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "value",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "int"
+                ]
+              },
+              "value": {
+                "type": "integer",
+                "format": "int64"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "value",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "float"
+                ]
+              },
+              "value": {
+                "type": "number",
+                "format": "double"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "value",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "string"
+                ]
+              },
+              "value": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "value",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "bool"
+                ]
+              },
+              "value": {
+                "type": "boolean"
+              }
+            }
+          }
+        ],
+        "description": "Literal value a segment filter may compare against. Kept narrow\non purpose — a segment definition is a UI-authored artefact\nmore than a general-purpose expression. Numeric / string /\nboolean covers every segment the launch partners expressed."
+      },
+      "SegmentRefreshPolicy": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "on_demand"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "ttl_seconds",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "materialised"
+                ]
+              },
+              "ttl_seconds": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              }
+            }
+          }
+        ],
+        "description": "How the runtime refreshes segment membership.\n\n- `OnDemand` — recompute at query time. Simple, no staleness,\n  most expensive. Default.\n- `Materialised { ttl_seconds }` — cache the member set; refresh\n  when the TTL expires. The runtime rejects writes to a\n  segment-bound property when the cache is stale by more than\n  `2 * ttl_seconds`, to prevent unbounded staleness from a\n  misconfigured scheduler."
       },
       "SemanticType": {
         "oneOf": [
@@ -14020,7 +15179,7 @@
             }
           }
         ],
-        "description": "SHACL Core constraint component. The subset covers ~95% of\nreal-world rule usage; advanced components (`sh:and`, `sh:or`,\n`sh:xone`, recursion rules) land in Phase 11 with the reasoning\nengine.\n\n`ShaclConstraint` lives at the **logical** layer — the SHACL\nvalidator pipeline checks each constraint at write/read time and\nproduces a structured violation report. For storage-engine\nconstraints that compile to graph-DB DDL (uniqueness, existence,\nnode keys), use [`crate::ir::NodeConstraint`] on `NodeTypeDef`\ninstead. The two surfaces deliberately do not overlap: DDL\nconstraints buy database-native enforcement at the cost of\nportability; SHACL constraints buy expressiveness at the cost of\nrequiring the validator on the write path."
+        "description": "SHACL Core constraint component. The subset covers ~95% of\nreal-world rule usage; advanced components (`sh:and`, `sh:or`,\n`sh:xone`, recursion rules) are not yet implemented and land\nalongside the reasoning engine.\n\n`ShaclConstraint` lives at the **logical** layer — the SHACL\nvalidator pipeline checks each constraint at write/read time and\nproduces a structured violation report. For storage-engine\nconstraints that compile to graph-DB DDL (uniqueness, existence,\nnode keys), use [`crate::ir::NodeConstraint`] on `NodeTypeDef`\ninstead. The two surfaces deliberately do not overlap: DDL\nconstraints buy database-native enforcement at the cost of\nportability; SHACL constraints buy expressiveness at the cost of\nrequiring the validator on the write path."
       },
       "SignalBody": {
         "type": "object",
@@ -14250,6 +15409,59 @@
             "format": "uuid"
           }
         }
+      },
+      "TableInventoryEntry": {
+        "type": "object",
+        "description": "One row of the project's source-table inventory.\n\n`(source_id, table_name)` is the natural key — the IR's\n`add_table_inventory_entry` upserts on the pair so re-introspection\nagainst an unchanged source is idempotent. `schema_fingerprint`\ncaptures the table's structural shape at the time of last\nintrospection; a fingerprint mismatch on a later run signals\nschema drift that the FE surfaces as a \"this source moved on\"\nbanner.",
+        "required": [
+          "source_id",
+          "table_name",
+          "status",
+          "recorded_at"
+        ],
+        "properties": {
+          "contributed_edge_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EdgeTypeId"
+            },
+            "description": "EdgeTypes this table contributed to. Bridge / federated link\nmappings whose `source_endpoint` or `target_endpoint`\nreferences this table count."
+          },
+          "contributed_node_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NodeTypeId"
+            },
+            "description": "NodeTypes this table contributed to. A multi-source node\n(CRM.Customer + ERP.Customer realising the same Concept)\nsurfaces an entry for each contributing source × table pair."
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "`Imported` rows: when the kernel last read the table.\n`AvailableButNotImported`: when the source surface listed it.\n`Retracted`: when the operator dropped it."
+          },
+          "schema_fingerprint": {
+            "type": "string",
+            "description": "Stable structural digest — empty when the entry pre-dates\nfingerprint capture. New code always populates it."
+          },
+          "source_id": {
+            "$ref": "#/components/schemas/SourceId"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TableInventoryStatus"
+          },
+          "table_name": {
+            "type": "string"
+          }
+        }
+      },
+      "TableInventoryStatus": {
+        "type": "string",
+        "description": "Why a table is in the inventory — the operator's import intent.\n\n`Imported` is the dominant case: the operator picked the table\nduring introspection and the kernel actually pulled its schema /\nprofile. `AvailableButNotImported` records a table the source\nsurface advertised but the operator declined; it is kept on the\ninventory so the Source Inspector can offer a one-click\n\"extend with this table\" without re-introspecting. `Retracted`\nis the terminal state for a table that was previously imported\nand later dropped via `AnalyzeSelection::Reduce` — the audit\ntrail keeps the `contributed_*` ids of the now-deleted entities\nso historical queries can resolve them.",
+        "enum": [
+          "imported",
+          "available_but_not_imported",
+          "retracted"
+        ]
       },
       "TemporalGrain": {
         "type": "string",
@@ -14508,6 +15720,66 @@
           }
         ],
         "description": "Where the term originated. Drives UI affordances like a \"machine\nsuggestion\" badge that prompts a human to validate."
+      },
+      "TermRealisation": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "segment_id",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "segment"
+                ]
+              },
+              "segment_id": {
+                "$ref": "#/components/schemas/SegmentId"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "function_id",
+              "kind"
+            ],
+            "properties": {
+              "function_id": {
+                "$ref": "#/components/schemas/FunctionId"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "function"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Free-form predicate evaluated against the term's implementing\nNodeTypes. Surfaced to the planner as a structured filter —\nthe predicate's properties must resolve on at least one\nimplementer for the term to validate.",
+            "required": [
+              "predicate",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "cross_entity"
+                ]
+              },
+              "predicate": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "description": "Executable realisation of a glossary term that names a business\nconcept — how the runtime decides membership / value at query\ntime.\n\n`Segment` is the canonical case: \"Active Customer = Customer whose\nlast_order < 90 days\" lowers to a `SegmentDef`. `Function` covers\ncomputed-value concepts (\"Lifetime Value = sum of order totals\").\n`CrossEntity` is the structured-predicate escape for the rare case\nneither shape fits — the predicate is parsed by the planner\nagainst the concept's implementing NodeTypes.\n\n`Query` (saved-view realisation) was deliberately rejected:\n`InsightId` lives in `ox-store`, not the IR, and layering\n`ox-ontology → ox-store` would break the dependency arrow\n`ox-core ← ox-ontology ← ox-store`. View-shaped concepts instead\nuse a `Function` whose body returns the saved-view rows."
       },
       "TermRelation": {
         "type": "object",
