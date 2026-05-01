@@ -4214,7 +4214,6 @@
       "widget": {
         "noQuery": "쿼리가 설정되지 않았습니다",
         "queryFailed": "쿼리가 실패했습니다",
-        "paramsLabel": "{label}:",
         "crossFilterChip": "타입 {count}개 숨김",
         "crossFilterClearTitle": "위젯 간 필터 해제 ({types}). 클릭하면 모든 타입을 다시 표시합니다."
       },

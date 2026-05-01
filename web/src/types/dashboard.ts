@@ -38,14 +38,6 @@ export interface DashboardUpdateRequest {
 
 // --- Dashboard Widgets ---
 
-/** Typed query parameter for dashboard widgets */
-export interface WidgetParameter {
-  name: string;
-  label?: string;
-  type: "string" | "number" | "boolean";
-  default_value?: string | number | boolean;
-}
-
 export interface DashboardWidget {
   id: string;
   dashboard_id: string;
@@ -55,7 +47,6 @@ export interface DashboardWidget {
   widget_spec: Record<string, unknown>;
   position: { x: number; y: number; w: number; h: number };
   refresh_interval_secs: number | null;
-  parameters?: WidgetParameter[];
   thresholds?: {
     warning?: number;
     critical?: number;
