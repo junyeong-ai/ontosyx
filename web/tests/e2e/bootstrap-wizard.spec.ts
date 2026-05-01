@@ -90,6 +90,32 @@ test.describe("bootstrap wizard", () => {
         await route.fallback();
       }
     });
+
+    // Source-preview cheap table list — used by step 2b to populate
+    // the table picker when the operator switches to subset/staged
+    // mode. The default table set (`customers`, `orders`, `audit_log`)
+    // gives staged mode something to actually pick.
+    await page.route(
+      "**/api/proxy/projects/source-preview",
+      async (route) => {
+        if (route.request().method() === "POST") {
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              source_type: "postgresql",
+              tables: [
+                { name: "audit_log", estimated_row_count: null, column_count: 4, last_modified: null },
+                { name: "customers", estimated_row_count: 1000, column_count: 8, last_modified: null },
+                { name: "orders", estimated_row_count: 5000, column_count: 12, last_modified: null },
+              ],
+            }),
+          });
+        } else {
+          await route.fallback();
+        }
+      },
+    );
   });
 
   test("step 1 pilot page renders name + scope inputs", async ({ page }) => {
@@ -257,6 +283,74 @@ test.describe("bootstrap wizard", () => {
     await expect(page).toHaveURL(
       new RegExp(`/design\\?project=${MOCK_PROJECT.id}`),
     );
+  });
+
+  test("staged mode at step 2b sends selection: { kind: 'staged', tables }", async ({
+    page,
+  }) => {
+    // Pin the createProject payload so we can assert on the
+    // selection wire-shape — the staged variant is the only thing
+    // this test cares about, glossary / rules / mapping steps are
+    // skipped.
+    const projectRequest = page.waitForRequest(
+      (req) =>
+        /\/api\/proxy\/projects(\?.*)?$/.test(req.url()) &&
+        req.method() === "POST",
+    );
+
+    // Steps 1 + 2 (pilot name + postgres connection) — same as the
+    // happy-path test, condensed.
+    await page.goto("/bootstrap/1-pilot");
+    await page
+      .locator("input[type='text'], input:not([type])")
+      .first()
+      .fill("Staged Pilot");
+    await page.getByRole("button", { name: /^(?:next|다음)$/i }).click();
+    await expect(page).toHaveURL(/\/bootstrap\/2-source$/);
+
+    await page
+      .getByRole("radio", { name: /postgresql/i })
+      .check({ force: true });
+    await page
+      .getByPlaceholder(/postgres|connection|url/i)
+      .first()
+      .fill("postgresql://localhost:5432/staged");
+    await page.getByRole("button", { name: /^(?:next|다음)$/i }).click();
+    await expect(page).toHaveURL(/\/bootstrap\/2b-select-tables$/);
+
+    // Step 2b — flip to "staged" mode. The radio is .sr-only, so
+    // toggle the input directly by its `value` attribute.
+    await page
+      .locator("input[type='radio'][name='source-import-mode'][value='staged']")
+      .check({ force: true });
+
+    // Wait for the source-preview mock to populate the picker, then
+    // tick `customers` only. The "audit_log" + "orders" remainder
+    // becomes the deferred set on the project's analysis_scope —
+    // that part is server-side, the wire payload here just carries
+    // the staged tables.
+    const customersRow = page.getByRole("checkbox", { name: /customers/i });
+    await expect(customersRow).toBeVisible();
+    await customersRow.check();
+
+    await page.getByRole("button", { name: /^(?:next|다음)$/i }).click();
+    await expect(page).toHaveURL(/\/bootstrap\/3-glossary$/);
+
+    // Skip the optional draft steps and Finish.
+    await page.getByRole("button", { name: /^(?:next|다음)$/i }).click();
+    await expect(page).toHaveURL(/\/bootstrap\/4-rules$/);
+    await page.getByRole("button", { name: /^(?:next|다음)$/i }).click();
+    await expect(page).toHaveURL(/\/bootstrap\/5-map$/);
+    await page.getByRole("button", { name: /^(?:next|다음)$/i }).click();
+    await expect(page).toHaveURL(/\/bootstrap\/6-validate$/);
+    await page.getByRole("button", { name: /^finish$|완료/i }).click();
+
+    const project = await projectRequest;
+    const projectBody = project.postDataJSON() as {
+      selection: { kind: string; tables?: string[] };
+    };
+    expect(projectBody.selection.kind).toBe("staged");
+    expect(projectBody.selection.tables).toEqual(["customers"]);
   });
 
   test("Finish surfaces ExistingPilotDialog when the name already exists", async ({
