@@ -10,18 +10,18 @@ export interface AmbiguityContext {
   column: { relation: string; column: string };
   kind: { kind: AmbiguityKindValue };
   sample_values?: string[];
-  distinct_estimate?: number | null;
+  distinct_estimate?: number;
   nullable?: boolean;
   clarification_prompt: string;
   detection_source_hash: string;
-  repo_hint?: { suggested_values: string; source_file: string } | null;
+  repo_hint?: { suggested_values: string; source_file: string };
   detected_at: string;
 }
 
 export type AmbiguityMapping =
   | {
       kind: "value_map";
-      entries: Array<{ value: string; display: string; definition?: string | null }>;
+      entries: Array<{ value: string; display: string; definition?: string }>;
     }
   | { kind: "code_system_ref"; code_system_id: string }
   | { kind: "glossary_ref"; term_id: string };
@@ -32,9 +32,9 @@ export interface AmbiguityResolution {
   context_source_hash: string;
   mapping: AmbiguityMapping;
   resolved_at: string;
-  resolved_by_user_id?: string | null;
-  supersedes?: string | null;
-  revoked_at?: string | null;
+  resolved_by_user_id?: string;
+  supersedes?: string;
+  revoked_at?: string;
 }
 
 export interface AmbiguitySummary {

@@ -102,7 +102,7 @@ export interface TypeCandidate {
   ontology_name: string;
   current_version: string;
   label: string;
-  deprecated_at?: string | null;
+  deprecated_at?: string;
 }
 
 export async function listTypeCandidates(

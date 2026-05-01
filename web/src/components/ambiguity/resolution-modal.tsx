@@ -101,7 +101,7 @@ export function ResolutionModal({
         entries: filtered.map((e) => ({
           value: e.value,
           display: e.display,
-          definition: e.definition.trim() ? e.definition : null,
+          definition: e.definition.trim() ? e.definition : undefined,
         })),
       });
       return;

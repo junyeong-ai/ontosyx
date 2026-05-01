@@ -60,7 +60,7 @@ describe("ResolutionModal", () => {
 
     expect(onSubmit).toHaveBeenCalledWith({
       kind: "value_map",
-      entries: [{ value: "1", display: "Active", definition: null }],
+      entries: [{ value: "1", display: "Active", definition: undefined }],
     });
   });
 
