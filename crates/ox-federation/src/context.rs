@@ -1,18 +1,10 @@
 //! Workspace-scoped federation context.
 //!
-//! A `FederationContext` is a thin wrapper around DataFusion's
-//! `SessionContext` that carries the workspace identity and a set of
-//! registered `SourceTableProvider`s. The API layer instantiates one
-//! per request (cheap — DataFusion's `SessionContext::new` does no
-//! I/O), registers the tables the query needs, then hands the
-//! context to the planner.
-//!
-//! Phase 2 scope is deliberately small:
-//! - `new(workspace_id)` → bare DataFusion session.
-//! - `register_table(provider)` → adds the provider under its own
-//!   table name.
-//! - `sql(text)` → runs a raw SQL string for bring-up / integration
-//!   tests. Phase 6 adds `plan(query_ir)`.
+//! A thin wrapper around DataFusion's `SessionContext` that carries
+//! the workspace identity and a set of registered
+//! `SourceTableProvider`s. The API layer instantiates one per
+//! request (cheap — `SessionContext::new` does no I/O), registers
+//! the tables the query needs, then hands it to the planner.
 
 use std::sync::Arc;
 

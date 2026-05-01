@@ -1,16 +1,7 @@
-//! Ontosyx federation engine.
-//!
-//! `ox-federation` is the virtual-ontology-layer execution path
-//! (see `docs/adr/0001-virtual-ontology-layer.md`). It owns the
-//! translation from `QueryIR` / `OntologyIR` down to an Apache
-//! DataFusion `LogicalPlan` that scans the original data sources
-//! through the `DataSourceAdapter` trait.
-//!
-//! Phase 2 scope: the `TableProvider` wrapper + a `FederationContext`
-//! that registers adapter-backed tables with DataFusion. Query
-//! planning (path decomposition, workspace predicate injection,
-//! cost estimation) lands in Phase 6; this crate exists so the wiring
-//! can compose without a big-bang integration later.
+//! Ontosyx federation engine — the virtual-ontology-layer execution
+//! path. Lowers `QueryIR` against an `OntologyIR` to a DataFusion
+//! `LogicalPlan` that scans the underlying data sources through the
+//! `DataSourceAdapter` trait.
 //!
 //! Module layout:
 //!

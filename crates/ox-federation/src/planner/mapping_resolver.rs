@@ -5,16 +5,10 @@
 //! resolver walks `OntologyIR::object_mappings()` and produces a list
 //! of applicable mappings, sorted by `precedence` descending so the
 //! caller can deduplicate multi-mapping results with a simple
-//! "first-match-wins" policy (ADR 0003).
+//! "first-match-wins" policy.
 //!
 //! The resolver is read-only and synchronous — all data is already in
-//! the `OntologyIR` snapshot. This lets the upstream pipeline (the
-//! eventual `LogicalPlanBuilder`) call `resolve_*` in a loop without
-//! worrying about concurrency or I/O.
-//!
-//! Phase 6-A scope keeps the resolver narrow: temporal window +
-//! precedence filtering, no cost modelling, no multi-hop fan-out.
-//! Phase 6-B layers the cost estimator on top.
+//! the `OntologyIR` snapshot.
 
 use chrono::{DateTime, Utc};
 
