@@ -43,11 +43,15 @@ export default function ApprovalsSettingsPage() {
   const handleReview = async (id: string, approved: boolean) => {
     try {
       const note = notes[id]?.trim();
+      // Backend `ReviewApprovalRequest.note: Option<String>` with
+      // `#[serde(default)]` — absent / missing both deserialise to
+      // `None`. Send via `undefined` so JSON.stringify omits the
+      // field, matching the spec exactly.
       await request(`/approvals/${id}/review`, {
         method: "POST",
         body: JSON.stringify({
           approved,
-          note: note ? note : null,
+          note: note ? note : undefined,
         }),
       });
       setNotes((prev) => {
