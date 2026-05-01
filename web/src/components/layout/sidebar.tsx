@@ -22,15 +22,6 @@ import {
   DashboardSpeed01Icon,
 } from "@hugeicons/core-free-icons";
 
-// ---------------------------------------------------------------------------
-// Activity Bar — VS Code-style icon strip for workspace mode switching
-// ---------------------------------------------------------------------------
-//
-// Phase 2-4: each mode now owns a route segment under `(workbench)`.
-// Sidebar buttons became `<Link>`s so browser back/forward, reloads,
-// deep links, and share URLs all work. Active state derives from the
-// pathname rather than a Zustand boolean.
-
 function ModeLink({
   href,
   active,

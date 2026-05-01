@@ -122,13 +122,6 @@ export const SchemaEdge = memo(function SchemaEdge({
   const strokeWidth = diffStatus || selected || highlighted ? 2.5 : 1.5;
   const dashArray = diffStatus === "added" ? "6 3" : undefined;
 
-  // Φ5 #6 — Hover preview. Browser-native title attribute keeps
-  // the tooltip styleable-free + accessible (axe scans surface no
-  // hidden text issue) and the edge component stays synchronous.
-  // A tippy-style portal tooltip would buy richer formatting at
-  // the cost of an extra dependency; we land the native version
-  // first and upgrade only if a designer asks for the prettier
-  // shape.
   const hoverTitle = buildHoverTitle(edgeDef, localeChain);
 
   return (

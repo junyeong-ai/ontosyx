@@ -1,15 +1,5 @@
 "use client";
 
-// Phase 4.2 — Complete Map dashboard. Renders six axis cards
-// (Topology / Vocabulary / Registry / Strategy / VOL / Governance)
-// with entry counts + a dangling-references callout surfacing the
-// Phase 1.7 integrity check.
-//
-// Phase 4.2 follow-up: count rows are now clickable. Clicking opens
-// an in-page drill-down modal that fetches
-// `GET /api/ontologies/{id}/axis-items?kind=<kind>` and renders
-// the matching entries ({id, label, description}).
-
 import { useMemo, useState, use } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";

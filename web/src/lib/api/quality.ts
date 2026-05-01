@@ -9,7 +9,7 @@ import { request } from "./client";
 export type MetricWindow = "7d" | "30d" | "90d";
 
 // ---------------------------------------------------------------------------
-// Adaptive thresholds — Phase B consumer types
+// Adaptive thresholds — consumer types
 //
 // The backend cron writes `workspace_quality_baseline` rows with a
 // per-metric `{ median, mad, warn, critical }` bundle. The banner
@@ -94,11 +94,9 @@ export async function decideStaleProposal(
   );
 }
 
-// Phase 4.7 — given a stale type proposal, find which ontologies
-// in the workspace currently carry that type. The approval UI
-// reads this to decide whether to auto-emit a
-// `DeprecateNodeType` / `DeprecateEdgeType` edit op and, if
-// multiple ontologies match, which one to target.
+// Given a stale type proposal, find which ontologies in the
+// workspace carry that type. Drives the approval UI's
+// auto-deprecate dispatch / target-picker.
 export interface TypeCandidate {
   ontology_id: string;
   ontology_name: string;

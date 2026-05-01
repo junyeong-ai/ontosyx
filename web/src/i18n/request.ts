@@ -1,23 +1,13 @@
-// ---------------------------------------------------------------------------
-// next-intl request configuration
-// ---------------------------------------------------------------------------
+// next-intl request configuration.
 //
-// Cookie-based locale resolution — the platform is Korean-first, with English
-// as an opt-in switch (`ontosyx_locale=en`). Putting the locale in the URL
-// would fight the existing Zustand-driven `workspaceMode` router; we keep
-// URLs stable and flip the locale via cookie. Phase 2-4 revisits this once
-// dynamic segments (`[locale]`) are introduced.
+// Cookie-based locale resolution — Korean-first with English opt-in
+// via `ontosyx_locale=en`. Fallback order:
+//   1. `ontosyx_locale` cookie set by the locale switcher.
+//   2. `Accept-Language` header (deferred until needed).
+//   3. Default `ko`.
 //
-// Fallback order:
-//   1. Explicit `ontosyx_locale` cookie (set by the locale switcher in the
-//      user menu — see `Phase 2-3` follow-up).
-//   2. `Accept-Language` header — defer until we actually need browser
-//      auto-detection; cookie-first is predictable enough for now.
-//   3. Built-in default: `ko`.
-//
-// The `SUPPORTED_LOCALES` list gates user-supplied cookie values so a
-// tampered cookie cannot load an arbitrary module path.
-// ---------------------------------------------------------------------------
+// `SUPPORTED_LOCALES` gates user-supplied cookie values so a tampered
+// cookie cannot load an arbitrary module path.
 
 import { cookies } from "next/headers";
 import { getRequestConfig } from "next-intl/server";

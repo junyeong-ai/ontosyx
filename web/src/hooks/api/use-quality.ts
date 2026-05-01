@@ -84,9 +84,8 @@ export interface DecideStaleVariables {
 
 /**
  * Fetch which ontologies in the workspace carry a node/edge type
- * with the given logical id. Feeds the Phase 4.7 auto-deprecate
- * flow on the stale-approval page — enabled is gated so the lookup
- * only runs when the page explicitly opts in (after approve).
+ * with the given logical id. Gated by `enabled` so callers can
+ * defer the lookup until a deprecate is actually requested.
  */
 export function useTypeCandidates(
   logicalId: string | null,

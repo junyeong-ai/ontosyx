@@ -53,12 +53,9 @@ export const useAppStore = create<AppStore>()(
     {
       name: "ontosyx-ui",
       partialize: (state) => ({
-        // Only persist UI layout preferences — NOT workspace-scoped data.
-        // ontologyId was removed: it's workspace-scoped and gets stale
-        // when switching workspaces. Analyze/Explore modes re-fetch on mount.
-        // `workspaceMode` removed in Phase 2-4 — the active mode now
-        // derives from the URL, so persisting it would desync from
-        // navigation on reload.
+        // Only persist UI layout preferences — workspace-scoped data
+        // (ontologyId, mode) belongs to the URL or to per-workspace
+        // refetches.
         designBottomTab: state.designBottomTab,
         analyzeRightTab: state.analyzeRightTab,
         isExplorerOpen: state.isExplorerOpen,

@@ -1,11 +1,6 @@
-// Phase 4.4 — BFS multi-hop expansion.
-//
-// `expandNode` returns the 1-hop neighbourhood. For depth > 1 we
-// repeat on each newly-discovered neighbour while deduplicating by
-// element_id and capping the total node count. The resulting list
-// is what the explore layout shows as "neighbours" — it stays a
-// flat `ExpandNeighbor[]` so the existing canvas / inspector code
-// doesn't change shape.
+// BFS multi-hop expansion. `expandNode` returns 1-hop neighbours;
+// deeper expansion repeats on each newly-discovered neighbour with
+// `element_id` dedup and a hard cap.
 
 import { expandNode, type ExpandNeighbor } from "@/lib/api/queries";
 

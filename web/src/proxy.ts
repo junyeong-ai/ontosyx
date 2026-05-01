@@ -1,10 +1,7 @@
 /**
- * Next.js proxy for auth gating (Next 16 `proxy.ts` convention —
- * formerly `middleware.ts`).
- *
- * When Google OIDC is configured (GOOGLE_CLIENT_ID env var is set),
- * redirects unauthenticated requests to the login page.
- * When not configured, all requests pass through (dev mode).
+ * Next.js proxy for auth gating. When Google OIDC is configured
+ * (`GOOGLE_CLIENT_ID` set), unauthenticated requests redirect to the
+ * login page; otherwise everything passes through (dev mode).
  */
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";

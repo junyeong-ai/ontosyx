@@ -13,24 +13,17 @@ import { useHydrated } from "@/lib/store/use-hydrated";
 import { useAppStore } from "@/lib/store";
 
 /**
- * Shared shell for every workspace mode (design / analyze / explore /
- * dashboard). Each mode lives in its own route segment under this
- * group — the shell renders the Sidebar + Header + the mode-specific
- * page chrome, and each segment's `page.tsx` fills the `<main>` slot.
+ * Shared shell for every workspace mode. Each mode owns its own
+ * route segment under this group; the shell renders Sidebar +
+ * Header + chrome and each segment's `page.tsx` fills the `<main>`.
  *
- * Moved out of `src/app/page.tsx` so the URL, not Zustand, is the
- * source of truth for the active mode (Phase 2-4).
- *
- * SSR / hydration contract: the provider tree (`ErrorBoundary` →
- * `TooltipProvider` → `PromptProvider`) and the outer flex shell are
- * rendered unconditionally, so the React tree shape is identical
- * across server render, first client render, and the post-hydration
- * re-render. Only the inner chrome (Sidebar / Header / page content)
- * differs between the pre-hydration skeleton and the live state, and
- * that swap happens *inside* the stable wrapper. Returning two
- * structurally different roots from this component (the previous
- * design) caused the implicit Suspense from `loading.tsx` to land
- * at a different tree position on the server vs the client.
+ * SSR / hydration contract: the provider tree and outer flex shell
+ * render unconditionally so the React tree shape is identical across
+ * server render, first client render, and post-hydration re-render.
+ * Only the inner chrome differs between skeleton and live state, and
+ * that swap happens inside the stable wrapper — returning two
+ * structurally different roots would put `loading.tsx`'s implicit
+ * Suspense at a different tree position on server vs. client.
  */
 export default function WorkbenchLayout({
   children,

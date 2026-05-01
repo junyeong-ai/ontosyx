@@ -1,18 +1,5 @@
 "use client";
 
-// Phase 4.2 follow-up — six-axis cross-reference visualiser for the
-// Complete Map page. Fetches `/api/ontologies/{id}/cross-refs`,
-// aggregates the flat edge list into `(source_axis, target_axis)`
-// buckets, and renders the result on a small React Flow canvas
-// laid out as a hexagon of axis nodes with weighted edges between
-// them. Clicking an edge opens a modal that lists the individual
-// cross-references inside that bucket.
-//
-// Intentionally kept as a sibling to the drill-down modal on the
-// map page — the visualiser answers "which axes talk to which?",
-// the drill-down answers "what's inside this axis?". Different
-// lenses over the same IR.
-
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";

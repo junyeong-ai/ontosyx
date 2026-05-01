@@ -1,22 +1,5 @@
 "use client";
 
-// Phase 4.7 — Stale concept approval dashboard.
-//
-// Lists every pending `StaleConceptProposal` written by the daily
-// cron + lets a designer approve / dismiss with an optional reason.
-// Decided rows move into the history tab; we keep the last decision
-// visible so the audit trail survives even after the row disappears
-// from "pending".
-//
-// On "approve" the page also offers to emit the backing
-// `DeprecateNodeType` / `DeprecateEdgeType` edit op against the
-// ontology that carries the type — looked up via
-// `listTypeCandidates`. Single match is auto-emitted; multi-match
-// opens a picker so the admin chooses the target ontology; a
-// proposal whose type has been removed / already deprecated just
-// records the decision and tells the admin nothing further is
-// needed.
-
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -103,8 +86,6 @@ export default function StaleConceptsPage() {
       setEditing(null);
       if (row.decision !== "approved") return;
 
-      // Phase 4.7 — auto-emit the DeprecateType edit against
-      // whichever ontology in the workspace carries this type.
       const kind = normaliseKind(row.type_kind);
       let candidates: TypeCandidate[] = [];
       try {

@@ -1,10 +1,9 @@
 // Discriminated-union mirror of `ox_ontology::OntologyEditOp`.
 //
-// Every Φ4 vocabulary CRUD page constructs ops from this union and
-// submits them through `applyOntologyEdits` (POST
-// `/api/ontologies/{id}/edits`). The wire format uses
-// `serde(tag = "op", rename_all = "snake_case")` on the Rust side, so
-// the JSON shape is `{"op": "create_glossary_term", "def": {...}}`.
+// CRUD callers construct ops from this union and submit them via
+// `applyOntologyEdits` (POST `/api/ontologies/{id}/edits`). Wire
+// format: `serde(tag = "op", rename_all = "snake_case")` →
+// `{"op": "create_glossary_term", "def": {...}}`.
 //
 // Source of truth: `crates/ox-ontology/src/edit.rs::OntologyEditOp`.
 // Adding a new variant on the backend requires a parallel entry here

@@ -1,15 +1,8 @@
 "use client";
 
-// Shared scaffold for the Φ4 vocabulary admin pages that haven't
-// yet grown a full create / edit form. Lists the collection,
-// surfaces a delete affordance per row, and routes the deletion
-// through `useApplyOntologyEdits` exactly like the Glossary page.
-//
-// The CodeSystem / ValueSet / ConceptMap / Rule pages mount this
-// component with their own row renderer and delete-op builder.
-// Once a page grows a dedicated create / edit form (e.g. ConceptMap
-// gains a side-by-side mapping grid), it migrates to a bespoke
-// page.tsx the same way the Glossary page already did.
+// Shared scaffold for vocabulary admin lists: collection rows + a
+// delete affordance, routed through `useApplyOntologyEdits`. Each
+// caller supplies its own row renderer and delete-op builder.
 
 import type { ReactNode } from "react";
 import { toast } from "sonner";

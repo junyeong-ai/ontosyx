@@ -20,9 +20,6 @@ import { localizePresent } from "@/lib/locale/localize";
 import { useLocaleChain } from "@/lib/use-locale-chain";
 
 function freshRuleId(): string {
-  // UUID v4 prefixed for grep-ability across logs and debug
-  // payloads; matches the convention every other Φ4 admin page
-  // uses for ad-hoc id minting.
   return `rule-${crypto.randomUUID().slice(0, 8)}`;
 }
 

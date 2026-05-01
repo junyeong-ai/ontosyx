@@ -1,17 +1,5 @@
 "use client";
 
-// Φ6 #1 — admin UI for the ChangeRoutingRule matrix.
-//
-// Renders every visible row (global defaults + workspace
-// overrides), groups by change_type so an admin sees the
-// effective rule for each ontology edit category at a glance,
-// and offers a "revert to global" action on rows that carry a
-// workspace override. Editing the routing variant is structured
-// (kind dropdown surfaces the four variants); the inner
-// predicate / role-list bodies stay JSON-edit for now because
-// the predicate vocabulary keeps growing and a hand-rolled
-// form would lag the canonical definition.
-
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";

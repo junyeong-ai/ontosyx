@@ -1,13 +1,5 @@
 "use client";
 
-/**
- * Rendered when the share token returns HTTP 410 Gone — the link was once
- * valid but has since been expired or revoked (Phase 4.10).
- *
- * Exported both as the default component (for embedding from `page.tsx`)
- * and as-is under this path so it can be referenced directly.
- */
-
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";

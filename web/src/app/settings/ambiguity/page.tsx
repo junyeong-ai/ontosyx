@@ -1,13 +1,5 @@
 "use client";
 
-// Phase 4.3 — Ambiguity admin dashboard.
-//
-// Lists every `AmbiguityContext` in the workspace with its active
-// resolution status and a link into the resolution editor. Tabs
-// split "needs attention" (no active resolution, OR resolution is
-// stale because the context source hash moved) from "resolved"
-// (active resolution in sync).
-
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";

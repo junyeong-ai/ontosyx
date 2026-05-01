@@ -50,10 +50,6 @@ export const createChromeSlice: StateCreator<AppStore, [], [], ChromeSlice> = (s
     set({ workspaceId: id, workspaceName: name });
   },
 
-  // `workspaceMode` removed (Phase 2-4) — the active mode now lives in
-  // the URL (`/design` / `/analyze` / ...). Use `useWorkspaceMode()`
-  // from `@/lib/use-workspace-mode` to read the current mode.
-
   designBottomTab: "workflow",
   setDesignBottomTab: (tab) => set({ designBottomTab: tab }),
 

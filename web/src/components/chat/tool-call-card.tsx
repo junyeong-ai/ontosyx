@@ -132,11 +132,6 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
         )}
       </div>
 
-      {/* ADR-0056 — Inline cypher attribution. Surfaces the
-          compiled query the runtime actually executed so operators
-          read "what ran?" without expanding the technical-details
-          dropdown. Available to every authenticated user (admin
-          gating only protected the noisy execution metadata). */}
       {parsedResult?.compiledCypher && (
         <div className="border-t border-emerald-200/30 px-3 py-2 dark:border-emerald-800/20">
           <div className="mb-1 flex items-center gap-1.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
@@ -149,13 +144,6 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
         </div>
       )}
 
-      {/* ADR-0056 second half / ADR-0058 — disambiguation chips.
-          One chip per unresolved ambiguity context the BE flagged on
-          this query. Each chip deep-links to the Glossary workbench
-          with `?ambiguity=<id>` so the modeller can pick a term to
-          bind. The compiled query is still surfaced above; chips
-          attach below it because they describe a follow-up action,
-          not the query itself. */}
       {parsedResult?.ambiguityChips && parsedResult.ambiguityChips.length > 0 && (
         <AmbiguityChipStrip chips={parsedResult.ambiguityChips} />
       )}
@@ -346,18 +334,10 @@ function AmbiguityChipStrip({ chips }: { chips: readonly AmbiguityChip[] }) {
 interface ParsedToolResult {
   summary: string;
   widget?: { spec: WidgetSpec; data: QueryResult };
-  /** ADR-0056 — compiled Cypher the runtime executed for this
-   *  tool call. Surfaces inline so operators see "what query was
-   *  actually run?" without expanding the technical-details
-   *  details dropdown (which is admin-only and intentionally
-   *  noisy with execution metadata). */
+  /** Compiled Cypher the runtime executed for this tool call. */
   compiledCypher?: string;
-  /** Unresolved ambiguity contexts the agent flagged on this query
-   *  (ADR-0058). Backend emits one entry per unresolved column on
-   *  the typed `unresolved_ambiguities` wire field; the chat bubble
-   *  renders one chip per entry, deep-linking to the Glossary
-   *  workbench so the modeller can pick a term to bind. Empty when
-   *  the BE didn't flag any unresolved column. */
+  /** Unresolved ambiguity contexts the agent flagged on this
+   *  query — one chip per unresolved column. */
   ambiguityChips?: AmbiguityChip[];
 }
 
@@ -400,10 +380,6 @@ function tryParseToolResult(
       const data: QueryResult = normalizeQueryResult(parsed) ?? { columns, rows: [] };
       const specColumns = columns.map((c: string) => ({ key: c, label: c }));
       const spec: WidgetSpec = { columns: specColumns, widget_type: "auto" };
-      // ADR-0056 — surface the compiled Cypher so the chat
-      // bubble can render "Cypher executed:" inline. The agent
-      // emits it on every successful query_graph tool result;
-      // older tools that didn't may pass `undefined`.
       const compiledCypher =
         typeof parsed.compiled_query === "string" && parsed.compiled_query.length > 0
           ? (parsed.compiled_query as string)

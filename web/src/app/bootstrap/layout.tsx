@@ -1,9 +1,5 @@
 "use client";
 
-// Phase 4.1 — Bootstrap Wizard shell. Renders a Palantir-Workshop-
-// style left sidebar + step content, with progress based on the
-// current route segment.
-
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";

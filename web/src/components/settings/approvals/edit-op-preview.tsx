@@ -1,23 +1,5 @@
 "use client";
 
-// Φ5 #2 — Approval payload preview.
-//
-// Expand row → render the queued OntologyEditOp batch as a
-// colour-coded diff so the reviewer sees exactly what's about to
-// land before clicking Approve. Action-kind colour mapping mirrors
-// the Palantir pattern: create=green / update=amber / delete=red /
-// bind/deprecate=violet so the reviewer's eye picks the destructive
-// operations out of a long batch instantly.
-//
-// Why a chip list rather than a canvas ghost overlay: the canvas
-// already lives behind a workbench route, not the approvals page.
-// Layering the same render path here would require either embedding
-// `OntologyCanvas` (heavy + the approval page has no project
-// context) or a separate "ghost" surface. The chip list delivers
-// the same scan-the-batch capability with no canvas dependency.
-// A future canvas-overlay variant slots into the same component
-// boundary by replacing this one.
-
 import { useTranslations } from "next-intl";
 
 import type { OntologyEditOp } from "@/lib/api/edit-ops";

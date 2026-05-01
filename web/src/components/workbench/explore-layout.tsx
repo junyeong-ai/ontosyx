@@ -84,7 +84,6 @@ export function ExploreLayout() {
   const [expanding, setExpanding] = useState(false);
   const [breadcrumb, setBreadcrumb] = useState<BreadcrumbEntry[]>([]);
 
-  // Phase 4.4 — facet state
   const [expandDepth, setExpandDepth] = useState<1 | 2 | 3>(1);
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const toggleLabel = useCallback((label: string) => {
@@ -326,7 +325,6 @@ export function ExploreLayout() {
   return (
     <ErrorBoundary name="Explore">
     <div className="flex h-full">
-      {/* Phase 4.4 — Facet sidebar */}
       <ExploreFacetSidebar
         overview={overview}
         loading={overviewLoading}

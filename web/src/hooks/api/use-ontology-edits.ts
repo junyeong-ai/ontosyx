@@ -15,10 +15,10 @@ import { ontologiesKeys } from "./use-ontologies";
  * lists, navigation panels) re-renders against the new committed
  * version.
  *
- * Why a generic mutation hook (rather than per-collection hooks):
- * every Φ4 vocabulary CRUD page builds the same shape — pick the
- * variant, set `expected_version`, POST. A shared hook keeps the
- * cache-invalidation rule in one place.
+ * Generic across collections: every vocabulary CRUD path picks an
+ * `OntologyEditOp` variant, sets `expected_version`, and POSTs.
+ * Centralising the cache-invalidation rule keeps the per-call sites
+ * trivial.
  *
  * `expected_version` is optimistic-concurrency control: the caller
  * passes the version they read from. A racing edit lands first → the

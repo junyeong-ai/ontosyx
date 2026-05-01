@@ -1,15 +1,13 @@
 "use client";
 
-// Phase 4.5 — TanStack hooks around the binding-suggestions +
-// /edits surface. Three mutations:
+// TanStack hooks around the binding-suggestions + /edits surface:
 //
-//  - `useSuggestBindings` — Glossary term (existing or draft) →
-//    ranked property candidates.
+//  - `useSuggestBindings` — Glossary term → ranked property
+//    candidates.
 //  - `useSuggestTerms` — one property → top-N candidate glossary
 //    terms (inline "Link to existing term" dropdown).
 //  - `useApplyBindingEdits` — fires `OntologyEditOp::BindPropertyTo*`
-//    via `/edits`. Invalidates the ontology detail key so the UI
-//    reloads with the new property.glossary_term_id pointer.
+//    via `/edits` and invalidates the ontology detail cache.
 
 import {
   useMutation,

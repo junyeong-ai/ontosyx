@@ -343,13 +343,6 @@ function StaleTypesTable({
   const t = useTranslations("settings.qualitySignals");
   const data = useMemo(() => rows, [rows]);
 
-  // Φ5 #4 — Stale-jump: clicking the deprecate button on a row
-  // drafts a `DeprecateNodeType` / `DeprecateEdgeType` op and
-  // submits it through the standard edit pipeline, which routes
-  // to the approval queue per the change_routing matrix. The
-  // reviewer then sees the proposal as a queued approval with
-  // payload preview (Φ5 #2). No bypass; the routing rules decide
-  // whether the deprecation lands directly or requires sign-off.
   const ontologies = useOntologies({ limit: 1 });
   const ontology = ontologies.data?.items?.[0];
   const detail = useOntologyDetail(ontology?.id);

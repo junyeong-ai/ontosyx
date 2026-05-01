@@ -199,9 +199,6 @@ export interface ChromeSlice {
   initWorkspace: () => Promise<void>;
   setActiveWorkspace: (id: string, name: string, role: string) => void;
 
-  // `workspaceMode` moved to URL (Phase 2-4). Consume via
-  // `useWorkspaceMode()` — the slice no longer carries the state.
-
   // Design mode
   designBottomTab: DesignBottomTab;
   setDesignBottomTab: (tab: DesignBottomTab) => void;

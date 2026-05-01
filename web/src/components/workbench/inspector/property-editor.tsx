@@ -167,10 +167,8 @@ export function PropertyRow({
   onDelete: () => void;
   onUpdate: (patch: PropertyPatch) => void;
   /**
-   * When provided, the row renders the Phase 4.5 "Link term"
-   * affordance using the shared ontology-id + owner coordinates.
-   * Absent in contexts (e.g. project-design editor) where the
-   * edit log is not yet wired.
+   * When provided, the row renders the "Link term" affordance.
+   * Absent for surfaces where the edit log is not wired.
    */
   binding?: PropertyRowBindingContext;
 }) {

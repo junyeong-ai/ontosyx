@@ -1,4 +1,4 @@
-// Phase 4.3 — Ambiguity admin API client.
+// Ambiguity admin API client.
 
 import { request } from "./client";
 

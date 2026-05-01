@@ -1,11 +1,8 @@
-// Phase 4.5 — Property ↔ registry binding surface.
-//
-// Wraps the two scoring endpoints (Phase 1 backend) plus the
-// `OntologyEditOp::BindPropertyTo*` half of `/edits` so the admin UI
-// can "suggest → confirm → persist" in a single pipeline. Every
-// response carries structured signal detail (canonical / alias /
-// description / fuzzy) so the UI renders *why* a candidate ranks
-// where it does.
+// Property ↔ registry binding surface. Wraps the two scoring
+// endpoints + the `OntologyEditOp::BindPropertyTo*` half of /edits
+// so the UI can suggest → confirm → persist in one pipeline. Each
+// candidate carries structured signal detail (canonical / alias /
+// description / fuzzy) so callers can render the ranking rationale.
 
 import { request } from "./client";
 

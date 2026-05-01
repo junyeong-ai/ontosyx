@@ -1,16 +1,11 @@
 "use client";
 
 /**
- * Public shared dashboard page.
- *
- * Resolves a share token → dashboard payload via the proxy route. Handles
- * three terminal states:
- *   - 200: render dashboard (read-only).
- *   - 410 Gone (Phase 4.10): the token has expired → show `<Expired />`.
- *   - any other error: show a generic "not available" screen.
- *
- * This is an unauthenticated route; no sidebar/header shell. The `/shared`
- * segment deliberately sits outside the root app layout's workspace UI.
+ * Public shared dashboard. Resolves a share token via the proxy
+ * route and handles three terminal states: 200 (render read-only),
+ * 410 Gone (token expired/revoked → `<Expired />`), or any other
+ * error (generic "not available"). Unauthenticated route; lives
+ * outside the workspace shell.
  */
 
 import { useEffect, useState } from "react";
@@ -123,10 +118,8 @@ export default function SharedDashboardPage({
     );
   }
 
-  // Success — minimal read-only rendering. Full widget rendering is left to
-  // a follow-up once the backend payload shape is locked in Phase 4.10.
-  // NB: the workbench sets `body { overflow: hidden }` globally — we
-  // explicitly allow scroll here so long dashboards aren't clipped.
+  // The workbench sets `body { overflow: hidden }` globally — allow
+  // scroll here so long dashboards aren't clipped.
   return (
     <div className="h-dvh overflow-auto bg-zinc-50 dark:bg-zinc-950">
       <div className="mx-auto max-w-6xl px-6 py-8">

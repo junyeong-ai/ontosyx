@@ -7,10 +7,6 @@
  * means every caller agrees on "what does `success` look like" and
  * gives the Quality Signals dashboard + `ResponseBasis` panel a
  * palette to pick from without re-declaring hex literals inline.
- *
- * See also: Phase 3 UI (2026-04-22) — SHACL kind → color mapping
- * (rose/amber/violet/sky/emerald/zinc) lives in this file so
- * widgets and the stats dashboard agree on the same code.
  */
 
 /**

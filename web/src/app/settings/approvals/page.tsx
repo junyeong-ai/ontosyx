@@ -140,13 +140,6 @@ export default function ApprovalsSettingsPage() {
                   {isOpen && (
                     <div className="flex flex-col gap-3 border-t border-amber-200 bg-white px-4 pb-4 pt-3 dark:border-amber-900 dark:bg-zinc-900">
                       <EditOpPreview payload={a.payload} />
-                      {/* Reviewer note — landed as an interim Φ6 #2
-                          surface (71bcff9) before the thread existed.
-                          The decision-time rationale is what the audit
-                          trail expects in `review_notes`; the backend
-                          mirrors it into the thread on /review so
-                          submitting the decision posts the same text
-                          as a thread comment too. */}
                       <label className="flex flex-col gap-1.5">
                         <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                           {t("reviewerNote.label")}

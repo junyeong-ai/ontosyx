@@ -1,15 +1,5 @@
 "use client";
 
-// Phase 4.5 — inline "Link to glossary term" affordance used inside
-// the property row in the inspector. Clicking the button fetches the
-// top-N candidate terms; picking one fires a single
-// `bind_property` edit through `/api/ontologies/{id}/edits`.
-//
-// The control intentionally owns its *suggestion cache* (mutation
-// data stays mounted) but not the binding state itself — the
-// binding lives on `PropertyDef.glossary_term_id`, which round-trips
-// through the ontology detail query the parent tree already holds.
-
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";

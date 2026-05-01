@@ -1,18 +1,5 @@
 "use client";
 
-// Phase 4.4 — ExploreCanvas facet sidebar.
-//
-// Left-hand overlay on the explore layout showing type-level
-// instance counts + active selection. Filter selections feed the
-// existing search/expand flow; the "Save as segment" button
-// emits an onSaveSegment callback that the parent wires into the
-// Phase 3 SegmentDef API when an ontology id is available.
-//
-// Multi-hop depth control lives here so the canvas click handler
-// reads the shared depth value. A Cmd/Ctrl-click elsewhere in the
-// layout switches to a 3-hop expansion for one action (the layout
-// wires this, not the sidebar itself).
-
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 
