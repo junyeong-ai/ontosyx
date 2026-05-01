@@ -47,13 +47,13 @@ export type CodedValue = {
   display?: LocalizedText;
   definition?: LocalizedText;
   aliases?: string[];
-  broader_id?: string | null;
+  broader_id?: string;
   examples?: LocalizedText[];
   scope_note?: LocalizedText;
-  valid_from?: string | null;
-  valid_to?: string | null;
-  deprecated_at?: string | null;
-  replaced_by_id?: string | null;
+  valid_from?: string;
+  valid_to?: string;
+  deprecated_at?: string;
+  replaced_by_id?: string;
 };
 
 export type CodeSystemDef = {
@@ -63,10 +63,10 @@ export type CodeSystemDef = {
   description?: LocalizedText;
   version: string;
   kind: CodeSystemKind;
-  uri?: string | null;
+  uri?: string;
   hierarchical?: boolean;
-  deprecated_at?: string | null;
-  replaced_by_id?: string | null;
+  deprecated_at?: string;
+  replaced_by_id?: string;
   codes: CodedValue[];
 };
 
@@ -122,7 +122,7 @@ export type RuleKind =
       kind: "state_machine";
       target_node_type_id: string;
       state_property_id: string;
-      transitions: Array<{ from?: string | null; to: string }>;
+      transitions: Array<{ from?: string; to: string }>;
     };
 
 export type RuleOrigin =
@@ -191,8 +191,8 @@ export type RuleDef = {
   activation?: RuleActivationKind;
   origin?: RuleOrigin;
   constraints?: ShaclConstraint[];
-  valid_from?: string | null;
-  valid_to?: string | null;
+  valid_from?: string;
+  valid_to?: string;
 };
 
 export type ObjectMappingDef = components["schemas"]["ObjectMappingDef"];
@@ -259,8 +259,8 @@ export type OntologyEditOp =
   | { op: "update_rule"; id: string; def: RuleDef }
   | { op: "delete_rule"; id: string }
   // Type deprecation
-  | { op: "deprecate_node_type"; id: string; replaced_by_id?: string | null }
-  | { op: "deprecate_edge_type"; id: string; replaced_by_id?: string | null }
+  | { op: "deprecate_node_type"; id: string; replaced_by_id?: string }
+  | { op: "deprecate_edge_type"; id: string; replaced_by_id?: string }
   // Property → registry bindings
   | {
       op: "bind_property";

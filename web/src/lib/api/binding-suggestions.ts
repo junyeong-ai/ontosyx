@@ -136,12 +136,12 @@ export type BindingEditOp =
   | {
       op: "deprecate_node_type";
       id: string;
-      replaced_by_id?: string | null;
+      replaced_by_id?: string;
     }
   | {
       op: "deprecate_edge_type";
       id: string;
-      replaced_by_id?: string | null;
+      replaced_by_id?: string;
     };
 
 export interface EditOntologyRequest {

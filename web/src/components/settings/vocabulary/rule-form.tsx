@@ -130,8 +130,8 @@ export function RuleForm({
       activation,
       origin: initial?.origin ?? { kind: "authored" },
       constraints,
-      valid_from: initial?.valid_from ?? null,
-      valid_to: initial?.valid_to ?? null,
+      valid_from: initial?.valid_from,
+      valid_to: initial?.valid_to,
     });
   };
 
