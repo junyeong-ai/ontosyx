@@ -47,17 +47,11 @@ const NAV_GROUPS: NavGroup[] = [
       { labelKey: "federation", href: "/settings/federation", adminOnly: true },
     ],
   },
-  {
-    // Φ4 — registry admin surfaces. The vocabulary registries
-    // (glossary, code systems, value sets, concept maps, notation
-    // patterns) all moved to dedicated workbench modes
-    // (`/glossary`, `/vocabulary`) — they're domain-vocabulary
-    // editing, not admin configuration. SHACL rules stay here for
-    // now; they'll move into the design workbench's quality view
-    // when that absorption lands.
-    titleKey: "vocabulary",
-    items: [{ labelKey: "rules", href: "/settings/rules", adminOnly: true }],
-  },
+  // Vocabulary group retired — every editorial surface (glossary,
+  // code systems, value sets, concept maps, notation patterns, SHACL
+  // rules) lives under the dedicated workbench modes (`/glossary`,
+  // `/vocabulary`). Settings keeps only the admin / config /
+  // monitoring / triage surfaces below.
   {
     titleKey: "governance",
     items: [

@@ -1593,9 +1593,7 @@
         "development": "개발",
         "prompts": "프롬프트",
         "sessions": "세션",
-        "federation": "연합 데이터 소스",
-        "vocabulary": "어휘",
-        "rules": "규칙"
+        "federation": "연합 데이터 소스"
       }
     },
     "roles": {
@@ -2825,7 +2823,8 @@
         "code-systems": "코드 시스템",
         "value-sets": "값 집합",
         "concept-maps": "개념 매핑",
-        "notation-patterns": "표기 패턴"
+        "notation-patterns": "표기 패턴",
+        "rules": "규칙"
       }
     },
     "projects": {

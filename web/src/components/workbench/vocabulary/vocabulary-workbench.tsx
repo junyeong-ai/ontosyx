@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { CodeSystemsTab } from "./code-systems-tab";
 import { ConceptMapsTab } from "./concept-maps-tab";
 import { NotationPatternsTab } from "./notation-patterns-tab";
+import { RulesTab } from "./rules-tab";
 import { ValueSetsTab } from "./value-sets-tab";
 
 // ---------------------------------------------------------------------------
@@ -31,13 +32,15 @@ type VocabularyTab =
   | "code-systems"
   | "value-sets"
   | "concept-maps"
-  | "notation-patterns";
+  | "notation-patterns"
+  | "rules";
 
 const TABS: ReadonlyArray<VocabularyTab> = [
   "code-systems",
   "value-sets",
   "concept-maps",
   "notation-patterns",
+  "rules",
 ];
 
 function isTab(v: string | null): v is VocabularyTab {
@@ -95,6 +98,7 @@ export function VocabularyWorkbench() {
         {tab === "value-sets" && <ValueSetsTab />}
         {tab === "concept-maps" && <ConceptMapsTab />}
         {tab === "notation-patterns" && <NotationPatternsTab />}
+        {tab === "rules" && <RulesTab />}
       </div>
     </div>
   );

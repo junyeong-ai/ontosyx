@@ -1,8 +1,12 @@
 "use client";
 
-// /settings/rules — canonical CRUD page for `RuleDef`.
+// Rules tab — canonical CRUD surface for `RuleDef`. Migrated from
+// /settings/rules into the vocabulary workbench (N16-d) so SHACL
+// rule editing lives next to the registries the rules constrain
+// (code systems, value sets, concept maps, notation patterns)
+// rather than under the admin sidebar.
 //
-// Mirrors the /settings/glossary editor shape: a list with create
+// Mirrors the other vocabulary tabs' shape: a list with create
 // dialog, inline edit, and delete confirmation. Every mutation
 // flows through `useApplyOntologyEdits` so SHACL rule edits land
 // on the same validate-then-commit pipeline as every other
@@ -34,7 +38,7 @@ function freshRuleId(): string {
   return `rule-${crypto.randomUUID().slice(0, 8)}`;
 }
 
-export default function RulesAdminPage() {
+export function RulesTab() {
   const t = useTranslations("settings.vocabulary.rules");
   const ontologiesQuery = useOntologies({ limit: 1 });
   const ontology = ontologiesQuery.data?.items?.[0];

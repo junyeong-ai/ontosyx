@@ -1607,9 +1607,7 @@
         "development": "Development",
         "prompts": "Prompts",
         "sessions": "Sessions",
-        "federation": "Federation Adapters",
-        "vocabulary": "Vocabulary",
-        "rules": "Rules"
+        "federation": "Federation Adapters"
       }
     },
     "roles": {
@@ -2839,7 +2837,8 @@
         "code-systems": "Code systems",
         "value-sets": "Value sets",
         "concept-maps": "Concept maps",
-        "notation-patterns": "Notation patterns"
+        "notation-patterns": "Notation patterns",
+        "rules": "Rules"
       }
     },
     "projects": {
