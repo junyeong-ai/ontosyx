@@ -61,7 +61,6 @@ pub mod notation_inference;
 pub mod locale_consistency;
 pub mod merge;
 pub mod rule_drift;
-pub mod rule_suggestions;
 pub mod segment;
 pub mod source_analysis;
 pub mod source_mapping;
@@ -208,9 +207,6 @@ pub use binding_suggestions::{
 pub use integrity::{
     DanglingKind, DanglingReference, RegistryReferenceCheck, RegistrySite,
     render_dangling_references,
-};
-pub use rule_suggestions::{
-    RegistryChange, RuleProposal, RuleProposalTrigger, suggest_rules_for_change,
 };
 pub use locale_consistency::{LocaleGap, LocaleSubject, detect_locale_gaps};
 pub use segment::{
