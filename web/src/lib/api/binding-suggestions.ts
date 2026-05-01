@@ -107,18 +107,23 @@ export async function suggestTermsForProperty(
 // ---------------------------------------------------------------------------
 // /edits — apply the binding
 //
-// Keep the edit-op payload tight: the backend re-validates
-// referential integrity, so we only send what the variant names.
+// `BindingEditOp` is the narrow subset of `OntologyEditOp` the
+// binding-suggestions UI ever constructs (bind / unbind / deprecate
+// node / deprecate edge). It composes into the canonical edit-ops
+// surface — `submitOntologyEdits` from `./edit-ops` is the single
+// transport, the request envelope and receipt come from there too.
+// Keeping the narrow union here lets the binding form lock the
+// shape of what it can author at the type level without inheriting
+// the full 24-variant union.
 // ---------------------------------------------------------------------------
-
-export type PropertyOwnerPath =
-  | { kind: "node"; type_id: string }
-  | { kind: "edge"; type_id: string };
 
 import type {
   PropertyBinding,
   PropertyBindingHandle,
 } from "@/types/ontology";
+import type { PropertyOwnerPath } from "./edit-ops";
+
+export type { PropertyOwnerPath };
 
 export type BindingEditOp =
   | {
@@ -144,27 +149,8 @@ export type BindingEditOp =
       replaced_by_id?: string;
     };
 
-export interface EditOntologyRequest {
-  expected_version: number;
-  operations: BindingEditOp[];
-  message?: string;
-  dry_run?: boolean;
-}
-
-export interface OntologyEditReceipt {
-  new_version: number;
-  new_version_id: string;
-  parent_version_id: string | null;
-  applied_operations: number;
-  committed_at: string;
-}
-
-export async function applyOntologyEdits(
-  ontologyId: string,
-  body: EditOntologyRequest,
-): Promise<OntologyEditReceipt> {
-  return request(`/ontologies/${encodeURIComponent(ontologyId)}/edits`, {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
-}
+export type {
+  EditOntologyRequest,
+  OntologyEditReceipt,
+} from "./edit-ops";
+export { submitOntologyEdits as applyOntologyEdits } from "./edit-ops";
