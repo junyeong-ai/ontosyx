@@ -5,7 +5,11 @@ import type { AuditFilter, AuditRecord } from "@/types/audit";
 
 interface AuditPage {
   items: AuditRecord[];
-  next_cursor: string | null;
+  /** Backend `CursorPage<T>` skips `next_cursor` when there's no
+   *  next page (`skip_serializing_if = "Option::is_none"`); the
+   *  generic `request<T>` envelope unwrap normalises the absent
+   *  case to `undefined`, so the field is `?: string`, never null. */
+  next_cursor?: string;
 }
 
 export async function listAuditRecords(

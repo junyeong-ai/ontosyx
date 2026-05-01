@@ -212,14 +212,18 @@ function unwrapEnvelope<T>(body: unknown): T {
     return body as T;
   }
 
-  const obj = body as { data: unknown; pagination?: { next_cursor?: string | null } };
+  const obj = body as { data: unknown; pagination?: { next_cursor?: string } };
 
   // Cursor-paginated: backend `{ data: [...], pagination: { next_cursor } }`
-  // → frontend `{ items: [...], next_cursor }`.
+  // → frontend `{ items: [...], next_cursor }`. Backend skips
+  // `next_cursor` when there's no next page (`skip_serializing_if =
+  // "Option::is_none"`), so the field is absent — never null — on
+  // the wire. The consumer-facing `CursorPage<T>.next_cursor` is
+  // `?: string`, matching that shape.
   if (Array.isArray(obj.data) && obj.pagination !== undefined) {
     return {
       items: obj.data,
-      next_cursor: obj.pagination.next_cursor ?? null,
+      next_cursor: obj.pagination.next_cursor,
     } as T;
   }
 
