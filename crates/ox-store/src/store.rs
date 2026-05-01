@@ -532,12 +532,7 @@ pub trait ProjectStore: Send + Sync {
         expected_revision: i32,
     ) -> OxResult<()>;
 
-    /// Thin update of `analysis_scope` only — used by the per-table
-    /// promote / defer endpoints. Doesn't touch ontology, schema,
-    /// profile, or status; the operator is moving table-level
-    /// classification (included ↔ deferred) without re-running
-    /// introspection or re-designing. CAS on `revision` like the
-    /// other write paths.
+    /// CAS update of `analysis_scope` only.
     async fn update_analysis_scope(
         &self,
         id: Uuid,

@@ -63,15 +63,8 @@ const BootstrapStateSchema = z.object({
   rulesDraft: z.string().default(""),
   mappingNotes: z.string().default(""),
   completedSteps: z.array(z.string()).default([]),
-  // Φ5 — incremental ingest selection. `analyzeMode = "all"` runs a
-  // full sweep on Finish; `"subset"` analyses only `selectedTables`;
-  // `"staged"` is identical in cost to `"subset"` but the post-
-  // introspection `AnalysisScope` additionally marks every other
-  // source table as `deferred` so the project shows `n / N`
-  // progress. Empty `selectedTables` + `mode = "subset" | "staged"`
-  // is intentionally permitted (the user opted in but hasn't picked
-  // yet) — step 2b's `canAdvance` gate enforces non-empty before
-  // advancing.
+  // `staged` is `subset` plus an implicit defer of the unpicked
+  // tables — the kernel cost is the same; AnalysisScope diverges.
   selectedTables: z.array(z.string()).default([]),
   analyzeMode: z.enum(["all", "subset", "staged"]).default("all"),
 });

@@ -9,22 +9,6 @@ import { NotationPatternsTab } from "./notation-patterns-tab";
 import { RulesTab } from "./rules-tab";
 import { ValueSetsTab } from "./value-sets-tab";
 
-// ---------------------------------------------------------------------------
-// VocabularyWorkbench — sixth workbench mode (alongside Design /
-// Analyze / Explore / Dashboard / Glossary). Hosts the per-workspace
-// code-system / value-set / concept-map / notation registries that
-// previously sat under /settings/* as separate editorial pages. The
-// settings sidebar was the wrong home for them: they're not admin-
-// only configuration the way provider keys or schedules are — they're
-// the workspace's domain vocabulary, edited by designers alongside
-// the glossary.
-//
-// Tabs lazy-mount one at a time; switching tabs preserves the URL
-// (`?tab=<id>`) so deep links land on the right registry. The first
-// landed tab is Code Systems; the rest follow as their settings
-// pages are absorbed into this surface.
-// ---------------------------------------------------------------------------
-
 const TAB_PARAM = "tab";
 const ROUTE = "/vocabulary";
 

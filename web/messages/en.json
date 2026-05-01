@@ -3051,7 +3051,7 @@
         },
         "relationships": {
           "label": "Relationships",
-          "readOnlyHint": "Click a type above to narrow the canvas; relationship filtering arrives in a later slice."
+          "readOnlyHint": "Read-only overview of edge patterns in the current graph."
         },
         "saveSegment": "Save {count} type(s) as segment"
       }

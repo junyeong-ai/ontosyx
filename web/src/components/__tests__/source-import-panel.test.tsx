@@ -57,17 +57,11 @@ function renderPanel(value: SourceImportValue, onChange = vi.fn()) {
 describe("SourceImportPanel", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    // Source-preview is fired on every render with a non-null
-    // source. Stub it once at module level so all four picker-mode
-    // tests share the same table list.
     vi.spyOn(clientModule, "request").mockResolvedValue(previewResponse());
   });
 
   it("renders three mode tiles — all / subset / staged", () => {
     renderPanel({ mode: "all", selectedTables: [] });
-    // Tiles' accessible names come from the radio inputs wrapped
-    // in the labels — getByRole(radio, { name }) resolves through
-    // the label content.
     expect(
       screen.getByRole("radio", { name: /Every table/ }),
     ).toBeDefined();
@@ -81,7 +75,6 @@ describe("SourceImportPanel", () => {
 
   it("staged mode opens the table picker (same as subset)", async () => {
     renderPanel({ mode: "staged", selectedTables: [] });
-    // The table list waits on the source-preview spy to resolve.
     await waitFor(() =>
       expect(screen.getByText("customers")).toBeDefined(),
     );
@@ -149,11 +142,6 @@ describe("toAnalyzeSelection", () => {
   });
 
   it("extend intent forces { kind: 'extend' } regardless of picker mode", () => {
-    // Design-mode import always grows the prior analysis — the
-    // picker's mode (subset vs. staged) collapses to the extend
-    // wire kind. Without this the extend flow would silently land
-    // a "staged" selection and defer the project's existing
-    // baseline tables.
     expect(
       toAnalyzeSelection(
         { mode: "staged", selectedTables: ["payments"] },

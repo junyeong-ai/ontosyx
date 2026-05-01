@@ -51,8 +51,6 @@ describe("ReanalyzeForm modeled-only checkbox", () => {
 
   it("hides the modeled-only checkbox when no tables are modeled", () => {
     renderForm({ modeledTablesAvailable: 0 });
-    // Match the checkbox by its accessible name (the localized
-    // label, not the literal key). Should NOT be in the DOM.
     expect(
       screen.queryByLabelText(/Re-analyze only the/i),
     ).toBeNull();
@@ -60,7 +58,6 @@ describe("ReanalyzeForm modeled-only checkbox", () => {
 
   it("renders the modeled-only checkbox when included tables exist", () => {
     renderForm({ modeledTablesAvailable: 3 });
-    // Pluralization picks the "other" branch for n != 1.
     const cb = screen.getByLabelText(/Re-analyze only the 3 modeled tables/i);
     expect(cb).toBeDefined();
   });
@@ -81,18 +78,12 @@ describe("ReanalyzeForm modeled-only checkbox", () => {
 
   it("submit button shows the plain Reanalyze label when modeledOnly is false", () => {
     renderForm({ modeledTablesAvailable: 2, modeledOnly: false });
-    // Anchored match: avoid the longer "Reanalyze modeled tables".
     expect(
       screen.getByRole("button", { name: /^Reanalyze$/ }),
     ).toBeDefined();
   });
 
   it("does not render the modeled-only checkbox for code_repository sources", () => {
-    // Reanalyze of a code repo doesn't carry a tabular concept of
-    // "modeled tables"; the checkbox should be hidden even when
-    // analysis_scope.included is non-empty (e.g. a project that
-    // started as a DB source and the operator is poking the form
-    // mid-flight).
     renderForm({
       sourceType: "code_repository",
       modeledTablesAvailable: 5,

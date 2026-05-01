@@ -1,19 +1,5 @@
 "use client";
 
-// ---------------------------------------------------------------------------
-// SourceImportPanel — pick a `ProjectSource` analysis mode (all vs.
-// subset) plus, in subset mode, the actual table list.
-//
-// Reused by:
-// - bootstrap step 2b (initial scoping during workspace setup)
-// - Design-mode "Import Tables" action (post-create incremental
-//   growth; same component, different surrounding shell)
-//
-// The panel is **controlled** — callers own the `value` state so
-// the surrounding UI (wizard step / modal) can persist or reset
-// the selection on its own schedule.
-// ---------------------------------------------------------------------------
-
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 
@@ -35,17 +21,9 @@ export function emptyImportValue(): SourceImportValue {
 }
 
 /**
- * Lower the panel's local state to the wire-shape `AnalyzeSelection`
- * the backend expects.
- *
- * Mode → wire mapping is intent-aware:
- * - `extend` flows always emit `{ kind: "extend" }` regardless of
- *   panel mode (Design-mode import grows the prior analysis).
- * - `create` flows preserve the panel's mode: `all` / `subset` /
- *   `staged` round-trip directly. Staged signals to the backend
- *   "model these now, defer the rest" — same kernel cost as Subset
- *   but the project's `AnalysisScope` ingests the unpicked names as
- *   `deferred`.
+ * Lower the panel value to wire-shape `AnalyzeSelection`. Extend
+ * intent always emits `{ kind: "extend" }`; create intent preserves
+ * the picker mode.
  */
 export function toAnalyzeSelection(
   value: SourceImportValue,
@@ -102,7 +80,6 @@ export function SourceImportPanel({ source, value, onChange }: Props) {
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Mode toggle — drives whether the table list is required. */}
       <fieldset
         className="grid grid-cols-3 gap-2"
         aria-label={t("modeLabel")}

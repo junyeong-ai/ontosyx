@@ -18,21 +18,6 @@ import {
 } from "@/hooks/api/use-projects";
 import type { DeferredTable } from "@/types/projects";
 
-/**
- * Compact chip surfacing the project's `AnalysisScope` — the union
- * of every table the project has modeled (`included`) and the
- * tables the operator has acknowledged but skipped (`deferred`).
- * Rendered in the design canvas top bar so the operator can answer
- * "where am I in this project's coverage?" without leaving design.
- *
- * Click opens a popover with per-table promote / defer actions —
- * the reclassification surface for the staged-bootstrap flow.
- *
- * Returns `null` when there is no active project or when the scope
- * is empty (BaseOntology / CodeRepository origins, or pre-analyse
- * state) — nothing meaningful to show until the first
- * introspection lands a table list.
- */
 export function ScopeBadge() {
   const t = useTranslations("workbench.design.scope");
   const project = useAppStore((s) => s.activeProject);
@@ -66,12 +51,6 @@ export function ScopeBadge() {
   );
 }
 
-// ---------------------------------------------------------------------------
-// ScopePanel — the popover body. Two list sections (included /
-// deferred) with inline per-row action buttons. Promote is one click;
-// defer takes over the row temporarily for reason entry.
-// ---------------------------------------------------------------------------
-
 function ScopePanel({
   projectId,
   revision,
@@ -88,9 +67,6 @@ function ScopePanel({
   const defer = useDeferScopeTables(projectId);
   const busy = include.isPending || defer.isPending;
 
-  // Track which included row is in "enter-reason" state. One row at
-  // a time keeps the popover compact; the reason input replaces the
-  // row's action button without opening a separate dialog.
   const [deferTarget, setDeferTarget] = useState<string | null>(null);
   const [reasonDraft, setReasonDraft] = useState("");
 

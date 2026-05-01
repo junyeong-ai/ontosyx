@@ -40,19 +40,12 @@ const NAV_GROUPS: NavGroup[] = [
   {
     titleKey: "data",
     items: [
-      // Recipes moved to /recipes workbench mode (N16-recipes) — analysts
-      // run them next to query results, not under the admin sidebar.
       { labelKey: "reports", href: "/settings/reports" },
       { labelKey: "schedules", href: "/settings/schedules", adminOnly: true },
       { labelKey: "knowledge", href: "/settings/knowledge", adminOnly: true },
       { labelKey: "federation", href: "/settings/federation", adminOnly: true },
     ],
   },
-  // Vocabulary group retired — every editorial surface (glossary,
-  // code systems, value sets, concept maps, notation patterns, SHACL
-  // rules) lives under the dedicated workbench modes (`/glossary`,
-  // `/vocabulary`). Settings keeps only the admin / config /
-  // monitoring / triage surfaces below.
   {
     titleKey: "governance",
     items: [
@@ -71,17 +64,11 @@ const NAV_GROUPS: NavGroup[] = [
       { labelKey: "accessControl", href: "/settings/acl", adminOnly: true },
       { labelKey: "dataLineage", href: "/settings/lineage" },
       { labelKey: "auditLog", href: "/settings/audit", adminOnly: true },
-      // Φ6 #3 — PROV-O audit trail viewer for the current
-      // ontology. Lives next to the existing per-row audit log.
       {
         labelKey: "provenanceAudit",
         href: "/settings/governance/audit",
         adminOnly: true,
       },
-      // Φ6 #1 — change-routing matrix admin. Edits the
-      // workspace's overrides for the per-ChangeType
-      // ApprovalRouting decisions that the runtime evaluates on
-      // every OntologyEditOp.
       {
         labelKey: "routingMatrix",
         href: "/settings/governance/routing",

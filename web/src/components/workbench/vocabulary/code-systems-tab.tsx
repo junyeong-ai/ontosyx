@@ -5,10 +5,6 @@ import { useTranslations } from "next-intl";
 import { JsonEntityCrudPage } from "@/components/settings/vocabulary/json-entity-crud-page";
 import type { CodeSystemDef } from "@/lib/api/edit-ops";
 
-// Code-system schema hint shown in the create dialog. Keeps the
-// fixture inline so designers see a working JSON skeleton without
-// hunting for sample data; the real persistence path goes through
-// `/edits` ops the same way as inspector edits do.
 const CODE_SYSTEM_HINT = `{
   "id": "cs-order-status",
   "name": "OrderStatus",
@@ -21,13 +17,6 @@ const CODE_SYSTEM_HINT = `{
   ]
 }`;
 
-/**
- * Code Systems tab — the registry of `CodeSystemDef`s the workspace
- * uses to anchor `ValueSetDef` bindings. Migrated from
- * `/settings/codesystems`; the underlying JsonEntityCrudPage is
- * unchanged, only the host is — settings sidebar was the wrong
- * place for vocabulary editing.
- */
 export function CodeSystemsTab() {
   const t = useTranslations("settings.vocabulary.codeSystems");
   return (

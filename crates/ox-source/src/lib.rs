@@ -148,14 +148,10 @@ pub enum AnalyzeSelection {
     Reduce {
         tables: BTreeSet<String>,
     },
-    /// Same introspection cost as `Subset` — only the listed tables
-    /// are described / profiled — but the post-introspection
-    /// [`AnalysisScope`] additionally `defer_remaining`s every other
-    /// table the source advertises, with reason "deferred at
-    /// bootstrap". The "selective + acknowledge the rest" intent the
-    /// FE 3-way picker exposes: model these now, remember the others
-    /// as deliberately-deferred so the badge surfaces `n / N`
-    /// progress and the operator can promote on a later pass.
+    /// Introspect only the listed tables, then mark every other
+    /// table the source advertises as `deferred` on the
+    /// [`AnalysisScope`]. Kernel cost equals `Subset`; the
+    /// distinction is the implicit defer of the unpicked.
     Staged {
         tables: BTreeSet<String>,
     },
@@ -343,12 +339,6 @@ impl AnalysisScope {
                 for t in tables {
                     self.include_one(t);
                 }
-                // Same introspection cost as Subset; the difference
-                // is the implicit acknowledge-the-rest. The set
-                // passed in is the source's full table list resolved
-                // by the caller, so `defer_remaining` skips the
-                // already-included staged picks and attaches a
-                // bootstrap reason to everything else.
                 self.defer_remaining(
                     all_tables_for_all_selection,
                     "deferred at bootstrap",

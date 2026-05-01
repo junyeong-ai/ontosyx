@@ -14,11 +14,6 @@ vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
-// Minimum project shape ScopeBadge reads (`activeProject.id`,
-// `activeProject.revision`, `activeProject.analysis_scope`). Other
-// DesignProject fields aren't touched by the badge or its panel,
-// so the cast keeps the fixture compact without re-creating the
-// full schema.
 function fixtureProject(): DesignProject {
   return {
     id: "proj-1",
@@ -37,9 +32,6 @@ function fixtureProject(): DesignProject {
       fingerprints: {},
       last_introspected_at: "2026-05-01T00:00:00Z",
     },
-    // The remaining fields aren't read by the badge — keep them
-    // typed but minimal so a future DesignProject schema bump
-    // doesn't silently un-type the test.
   } as unknown as DesignProject;
 }
 
@@ -60,16 +52,11 @@ function renderBadge() {
 describe("ScopeBadge", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    // Seed the active project. The store's `applyProjectSnapshot`
-    // is the canonical entry point — same path every server
-    // response handler uses to land a project, so the badge sees
-    // exactly the wire shape it would in production.
     useAppStore.getState().applyProjectSnapshot(fixtureProject());
   });
 
   it("renders summary with included + deferred counts", () => {
     renderBadge();
-    // Summary: "Modeled 2 · Deferred 1"
     expect(screen.getByText(/Modeled 2/)).toBeDefined();
     expect(screen.getByText(/Deferred 1/)).toBeDefined();
   });

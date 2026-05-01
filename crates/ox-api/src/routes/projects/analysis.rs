@@ -58,25 +58,11 @@ pub(crate) async fn reanalyze_project(
     .await
 }
 
-// ---------------------------------------------------------------------------
-// POST /api/projects/:id/reanalyze-modeled
-//
-// Same pipeline as plain reanalyze, but the table selection is auto-
-// derived from the project's `analysis_scope.included` — the modeler
-// asks "re-introspect what I've already chosen to model" without
-// re-supplying the table list. The source connection still comes
-// from the request body since credentials are never persisted
-// server-side; only the picked-tables decision is.
-//
-// 400 when `included` is empty (the project has nothing to re-
-// introspect under the modeled-only contract — the operator should
-// promote a deferred table or run plain reanalyze first).
-// ---------------------------------------------------------------------------
-
+/// Modeled-only reanalyze: selection is derived from
+/// `analysis_scope.included`. Rejected with 400 when `included`
+/// is empty.
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct ReanalyzeModeledProjectRequest {
-    /// Same source connection used for the project. Source type must
-    /// match the project's stored kind; selection is auto-derived.
     pub source: ProjectSource,
     pub revision: i32,
     /// Optional repository source for enrichment.
@@ -106,10 +92,6 @@ pub(crate) async fn reanalyze_modeled_project(
 ) -> Result<Json<ApiResponse<ReanalyzeProjectResponse>>, AppError> {
     principal.require_designer()?;
 
-    // Derive selection from the project's `analysis_scope.included`.
-    // Loaded here (rather than inside `run_reanalyze`) so the empty-
-    // included precondition surfaces as a clear 400 before the
-    // pipeline runs any introspection.
     let project = load_mutable_project(&state, id).await?;
     let scope: ox_source::AnalysisScope =
         serde_json::from_value(project.analysis_scope.clone()).unwrap_or_default();
@@ -134,12 +116,6 @@ pub(crate) async fn reanalyze_modeled_project(
     )
     .await
 }
-
-// ---------------------------------------------------------------------------
-// run_reanalyze — shared pipeline body. Same flow as the legacy
-// inline handler: introspect → drift detect (value-set + table-
-// schema) → fingerprint roll-forward → snapshot replace.
-// ---------------------------------------------------------------------------
 
 struct ReanalyzeInputs {
     source: ProjectSource,

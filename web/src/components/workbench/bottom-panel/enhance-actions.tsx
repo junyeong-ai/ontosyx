@@ -196,10 +196,6 @@ export function EnhanceActions({
           ? { type: "git_url" as const, url: reanalyze.repoPath.trim() }
           : { type: "local" as const, path: reanalyze.repoPath.trim() }
         : undefined;
-      // Modeled-only branch dispatches to /reanalyze-modeled — same
-      // pipeline, selection auto-derived from analysis_scope.included
-      // server-side. The checkbox is gated by the FE on
-      // `included.length > 0` so the request shouldn't 400 here.
       const resp = reanalyze.modeledOnly
         ? await reanalyzeModeledProject(project.id, {
             source,
@@ -210,10 +206,6 @@ export function EnhanceActions({
             source,
             revision: project.revision,
             repo_source,
-            // Reanalyze defaults to a full sweep — narrowing
-            // requires a UI for selection, which lives only on the
-            // extend surface today. Sent explicitly so the wire is
-            // self-describing.
             selection: { kind: "all" },
           });
       applyProjectSnapshot(resp.project);

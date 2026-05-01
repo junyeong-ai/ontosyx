@@ -16,38 +16,15 @@ use crate::state::AppState;
 use super::helpers::{load_mutable_project, reload_project};
 use super::types::ProjectView;
 
-// ---------------------------------------------------------------------------
-// POST /api/projects/:id/scope/include
-// POST /api/projects/:id/scope/defer
-//
-// Per-table promotion / demotion of `AnalysisScope` entries. The
-// staged-bootstrap flow (`AnalyzeSelection::Staged`) populates
-// `deferred` with every unpicked table; these endpoints close the
-// loop so the operator can promote a deferred table into `included`
-// or move a modeled-but-not-needed table back to deferred — without
-// re-running introspection or LLM design.
-//
-// Both routes update only `analysis_scope` (no ontology / source
-// schema / profile churn). Optimistic CAS on `revision` matches the
-// rest of the project mutation surface.
-// ---------------------------------------------------------------------------
-
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct IncludeScopeTablesRequest {
-    /// Tables to promote from `deferred` (or first-time-seen) into
-    /// `included`. Names must already appear in the project's last
-    /// introspection — this endpoint does not introspect; it
-    /// reclassifies.
     pub tables: Vec<String>,
     pub expected_revision: i32,
 }
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct DeferScopeTablesRequest {
-    /// Tables to move from `included` to `deferred`.
     pub tables: Vec<String>,
-    /// Why the operator is deferring — surfaced in the FE deferred
-    /// tab next to the timestamp.
     pub reason: String,
     pub expected_revision: i32,
 }
@@ -89,10 +66,6 @@ pub(crate) async fn include_scope_tables(
     let mut scope: AnalysisScope =
         serde_json::from_value(project.analysis_scope.clone()).unwrap_or_default();
 
-    // Drive promotion through `record_selection(Subset)` so the
-    // include / clear-deferred logic is the same code path the
-    // analyze flow uses. The empty all-tables set is correct — we
-    // only need the helper's Subset arm, which ignores it.
     let selection = ox_source::AnalyzeSelection::Subset {
         tables: req.tables.iter().cloned().collect::<BTreeSet<_>>(),
     };
@@ -111,9 +84,9 @@ pub(crate) async fn include_scope_tables(
     }))
 }
 
-/// Move tables from included to deferred. Rejected when the
-/// project's ontology already binds a NodeType to a table (the
-/// caller must retract those nodes first via `Reduce` / edit ops).
+/// Move tables from included to deferred. Rejected with 409 when
+/// the project's ontology already binds a NodeType to a target
+/// table — the caller must retract those nodes first.
 #[utoipa::path(
     post,
     path = "/api/projects/{id}/scope/defer",
@@ -148,11 +121,6 @@ pub(crate) async fn defer_scope_tables(
 
     let project = load_mutable_project(&state, id).await?;
 
-    // If the ontology models any of these tables, refuse — moving
-    // them to `deferred` while NodeType / mappings still bind to
-    // them would leave the project in a state where the FE shows
-    // the table as not-modeled but the canvas still has the node.
-    // The caller must retract via `Reduce` / edit ops first.
     if let Some(ontology_json) = project.ontology.as_ref() {
         let ontology: OntologyIR = serde_json::from_value(ontology_json.clone())
             .map_err(|e| AppError::internal(format!("Corrupt ontology: {e}")))?;
@@ -183,9 +151,6 @@ pub(crate) async fn defer_scope_tables(
     let now = chrono::Utc::now();
     for table in &req.tables {
         scope.included.remove(table);
-        // Replace any prior deferral entry so the new reason +
-        // timestamp win — operator may be re-deferring with fresh
-        // context.
         scope.deferred.retain(|d| &d.table != table);
         scope.deferred.push(ox_source::DeferredTable {
             table: table.clone(),

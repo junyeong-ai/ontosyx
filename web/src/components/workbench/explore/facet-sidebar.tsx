@@ -45,12 +45,6 @@ export function ExploreFacetSidebar({
     [selectedLabels],
   );
 
-  // Type search: large ontologies surface 50+ labels; the sidebar
-  // becomes a wall of types that hides the one the operator wants
-  // to facet on. Local filter + count-desc sort lets them narrow
-  // quickly without a backend change. Selected types stay visible
-  // even if they don't match the filter so the operator can still
-  // toggle them off.
   const [labelFilter, setLabelFilter] = useState("");
 
   const depths: Array<1 | 2 | 3> = [1, 2, 3];

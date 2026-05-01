@@ -334,10 +334,6 @@ impl IntrospectionKernel {
     ) -> OxResult<Arc<AnalysisResult>> {
         match selection {
             AnalyzeSelection::All => self.analyze_all().await,
-            // Staged is identical to Subset on the kernel side —
-            // only the listed tables are introspected. The post-
-            // introspection scope is what diverges (it auto-defers
-            // the rest); kernel cost stays the same.
             AnalyzeSelection::Subset { tables } | AnalyzeSelection::Staged { tables } => {
                 self.analyze_subset(tables).await
             }

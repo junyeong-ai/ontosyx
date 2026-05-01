@@ -17,12 +17,6 @@ const NOTATION_PATTERN_HINT = `{
   ]
 }`;
 
-/**
- * Notation Patterns tab — template-based identifier patterns the
- * workspace uses for naming-convention validation. Migrated from
- * /settings/notation-patterns; underlying JsonEntityCrudPage
- * unchanged, only the host.
- */
 export function NotationPatternsTab() {
   const t = useTranslations("settings.vocabulary.notationPatterns");
   return (

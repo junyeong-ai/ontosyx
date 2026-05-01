@@ -32,11 +32,6 @@ export function useWorkflowFormState(projectId: string | undefined, projectTitle
   const [reanalyzeSampleData, setReanalyzeSampleData] = useState("");
   const [reanalyzeRepoPath, setReanalyzeRepoPath] = useState("");
   const [reanalyzeRepoUrl, setReanalyzeRepoUrl] = useState("");
-  // When set, reanalyze narrows to the project's
-  // `analysis_scope.included` and dispatches to the
-  // `/reanalyze-modeled` endpoint instead of the full sweep. The
-  // checkbox is gated by the FE (only renders when `included` is
-  // non-empty); the backend rejects with 400 if it slips through.
   const [reanalyzeModeledOnly, setReanalyzeModeledOnly] = useState(false);
 
   // ---------------------------------------------------------------------------

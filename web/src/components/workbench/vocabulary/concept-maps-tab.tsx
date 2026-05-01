@@ -20,11 +20,6 @@ const CONCEPT_MAP_HINT = `{
   ]
 }`;
 
-/**
- * Concept Maps tab — registry of `ConceptMapDef`s mapping codes
- * across systems. Migrated from /settings/conceptmaps; underlying
- * JsonEntityCrudPage unchanged, only the host.
- */
 export function ConceptMapsTab() {
   const t = useTranslations("settings.vocabulary.conceptMaps");
   return (

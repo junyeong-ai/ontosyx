@@ -324,12 +324,6 @@ export function GlossaryWorkbench() {
   );
 }
 
-// ---------------------------------------------------------------------------
-// RightPane — tabbed surface: "Usage" (lineage map) and "Bindings"
-// (term → property scorer + batch bind). Both tabs are term-scoped;
-// switching tabs does not invalidate the selection.
-// ---------------------------------------------------------------------------
-
 type RightPaneTab = "usage" | "bindings";
 
 function RightPane({
@@ -469,18 +463,6 @@ function EditorPane({
     </>
   );
 }
-
-// ---------------------------------------------------------------------------
-// AmbiguityResolutionBanner — opens with the workbench when the URL
-// carries `?ambiguity=<context_id>` (chat disambiguation chip in
-// `tool-call-card`). Loads the context, surfaces relation+column +
-// the analyzer's clarification prompt, and offers a "Resolve" button
-// that opens `ResolutionModal` inline. Submitting the modal fires the
-// shared `useResolveAmbiguity` mutation and dismisses the banner —
-// no context switch to `/settings/ambiguity` for the single-row case.
-// The settings page still holds the multi-row triage view; this is
-// the per-context shortcut from the place a modeller actually lands.
-// ---------------------------------------------------------------------------
 
 function AmbiguityResolutionBanner({
   contextId,

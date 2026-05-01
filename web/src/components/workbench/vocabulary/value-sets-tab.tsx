@@ -18,11 +18,6 @@ const VALUE_SET_HINT = `{
   ]
 }`;
 
-/**
- * Value Sets tab — registry of `ValueSetDef`s the workspace uses to
- * narrow code-system bindings. Migrated from /settings/valuesets;
- * underlying JsonEntityCrudPage unchanged, only the host.
- */
 export function ValueSetsTab() {
   const t = useTranslations("settings.vocabulary.valueSets");
 

@@ -3037,7 +3037,7 @@
         },
         "relationships": {
           "label": "관계",
-          "readOnlyHint": "위에서 타입을 클릭해 캔버스를 좁히세요. 관계 기반 필터는 다음 단계에서 추가됩니다."
+          "readOnlyHint": "현재 그래프의 관계 패턴 미리보기 (읽기 전용)."
         },
         "saveSegment": "{count}개 타입을 세그먼트로 저장"
       }

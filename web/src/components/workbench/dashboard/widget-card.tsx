@@ -18,10 +18,8 @@ export interface WidgetCardProps {
   onClick: () => void;
 }
 
-// Stable empty array reference so the dashboard-types selector
-// returns the same value across renders when the dashboard has no
-// hidden types — Zustand's strict-equality skip-render relies on
-// this not being a fresh `[]` per call.
+// Stable reference so Zustand's strict-equality skip-render still
+// fires when the dashboard carries no hidden types.
 const EMPTY_HIDDEN: readonly string[] = Object.freeze([]) as unknown as readonly string[];
 
 export function WidgetCard({ widget, selected, refreshKey, onClick }: WidgetCardProps) {
@@ -35,11 +33,6 @@ export function WidgetCard({ widget, selected, refreshKey, onClick }: WidgetCard
   });
   const dashboardFilters = useAppStore((s) => s.dashboardFilters);
 
-  // Dashboard-scoped type filter (cross-widget legend toggle).
-  // Surfacing the count + a one-click reset in the card header tells
-  // the operator why a sibling widget might be showing fewer rows
-  // than expected — without forcing them to find the GraphWidget
-  // legend that hid the type.
   const hiddenTypes = useAppStore((s) =>
     widget.dashboard_id
       ? s.dashboardTypeFilters[widget.dashboard_id] ?? EMPTY_HIDDEN
@@ -118,9 +111,6 @@ export function WidgetCard({ widget, selected, refreshKey, onClick }: WidgetCard
             <button
               type="button"
               onClick={(e) => {
-                // Stop the click from reaching the card-level
-                // selection handler — the chip is a clear-the-
-                // filter affordance, not a card click.
                 e.stopPropagation();
                 clearDashboardTypes(widget.dashboard_id ?? "");
               }}

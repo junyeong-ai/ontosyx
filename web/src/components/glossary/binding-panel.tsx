@@ -1,15 +1,5 @@
 "use client";
 
-// Glossary batch binding panel.
-//
-// Given an ontology + a selected glossary term, scores every
-// PropertyDef in the graph against the term, surfaces the top N
-// candidates in a checkable table, and batch-commits
-// `bind_property` ops through `/edits`. Embedded into the right
-// pane of the glossary workbench under the "Bindings" tab; the
-// term context comes from the workbench's selected term, so this
-// panel never asks the user to retype it.
-
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -24,13 +14,6 @@ import type {
   SuggestBindingsRequest,
 } from "@/lib/api/binding-suggestions";
 
-/**
- * Selected-term context passed in from the workbench. Mirrors the
- * fields the suggest scorer consumes — id + label + (optional)
- * aliases / description. The panel never mutates this; refetching
- * happens via the local "Re-score" button when the operator wants
- * fresh signals after editing the term.
- */
 export interface BindingTermContext {
   term_id: string;
   term: string;

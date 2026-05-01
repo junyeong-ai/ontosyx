@@ -1,17 +1,5 @@
 "use client";
 
-// Rules tab — canonical CRUD surface for `RuleDef`. Migrated from
-// /settings/rules into the vocabulary workbench (N16-d) so SHACL
-// rule editing lives next to the registries the rules constrain
-// (code systems, value sets, concept maps, notation patterns)
-// rather than under the admin sidebar.
-//
-// Mirrors the other vocabulary tabs' shape: a list with create
-// dialog, inline edit, and delete confirmation. Every mutation
-// flows through `useApplyOntologyEdits` so SHACL rule edits land
-// on the same validate-then-commit pipeline as every other
-// vocabulary surface.
-
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Dialog } from "@base-ui/react/dialog";
