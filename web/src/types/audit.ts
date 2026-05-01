@@ -24,7 +24,7 @@ export type ProvenanceActivityKind =
   | {
       kind: "action_execute";
       action_id: string;
-      idempotency_key?: string | null;
+      idempotency_key?: string;
     }
   | { kind: "ontology_edit"; command_summary: string }
   | {
@@ -35,8 +35,8 @@ export type ProvenanceActivityKind =
     }
   | { kind: "cache_refresh"; mapping_id: string }
   | { kind: "enrichment"; enrichment_id: string }
-  | { kind: "import"; format: string; source_uri?: string | null }
-  | { kind: "export"; format: string; destination_uri?: string | null };
+  | { kind: "import"; format: string; source_uri?: string }
+  | { kind: "export"; format: string; destination_uri?: string };
 
 export type AgentRef =
   | { kind: "user"; user_id: string }
@@ -52,8 +52,8 @@ export interface ProvenanceDef {
   at_time: string;
   used?: EntityRef[];
   derived_from?: EntityRef[];
-  ontology_valid_at?: string | null;
-  data_valid_at?: string | null;
+  ontology_valid_at?: string;
+  data_valid_at?: string;
 }
 
 /** Audit record returned by `GET /api/governance/audit`. Surfaces

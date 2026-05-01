@@ -6,6 +6,7 @@ import type {
   Cardinality,
   NodeTypeDef,
   EdgeTypeDef,
+  LocalizedText,
   PropertyDef,
   OntologyIR,
 } from "./ontology";
@@ -108,7 +109,7 @@ export interface NodeDiffEntry {
 
 export type NodeChange =
   | { type: "label_changed"; old: string; new: string }
-  | { type: "description_changed"; old: string | null; new: string | null }
+  | { type: "description_changed"; old: LocalizedText; new: LocalizedText }
   | { type: "property_added"; property: PropertyDef }
   | { type: "property_removed"; property: PropertyDef }
   | { type: "property_modified"; property_name: string; changes: PropertyChange[] }
@@ -118,7 +119,7 @@ export type NodeChange =
 export type PropertyChange =
   | { type: "type_changed"; old: string; new: string }
   | { type: "nullability_changed"; old: boolean; new: boolean }
-  | { type: "description_changed"; old: string | null; new: string | null }
+  | { type: "description_changed"; old: LocalizedText; new: LocalizedText }
   | { type: "default_value_changed"; old: string | null; new: string | null };
 
 export interface EdgeDiffEntry {
@@ -129,7 +130,7 @@ export interface EdgeDiffEntry {
 
 export type EdgeChange =
   | { type: "label_changed"; old: string; new: string }
-  | { type: "description_changed"; old: string | null; new: string | null }
+  | { type: "description_changed"; old: LocalizedText; new: LocalizedText }
   | { type: "source_changed"; old: string; new: string }
   | { type: "target_changed"; old: string; new: string }
   | { type: "cardinality_changed"; old: Cardinality; new: Cardinality }

@@ -89,7 +89,7 @@ export interface QueryExecution {
   execution_time_ms: number;
   query_bindings?: ResolvedQueryBindings;
   /** User feedback: "positive" or "negative" */
-  feedback?: string | null;
+  feedback?: string;
   created_at: string;
 }
 

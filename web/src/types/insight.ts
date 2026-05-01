@@ -18,7 +18,7 @@ export interface InsightDef {
    *  ontology + registry version + column-lineage trail. */
   original_provenance?: unknown;
   author_id: string;
-  expires_at?: string | null;
+  expires_at?: string;
   created_at: string;
   updated_at: string;
 }
@@ -33,7 +33,7 @@ export interface CreateInsightRequest {
   concept_anchors?: string[];
   query_ir: unknown;
   original_provenance?: unknown;
-  expires_at?: string | null;
+  expires_at?: string;
 }
 
 /** PUT /api/insights/{id} — `expected_updated_at` is the
@@ -45,11 +45,11 @@ export interface UpdateInsightRequest {
   concept_anchors?: string[];
   query_ir: unknown;
   original_provenance?: unknown;
-  expires_at?: string | null;
+  expires_at?: string;
   expected_updated_at: string;
 }
 
 export interface InsightListPage {
   items: InsightDef[];
-  next_cursor?: string | null;
+  next_cursor?: string;
 }

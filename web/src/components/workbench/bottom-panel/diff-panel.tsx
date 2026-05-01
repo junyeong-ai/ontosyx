@@ -14,6 +14,8 @@ import type {
   EdgeTypeDef,
 } from "@/types/api";
 import { arr } from "@/lib/ir-collections";
+import { localizePresent } from "@/lib/locale/localize";
+import { useLocaleChain } from "@/lib/use-locale-chain";
 
 type DiffTranslator = ReturnType<typeof useTranslations<"workbench.bottomPanel.diff">>;
 
@@ -33,6 +35,7 @@ export function DiffPanel({
   onDismiss: () => void;
 }) {
   const t = useTranslations("workbench.bottomPanel.diff");
+  const chain = useLocaleChain("admin");
   const { summary } = diff;
 
   if (summary.total_changes === 0) {
@@ -120,7 +123,7 @@ export function DiffPanel({
         {diff.modified_nodes.length > 0 && (
           <DiffSection title={t("modifiedNodes")} color="amber">
             {diff.modified_nodes.map((n) => (
-              <ModifiedNodeItem key={n.node_id} node={n} t={t} />
+              <ModifiedNodeItem key={n.node_id} node={n} t={t} chain={chain} />
             ))}
           </DiffSection>
         )}
@@ -144,7 +147,7 @@ export function DiffPanel({
         {diff.modified_edges.length > 0 && (
           <DiffSection title={t("modifiedEdges")} color="amber">
             {diff.modified_edges.map((e) => (
-              <ModifiedEdgeItem key={e.edge_id} edge={e} t={t} />
+              <ModifiedEdgeItem key={e.edge_id} edge={e} t={t} chain={chain} />
             ))}
           </DiffSection>
         )}
@@ -239,7 +242,15 @@ function RemovedNodeItem({ node, t }: { node: NodeTypeDef; t: DiffTranslator }) 
   );
 }
 
-function ModifiedNodeItem({ node, t }: { node: NodeDiffEntry; t: DiffTranslator }) {
+function ModifiedNodeItem({
+  node,
+  t,
+  chain,
+}: {
+  node: NodeDiffEntry;
+  t: DiffTranslator;
+  chain: readonly string[];
+}) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
@@ -259,7 +270,7 @@ function ModifiedNodeItem({ node, t }: { node: NodeDiffEntry; t: DiffTranslator 
       {isExpanded && (
         <div className="mt-1 ml-3 space-y-0.5">
           {node.changes.map((change, i) => (
-            <NodeChangeItem key={i} change={change} t={t} />
+            <NodeChangeItem key={i} change={change} t={t} chain={chain} />
           ))}
         </div>
       )}
@@ -267,7 +278,15 @@ function ModifiedNodeItem({ node, t }: { node: NodeDiffEntry; t: DiffTranslator 
   );
 }
 
-function NodeChangeItem({ change, t }: { change: NodeChange; t: DiffTranslator }) {
+function NodeChangeItem({
+  change,
+  t,
+  chain,
+}: {
+  change: NodeChange;
+  t: DiffTranslator;
+  chain: readonly string[];
+}) {
   switch (change.type) {
     case "label_changed":
       return (
@@ -281,8 +300,8 @@ function NodeChangeItem({ change, t }: { change: NodeChange; t: DiffTranslator }
       return (
         <ChangeRow
           label={t("descriptionTxt")}
-          old={change.old ?? t("noneValue")}
-          new_val={change.new ?? t("noneValue")}
+          old={localizePresent(change.old, chain) ?? t("noneValue")}
+          new_val={localizePresent(change.new, chain) ?? t("noneValue")}
         />
       );
     case "property_added":
@@ -305,7 +324,7 @@ function NodeChangeItem({ change, t }: { change: NodeChange; t: DiffTranslator }
           </span>
           <div className="ml-3 space-y-0.5">
             {change.changes.map((pc, i) => (
-              <PropertyChangeItem key={i} change={pc} t={t} />
+              <PropertyChangeItem key={i} change={pc} t={t} chain={chain} />
             ))}
           </div>
         </div>
@@ -351,7 +370,15 @@ function RemovedEdgeItem({ edge }: { edge: EdgeTypeDef }) {
   );
 }
 
-function ModifiedEdgeItem({ edge, t }: { edge: EdgeDiffEntry; t: DiffTranslator }) {
+function ModifiedEdgeItem({
+  edge,
+  t,
+  chain,
+}: {
+  edge: EdgeDiffEntry;
+  t: DiffTranslator;
+  chain: readonly string[];
+}) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
@@ -371,7 +398,7 @@ function ModifiedEdgeItem({ edge, t }: { edge: EdgeDiffEntry; t: DiffTranslator 
       {isExpanded && (
         <div className="mt-1 ml-3 space-y-0.5">
           {edge.changes.map((change, i) => (
-            <EdgeChangeItem key={i} change={change} t={t} />
+            <EdgeChangeItem key={i} change={change} t={t} chain={chain} />
           ))}
         </div>
       )}
@@ -379,7 +406,15 @@ function ModifiedEdgeItem({ edge, t }: { edge: EdgeDiffEntry; t: DiffTranslator 
   );
 }
 
-function EdgeChangeItem({ change, t }: { change: EdgeChange; t: DiffTranslator }) {
+function EdgeChangeItem({
+  change,
+  t,
+  chain,
+}: {
+  change: EdgeChange;
+  t: DiffTranslator;
+  chain: readonly string[];
+}) {
   switch (change.type) {
     case "label_changed":
       return <ChangeRow label={t("labelTxt")} old={change.old} new_val={change.new} />;
@@ -387,8 +422,8 @@ function EdgeChangeItem({ change, t }: { change: EdgeChange; t: DiffTranslator }
       return (
         <ChangeRow
           label={t("descriptionTxt")}
-          old={change.old ?? t("noneValue")}
-          new_val={change.new ?? t("noneValue")}
+          old={localizePresent(change.old, chain) ?? t("noneValue")}
+          new_val={localizePresent(change.new, chain) ?? t("noneValue")}
         />
       );
     case "source_changed":
@@ -417,7 +452,7 @@ function EdgeChangeItem({ change, t }: { change: EdgeChange; t: DiffTranslator }
           </span>
           <div className="ml-3 space-y-0.5">
             {change.changes.map((pc, i) => (
-              <PropertyChangeItem key={i} change={pc} t={t} />
+              <PropertyChangeItem key={i} change={pc} t={t} chain={chain} />
             ))}
           </div>
         </div>
@@ -425,7 +460,15 @@ function EdgeChangeItem({ change, t }: { change: EdgeChange; t: DiffTranslator }
   }
 }
 
-function PropertyChangeItem({ change, t }: { change: PropertyChange; t: DiffTranslator }) {
+function PropertyChangeItem({
+  change,
+  t,
+  chain,
+}: {
+  change: PropertyChange;
+  t: DiffTranslator;
+  chain: readonly string[];
+}) {
   switch (change.type) {
     case "type_changed":
       return <ChangeRow label={t("typeTxt")} old={change.old} new_val={change.new} />;
@@ -441,8 +484,8 @@ function PropertyChangeItem({ change, t }: { change: PropertyChange; t: DiffTran
       return (
         <ChangeRow
           label={t("descriptionTxt")}
-          old={change.old ?? t("noneValue")}
-          new_val={change.new ?? t("noneValue")}
+          old={localizePresent(change.old, chain) ?? t("noneValue")}
+          new_val={localizePresent(change.new, chain) ?? t("noneValue")}
         />
       );
     case "default_value_changed":
