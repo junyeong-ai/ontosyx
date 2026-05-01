@@ -255,8 +255,8 @@ fn ox_error_status(err: &OxError) -> (StatusCode, &'static str) {
     }
 }
 
-/// Stable redacted message returned to clients on 5xx errors. ADR-0045:
-/// internal driver / wrapper text (sqlx SQLSTATE prose, neo4rs frame
+/// Stable redacted message returned to clients on 5xx errors.
+/// Internal driver / wrapper text (sqlx SQLSTATE prose, neo4rs frame
 /// dumps, file path prefixes from `OxError::Contextual`) must never
 /// reach response bodies. The full text is kept on the server side
 /// via `tracing::error!`; clients correlate via the `x-request-id`
@@ -337,7 +337,7 @@ mod redaction_tests {
 
     /// 5xx bodies must never carry driver text or Contextual prefixes.
     /// Tripping this assertion means a future change re-leaked internal
-    /// detail through the response body — see ADR-0045.
+    /// detail through the response body.
     #[test]
     fn runtime_5xx_redacts_driver_text_from_message() {
         let leaky = OxError::Runtime {

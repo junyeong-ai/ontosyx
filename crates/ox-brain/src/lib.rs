@@ -261,12 +261,14 @@ pub trait Explainer: Send + Sync {
 /// Repository analysis capabilities.
 #[async_trait]
 pub trait RepoAnalyzer: Send + Sync {
-    /// Phase 1 repo analysis: given a file tree string, select up to 30 relevant files for analysis.
-    /// Returns relative paths the LLM considers most useful for ontology design.
+    /// Repo navigation: given a file tree string, select up to 30
+    /// relevant files for analysis. Returns relative paths the LLM
+    /// considers most useful for ontology design.
     async fn navigate_repo(&self, file_tree: &str) -> OxResult<Vec<String>>;
 
-    /// Phase 2 repo analysis: given file contents, extract structured domain insights.
-    /// Returns enum definitions, ORM relationships, field hints, and domain notes.
+    /// Repo deep-read: given file contents, extract structured domain
+    /// insights. Returns enum definitions, ORM relationships, field
+    /// hints, and domain notes.
     async fn analyze_repo_files(&self, files: &[FileContent]) -> OxResult<RepoInsights>;
 }
 
@@ -292,7 +294,7 @@ pub trait LlmMetadata: Send + Sync {
 
     /// Template-level SHA-256 hex of the named prompt — system body
     /// only, pre-render. The fingerprint a content-addressed cache
-    /// (such as ADR-0027's draft cluster checkpoint store) folds in
+    /// (such as the draft cluster checkpoint store) folds in
     /// alongside its other inputs. Distinct from
     /// `ArtifactProvenance::prompt_render_hash` (which captures the
     /// post-render content of one call): caches that key on a
@@ -509,7 +511,7 @@ pub struct CallProvenance {
     pub max_tokens: u32,
     pub temperature: Option<f32>,
     /// SHA-256 hex of the rendered prompt (system + user with every
-    /// variable interpolated) — ADR-0029. Stays empty for paths
+    /// variable interpolated). Stays empty for paths
     /// that have not been wired through the render-hashing helper
     /// yet; a populated value bumps `ContentBody`'s hash so an
     /// admin who edited the DB-backing prompt without bumping
@@ -816,7 +818,7 @@ impl QueryTranslator for DefaultBrain {
         ontology: &OntologyIR,
         ctx: &branchforge::ExecutionContext,
     ) -> OxResult<QueryIR> {
-        // Phase 1: Schema discovery
+        // Schema discovery
         ctx.progress("schema_discovery").started();
         let t_schema = std::time::Instant::now();
 
@@ -850,7 +852,7 @@ impl QueryTranslator for DefaultBrain {
         ctx.progress("schema_discovery")
             .completed(t_schema.elapsed().as_millis() as u64);
 
-        // Phase 2: Knowledge RAG
+        // Knowledge RAG
         ctx.progress("knowledge_lookup").started();
         let t_knowledge = std::time::Instant::now();
         let label_refs: Vec<&str> = discovered_labels.iter().map(|s| s.as_str()).collect();
@@ -883,7 +885,7 @@ impl QueryTranslator for DefaultBrain {
         // replacement — unmatched placeholders survive).
         vars.insert("correction", "");
 
-        // Phase 3: Primary LLM call (StructuredMatchQuery structured output)
+        // Primary LLM call (StructuredMatchQuery structured output)
         ctx.progress("llm_primary").started();
         let t_llm = std::time::Instant::now();
         let query_ir = match self
@@ -907,7 +909,7 @@ impl QueryTranslator for DefaultBrain {
                 ctx.progress("llm_primary").failed_with(t_llm.elapsed().as_millis() as u64,
                     serde_json::json!({ "error": format!("{match_err}").chars().take(200).collect::<String>() }));
 
-                // Phase 4: Fallback LLM call (full QueryIR JSON mode)
+                // Fallback LLM call (full QueryIR JSON mode)
                 ctx.progress("llm_fallback").started();
                 let t_fallback = std::time::Instant::now();
                 info!(

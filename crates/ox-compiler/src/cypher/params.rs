@@ -11,7 +11,7 @@ use super::CypherDialect;
 // Carries the active [`CypherDialect`] so every emitter that takes a
 // `ParamCollector` (the canonical compile-side context object) can
 // gate dialect-specific syntax without threading an extra parameter
-// through every function in the lowering tree (ADR-0036).
+// through every function in the lowering tree.
 
 pub(crate) struct ParamCollector {
     params: Vec<(String, PropertyValue)>,

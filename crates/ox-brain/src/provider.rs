@@ -247,9 +247,9 @@ fn parse_json_response<T: serde::de::DeserializeOwned>(response: &ModelResponse)
 /// multiple JSON objects. This function finds the last balanced
 /// `{...}` block and returns it.
 ///
-/// **Phase 2.7 (deprecating).** This is a fallback heuristic kept for
-/// JSON-only mode (when schema complexity exceeds the structured
-/// output limits). It is unsafe in two known ways:
+/// **Deprecating.** This is a fallback heuristic kept for JSON-only
+/// mode (when schema complexity exceeds the structured output
+/// limits). It is unsafe in two known ways:
 ///
 /// 1. Prose like `Example output: {"foo": 1}` followed by an
 ///    unrelated comment can be returned as the "last JSON".

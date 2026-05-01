@@ -137,7 +137,7 @@ pub enum AnalyzeSelection {
     /// tables in but later realised they are infrastructure /
     /// audit / log relations that don't belong in the ontology.
     /// The kernel returns the baseline minus the named tables and
-    /// every foreign key that referenced them. ADR-0026.
+    /// every foreign key that referenced them.
     Reduce {
         tables: BTreeSet<String>,
     },
@@ -558,10 +558,11 @@ pub trait DataSourceAdapter: Send + Sync {
     ///   returns. It is advisory — returning fewer rows is always
     ///   correct; returning more means the federation engine has to
     ///   truncate.
-    /// - Filters are not part of this primitive in Phase 2. DataFusion
-    ///   still applies them after scan (we report
-    ///   `TableProviderFilterPushDown::Inexact`). Phase 6 lifts filters
-    ///   into this signature and lets adapters promote to `Exact`.
+    /// - Filters are not part of this primitive yet. DataFusion still
+    ///   applies them after scan (we report
+    ///   `TableProviderFilterPushDown::Inexact`). A future iteration
+    ///   lifts filters into this signature and lets adapters promote
+    ///   to `Exact`.
     ///
     /// The default implementation refuses — adapters without a scan
     /// path (e.g. a FK-only introspection stub) stay explicit about

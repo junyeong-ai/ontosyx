@@ -400,7 +400,7 @@ pub(crate) async fn extend_project(
 /// Reconstruct the kernel's `AnalysisResult` baseline from the
 /// project's stored introspection rows so the kernel's
 /// `analyze_extension` path runs the cross-baseline foreign-key
-/// recovery (ADR-0025).
+/// recovery.
 ///
 /// Returns `None` when the project lacks a structured schema /
 /// profile (text-source projects, projects whose initial

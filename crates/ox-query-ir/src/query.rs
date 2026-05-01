@@ -9,7 +9,7 @@ use ox_core::types::{Direction, PropertyValue};
 use ox_core::variable_name::VariableName;
 
 // ---------------------------------------------------------------------------
-// GraphFunction — typed function registry (Phase 3.8)
+// GraphFunction — typed function registry
 //
 // Replaces `function: String` with a closed enum so the compiler can
 // check backend support at IR level rather than failing at Cypher emit.

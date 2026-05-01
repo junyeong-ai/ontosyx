@@ -134,7 +134,7 @@ pub fn create_jwt(claims: &AuthClaims, secret: &str) -> Result<String, AppError>
 ///   2. DB-backed API key (X-API-Key header → sha256 → `api_keys` table)
 ///
 /// On successful JWT auth, the platform JWT path also consults the
-/// revocation surface (ADR-0048): the explicit `revoked_jwts` list
+/// revocation surface: the explicit `revoked_jwts` list
 /// and the `users.token_version` snapshot. A 30-second cache keeps
 /// the per-request DB cost negligible; revocation writes invalidate
 /// the cache so the operator who just clicked "revoke" sees the
@@ -181,8 +181,8 @@ pub async fn require_auth(
                 // 1h cap means any future caller that caches `AuthClaims`
                 // still respects DB revocation within an hour.
                 //
-                // `role` comes from the DB row (Phase 1 migration 0010).
-                // The CHECK constraint already restricts the column to
+                // `role` comes from the DB row. The CHECK constraint
+                // already restricts the column to
                 // `admin | designer | viewer`, so this copy is safe to
                 // embed in the synthetic JWT claim without further
                 // validation. `jti` is `Uuid::nil()` and `tv` is `0` —
@@ -230,7 +230,7 @@ pub async fn require_auth(
 }
 
 /// Reject a JWT whose `jti` lives in `revoked_jwts` or whose `tv`
-/// no longer matches `users.token_version`. ADR-0048: pairs with
+/// no longer matches `users.token_version`.pairs with
 /// the cryptographic checks in `validate_jwt` (signature + exp +
 /// issuer) to gate every JWT-authenticated request against both
 /// fine-grained per-token revocation and bulk

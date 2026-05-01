@@ -56,7 +56,7 @@ pub fn router(state: AppState) -> Router {
     let protected = Router::new()
         // Auth: current user info
         .route("/auth/me", get(auth::me))
-        // Auth: revoke caller's current JWT (ADR-0048)
+        // Auth: revoke caller's current JWT
         .route("/auth/logout", post(auth::logout))
         // Design projects — ontology design lifecycle
         .route("/projects", post(projects::create_project))

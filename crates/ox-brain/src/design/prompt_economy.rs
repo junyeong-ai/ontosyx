@@ -1,4 +1,4 @@
-//! Prompt token economy — ADR-0028.
+//! Prompt token economy.
 //!
 //! Five invariants this module enforces by construction:
 //!
@@ -26,9 +26,9 @@
 //! 5. **Provenance metadata stays on the artifact, not the prompt.**
 //!    `model_id` / `temperature` / `prompt_render_hash` are
 //!    attribution fields recorded alongside the LLM call result;
-//!    they never appear inside the LLM's input context. ADR-0029
-//!    owns the persistence side; this module owns the gate that
-//!    rejects callers who try to embed those fields into the
+//!    they never appear inside the LLM's input context. The
+//!    persistence side lives elsewhere; this module owns the gate
+//!    that rejects callers who try to embed those fields into the
 //!    rendered prompt.
 //!
 //! `PromptBudget` and `assert_within_budget` are the two primitives
@@ -174,7 +174,7 @@ pub fn assert_within_budget(rendered: &str, budget: PromptBudget) -> Result<(), 
 ///   sample_values" instruction.
 ///
 /// A property with no firing inferences emits no signal — negative
-/// evidence is dropped (ADR-0028 invariant 4).
+/// evidence is dropped.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PropertySignal {
@@ -317,7 +317,7 @@ mod tests {
     #[test]
     fn nullability_hint_only_renders_positive_observation() {
         // Negative evidence is dropped — observed_non_null=false
-        // produces no output (ADR-0028 invariant 4).
+        // produces no output.
         let signals = vec![PropertySignal::NullabilityHint {
             column: "email".into(),
             observed_non_null: false,

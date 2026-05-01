@@ -81,7 +81,7 @@ pub struct DomainContext {
     pub ambiguity_store: Option<Arc<dyn ox_store::AmbiguityStore>>,
     /// Per-agent-process "session has resolved an ambiguity recently"
     /// tracker. Populated by `ResolveAmbiguityTool` and read by
-    /// `QueryGraphTool` so the Phase 4.6 `clarification_success_rate`
+    /// `QueryGraphTool` so the `clarification_success_rate` quality
     /// signal can flip `ambiguity_was_clarified = true` on a query
     /// that followed a clarification in the same session.
     pub clarification_tracker: clarification_tracker::SharedClarificationTracker,

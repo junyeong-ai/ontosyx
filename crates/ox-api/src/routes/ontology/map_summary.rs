@@ -1,7 +1,7 @@
 //! `GET /api/ontologies/{id}/map-summary` — aggregated counts per
-//! v3 six-axis section + a `danglers` list (Phase 1 integrity check
-//! surface). Feeds the Phase 4.2 Complete Map dashboard without
-//! forcing the FE to re-walk a full OntologyIR payload client-side.
+//! six-axis section + a `danglers` list. Feeds the Complete Map
+//! dashboard without forcing the FE to re-walk a full OntologyIR
+//! payload client-side.
 
 use axum::Json;
 use axum::extract::{Path, State};

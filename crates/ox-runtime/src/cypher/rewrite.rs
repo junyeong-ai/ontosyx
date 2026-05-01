@@ -528,8 +528,7 @@ fn bound_node_variables(clause: &CypherClause) -> Vec<String> {
 
 /// First node variable bound by the clause at `idx`, if any. Used by the
 /// write path, which still targets a single variable per CREATE/MERGE
-/// (the write surface has not been lifted to per-variable coverage yet;
-/// see Phase 1 follow-up).
+/// (per-variable coverage on the write surface is not yet implemented).
 fn first_variable_in_clause_at(statement: &CypherStatement, idx: usize) -> Option<String> {
     bound_node_variables(statement.clauses.get(idx)?)
         .into_iter()
@@ -909,8 +908,8 @@ mod tests {
     fn scope_relationship_property_does_not_affect_node_injection() {
         // A relationship variable with its own property map does not
         // change node-variable injection: both `a` and `b` are scoped.
-        // (The relationship variable `r` is not scoped — phase-1 write
-        // coverage of edges is tracked as a follow-up.)
+        // (The relationship variable `r` is not scoped — write
+        // coverage of edges is not yet implemented.)
         let out = rewrite("MATCH (a)-[r:R {active: true}]->(b) RETURN a, r, b");
         assert!(out.contains("a._workspace_id = $_ws_id"), "{out}");
         assert!(out.contains("b._workspace_id = $_ws_id"), "{out}");

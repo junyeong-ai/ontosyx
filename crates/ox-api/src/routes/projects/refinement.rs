@@ -97,9 +97,9 @@ pub(crate) async fn design_project(
         std::time::Duration::from_secs(state.system_config.read().await.design_timeout_secs());
     let design_started = Instant::now();
     // SourceId is the canonical source identity stored on the
-    // project; we recompute it defensively here in case the row was
-    // written before Phase 0 ran (older rows surface via migration
-    // backfill but the format stays identical).
+    // project; we recompute it defensively here so older rows that
+    // pre-date the field but surfaced via migration backfill still
+    // produce the same format.
     let source_id = ox_ontology::mapping::SourceId::new(project.source_id.clone());
     let design_output = tokio::time::timeout(
         timeout,

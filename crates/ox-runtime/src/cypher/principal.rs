@@ -2,7 +2,7 @@
 //!
 //! Threaded through [`crate::cypher::rewrite::RewriteContext`] so
 //! every rewriter (and future validator) can consult the caller's
-//! identity when shaping a transformation. Phase 5/6 use it for
+//! identity when shaping a transformation. Currently used for
 //! diagnostics + future ABAC; the ACL Deny / Mask passes themselves
 //! consume the pre-filtered [`crate::cypher::acl_rewriter::AclSnapshot`]
 //! and only need the principal for log breadcrumbs.

@@ -91,9 +91,8 @@ pub struct Principal {
 ///
 /// - `system:*` — internal system tasks (bootstrap seeding, migrations).
 /// - `apikey:*` — DB-backed API keys (see `AuthClaims` construction in
-///   `middleware.rs::require_auth`). Phase 4.2 switched API-key auth to
-///   this prefix; anything downstream that still checks only `system:`
-///   will silently reject live API-key callers.
+///   `middleware.rs::require_auth`). Anything downstream that still
+///   checks only `system:` will silently reject live API-key callers.
 ///
 /// Use `Principal::is_machine()` / `AuthClaims::is_machine()` instead of
 /// hand-rolling the prefix check at every call site.

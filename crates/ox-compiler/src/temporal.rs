@@ -1423,8 +1423,8 @@ mod tests {
 
     fn prop(id: &'static str, name: &'static str) -> PropertyDef {
         // Struct-update from `Default::default()` so new fields on
-        // `PropertyDef` (e.g. Phase 5-B semantic links) do not break
-        // this helper — the defaults are the empty shape a fixture
+        // `PropertyDef` (e.g. semantic links) do not break this
+        // helper — the defaults are the empty shape a fixture
         // wants anyway.
         PropertyDef {
             id: id.into(),

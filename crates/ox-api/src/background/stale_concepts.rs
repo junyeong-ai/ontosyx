@@ -9,7 +9,7 @@
 //! The cron never auto-deprecates — it only writes a proposal row.
 //! Admin UI flips `decision` to `approved` / `dismissed`; the
 //! deprecation edit itself rides `OntologyEditOp::DeleteCodeSystem`
-//! / `DeprecateGlossaryTerm` through the Phase 6 routing path.
+//! / `DeprecateGlossaryTerm` through the change-routing path.
 
 use std::collections::HashMap;
 use std::sync::Arc;

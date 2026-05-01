@@ -2,8 +2,8 @@
 //!
 //! Given the stable logical id of a node or edge type, return every
 //! ontology in the current workspace whose latest committed version
-//! contains a matching entry. Used by the Phase 4.7 stale-concept
-//! approval flow: after an admin approves a proposal, the UI looks
+//! contains a matching entry. Used by the stale-concept approval
+//! flow: after an admin approves a proposal, the UI looks
 //! up which ontologies own the type so it can post a
 //! `DeprecateNodeType` / `DeprecateEdgeType` edit op against the
 //! right ontology.
@@ -33,8 +33,8 @@ pub struct TypeCandidatesParams {
     /// this is the UUID rendered as a string; for authored ids, the
     /// author-assigned value. Match is exact.
     pub logical_id: String,
-    /// `"node"` or `"edge"`. Accept the Phase 3 signal form
-    /// (`"NodeType"` / `"EdgeType"`) too so the FE can forward
+    /// `"node"` or `"edge"`. Also accept the typed signal form
+    /// (`"NodeType"` / `"EdgeType"`) so the FE can forward
     /// `StaleConceptProposal.type_kind` unchanged.
     pub kind: String,
 }

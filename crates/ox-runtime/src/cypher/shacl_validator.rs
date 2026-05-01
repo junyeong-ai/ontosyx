@@ -1476,7 +1476,7 @@ mod tests {
     }
 
     // -------------------------------------------------------------
-    // Phase 1.5 — Closed / Disjoint / UniqueKey / UniqueLang.
+    // Closed / Disjoint / UniqueKey / UniqueLang constraints.
     // -------------------------------------------------------------
 
     fn closed_rule() -> RuleDef {

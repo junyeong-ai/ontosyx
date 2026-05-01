@@ -1,13 +1,10 @@
 [package]
 name = "ox-query-ir"
-description = "Ontosyx DB-agnostic query IR — QueryIR, PatternIR, PlanIR (Phase 3+ target)"
+description = "Ontosyx DB-agnostic query IR — QueryIR, PatternIR, PlanIR"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
-
-# Phase 3 scaffolding crate. The QueryIR / PatternIR / StructuredMatchQuery
-# / ResolvedQueryBindings types move here from `ox-core` in Phase 3-B.
 
 [dependencies]
 ox-core = { workspace = true }

@@ -88,8 +88,7 @@ pub struct AppState {
     /// multiple independent chat-stream requests; a per-request
     /// `DomainContext` field would reset the timestamp between a
     /// `resolve_ambiguity` call and the follow-up `query_graph`
-    /// call. Feeds the Phase 4.6 `clarification_success_rate`
-    /// quality signal.
+    /// call. Feeds the `clarification_success_rate` quality signal.
     pub clarification_tracker: ox_agent::clarification_tracker::SharedClarificationTracker,
     /// 30-second cache in front of `revoked_jwts` + `users.token_version`
     /// lookups. Sized for the read amplification `require_auth`

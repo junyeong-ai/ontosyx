@@ -11,8 +11,8 @@
 //! `ox-core` — primitives and shared infrastructure for the Ontosyx
 //! platform.
 //!
-//! After Phase 3-B (2026-04-20) this crate holds only what every other
-//! crate in the workspace needs: `OxError`, validated identifier
+//! This crate holds only what every other crate in the workspace
+//! needs: `OxError`, validated identifier
 //! newtypes (`GraphLabel`, `PropertyKey`, `VariableName`), the
 //! `define_id_newtype!` macro, localisation, the prompt-version
 //! wrapper, and the low-level schema snapshot types (`SourceSchema`,

@@ -7,7 +7,7 @@
 //!    on mismatch, return 409 so the caller refetches + rebuilds
 //!    the edit.
 //! 3. Clone the IR, apply each op, validate at the end.
-//! 4. Classify each op through Phase 6 routing; if any op routes to
+//! 4. Classify each op through change-routing; if any op routes to
 //!    `Queue`, the whole batch queues as one approval item and no
 //!    commit is made. Only fully-`Apply` batches commit
 //!    synchronously.

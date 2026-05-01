@@ -73,7 +73,7 @@ pub struct ResolveAmbiguityTool {
     /// stamps the caller's `ctx.session_id()`; the next `query_graph`
     /// invocation in the same session reads the stamp within a ~10
     /// minute window to flip the `ambiguity_was_clarified` signal
-    /// that drives the Phase 4.6 `clarification_success_rate` tile.
+    /// that drives the `clarification_success_rate` tile.
     pub clarification_tracker: crate::clarification_tracker::SharedClarificationTracker,
 }
 

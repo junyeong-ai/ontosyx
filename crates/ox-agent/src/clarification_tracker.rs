@@ -1,6 +1,6 @@
 //! In-memory session → last-resolve-ambiguity-ts tracker.
 //!
-//! Feeds the Phase 4.6 `clarification_success_rate` signal: when a
+//! Feeds the `clarification_success_rate` quality signal: when a
 //! `query_graph` call runs inside an agent session that had a
 //! `resolve_ambiguity` invocation in the recent past, the quality
 //! signal flips `ambiguity_was_clarified = true`. Over many queries

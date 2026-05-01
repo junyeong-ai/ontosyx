@@ -55,7 +55,7 @@ struct QueryGraphOutput {
     /// different consumers (LLM error-recovery vs FE chip rendering).
     /// Rendered as deep-link chips in the chat tool-call card —
     /// each chip jumps to the Glossary workbench so the modeller can
-    /// bind a term. ADR-0027 / ADR-0058 — second half of ADR-0056.
+    /// bind a term.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     unresolved_ambiguities: Vec<UnresolvedAmbiguityHint>,
 }

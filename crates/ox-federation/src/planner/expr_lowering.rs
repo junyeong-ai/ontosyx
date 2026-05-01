@@ -9,7 +9,7 @@
 //!   Null/Bool/Int/Float/String.
 //! - `Expr::Property { variable, field }` — resolves to a qualified
 //!   `col("<variable>.<field>")`. Qualification is load-bearing the
-//!   moment more than one scan is active (slice 5 JOIN lowering);
+//!   moment more than one scan is active (JOIN lowering);
 //!   single-scan plans already alias the table by the variable, so
 //!   `c.name` resolves identically to bare `name` there.
 //! - `Expr::Comparison` with Eq / Neq / Lt / Lte / Gt / Gte.
@@ -21,11 +21,10 @@
 //! - `Expr::StringOp` for StartsWith / EndsWith / Contains.
 //!
 //! Deliberately rejected (by variant, with message):
-//! - `Expr::Param` — slice 4c (bind parameter surface).
-//! - `Expr::FunctionCall` — slice 6.
+//! - `Expr::Param` — bind-parameter surface is not yet implemented.
+//! - `Expr::FunctionCall` — built-ins / UDFs are not yet implemented.
 //! - `Expr::Exists` / `Expr::Subquery` / `Expr::Case` — advanced
-//!   Cypher, lowering is non-trivial and lands with the respective
-//!   feature slice.
+//!   Cypher, lowering is non-trivial and not yet implemented.
 //! - `StringOp::Regex` — DataFusion has regex, but the semantics of
 //!   Cypher `=~` diverge on backreferences; defer until we have a
 //!   deliberate test plan.
@@ -103,22 +102,21 @@ pub fn expr_to_df(expr: &Expr) -> FederationResult<DfExpr> {
             }
         }
         Expr::Param { name } => Err(FederationError::unsupported(format!(
-            "ExprLowering: Expr::Param {{ name = '{name}' }} — parameter bindings \
-             are threaded through in slice 4c (query parameter surface)"
+            "ExprLowering: Expr::Param {{ name = '{name}' }} — parameter \
+             bindings are not yet implemented"
         ))),
         Expr::FunctionCall { function, .. } => Err(FederationError::unsupported(format!(
-            "ExprLowering: Expr::FunctionCall {{ function = {function:?} }} — \
-             GraphFunction lowering lands with slice 6 (built-ins + UDFs)"
+            "ExprLowering: Expr::FunctionCall {{ function = {function:?} }} \
+             is not yet implemented"
         ))),
         Expr::Exists { .. } => Err(FederationError::unsupported(
-            "ExprLowering: Expr::Exists { pattern } lowering waits on slice 5 \
-             (relationship / JOIN support)",
+            "ExprLowering: Expr::Exists is not yet implemented",
         )),
         Expr::Case { .. } => Err(FederationError::unsupported(
-            "ExprLowering: Expr::Case lowering lands with slice 6",
+            "ExprLowering: Expr::Case is not yet implemented",
         )),
         Expr::Subquery { .. } => Err(FederationError::unsupported(
-            "ExprLowering: Expr::Subquery lowering lands with slice 6",
+            "ExprLowering: Expr::Subquery is not yet implemented",
         )),
     }
 }

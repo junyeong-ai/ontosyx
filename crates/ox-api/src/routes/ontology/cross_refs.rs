@@ -3,10 +3,10 @@
 //! another (or within the same axis, when the link is semantically
 //! interesting — e.g. `NodeType.parent`).
 //!
-//! Feeds the Phase 4.2 follow-up visualisation on the Complete Map
-//! page. The FE groups these edges by `(source_axis, target_axis)`
-//! to draw a small 6-node React-Flow-style diagram; individual
-//! edges surface in a drill-down list.
+//! Feeds the cross-axis visualisation on the Complete Map page.
+//! The FE groups these edges by `(source_axis, target_axis)` to
+//! draw a small 6-node React-Flow-style diagram; individual edges
+//! surface in a drill-down list.
 //!
 //! This handler is intentionally exhaustive within the current
 //! pointer surface but does not walk every `Option<XxxId>` in the

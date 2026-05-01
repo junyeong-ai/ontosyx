@@ -160,10 +160,10 @@ pub fn parse_owl_turtle(
     turtle: &str,
     source_id: &ox_ontology::mapping::SourceId,
 ) -> OxResult<OntologyIR> {
-    // Phase 1: Parse into owned triples
+    // Parse Turtle into owned triples
     let triples = parse_triples(turtle)?;
 
-    // Phase 2-6: Extract ontology structures
+    // Extract ontology structures
     let input = extract_ontology_input(&triples)?;
 
     // Use normalize() to assign proper UUIDs and resolve references
@@ -182,7 +182,7 @@ pub fn parse_owl_turtle(
 }
 
 // ---------------------------------------------------------------------------
-// Phase 1: Parse Turtle into owned triples
+// Parse Turtle into owned triples
 // ---------------------------------------------------------------------------
 
 fn parse_triples(turtle: &str) -> OxResult<Vec<OwnedTriple>> {
@@ -242,7 +242,7 @@ fn parse_triples(turtle: &str) -> OxResult<Vec<OwnedTriple>> {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 2-6: Extract ontology structures from triples
+// Extract ontology structures from triples
 // ---------------------------------------------------------------------------
 
 fn extract_ontology_input(triples: &[OwnedTriple]) -> OxResult<InputOntologyDef> {

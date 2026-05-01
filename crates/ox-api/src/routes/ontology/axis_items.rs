@@ -2,8 +2,8 @@
 //! companion to `/map-summary`. Given one of the axis kinds the
 //! summary surfaces (e.g. `node_types`, `glossary_terms`,
 //! `value_sets`), returns the list of matching entries in the
-//! ontology's current version so the Phase 4.2 Complete Map page
-//! can render an inline drill-down.
+//! ontology's current version so the Complete Map page can render
+//! an inline drill-down.
 //!
 //! Intentionally narrow: returns an `{id, label, description}`
 //! triple per row. The label resolver picks the most specific

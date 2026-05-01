@@ -389,7 +389,7 @@ async fn main() -> anyhow::Result<()> {
     );
 
     // Daily draft-checkpoint cleanup — sweeps `expires_at` past
-    // rows from `draft_cluster_checkpoints` (ADR-0027). A
+    // rows from `draft_cluster_checkpoints`. A
     // successful design drops its own checkpoints inline; this
     // cron catches abandoned design sessions before the cache
     // accumulates.
@@ -499,11 +499,11 @@ async fn main() -> anyhow::Result<()> {
     let db_model_router = Arc::new(model_router::DbModelRouter::new(Arc::clone(&store)));
 
     // Process-wide clarification tracker — fed by ResolveAmbiguityTool
-    // and read by QueryGraphTool so the Phase 4.6
-    // `clarification_success_rate` signal flips when a query
-    // lands shortly after an ambiguity resolution in the same
-    // agent session. Shared with the background evict loop so
-    // stale session entries don't accumulate forever.
+    // and read by QueryGraphTool so the `clarification_success_rate`
+    // signal flips when a query lands shortly after an ambiguity
+    // resolution in the same agent session. Shared with the
+    // background evict loop so stale session entries don't
+    // accumulate forever.
     let clarification_tracker: Arc<
         ox_agent::clarification_tracker::ClarificationTracker,
     > = Arc::new(ox_agent::clarification_tracker::ClarificationTracker::new());
@@ -840,7 +840,7 @@ async fn main() -> anyhow::Result<()> {
                             }
                         }).await;
 
-                        // Evict LLM clients idle for over 1 hour (Phase 4.9).
+                        // Evict LLM clients idle for over 1 hour.
                         maintenance_client_pool.invalidate_idle(3600);
 
                         // Clean up stale tool review channels (abandoned sessions).

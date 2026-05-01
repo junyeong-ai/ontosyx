@@ -1,4 +1,4 @@
-//! Soft-delete rewriter — Phase 7.
+//! Soft-delete rewriter.
 //!
 //! Treats `_deleted_at: timestamp?` as the system-owned tombstone
 //! property on every node and relationship. The rewriter has two
@@ -20,21 +20,19 @@
 //! an explicit "un-delete" action) flip the bypass on. Default for
 //! every user-facing path is `false`.
 //!
-//! ## Phase-7 scoping notes
+//! ## Scoping notes
 //!
-//! - Edges generated `_deleted_at` injection on relationship variables
-//!   is currently out of scope: `MATCH (a)-[r]->(b) WHERE
-//!   r._deleted_at IS NULL` is the right shape, but pinning down the
-//!   semantics of "edge soft delete" (does deleting an edge also
-//!   tombstone the endpoints? what about COUNT(r) over tombstones?)
-//!   needs more design. Phase 7 covers nodes only; deferred work
-//!   is captured in `plan_roadmap_execution_2026_04_26.md`.
+//! - `_deleted_at` injection on relationship variables is currently
+//!   out of scope: `MATCH (a)-[r]->(b) WHERE r._deleted_at IS NULL`
+//!   is the right shape, but pinning down the semantics of "edge
+//!   soft delete" (does deleting an edge also tombstone the
+//!   endpoints? what about COUNT(r) over tombstones?) needs more
+//!   design. Nodes only for now.
 //! - `DETACH DELETE` retains its current rewrite — soft-delete the
-//!   node, leave attached edges. The plan calls out edge hard-detach
-//!   as a "judgment call"; promoting it requires AST clause-insertion
+//!   node, leave attached edges. Edge hard-detach is a judgment
+//!   call; promoting it requires AST clause-insertion
 //!   (`OPTIONAL MATCH (n)-[r]-() DELETE r SET n._deleted_at = …`)
 //!   which the partial AST does not yet expose ergonomically.
-//!   Recorded in the roadmap's Deferred section.
 
 use std::collections::{BTreeMap, HashSet};
 

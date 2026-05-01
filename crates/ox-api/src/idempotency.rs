@@ -1,4 +1,4 @@
-//! Idempotency-Key middleware (ADR-0047).
+//! Idempotency-Key middleware.
 //!
 //! Stripe-style replay layer for mutating LLM-driven endpoints.
 //! Defends against retries on transient failure double-charging

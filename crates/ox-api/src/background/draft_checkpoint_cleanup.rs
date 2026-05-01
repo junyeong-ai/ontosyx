@@ -1,4 +1,4 @@
-//! Daily draft-cluster-checkpoint cleanup — ADR-0027.
+//! Daily draft-cluster-checkpoint cleanup.
 //!
 //! `design_ontology_batch`'s checkpoint cache is bounded by the
 //! 24-hour `expires_at` on each row. A successful design drops its
