@@ -149,7 +149,7 @@ export function MembersTable({ wsId, members, onReload }: Props) {
                 className="border-b border-zinc-100 dark:border-zinc-800"
               >
                 <td className="py-2 text-zinc-900 dark:text-zinc-100">
-                  {m.name || m.email || m.user_id.slice(0, 8)}
+                  {m.name || m.email}
                 </td>
                 <td className="py-2">
                   {m.role === "owner" ? (
