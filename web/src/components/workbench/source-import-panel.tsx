@@ -8,7 +8,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { useSourcePreview } from "@/hooks/use-source-preview";
 import type { AnalyzeSelection, ProjectSource } from "@/types/projects";
 
-export type SourceImportMode = "all" | "subset" | "staged";
+type SourceImportMode = "all" | "subset" | "staged";
 
 export interface SourceImportValue {
   mode: SourceImportMode;

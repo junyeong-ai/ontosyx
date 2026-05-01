@@ -325,7 +325,7 @@ export const DeferredTableSchema = z.object({
   table: z.string(),
   reason: z.string(),
   deferred_at: z.string(),
-  revisit_at: z.string().nullable(),
+  revisit_at: z.string().optional(),
 });
 
 export const AnalysisScopeSchema = z.object({
@@ -333,7 +333,7 @@ export const AnalysisScopeSchema = z.object({
   deferred: z.array(DeferredTableSchema).default([]),
   excluded_by_policy: z.array(z.string()).default([]),
   fingerprints: z.record(z.string(), z.string()).default({}),
-  last_introspected_at: z.string().nullable().default(null),
+  last_introspected_at: z.string().optional(),
 });
 
 export const DesignProjectSchema = z.object({
@@ -357,7 +357,6 @@ export const DesignProjectSchema = z.object({
     deferred: [],
     excluded_by_policy: [],
     fingerprints: {},
-    last_introspected_at: null,
   }),
   user_id: z.string(),
   created_at: z.string(),

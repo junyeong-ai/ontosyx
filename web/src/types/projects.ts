@@ -183,14 +183,14 @@ export interface AnalysisScope {
   deferred: DeferredTable[];
   excluded_by_policy: string[];
   fingerprints: Record<string, string>;
-  last_introspected_at: string | null;
+  last_introspected_at?: string;
 }
 
 export interface DeferredTable {
   table: string;
   reason: string;
   deferred_at: string;
-  revisit_at: string | null;
+  revisit_at?: string;
 }
 
 export type RepoSource =

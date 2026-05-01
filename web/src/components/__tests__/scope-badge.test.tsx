@@ -25,7 +25,6 @@ function fixtureProject(): DesignProject {
           table: "audit_log",
           reason: "deferred at bootstrap",
           deferred_at: "2026-05-01T00:00:00Z",
-          revisit_at: null,
         },
       ],
       excluded_by_policy: [],

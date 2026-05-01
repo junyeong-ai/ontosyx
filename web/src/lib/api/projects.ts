@@ -106,7 +106,7 @@ export async function reanalyzeProject(
   });
 }
 
-export interface ReanalyzeModeledProjectRequest {
+interface ReanalyzeModeledProjectRequest {
   source: ProjectSource;
   revision: number;
   repo_source?: ReanalyzeProjectRequest["repo_source"];

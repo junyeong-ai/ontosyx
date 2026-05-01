@@ -14,14 +14,14 @@ import type {
   SuggestBindingsRequest,
 } from "@/lib/api/binding-suggestions";
 
-export interface BindingTermContext {
+interface BindingTermContext {
   term_id: string;
   term: string;
   aliases?: string[];
   description?: string;
 }
 
-export interface GlossaryBindingPanelProps {
+interface GlossaryBindingPanelProps {
   ontologyId: string;
   /** Current committed ontology version — required for optimistic
    * locking on the `/edits` batch. */
