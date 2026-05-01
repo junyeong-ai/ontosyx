@@ -73,6 +73,23 @@ pub async fn idempotency_layer(
         return Ok(next.run(req).await);
     };
 
+    // Streaming endpoints (`*/stream`) cannot replay byte-for-byte —
+    // SSE responses are produced incrementally and the
+    // request-bytes-in / response-bytes-out cache contract doesn't
+    // model them. Silently bypassing the cache (record-then-skip on
+    // the response side, the prior shape) gave callers a false
+    // sense of safety: a retry against the same Idempotency-Key
+    // hit a fresh cache miss and re-ran the full LLM cost. Reject
+    // explicitly so the caller knows their retry contract for
+    // streamed requests is caller-side, not header-side.
+    if is_streaming_path(req.uri().path()) {
+        return Err(AppError::bad_request(
+            "Idempotency-Key cannot be applied to streaming endpoints — \
+             SSE responses are produced incrementally and cannot replay. \
+             Drop the header and handle retries client-side.",
+        ));
+    }
+
     let principal = req
         .extensions()
         .get::<AuthClaims>()
@@ -148,6 +165,13 @@ pub async fn idempotency_layer(
         return Ok(response);
     }
     if is_streaming(response.headers()) {
+        // Defence-in-depth — the path-based reject above already
+        // catches the documented streaming routes, but a future
+        // handler that produces SSE without sitting on a `*/stream`
+        // path would otherwise leak past the contract. Skipping the
+        // record on a streamed response is correct (we cannot cache
+        // a chunked payload), and the path-based reject keeps the
+        // caller from forming a wrong replay assumption against it.
         return Ok(response);
     }
 
@@ -197,6 +221,14 @@ pub async fn idempotency_layer(
     }
 
     Ok(Response::from_parts(parts, Body::from(response_bytes)))
+}
+
+/// `true` when the request path targets an SSE streaming endpoint —
+/// every such route ends in `/stream`. Adding a new streaming route
+/// follows the same suffix convention so this predicate stays stable
+/// without an explicit allow-list.
+fn is_streaming_path(path: &str) -> bool {
+    path.ends_with("/stream")
 }
 
 fn extract_key(headers: &HeaderMap) -> Option<String> {
@@ -287,5 +319,20 @@ mod tests {
         let b = sha256(b"hello");
         assert_eq!(a, b);
         assert_ne!(a, sha256(b"hello!"));
+    }
+
+    #[test]
+    fn is_streaming_path_matches_documented_routes() {
+        assert!(is_streaming_path("/api/projects/abc/design/stream"));
+        assert!(is_streaming_path("/api/projects/abc/refine/stream"));
+        assert!(is_streaming_path("/api/chat/stream"));
+    }
+
+    #[test]
+    fn is_streaming_path_rejects_non_streaming_routes() {
+        assert!(!is_streaming_path("/api/projects/abc/design"));
+        assert!(!is_streaming_path("/api/projects/abc/refine"));
+        assert!(!is_streaming_path("/api/streaming-config"));
+        assert!(!is_streaming_path("/api/chat"));
     }
 }
