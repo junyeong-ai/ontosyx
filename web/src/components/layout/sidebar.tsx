@@ -11,6 +11,7 @@ import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import {
   AiNetworkIcon,
   Book02Icon,
+  CatalogueIcon,
   FolderOpenIcon,
   Layers01Icon,
   Settings02Icon,
@@ -142,6 +143,12 @@ export function Sidebar() {
           active={!onSettings && workspaceMode === "glossary"}
           label={t("modeGlossary")}
           icon={Book02Icon}
+        />
+        <ModeLink
+          href="/vocabulary"
+          active={!onSettings && workspaceMode === "vocabulary"}
+          label={t("modeVocabulary")}
+          icon={CatalogueIcon}
         />
       </nav>
 

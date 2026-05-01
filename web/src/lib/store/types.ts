@@ -71,7 +71,8 @@ export type WorkspaceMode =
   | "analyze"
   | "explore"
   | "dashboard"
-  | "glossary";
+  | "glossary"
+  | "vocabulary";
 
 // ---------------------------------------------------------------------------
 // Design mode sub-tabs (bottom panel within Design workspace)

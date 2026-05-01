@@ -23,6 +23,7 @@ const MODE_PREFIXES: ReadonlyArray<[string, WorkspaceMode]> = [
   ["/explore", "explore"],
   ["/dashboard", "dashboard"],
   ["/glossary", "glossary"],
+  ["/vocabulary", "vocabulary"],
 ];
 
 export function useWorkspaceMode(): WorkspaceMode {

@@ -556,6 +556,7 @@
       "modeExplore": "탐색",
       "modeDashboard": "대시보드",
       "modeGlossary": "용어",
+      "modeVocabulary": "어휘",
       "settingsLabel": "설정",
       "hideExplorer": "탐색기 숨기기",
       "showExplorer": "탐색기 표시",
@@ -1595,7 +1596,6 @@
         "federation": "연합 데이터 소스",
         "vocabulary": "어휘",
         "glossary": "용어사전",
-        "codeSystems": "코드 시스템",
         "valueSets": "값 집합",
         "conceptMaps": "개념 매핑",
         "rules": "규칙"
@@ -2818,6 +2818,14 @@
           "usage": "사용처",
           "bindings": "바인딩"
         }
+      }
+    },
+    "vocabulary": {
+      "heading": "어휘",
+      "subtitle": "워크스페이스 범위 어휘 레지스트리 — 코드 시스템, 값 집합 등 용어집이 앵커하는 도메인 어휘를 관리합니다.",
+      "tabsAria": "어휘 레지스트리",
+      "tabs": {
+        "code-systems": "코드 시스템"
       }
     },
     "projects": {

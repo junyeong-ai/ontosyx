@@ -50,21 +50,13 @@ const NAV_GROUPS: NavGroup[] = [
   {
     // Φ4 — registry admin surfaces. Glossary CRUD + batch
     // bindings live at the top-level `/glossary` workbench mode
-    // (ADR-0058 + N16-a) — the Concept layer is cross-cutting and
-    // shouldn't sit behind the admin gate, and the bindings panel
-    // is term-scoped so it lives next to term selection rather
-    // than as a standalone settings page. The remaining vocabulary
-    // registries (code systems, value sets, concept maps) and
-    // Rules stay under Settings since they're per-workspace
-    // administrative configuration with no per-record workbench
-    // surface yet.
+    // (ADR-0058 + N16-a). Code systems moved to the `/vocabulary`
+    // workbench mode (N16-b) — they're domain-vocabulary editing
+    // not admin configuration. Value sets, concept maps, and
+    // rules will follow into `/vocabulary` as their absorption
+    // sub-tasks land; until then they stay here.
     titleKey: "vocabulary",
     items: [
-      {
-        labelKey: "codeSystems",
-        href: "/settings/codesystems",
-        adminOnly: true,
-      },
       { labelKey: "valueSets", href: "/settings/valuesets", adminOnly: true },
       {
         labelKey: "conceptMaps",
