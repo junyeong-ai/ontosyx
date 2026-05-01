@@ -51,7 +51,7 @@ function ontology(): OntologyIR {
     id: "ont-1",
     name: "test",
 description: { default: "" },
-    version: 1,
+    version: { number: 1 },
     node_types: [person(), company()],
     edge_types: [worksAt()],
   };

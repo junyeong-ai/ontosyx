@@ -46,7 +46,7 @@ function ontologyDetailFixture(): OntologyDetail {
       id: "lineage-1",
       name: "Fixture",
       description: { default: "" },
-      version: 1,
+      version: { number: 1 },
       node_types: [
         {
           id: "nt_customer",

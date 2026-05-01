@@ -80,11 +80,19 @@ export const IndexDefSchema = z.object({
   similarity: z.string().optional(),
 });
 
+export const OntologyVersionSchema = z.object({
+  number: z.number(),
+  valid_from: z.string().optional(),
+  valid_to: z.string().optional(),
+  committed_by: z.string().optional(),
+  commit_message: z.string().optional(),
+});
+
 export const OntologyIRSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: LocalizedTextSchema,
-  version: z.number(),
+  version: OntologyVersionSchema,
   node_types: z.array(NodeTypeDefSchema),
   edge_types: z.array(EdgeTypeDefSchema),
   indexes: z.array(IndexDefSchema).optional(),

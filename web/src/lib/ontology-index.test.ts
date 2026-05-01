@@ -13,7 +13,7 @@ function ontology(): OntologyIR {
     id: "ont-1",
     name: "test",
     description: { default: "" },
-    version: 1,
+    version: { number: 1 },
     node_types: [
       {
         id: "n-person",
@@ -108,7 +108,7 @@ describe("buildOntologyIndex — edgesByNodeId adjacency", () => {
       id: "ont-loop",
       name: "loop",
       description: { default: "" },
-      version: 1,
+      version: { number: 1 },
       node_types: [
         { id: "n-page", label: "Page", description: { default: "" }, properties: [] },
       ],
@@ -138,7 +138,7 @@ describe("buildOntologyIndex — edgesByNodeId adjacency", () => {
       id: "ont-solo",
       name: "solo",
       description: { default: "" },
-      version: 1,
+      version: { number: 1 },
       node_types: [
         { id: "n-solo", label: "Solo", description: { default: "" }, properties: [] },
       ],

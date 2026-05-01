@@ -127,7 +127,7 @@ export function PropertiesFacet({
                   ontology.id
                     ? {
                         ontologyId: ontology.id,
-                        expectedVersion: ontology.version,
+                        expectedVersion: ontology.version.number,
                         ownerKind: kind,
                         ownerTypeId: entity.id,
                       }

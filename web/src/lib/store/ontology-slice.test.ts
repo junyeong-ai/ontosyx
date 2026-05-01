@@ -27,7 +27,7 @@ function makeOntology(overrides?: Partial<OntologyIR>): OntologyIR {
     id: "test-ont",
     name: "Test",
 description: { default: "" },
-    version: 1,
+    version: { number: 1 },
     node_types: [
       {
         id: "n1",

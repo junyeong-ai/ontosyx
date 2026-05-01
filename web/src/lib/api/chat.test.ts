@@ -29,7 +29,7 @@ const BASE_REQUEST = {
     id: "o1",
     name: "Test",
     description: { default: "" },
-    version: 1,
+    version: { number: 1 },
     node_types: [],
     edge_types: [],
   },

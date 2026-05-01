@@ -53,6 +53,17 @@ export interface CursorPage<T> {
 // `null` (none today). A naive `?: T | null` everywhere
 // under-promised the actual wire shape.
 
+/** Version metadata for an ontology snapshot. Mirrors the Rust
+ *  `OntologyVersion` struct — `number` is the monotonic comparator;
+ *  the bitemporal / provenance fields are skipped on `None`. */
+export interface OntologyVersion {
+  number: number;
+  valid_from?: string;
+  valid_to?: string;
+  committed_by?: string;
+  commit_message?: string;
+}
+
 export interface OntologyIR {
   id: string;
   name: string;
@@ -60,7 +71,10 @@ export interface OntologyIR {
    *  so the wire always carries the field — empty when no
    *  description is set. */
   description: LocalizedText;
-  version: number;
+  /** Version metadata. Wire shape is the full `OntologyVersion`
+   *  struct (`{ number, valid_from?, ... }`), not a bare integer.
+   *  Use `version.number` for optimistic-CAS comparisons. */
+  version: OntologyVersion;
   node_types: NodeTypeDef[];
   edge_types: EdgeTypeDef[];
   /** Backend `Vec<IndexDef>` with `skip_serializing_if =
