@@ -242,7 +242,7 @@ export function PropertyRow({
           value={defaultText(prop.description)}
           placeholder="Add description..."
           onSave={(description) =>
-            onUpdate({ description: description ? { default: description } : null })
+            onUpdate({ description: { default: description } })
           }
           className="mt-0.5 break-words text-muted-foreground"
         />

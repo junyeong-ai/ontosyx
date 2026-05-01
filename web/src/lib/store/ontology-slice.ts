@@ -349,7 +349,7 @@ function applyCommandToOntology(
       if (patch.name !== undefined) inversePatch.name = prop.name;
       if (patch.property_type !== undefined) inversePatch.property_type = prop.property_type;
       if (patch.nullable !== undefined) inversePatch.nullable = prop.nullable;
-      if (patch.description !== undefined) inversePatch.description = prop.description ?? null;
+      if (patch.description !== undefined) inversePatch.description = prop.description;
 
       const newOntology = mapOwner(ontology, cmd.owner_id, (o) => ({
         ...o,
@@ -360,7 +360,7 @@ function applyCommandToOntology(
                 ...(patch.name !== undefined && { name: patch.name }),
                 ...(patch.property_type !== undefined && { property_type: patch.property_type }),
                 ...(patch.nullable !== undefined && { nullable: patch.nullable }),
-                ...(patch.description !== undefined && { description: patch.description ?? undefined }),
+                ...(patch.description !== undefined && { description: patch.description }),
               }
             : p,
         ),

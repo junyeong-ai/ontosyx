@@ -466,13 +466,24 @@ export type OntologyCommand =
  * `?: T | null` is correct here — the only place in the IR types
  * where `null` carries meaning beyond "absent."
  */
+/**
+ * Partial update for a property. Mirrors the Rust `PropertyPatch`:
+ * - field absent → "no change" for that attribute.
+ * - `description` present → set to that value (use `{default: ""}`
+ *   for "clear"; `null` is **not** a clear signal — the backend
+ *   treats null as absent).
+ * - `default_value` present → set; absent / `null` is "no change"
+ *   (clearing a default isn't expressible through this surface).
+ *
+ * `source_column` is **not** a patch field — `PropertyDef.source_column`
+ * is set at design time and isn't surfaced for in-place updates.
+ */
 export interface PropertyPatch {
   name?: string;
   property_type?: PropertyType;
   nullable?: boolean;
-  default_value?: unknown | null;
-  description?: LocalizedText | null;
-  source_column?: string | null;
+  default_value?: unknown;
+  description?: LocalizedText;
 }
 
 // --- Ontologies (Λ storage model) ----------------------------------------
