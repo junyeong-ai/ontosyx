@@ -231,34 +231,66 @@ _stop_fe() {
 }
 
 # ── Health Check ────────────────────────────────────────────────
+# Hits /api/healthz — the dedicated probe endpoint that returns flat
+# JSON (no envelope, no auth). Industry-standard k8s/Datadog/Prometheus
+# convention. /api/health stays wrapped for the FE admin page; both
+# share body construction in the backend so they cannot drift.
+#
+# Uses `jq` (already a dev-machine standard) instead of inline python3
+# for cleaner parsing, faster execution, and trivial multi-key lookups.
+_jq_or_die() {
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "  ${R}jq not found — install with \`brew install jq\` (macOS) or your package manager${N}" >&2
+    return 1
+  fi
+}
+
 _health() {
   echo ""
   echo "  ${C}HEALTH CHECK${N}"
   echo "  ${D}──────────────────────────────────────────${N}"
 
+  _jq_or_die || { echo ""; return 1; }
+
   # Backend API
   if _is_running $BE_PORT; then
     local resp
-    resp=$(curl -s "http://localhost:${BE_PORT}/api/health" 2>/dev/null || echo '{}')
-    local status
-    status=$(echo "$resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','?'))" 2>/dev/null || echo "error")
-    if [ "$status" = "ok" ]; then
-      echo "  ${OK} ${G}API health: ok${N}"
-    elif [ "$status" = "degraded" ]; then
-      echo "  ${WARN} ${Y}API health: degraded${N}"
-    else
-      echo "  ${NO} ${R}API health: ${status}${N}"
+    resp=$(curl -s "http://localhost:${BE_PORT}/api/healthz" --max-time 5 2>/dev/null || echo '{}')
+
+    # Defensive: accept both flat (/api/healthz) and wrapped
+    # (/api/health, legacy) shapes so this script tolerates a future
+    # endpoint rename without silently going dark.
+    local status pg_ok neo4j_ok llm_model graph_backend
+    status=$(echo "$resp"        | jq -r '.data.status // .status // "?"')
+    pg_ok=$(echo "$resp"         | jq -r '.data.components.postgres // .components.postgres // "?"')
+    neo4j_ok=$(echo "$resp"      | jq -r '.data.components.neo4j // .components.neo4j // "?"')
+    graph_backend=$(echo "$resp" | jq -r '.data.components.graph_backend // .components.graph_backend // ""')
+    llm_model=$(echo "$resp"     | jq -r '.data.components.llm.model // .components.llm.model // "?"')
+
+    case "$status" in
+      ok)        echo "  ${OK} ${G}API health: ok${N}" ;;
+      degraded)  echo "  ${WARN} ${Y}API health: degraded${N}" ;;
+      *)         echo "  ${NO} ${R}API health: ${status}${N}" ;;
+    esac
+
+    # Component details — colourise OK vs anything else so an unhealthy
+    # component pops in a quick scan.
+    _component_line() {
+      local label=$1 value=$2
+      if [ "$value" = "ok" ]; then
+        printf "  ${D}  %-9s${N} ${G}%s${N}\n" "${label}:" "$value"
+      elif [ -z "$value" ] || [ "$value" = "?" ]; then
+        printf "  ${D}  %-9s %s${N}\n" "${label}:" "${value:-?}"
+      else
+        printf "  ${D}  %-9s${N} ${R}%s${N}\n" "${label}:" "$value"
+      fi
+    }
+    _component_line "postgres" "$pg_ok"
+    _component_line "neo4j"    "$neo4j_ok"
+    if [ -n "$graph_backend" ] && [ "$graph_backend" != "none" ]; then
+      printf "  ${D}  %-9s %s${N}\n" "backend:" "$graph_backend"
     fi
-
-    # Component details
-    local pg_ok neo4j_ok llm_model
-    pg_ok=$(echo "$resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('components',{}).get('postgres','?'))" 2>/dev/null || echo "?")
-    neo4j_ok=$(echo "$resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('components',{}).get('neo4j','?'))" 2>/dev/null || echo "?")
-    llm_model=$(echo "$resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('components',{}).get('llm',{}).get('model','?'))" 2>/dev/null || echo "?")
-
-    echo "  ${D}  postgres: ${pg_ok}${N}"
-    echo "  ${D}  neo4j:    ${neo4j_ok}${N}"
-    echo "  ${D}  llm:      ${llm_model}${N}"
+    printf "  ${D}  %-9s %s${N}\n" "llm:" "$llm_model"
   else
     echo "  ${NO} ${D}Backend not running${N}"
   fi
@@ -274,13 +306,15 @@ _health() {
     echo "  ${NO} ${D}Frontend not running${N}"
   fi
 
-  # Model configs
+  # Model configs — protected endpoint, still wrapped in `data`. Use
+  # the same defensive `// .` fallback so the script works regardless
+  # of envelope changes upstream.
   if _is_running $BE_PORT; then
     local model_count
     model_count=$(curl -s "http://localhost:${BE_PORT}/api/models/configs" \
-      -H "X-API-Key: dev-api-key-ontosyx" 2>/dev/null | \
-      python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
-    echo "  ${D}  model configs: ${model_count}${N}"
+      -H "X-API-Key: dev-api-key-ontosyx" --max-time 5 2>/dev/null | \
+      jq -r '(.data // .) | if type == "array" then length else 0 end' 2>/dev/null || echo "0")
+    printf "  ${D}  %-9s %s${N}\n" "configs:" "$model_count"
   fi
 
   echo ""

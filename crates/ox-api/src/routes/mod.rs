@@ -45,6 +45,12 @@ pub fn router(state: AppState) -> Router {
     // Public routes (no auth required)
     let public = Router::new()
         .route("/health", get(health::health_check))
+        // Industry-standard liveness/readiness probe — flat shape,
+        // no envelope, no auth. Used by k8s probes, Datadog,
+        // Prometheus, and ops scripts. /api/health stays wrapped
+        // for the FE admin page; the two share body construction
+        // so they cannot drift.
+        .route("/healthz", get(health::healthz))
         .route("/config/ui", get(config::get_ui_config))
         .route("/auth/token", post(auth::create_token))
         .route(
