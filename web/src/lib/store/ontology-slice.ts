@@ -9,6 +9,7 @@ import type { AppStore, CommandEntry, OntologySlice } from "./types";
 import { type OntologyIndex, buildOntologyIndex } from "@/lib/ontology-index";
 import { toast } from "sonner";
 import { arr } from "@/lib/ir-collections";
+import { getI18nBridge } from "@/lib/i18n-bridge";
 
 const MAX_UNDO_DEPTH = 50;
 
@@ -553,7 +554,7 @@ export const createOntologySlice: StateCreator<AppStore, [], [], OntologySlice> 
     const newStack = [...commandStack, { command, inverse }];
     const capped = capStack(newStack);
     if (capped.length < newStack.length && !capWarningShown) {
-      toast.info("Undo history limit reached");
+      toast.info(getI18nBridge().inspectorToast.undoLimit);
       capWarningShown = true;
     }
     set({

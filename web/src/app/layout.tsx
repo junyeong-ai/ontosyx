@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { Toaster } from "sonner";
 import { ConfirmProvider } from "@/components/providers/confirm-provider";
+import { I18nBridgeProvider } from "@/lib/i18n-bridge";
 import { WelcomeModal } from "@/components/onboarding/welcome-modal";
 import { NarrowViewportBanner } from "@/components/ui/narrow-viewport-banner";
 import { SessionExpiredOverlay } from "@/components/collab/session-expired-overlay";
@@ -75,10 +76,12 @@ export default async function RootLayout({
         </a>
         <NextIntlClientProvider locale={locale} messages={messages}>
           <QueryProvider>
-            <ConfirmProvider>{children}</ConfirmProvider>
-            <WelcomeModal />
-            <SessionExpiredOverlay />
-            <NarrowViewportBanner />
+            <I18nBridgeProvider>
+              <ConfirmProvider>{children}</ConfirmProvider>
+              <WelcomeModal />
+              <SessionExpiredOverlay />
+              <NarrowViewportBanner />
+            </I18nBridgeProvider>
           </QueryProvider>
           {/* Dev-only axe-core runtime — tree-shaken in production. */}
           {process.env.NODE_ENV === "development" && <A11yProvider />}

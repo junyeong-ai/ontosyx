@@ -3522,7 +3522,12 @@
         "exportMermaid": "Mermaid 다이어그램",
         "exportGraphql": "GraphQL 스키마",
         "exportOwl": "OWL/Turtle",
-        "exportShacl": "SHACL Shapes"
+        "exportShacl": "SHACL Shapes",
+        "image": {
+          "nothingToExport": "내보낼 항목이 없습니다",
+          "exported": "{format} 으로 내보냈습니다",
+          "failed": "내보내기에 실패했습니다"
+        }
       },
       "commandPalette": {
         "placeholder": "명령을 입력하세요...",
@@ -4342,6 +4347,11 @@
             "loading": "Provenance 불러오는 중…",
             "unavailable": "저장 불가 — 실행 결과를 사용할 수 없습니다"
           }
+        },
+        "pin": {
+          "untitled": "이름 없음",
+          "pinned": "대시보드에 고정되었습니다",
+          "failed": "고정에 실패했습니다"
         }
       },
       "config": {

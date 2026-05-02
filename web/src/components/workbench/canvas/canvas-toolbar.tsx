@@ -32,9 +32,16 @@ export function CanvasToolbar({
   onApplyPositions,
 }: CanvasToolbarProps) {
   const t = useTranslations("workbench.canvas.toolbar");
+  const tImage = useTranslations("workbench.canvas.toolbar.image");
   const exportRef = useRef<HTMLDivElement>(null);
   const closeExport = useCallback(() => setIsExportOpen(false), [setIsExportOpen]);
   useClickOutside(exportRef, closeExport, isExportOpen);
+
+  const imageCopy = {
+    nothingToExport: tImage("nothingToExport"),
+    exported: tImage("exported"),
+    failed: tImage("failed"),
+  };
 
   return (
     <div className="absolute right-2 top-2 z-10 flex flex-wrap items-center justify-end gap-1.5">
@@ -55,13 +62,13 @@ export function CanvasToolbar({
           <div className="absolute right-0 top-full mt-1 min-w-[160px] rounded-lg border border-divider bg-surface-base py-1 shadow-lg">
             <div className="px-3 py-1 text-2xs font-medium uppercase tracking-wider text-muted-foreground">{t("imageSection")}</div>
             <button
-              onClick={() => { setIsExportOpen(false); exportCanvasImage(nodes, "png", ontologyName); }}
+              onClick={() => { setIsExportOpen(false); exportCanvasImage(nodes, "png", ontologyName, imageCopy); }}
               className="flex w-full items-center px-3 py-1.5 text-xs text-foreground hover:bg-surface-inset-muted"
             >
               {t("exportPng")}
             </button>
             <button
-              onClick={() => { setIsExportOpen(false); exportCanvasImage(nodes, "svg", ontologyName); }}
+              onClick={() => { setIsExportOpen(false); exportCanvasImage(nodes, "svg", ontologyName, imageCopy); }}
               className="flex w-full items-center px-3 py-1.5 text-xs text-foreground hover:bg-surface-inset-muted"
             >
               {t("exportSvg")}

@@ -121,6 +121,7 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
   // The canonical QueryIR is always read from the persisted row,
   // never from the LLM-facing tool envelope.
   const tSave = useTranslations("workbench.queryBuilder.results.saveButton");
+  const tPin = useTranslations("workbench.queryBuilder.results.pin");
   const isQueryResult = toolCall.name === "query_graph";
   const hasExecutionId = Boolean(parsed?.execution_id);
   const insightReady = Boolean(execution?.query_ir);
@@ -160,15 +161,15 @@ function ToolResultCard({ toolCall }: { toolCall: ToolCall }) {
     try {
       const widgetType = toolCall.name === "query_graph" ? "auto" : "json";
       await addWidget(selectedDashId, {
-        title: widgetTitle || "Untitled",
+        title: widgetTitle || tPin("untitled"),
         widget_type: widgetType,
         query: parsed?.compiled_query ?? undefined,
         widget_spec: {},
       });
-      toast.success("Pinned to dashboard");
+      toast.success(tPin("pinned"));
       setPinOpen(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to pin");
+      toast.error(err instanceof Error ? err.message : tPin("failed"));
     } finally {
       setIsPinning(false);
     }

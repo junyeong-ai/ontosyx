@@ -408,14 +408,21 @@ function downloadBlob(dataUrl: string, filename: string) {
   document.body.removeChild(a);
 }
 
+export interface ExportCanvasToastCopy {
+  nothingToExport: string;
+  exported: string;
+  failed: string;
+}
+
 export async function exportCanvasImage(
   flowNodes: Node[],
   format: "png" | "svg",
   ontologyName: string,
+  copy: ExportCanvasToastCopy,
 ) {
   const el = document.querySelector(".react-flow__viewport") as HTMLElement | null;
   if (!el || flowNodes.length === 0) {
-    toast.error("Nothing to export");
+    toast.error(copy.nothingToExport);
     return;
   }
   const bounds = getNodesBounds(flowNodes);
@@ -441,9 +448,9 @@ export async function exportCanvasImage(
       const dataUrl = await toSvg(el, options);
       downloadBlob(dataUrl, `${sanitized}_ontology.svg`);
     }
-    toast.success(`Exported as ${format.toUpperCase()}`);
+    toast.success(copy.exported.replace("{format}", format.toUpperCase()));
   } catch {
-    toast.error("Export failed");
+    toast.error(copy.failed);
   }
 }
 

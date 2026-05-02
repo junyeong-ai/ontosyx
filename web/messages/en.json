@@ -3536,7 +3536,12 @@
         "exportMermaid": "Mermaid Diagram",
         "exportGraphql": "GraphQL Schema",
         "exportOwl": "OWL/Turtle",
-        "exportShacl": "SHACL Shapes"
+        "exportShacl": "SHACL Shapes",
+        "image": {
+          "nothingToExport": "Nothing to export",
+          "exported": "Exported as {format}",
+          "failed": "Export failed"
+        }
       },
       "commandPalette": {
         "placeholder": "Type a command...",
@@ -4356,6 +4361,11 @@
             "loading": "Loading provenance…",
             "unavailable": "Save unavailable — execution data is not accessible"
           }
+        },
+        "pin": {
+          "untitled": "Untitled",
+          "pinned": "Pinned to dashboard",
+          "failed": "Failed to pin"
         }
       },
       "config": {

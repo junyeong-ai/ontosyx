@@ -35,7 +35,13 @@ import type { QualityGap } from "@/types/api";
 function CanvasInner({ gaps }: { gaps: QualityGap[] }) {
   const tModeActions = useTranslations("chrome.modeActions");
   const tInspector = useTranslations("inspector.toast");
+  const tImage = useTranslations("workbench.canvas.toolbar.image");
   const { ontology, select, clearSelection, setHighlightedBindings, setNeighborhoodFocus } = useCanvasState();
+  const imageCopy = {
+    nothingToExport: tImage("nothingToExport"),
+    exported: tImage("exported"),
+    failed: tImage("failed"),
+  };
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -72,8 +78,8 @@ function CanvasInner({ gaps }: { gaps: QualityGap[] }) {
     runAutoLayout: () => runAutoLayout(nodes, edges),
     selectAllNodes,
     deselectAll,
-    exportPng: () => exportCanvasImage(nodes, "png", ontology?.name ?? "ontology"),
-    exportSvg: () => exportCanvasImage(nodes, "svg", ontology?.name ?? "ontology"),
+    exportPng: () => exportCanvasImage(nodes, "png", ontology?.name ?? "ontology", imageCopy),
+    exportSvg: () => exportCanvasImage(nodes, "svg", ontology?.name ?? "ontology", imageCopy),
     setIsPaletteOpen,
   });
   const memoizedPaletteCommands = useMemo(() => getPaletteCommands(), [getPaletteCommands]);
